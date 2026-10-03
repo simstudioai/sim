@@ -27,15 +27,21 @@ apps/sim/blocks/blocks/{service}.ts # Block definition
 apps/sim/tools/registry.ts          # Tool registry entries for this service
 apps/sim/blocks/registry-maps.ts    # Block + meta registry entry (BLOCK_REGISTRY / BLOCK_META_REGISTRY)
 apps/sim/components/icons.tsx        # Icon definition
-apps/sim/lib/auth/auth.ts           # OAuth config — should use getCanonicalScopesForProvider()
+apps/sim/lib/auth/connectors/providers.ts # Better Auth connector providers (buildConnectorProviders) — should use getCanonicalScopesForProvider()
 apps/sim/lib/oauth/oauth.ts         # OAuth provider config — single source of truth for scopes
-apps/sim/lib/oauth/utils.ts               # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
-apps/sim/lib/core/config/env-capabilities.ts # OAuth client runtime capability source of truth
+apps/sim/lib/oauth/utils.ts         # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
+packages/deployment-config/src/env-capabilities.ts # OAuth client runtime capability source of truth
 apps/sim/lib/core/config/env.ts     # Runtime env schema for capability fields
-scripts/setup/capability-config.ts  # Exhaustive CLI input-mode mapping for OAuth fields
-apps/sim/lib/integrations/integrations.json # Generated client-safe integration catalog
-apps/sim/lib/integrations/service-account-metadata.ts # Lightweight service-account projection
+packages/sim-setup/src/capability-config.ts # Exhaustive CLI input-mode mapping for OAuth fields
+packages/deployment-config/src/integrations.json # Generated client-safe integration catalog
+packages/deployment-config/src/service-account-providers.generated.ts # Generated provider-ID facts
+packages/deployment-config/src/service-account-metadata.ts # Handwritten deployment policy
 ```
+
+If the block, its triggers, or connector fields use a `selectorKey`, also apply the `validate-selector` skill and read
+the key's entry in `apps/sim/lib/selectors/manifest.ts`, its server attachment and provider listing
+primitive, and the shared context builder. Selector provider logic runs only server-side through
+`selectors.execute`.
 
 ## Step 2: Pull API Documentation
 
@@ -147,19 +153,20 @@ search, extraction, or "AI-powered" marketing terminology.
 - [ ] Serialized content proven to be sent directly to an external model is selected by
       `request.modelInput`, projected before the existing formatter parses it, and has deterministic
       formatter behavior when a whole-value placeholder is invalid for the serialized grammar
-- [ ] Actual inline/raw AI-consumed bytes owned by an authenticated internal route use
-      `privateProvenance` (or `mode: 'private-provenance'`), and the route validates
-      `validateOpaqueModelInputProvenance` before model egress; storage keys, paths, signed URLs,
+- [ ] Actual inline/raw AI-consumed bytes owned by a registered in-process operation use
+      `operation.modelInput` with `privateInputPaths` (or `mode: 'private-provenance'`), and the
+      operation calls `validateOpaqueModelInputProvenance` before model egress; storage keys, paths, signed URLs,
       and ordinary remote URLs are not treated as byte provenance, while tracked stored bytes are
       authorized independently at the owning model-egress boundary
 - [ ] Persisted workspace-file contents are checked with the shared provenance guard only when
       their bytes or decoded content cross into a model/tool-result boundary; ordinary file APIs
       remain unchanged. Unsupported secret-bearing file paths are rejected at `file_write`
 - [ ] Sim-owned durable writes and internal execution handoffs that can enter workflows/models use
-      field-scoped `request.secretProvenance`; authenticated receivers validate the exact selection
+      field-scoped `operation.secretProvenance`; the owning operation validates the exact selection
       and scope, strip private metadata, and persist, import, or propagate it at the owning boundary
-- [ ] Private provenance is never attached to external URLs or `directExecution`; proven
-      model-visible external fields use projection, while other external inputs remain unchanged
+- [ ] Private provenance is never attached to external URLs; registered in-process operations
+      preserve it through `operation.modelInput` / `operation.secretProvenance`, while proven
+      model-visible external fields use request projection and other external inputs remain unchanged
 - [ ] No tool performs raw secret plaintext/source substitution or serializes plaintext provenance
 - [ ] No `transformResponse` or tool-local helper blanket-sanitizes ordinary third-party results;
       only execution-scoped, activated Sim provenance is projected at shared model/log boundaries
@@ -176,7 +183,7 @@ search, extraction, or "AI-powered" marketing terminology.
 
 Treat a missing or bypassed model, durable, or internal-execution provenance boundary as
 **critical**. Do not fix it with a tool-specific string replacer or by sanitizing every provider
-result; repair the shared request, authenticated internal-route, persistence, or re-entry boundary
+result; repair the shared request, in-process operation, persistence, or re-entry boundary
 that owns the data.
 
 ## Step 4: Validate Block
@@ -191,9 +198,9 @@ For **each tool** in `tools.access`:
   - Shown when that operation is selected (correct `condition`)
   - Marked as `required: true` (or conditionally required)
 - [ ] Every **optional** tool param has a corresponding subBlock input (or is intentionally omitted if truly never needed)
-- [ ] SubBlock `id` values are unique across the entire block — no duplicates even across different conditions
+- [ ] Every subBlock `id` is unique (duplicates collide silently; the last definition wins). `blocks.test.ts` fails a duplicate within one condition unless the copies are a basic/advanced mode-swap pair, one basic plus trigger-mode copies, or all carry `canonicalParamId`. The only sanctioned cross-condition reuse is the hosted-key `apiKey` pair (`add-hosted-key` skill)
 - [ ] The `tools.config.tool` function returns the correct tool ID for every possible operation value
-- [ ] The `tools.config.params` function correctly maps subBlock IDs to tool param names when they differ
+- [ ] Each subBlock (or its `canonicalParamId`) is named exactly after the tool param it fills. A required `user-only` param that is only renamed in `tools.config.params` fails `bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params
 
 ### SubBlocks
 - [ ] Operation dropdown lists ALL tool operations available in `tools.access`
@@ -209,9 +216,12 @@ For **each tool** in `tools.access`:
   - Enum/fixed options → `dropdown`
   - Free text → `short-input`
   - Long text/content → `long-input`
-  - True/false → `dropdown` with Yes/No options (not `switch` unless purely UI toggle)
+  - True/false → `switch` (a Yes/No `dropdown` only when the tool needs a third "unset" state)
   - Credentials → `oauth-input` with correct `serviceId`
 - [ ] Dropdown `value: () => 'default'` is set for dropdowns with a sensible default
+- [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder` — including
+      password fields (`Enter your API key`). Formatted values show the shape
+      (`2023-01-01T00:00:00Z`); optional fields with a server default name it. See add-integration → Step 3
 
 ### Advanced Mode
 - [ ] Optional, rarely-used fields are set to `mode: 'advanced'`:
@@ -229,23 +239,22 @@ For **each tool** in `tools.access`:
 - [ ] Timestamp fields have `wandConfig` with `generationType: 'timestamp'`
 - [ ] Comma-separated list fields have `wandConfig` with a descriptive prompt
 - [ ] Complex filter/query fields have `wandConfig` with format examples in the prompt
-- [ ] All `wandConfig` prompts end with "Return ONLY the [format] - no explanations, no extra text."
+- [ ] All `wandConfig` prompts end with an explicit `Return ONLY the <format>` instruction so the generated value can be pasted directly into the field
 - [ ] `wandConfig.placeholder` describes what to type in natural language
 
 ### Tools Config
 - [ ] `tools.access` lists **every** tool ID the block can use — none missing
 - [ ] `tools.config.tool` returns the correct tool ID for each operation
-- [ ] Type coercions are in `tools.config.params` (runs at execution time), NOT in `tools.config.tool` (runs at serialization time before variable resolution)
+- [ ] Type coercions are in `tools.config.params` (runs at execution time), NOT in `tools.config.tool` (runs at serialization time before variable resolution — coercing there destroys dynamic references like `<Block.output>`)
 - [ ] `tools.config.params` handles:
   - `Number()` conversion for numeric params that come as strings from inputs
   - `Boolean` / string-to-boolean conversion for toggle params
   - Empty string → `undefined` conversion for optional dropdown values
-  - Any subBlock ID → tool param name remapping
-- [ ] No `Number()`, `JSON.parse()`, or other coercions in `tools.config.tool` — these would destroy dynamic references like `<Block.output>`
+  - SubBlock ID → tool param name remapping only for optional or `user-or-llm` params
 
 ### Block Outputs
 - [ ] Outputs cover the key fields returned by ALL tools (not just one operation)
-- [ ] Output types are correct (`'string'`, `'number'`, `'boolean'`, `'json'`)
+- [ ] Output types are correct (`'string'`, `'number'`, `'boolean'`, `'json'`, `'file'`, `'file[]'`)
 - [ ] `type: 'json'` outputs describe inner fields in the description string: `'User profile (id, name, username, bio)'` or `'[{address, status, type}]'` for arrays
 - [ ] **Do NOT add a `properties: {...}` field on block outputs.** Block-level `OutputFieldDefinition` (from `@sim/workflow-types/blocks`) only accepts `{ type, description?, condition?, hiddenFromDisplay? }`. Nested `properties` is a tool-level construct (`OutputProperty`) — adding it to a block output will fail TypeScript at build time
 - [ ] No opaque `type: 'json'` with vague descriptions like `'Response data'`
@@ -277,21 +286,37 @@ For **each tool** in `tools.access`:
 - [ ] Input types match the subBlock types
 - [ ] When using `canonicalParamId`, inputs list the canonical ID (not the raw subBlock IDs)
 
+### Dynamic Selectors
+
+- [ ] Every remote `selectorKey` is classified in the browser-safe manifest and has exactly one
+      server attachment
+- [ ] The manifest allowlists the minimal active `dependsOn` context and matches list/search/detail,
+      pagination, scope, and stale-time behavior
+- [ ] Canonical basic/advanced and trigger/action modes project only their active values; exact
+      `{{KEY}}` references remain unresolved in the browser
+- [ ] Stored credentials are bound to the actor, workspace, and trusted provider/service
+- [ ] Each attachment declares and enforces a `fixed`, `credential-bound`, or explicitly reviewed
+      `user-controlled` destination policy
+- [ ] Provider results are explicitly projected to safe option fields; secrets, tokens, credential
+      IDs, context values, and raw upstream errors do not enter responses, logs, or query keys
+- [ ] No selector provider module, provider fetch, or OAuth-token request runs in the browser, and no
+      selector-only provider route remains
+
 ## Step 5: Validate OAuth Scopes (if OAuth service)
 
 Scopes are centralized — the single source of truth is `OAUTH_PROVIDERS` in `lib/oauth/oauth.ts`.
 
 - [ ] Scopes defined in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS[provider].services[service].scopes`
-- [ ] `auth.ts` uses `getCanonicalScopesForProvider(providerId)` — NOT a hardcoded array
+- [ ] `lib/auth/connectors/providers.ts` (`buildConnectorProviders`) uses `getCanonicalScopesForProvider(providerId)` — NOT a hardcoded array
 - [ ] Block `requiredScopes` uses `getScopesForService(serviceId)` — NOT a hardcoded array
-- [ ] No hardcoded scope arrays in `auth.ts` or block files (should all use utility functions)
+- [ ] No hardcoded scope arrays in `lib/auth/connectors/providers.ts` or block files (should all use utility functions)
 - [ ] Each scope has a human-readable description in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 - [ ] No excess scopes that aren't needed by any tool
 
 ## Step 6: Validate Deployment Availability (if OAuth service)
 
 The deployment UI and setup CLI do not infer OAuth client fields from scopes. They resolve the
-block's generated `oauthServiceId` through the application-owned capability catalog.
+block's generated `oauthServiceId` through the shared deployment capability catalog.
 
 - [ ] The visible integration block has exactly one distinct `oauth-input.serviceId`
 - [ ] `resolveOAuthClientCapabilityId(serviceId)` returns the intended provider capability
@@ -299,9 +324,9 @@ block's generated `oauthServiceId` through the application-owned capability cata
 - [ ] Every field listed by that capability exists in `apps/sim/lib/core/config/env.ts`
 - [ ] Every capability field has the correct `text` or `secret` entry in `OAUTH_CLIENT_SETUP_FIELDS`; no CLI naming heuristic is required
 - [ ] Shared Google/Microsoft service IDs resolve to their provider capability rather than duplicate entries
-- [ ] `bun run setup integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
+- [ ] `npx sim-setup add integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
 - [ ] If the canonical OAuth service declares `serviceAccountProviderId`,
-      `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID[serviceId]` has the same provider ID
+      the generated `SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID[serviceId]` has the same provider ID
 - [ ] The service-account `deploymentRequirement` matches how that credential actually works:
       omitted for an independent path, `'oauth-client'` when it needs the OAuth client fields, or
       `'preview-gated'` when controlled by a preview block
@@ -324,6 +349,21 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 - [ ] List/search tools expose API limits and do not auto-fetch every page into memory
 - [ ] Transform logic does not build unbounded arrays, maps, sets, or `Promise.all` fan-outs
 - [ ] File and HTTP body reads use explicit byte caps or existing stream-limit helpers
+- [ ] Internal file results reach `createInternalToolFileResult` / `createInternalToolFilesResult`
+      before JSON serialization; external raw downloads explicitly use `request.responseType: 'binary'`
+      and return a buffered `output.file`. Provider base64 JSON needs separate handling
+- [ ] Transforms retain stored `UserFile` identity/access fields, and tests cover a >10 MiB file
+      crossing executor admission without another upload. New file outputs contain references only,
+      without inline content aliases; preserve legacy versions when removing existing inline fields
+- [ ] Scan every file-producing path, including attachment fetches inside `transformResponse`, URL
+      descriptors, export operations, and old/new block versions; checking download-named tools alone
+      misses late reads that occur after the first response admission
+- [ ] Late attachment reads share a per-call byte budget, bound actual streamed bytes independently
+      of provider size metadata, and forward `ToolResponseContext.signal` through every fetch/read
+- [ ] Both workflow and Copilot tests produce compact `UserFile` outputs; nested message attachment
+      aliases reference the same stored files, with no duplicate upload or raw bytes left behind
+- [ ] New output contracts omit redundant copies of file name, MIME type, size, URL, and success;
+      retained provider metadata has a distinct purpose, and types match the stored-file runtime shape
 - [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
 - [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
 
@@ -345,7 +385,7 @@ Group findings by severity:
 - Incorrect response field mapping (accessing wrong path in response)
 - Missing error handling that would cause crashes
 - Tool ID mismatch between tool file, registry, and block `tools.access`
-- OAuth scopes missing in `auth.ts` that tools need
+- OAuth scopes missing in `lib/auth/connectors/providers.ts` that tools need
 - OAuth integration `serviceId` missing from the deployment capability catalog
 - Capability references an env field absent from the runtime env schema
 - Service-account metadata disagrees with the canonical OAuth service configuration
@@ -357,6 +397,9 @@ Group findings by severity:
   legacy headerless/`NULL` data
 - A tool substitutes secret plaintext into source, leaks private metadata, or generically sanitizes
   unrelated third-party results
+- A selector resolves shared secret plaintext in the browser, lacks credential provider binding or
+  destination enforcement, or returns provider payloads or protected values across the selector
+  boundary
 
 **Warning** (follows conventions incorrectly or has usability issues):
 - Optional field not set to `mode: 'advanced'`
@@ -386,13 +429,18 @@ Several files are generated from tool and block definitions. Editing a tool or b
 
 ```bash
 bun run tool-metadata:generate       # repo root — apps/sim/tools/generated/*
-bun run scripts/generate-docs.ts     # docs .mdx + lib/integrations/integrations.json + docs icons
+bun run scripts/generate-docs.ts     # docs .mdx + deployment-config/integrations.json + docs icons
+bun run deployment-config:generate  # canonical OAuth registry + catalog → provider-ID facts
 bun run integration-catalog:check    # registry ↔ committed deployment metadata drift
 bun run docs:check                   # committed docs ↔ what the generator renders today
+bun run deployment-config:check     # OAuth registry/catalog ↔ provider-ID fact drift
+bun run check:audits                 # every audit CI enforces, including docs:check
+bun run apps/sim/scripts/check-block-registry.ts origin/staging  # block ↔ tool param coverage (CI, not in check:audits)
 ```
 
 - **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
-- **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `integrations.json`, and the docs copy of `components/icons.tsx`.
+- **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `packages/deployment-config/src/integrations.json`, and the docs copy of `components/icons.tsx`.
+- **`deployment-config:generate`** — required for OAuth or service-account changes. Regenerates provider-ID facts from the canonical OAuth registry and integration catalog; special deployment requirements remain handwritten policy.
 - **`integration-catalog:check`** — loads the executable block registry, derives visible integration
   deployment fields, and compares them with the committed catalog. It catches missing/unexpected
   entries and stale auth/service IDs without loading the executable registry in client code.
@@ -408,6 +456,10 @@ upstream PR that skipped regeneration), and investigate anything that looks like
 page losing a section usually means its source block moved or a generator input broke, not that the
 hunk should be reverted.
 
+The integration's page must carry a `{/* MANUAL-CONTENT-START:intro */}` section directly under
+`<BlockInfoCard />`. If it is missing, write one using the template in add-integration → Step 8, and
+check an existing intro against what the block actually ships (no removed or unshipped operations).
+
 If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
 
 ### Validation Output
@@ -419,9 +471,11 @@ After fixing, confirm:
 4. Derived artifacts regenerated and their diffs reviewed (see above)
 5. `bun run integration-catalog:check` passes
 6. `bun run docs:check` passes
-7. For OAuth or service-account changes, `bun test apps/sim/lib/integrations/availability.server.test.ts` passes
-8. Re-read all modified files to verify fixes are correct
-9. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
+7. `bun run apps/sim/scripts/check-block-registry.ts origin/staging` passes
+8. For OAuth or service-account changes, `bun run deployment-config:check` passes
+9. For OAuth or service-account changes, `bun run --cwd apps/sim test lib/integrations/availability.server.test.ts` passes
+10. Re-read all modified files to verify fixes are correct
+11. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
@@ -430,6 +484,7 @@ After fixing, confirm:
 - [ ] Validated every tool's ID, params, request, response, outputs, and types against API docs
 - [ ] Validated block ↔ tool alignment (every tool param has a subBlock, every condition is correct)
 - [ ] Validated advanced mode on optional/rarely-used fields
+- [ ] Validated every text-entry and selector subBlock has a `placeholder`
 - [ ] Validated wandConfig on timestamps and complex inputs
 - [ ] Validated tools.config mapping, tool selector, and type coercions
 - [ ] Validated block outputs match what tools return, with typed JSON where possible
@@ -437,7 +492,7 @@ After fixing, confirm:
 - [ ] Validated scope descriptions exist in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for all scopes
 - [ ] Validated OAuth `serviceId` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry and all capability fields exist in the env schema
 - [ ] Validated service-account projection and deployment requirement against the canonical OAuth service config
-- [ ] Regenerated `integrations.json` when block metadata changed and ran `bun run integration-catalog:check`
+- [ ] Regenerated deployment config when block/OAuth metadata changed and ran both catalog checks
 - [ ] Validated pagination consistency across tools and block
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
@@ -447,10 +502,13 @@ After fixing, confirm:
 - [ ] Confirmed legacy persisted data keeps working and tracked invalid provenance fails closed
 - [ ] Confirmed ordinary third-party results remain unchanged absent activated Sim provenance
 - [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
+- [ ] Validated every dynamic selector through the shared manifest, server attachment, and
+      `selectors.execute` boundary
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
-- [ ] Ran `bun run generate-docs` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
+- [ ] Ran `bun run scripts/generate-docs.ts` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
+- [ ] Validated the docs page has an accurate `MANUAL-CONTENT-START:intro` section
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
 - [ ] Verified added tests fail without their fix

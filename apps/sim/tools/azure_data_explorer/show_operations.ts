@@ -3,14 +3,13 @@ import type {
   AzureDataExplorerTableResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   renderOperationId,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerShowOperationsTool: ToolConfig<
+export const azureDataExplorerShowOperationsTool: InternalToolConfig<
   AzureDataExplorerShowOperationsParams,
   AzureDataExplorerTableResponse
 > = {
@@ -63,12 +62,9 @@ export const azureDataExplorerShowOperationsTool: ToolConfig<
       description: 'Operation ID to check, e.g. the ID returned by an async ingestion',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...azureDataExplorerAuthBody(params),
+  operation: {
+    input: (params) => ({
+      ...azureDataExplorerAuthInput(params),
       endpoint: 'mgmt',
       database: params.database,
       csl: params.operationId

@@ -1,28 +1,12 @@
-import {
-  formatTokenCount,
-  MAX_CONTEXT_WINDOW,
-  TOTAL_MODEL_PROVIDERS,
-  TOTAL_MODELS,
-} from '@/app/(landing)/models/utils'
-import { createLandingOgImage } from '@/app/(landing)/og-utils'
+import { COVER_OG_SIZE, createCoverOgImage } from '@/lib/og/cover-image'
+import { TOTAL_MODEL_PROVIDERS, TOTAL_MODELS } from '@/app/(landing)/models/utils'
 
 export const contentType = 'image/png'
-export const size = {
-  width: 1200,
-  height: 630,
-}
+export const size = COVER_OG_SIZE
 
 export default async function Image() {
-  return createLandingOgImage({
-    eyebrow: 'Sim model directory',
+  return createCoverOgImage({
     title: 'AI Models Directory',
-    subtitle:
-      'Browse tracked AI models with pricing, context windows, and workflow-ready capability details.',
-    pills: [
-      `${TOTAL_MODELS} models`,
-      `${TOTAL_MODEL_PROVIDERS} providers`,
-      `${formatTokenCount(MAX_CONTEXT_WINDOW)} max context`,
-    ],
-    domainLabel: 'sim.ai/models',
+    subtitle: `Browse ${TOTAL_MODELS} models from ${TOTAL_MODEL_PROVIDERS} providers with pricing, context windows, and workflow-ready capability details.`,
   })
 }

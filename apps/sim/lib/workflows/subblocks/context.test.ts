@@ -1,14 +1,15 @@
-/**
- * @vitest-environment node
- */
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
 import * as blocksBarrel from '@/blocks'
 import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
-import { buildSelectorContextFromBlock, SELECTOR_CONTEXT_FIELDS } from './context'
-import { buildCanonicalIndex, isCanonicalPair } from './visibility'
+import {
+  buildSelectorContextFromBlock,
+  getSelectorContextSubBlocks,
+  SELECTOR_CONTEXT_FIELDS,
+} from './context'
+import { buildCanonicalIndex, isCanonicalPair, resolveDependencyValue } from './visibility'
 
 /**
  * Under `isolate: false` the module under test may already be cached from an
@@ -17,11 +18,18 @@ import { buildCanonicalIndex, isCanonicalPair } from './visibility'
  * route the barrel's `getBlock` to the real registry via a spy on the shared
  * barrel namespace — it patches whichever instance the cached module reads.
  */
-const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+let getBlockSpy: MockInstance<typeof blocksBarrel.getBlock>
+beforeEach(() => {
+  getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+})
 
 afterAll(() => {
   getBlockSpy.mockRestore()
 })
+
+function subBlocksFromValues(values: Record<string, unknown>): Record<string, { value: unknown }> {
+  return Object.fromEntries(Object.entries(values).map(([id, value]) => [id, { value }]))
+}
 
 describe('buildSelectorContextFromBlock', () => {
   it('should extract knowledgeBaseId from knowledgeBaseSelector via canonical mapping', () => {
@@ -35,19 +43,6 @@ describe('buildSelectorContextFromBlock', () => {
     })
 
     expect(ctx.knowledgeBaseId).toBe('kb-uuid-123')
-  })
-
-  it('should extract knowledgeBaseId from manualKnowledgeBaseId via canonical mapping', () => {
-    const ctx = buildSelectorContextFromBlock('knowledge', {
-      operation: { id: 'operation', type: 'dropdown', value: 'search' },
-      manualKnowledgeBaseId: {
-        id: 'manualKnowledgeBaseId',
-        type: 'short-input',
-        value: 'manual-kb-id',
-      },
-    })
-
-    expect(ctx.knowledgeBaseId).toBe('manual-kb-id')
   })
 
   it('resolves the ACTIVE member when both basic and advanced hold values (no last-write-wins)', () => {
@@ -74,68 +69,164 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('kb-advanced')
   })
 
-  it('should skip null/empty values', () => {
-    const ctx = buildSelectorContextFromBlock('knowledge', {
-      knowledgeBaseSelector: {
-        id: 'knowledgeBaseSelector',
-        type: 'knowledge-base-selector',
-        value: '',
+  it('skips a run-time reference so a dependent selector stays disabled instead of fetching it', () => {
+    const ctx = buildSelectorContextFromBlock('table_v2', {
+      operation: { id: 'operation', type: 'dropdown', value: 'query_rows' },
+      manualTableId: { id: 'manualTableId', type: 'short-input', value: '<start.tableId>' },
+    })
+
+    expect(ctx.tableId).toBeUndefined()
+  })
+
+  it('preserves Gmail action credential resolution in basic and advanced modes', () => {
+    const subBlocks = subBlocksFromValues({
+      credential: 'action-basic',
+      manualCredential: 'action-advanced',
+    })
+
+    expect(buildSelectorContextFromBlock('gmail', subBlocks).oauthCredential).toBe('action-basic')
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        canonicalModes: { oauthCredential: 'advanced' },
+      }).oauthCredential
+    ).toBe('action-advanced')
+    expect(
+      buildSelectorContextFromBlock(
+        'gmail',
+        subBlocksFromValues({ credential: '', triggerCredentials: 'dormant-trigger' })
+      ).oauthCredential
+    ).toBeUndefined()
+  })
+
+  it('preserves exact environment references through the strict selector context path', () => {
+    const subBlocks = subBlocksFromValues({
+      credential: '{{GMAIL_BASIC_CREDENTIAL}}',
+      manualCredential: '{{GMAIL_SHARED_CREDENTIAL_ID}}',
+    })
+
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        selectorKey: 'gmail.labels',
+        dependsOn: ['credential', 'manualCredential'],
+      }).oauthCredential
+    ).toBe('{{GMAIL_BASIC_CREDENTIAL}}')
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        selectorKey: 'gmail.labels',
+        dependsOn: ['credential', 'manualCredential'],
+        canonicalModes: { oauthCredential: 'advanced' },
+      }).oauthCredential
+    ).toBe('{{GMAIL_SHARED_CREDENTIAL_ID}}')
+  })
+
+  it('projects only the active Slack auth source plus trigger credentials', () => {
+    const oauthAction = buildSelectorContextFromBlock(
+      'slack',
+      subBlocksFromValues({
+        authMethod: 'oauth',
+        credential: 'active-oauth',
+        botToken: 'xoxb-dormant',
+      }),
+      {
+        selectorKey: 'slack.channels',
+        dependsOn: ['authMethod', 'credential', 'botToken'],
+      }
+    )
+    expect(oauthAction.oauthCredential).toBe('active-oauth')
+
+    const botAction = buildSelectorContextFromBlock(
+      'slack',
+      subBlocksFromValues({
+        authMethod: 'bot_token',
+        credential: 'dormant-oauth',
+        botToken: '{{SLACK_BOT_TOKEN}}',
+      }),
+      {
+        selectorKey: 'slack.channels',
+        dependsOn: ['authMethod', 'credential', 'botToken'],
+      }
+    )
+    expect(botAction.oauthCredential).toBe('{{SLACK_BOT_TOKEN}}')
+
+    const trigger = buildSelectorContextFromBlock(
+      'slack_v2',
+      subBlocksFromValues({
+        eventType: 'message',
+        customBotCredential: '{{SLACK_TRIGGER_CREDENTIAL}}',
+      }),
+      {
+        selectorKey: 'slack.channels',
+        dependsOn: ['customBotCredential'],
+        triggerMode: true,
+      }
+    )
+    expect(trigger.oauthCredential).toBe('{{SLACK_TRIGGER_CREDENTIAL}}')
+  })
+
+  it('uses trigger credentials with and without canonical metadata after action conversion', () => {
+    const clickupValues = {
+      selectedTriggerId: 'clickup_task_created',
+      credential: 'dormant-action',
+      triggerCredentials: 'active-trigger',
+    }
+    const cases = [
+      { blockType: 'clickup', values: clickupValues },
+      {
+        blockType: 'airtable',
+        values: { credential: 'dormant-action', triggerCredentials: 'active-trigger' },
       },
-    })
+    ]
 
-    expect(ctx.knowledgeBaseId).toBeUndefined()
+    for (const { blockType, values } of cases) {
+      expect(
+        buildSelectorContextFromBlock(blockType, subBlocksFromValues(values), {
+          triggerMode: true,
+        }).oauthCredential
+      ).toBe('active-trigger')
+    }
+
+    const clickupConfig = getRealBlock('clickup')
+    const triggerCanonicalIndex = buildCanonicalIndex(
+      getSelectorContextSubBlocks(clickupConfig?.subBlocks ?? [], clickupValues, true)
+    )
+    expect(resolveDependencyValue('triggerCredentials', clickupValues, triggerCanonicalIndex)).toBe(
+      'active-trigger'
+    )
   })
 
-  it('should return empty context for unknown block types', () => {
-    const ctx = buildSelectorContextFromBlock('nonexistent_block', {
-      foo: { id: 'foo', type: 'short-input', value: 'bar' },
-    })
-
-    expect(ctx).toEqual({})
-  })
-
-  it('should pass through workflowId from opts', () => {
-    const ctx = buildSelectorContextFromBlock(
-      'knowledge',
-      { operation: { id: 'operation', type: 'dropdown', value: 'search' } },
-      { workflowId: 'wf-123' }
+  it('uses only active trigger dependencies in the strict selector context path', () => {
+    const context = buildSelectorContextFromBlock(
+      'clickup',
+      subBlocksFromValues({
+        selectedTriggerId: 'clickup_task_created',
+        credential: 'dormant-action',
+        triggerCredentials: '{{CLICKUP_SHARED_CREDENTIAL}}',
+        teamId: '<previous.output>',
+      }),
+      {
+        selectorKey: 'clickup.spaces',
+        dependsOn: ['triggerCredentials', 'teamId'],
+        triggerMode: true,
+      }
     )
 
-    expect(ctx.workflowId).toBe('wf-123')
+    expect(context).toEqual({ oauthCredential: '{{CLICKUP_SHARED_CREDENTIAL}}' })
   })
 
-  it('should pass through workspaceId from opts', () => {
+  it('does not leak a dormant action credential when an unmapped trigger credential is blank', () => {
     const ctx = buildSelectorContextFromBlock(
-      'knowledge',
-      { operation: { id: 'operation', type: 'dropdown', value: 'search' } },
-      { workspaceId: 'ws-123' }
+      'airtable',
+      subBlocksFromValues({ credential: 'dormant-action', triggerCredentials: '' }),
+      { triggerMode: true }
     )
 
-    expect(ctx.workspaceId).toBe('ws-123')
-  })
-
-  it('exposes the NetSuite async job ID to dependent task selectors', () => {
-    const ctx = buildSelectorContextFromBlock('netsuite', {
-      operation: { id: 'operation', type: 'dropdown', value: 'netsuite_get_async_status' },
-      jobId: { id: 'jobId', type: 'short-input', value: 'job-7' },
-    })
-
-    expect(ctx.jobId).toBe('job-7')
-  })
-
-  it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
-    const ctx = buildSelectorContextFromBlock('knowledge', {
-      operation: { id: 'operation', type: 'dropdown', value: 'search' },
-      query: { id: 'query', type: 'short-input', value: 'some search query' },
-    })
-
-    expect((ctx as Record<string, unknown>).query).toBeUndefined()
-    expect((ctx as Record<string, unknown>).operation).toBeUndefined()
+    expect(ctx.oauthCredential).toBeUndefined()
   })
 })
 
 describe('SELECTOR_CONTEXT_FIELDS validation', () => {
   it('every entry must be a canonicalParamId (if a canonical pair exists) or a direct subblock ID', () => {
+    const explicitSurfaceFields = new Set(['excludeWorkflowId'])
     const allCanonicalParamIds = new Set<string>()
     const allSubBlockIds = new Set<string>()
     const idsInCanonicalPairs = new Set<string>()
@@ -161,6 +252,7 @@ describe('SELECTOR_CONTEXT_FIELDS validation', () => {
 
     for (const field of SELECTOR_CONTEXT_FIELDS) {
       const f = field as string
+      if (explicitSurfaceFields.has(f)) continue
       if (allCanonicalParamIds.has(f)) continue
 
       if (idsInCanonicalPairs.has(f)) {

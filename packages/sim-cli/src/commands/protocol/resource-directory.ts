@@ -14,7 +14,7 @@ import {
 } from '../../generated/v2-api'
 import { requestAllPages, SimApiError, type SimClient, type V2Page } from '../../http/client'
 import { type Column, printList, text, timestamp } from '../../output/render'
-import { DEFAULT_LIMIT } from '../../runtime/options'
+import { DEFAULT_PAGE_SIZE } from '../../runtime/options'
 import { encodeFolderPath } from '../../runtime/request'
 import { decodeFolderPath, renderResult } from '../../runtime/result'
 
@@ -40,6 +40,7 @@ interface DirectoryEntry {
   kind: string
   name: string
   ref: string
+  webUrl?: string
   folderPath: string
   updatedAt: string
 }
@@ -114,7 +115,7 @@ async function listResources(
 
   return requestAllPages<DirectoryResource>(client, path, {
     query,
-    pageSize: DEFAULT_LIMIT,
+    pageSize: DEFAULT_PAGE_SIZE,
     limit,
   })
 }
@@ -149,6 +150,7 @@ function entriesFor(
       kind: config.kind,
       name: resource.name,
       ref: resource.id,
+      webUrl: resource.webUrl,
       folderPath: resource.folderPath,
       updatedAt: resource.updatedAt,
     })),
@@ -168,14 +170,12 @@ export function attachResourceDirectoryCommands(
     .description(`List ${config.kind} resources and child folders together`)
     .option('--search <text>', 'Filter folders and resources by name')
     .addOption(
-      new Option('--limit <n>', 'Maximum combined items to return (0 for everything)').default(
-        String(DEFAULT_LIMIT)
-      )
+      new Option('--limit <n>', 'Maximum combined items to return (0 for everything)').default('0')
     )
     .action(async (path: string | undefined, options: ListOptions, command: Command) => {
       const rawLimit = Number(options.limit)
       if (!Number.isSafeInteger(rawLimit) || rawLimit < 0) {
-        throw new SimApiError('--limit must be a non-negative integer', 0)
+        throw new SimApiError('--limit must be a whole number of 0 or more (0 for everything)', 0)
       }
 
       const limit = rawLimit === 0 ? Number.POSITIVE_INFINITY : rawLimit
@@ -190,7 +190,8 @@ export function attachResourceDirectoryCommands(
         listResources(client, config, workspaceId, folderPath, options.search, limit),
       ])
       const entries = entriesFor(config, folders, resources)
-      printList(profile.output, entries.slice(0, limit), COLUMNS)
+      const shown = entries.slice(0, limit)
+      printList(profile.output, shown, COLUMNS)
     })
 
   group

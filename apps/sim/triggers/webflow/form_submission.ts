@@ -1,11 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { webflowSitesSelectorContract } from '@/lib/api/contracts/selectors/webflow'
-import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '../types'
-
-const logger = createLogger('webflow-form-submission-trigger')
 
 export const webflowFormSubmissionTrigger: TriggerConfig = {
   id: 'webflow_form_submission',
@@ -21,6 +15,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       id: 'triggerCredentials',
       title: 'Credentials',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
       description: 'This trigger requires webflow credentials to access your account.',
       serviceId: 'webflow',
       requiredScopes: ['forms:read'],
@@ -35,52 +30,15 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       id: 'triggerSiteId',
       title: 'Site',
       type: 'dropdown',
+      canonicalParamId: 'siteId',
+      selectorKey: 'webflow.sites',
       placeholder: 'Select a site',
       description: 'The Webflow site to monitor',
       required: true,
-      options: [],
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'webflow_form_submission',
-      },
-      fetchOptions: async (blockId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        if (!credentialId) {
-          throw new Error('No Webflow credential selected')
-        }
-        try {
-          const data = await requestJson(webflowSitesSelectorContract, {
-            body: { credential: credentialId },
-          })
-          return (data.sites ?? []).map((site) => ({
-            id: site.id,
-            label: site.name,
-          }))
-        } catch (error) {
-          logger.error('Error fetching Webflow sites:', error)
-          throw error
-        }
-      },
-      fetchOptionById: async (blockId: string, optionId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        if (!credentialId) return null
-        try {
-          const data = await requestJson(webflowSitesSelectorContract, {
-            body: { credential: credentialId, siteId: optionId },
-          })
-          const site = data.sites?.find((s) => s.id === optionId)
-          if (site) {
-            return { id: site.id, label: site.name }
-          }
-          return null
-        } catch {
-          return null
-        }
       },
       dependsOn: ['triggerCredentials'],
     },

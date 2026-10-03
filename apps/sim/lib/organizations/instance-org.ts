@@ -19,6 +19,7 @@ import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { slugify } from '@sim/utils/string'
 import { eq, sql } from 'drizzle-orm'
 import {
   createOrganizationWithOwnerTx,
@@ -26,20 +27,13 @@ import {
 } from '@/lib/billing/organizations/create-organization'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('InstanceOrganization')
 
 /** Bounds the wait for a concurrent provisioning attempt on another replica. */
 const INSTANCE_ORG_LOCK_TIMEOUT_MS = 10_000
-
-/** Derives a slug the same way the admin organization API does. */
-function slugifyOrganizationName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
 
 interface InstanceOrganizationConfig {
   name: string
@@ -61,7 +55,7 @@ export function getInstanceOrganizationConfig(): InstanceOrganizationConfig | nu
   const name = env.INSTANCE_ORG_NAME?.trim()
   if (!name) return null
 
-  const slug = env.INSTANCE_ORG_SLUG?.trim() || slugifyOrganizationName(name)
+  const slug = env.INSTANCE_ORG_SLUG?.trim() || slugify(name)
   if (!slug) {
     logger.error('INSTANCE_ORG_NAME does not yield a usable slug; set INSTANCE_ORG_SLUG', { name })
     return null
@@ -210,8 +204,10 @@ export async function ensureInstanceOrganization(
       await tx.execute(
         sql`select set_config('lock_timeout', ${`${INSTANCE_ORG_LOCK_TIMEOUT_MS}ms`}, true)`
       )
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`instance-organization:${config.slug}`}, 0))`
+      await acquireAdvisoryXactLock(
+        tx,
+        'instance_organization',
+        `instance-organization:${config.slug}`
       )
 
       const resolved = await resolveInstanceOrganizationBySlug(tx, config.slug)

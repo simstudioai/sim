@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Lightbox } from '@sim/emcn'
 import { cn, getAssetUrl } from '@/lib/utils'
-import { Lightbox } from './lightbox'
 
 interface VideoProps {
   src: string
@@ -28,8 +28,7 @@ export function Video({
   height,
 }: VideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const startTimeRef = useRef(0)
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+  const [startTime, setStartTime] = useState(0)
   const [isInView, setIsInView] = useState(false)
 
   useEffect(() => {
@@ -55,8 +54,7 @@ export function Video({
   }, [])
 
   const openLightbox = () => {
-    startTimeRef.current = videoRef.current?.currentTime ?? 0
-    setIsLightboxOpen(true)
+    setStartTime(videoRef.current?.currentTime ?? 0)
   }
 
   const video = (
@@ -78,31 +76,18 @@ export function Video({
     />
   )
 
-  return (
-    <>
-      {enableLightbox ? (
-        <button
-          type='button'
-          onClick={openLightbox}
-          aria-label={`Open ${src} in media viewer`}
-          className='group contents'
-        >
-          {video}
-        </button>
-      ) : (
-        video
-      )}
+  if (!enableLightbox) return video
 
-      {enableLightbox && (
-        <Lightbox
-          isOpen={isLightboxOpen}
-          onClose={() => setIsLightboxOpen(false)}
-          src={src}
-          alt={`Video: ${src}`}
-          type='video'
-          startTime={startTimeRef.current}
-        />
-      )}
-    </>
+  return (
+    <Lightbox src={getAssetUrl(src)} alt={`Video: ${src}`} type='video' startTime={startTime}>
+      <button
+        type='button'
+        onClick={openLightbox}
+        aria-label={`Open ${src} in media viewer`}
+        className='group contents'
+      >
+        {video}
+      </button>
+    </Lightbox>
   )
 }

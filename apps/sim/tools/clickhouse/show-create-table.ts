@@ -2,9 +2,9 @@ import type {
   ClickHouseDdlResponse,
   ClickHouseShowCreateTableParams,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const showCreateTableTool: ToolConfig<
+export const showCreateTableTool: InternalToolConfig<
   ClickHouseShowCreateTableParams,
   ClickHouseDdlResponse
 > = {
@@ -58,13 +58,8 @@ export const showCreateTableTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/show-create-table',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

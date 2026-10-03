@@ -3,7 +3,7 @@ import type {
   QueryTimeseriesParams,
   QueryTimeseriesResponse,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage } from '@/tools/datadog/utils'
+import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeseriesResponse> = {
@@ -55,7 +55,7 @@ export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeser
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       const queryParams = new URLSearchParams({
         query: params.query,
         from: String(params.from),

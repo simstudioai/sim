@@ -1,6 +1,7 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import { setRecordValue } from '@/lib/core/utils/records'
+import { EXACT_ENVIRONMENT_REFERENCE } from '@/lib/environment/reference'
 import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
 import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
@@ -82,7 +83,13 @@ export const privateSecretProvenanceBundleSchema = z
           })
           .strict()
       )
-      .max(10_000)
+      /**
+       * Deliberately uncounted. One selection per cell a write vouches for, so a count cap here
+       * is a cap on how wide a write may be — a 25-column table crossed 10,000 at 401 rows. The
+       * sender that used to enforce the same number silently gave up and marked every row of the
+       * write `unknown`; rejecting the request instead would turn that into a failed write. The
+       * aggregate byte bound below and the route's body limit are the real bounds.
+       */
       .describe('Selections and their encrypted provenance.'),
   })
   .strict()
@@ -135,6 +142,26 @@ export function flattenFieldErrors<TFields extends string>(
 
 export const noInputSchema = z.object({}).strict()
 export type NoInput = z.output<typeof noInputSchema>
+
+/**
+ * `literal`, or a whole-value `{{NAME}}` environment-variable reference that
+ * `literal` would refuse. A refused non-reference reports `literal`'s own
+ * messages. Built as one refined string rather than a union so the field keeps a
+ * plain `string` shape in the generated OpenAPI and CLI, where a union becomes a
+ * JSON-only flag. `literal`'s length cap bounds references too.
+ */
+export function orExactEnvironmentReference(literal: z.ZodString) {
+  const capped =
+    literal.maxLength === null
+      ? z.string()
+      : z.string().max(literal.maxLength, { error: 'Password is too long', abort: true })
+  return capped.superRefine((value, ctx) => {
+    if (EXACT_ENVIRONMENT_REFERENCE.test(value)) return
+    for (const issue of literal.safeParse(value).error?.issues ?? []) {
+      ctx.addIssue({ code: 'custom', message: issue.message })
+    }
+  })
+}
 
 /**
  * Accepts canonical RFC 4648 base64, including the empty encoding used for a
@@ -232,6 +259,17 @@ export function withMissingFieldMessage<TSchema extends z.ZodString>(
 export const MAX_ID_LENGTH = 128
 
 /**
+ * Bound for an OAuth `code` callback parameter.
+ *
+ * Authorization codes have no length ceiling in RFC 6749, and providers differ by
+ * orders of magnitude: Slack's are tens of characters while Atlassian returns a
+ * signed JWT that routinely exceeds 2KB. The bound exists to keep an unbounded
+ * string out of a token exchange, so it is sized above the largest real code
+ * rather than around any one provider.
+ */
+export const MAX_OAUTH_CODE_LENGTH = 8192
+
+/**
  * Builds a required, non-empty string schema whose message covers **both**
  * failure modes.
  *
@@ -270,6 +308,12 @@ export const workspaceFileNameSchema = z
 
 /** Non-empty `organizationId` field with a stable, human-readable message. */
 export const organizationIdSchema = requiredFieldSchema('Organization ID is required')
+
+/** Canonical organization membership role shared across API resource families. */
+export const organizationRoleSchema = z.enum(['owner', 'admin', 'member'], {
+  error: 'Invalid role',
+})
+export type OrganizationRole = z.output<typeof organizationRoleSchema>
 
 /** Non-empty `workflowId` field with a stable, human-readable message. */
 export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
@@ -311,6 +355,32 @@ export const folderIdSchema = requiredFieldSchema('Folder ID is required').max(
 export const workspaceFileIdSchema = requiredFieldSchema('File ID is required')
   .max(MAX_ID_LENGTH, 'File ID is too long')
   .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
+
+/**
+ * Upper bound of a Postgres `integer` column, the type every version number is stored as. A larger
+ * value has no row to address and overflows the comparison instead of missing, so every schema
+ * carrying a version — path param, request body, or cursor payload — must be bounded by this.
+ */
+export const INT4_MAX = 2147483647
+
+/** A version number in a body or cursor, bounded to the range its column can hold. */
+export const versionNumberSchema = z
+  .number()
+  .int('version must be an integer')
+  .min(1, 'version must be a positive integer')
+  .max(INT4_MAX, 'version is out of range')
+
+/**
+ * A version number arriving as a path segment. Coerced and bounded here rather than piped through
+ * a body schema, because a `ZodPipe` publishes none of its constraints to the generated OpenAPI
+ * document, which would leave the documented parameter unbounded even though the runtime check
+ * holds.
+ */
+export const versionNumberPathSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(INT4_MAX, 'version is out of range')
 
 /**
  * Reference to an image embedded in a document: either a workspace storage `key`
@@ -359,6 +429,8 @@ export const userFileSchema = z
     key: z.string().min(1),
     context: z.string().optional(),
     base64: z.string().optional(),
+    /** Workspace file version these bytes came from; absent on files with no version history. */
+    version: versionNumberSchema.optional(),
   })
   .passthrough()
 
@@ -510,6 +582,7 @@ export const retentionOverrideSchema = z.object({
   logRetentionHours: retentionOverrideHoursSchema,
   softDeleteRetentionHours: retentionOverrideHoursSchema,
   taskCleanupHours: retentionOverrideHoursSchema,
+  fileVersionRetentionHours: retentionOverrideHoursSchema,
 })
 
 export type RetentionOverride = z.output<typeof retentionOverrideSchema>
@@ -543,3 +616,39 @@ export const booleanQueryFlagSchema = z.preprocess(
   },
   z.boolean({ error: 'must be a boolean (true/false)' })
 )
+
+/**
+ * An optional numeric query parameter that treats a present-but-empty value as
+ * omitted.
+ *
+ * `z.coerce.number().optional()` does not: a query string carrying `?minCost=`
+ * reaches the schema as `''`, `Number('')` is `0`, and the parameter arrives as
+ * a real zero. That is wrong twice — `maxCost=` silently narrows the page to
+ * free runs, and `minCost=` reads as a cost *selector*, which is what
+ * `assertLogCostQueryAllowed` refuses for a member whose group withholds spend.
+ * An empty value is a caller sending an unfilled form field, not a question
+ * about cost.
+ *
+ * `null` is dropped for the same reason and by the same arithmetic: a client
+ * that spells an unset bound as `null` rather than by omitting the key —
+ * `requestJson` parses the query object client-side, so a `null` field reaches
+ * this schema as itself — would otherwise be handed `Number(null) === 0`.
+ *
+ * An explicit `0` is preserved: `?minCost=0` is a real bound the caller typed.
+ */
+export const optionalNumberQuerySchema = z.preprocess((value) => {
+  if (value === null) return undefined
+  return typeof value === 'string' && value.trim() === '' ? undefined : value
+}, z.coerce.number().optional())
+
+/** Exactly one routed owner for resources shared by Search surfaces. */
+export const resourceOwnerSchema = z
+  .object({
+    workspaceId: workspaceIdSchema.optional(),
+    organizationId: organizationIdSchema.optional(),
+  })
+  .refine((owner) => Boolean(owner.workspaceId) !== Boolean(owner.organizationId), {
+    message: 'Provide exactly one workspaceId or organizationId',
+    path: ['workspaceId'],
+  })
+export type ResourceOwnerInput = z.input<typeof resourceOwnerSchema>

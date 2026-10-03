@@ -3,14 +3,13 @@ import type {
   AzureDataExplorerTableListResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   renderEntityName,
   transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerDropTableTool: ToolConfig<
+export const azureDataExplorerDropTableTool: InternalToolConfig<
   AzureDataExplorerDropTableParams,
   AzureDataExplorerTableListResponse
 > = {
@@ -69,12 +68,9 @@ export const azureDataExplorerDropTableTool: ToolConfig<
       description: 'Succeed instead of failing when the table does not exist',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...azureDataExplorerAuthBody(params),
+  operation: {
+    input: (params) => ({
+      ...azureDataExplorerAuthInput(params),
       endpoint: 'mgmt',
       database: params.database,
       csl: `.drop table ${renderEntityName(params.table)}${params.ifExists ? ' ifexists' : ''}`,

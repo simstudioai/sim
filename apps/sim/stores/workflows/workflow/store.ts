@@ -1,8 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import {
+  clampParallelBatchSize,
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
-import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
-import type { Edge } from 'reactflow'
+import {
+  filterAcyclicEdges,
+  getWorkflowBlockNameConflict,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
+import type { Edge } from '@xyflow/react'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
@@ -26,13 +35,7 @@ import type {
   WorkflowState,
   WorkflowStore,
 } from '@/stores/workflows/workflow/types'
-import {
-  clampParallelBatchSize,
-  findAllDescendantNodes,
-  generateLoopBlocks,
-  generateParallelBlocks,
-  isBlockProtected,
-} from '@/stores/workflows/workflow/utils'
+import { findAllDescendantNodes } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('WorkflowStore')
@@ -354,14 +357,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
           if (!block) continue
 
           // Skip protected blocks entirely (locked or inside a locked ancestor)
-          if (isBlockProtected(id, currentBlocks)) continue
+          if (isWorkflowBlockProtected(id, currentBlocks)) continue
 
           blocksToToggle.add(id)
 
           // If it's a loop or parallel, also include non-locked descendants
           if (block.type === 'loop' || block.type === 'parallel') {
             findAllDescendantNodes(id, currentBlocks).forEach((descId) => {
-              if (!isBlockProtected(descId, currentBlocks)) {
+              if (!isWorkflowBlockProtected(descId, currentBlocks)) {
                 blocksToToggle.add(descId)
               }
             })
@@ -390,7 +393,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const newBlocks = { ...currentBlocks }
 
         for (const id of ids) {
-          if (!newBlocks[id] || isBlockProtected(id, currentBlocks)) continue
+          if (!newBlocks[id] || isWorkflowBlockProtected(id, currentBlocks)) continue
           newBlocks[id] = {
             ...newBlocks[id],
             horizontalHandles: !newBlocks[id].horizontalHandles,
@@ -580,15 +583,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const activeWorkflowId = get().currentWorkflowId
         const mergedBlock = mergeSubblockState(get().blocks, activeWorkflowId || undefined, id)[id]
 
-        const newSubBlocks = Object.entries(mergedBlock.subBlocks).reduce(
-          (acc, [subId, subBlock]) => ({
-            ...acc,
-            [subId]: {
-              ...subBlock,
-              value: structuredClone(subBlock.value),
-            },
-          }),
-          {}
+        const newSubBlocks = Object.fromEntries(
+          Object.entries(mergedBlock.subBlocks).map(([subId, subBlock]) => [
+            subId,
+            { ...subBlock, value: structuredClone(subBlock.value) },
+          ])
         )
 
         // Remap condition/router IDs in the duplicated subBlocks
@@ -966,6 +965,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
             logger.warn(`Cannot update layout metrics: Block ${id} not found in workflow store`)
             return state
           }
+          if (
+            block.height === dimensions.height &&
+            block.layout?.measuredWidth === dimensions.width &&
+            block.layout?.measuredHeight === dimensions.height
+          ) {
+            return state
+          }
 
           return {
             blocks: {
@@ -980,12 +986,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 },
               },
             },
-            edges: [...state.edges],
-            loops: { ...state.loops },
           }
         })
-        get().updateLastSaved()
-        // No sync needed for layout changes, just visual
       },
 
       updateLoopCount: (loopId: string, count: number) =>

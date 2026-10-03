@@ -78,6 +78,28 @@ export function normalizeFiles(value: unknown): Array<{ fileId: string; mountPat
  * string, comma-separated string, or single string — into a trimmed
  * `string[]`.
  */
+/**
+ * Trims a scalar the block may hand over as something other than a string.
+ *
+ * `String(value)` and `value.toString()` are both unsafe here: an object whose
+ * `toString` is not a function, and one with a null prototype, each throw
+ * `TypeError` rather than producing text. Stored workflow state can hold either,
+ * and these values are read before the operation's try block, so a throw escapes
+ * the structured `success: false` result the caller is promised. Only the scalar
+ * kinds `String()` can never fail on are converted; anything else becomes empty,
+ * which every caller already treats as "not supplied".
+ *
+ * @param value - The raw parameter value.
+ * @returns The trimmed text, or `''` for a value with no safe text form.
+ */
+export function normalizeScalarText(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+    return String(value).trim()
+  }
+  return ''
+}
+
 export function normalizeStringList(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value

@@ -2,9 +2,9 @@ import type {
   SESDeleteEmailIdentityParams,
   SESDeleteEmailIdentityResponse,
 } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteEmailIdentityTool: ToolConfig<
+export const deleteEmailIdentityTool: InternalToolConfig<
   SESDeleteEmailIdentityParams,
   SESDeleteEmailIdentityResponse
 > = {
@@ -40,11 +40,8 @@ export const deleteEmailIdentityTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/delete-email-identity',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

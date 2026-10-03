@@ -1,12 +1,10 @@
 import type { BrowserTabState } from '@sim/browser-protocol'
 import type { TerminalTabState } from '@sim/terminal-protocol'
-import {
-  BROWSER_SESSION_RESOURCE_ID,
-  TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
+import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import { folderAncestorChain } from '@/lib/folders/tree'
+import { terminalResourceId } from '@/lib/terminal/resource-id'
+import { terminalTabTitle } from '@/lib/terminal/tab-label'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
-import { browserTabTitle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-label'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface ResourceMentionGroup {
@@ -14,10 +12,30 @@ export interface ResourceMentionGroup {
   items: AvailableItem[]
 }
 
-export type ResourceMentionLevel = 'resource' | 'tab'
+/** Adds table and knowledge-base folders as stable folder-ID chat mentions. */
+export function withFolderMentions(
+  groups: readonly ResourceMentionGroup[],
+  folders: { table: AvailableItem[]; knowledgebase: AvailableItem[] }
+): ResourceMentionGroup[] {
+  return groups.map((group) =>
+    group.type === 'folder'
+      ? {
+          ...group,
+          items: [
+            ...group.items,
+            ...folders.table.map((item) => ({ ...item, mentionFamily: 'Table folders' })),
+            ...folders.knowledgebase.map((item) => ({
+              ...item,
+              mentionFamily: 'Knowledge base folders',
+            })),
+          ],
+        }
+      : group
+  )
+}
 
 export interface FolderMentionLocation {
-  familyType: 'workflow' | 'file'
+  familyType: 'workflow' | 'file' | 'table' | 'knowledgebase'
   parentNames: string[]
 }
 
@@ -25,12 +43,19 @@ interface FolderMentionNode {
   id: string
   name: string
   parentId: string | null
+  familyType: FolderMentionLocation['familyType']
+  workspaceId: string
 }
 
 function folderFamilyType(
-  type: MothershipResourceType
+  type: MothershipResourceType,
+  item: AvailableItem
 ): FolderMentionLocation['familyType'] | null {
-  if (type === 'folder') return 'workflow'
+  if (type === 'folder') {
+    if (item.mentionFamily === 'Table folders') return 'table'
+    if (item.mentionFamily === 'Knowledge base folders') return 'knowledgebase'
+    return 'workflow'
+  }
   if (type === 'filefolder') return 'file'
   return null
 }
@@ -42,25 +67,30 @@ export function buildFolderMentionLocationMap(
   const locations = new Map<string, FolderMentionLocation>()
 
   for (const group of groups) {
-    const familyType = folderFamilyType(group.type)
-    if (!familyType) continue
+    if (group.type !== 'folder' && group.type !== 'filefolder') continue
 
-    const nodes = new Map<string, FolderMentionNode>(
-      group.items.map((item) => [
-        item.id,
-        {
-          id: item.id,
-          name: item.name,
-          parentId: typeof item.parentId === 'string' ? item.parentId : null,
-        },
-      ])
-    )
+    const nodes = new Map<string, FolderMentionNode>()
+    for (const item of group.items) {
+      const familyType = folderFamilyType(group.type, item)
+      if (!familyType) continue
+      const workspaceId = typeof item.workspaceId === 'string' ? item.workspaceId : ''
+      nodes.set(`${familyType}:${workspaceId}:${item.id}`, {
+        id: item.id,
+        name: item.name,
+        parentId: typeof item.parentId === 'string' ? item.parentId : null,
+        familyType,
+        workspaceId,
+      })
+    }
 
     for (const node of nodes.values()) {
-      const parentNames = folderAncestorChain(node.parentId, (id) => nodes.get(id))
+      const { familyType, workspaceId } = node
+      const parentNames = folderAncestorChain(node.parentId, (id) =>
+        nodes.get(`${familyType}:${workspaceId}:${id}`)
+      )
         .filter((parent) => parent.id !== node.id)
         .map((parent) => parent.name)
-      locations.set(`${group.type}:${node.id}`, { familyType, parentNames })
+      locations.set(`${group.type}:${workspaceId}:${node.id}`, { familyType, parentNames })
     }
   }
 
@@ -73,6 +103,8 @@ export function resourceMentionMatches(item: AvailableItem, query: string): bool
   if (!normalized) return true
   return (
     item.name.toLowerCase().includes(normalized) ||
+    (typeof item.workspaceName === 'string' &&
+      item.workspaceName.toLowerCase().includes(normalized)) ||
     (typeof item.mentionFamily === 'string' &&
       item.mentionFamily.toLowerCase().includes(normalized))
   )
@@ -91,56 +123,81 @@ function uniqueTabNames<T>(tabs: readonly T[], nameOf: (tab: T) => string): stri
   })
 }
 
-function resourceItem(id: string, name: string, existing?: AvailableItem): AvailableItem {
-  return {
-    ...existing,
-    id,
-    name,
-    mentionFamily: name,
-    mentionLevel: 'resource' satisfies ResourceMentionLevel,
-  }
-}
-
-/** Adds live inner tabs after each always-present desktop resource mention. */
-export function withDesktopTabMentions(
+/**
+ * Replaces the Browser launcher row with the live pages, which are the only
+ * browser things that can be attached or mentioned. With no page open the
+ * family disappears from the menu.
+ */
+export function withBrowserTabMentions(
   groups: readonly ResourceMentionGroup[],
-  browserTabs: readonly BrowserTabState[],
-  terminalTabs: readonly TerminalTabState[]
+  browserTabs: readonly BrowserTabState[]
 ): ResourceMentionGroup[] {
   const browserNames = uniqueTabNames(browserTabs, browserTabTitle)
-  const terminalNames = uniqueTabNames(terminalTabs, (tab) => tab.title.trim() || 'Terminal')
-
-  return groups.map((group) => {
-    if (group.type === 'browser') {
-      const existing = group.items.find((item) => item.id === BROWSER_SESSION_RESOURCE_ID)
-      return {
-        ...group,
-        items: [
-          resourceItem(BROWSER_SESSION_RESOURCE_ID, 'Browser', existing),
-          ...browserTabs.map((tab, index) => ({
+  return groups.map((group) =>
+    group.type === 'browser'
+      ? {
+          ...group,
+          items: browserTabs.map((tab, index) => ({
             id: tab.tabId,
             name: browserNames[index],
             mentionFamily: 'Browser',
-            mentionLevel: 'tab' satisfies ResourceMentionLevel,
           })),
-        ],
-      }
-    }
-    if (group.type === 'terminal') {
-      const existing = group.items.find((item) => item.id === TERMINAL_SESSION_RESOURCE_ID)
-      return {
-        ...group,
-        items: [
-          resourceItem(TERMINAL_SESSION_RESOURCE_ID, 'Terminal', existing),
-          ...terminalTabs.map((tab, index) => ({
-            id: tab.terminalId,
+        }
+      : group
+  )
+}
+
+/**
+ * Replaces the Terminal launcher row with the live shells, which are the only
+ * terminal things that can be attached or mentioned. With no shell open the
+ * family disappears from the menu. A shell is named after its settled
+ * foreground program, else its directory; the strip settles the same way.
+ */
+export function withTerminalTabMentions(
+  groups: readonly ResourceMentionGroup[],
+  terminalTabs: readonly TerminalTabState[],
+  settledCommands: ReadonlySet<string>
+): ResourceMentionGroup[] {
+  const terminalNames = uniqueTabNames(terminalTabs, (tab) =>
+    terminalTabTitle(tab, settledCommands)
+  )
+  return groups.map((group) =>
+    group.type === 'terminal'
+      ? {
+          ...group,
+          items: terminalTabs.map((tab, index) => ({
+            id: terminalResourceId(tab.terminalId),
             name: terminalNames[index],
             mentionFamily: 'Terminal',
-            mentionLevel: 'tab' satisfies ResourceMentionLevel,
           })),
-        ],
-      }
-    }
-    return group
-  })
+        }
+      : group
+  )
+}
+
+/** One row of the `@` list: an item plus the family it came from. */
+export interface ResourceMentionCandidate {
+  type: MothershipResourceType
+  item: AvailableItem
+}
+
+/**
+ * The rows an `@` list shows for an EMPTY query — a preview of what is mentionable,
+ * capped per family so no one family can bury the rest.
+ *
+ * `integration` carries 300+ near-identical rows and sorts FIRST, so while the cap
+ * defaulted to "uncapped" the preview was its entire catalog and no other family was
+ * reachable without scrolling past all of it. Capping is therefore the default and a
+ * family opts out by raising its own limit, not by omitting one.
+ *
+ * Only the empty-query preview is capped; {@link resourceMentionMatches} searches
+ * every family in full once the user types.
+ */
+export function buildMentionPreview(
+  groups: readonly ResourceMentionGroup[],
+  limitFor: (type: MothershipResourceType) => number
+): ResourceMentionCandidate[] {
+  return groups.flatMap(({ type, items }) =>
+    items.slice(0, limitFor(type)).map((item) => ({ type, item }))
+  )
 }

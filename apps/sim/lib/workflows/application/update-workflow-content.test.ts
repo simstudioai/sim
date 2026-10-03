@@ -1,39 +1,34 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  notify: vi.fn(),
+  requireMutable: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/workflows/application/workflow-mutability', () => ({
+  requireMutableWorkflow: mocks.requireMutable,
+}))
 
 import { applyWorkflowVariableOperations } from '@/lib/workflows/application/update-workflow-content'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
 
 const context = {
   workflowId: 'workflow-1',
@@ -56,10 +51,9 @@ const principal = {
 
 describe('applyWorkflowVariableOperations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     dbChainMockFns.for.mockResolvedValue([{ variables: {} }])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'workflow-1' }])
   })
@@ -97,7 +91,7 @@ describe('applyWorkflowVariableOperations', () => {
         }),
       })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'workflow.variables_updated',
         resourceId: 'workflow-1',
@@ -108,8 +102,8 @@ describe('applyWorkflowVariableOperations', () => {
         }),
       })
     )
-    expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
-    expect(dbChainMockFns.returning).toHaveBeenCalledBefore(mocks.notify)
+    expect(mockNotify).toHaveBeenCalledWith('workflow-1')
+    expect(dbChainMockFns.returning).toHaveBeenCalledBefore(mockNotify)
   })
 
   it('does not write, audit, or notify an authoritative no-op', async () => {
@@ -124,18 +118,27 @@ describe('applyWorkflowVariableOperations', () => {
     ).resolves.toEqual({ updated: 0, changed: false })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
-  it('rejects a non-Copilot principal before canonical loading', async () => {
+  it('rejects a delegated service the operation does not accept, before canonical loading', async () => {
     await expect(
       applyWorkflowVariableOperations.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: {
+          kind: 'delegated',
+          serviceId: 'executor',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'delegation-1',
+          audience: 'sim:workflows',
+          issuedAt: new Date('2026-01-01T00:00:00Z'),
+          expiresAt: new Date('2026-01-01T01:00:00Z'),
+        },
         input: { workflowId: 'workflow-1', operations: [] },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
   })
 })

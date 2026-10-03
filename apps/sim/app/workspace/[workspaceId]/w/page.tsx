@@ -3,8 +3,8 @@
 import { useEffect } from 'react'
 import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { ReactFlowProvider } from '@xyflow/react'
 import { useParams, useRouter } from 'next/navigation'
-import { ReactFlowProvider } from 'reactflow'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflowOperations } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -65,8 +65,8 @@ export default function WorkflowsPage() {
   const canCreate = !permissionsLoading && canEdit
 
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
+    <div className='flex size-full flex-col overflow-hidden bg-[var(--bg)]'>
+      <div className='relative size-full flex-1 bg-[var(--bg)]'>
         <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
           {isError ? (
             // This is the landing route now, so a failed list fetch would

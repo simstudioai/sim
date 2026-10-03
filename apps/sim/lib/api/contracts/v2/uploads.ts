@@ -38,7 +38,7 @@ export const v2OptionalUploadTokenHeadersSchema = z.object({
  * contract.
  */
 const TRANSFER_STEP_CONTRACT =
-  'Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ "error": { "code", "message" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand.'
+  'Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML.'
 
 export const v2PutUploadTransferSchema = z
   .object({
@@ -100,7 +100,12 @@ export type V2PartUrlsBody = z.input<typeof v2PartUrlsBodySchema>
 export const v2UploadPartUrlSchema = z
   .object({
     partNumber: z.number().int().min(1).describe('Multipart part number.'),
-    url: z.string().url().describe(`Signed URL for this upload part. ${TRANSFER_STEP_CONTRACT}`),
+    url: z
+      .string()
+      .url()
+      .describe(
+        `Signed URL for this upload part. ${TRANSFER_STEP_CONTRACT} Do not retain part \`ETag\` values; after every part succeeds, call the completion endpoint without a request body.`
+      ),
     headers: z
       .record(z.string(), z.string())
       .describe('Headers that must be included with the part upload.'),

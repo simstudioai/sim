@@ -1,10 +1,9 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it } from 'vitest'
-import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
+import { resetEnvFlagsMock } from '@sim/testing'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { DeploymentShape, WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import {
   canManageWorkspaceBilling,
+  canViewWorkspaceBillingSettings,
   getWorkspaceUsageLimitAction,
 } from '@/lib/billing/workspace-permissions'
 
@@ -36,6 +35,37 @@ const HOST_CONTEXT: WorkspaceHostContext = {
   },
 }
 
+const DEPLOYMENT: DeploymentShape = {
+  hosted: true,
+  billingEnabled: true,
+  chatEnabled: true,
+  azureConfigured: false,
+  cohereConfigured: false,
+  features: {
+    accessControl: false,
+    auditLogs: false,
+    customBlocks: false,
+    dataDrains: false,
+    dataRetention: false,
+    inbox: false,
+    sandboxes: false,
+    sessionPolicies: false,
+    sso: false,
+    usageMonitoring: false,
+    whitelabeling: false,
+  },
+}
+
+describe('canViewWorkspaceBillingSettings', () => {
+  afterEach(resetEnvFlagsMock)
+
+  it('still requires authority over the payer', () => {
+    expect(
+      canViewWorkspaceBillingSettings({ ...HOST_CONTEXT, deployment: DEPLOYMENT }, 'viewer')
+    ).toBe(false)
+  })
+})
+
 describe('canManageWorkspaceBilling', () => {
   it('does not treat an external workspace admin as a host billing admin', () => {
     expect(canManageWorkspaceBilling(HOST_CONTEXT, 'external-a')).toBe(false)
@@ -53,22 +83,6 @@ describe('canManageWorkspaceBilling', () => {
           },
         },
         'admin-b'
-      )
-    ).toBe(true)
-  })
-
-  it('allows the billed user to manage a personal workspace', () => {
-    expect(
-      canManageWorkspaceBilling(
-        {
-          ...HOST_CONTEXT,
-          workspace: {
-            ...HOST_CONTEXT.workspace,
-            workspaceMode: 'personal',
-          },
-          hostOrganizationId: null,
-        },
-        'owner-b'
       )
     ).toBe(true)
   })

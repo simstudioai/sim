@@ -1,0 +1,21 @@
+suite: cronjobs — resource names remain valid
+templates:
+  - cronjobs.yaml
+release:
+  name: release-name-that-is-definitely-long-enough
+  namespace: sim
+set:
+  app.env.BETTER_AUTH_SECRET: test-better-auth-secret-32-bytes
+  app.env.ENCRYPTION_KEY: test-encryption-key-32-bytes-long
+  app.env.INTERNAL_API_SECRET: test-internal-api-secret-32-bytes
+  app.env.CRON_SECRET: test-cron-secret-32-bytes
+  postgresql.auth.password: testpassword
+tests:
+  - it: bounds long CronJob names while preserving per-job identity
+    documentSelector:
+      path: metadata.labels["app.kubernetes.io/component"]
+      value: cronjob-workspace-file-search-dispatch
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^[a-z0-9]([-a-z0-9]{0,50}[a-z0-9])?$"

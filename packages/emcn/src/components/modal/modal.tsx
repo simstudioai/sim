@@ -426,6 +426,8 @@ export type ModalSize = keyof typeof MODAL_SIZES
 
 export interface ModalContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** Backdrop styling for specialized surfaces such as media viewers. */
+  overlayClassName?: string
   /**
    * Whether to show the close button
    * @default true
@@ -488,6 +490,7 @@ const ModalContent = React.forwardRef<
   (
     {
       className,
+      overlayClassName,
       children,
       showClose = true,
       size = 'md',
@@ -562,6 +565,7 @@ const ModalContent = React.forwardRef<
     return (
       <ModalPortal>
         <ModalOverlay
+          className={overlayClassName}
           nativeSurfaceBarrierClaimedRef={nativeSurfaceBarrierClaimedRef}
           nativeSurfaceReady={nativeSurfaceReady}
           onNativeSurfaceReadyChange={handleNativeSurfaceReadyChange}
@@ -603,12 +607,6 @@ const ModalContent = React.forwardRef<
               if (dismissDisabled) e.preventDefault()
               e.stopPropagation()
               onEscapeKeyDown?.(e)
-            }}
-            onPointerDown={(e) => {
-              e.stopPropagation()
-            }}
-            onPointerUp={(e) => {
-              e.stopPropagation()
             }}
             onInteractOutside={(e) => {
               /**
@@ -679,7 +677,7 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
           <Button
             variant='ghost'
             disabled={dismissDisabled}
-            className='relative size-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+            className='relative size-[16px] shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
           >
             <X className='size-[16px]' />
             <span className='sr-only'>Close</span>

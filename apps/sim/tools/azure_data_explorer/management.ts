@@ -3,13 +3,12 @@ import type {
   AzureDataExplorerTableResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerManagementTool: ToolConfig<
+export const azureDataExplorerManagementTool: InternalToolConfig<
   AzureDataExplorerManagementParams,
   AzureDataExplorerTableResponse
 > = {
@@ -63,17 +62,14 @@ export const azureDataExplorerManagementTool: ToolConfig<
         'Database context for the command. Required for all commands except cluster-level ones such as .show databases',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const command = params.command.trim()
       if (!command.startsWith('.')) {
         throw new Error('Management commands must start with "." — use the Query operation for KQL')
       }
       return {
-        ...azureDataExplorerAuthBody(params),
+        ...azureDataExplorerAuthInput(params),
         endpoint: 'mgmt',
         ...(params.database ? { database: params.database } : {}),
         csl: command,

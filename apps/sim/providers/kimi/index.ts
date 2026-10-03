@@ -6,13 +6,22 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
-import { createReadableStreamFromKimiStream } from '@/providers/kimi/utils'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import {
   getModelCapabilities,
   getProviderDefaultModel,
   getProviderModels,
 } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -48,6 +57,16 @@ const THINKING_TOGGLE_MODELS = new Set(
   )
 )
 
+function buildRequiredToolPayload(
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+  name: string
+) {
+  return {
+    tools: tools.filter((tool) => tool.type === 'function' && tool.function.name === name),
+    tool_choice: 'required' as const,
+  }
+}
+
 function buildResponseFormatPayload(
   responseFormat: NonNullable<ProviderRequest['responseFormat']>
 ) {
@@ -78,8 +97,8 @@ function buildResponseFormatPayload(
  *   rejects the object form whenever thinking is enabled ("tool_choice 'specified' is
  *   incompatible with thinking enabled", verified live). On models with a thinking toggle the
  *   adapter therefore sends `thinking: { type: "disabled" }` for the duration of a forced-tool
- *   request; on always-thinking models (kimi-k3, kimi-k2.7-code) it downgrades the forced
- *   choice to `"auto"` with a warning, mirroring the Z.ai adapter's behavior.
+ *   request. K3 supports `required`, so it forces a named tool by offering only that tool;
+ *   K2.7 Code falls back to `auto` because it supports neither forcing mechanism.
  */
 export const kimiProvider: ProviderConfig = {
   id: 'kimi',
@@ -137,6 +156,9 @@ export const kimiProvider: ProviderConfig = {
       }
 
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+      if (request.reasoningEffort && request.reasoningEffort !== 'auto') {
+        payload.reasoning_effort = request.reasoningEffort
+      }
 
       if (
         THINKING_TOGGLE_MODELS.has(request.model) &&
@@ -162,7 +184,12 @@ export const kimiProvider: ProviderConfig = {
           hasActiveTools = true
 
           if (typeof toolChoice === 'object') {
-            if (THINKING_TOGGLE_MODELS.has(request.model)) {
+            if (request.model === 'kimi-k3' && toolChoice.type === 'function') {
+              Object.assign(
+                payload,
+                buildRequiredToolPayload(filteredTools, toolChoice.function.name)
+              )
+            } else if (THINKING_TOGGLE_MODELS.has(request.model)) {
               if (payload.thinking?.type === 'enabled') {
                 logger.warn(
                   'Kimi rejects forced tool_choice while thinking is enabled — disabling thinking for this forced-tool request',
@@ -194,11 +221,11 @@ export const kimiProvider: ProviderConfig = {
         logger.info('Using streaming response for Kimi request (no tools)')
 
         const streamResponse = await kimi.chat.completions.create(
-          {
+          await prepareConversationGeneration(request, 'chat-completions', {
             ...payload,
             stream: true,
             stream_options: { include_usage: true },
-          },
+          }),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -212,27 +239,31 @@ export const kimiProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromKimiStream(
+            createOpenAICompatibleAgentEventStream(
               // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
               streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (content, usage) => {
-                output.content = content
-                output.tokens = {
-                  input: usage.prompt_tokens,
-                  output: usage.completion_tokens,
-                  total: usage.total_tokens,
-                }
+              {
+                providerName: 'Kimi',
+                request,
+                onComplete: ({ content, usage }) => {
+                  output.content = content
+                  output.tokens = {
+                    input: usage.prompt_tokens,
+                    output: usage.completion_tokens,
+                    total: usage.total_tokens,
+                  }
 
-                const costResult = calculateCost(
-                  request.model,
-                  usage.prompt_tokens,
-                  usage.completion_tokens
-                )
-                output.cost = {
-                  input: costResult.input,
-                  output: costResult.output,
-                  total: costResult.total,
-                }
+                  const costResult = calculateCost(
+                    request.model,
+                    usage.prompt_tokens,
+                    usage.completion_tokens
+                  )
+                  output.cost = {
+                    input: costResult.input,
+                    output: costResult.output,
+                    total: costResult.total,
+                  }
+                },
               }
             ),
         })
@@ -241,14 +272,23 @@ export const kimiProvider: ProviderConfig = {
       }
 
       const initialCallTime = Date.now()
-      const originalToolChoice = payload.tool_choice
+      const originalToolChoice =
+        request.model === 'kimi-k3' ? preparedTools?.toolChoice : payload.tool_choice
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
       let currentResponse = await kimi.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -313,6 +353,12 @@ export const kimiProvider: ProviderConfig = {
 
           const toolsStartTime = Date.now()
 
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
           const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
             const toolCallStartTime = Date.now()
             const toolName = toolCall.function.name
@@ -322,6 +368,12 @@ export const kimiProvider: ProviderConfig = {
               const tool = request.tools?.find((t) => t.id === toolName)
 
               if (!tool) {
+                await recordProviderConversationToolError(
+                  request,
+                  toolCall.id,
+                  toolName,
+                  `Tool "${toolName}" is not available`
+                )
                 const toolCallEndTime = Date.now()
                 return {
                   toolCall,
@@ -338,7 +390,12 @@ export const kimiProvider: ProviderConfig = {
                 }
               }
 
-              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+              const { toolParams, executionParams } = prepareToolExecution(
+                tool,
+                toolArgs,
+                request,
+                toolCall.id
+              )
               const { rawResponse, modelResponse } = await executeProviderTool(
                 toolName,
                 executionParams,
@@ -362,6 +419,12 @@ export const kimiProvider: ProviderConfig = {
               if (isAbortError(error) || request.abortSignal?.aborted) {
                 throw error
               }
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                getErrorMessage(error, 'Tool execution failed')
+              )
               const toolCallEndTime = Date.now()
               logger.error('Error processing tool call:', { error, toolName })
 
@@ -452,22 +515,33 @@ export const kimiProvider: ProviderConfig = {
           const nextPayload = {
             ...payload,
             messages: currentMessages,
+            tools: preparedTools?.tools,
           }
+          let nextToolChoice = nextPayload.tool_choice
 
           if (
             typeof originalToolChoice === 'object' &&
-            hasUsedForcedTool &&
+            (hasUsedForcedTool || request.model === 'kimi-k3') &&
             forcedTools.length > 0
           ) {
             const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
             if (remainingTools.length > 0) {
-              nextPayload.tool_choice = {
+              nextToolChoice = {
                 type: 'function',
                 function: { name: remainingTools[0] },
               }
+              if (request.model === 'kimi-k3') {
+                Object.assign(
+                  nextPayload,
+                  buildRequiredToolPayload(preparedTools?.tools || [], remainingTools[0])
+                )
+              } else {
+                nextPayload.tool_choice = nextToolChoice
+              }
               logger.info(`Forcing next tool: ${remainingTools[0]}`)
             } else {
+              nextToolChoice = 'auto'
               nextPayload.tool_choice = 'auto'
               logger.info('All forced tools have been used, switching to auto tool_choice')
             }
@@ -475,16 +549,24 @@ export const kimiProvider: ProviderConfig = {
 
           const nextModelStartTime = Date.now()
           currentResponse = await kimi.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+            await captureProviderConversationStep(
+              request,
+              'chat-completions',
+              currentResponse.choices[0]?.message,
+              getChatCompletionConversationUsage(currentResponse.usage)
+            )
+          }
 
           const toolCallsResponse =
             currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
-          if (typeof nextPayload.tool_choice === 'object' && toolCallsResponse?.length) {
+          if (typeof nextToolChoice === 'object' && toolCallsResponse?.length) {
             const result = trackForcedToolUsage(
               toolCallsResponse,
-              nextPayload.tool_choice,
+              nextToolChoice,
               logger,
               'openai',
               forcedTools,
@@ -540,9 +622,17 @@ export const kimiProvider: ProviderConfig = {
 
             const finalModelStartTime = Date.now()
             currentResponse = await kimi.chat.completions.create(
-              finalPayload,
+              await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
+            if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+              await captureProviderConversationStep(
+                request,
+                'chat-completions',
+                currentResponse.choices[0]?.message,
+                getChatCompletionConversationUsage(currentResponse.usage)
+              )
+            }
             const finalModelEndTime = Date.now()
             const finalModelDuration = finalModelEndTime - finalModelStartTime
 
@@ -655,7 +745,11 @@ export const kimiProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

@@ -6,7 +6,7 @@ import {
   workflowExecutionLogs,
   workflowSchedule,
 } from '@sim/db'
-import { createLogger, runWithRequestContext } from '@sim/logger'
+import { createLogger, type RequestContext, runWithRequestContext } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task, timeout } from '@trigger.dev/sdk'
@@ -158,6 +158,23 @@ export function classifyScheduleExecutionResult(
 }
 
 /** Advances cadence after user cancellation without mutating the failure counter. */
+/**
+ * Successful-run accounting: stamps `lastRanAt`, clears the claim, advances to
+ * `nextRunAt`, and resets the consecutive-failure and infra-retry counters. The
+ * sibling of {@link buildScheduleCancellationUpdate} and
+ * {@link buildScheduleFailureUpdate}.
+ */
+export function buildScheduleSuccessUpdate(now: Date, nextRunAt: Date): WorkflowScheduleUpdate {
+  return {
+    lastRanAt: now,
+    updatedAt: now,
+    nextRunAt,
+    failedCount: 0,
+    lastQueuedAt: null,
+    ...resetScheduleInfraRetryCount(),
+  }
+}
+
 export function buildScheduleCancellationUpdate(
   now: Date,
   nextRunAt: Date
@@ -266,6 +283,52 @@ export async function releaseScheduleLock(
   }
 
   const outcome = await applyScheduleUpdate(scheduleId, updates, requestId, context, options)
+  return outcome.updated
+}
+
+/** Applies successful-run accounting only while the caller still owns the claim. */
+export async function applyScheduleSuccessUpdate(params: {
+  scheduleId: string
+  now: Date
+  nextRunAt: Date
+  expectedLastQueuedAt: Date | null
+  requestId: string
+  context: string
+  executor?: DbOrTx
+}): Promise<boolean> {
+  const { scheduleId, now, nextRunAt, expectedLastQueuedAt, requestId, context, executor } = params
+
+  const outcome = await applyScheduleUpdate(
+    scheduleId,
+    buildScheduleSuccessUpdate(now, nextRunAt),
+    requestId,
+    context,
+    { expectedLastQueuedAt, executor }
+  )
+
+  return outcome.updated
+}
+
+/** Applies cancelled-run accounting only while the caller still owns the claim. */
+export async function applyScheduleCancellationUpdate(params: {
+  scheduleId: string
+  now: Date
+  nextRunAt: Date
+  expectedLastQueuedAt: Date | null
+  requestId: string
+  context: string
+  executor?: DbOrTx
+}): Promise<boolean> {
+  const { scheduleId, now, nextRunAt, expectedLastQueuedAt, requestId, context, executor } = params
+
+  const outcome = await applyScheduleUpdate(
+    scheduleId,
+    buildScheduleCancellationUpdate(now, nextRunAt),
+    requestId,
+    context,
+    { expectedLastQueuedAt, executor }
+  )
+
   return outcome.updated
 }
 
@@ -530,6 +593,12 @@ async function runWorkflowExecution({
       workflowId: payload.workflowId,
       workspaceId,
       userId: actorUserId,
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId,
+        workflowId: payload.workflowId,
+      },
       billingAttribution,
       sessionUserId: undefined,
       workflowUserId: workflowRecord.userId,
@@ -605,7 +674,7 @@ async function runWorkflowExecution({
       timeoutController.isTimedOut() &&
       timeoutMs !== undefined
     if (timedOut) {
-      const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutMs)
+      const timeoutErrorMessage = getTimeoutErrorMessage(timeoutMs)
       logger.info(`[${requestId}] Scheduled workflow execution timed out`, {
         timeoutMs,
       })
@@ -753,7 +822,12 @@ export async function executeScheduleJob(
   const scheduledFor = payload.scheduledFor ? new Date(payload.scheduledFor) : null
 
   try {
-    return await runWithRequestContext({ requestId }, async () => {
+    /** A trigger, not a client, started this run. */
+    const requestContext: RequestContext = {
+      requestId,
+      client: { surface: 'schedule', source: 'trigger' },
+    }
+    return await runWithRequestContext(requestContext, async () => {
       logger.info(`[${requestId}] Starting schedule execution`, {
         scheduleId: payload.scheduleId,
         workflowId: payload.workflowId,
@@ -1090,14 +1164,7 @@ export async function executeScheduleJob(
             const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
 
             await updateClaimedSchedule(
-              {
-                lastRanAt: now,
-                updatedAt: now,
-                nextRunAt,
-                failedCount: 0,
-                lastQueuedAt: null,
-                ...resetScheduleInfraRetryCount(),
-              },
+              buildScheduleSuccessUpdate(now, nextRunAt),
               `Error updating schedule ${payload.scheduleId} after success`
             )
             return

@@ -11,30 +11,16 @@ export const memoryWorkspaceQuerySchema = z.object({
   workspaceId: z.string().uuid('Invalid workspace ID format'),
 })
 
-const agentMemoryDataSchema = z.object({
-  role: z.enum(['user', 'assistant', 'system'], {
-    error: 'Role must be user, assistant, or system',
-  }),
-  content: z.string().min(1, 'Content is required'),
-})
-
-const genericMemoryDataSchema = z.record(z.string(), z.unknown())
-
-export const memoryPutBodySchema = z.object({
-  data: z.union([agentMemoryDataSchema, genericMemoryDataSchema], {
-    error: 'Invalid memory data structure',
-  }),
-  workspaceId: z.string().uuid('Invalid workspace ID format'),
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
-})
-export type MemoryPutBody = z.input<typeof memoryPutBodySchema>
-
-export const agentMemoryDataSchemaContract = agentMemoryDataSchema
-
 export const memoryListQuerySchema = z.object({
   workspaceId: z.string().optional(),
   query: z.string().nullable().optional(),
-  limit: z.coerce.number().int().min(1).optional().default(50),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000, 'Cannot list more than 1000 memories per request')
+    .optional()
+    .default(50),
 })
 
 export const memoryMessageSchema = z
@@ -117,27 +103,5 @@ export const getMemoryByIdContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: memorySuccessResponseSchema(memoryRecordSchema.nullable()),
-  },
-})
-
-export const deleteMemoryByIdContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/memory/[id]',
-  params: memoryIdParamsSchema,
-  query: memoryWorkspaceQuerySchema,
-  response: {
-    mode: 'json',
-    schema: memorySuccessResponseSchema(z.object({ message: z.string() })),
-  },
-})
-
-export const updateMemoryByIdContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/memory/[id]',
-  params: memoryIdParamsSchema,
-  body: memoryPutBodySchema,
-  response: {
-    mode: 'json',
-    schema: memorySuccessResponseSchema(memoryRecordSchema),
   },
 })

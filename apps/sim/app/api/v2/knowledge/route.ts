@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   v2CreateKnowledgeBaseContract,
   v2ListKnowledgeBasesContract,
@@ -25,17 +26,31 @@ export const revalidate = 0
 /** Every param that changes which knowledge bases, in which order, this list returns. */
 function knowledgeCursorFilters(query: {
   workspaceId: string
+  scope?: string
   folderPath?: string
   search?: string
 }) {
   return cursorScopeKey(cursorRoute(v2ListKnowledgeBasesContract), {
     workspaceId: query.workspaceId,
+    // Stamped only when it is not the default. `scope` carries
+    // `.default('active')`, so it is always present on the parsed query;
+    // binding it unconditionally would put a constant in every fingerprint and
+    // reject every cursor minted before the field existed — which is every
+    // cursor the deployed build handed out, since `scope` is new here.
+    scope: query.scope === 'active' ? undefined : query.scope,
     folderPath: query.folderPath,
     search: query.search,
   })
 }
 
-/** GET /api/v2/knowledge — List knowledge bases in a workspace. */
+/**
+ * GET /api/v2/knowledge — List knowledge bases in a workspace.
+ *
+ * `scope=archived` lists the soft-deleted set a `POST /api/v2/knowledge/{knowledgeBaseId}/restore`
+ * can bring back. It is the same operation as the active list — the same rows under
+ * a different `deleted_at` predicate — so it is a filter here rather than a sibling
+ * path, matching files, tables, and workflows.
+ */
 export const GET = defineV2JsonRoute({
   contract: v2ListKnowledgeBasesContract,
   auth: v2ApiKeyAuth,
@@ -44,6 +59,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
+    scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
     sortBy: query.sortBy,
@@ -90,7 +106,7 @@ export const POST = defineV2JsonRoute({
       name: knowledgeBase.name,
       workspaceId: knowledgeBase.workspaceId ?? undefined,
     })
-    if (principal.kind === 'personal_api_key') {
+    if (isUserCredentialPrincipal(principal)) {
       captureServerEvent(
         principal.userId,
         'knowledge_base_created',

@@ -19,6 +19,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   handoff.ts        # 127.0.0.1 loopback login handoff + token redeem
   session-lifecycle.ts # sign-out teardown, 401 watcher, connect intercept
   load-health.ts    # offline/error page, auto-retry, watchdog
+  local-pages.ts    # sim-shell: scheme for the bundled pages (file: cannot read app.asar with its privileges fused off)
   local-filesystem.ts # session-scoped read-only directory grants + localfs:// broker
   local-filesystem-grant-store.ts # those grants, encrypted at rest
   desktop-settings.ts # renderer-facing settings surface
@@ -34,9 +35,11 @@ src/main/           # main process (bundled to dist/main.cjs)
   browser-credentials/ # saved passwords, OS-auth gated, safeStorage at rest
   browser-sites/    # imported site directory, safeStorage at rest
   browser-import/   # one-shot import of profiles, cookies and passwords
-src/preload/        # contextBridge IPC bridge (bundled to dist/preload.cjs)
+src/preload/        # isolated renderer bridges
+  index.ts          # hosted-app contextBridge IPC bridge (dist/preload.cjs)
+  browser/          # minimal agent-browser credential helper (dist/browser-preload.cjs)
 native/             # Node-API/AppKit bridge for native macOS Help docs search
-static/             # bundled local pages (offline.html)
+static/             # bundled local pages (offline.html, server.html), served over sim-shell:
 e2e/                # Playwright _electron smoke suite
 ```
 
@@ -54,7 +57,7 @@ SIM_DESKTOP_ORIGIN=http://localhost:3000 bun run dev   # against local sim
 - `bun run type-check` / `lint:check` — standard workspace checks; CI picks these up automatically via `turbo run`.
 - `SIM_DESKTOP_USER_DATA=<dir>` isolates settings/partition state (used by e2e).
 
-Everything is bundled by esbuild into `dist/main.cjs` + `dist/preload.cjs` — including `electron-updater` and the `@sim/*` packages — so the packaged app has **no runtime node_modules** and `electron-builder` needs no lockfile/npmRebuild step (this is the deliberate workaround for Bun ↔ electron-builder friction; there is no `package-lock.json`).
+The main process and two preloads are bundled by esbuild into `dist/main.cjs`, `dist/preload.cjs`, and `dist/browser-preload.cjs`, including `electron-updater` and the `@sim/*` packages. The native `@lydell/node-pty` packages stay external so Electron can load their architecture-specific prebuilds from the packaged runtime `node_modules`; `npmRebuild` remains disabled because those Node-API prebuilds are already ABI-stable. There is no `package-lock.json`.
 
 ## Auth model (read before touching auth)
 
@@ -99,15 +102,15 @@ Overall this is **within normal thin-wrapper coupling** — every item is either
 
 Local unsigned build: `bun run package:dir` (app in `release/mac-universal/`). Signed: `bun run package:mac` with `CSC_LINK`/`CSC_KEY_PASSWORD` exported.
 
-Pre-release share (no Developer ID yet): `SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai bun run package:share` builds a DMG whose fresh installs default to that origin (baked at build time; official builds leave it unset → prod) and skips per-file signature timestamps. Recipients must clear quarantine once: `xattr -cr /Applications/Sim.app`.
+Local unsigned pre-release share: `SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai bun run package:share` builds a DMG whose fresh installs default to that origin (baked at build time; official builds leave it unset → prod) and skips per-file signature timestamps. Recipients must clear quarantine once: `xattr -cr /Applications/Sim.app`.
 
 The build also derives the app icon from `SIM_DESKTOP_DEFAULT_ORIGIN`. Every channel uses the exact production icon with its white background and black `sim` mark. Non-production channels add a thin outline using existing platform colors: dev uses orange, staging uses Loop blue, and localhost uses Workflow violet. The macOS menu-bar icon also carries a compact `D`, `S`, or `L` subscript for those environments; production remains unmarked. Native Icon Composer assets live in `build/`; `scripts/build.ts` copies the selected variant to the ignored `build/generated-icon.icon` path consumed by electron-builder. Electron-builder compiles it to `Assets.car` and derives the legacy `.icns` fallback from the same source. Matching 512px PNGs in `static/` provide the Dock icon for unpackaged runs.
 
 CI (`.github/workflows/desktop-release.yml`, wired into `ci.yml`):
-- Stable builds run only after `create-release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. Stable assets remain on `simstudioai/sim`; dev/staging assets publish to the public `simstudioai/sim-desktop-releases` repository so source-repository followers are not notified for internal shell builds. The job builds `--publish never` and uploads assets with `gh release upload --clobber` (idempotent re-runs).
+- Stable builds run only after `create-release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. Stable assets remain on `simstudioai/sim`; dev/staging assets publish to the public `simstudioai/sim-desktop-releases` repository so source-repository followers are not notified for internal shell builds. The job builds `--publish never`; reruns verify the size and SHA-256 digest of existing release assets instead of overwriting them.
 - **Secrets gate**: `check-desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "Desktop Release (macOS)" → Run workflow with a `vX.Y.Z` version (`publish: false` uploads artifacts to the run instead of the release).
 - The product semver is **injected** from the release tag into `apps/desktop/package.json` at build time (repo package versions are placeholders). A mismatch guard fails the build.
-- Fuses are flipped at package time (`electronFuses` in `electron-builder.yml`): runAsNode off, NODE_OPTIONS off, inspect args off, ASAR-only + integrity validation, cookie encryption on, `strictlyRequireAllFuses` so new fuses fail loudly on Electron bumps.
+- Fuses are flipped at package time (`electronFuses` in `electron-builder.yml`): runAsNode off, NODE_OPTIONS off, inspect args off, ASAR-only + integrity validation, and cookie encryption on. The packaged smoke test asserts every fuse byte so Electron upgrades fail until new fuses receive an explicit policy.
 - **Cookie-encryption go/no-go**: on every Electron bump, verify a packaged build keeps its session across relaunch (there are historical cookie-persistence bugs with the `EnableCookieEncryption` fuse). If it reproduces, set `enableCookieEncryption: false` and record it here.
 
 Required repo secrets (owner: whoever holds the Apple Developer account; calendar the expiries — an expired cert/API key breaks every release):
@@ -128,7 +131,7 @@ Yes — the architecture has a single, clean seam for native features, and nothi
 
 1. **One bridge.** The preload (`src/preload/index.ts`) exposes `window.simDesktop` via `contextBridge` on the main window. This is the *only* channel between web content and native capability. It exposes narrow, typed methods — never raw `ipcRenderer` (Electron security checklist item 20).
 2. **Feature-detect, never assume.** The same web app is served to browsers and to the desktop from one origin, so a desktop feature is progressive enhancement: `if (window.simDesktop) { … }`. In a browser `window.simDesktop` is `undefined` and the feature is simply absent. (`isHosted` already tags these sessions for analytics.)
-3. **Gate in main.** Every channel is validated in `src/main/ipc.ts` by sender frame — app-origin for capability calls, bundled `file:` pages for shell-control calls (checklist item 17). A new native feature adds one gated channel there.
+3. **Gate in main.** Every channel is validated in `src/main/ipc.ts` by sender frame — app-origin for capability calls, the bundled `sim-shell://pages/…` documents for shell-control calls (checklist item 17). A new native feature adds one gated channel there.
 4. **Single-source the contract.** `apps/sim` cannot import from `apps/desktop` (monorepo rule: `apps/* → packages/*` only). The bridge interface lives in the shared types-only `packages/desktop-bridge` package, which both the preload and web app consume.
 
 Concrete example — a "Reveal in Finder" button:
@@ -153,6 +156,26 @@ const desktop = useDesktop()
 
 Good fits for the bridge: OS notifications + dock badge on workflow completion, global shortcuts, "reveal in Finder", tray, secure OS-keychain storage. Anything that touches the server/DB still goes through normal APIs — the bridge is only for **native** capability. This same bridge is also the robust way to retire the web-app couplings in the table above: have the web app *tell* the shell (`signalLogout()`, `markAuthSurface()`) instead of the shell inferring from URLs.
 
+### Browser authentication and Sim previews
+
+Browser tabs for the exact configured Sim origin share the desktop app's existing
+Electron session. This includes dev: authenticated file previews and deployed chat
+pages use the current login without copying cookies or exposing tokens to the model.
+Normal resource permissions and any separate deployed-chat password still apply.
+External websites use the independent `persist:sim-browser-agent` partition.
+
+Crossing between Sim and an external site opens a tab in the destination session and
+preserves the source tab's history; an unused blank tab adopts its first destination's
+session. A cross-session form POST is blocked instead of replayed as a GET. Restored
+tabs and popups select their session from the destination origin. Sign-out and account
+or server changes use the existing browser teardown. Browser views retain their own
+permission/download policy, SSRF guards, and minimal preload with no `simDesktop` API.
+
+Generated HTML remains inside its `allow-scripts` sandbox. The driver can inspect and
+interact with inline frames through isolated Chromium worlds, including out-of-process
+frames; it does not grant those pages access to the parent app. These shell changes
+require a desktop update, not just a hosted web deployment.
+
 ### Local filesystem access
 
 Copilot can inspect user-selected local directories through the ordinary VFS tools. Granted folders appear beneath the top-level `user-local/` namespace, and `glob`, `grep`, and `read` are routed to Electron only when their path/pattern is explicitly scoped there. This capability is:
@@ -169,8 +192,10 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 
 ## Auto-update, channels, rollout, rollback
 
-- `electron-updater` reads the deployment's `/api/desktop/update` feed; production resolves stable releases from `simstudioai/sim`, while dev/staging resolve prereleases from `simstudioai/sim-desktop-releases`. Artifact downloads go directly to GitHub and deltas use `.zip.blockmap`. Install is prompt-based (Restart Now / Later; Later installs on quit) — never forced mid-session.
+- `electron-updater` reads the deployment's `/api/desktop/update` feed; production resolves stable releases from `simstudioai/sim`, while dev/staging resolve prereleases from `simstudioai/sim-desktop-releases`. Artifact downloads go directly to GitHub and deltas use `.zip.blockmap`. Sim validates every candidate before starting its download. Developer ID builds installed under `/Applications` use a prompt (Restart and update / Later; Later installs on quit); other packaged builds offer a validated installer download — never forced mid-session. A staged or offered update keeps being re-checked on the normal cadence, and a newer release replaces it, so a shell left running across several releases installs the latest build in one restart instead of the stale one followed by another prompt.
 - Streams: production follows stable `X.Y.Z` releases, dev follows `-dev.N`, and staging follows `-staging.N`. The feed still recognizes legacy `-alpha.N`/`-beta.N` releases during migration.
+- Restart becomes available only after Squirrel confirms native staging. Replacing a staged update returns the UI to downloading; a failed transfer can retain the previous staged build, but a failure after the native feed is replaced requires a retry. Diagnostics record `update_downloaded` after native staging, `update_install` when an explicit restart is committed, and `update_install_result` on the next launch with the expected and installed versions. The staging checkpoint also covers updates installed on a normal quit.
+- `bun run test:e2e e2e/updater.spec.ts` exercises the real Electron process, MacUpdater, downloads, retries, and installation checkpoints. Native verification and bundle replacement are simulated. Set `DESKTOP_UPDATER_REPORT_PATH` to choose the JSON report path; by default it is included in Playwright's test results and uploaded by CI on failure.
 - Staged rollout: after publishing, edit `stagingPercentage: 10` into the release's `latest-mac.yml`, then raise as crash metrics stay clean.
 - Rollback: a pulled release must be superseded by a **higher** version — users on the broken build will not reinstall an equal one. (A blocked-versions kill-switch was removed as unwired dead code; reintroduce it in `updater.ts` if a remote config source ever exists to feed it.)
 - Ship the DMG and tell users to install to `/Applications` — App Translocation breaks Squirrel.Mac updates from quarantined paths.
@@ -185,10 +210,11 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 
 ## Known caveats
 
-- Microphone and camera are denied by design (the permission matrix grants only sanitized clipboard writes to the app origin).
+- The hosted Sim renderer may request microphone access for voice input from the configured app origin; camera access remains denied. On macOS the shell also requires the operating-system microphone grant. Separately, a page in the agent browser may request microphone or camera only from its main frame after a recent native user gesture; Sim then requires an explicit document-scoped prompt and the operating-system grant where applicable.
+- The built-in agent browser is not a general-purpose download manager. Both browser session types apply the same bounded policy to every download, including one started by a direct user click: at most 2 GiB per file, two active downloads per task, six app-wide, and a 1 GiB free-disk reserve. A rejected download appears in the browser's downloads menu; use a normal browser for an intentionally larger transfer.
 - Default Electron ships H.264/AAC/MP3 — do not swap in the codec-free ffmpeg build.
 - Third-party web analytics (GTM/GA) are blocked at the network layer by default (`blockThirdPartyAnalytics`); first-party PostHog `/ingest` is untouched.
-- `Cmd+F` find-in-page overlay is not implemented (Monaco and tables ship their own finds); revisit if users ask.
+- `Cmd+F` opens the native find overlay in built-in browser tabs. The hosted Sim workspace continues to use Monaco- and table-specific find surfaces.
 - Sign-in uses only the `127.0.0.1` loopback callback, which needs no OS registration — so it completes identically under `bun run dev` (unpackaged) and in a packaged build. There is no custom URL scheme.
 
 ## Electron upgrades

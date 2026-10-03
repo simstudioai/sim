@@ -68,6 +68,11 @@ export function DeleteModal({
   const isWorkspace = itemType === 'workspace'
   const workspaceName = isWorkspace && displayNames.length > 0 ? displayNames[0] : ''
   const isConfirmed = !isWorkspace || confirmationText === workspaceName
+  const defaultAction = isWorkspace
+    ? 'none'
+    : isSingle && itemType === 'task'
+      ? 'confirm'
+      : 'dismiss'
 
   let title = ''
   if (itemType === 'workflow') {
@@ -200,6 +205,7 @@ export function DeleteModal({
       onOpenChange={handleClose}
       srTitle={title}
       title={title}
+      defaultAction={defaultAction}
       text={[
         ...buildDescriptionSegments(),
         ' ',

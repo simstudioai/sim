@@ -3,19 +3,19 @@ import { toDecimal } from '@/lib/billing/utils/decimal'
 
 interface DeriveEnterpriseCreditLimitsInput {
   metadata: Record<string, string>
-  monthlyPriceUsd: number
+  invoiceAmountUsd: number
   prepaidBalanceDollars: string | number
 }
 
 export function deriveEnterpriseCreditLimits({
   metadata,
-  monthlyPriceUsd,
+  invoiceAmountUsd,
   prepaidBalanceDollars,
 }: DeriveEnterpriseCreditLimitsInput) {
   const parsedUsageLimitCredits = Number(metadata.usageLimitCredits)
   const configuredUsageLimitCredits = Number.isFinite(parsedUsageLimitCredits)
     ? Math.max(0, Math.round(parsedUsageLimitCredits))
-    : dollarsToCredits(monthlyPriceUsd)
+    : dollarsToCredits(invoiceAmountUsd)
   const prepaidBalance = toDecimal(prepaidBalanceDollars)
   const prepaidCredits = dollarsToCredits(prepaidBalance.toNumber())
   const effectiveUsageLimitDollars = toDecimal(configuredUsageLimitCredits)

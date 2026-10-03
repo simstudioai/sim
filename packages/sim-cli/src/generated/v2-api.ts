@@ -25,6 +25,7 @@ export type AbortFileUploadHeaders = {
 
 type AbortFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -59,9 +60,9 @@ export type AbortFileUploadResponse = {
   data: AbortFileUploadResponseRef1
 }
 
-/** `DELETE /api/v2/knowledge/[id]/documents/uploads/[uploadId]` */
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]` */
 export type AbortKnowledgeDocumentUploadParams = {
-  id: string
+  knowledgeBaseId: string
   uploadId: string
 }
 
@@ -111,6 +112,88 @@ export type AbortKnowledgeDocumentUploadResponse = {
   data: AbortKnowledgeDocumentUploadResponseRef1
 }
 
+/** `POST /api/v2/workflows/[workflowId]/versions/[version]/activate` */
+export type ActivateWorkflowVersionParams = {
+  version: number
+  workflowId: string
+}
+
+export type ActivateWorkflowVersionQuery = Record<string, unknown>
+
+export type ActivateWorkflowVersionBody = Record<string, unknown>
+
+type ActivateWorkflowVersionResponseRef0 = {
+  deploymentVersionId: string
+  version: number
+  deployedAt: string
+}
+
+type ActivateWorkflowVersionResponseRef1 = {
+  id: string
+  deploymentVersionId: string
+  version: number
+  action: 'deploy' | 'activate'
+  status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+  isCurrent: boolean
+  readiness: ActivateWorkflowVersionResponseRef2
+  requestedAt: string
+  activatedAt?: string | null
+  error?: ActivateWorkflowVersionResponseRef3 | null
+}
+
+type ActivateWorkflowVersionResponseRef2 = {
+  webhooks: 'pending' | 'ready' | 'not_applicable'
+  schedules: 'pending' | 'ready' | 'not_applicable'
+  mcp: 'pending' | 'ready' | 'not_applicable'
+}
+
+type ActivateWorkflowVersionResponseRef3 = {
+  code: string
+  message: string
+  retryable: boolean
+}
+
+type ActivateWorkflowVersionResponseRef4 = ActivateWorkflowVersionResponseRef5
+
+type ActivateWorkflowVersionResponseRef5 = {
+  id: string
+  isDeployed: boolean
+  deployedAt: string | null
+  warnings: Array<string>
+  activeDeployment: ActivateWorkflowVersionResponseRef0 | null
+  latestDeploymentAttempt: ActivateWorkflowVersionResponseRef1 | null
+  version: number
+}
+
+export type ActivateWorkflowVersionResponse = {
+  data: ActivateWorkflowVersionResponseRef4
+}
+
+/** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
+export type AddPermissionGroupMemberParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type AddPermissionGroupMemberQuery = Record<string, unknown>
+
+export type AddPermissionGroupMemberBody = {
+  userId: string
+}
+
+type AddPermissionGroupMemberResponseRef0 = {
+  id: string
+  permissionGroupId: string
+  organizationId: string
+  userId: string
+  assignedBy: string
+  assignedAt: string
+}
+
+export type AddPermissionGroupMemberResponse = {
+  data: AddPermissionGroupMemberResponseRef0
+}
+
 /** `POST /api/v2/tables/[tableId]/columns` */
 export type AddTableColumnParams = {
   tableId: string
@@ -123,7 +206,7 @@ export type AddTableColumnBody = {
   column: {
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
     options?: Array<{
@@ -140,7 +223,7 @@ type AddTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -188,9 +271,9 @@ export type AddWorkflowGroupBody = {
     deploymentMode?: 'live' | 'deployed'
     autoRun?: boolean
   }
-  outputColumns: Array<{
+  outputColumns?: Array<{
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
   }>
@@ -216,7 +299,7 @@ type AddWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -225,7 +308,7 @@ type AddWorkflowGroupResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -240,6 +323,350 @@ type AddWorkflowGroupResponseRef1 = {
 
 export type AddWorkflowGroupResponse = {
   data: AddWorkflowGroupResponseRef1
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files` */
+export type AddWorkspaceFilesToKnowledgeBaseParams = {
+  knowledgeBaseId: string
+}
+
+export type AddWorkspaceFilesToKnowledgeBaseQuery = Record<string, unknown>
+
+export type AddWorkspaceFilesToKnowledgeBaseBody = {
+  workspaceId: string
+  fileReferences: Array<string>
+}
+
+type AddWorkspaceFilesToKnowledgeBaseResponseRef0 = {
+  documentId: string
+  filename: string
+  mimeType: string
+  fileSize: number
+}
+
+type AddWorkspaceFilesToKnowledgeBaseResponseRef1 = {
+  knowledgeBaseId: string
+  added: Array<AddWorkspaceFilesToKnowledgeBaseResponseRef0>
+  failed: Array<string>
+}
+
+export type AddWorkspaceFilesToKnowledgeBaseResponse = {
+  data: AddWorkspaceFilesToKnowledgeBaseResponseRef1
+}
+
+/** `POST /api/v2/workflows/[workflowId]/operations` */
+export type ApplyWorkflowOperationsParams = {
+  workflowId: string
+}
+
+export type ApplyWorkflowOperationsQuery = {
+  dryRun?: boolean
+}
+
+type ApplyWorkflowOperationsBodyRef0 =
+  | {
+      operation_type: 'add'
+      block_id: string
+      params: {
+        type: string
+        name: string
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
+      }
+    }
+  | {
+      operation_type: 'edit'
+      block_id: string
+      params: {
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
+      } & Record<string, unknown>
+    }
+  | {
+      operation_type: 'delete'
+      block_id: string
+    }
+  | {
+      operation_type: 'insert_into_subflow'
+      block_id: string
+      params: {
+        subflowId: string
+        type: string
+        name: string
+        inputs?: {
+          tools?: ApplyWorkflowOperationsBodyRef1
+        } & Record<string, unknown>
+      }
+    }
+  | {
+      operation_type: 'extract_from_subflow'
+      block_id: string
+      params: {
+        subflowId: string
+      }
+    }
+
+type ApplyWorkflowOperationsBodyRef1 = Array<ApplyWorkflowOperationsBodyRef2>
+
+type ApplyWorkflowOperationsBodyRef2 =
+  | ApplyWorkflowOperationsBodyRef3
+  | ApplyWorkflowOperationsBodyRef4
+  | ApplyWorkflowOperationsBodyRef5
+  | ApplyWorkflowOperationsBodyRef6
+
+type ApplyWorkflowOperationsBodyRef3 = {
+  type: string
+  operation?: string
+  usageControl?: 'auto' | 'force' | 'none'
+  usageControlExpression?: string
+  params?: Record<string, unknown>
+}
+
+type ApplyWorkflowOperationsBodyRef4 =
+  | {
+      type: 'custom-tool'
+      customToolId: string
+      usageControl?: 'auto' | 'force' | 'none'
+      usageControlExpression?: string
+    }
+  | {
+      type: 'custom-tool'
+      schema: {
+        type?: 'function'
+        function: {
+          name: string
+          description?: string
+          parameters: Record<string, unknown>
+        }
+      }
+      code: string
+      usageControl?: 'auto' | 'force' | 'none'
+      usageControlExpression?: string
+    }
+
+type ApplyWorkflowOperationsBodyRef5 = {
+  type: 'mcp'
+  params: {
+    serverId: string
+    toolName: string
+  } & Record<string, unknown>
+  usageControl?: 'auto' | 'force' | 'none'
+  usageControlExpression?: string
+}
+
+type ApplyWorkflowOperationsBodyRef6 = {
+  type: 'mcp-server-advanced'
+  operationPolicy?:
+    | {
+        mode: 'all'
+      }
+    | {
+        mode: 'allow'
+        operations: Array<string>
+      }
+    | {
+        mode: 'deny'
+        operations: Array<string>
+      }
+  params: {
+    serverId: string
+  }
+  usageControl?: 'auto' | 'force' | 'none'
+  usageControlExpression?: string
+}
+
+export type ApplyWorkflowOperationsBody = {
+  operations: Array<ApplyWorkflowOperationsBodyRef0>
+  atomic?: boolean
+  layout?: 'targeted' | 'none'
+  setBlockEnabled?: Array<{
+    block_id: string
+    enabled: boolean
+  }>
+}
+
+type ApplyWorkflowOperationsResponseRef0 = {
+  type:
+    | 'block_not_found'
+    | 'invalid_block_type'
+    | 'block_not_allowed'
+    | 'model_not_allowed'
+    | 'block_locked'
+    | 'tool_not_allowed'
+    | 'invalid_edge_target'
+    | 'invalid_edge_source'
+    | 'invalid_edge_scope'
+    | 'invalid_source_handle'
+    | 'invalid_target_handle'
+    | 'invalid_subblock_field'
+    | 'missing_required_params'
+    | 'invalid_subflow_parent'
+    | 'nested_subflow_not_allowed'
+    | 'duplicate_block_name'
+    | 'reserved_block_name'
+    | 'retry_not_supported'
+    | 'duplicate_trigger'
+    | 'duplicate_single_instance_block'
+    | 'disabled_ancestor'
+  operationType: string
+  blockId: string
+  reason: string
+  details?: Record<string, unknown>
+}
+
+type ApplyWorkflowOperationsResponseRef1 = {
+  blockId: string
+  blockType: string
+  field: string
+  error: string
+}
+
+type ApplyWorkflowOperationsResponseRef2 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
+  unresolvedReferences: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
+  }>
+  notes: Array<string>
+}
+
+type ApplyWorkflowOperationsResponseRef3 = {
+  id: string
+  warnings: Array<string>
+  needsRedeployment: boolean
+  applied: number
+  skipped: Array<ApplyWorkflowOperationsResponseRef0>
+  deferred: Array<ApplyWorkflowOperationsResponseRef0>
+  inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
+  mintedBlockIds: Record<string, string>
+  previewBlockIds?: Record<string, string>
+  lint: ApplyWorkflowOperationsResponseRef2
+  dryRun: boolean
+}
+
+export type ApplyWorkflowOperationsResponse = {
+  data: ApplyWorkflowOperationsResponseRef3
+}
+
+/** `PATCH /api/v2/workflows/[workflowId]/variables` */
+export type ApplyWorkflowVariablesParams = {
+  workflowId: string
+}
+
+export type ApplyWorkflowVariablesQuery = Record<string, unknown>
+
+export type ApplyWorkflowVariablesBody = {
+  operations: Array<
+    | {
+        operation: 'add'
+        name: string
+        type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+        value: unknown
+      }
+    | {
+        operation: 'edit'
+        name: string
+        type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+        value: unknown
+      }
+    | {
+        operation: 'delete'
+        name: string
+      }
+  >
+}
+
+type ApplyWorkflowVariablesResponseRef0 = {
+  id: string
+  variableCount: number
+  changed: boolean
+}
+
+export type ApplyWorkflowVariablesResponse = {
+  data: ApplyWorkflowVariablesResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk` */
+export type BulkAddPermissionGroupMembersParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type BulkAddPermissionGroupMembersQuery = Record<string, unknown>
+
+export type BulkAddPermissionGroupMembersBody = {
+  userIds?: Array<string>
+  addAllOrganizationMembers?: boolean
+}
+
+type BulkAddPermissionGroupMembersResponseRef0 = {
+  added: number
+  skipped: number
+}
+
+export type BulkAddPermissionGroupMembersResponse = {
+  data: BulkAddPermissionGroupMembersResponseRef0
 }
 
 /** `POST /api/v2/files/bulk-delete` */
@@ -260,9 +687,138 @@ export type BulkDeleteFilesResponse = {
   data: BulkDeleteFilesResponseRef0
 }
 
-/** `PATCH /api/v2/knowledge/[id]/documents` */
-export type BulkUpdateKnowledgeDocumentsParams = {
+/** `POST /api/v2/tables/bulk-delete` */
+export type BulkDeleteTablesQuery = Record<string, unknown>
+
+type BulkDeleteTablesBodyRef0 = string
+
+export type BulkDeleteTablesBody = {
+  workspaceId: string
+  tableIds?: Array<string>
+  folderPaths?: Array<BulkDeleteTablesBodyRef0>
+}
+
+type BulkDeleteTablesResponseRef0 = {
+  deleted: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  skipped: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  notFound: Array<{
+    kind: 'table' | 'folder'
+    id: string
+  }>
+  failed: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+    reason: string
+  }>
+  deletedItems: {
+    tables: number
+    folders: number
+  }
+}
+
+export type BulkDeleteTablesResponse = {
+  data: BulkDeleteTablesResponseRef0
+}
+
+/** `GET /api/v2/files/bulk-download` */
+export type BulkDownloadFilesQuery = {
+  workspaceId: string
+  fileIds?: string
+  folderPaths?: string
+}
+
+/** Non-JSON response (`binary`). */
+export type BulkDownloadFilesResponse = never
+
+/** `PUT /api/v2/knowledge/[knowledgeBaseId]/tags` */
+export type BulkSaveKnowledgeTagDefinitionsParams = {
+  knowledgeBaseId: string
+}
+
+export type BulkSaveKnowledgeTagDefinitionsQuery = Record<string, unknown>
+
+type BulkSaveKnowledgeTagDefinitionsBodyRef0 = {
+  tagSlot:
+    | 'tag1'
+    | 'tag2'
+    | 'tag3'
+    | 'tag4'
+    | 'tag5'
+    | 'tag6'
+    | 'tag7'
+    | 'number1'
+    | 'number2'
+    | 'number3'
+    | 'number4'
+    | 'number5'
+    | 'date1'
+    | 'date2'
+    | 'boolean1'
+    | 'boolean2'
+    | 'boolean3'
+  displayName: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+  originalDisplayName?: string
+}
+
+export type BulkSaveKnowledgeTagDefinitionsBody = {
+  workspaceId: string
+  definitions: Array<BulkSaveKnowledgeTagDefinitionsBodyRef0>
+}
+
+type BulkSaveKnowledgeTagDefinitionsResponseRef0 = {
   id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+type BulkSaveKnowledgeTagDefinitionsResponseRef1 = {
+  created: Array<BulkSaveKnowledgeTagDefinitionsResponseRef0>
+  updated: Array<BulkSaveKnowledgeTagDefinitionsResponseRef0>
+  errors: Array<string>
+}
+
+export type BulkSaveKnowledgeTagDefinitionsResponse = {
+  data: BulkSaveKnowledgeTagDefinitionsResponseRef1
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks` */
+export type BulkUpdateKnowledgeChunksParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type BulkUpdateKnowledgeChunksQuery = Record<string, unknown>
+
+export type BulkUpdateKnowledgeChunksBody = {
+  workspaceId: string
+  operation: 'enable' | 'disable' | 'delete'
+  chunkIds: Array<string>
+}
+
+type BulkUpdateKnowledgeChunksResponseRef0 = {
+  operation: 'enable' | 'disable' | 'delete'
+  processed: number
+  errors: Array<string>
+}
+
+export type BulkUpdateKnowledgeChunksResponse = {
+  data: BulkUpdateKnowledgeChunksResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents` */
+export type BulkUpdateKnowledgeDocumentsParams = {
+  knowledgeBaseId: string
 }
 
 export type BulkUpdateKnowledgeDocumentsQuery = Record<string, unknown>
@@ -285,8 +841,174 @@ export type BulkUpdateKnowledgeDocumentsResponse = {
   data: BulkUpdateKnowledgeDocumentsResponseRef0
 }
 
-/** `DELETE /api/v2/tables/exports/[exportId]` */
+/** `POST /api/v2/tables/[tableId]/rows/bulk-update` */
+export type BulkUpdateTableRowsParams = {
+  tableId: string
+}
+
+export type BulkUpdateTableRowsQuery = Record<string, unknown>
+
+type BulkUpdateTableRowsBodyRef0 = Record<string, unknown>
+
+export type BulkUpdateTableRowsBody = {
+  workspaceId: string
+  updates: Array<{
+    rowId: string
+    data: BulkUpdateTableRowsBodyRef0
+  }>
+}
+
+type BulkUpdateTableRowsResponseRef0 = {
+  updatedCount: number
+  updatedRowIds: Array<string>
+}
+
+export type BulkUpdateTableRowsResponse = {
+  data: BulkUpdateTableRowsResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel` */
+export type CancelOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type CancelOrganizationAccessRequestQuery = Record<string, unknown>
+
+type CancelOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CancelOrganizationAccessRequestResponse = {
+  data: CancelOrganizationAccessRequestResponseRef0
+}
+
+/** `DELETE /api/v2/tables/[tableId]/dispatches/[dispatchId]` */
+export type CancelTableDispatchParams = {
+  tableId: string
+  dispatchId: string
+}
+
+export type CancelTableDispatchQuery = {
+  workspaceId: string
+}
+
+type CancelTableDispatchResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+    filtered?: boolean
+    excludeRowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  canceledAt: string | null
+}
+
+export type CancelTableDispatchResponse = {
+  data: CancelTableDispatchResponseRef0
+}
+
+/** `DELETE /api/v2/tables/[tableId]/exports/[exportId]` */
 export type CancelTableExportParams = {
+  tableId: string
   exportId: string
 }
 
@@ -339,6 +1061,12 @@ type CancelTableImportResponseRef1 = {
 type CancelTableImportResponseRef2 = string
 
 type CancelTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CancelTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -356,6 +1084,9 @@ type CancelTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CancelTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -363,7 +1094,7 @@ type CancelTableImportResponseRef3 = {
 }
 
 export type CancelTableImportResponse = {
-  data: CancelTableImportResponseRef3
+  data: CancelTableImportResponseRef4
 }
 
 /** `POST /api/v2/tables/[tableId]/cancel-runs` */
@@ -434,6 +1165,31 @@ type CancelTableRunsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type CancelTableRunsBody = {
   workspaceId: string
@@ -451,9 +1207,9 @@ export type CancelTableRunsResponse = {
   data: CancelTableRunsResponseRef0
 }
 
-/** `POST /api/v2/workflows/[id]/runs/[runId]/cancel` */
+/** `POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel` */
 export type CancelWorkflowRunParams = {
-  id: string
+  workflowId: string
   runId: string
 }
 
@@ -475,10 +1231,274 @@ type CancelWorkflowRunResponseRef0 = {
     | 'redis_write_failed'
     | 'paused_event_publish_failed'
     | 'paused_database_cancel_failed'
+    | 'queue_cancelled'
+    | 'active_resume_signal_failed'
+    | 'cancellation_not_finalized'
 }
 
 export type CancelWorkflowRunResponse = {
   data: CancelWorkflowRunResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel` */
+export type CancelWorkspaceAccessRequestParams = {
+  workspaceId: string
+  requestId: string
+}
+
+export type CancelWorkspaceAccessRequestQuery = Record<string, unknown>
+
+type CancelWorkspaceAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CancelWorkspaceAccessRequestResponse = {
+  data: CancelWorkspaceAccessRequestResponseRef0
+}
+
+/** `POST /api/v2/chat` */
+export type ChatQuery = Record<string, unknown>
+
+export type ChatBody = {
+  workspaceId: string
+  message: string
+  conversationId?: string
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+}
+
+export type ChatResponse = {
+  data: {
+    content: string
+    conversationId: string
+    model: string
+    tokens?: {
+      prompt?: number
+      completion?: number
+      total?: number
+    }
+    cost?: unknown
+    toolCalls?: Array<Record<string, unknown>>
+  }
+}
+
+/** `GET /api/v2/workflows/[workflowId]/versions/compare` */
+export type CompareWorkflowVersionsParams = {
+  workflowId: string
+}
+
+export type CompareWorkflowVersionsQuery = {
+  base: number
+  target: number
+}
+
+type CompareWorkflowVersionsResponseRef0 = {
+  workflowId: string
+  base: number
+  target: number
+  diff: {
+    addedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+    }>
+    removedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+    }>
+    modifiedBlocks: Array<{
+      id: string
+      type: string
+      name?: string
+      changes: Array<{
+        field: string
+        oldValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        newValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        scope: 'block' | 'subblock'
+      }>
+    }>
+    edgeChanges: {
+      added: number
+      removed: number
+      addedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
+        sourceName: string
+        targetName: string
+      }>
+      removedDetails: Array<{
+        source: string
+        target: string
+        sourceHandle?: string
+        targetHandle?: string
+        sourceName: string
+        targetName: string
+      }>
+    }
+    loopChanges: {
+      added: number
+      removed: number
+      modified: number
+    }
+    parallelChanges: {
+      added: number
+      removed: number
+      modified: number
+    }
+    containerChanges: Array<{
+      id: string
+      kind: 'loop' | 'parallel'
+      name?: string
+      changes: Array<{
+        field: string
+        oldValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+        newValue:
+          | {
+              kind: 'unset'
+            }
+          | {
+              kind: 'redacted'
+            }
+          | {
+              kind: 'value'
+              value: unknown
+            }
+      }>
+      nodesAdded: Array<string>
+      nodesRemoved: Array<string>
+    }>
+    variableChanges: {
+      added: number
+      removed: number
+      modified: number
+      addedNames: Array<string>
+      removedNames: Array<string>
+      modifiedNames: Array<string>
+    }
+    hasChanges: boolean
+  }
+}
+
+export type CompareWorkflowVersionsResponse = {
+  data: CompareWorkflowVersionsResponseRef0
 }
 
 /** `POST /api/v2/files/uploads/[uploadId]/complete` */
@@ -496,6 +1516,7 @@ export type CompleteFileUploadHeaders = {
 
 type CompleteFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -530,9 +1551,9 @@ export type CompleteFileUploadResponse = {
   data: CompleteFileUploadResponseRef1
 }
 
-/** `POST /api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete` */
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete` */
 export type CompleteKnowledgeDocumentUploadParams = {
-  id: string
+  knowledgeBaseId: string
   uploadId: string
 }
 
@@ -610,6 +1631,12 @@ type CompleteTableImportResponseRef1 = {
 type CompleteTableImportResponseRef2 = string
 
 type CompleteTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CompleteTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -627,6 +1654,9 @@ type CompleteTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CompleteTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -634,7 +1664,7 @@ type CompleteTableImportResponseRef3 = {
 }
 
 export type CompleteTableImportResponse = {
-  data: CompleteTableImportResponseRef3
+  data: CompleteTableImportResponseRef4
 }
 
 /** `POST /api/v2/credentials/connections` */
@@ -643,12 +1673,88 @@ export type CreateCredentialConnectionQuery = Record<string, unknown>
 export type CreateCredentialConnectionBody =
   | {
       workspaceId: string
-      providerId: string
       displayName: string
+      providerId: 'quickbooks'
+      oauthClientConfig: {
+        clientId: string
+        clientSecret: string
+        environment: 'sandbox' | 'production'
+        webhookVerifierToken: string
+      }
+    }
+  | {
+      workspaceId: string
+      displayName: string
+      providerId:
+        | 'github-repositories'
+        | 'google-email'
+        | 'google-drive'
+        | 'google-docs'
+        | 'google-sheets'
+        | 'google-forms'
+        | 'google-calendar'
+        | 'google-contacts'
+        | 'google-ads'
+        | 'google-bigquery'
+        | 'google-tasks'
+        | 'google-vault'
+        | 'google-groups'
+        | 'google-chat'
+        | 'google-meet'
+        | 'vertex-ai'
+        | 'microsoft-ad'
+        | 'microsoft-dataverse'
+        | 'microsoft-excel'
+        | 'microsoft-planner'
+        | 'microsoft-powerbi'
+        | 'microsoft-teams'
+        | 'microsoft-word'
+        | 'outlook'
+        | 'onedrive'
+        | 'sharepoint'
+        | 'x'
+        | 'tiktok'
+        | 'confluence'
+        | 'jira'
+        | 'airtable'
+        | 'bitbucket'
+        | 'notion'
+        | 'clickup'
+        | 'linear'
+        | 'manageengine-sdp'
+        | 'monday'
+        | 'box'
+        | 'dropbox'
+        | 'shopify'
+        | 'slack'
+        | 'reddit'
+        | 'wealthbox'
+        | 'webflow'
+        | 'trello'
+        | 'asana'
+        | 'attio'
+        | 'calcom'
+        | 'docusign'
+        | 'pipedrive'
+        | 'hubspot'
+        | 'linkedin'
+        | 'instagram'
+        | 'salesforce'
+        | 'salesforce-sandbox'
+        | 'zoho-desk'
+        | 'zoom'
+        | 'wordpress'
+        | 'spotify'
     }
   | {
       workspaceId: string
       credentialId: string
+      oauthClientConfig?: {
+        clientId: string
+        clientSecret: string
+        environment: 'sandbox' | 'production'
+        webhookVerifierToken: string
+      }
     }
 
 type CreateCredentialConnectionResponseRef0 = {
@@ -721,6 +1827,7 @@ export type CreateFileBody = {
 
 type CreateFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -730,6 +1837,7 @@ type CreateFileResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type CreateFileResponse = {
@@ -773,6 +1881,7 @@ export type CreateFileUploadBody = {
 
 type CreateFileUploadResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -865,6 +1974,13 @@ type CreateKnowledgeBaseBodyRef0 = {
   maxSize?: number
   minSize?: number
   overlap?: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
 }
 
 type CreateKnowledgeBaseBodyRef1 = string
@@ -902,17 +2018,95 @@ type CreateKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 export type CreateKnowledgeBaseResponse = {
   data: CreateKnowledgeBaseResponseRef1
 }
 
-/** `POST /api/v2/knowledge/[id]/documents/uploads` */
-export type CreateKnowledgeDocumentUploadParams = {
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks` */
+export type CreateKnowledgeChunkParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type CreateKnowledgeChunkQuery = Record<string, unknown>
+
+export type CreateKnowledgeChunkBody = {
+  workspaceId: string
+  content: string
+  enabled?: boolean
+}
+
+type CreateKnowledgeChunkResponseRef0 = {
   id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateKnowledgeChunkResponse = {
+  data: CreateKnowledgeChunkResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/connectors` */
+export type CreateKnowledgeConnectorParams = {
+  knowledgeBaseId: string
+}
+
+export type CreateKnowledgeConnectorQuery = Record<string, unknown>
+
+export type CreateKnowledgeConnectorBody = {
+  workspaceId: string
+  connectorType: string
+  credentialId?: string
+  apiKey?: string
+  sourceConfig: Record<string, unknown>
+  syncIntervalMinutes?: number
+}
+
+type CreateKnowledgeConnectorResponseRef0 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateKnowledgeConnectorResponse = {
+  data: CreateKnowledgeConnectorResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads` */
+export type CreateKnowledgeDocumentUploadParams = {
+  knowledgeBaseId: string
 }
 
 export type CreateKnowledgeDocumentUploadQuery = Record<string, unknown>
@@ -930,7 +2124,7 @@ export type CreateKnowledgeDocumentUploadBody = {
   tag6?: string
   tag7?: string
   processingOptions?: {
-    recipe?: string
+    recipe?: 'default' | 'plain' | 'markdown' | 'code'
     lang?: string
   }
 }
@@ -996,9 +2190,9 @@ export type CreateKnowledgeDocumentUploadResponse = {
   data: CreateKnowledgeDocumentUploadResponseRef5
 }
 
-/** `POST /api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts` */
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts` */
 export type CreateKnowledgeDocumentUploadPartUrlsParams = {
-  id: string
+  knowledgeBaseId: string
   uploadId: string
 }
 
@@ -1051,6 +2245,48 @@ export type CreateKnowledgeFolderResponse = {
   data: CreateKnowledgeFolderResponseRef0
 }
 
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/tags` */
+export type CreateKnowledgeTagParams = {
+  knowledgeBaseId: string
+}
+
+export type CreateKnowledgeTagQuery = Record<string, unknown>
+
+export type CreateKnowledgeTagBody = {
+  workspaceId: string
+  displayName: string
+  fieldType?: 'text' | 'number' | 'date' | 'boolean'
+  tagSlot?:
+    | 'tag1'
+    | 'tag2'
+    | 'tag3'
+    | 'tag4'
+    | 'tag5'
+    | 'tag6'
+    | 'tag7'
+    | 'number1'
+    | 'number2'
+    | 'number3'
+    | 'number4'
+    | 'number5'
+    | 'date1'
+    | 'date2'
+    | 'boolean1'
+    | 'boolean2'
+    | 'boolean3'
+}
+
+type CreateKnowledgeTagResponseRef0 = {
+  id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+export type CreateKnowledgeTagResponse = {
+  data: CreateKnowledgeTagResponseRef0
+}
+
 /** `POST /api/v2/mcp-servers` */
 export type CreateMcpServerQuery = Record<string, unknown>
 
@@ -1096,6 +2332,412 @@ export type CreateMcpServerResponse = {
   data: CreateMcpServerResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/access-requests` */
+export type CreateOrganizationAccessRequestParams = {
+  organizationId: string
+}
+
+export type CreateOrganizationAccessRequestQuery = Record<string, unknown>
+
+export type CreateOrganizationAccessRequestBody = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  reason?: string
+}
+
+type CreateOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CreateOrganizationAccessRequestResponse = {
+  data: CreateOrganizationAccessRequestResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/invitations` */
+export type CreateOrganizationInvitationParams = {
+  organizationId: string
+}
+
+export type CreateOrganizationInvitationQuery = Record<string, unknown>
+
+export type CreateOrganizationInvitationBody = {
+  email: string
+  role?: 'member' | 'admin'
+}
+
+type CreateOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type CreateOrganizationInvitationResponse = {
+  data: CreateOrganizationInvitationResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/permission-groups` */
+export type CreatePermissionGroupParams = {
+  organizationId: string
+}
+
+export type CreatePermissionGroupQuery = Record<string, unknown>
+
+export type CreatePermissionGroupBody = {
+  name: string
+  description?: string
+  config?: {
+    allowedIntegrations?: Array<string> | null
+    allowedModelProviders?: Array<string> | null
+    deniedModels?: Array<string>
+    deniedTools?: Array<string>
+    hideTraceSpans?: boolean
+    hideKnowledgeBaseTab?: boolean
+    hideTablesTab?: boolean
+    hideCopilot?: boolean
+    hideIntegrationsTab?: boolean
+    hideSecretsTab?: boolean
+    hideApiKeysTab?: boolean
+    hideInboxTab?: boolean
+    hideFilesTab?: boolean
+    disableMcpTools?: boolean
+    disableCustomTools?: boolean
+    disableSkills?: boolean
+    disableInvitations?: boolean
+    disablePublicApi?: boolean
+    disablePublicFileSharing?: boolean
+    allowedFileShareAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi?: boolean
+    hideDeployMcp?: boolean
+    hideDeployChatbot?: boolean
+    allowedChatDeployAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys?: boolean
+    disableLogExport?: boolean
+    hideCostInfo?: boolean
+    disableKnowledgeBaseCreation?: boolean
+    disableKnowledgeBaseFileUpload?: boolean
+    allowedKnowledgeConnectors?: Array<string> | null
+    disableTableCreation?: boolean
+    disableTableExport?: boolean
+    disableBulkFileDownload?: boolean
+    disablePersonalCredentials?: boolean
+    disableWorkspaceCreation?: boolean
+    hideOrgMemberDirectory?: boolean
+    disableCliAccess?: boolean
+    disableWebhookTriggers?: boolean
+    disableToolAutoApproval?: boolean
+    hideSandboxesTab?: boolean
+    disableOAuthAppAccess?: boolean
+    disableKnowledgeBaseExport?: boolean
+  }
+  isDefault?: boolean
+  workspaceIds?: Array<string>
+}
+
+type CreatePermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreatePermissionGroupResponse = {
+  data: CreatePermissionGroupResponseRef0
+}
+
+/** `POST /api/v2/sandboxes` */
+export type CreateSandboxQuery = Record<string, unknown>
+
+export type CreateSandboxBody = {
+  workspaceId: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies?: Array<string>
+  cliTools?: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages?: Array<string>
+}
+
+type CreateSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateSandboxResponse = {
+  data: CreateSandboxResponseRef0
+}
+
 /** `POST /api/v2/credentials` */
 export type CreateServiceAccountCredentialQuery = Record<string, unknown>
 
@@ -1106,19 +2748,7 @@ export type CreateServiceAccountCredentialBody = {
   displayName?: string
   description?: string
   id?: string
-  serviceAccountJson?: string
-  apiToken?: string
-  domain?: string
-  signingSecret?: string
-  botToken?: string
-  clientId?: string
-  clientSecret?: string
-  certificateId?: string
-  orgId?: string
-  dataCenter?: string
-  authMethod?: string
-  privateKey?: string
-  username?: string
+  credentials: string
 }
 
 type CreateServiceAccountCredentialResponseRef0 = {
@@ -1175,7 +2805,7 @@ export type CreateTableBody = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required?: boolean
       unique?: boolean
       options?: Array<{
@@ -1199,6 +2829,7 @@ type CreateTableResponseRef0 = {
 
 type CreateTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -1206,7 +2837,7 @@ type CreateTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -1234,6 +2865,121 @@ type CreateTableResponseRef1 = {
 
 export type CreateTableResponse = {
   data: CreateTableResponseRef1
+}
+
+/** `POST /api/v2/tables/[tableId]/dispatches` */
+export type CreateTableDispatchParams = {
+  tableId: string
+}
+
+export type CreateTableDispatchQuery = Record<string, unknown>
+
+type CreateTableDispatchBodyRef0 =
+  | {
+      all: Array<
+        | CreateTableDispatchBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | CreateTableDispatchBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
+
+export type CreateTableDispatchBody = {
+  workspaceId: string
+  groupIds: Array<string>
+  runMode?: 'all' | 'incomplete'
+  rowIds?: Array<string>
+  filter?: CreateTableDispatchBodyRef0
+  excludeRowIds?: Array<string>
+  limit?: {
+    type: 'rows'
+    max: number
+  }
+}
+
+type CreateTableDispatchResponseRef0 = {
+  dispatchId: string | null
+}
+
+export type CreateTableDispatchResponse = {
+  data: CreateTableDispatchResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/exports` */
@@ -1333,6 +3079,12 @@ type CreateTableImportResponseRef0 = {
 type CreateTableImportResponseRef1 = string
 
 type CreateTableImportResponseRef2 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type CreateTableImportResponseRef3 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -1350,35 +3102,38 @@ type CreateTableImportResponseRef2 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef3 = {
+type CreateTableImportResponseRef4 = {
   method: 'put'
   url: string
   headers: Record<string, string>
   expiresAt: string
 }
 
-type CreateTableImportResponseRef4 = {
+type CreateTableImportResponseRef5 = {
   method: 'multipart'
   partSize: number
   partCount: number
 }
 
-type CreateTableImportResponseRef5 = {
+type CreateTableImportResponseRef6 = {
   type: 'workspace_file'
   fileId: string
 }
 
-type CreateTableImportResponseRef6 = {
+type CreateTableImportResponseRef7 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
-  source: CreateTableImportResponseRef5
+  source: CreateTableImportResponseRef6
   target:
     | {
         type: 'new'
@@ -1392,26 +3147,29 @@ type CreateTableImportResponseRef6 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<CreateTableImportResponseRef2>
   error: string | null
   createdAt: string
   updatedAt: string
   completedAt: string | null
 }
 
-type CreateTableImportResponseRef7 =
+type CreateTableImportResponseRef8 =
   | {
-      session: CreateTableImportResponseRef2
+      session: CreateTableImportResponseRef3
       uploadToken: string
-      transfer: CreateTableImportResponseRef3 | CreateTableImportResponseRef4
+      transfer: CreateTableImportResponseRef4 | CreateTableImportResponseRef5
     }
   | {
-      session: CreateTableImportResponseRef6
+      session: CreateTableImportResponseRef7
       uploadToken: null
       transfer: null
     }
 
 export type CreateTableImportResponse = {
-  data: CreateTableImportResponseRef7
+  data: CreateTableImportResponseRef8
 }
 
 /** `POST /api/v2/tables/imports/[importId]/parts` */
@@ -1468,28 +3226,39 @@ export type CreateTableRowsBody =
     }
 
 type CreateTableRowsResponseRef0 = {
-  data: CreateTableRowsResponseRef2
+  data: CreateTableRowsResponseRef3
 }
 
 type CreateTableRowsResponseRef1 = Record<string, unknown>
 
 type CreateTableRowsResponseRef2 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type CreateTableRowsResponseRef3 = {
   id: string
   data: CreateTableRowsResponseRef1
+  runState?: Record<string, CreateTableRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
-type CreateTableRowsResponseRef3 = {
-  data: CreateTableRowsResponseRef4
+type CreateTableRowsResponseRef4 = {
+  data: CreateTableRowsResponseRef5
 }
 
-type CreateTableRowsResponseRef4 = {
-  rows: Array<CreateTableRowsResponseRef2>
+type CreateTableRowsResponseRef5 = {
+  rows: Array<CreateTableRowsResponseRef3>
   insertedCount: number
 }
 
-export type CreateTableRowsResponse = CreateTableRowsResponseRef0 | CreateTableRowsResponseRef3
+export type CreateTableRowsResponse = CreateTableRowsResponseRef0 | CreateTableRowsResponseRef4
 
 /** `POST /api/v2/tables/[tableId]/views` */
 export type CreateTableViewParams = {
@@ -1642,6 +3411,13 @@ export type CreateWorkflowBody = {
 
 type CreateWorkflowResponseRef0 = {
   id: string
+  type: string
+  name: string
+}
+
+type CreateWorkflowResponseRef1 = {
+  id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -1652,10 +3428,11 @@ type CreateWorkflowResponseRef0 = {
   lastRunAt: string | null
   createdAt: string
   updatedAt: string
+  blocks: Array<CreateWorkflowResponseRef0>
 }
 
 export type CreateWorkflowResponse = {
-  data: CreateWorkflowResponseRef0
+  data: CreateWorkflowResponseRef1
 }
 
 /** `POST /api/v2/workflows/folders` */
@@ -1681,6 +3458,244 @@ export type CreateWorkflowFolderResponse = {
   data: CreateWorkflowFolderResponseRef0
 }
 
+/** `POST /api/v2/workflow-mcp-servers` */
+export type CreateWorkflowMcpServerQuery = Record<string, unknown>
+
+export type CreateWorkflowMcpServerBody = {
+  workspaceId: string
+  name: string
+  description?: string
+  isPublic?: boolean
+  workflowIds?: Array<string>
+}
+
+type CreateWorkflowMcpServerResponseRef0 = {
+  id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateWorkflowMcpServerResponse = {
+  data: CreateWorkflowMcpServerResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/access-requests` */
+export type CreateWorkspaceAccessRequestParams = {
+  workspaceId: string
+}
+
+export type CreateWorkspaceAccessRequestQuery = Record<string, unknown>
+
+export type CreateWorkspaceAccessRequestBody = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  reason?: string
+}
+
+type CreateWorkspaceAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type CreateWorkspaceAccessRequestResponse = {
+  data: CreateWorkspaceAccessRequestResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/invitations` */
+export type CreateWorkspaceInvitationsParams = {
+  workspaceId: string
+}
+
+export type CreateWorkspaceInvitationsQuery = Record<string, unknown>
+
+export type CreateWorkspaceInvitationsBody = {
+  emails: Array<string>
+  permission?: 'admin' | 'write' | 'read'
+  membership?: 'member' | 'admin' | 'external'
+}
+
+type CreateWorkspaceInvitationsResponseRef0 = {
+  success: boolean
+  successful: Array<string>
+  added: Array<string>
+  failed: Array<{
+    email: string
+    error: string
+  }>
+  invitations: Array<{
+    id: string
+    email: string
+    workspaceIds: Array<string>
+    permission: 'admin' | 'write' | 'read'
+    membershipIntent: 'internal' | 'external'
+    instantAdd?: boolean
+    outcome?: 'added' | 'updated' | 'unchanged'
+  }>
+}
+
+export type CreateWorkspaceInvitationsResponse = {
+  data: CreateWorkspaceInvitationsResponseRef0
+}
+
 /** `DELETE /api/v2/credentials/[credentialId]` */
 export type DeleteCredentialParams = {
   credentialId: string
@@ -1699,9 +3714,9 @@ export type DeleteCredentialResponse = {
   data: DeleteCredentialResponseRef0
 }
 
-/** `DELETE /api/v2/custom-tools/[id]` */
+/** `DELETE /api/v2/custom-tools/[customToolId]` */
 export type DeleteCustomToolParams = {
-  id: string
+  customToolId: string
 }
 
 export type DeleteCustomToolQuery = {
@@ -1769,9 +3784,29 @@ export type DeleteFileFolderResponse = {
   data: DeleteFileFolderResponseRef0
 }
 
-/** `DELETE /api/v2/knowledge/[id]` */
+/** `DELETE /api/v2/files/[fileId]/versions/[version]` */
+export type DeleteFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type DeleteFileVersionQuery = {
+  workspaceId: string
+}
+
+type DeleteFileVersionResponseRef0 = {
+  fileId: string
+  version: number
+  deleted: true
+}
+
+export type DeleteFileVersionResponse = {
+  data: DeleteFileVersionResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]` */
 export type DeleteKnowledgeBaseParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type DeleteKnowledgeBaseQuery = {
@@ -1787,10 +3822,52 @@ export type DeleteKnowledgeBaseResponse = {
   data: DeleteKnowledgeBaseResponseRef0
 }
 
-/** `DELETE /api/v2/knowledge/[id]/documents/[documentId]` */
-export type DeleteKnowledgeDocumentParams = {
-  id: string
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]` */
+export type DeleteKnowledgeChunkParams = {
   documentId: string
+  chunkId: string
+  knowledgeBaseId: string
+}
+
+export type DeleteKnowledgeChunkQuery = {
+  workspaceId: string
+}
+
+type DeleteKnowledgeChunkResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteKnowledgeChunkResponse = {
+  data: DeleteKnowledgeChunkResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]` */
+export type DeleteKnowledgeConnectorParams = {
+  connectorId: string
+  knowledgeBaseId: string
+}
+
+export type DeleteKnowledgeConnectorQuery = {
+  workspaceId: string
+  deleteDocuments?: boolean
+}
+
+type DeleteKnowledgeConnectorResponseRef0 = {
+  id: string
+  deleted: true
+  documentsDeleted: number
+  documentsKept: number
+}
+
+export type DeleteKnowledgeConnectorResponse = {
+  data: DeleteKnowledgeConnectorResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]` */
+export type DeleteKnowledgeDocumentParams = {
+  documentId: string
+  knowledgeBaseId: string
 }
 
 export type DeleteKnowledgeDocumentQuery = {
@@ -1840,9 +3917,49 @@ export type DeleteKnowledgeFolderResponse = {
   data: DeleteKnowledgeFolderResponseRef0
 }
 
-/** `DELETE /api/v2/mcp-servers/[id]` */
-export type DeleteMcpServerParams = {
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]` */
+export type DeleteKnowledgeTagParams = {
+  tagId: string
+  knowledgeBaseId: string
+}
+
+export type DeleteKnowledgeTagQuery = {
+  workspaceId: string
+}
+
+type DeleteKnowledgeTagResponseRef0 = {
   id: string
+  tagSlot: string
+  displayName: string
+  deleted: true
+}
+
+export type DeleteKnowledgeTagResponse = {
+  data: DeleteKnowledgeTagResponseRef0
+}
+
+/** `DELETE /api/v2/knowledge/[knowledgeBaseId]/tags` */
+export type DeleteKnowledgeTagDefinitionsParams = {
+  knowledgeBaseId: string
+}
+
+export type DeleteKnowledgeTagDefinitionsQuery = {
+  workspaceId: string
+  unused?: boolean
+}
+
+type DeleteKnowledgeTagDefinitionsResponseRef0 = {
+  unused: boolean
+  count: number
+}
+
+export type DeleteKnowledgeTagDefinitionsResponse = {
+  data: DeleteKnowledgeTagDefinitionsResponseRef0
+}
+
+/** `DELETE /api/v2/mcp-servers/[mcpServerId]` */
+export type DeleteMcpServerParams = {
+  mcpServerId: string
 }
 
 export type DeleteMcpServerQuery = {
@@ -1856,6 +3973,41 @@ type DeleteMcpServerResponseRef0 = {
 
 export type DeleteMcpServerResponse = {
   data: DeleteMcpServerResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type DeletePermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type DeletePermissionGroupQuery = Record<string, unknown>
+
+type DeletePermissionGroupResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeletePermissionGroupResponse = {
+  data: DeletePermissionGroupResponseRef0
+}
+
+/** `DELETE /api/v2/sandboxes/[sandboxId]` */
+export type DeleteSandboxParams = {
+  sandboxId: string
+}
+
+export type DeleteSandboxQuery = {
+  workspaceId: string
+}
+
+type DeleteSandboxResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteSandboxResponse = {
+  data: DeleteSandboxResponseRef0
 }
 
 /** `DELETE /api/v2/secrets/[name]` */
@@ -1878,9 +4030,9 @@ export type DeleteSecretResponse = {
   data: DeleteSecretResponseRef0
 }
 
-/** `DELETE /api/v2/skills/[id]` */
+/** `DELETE /api/v2/skills/[skillId]` */
 export type DeleteSkillParams = {
-  id: string
+  skillId: string
 }
 
 export type DeleteSkillQuery = {
@@ -1930,7 +4082,7 @@ type DeleteTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -2068,6 +4220,31 @@ type DeleteTableRowsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type DeleteTableRowsBody = {
   workspaceId: string
@@ -2106,9 +4283,9 @@ export type DeleteTableViewResponse = {
   data: DeleteTableViewResponseRef0
 }
 
-/** `DELETE /api/v2/workflows/[id]` */
+/** `DELETE /api/v2/workflows/[workflowId]` */
 export type DeleteWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type DeleteWorkflowQuery = Record<string, unknown>
@@ -2116,10 +4293,27 @@ export type DeleteWorkflowQuery = Record<string, unknown>
 type DeleteWorkflowResponseRef0 = {
   id: string
   deleted: true
+  archived: true
 }
 
 export type DeleteWorkflowResponse = {
   data: DeleteWorkflowResponseRef0
+}
+
+/** `DELETE /api/v2/workflows/[workflowId]/deployments/chat` */
+export type DeleteWorkflowChatDeploymentParams = {
+  workflowId: string
+}
+
+export type DeleteWorkflowChatDeploymentQuery = Record<string, unknown>
+
+type DeleteWorkflowChatDeploymentResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteWorkflowChatDeploymentResponse = {
+  data: DeleteWorkflowChatDeploymentResponseRef0
 }
 
 /** `DELETE /api/v2/workflows/folders` */
@@ -2174,7 +4368,7 @@ type DeleteWorkflowGroupResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -2191,9 +4385,25 @@ export type DeleteWorkflowGroupResponse = {
   data: DeleteWorkflowGroupResponseRef0
 }
 
-/** `POST /api/v2/workflows/[id]/deploy` */
-export type DeployWorkflowParams = {
+/** `DELETE /api/v2/workflow-mcp-servers/[serverId]` */
+export type DeleteWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type DeleteWorkflowMcpServerQuery = Record<string, unknown>
+
+type DeleteWorkflowMcpServerResponseRef0 = {
   id: string
+  deleted: true
+}
+
+export type DeleteWorkflowMcpServerResponse = {
+  data: DeleteWorkflowMcpServerResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/deploy` */
+export type DeployWorkflowParams = {
+  workflowId: string
 }
 
 export type DeployWorkflowQuery = Record<string, unknown>
@@ -2248,6 +4458,256 @@ export type DeployWorkflowResponse = {
   data: DeployWorkflowResponseRef4
 }
 
+/** `POST /api/v2/workflow-mcp-servers/[serverId]/tools` */
+export type DeployWorkflowMcpToolParams = {
+  serverId: string
+}
+
+export type DeployWorkflowMcpToolQuery = Record<string, unknown>
+
+export type DeployWorkflowMcpToolBody = {
+  workflowId: string
+  toolName?: string
+  toolDescription?: string
+  parameterDescriptions?: Array<{
+    name: string
+    description: string
+  }>
+}
+
+type DeployWorkflowMcpToolResponseRef0 = {
+  id: string
+  serverId: string
+  workflowId: string
+  toolName: string
+  toolDescription: string | null
+  mcpServerUrl: string
+  apiEndpoint: string
+  updated: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeployWorkflowMcpToolResponse = {
+  data: DeployWorkflowMcpToolResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests/discovery` */
+export type DiscoverOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type DiscoverOrganizationAccessRequestsQuery = {
+  search?: string
+  targetKind?:
+    | 'feature'
+    | 'integration'
+    | 'provider'
+    | 'model'
+    | 'tool'
+    | 'knowledge_connector'
+    | 'file_share_auth'
+    | 'chat_deploy_auth'
+    | 'usage_limit'
+  state?: 'allowed' | 'requestable' | 'unavailable'
+  sortBy?: 'label'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type DiscoverOrganizationAccessRequestsResponseRef0 = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  label: string
+  state: 'allowed' | 'requestable' | 'unavailable'
+  reason: string | null
+  pendingRequestId: string | null
+}
+
+export type DiscoverOrganizationAccessRequestsResponse = {
+  data: Array<DiscoverOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/access-requests/discovery` */
+export type DiscoverWorkspaceAccessRequestsParams = {
+  workspaceId: string
+}
+
+export type DiscoverWorkspaceAccessRequestsQuery = {
+  search?: string
+  targetKind?:
+    | 'feature'
+    | 'integration'
+    | 'provider'
+    | 'model'
+    | 'tool'
+    | 'knowledge_connector'
+    | 'file_share_auth'
+    | 'chat_deploy_auth'
+    | 'usage_limit'
+  state?: 'allowed' | 'requestable' | 'unavailable'
+  sortBy?: 'label'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type DiscoverWorkspaceAccessRequestsResponseRef0 = {
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  label: string
+  state: 'allowed' | 'requestable' | 'unavailable'
+  reason: string | null
+  pendingRequestId: string | null
+}
+
+export type DiscoverWorkspaceAccessRequestsResponse = {
+  data: Array<DiscoverWorkspaceAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/files/[fileId]` */
 export type DownloadFileParams = {
   fileId: string
@@ -2260,15 +4720,180 @@ export type DownloadFileQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileResponse = never
 
-/** `POST /api/v2/workflows/[id]/execute` */
-export type ExecuteWorkflowParams = {
+/** `GET /api/v2/files/[fileId]/versions/[version]/content` */
+export type DownloadFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type DownloadFileVersionQuery = {
+  workspaceId: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadFileVersionResponse = never
+
+/** `GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]` */
+export type DownloadRunFileParams = {
+  workflowId: string
+  runId: string
+  fileId: string
+}
+
+export type DownloadRunFileQuery = Record<string, unknown>
+
+/** Non-JSON response (`binary`). */
+export type DownloadRunFileResponse = never
+
+/** `POST /api/v2/workflows/[workflowId]/duplicate` */
+export type DuplicateWorkflowParams = {
+  workflowId: string
+}
+
+export type DuplicateWorkflowQuery = Record<string, unknown>
+
+type DuplicateWorkflowBodyRef0 = string
+
+export type DuplicateWorkflowBody = {
+  name?: string
+  folderPath?: DuplicateWorkflowBodyRef0
+}
+
+type DuplicateWorkflowResponseRef0 = {
   id: string
+  webUrl: string
+  name: string
+  description: string | null
+  folderPath: string
+  workspaceId: string
+  isDeployed: boolean
+  deployedAt: string | null
+  runCount: number
+  lastRunAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type DuplicateWorkflowResponse = {
+  data: DuplicateWorkflowResponseRef0
+}
+
+/** `PATCH /api/v2/files/[fileId]/content` */
+export type EditFileContentParams = {
+  fileId: string
+}
+
+export type EditFileContentQuery = Record<string, unknown>
+
+export type EditFileContentBody = {
+  workspaceId: string
+  edit:
+    | {
+        mode: 'search_replace'
+        search: string
+        content: string
+        replaceAll?: boolean
+      }
+    | {
+        mode: 'replace_between'
+        beforeAnchor: string
+        afterAnchor: string
+        content: string
+        occurrence?: number
+      }
+    | {
+        mode: 'insert_after'
+        anchor: string
+        content: string
+        occurrence?: number
+      }
+    | {
+        mode: 'delete_between'
+        startAnchor: string
+        endAnchor: string
+        occurrence?: number
+      }
+  expectedRevision?: string
+}
+
+type EditFileContentResponseRef0 = {
+  id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type EditFileContentResponseRef1 = {
+  file: EditFileContentResponseRef0
+  lineCount: number
+  revision?: string
+}
+
+export type EditFileContentResponse = {
+  data: EditFileContentResponseRef1
+}
+
+/** `POST /api/v2/tools/[toolId]/execute` */
+export type ExecuteToolParams = {
+  toolId: string
+}
+
+export type ExecuteToolQuery = Record<string, unknown>
+
+export type ExecuteToolBody = {
+  workspaceId: string
+  input?: Record<string, unknown>
+  credentialId?: string
+  timeoutSeconds?: number
+}
+
+type ExecuteToolResponseRef0 = {
+  toolId: string
+  status: 'succeeded' | 'failed'
+  output: unknown
+  error: {
+    message: string
+  } | null
+}
+
+export type ExecuteToolResponse = {
+  data: ExecuteToolResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/execute` */
+export type ExecuteWorkflowParams = {
+  workflowId: string
 }
 
 export type ExecuteWorkflowQuery = Record<string, unknown>
 
 export type ExecuteWorkflowBody = {
   input?: Record<string, unknown>
+  run?:
+    | {
+        source: 'deployment'
+      }
+    | {
+        source: 'manual'
+        entry?:
+          | {
+              type: 'trigger'
+              blockId?: string
+              useMockPayload?: boolean
+            }
+          | {
+              type: 'block'
+              blockId: string
+              sourceRunId: string
+            }
+      }
   async?: boolean
   executionTimeoutSeconds?: number
   stream?: boolean
@@ -2304,6 +4929,7 @@ type ExecuteWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ExecuteWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -2323,12 +4949,28 @@ export type ExecuteWorkflowResponse =
       data: ExecuteWorkflowResponseRef2
     }
 
-/** `GET /api/v2/workflows/[id]/export` */
-export type ExportWorkflowParams = {
-  id: string
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/export` */
+export type ExportKnowledgeBaseParams = {
+  knowledgeBaseId: string
 }
 
-export type ExportWorkflowQuery = Record<string, unknown>
+export type ExportKnowledgeBaseQuery = {
+  workspaceId: string
+  vectors?: boolean
+}
+
+/** Non-JSON response (`binary`). */
+export type ExportKnowledgeBaseResponse = never
+
+/** `GET /api/v2/workflows/[workflowId]/export` */
+export type ExportWorkflowParams = {
+  workflowId: string
+}
+
+export type ExportWorkflowQuery = {
+  includeReferences?: boolean
+  includeWorkspaceBindings?: boolean
+}
 
 type ExportWorkflowResponseRef0 = {
   version: '1.0'
@@ -2341,113 +4983,115 @@ type ExportWorkflowResponseRef0 = {
     folderPath: string
   }
   state: Record<string, unknown>
+  referenceManifest?: {
+    version: 1
+    references: Array<{
+      kind:
+        | 'credential'
+        | 'env-var'
+        | 'knowledge-base'
+        | 'knowledge-document'
+        | 'table'
+        | 'file'
+        | 'file-folder'
+        | 'mcp-server'
+        | 'custom-tool'
+        | 'custom-block'
+        | 'skill'
+        | 'sandbox'
+        | 'workflow'
+      sourceId: string
+      required: boolean
+      occurrences: Array<{
+        blockId: string
+        subBlockKey: string
+        valuePath: Array<string | number>
+        positions?: Array<number>
+        encoding: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+      }>
+    }>
+  }
 }
 
 export type ExportWorkflowResponse = {
   data: ExportWorkflowResponseRef0
 }
 
-/** `POST /api/v2/tables/[tableId]/rows/find` */
-export type FindTableRowsParams = {
-  tableId: string
-}
-
-export type FindTableRowsQuery = Record<string, unknown>
-
-type FindTableRowsBodyRef0 =
-  | {
-      all: Array<
-        | FindTableRowsBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | FindTableRowsBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
-export type FindTableRowsBody = {
+/** `POST /api/v2/workspaces/[workspaceId]/fork` */
+export type ForkWorkspaceParams = {
   workspaceId: string
-  q: string
-  predicate?: FindTableRowsBodyRef0
-  sort?: Array<{
-    field: string
-    direction: 'asc' | 'desc'
+}
+
+export type ForkWorkspaceQuery = Record<string, unknown>
+
+export type ForkWorkspaceBody = {
+  name?: string
+  copy?: {
+    files?: Array<string>
+    tables?: Array<string>
+    knowledgeBases?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    mcpServers?: Array<string>
+    workflowMcpServers?: Array<string>
+  }
+  requestId: string
+  previewFingerprint: string
+}
+
+type ForkWorkspaceResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
   }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
 }
 
-type FindTableRowsResponseRef0 = {
-  ordinal: number
-  rowId: string
-  column: string
+export type ForkWorkspaceResponse = {
+  data: ForkWorkspaceResponseRef0
 }
 
-type FindTableRowsResponseRef1 = {
-  matches: Array<FindTableRowsResponseRef0>
-  truncated: boolean
-}
-
-export type FindTableRowsResponse = {
-  data: FindTableRowsResponseRef1
-}
-
-/** `GET /api/v2/audit-logs/[id]` */
+/** `GET /api/v2/audit-logs/[auditLogId]` */
 export type GetAuditLogParams = {
-  id: string
+  auditLogId: string
 }
 
 export type GetAuditLogQuery = {
-  organizationId: string
+  organizationId?: string
 }
 
 type GetAuditLogResponseRef0 = {
@@ -2497,9 +5141,208 @@ export type GetBillingStatusResponse = {
   data: GetBillingStatusResponseRef0
 }
 
-/** `GET /api/v2/custom-tools/[id]` */
-export type GetCustomToolParams = {
+/** `GET /api/v2/blocks/[blockId]` */
+export type GetBlockParams = {
+  blockId: string
+}
+
+export type GetBlockQuery = {
+  workspaceId: string
+}
+
+type GetBlockResponseRef0 = {
   id: string
+  type: string
+  title?: string
+  required?: boolean
+  requiredWhen?: GetBlockResponseRef1
+  description?: string
+  placeholder?: string
+  mode?: string
+  hidden?: boolean
+  condition?: GetBlockResponseRef1
+  options?: Array<{
+    id: string
+    label?: string
+    hasIcon?: boolean
+    hosted?: boolean
+  }>
+  min?: number
+  max?: number
+  step?: number
+  integer?: boolean
+  rows?: number
+  password?: boolean
+  multiSelect?: boolean
+  language?: string
+  generationType?: string
+  serviceId?: string
+  requiredScopes?: Array<string>
+  mimeType?: string
+  acceptedTypes?: string
+  multiple?: boolean
+  maxSize?: number
+  connectionDroppable?: boolean
+  columns?: Array<string>
+  dependsOn?:
+    | Array<string>
+    | {
+        all?: Array<string>
+        any?: Array<string>
+      }
+  canonicalParamId?: string
+  defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
+  hasComputedDefault?: boolean
+}
+
+type GetBlockResponseRef1 = {
+  field: string
+  value: string | number | boolean | Array<string | number | boolean>
+  not?: boolean
+  and?: {
+    field: string
+    value?: string | number | boolean | Array<string | number | boolean>
+    not?: boolean
+  }
+}
+
+type GetBlockResponseRef2 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+  schema?: unknown
+}
+
+type GetBlockResponseRef3 = {
+  type: string
+  description?: string
+  optional?: boolean
+  nullable?: boolean
+  properties?: Record<string, unknown>
+  items?: {
+    type: string
+    description?: string
+    properties?: Record<string, unknown>
+  }
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
+type GetBlockResponseRef4 = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+  params: Record<string, GetBlockResponseRef5>
+  outputs: Record<string, GetBlockResponseRef3>
+}
+
+type GetBlockResponseRef5 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+}
+
+type GetBlockResponseRef6 = {
+  id: string
+  name: string
+  description: string
+  longDescription?: string
+  category: string
+  integrationType?: string
+  source: 'builtin' | 'custom'
+  authMode?: string
+  triggerAllowed: boolean
+  triggerCapable: boolean
+  triggerIds: Array<string>
+  toolIds: Array<string>
+  operationIds: Array<string>
+  preview: boolean
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
+  docsLink?: string
+  tags: Array<string>
+  bestPractices?: string
+  inputSchema: Array<GetBlockResponseRef0>
+  operationInputSchema: Record<string, Array<GetBlockResponseRef0>>
+  inputDefinitions: Record<
+    string,
+    {
+      type: string
+      description?: string
+      schema?: unknown
+    }
+  >
+  operations: Record<
+    string,
+    {
+      toolId?: string
+      toolName?: string
+      description?: string
+      inputs: Record<string, GetBlockResponseRef2>
+      outputs: Record<string, GetBlockResponseRef3>
+      inputSchema: Array<GetBlockResponseRef0>
+    }
+  >
+  tools: Array<GetBlockResponseRef4>
+  triggers: Array<{
+    id: string
+    outputs: Record<
+      string,
+      {
+        type: string
+        description?: string
+      }
+    >
+    configFields: Record<
+      string,
+      {
+        type: string
+        required: boolean
+        title?: string
+        description?: string
+        placeholder?: string
+        default?: unknown
+        options?: Array<{
+          id: string
+          label: string
+        }>
+        condition?: GetBlockResponseRef1
+      }
+    >
+  }>
+  outputs: Record<
+    string,
+    {
+      type: string
+      description?: string
+    }
+  >
+}
+
+export type GetBlockResponse = {
+  data: GetBlockResponseRef6
+}
+
+/** `GET /api/v2/custom-tools/[customToolId]` */
+export type GetCustomToolParams = {
+  customToolId: string
 }
 
 export type GetCustomToolQuery = {
@@ -2554,6 +5397,7 @@ type GetFileResponseRef0 = {
 
 type GetFileResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -2564,6 +5408,8 @@ type GetFileResponseRef1 = {
   updatedAt: string
   deletedAt: string | null
   share: GetFileResponseRef0 | null
+  revision?: string
+  currentVersion: number
 }
 
 export type GetFileResponse = {
@@ -2595,9 +5441,90 @@ export type GetFileShareResponse = {
   data: GetFileShareResponseRef0 | null
 }
 
-/** `GET /api/v2/knowledge/[id]` */
-export type GetKnowledgeBaseParams = {
+/** `GET /api/v2/files/uploads/[uploadId]` */
+export type GetFileUploadParams = {
+  uploadId: string
+}
+
+export type GetFileUploadQuery = {
+  workspaceId: string
+}
+
+export type GetFileUploadHeaders = {
+  'upload-token': string
+}
+
+type GetFileUploadResponseRef0 = {
   id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type GetFileUploadResponseRef1 = {
+  id: string
+  status:
+    | 'uploading'
+    | 'completing'
+    | 'finalizing'
+    | 'completed'
+    | 'failed'
+    | 'aborting'
+    | 'aborted'
+    | 'expired'
+  name: string
+  contentType: string
+  size: number
+  expiresAt: string
+  error: string | null
+  file: GetFileUploadResponseRef0 | null
+}
+
+export type GetFileUploadResponse = {
+  data: GetFileUploadResponseRef1
+}
+
+/** `GET /api/v2/files/[fileId]/versions/[version]` */
+export type GetFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type GetFileVersionQuery = {
+  workspaceId: string
+}
+
+type GetFileVersionResponseRef0 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type GetFileVersionResponse = {
+  data: GetFileVersionResponseRef0
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]` */
+export type GetKnowledgeBaseParams = {
+  knowledgeBaseId: string
 }
 
 export type GetKnowledgeBaseQuery = {
@@ -2629,18 +5556,103 @@ type GetKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 export type GetKnowledgeBaseResponse = {
   data: GetKnowledgeBaseResponseRef1
 }
 
-/** `GET /api/v2/knowledge/[id]/documents/[documentId]` */
-export type GetKnowledgeDocumentParams = {
-  id: string
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]` */
+export type GetKnowledgeChunkParams = {
   documentId: string
+  chunkId: string
+  knowledgeBaseId: string
+}
+
+export type GetKnowledgeChunkQuery = {
+  workspaceId: string
+}
+
+type GetKnowledgeChunkResponseRef0 = {
+  id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetKnowledgeChunkResponse = {
+  data: GetKnowledgeChunkResponseRef0
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]` */
+export type GetKnowledgeConnectorParams = {
+  connectorId: string
+  knowledgeBaseId: string
+}
+
+export type GetKnowledgeConnectorQuery = {
+  workspaceId: string
+}
+
+type GetKnowledgeConnectorResponseRef0 = {
+  id: string
+  connectorId: string
+  status: string
+  startedAt: string
+  completedAt: string | null
+  docsAdded: number
+  docsUpdated: number
+  docsDeleted: number
+  docsUnchanged: number
+  docsSkipped: number
+  docsFailed: number
+  errorMessage: string | null
+}
+
+type GetKnowledgeConnectorResponseRef1 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+  syncLogs: Array<GetKnowledgeConnectorResponseRef0>
+}
+
+export type GetKnowledgeConnectorResponse = {
+  data: GetKnowledgeConnectorResponseRef1
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]` */
+export type GetKnowledgeDocumentParams = {
+  documentId: string
+  knowledgeBaseId: string
 }
 
 export type GetKnowledgeDocumentQuery = {
@@ -2677,9 +5689,19 @@ export type GetLogParams = {
   runId: string
 }
 
-export type GetLogQuery = Record<string, unknown>
+export type GetLogQuery = {
+  includeWorkflowState?: boolean
+}
 
 type GetLogResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  downloadPath: string
+}
+
+type GetLogResponseRef1 = {
   id: string
   name: string
   type: string
@@ -2718,10 +5740,10 @@ type GetLogResponseRef0 = {
     endTime?: string
     duration?: number
   }>
-  children?: Array<GetLogResponseRef0>
+  children?: Array<GetLogResponseRef1>
 }
 
-type GetLogResponseRef1 = {
+type GetLogResponseRef2 = {
   runId: string
   workflowId: string | null
   deploymentVersionId: string | null
@@ -2731,7 +5753,8 @@ type GetLogResponseRef1 = {
   startedAt: string
   endedAt: string | null
   totalDurationMs: number | null
-  files: Array<unknown> | null
+  files: Array<GetLogResponseRef0> | null
+  executedByEmail: string | null
   workflow: {
     id: string | null
     name: string
@@ -2744,21 +5767,90 @@ type GetLogResponseRef1 = {
     deleted: boolean
   }
   workflowState: Record<string, unknown> | null
-  traceSpans: Array<GetLogResponseRef0>
+  traceSpans: Array<GetLogResponseRef1>
   finalOutput: unknown | null
   cost: {
     total: number
+    items: Array<{
+      category: 'fixed' | 'model' | 'tool'
+      description: string
+      cost: number
+      inputTokens?: number
+      outputTokens?: number
+    }> | null
   } | null
+  workflowInput: unknown | null
   createdAt: string
 }
 
 export type GetLogResponse = {
-  data: GetLogResponseRef1
+  data: GetLogResponseRef2
 }
 
-/** `GET /api/v2/mcp-servers/[id]` */
+/** `GET /api/v2/logs/stats` */
+export type GetLogStatsQuery = {
+  workspaceId: string
+  workflowIds?: string
+  folderPaths?: string
+  triggers?: string
+  level?: 'info' | 'error'
+  includeHandledErrors?: boolean
+  startDate?: string
+  endDate?: string
+  segmentCount?: number
+  includeEmpty?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+}
+
+type GetLogStatsResponseRef0 = {
+  workflowId: string
+  workflowName: string
+  segments: Array<GetLogStatsResponseRef1>
+  totalExecutions: number
+  totalSuccessful: number
+  overallSuccessRate: number
+}
+
+type GetLogStatsResponseRef1 = {
+  timestamp: string
+  totalExecutions: number
+  successfulExecutions: number
+  avgDurationMs: number
+}
+
+type GetLogStatsResponseRef2 = {
+  workflows: Array<GetLogStatsResponseRef0>
+  workflowsTruncated: boolean
+  aggregateSegments: Array<GetLogStatsResponseRef1>
+  totalRuns: number
+  totalErrors: number
+  handledErrorRuns?: number
+  avgLatency: number
+  timeBounds: {
+    start: string
+    end: string
+  }
+  segmentMs: number
+}
+
+export type GetLogStatsResponse = {
+  data: GetLogStatsResponseRef2
+}
+
+/** `GET /api/v2/mcp-servers/[mcpServerId]` */
 export type GetMcpServerParams = {
-  id: string
+  mcpServerId: string
 }
 
 export type GetMcpServerQuery = {
@@ -2792,9 +5884,502 @@ export type GetMcpServerResponse = {
   data: GetMcpServerResponseRef0
 }
 
-/** `GET /api/v2/skills/[id]` */
-export type GetSkillParams = {
+/** `GET /api/v2/meta` */
+export type GetMetaQuery = Record<string, unknown>
+
+type GetMetaResponseRef0 = {
+  v2Enabled: boolean
+  keyType: 'personal' | 'workspace' | 'oauth_access_token'
+  expiresAt: string | null
+}
+
+export type GetMetaResponse = {
+  data: GetMetaResponseRef0
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/tags/next-slot` */
+export type GetNextKnowledgeTagSlotParams = {
+  knowledgeBaseId: string
+}
+
+export type GetNextKnowledgeTagSlotQuery = {
+  workspaceId: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+}
+
+type GetNextKnowledgeTagSlotResponseRef0 = {
+  nextAvailableSlot: string | null
+  fieldType: string
+  usedSlots: Array<string>
+  totalSlots: number
+  availableSlots: number
+}
+
+export type GetNextKnowledgeTagSlotResponse = {
+  data: GetNextKnowledgeTagSlotResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]` */
+export type GetOrganizationParams = {
+  organizationId: string
+}
+
+export type GetOrganizationQuery = Record<string, unknown>
+
+type GetOrganizationResponseRef0 = {
   id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: 'owner' | 'admin' | 'member'
+  createdAt: string
+}
+
+export type GetOrganizationResponse = {
+  data: GetOrganizationResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests/settings` */
+export type GetOrganizationAccessRequestSettingsParams = {
+  organizationId: string
+}
+
+export type GetOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+
+type GetOrganizationAccessRequestSettingsResponseRef0 = {
+  allowRequests: boolean
+}
+
+export type GetOrganizationAccessRequestSettingsResponse = {
+  data: GetOrganizationAccessRequestSettingsResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations/[invitationId]` */
+export type GetOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type GetOrganizationInvitationQuery = Record<string, unknown>
+
+type GetOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type GetOrganizationInvitationResponse = {
+  data: GetOrganizationInvitationResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/members/[userId]/usage-limit` */
+export type GetOrganizationMemberUsageLimitParams = {
+  organizationId: string
+  userId: string
+}
+
+export type GetOrganizationMemberUsageLimitQuery = Record<string, unknown>
+
+type GetOrganizationMemberUsageLimitResponseRef0 = {
+  creditsUsed: number
+  creditLimit: number | null
+  billingInterval: 'month' | 'year'
+}
+
+export type GetOrganizationMemberUsageLimitResponse = {
+  data: GetOrganizationMemberUsageLimitResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/breakdown` */
+export type GetOrganizationUsageBreakdownParams = {
+  organizationId: string
+}
+
+export type GetOrganizationUsageBreakdownQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  workspaceId?: string
+  dimension: 'member' | 'workspace' | 'workflow' | 'model' | 'byok' | 'source'
+  limit?: number
+}
+
+type GetOrganizationUsageBreakdownResponseRef0 = {
+  dimension: 'member' | 'workspace' | 'workflow' | 'model' | 'byok' | 'source'
+  rows: Array<{
+    id: string
+    label: string
+    credits: number
+    events: number
+    share: number
+    providerId?: string
+    tokens?: number
+  }>
+  other: {
+    credits: number
+    events: number
+    rowCount: number
+    tokens: number
+  }
+  totalCredits: number
+}
+
+export type GetOrganizationUsageBreakdownResponse = {
+  data: GetOrganizationUsageBreakdownResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/summary` */
+export type GetOrganizationUsageSummaryParams = {
+  organizationId: string
+}
+
+export type GetOrganizationUsageSummaryQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  workspaceId?: string
+}
+
+type GetOrganizationUsageSummaryResponseRef0 = {
+  window: {
+    start: string
+    end: string
+    source: 'reporting' | 'stripe' | 'default' | 'range'
+  }
+  bucket: 'day' | 'week' | 'month'
+  totals: {
+    credits: number
+  }
+  previousTotals: {
+    credits: number
+  } | null
+  series: Array<{
+    timestamp: string
+    credits: number
+    events: number
+  }>
+}
+
+export type GetOrganizationUsageSummaryResponse = {
+  data: GetOrganizationUsageSummaryResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type GetPermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type GetPermissionGroupQuery = Record<string, unknown>
+
+type GetPermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetPermissionGroupResponse = {
+  data: GetPermissionGroupResponseRef0
+}
+
+/** `GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
+export type GetRowEnrichmentParams = {
+  tableId: string
+  rowId: string
+  groupId: string
+}
+
+export type GetRowEnrichmentQuery = {
+  workspaceId: string
+}
+
+type GetRowEnrichmentResponseRef0 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type GetRowEnrichmentResponseRef1 = Record<string, unknown>
+
+type GetRowEnrichmentResponseRef2 = {
+  startedAt: string | null
+  completedAt: string | null
+  durationMs: number
+  totalCost: number
+  matchedProvider: string | null
+  aborted: boolean
+  providers: Array<GetRowEnrichmentResponseRef3>
+}
+
+type GetRowEnrichmentResponseRef3 = {
+  id: string
+  label: string
+  toolId: string
+  status: string
+  cost: number
+  durationMs: number
+  error: string | null
+}
+
+type GetRowEnrichmentResponseRef4 = {
+  groupId: string
+  runState: GetRowEnrichmentResponseRef0 | null
+  outputs: GetRowEnrichmentResponseRef1
+  cascade: GetRowEnrichmentResponseRef2 | null
+}
+
+export type GetRowEnrichmentResponse = {
+  data: GetRowEnrichmentResponseRef4
+}
+
+/** `GET /api/v2/sandboxes/[sandboxId]` */
+export type GetSandboxParams = {
+  sandboxId: string
+}
+
+export type GetSandboxQuery = {
+  workspaceId: string
+}
+
+type GetSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetSandboxResponse = {
+  data: GetSandboxResponseRef0
+}
+
+/** `POST /api/v2/selectors/get` */
+export type GetSelectorQuery = Record<string, unknown>
+
+export type GetSelectorBody = {
+  workspaceId: string
+  selectorKey:
+    | 'airtable.bases'
+    | 'airtable.tables'
+    | 'asana.workspaces'
+    | 'attio.lists'
+    | 'attio.objects'
+    | 'bigquery.datasets'
+    | 'bigquery.tables'
+    | 'bitbucket.workspaces'
+    | 'bitbucket.repositories'
+    | 'calcom.eventTypes'
+    | 'calcom.schedules'
+    | 'clickup.workspaces'
+    | 'clickup.spaces'
+    | 'clickup.folders'
+    | 'clickup.lists'
+    | 'coda.docs'
+    | 'coda.pages'
+    | 'coda.tables'
+    | 'coda.columns'
+    | 'coda.rows'
+    | 'coda.formulas'
+    | 'coda.controls'
+    | 'coda.folders'
+    | 'coda.permissions'
+    | 'confluence.spaces'
+    | 'confluence.spacesById'
+    | 'confluence.pages'
+    | 'google.tasks.lists'
+    | 'gmail.labels'
+    | 'google.calendar'
+    | 'google.drive'
+    | 'google.sheets'
+    | 'harmonic.savedSearches'
+    | 'hubspot.lists'
+    | 'hubspot.owners'
+    | 'hubspot.pipelines'
+    | 'hubspot.pipelineStages'
+    | 'hubspot.properties'
+    | 'jsm.requestTypes'
+    | 'jsm.serviceDesks'
+    | 'microsoft.planner.plans'
+    | 'notion.databases'
+    | 'notion.pages'
+    | 'netsuite.recordTypes'
+    | 'netsuite.asyncTasks'
+    | 'pipedrive.pipelines'
+    | 'sharepoint.lists'
+    | 'trello.boards'
+    | 'zoho_desk.organizations'
+    | 'zoho_desk.departments'
+    | 'zoho_desk.agents'
+    | 'zoom.meetings'
+    | 'slack.channels'
+    | 'snowflake.databases'
+    | 'snowflake.schemas'
+    | 'snowflake.tables'
+    | 'snowflake.warehouses'
+    | 'snowflake.roles'
+    | 'snowflake.fileFormats'
+    | 'snowflake.procedures'
+    | 'slack.users'
+    | 'outlook.folders'
+    | 'outlook.calendars'
+    | 'microsoft.teams'
+    | 'microsoft.chats'
+    | 'microsoft.channels'
+    | 'microsoft.planner'
+    | 'onedrive.files'
+    | 'onedrive.folders'
+    | 'sharepoint.sites'
+    | 'microsoft.excel'
+    | 'microsoft.excel.drives'
+    | 'microsoft.excel.sheets'
+    | 'microsoft.word'
+    | 'wealthbox.contacts'
+    | 'jira.issues'
+    | 'jira.projects'
+    | 'jira.projectKeys'
+    | 'linear.projects'
+    | 'linear.teams'
+    | 'monday.boards'
+    | 'monday.groups'
+    | 'webflow.sites'
+    | 'webflow.collections'
+    | 'webflow.items'
+    | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
+    | 'cloudwatch.logGroups'
+    | 'cloudwatch.logStreams'
+    | 'imap.mailboxes'
+    | 'mcp.tools'
+    | 'managedAgent.agents'
+    | 'managedAgent.environments'
+    | 'managedAgent.vaults'
+    | 'managedAgent.memoryStores'
+    | 'knowledge.documents'
+    | 'sim.workflows'
+    | 'table.columns'
+    | 'table.outputColumns'
+    | 'workspace.secretNames'
+    | 'workspace.sandboxes'
+    | 'providers.ollamaEmbeddingModels'
+    | 'providers.openrouterEmbeddingModels'
+  context?: Record<string, string>
+  id: string
+}
+
+type GetSelectorResponseRef0 = {
+  id: string
+  label: string
+  meta?: Record<string, string | number | boolean | null>
+}
+
+export type GetSelectorResponse = {
+  data: GetSelectorResponseRef0 | null
+}
+
+/** `GET /api/v2/skills/[skillId]` */
+export type GetSkillParams = {
+  skillId: string
 }
 
 export type GetSkillQuery = {
@@ -2834,6 +6419,7 @@ type GetTableResponseRef0 = {
 
 type GetTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -2841,7 +6427,7 @@ type GetTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -2871,8 +6457,46 @@ export type GetTableResponse = {
   data: GetTableResponseRef1
 }
 
-/** `GET /api/v2/tables/exports/[exportId]` */
+/** `GET /api/v2/tables/[tableId]/dispatches/[dispatchId]` */
+export type GetTableDispatchParams = {
+  tableId: string
+  dispatchId: string
+}
+
+export type GetTableDispatchQuery = {
+  workspaceId: string
+}
+
+type GetTableDispatchResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+    filtered?: boolean
+    excludeRowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  canceledAt: string | null
+}
+
+export type GetTableDispatchResponse = {
+  data: GetTableDispatchResponseRef0
+}
+
+/** `GET /api/v2/tables/[tableId]/exports/[exportId]` */
 export type GetTableExportParams = {
+  tableId: string
   exportId: string
 }
 
@@ -2925,6 +6549,12 @@ type GetTableImportResponseRef1 = {
 type GetTableImportResponseRef2 = string
 
 type GetTableImportResponseRef3 = {
+  code: string
+  line: number | null
+  message: string
+}
+
+type GetTableImportResponseRef4 = {
   id: string
   workspaceId: string
   status: 'uploading' | 'processing' | 'completed' | 'failed' | 'canceled' | 'expired'
@@ -2942,6 +6572,9 @@ type GetTableImportResponseRef3 = {
       }
   tableId: string | null
   rowsProcessed: number
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: Array<GetTableImportResponseRef3>
   error: string | null
   createdAt: string
   updatedAt: string
@@ -2949,7 +6582,7 @@ type GetTableImportResponseRef3 = {
 }
 
 export type GetTableImportResponse = {
-  data: GetTableImportResponseRef3
+  data: GetTableImportResponseRef4
 }
 
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -2960,19 +6593,31 @@ export type GetTableRowParams = {
 
 export type GetTableRowQuery = {
   workspaceId: string
+  includeRunState?: boolean
 }
 
 type GetTableRowResponseRef0 = Record<string, unknown>
 
 type GetTableRowResponseRef1 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type GetTableRowResponseRef2 = {
   id: string
   data: GetTableRowResponseRef0
+  runState?: Record<string, GetTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
 export type GetTableRowResponse = {
-  data: GetTableRowResponseRef1
+  data: GetTableRowResponseRef2
 }
 
 /** `GET /api/v2/tables/[tableId]/views/[viewId]` */
@@ -3012,9 +6657,63 @@ export type GetTableViewResponse = {
   data: GetTableViewResponseRef1
 }
 
-/** `GET /api/v2/workflows/[id]` */
-export type GetWorkflowParams = {
+/** `GET /api/v2/tools/[toolId]` */
+export type GetToolParams = {
+  toolId: string
+}
+
+export type GetToolQuery = {
+  workspaceId: string
+}
+
+type GetToolResponseRef0 = {
+  type: string
+  required?: boolean
+  visibility?: string
+  description?: string
+  default?: unknown
+  items?: unknown
+}
+
+type GetToolResponseRef1 = {
+  type: string
+  description?: string
+  optional?: boolean
+  nullable?: boolean
+  properties?: Record<string, unknown>
+  items?: {
+    type: string
+    description?: string
+    properties?: Record<string, unknown>
+  }
+  fileConfig?: {
+    mimeType?: string
+    extension?: string
+  }
+}
+
+type GetToolResponseRef2 = {
   id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+  params: Record<string, GetToolResponseRef0>
+  outputs: Record<string, GetToolResponseRef1>
+}
+
+export type GetToolResponse = {
+  data: GetToolResponseRef2
+}
+
+/** `GET /api/v2/workflows/[workflowId]` */
+export type GetWorkflowParams = {
+  workflowId: string
 }
 
 export type GetWorkflowQuery = Record<string, unknown>
@@ -3027,6 +6726,7 @@ type GetWorkflowResponseRef0 = {
 
 type GetWorkflowResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -3045,9 +6745,52 @@ export type GetWorkflowResponse = {
   data: GetWorkflowResponseRef1
 }
 
-/** `GET /api/v2/workflows/[id]/deployment` */
-export type GetWorkflowDeploymentParams = {
+/** `GET /api/v2/workflows/[workflowId]/deployments/chat` */
+export type GetWorkflowChatDeploymentParams = {
+  workflowId: string
+}
+
+export type GetWorkflowChatDeploymentQuery = Record<string, unknown>
+
+type GetWorkflowChatDeploymentResponseRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type GetWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
+  blockId: string
+  path: string
+}
+
+type GetWorkflowChatDeploymentResponseRef2 = {
   id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: GetWorkflowChatDeploymentResponseRef0
+  outputConfigs: Array<GetWorkflowChatDeploymentResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetWorkflowChatDeploymentResponse = {
+  data: GetWorkflowChatDeploymentResponseRef2
+}
+
+/** `GET /api/v2/workflows/[workflowId]/deployment` */
+export type GetWorkflowDeploymentParams = {
+  workflowId: string
 }
 
 export type GetWorkflowDeploymentQuery = Record<string, unknown>
@@ -3084,6 +6827,12 @@ type GetWorkflowDeploymentResponseRef3 = {
 }
 
 type GetWorkflowDeploymentResponseRef4 = {
+  blockId: string | null
+  provider: string | null
+  url: string
+}
+
+type GetWorkflowDeploymentResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
@@ -3091,21 +6840,46 @@ type GetWorkflowDeploymentResponseRef4 = {
   activeDeployment: GetWorkflowDeploymentResponseRef0 | null
   latestDeploymentAttempt: GetWorkflowDeploymentResponseRef1 | null
   needsRedeployment: boolean
+  isPublicApi: boolean
+  webhooks: Array<GetWorkflowDeploymentResponseRef4>
 }
 
 export type GetWorkflowDeploymentResponse = {
-  data: GetWorkflowDeploymentResponseRef4
+  data: GetWorkflowDeploymentResponseRef5
 }
 
-/** `GET /api/v2/workflows/[id]/runs/[runId]` */
-export type GetWorkflowRunParams = {
+/** `GET /api/v2/workflow-mcp-servers/[serverId]` */
+export type GetWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type GetWorkflowMcpServerQuery = Record<string, unknown>
+
+type GetWorkflowMcpServerResponseRef0 = {
   id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetWorkflowMcpServerResponse = {
+  data: GetWorkflowMcpServerResponseRef0
+}
+
+/** `GET /api/v2/workflows/[workflowId]/runs/[runId]` */
+export type GetWorkflowRunParams = {
+  workflowId: string
   runId: string
 }
 
 export type GetWorkflowRunQuery = {
   includeOutput?: boolean
   selectedOutputs?: string
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
 }
 
 type GetWorkflowRunResponseRef0 = {
@@ -3124,6 +6898,15 @@ type GetWorkflowRunResponseRef0 = {
 }
 
 type GetWorkflowRunResponseRef1 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  downloadPath: string
+  base64: string | null
+}
+
+type GetWorkflowRunResponseRef2 = {
   runId: string
   workflowId: string
   status:
@@ -3155,16 +6938,121 @@ type GetWorkflowRunResponseRef1 = {
   error: GetWorkflowRunResponseRef0 | null
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
+  files: Array<GetWorkflowRunResponseRef1> | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef1
+  data: GetWorkflowRunResponseRef2
 }
 
-/** `GET /api/v2/workflows/[id]/versions/[version]` */
-export type GetWorkflowVersionParams = {
+/** `GET /api/v2/workflows/[workflowId]/state` */
+export type GetWorkflowStateParams = {
+  workflowId: string
+}
+
+export type GetWorkflowStateQuery = Record<string, unknown>
+
+type GetWorkflowStateResponseRef0 = {
   id: string
+  type: string
+  name: string
+  position: {
+    x: number
+    y: number
+  }
+  subBlocks: Record<
+    string,
+    {
+      id: string
+      type: string
+      value: unknown
+    }
+  >
+  outputs: Record<string, unknown>
+  enabled: boolean
+  horizontalHandles?: boolean
+  height?: number
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+  data?: {
+    parentId?: string
+    extent?: 'parent'
+    width?: number
+    height?: number
+    collection?: unknown
+    count?: number
+    loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+    whileCondition?: string
+    doWhileCondition?: string
+    parallelType?: 'collection' | 'count'
+    batchSize?: number
+    type?: string
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  }
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef1 = {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+  type?: string
+}
+
+type GetWorkflowStateResponseRef2 = {
+  id: string
+  nodes: Array<string>
+  iterations: number
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
+  forEachItems?: Array<unknown> | Record<string, unknown> | string
+  whileCondition?: string
+  doWhileCondition?: string
+  enabled?: boolean
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef3 = {
+  id: string
+  nodes: Array<string>
+  distribution?: Array<unknown> | Record<string, unknown> | string
+  count?: number
+  parallelType?: 'count' | 'collection'
+  batchSize?: number
+  enabled?: boolean
+  locked?: boolean
+}
+
+type GetWorkflowStateResponseRef4 = {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
+type GetWorkflowStateResponseRef5 = {
+  blocks: Record<string, GetWorkflowStateResponseRef0>
+  edges: Array<GetWorkflowStateResponseRef1>
+  loops: Record<string, GetWorkflowStateResponseRef2>
+  parallels: Record<string, GetWorkflowStateResponseRef3>
+  variables: Record<string, GetWorkflowStateResponseRef4>
+}
+
+export type GetWorkflowStateResponse = {
+  data: GetWorkflowStateResponseRef5
+}
+
+/** `GET /api/v2/workflows/[workflowId]/versions/[version]` */
+export type GetWorkflowVersionParams = {
   version: number
+  workflowId: string
 }
 
 export type GetWorkflowVersionQuery = Record<string, unknown>
@@ -3206,6 +7094,223 @@ export type GetWorkspaceResponse = {
   data: GetWorkspaceResponseRef0
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/fork/availability` */
+export type GetWorkspaceForkAvailabilityParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceForkAvailabilityQuery = Record<string, unknown>
+
+type GetWorkspaceForkAvailabilityResponseRef0 = {
+  available: boolean
+}
+
+export type GetWorkspaceForkAvailabilityResponse = {
+  data: GetWorkspaceForkAvailabilityResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/fork/lineage` */
+export type GetWorkspaceForkLineageParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceForkLineageQuery = Record<string, unknown>
+
+type GetWorkspaceForkLineageResponseRef0 = {
+  current: {
+    id: string
+    name: string
+    organizationId: string | null
+  }
+  parent: {
+    id: string
+    name: string
+    organizationId: string | null
+  } | null
+}
+
+export type GetWorkspaceForkLineageResponse = {
+  data: GetWorkspaceForkLineageResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/fork/mappings` */
+export type GetWorkspaceForkMappingsParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceForkMappingsQuery = {
+  otherWorkspaceId: string
+  direction: 'push' | 'pull'
+  limit?: number
+  cursor?: string
+  sortBy?: 'id'
+  sortOrder?: 'asc'
+}
+
+type GetWorkspaceForkMappingsResponseRef0 = {
+  resourceType:
+    | 'oauth_credential'
+    | 'service_account_credential'
+    | 'env_var'
+    | 'table'
+    | 'knowledge_base'
+    | 'file'
+    | 'file_folder'
+    | 'mcp_server'
+    | 'custom_block'
+    | 'custom_tool'
+    | 'skill'
+    | 'sandbox'
+  sourceId: string
+  targetId: string | null
+  id: string
+}
+
+export type GetWorkspaceForkMappingsResponse = {
+  data: Array<GetWorkspaceForkMappingsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/operations/[operationId]` */
+export type GetWorkspaceOperationParams = {
+  workspaceId: string
+  operationId: string
+}
+
+export type GetWorkspaceOperationQuery = Record<string, unknown>
+
+type GetWorkspaceOperationResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type GetWorkspaceOperationResponse = {
+  data: GetWorkspaceOperationResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/permission-config` */
+export type GetWorkspacePermissionConfigParams = {
+  workspaceId: string
+}
+
+export type GetWorkspacePermissionConfigQuery = Record<string, unknown>
+
+type GetWorkspacePermissionConfigResponseRef0 = {
+  permissionGroupId: string | null
+  groupName: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  } | null
+  entitled: boolean
+  organizationId: string | null
+  isOrgAdmin: boolean
+}
+
+export type GetWorkspacePermissionConfigResponse = {
+  data: GetWorkspacePermissionConfigResponseRef0
+}
+
+/** `POST /api/v2/skills/[skillId]/editors` */
+export type GrantSkillEditorParams = {
+  skillId: string
+}
+
+export type GrantSkillEditorQuery = Record<string, unknown>
+
+export type GrantSkillEditorBody = {
+  workspaceId: string
+  email: string
+}
+
+type GrantSkillEditorResponseRef0 = {
+  email: string
+  name: string | null
+  image: string | null
+  isWorkspaceAdmin: boolean
+}
+
+export type GrantSkillEditorResponse = {
+  data: GrantSkillEditorResponseRef0
+}
+
 /** `POST /api/v2/workflows/import` */
 export type ImportWorkflowQuery = Record<string, unknown>
 
@@ -3217,9 +7322,62 @@ export type ImportWorkflowBody = {
   folderPath?: ImportWorkflowBodyRef0
   name?: string
   description?: string
+  mappings?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+  }>
+  bindings?: Array<{
+    blockId: string
+    subBlockKey: string
+    valuePath?: Array<string | number>
+    positions?: Array<number>
+    encoding?: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    blockId: string
+    subBlockKey: string
+    value: string
+  }>
+  requestId?: string
+  previewFingerprint?: string
 }
 
 type ImportWorkflowResponseRef0 = {
+  id: string
+  type: string
+  name: string
+}
+
+type ImportWorkflowResponseRef1 = {
   id: string
   name: string
   description: string | null
@@ -3227,10 +7385,50 @@ type ImportWorkflowResponseRef0 = {
   folderPath: string
   createdAt: string
   updatedAt: string
+  blocks?: Array<ImportWorkflowResponseRef0>
+  warnings: Array<string>
+  operationId?: string
+  requestId?: string
+  kind?: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied?: true
+  status?:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds?: Array<string>
+  issues?: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
 }
 
 export type ImportWorkflowResponse = {
-  data: ImportWorkflowResponseRef0
+  data: ImportWorkflowResponseRef1
 }
 
 /** `GET /api/v2/audit-logs` */
@@ -3244,7 +7442,7 @@ export type ListAuditLogsQuery = {
   includeDeparted?: boolean
   limit?: number
   cursor?: string
-  organizationId: string
+  organizationId?: string
   actorEmail?: string
 }
 
@@ -3279,6 +7477,7 @@ export type ListBillingLogsQuery = {
     | 'voice-input'
     | 'enrichment'
     | 'voice-output'
+    | 'api-tool'
   workspaceId?: string
   period?: '1d' | '7d' | '30d' | 'all' | 'custom'
   startDate?: string
@@ -3300,6 +7499,7 @@ type ListBillingLogsResponseRef0 = {
     | 'voice-input'
     | 'enrichment'
     | 'voice-output'
+    | 'api-tool'
   workspaceId: string | null
   workflow: {
     id: string
@@ -3311,6 +7511,161 @@ type ListBillingLogsResponseRef0 = {
 
 export type ListBillingLogsResponse = {
   data: Array<ListBillingLogsResponseRef0>
+  nextCursor: string | null
+  scope: 'user' | 'workspace'
+}
+
+/** `GET /api/v2/blocks` */
+export type ListBlocksQuery = {
+  workspaceId: string
+  search?: string
+  category?: 'blocks' | 'tools' | 'triggers'
+  capability?: 'trigger'
+  source?: 'builtin' | 'custom'
+  includeSunset?: boolean
+  sortBy?: 'id' | 'name' | 'category'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListBlocksResponseRef0 = {
+  id: string
+  name: string
+  description: string
+  longDescription?: string
+  category: string
+  integrationType?: string
+  source: 'builtin' | 'custom'
+  authMode?: string
+  triggerAllowed: boolean
+  triggerCapable: boolean
+  triggerIds: Array<string>
+  toolIds: Array<string>
+  operationIds: Array<string>
+  preview: boolean
+  sunset?: {
+    status: 'legacy' | 'deprecated'
+    replacedBy?: string
+  }
+  docsLink?: string
+  tags: Array<string>
+}
+
+export type ListBlocksResponse = {
+  data: Array<ListBlocksResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/chat-deployments` */
+export type ListChatDeploymentsQuery = {
+  workspaceId: string
+  workflowId?: string
+  isActive?: boolean
+  sortBy?: 'identifier' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListChatDeploymentsResponseRef0 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  outputConfigs: Array<ListChatDeploymentsResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+type ListChatDeploymentsResponseRef1 = {
+  workflowId?: string
+  blockId: string
+  path: string
+}
+
+export type ListChatDeploymentsResponse = {
+  data: Array<ListChatDeploymentsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/connector-types` */
+export type ListConnectorTypesQuery = {
+  workspaceId: string
+  search?: string
+  detail?: 'summary' | 'full'
+  limit?: number
+  cursor?: string
+}
+
+type ListConnectorTypesResponseRef0 = {
+  connectorType: string
+  name: string
+  description: string
+  version: string
+  auth:
+    | {
+        mode: 'oauth'
+        provider: string
+        requiredScopes?: Array<string>
+      }
+    | {
+        mode: 'apiKey'
+        label?: string
+        placeholder?: string
+        optional: boolean
+      }
+  configFields: Array<ListConnectorTypesResponseRef1>
+  supportsIncrementalSync: boolean
+  tagDefinitions: Array<{
+    id: string
+    displayName: string
+    fieldType: 'text' | 'number' | 'date' | 'boolean'
+  }>
+}
+
+type ListConnectorTypesResponseRef1 = {
+  id: string
+  title: string
+  type: 'short-input' | 'dropdown' | 'selector'
+  placeholder?: string
+  required?: boolean
+  description?: string
+  options?: Array<{
+    id: string
+    label: string
+  }>
+  selectorKey?: string
+  mimeType?: string
+  dependsOn?:
+    | Array<string>
+    | {
+        all?: Array<string>
+        any?: Array<string>
+      }
+  mode?: 'basic' | 'advanced'
+  canonicalParamId?: string
+  multi?: boolean
+}
+
+type ListConnectorTypesResponseRef2 = {
+  connectorType: string
+  name: string
+  description: string
+  auth: {
+    mode: 'oauth' | 'apiKey'
+  }
+}
+
+export type ListConnectorTypesResponse = {
+  data: Array<ListConnectorTypesResponseRef0 | ListConnectorTypesResponseRef2>
   nextCursor: string | null
 }
 
@@ -3332,6 +7687,20 @@ type ListCredentialProvidersResponseRef0 =
       authorizationOptions: Array<{
         providerId: string
         label: string
+      }>
+      fields: Array<{
+        id: string
+        label: string
+        placeholder: string
+        required: boolean
+        secret: boolean
+        multiline: boolean
+        requiredForAuthMethods?: Array<string>
+        options?: Array<{
+          value: string
+          label: string
+        }>
+        hint?: string
       }>
     }
   | {
@@ -3440,6 +7809,21 @@ export type ListFileFoldersQuery = {
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
+  scope?: 'active' | 'archived'
+  recursive?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+  depth?: number
 }
 
 type ListFileFoldersResponseRef0 = {
@@ -3461,6 +7845,19 @@ type ListFilesQueryRef0 = string
 export type ListFilesQuery = {
   workspaceId: string
   folderPath?: ListFilesQueryRef0
+  recursive?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
   scope?: 'active' | 'archived'
   search?: string
   sortBy?: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
@@ -3471,6 +7868,7 @@ export type ListFilesQuery = {
 
 type ListFilesResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -3487,11 +7885,47 @@ export type ListFilesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/files/[fileId]/versions` */
+export type ListFileVersionsParams = {
+  fileId: string
+}
+
+export type ListFileVersionsQuery = {
+  workspaceId: string
+  sortBy?: 'version'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListFileVersionsResponseRef0 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+export type ListFileVersionsResponse = {
+  data: Array<ListFileVersionsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/knowledge` */
 type ListKnowledgeBasesQueryRef0 = string
 
 export type ListKnowledgeBasesQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListKnowledgeBasesQueryRef0
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
@@ -3512,8 +7946,10 @@ type ListKnowledgeBasesResponseRef0 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 type ListKnowledgeBasesResponseRef1 = {
@@ -3534,9 +7970,115 @@ export type ListKnowledgeBasesResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/knowledge/[id]/documents` */
-export type ListKnowledgeDocumentsParams = {
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks` */
+export type ListKnowledgeChunksParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type ListKnowledgeChunksQuery = {
+  workspaceId: string
+  search?: string
+  enabled?: 'true' | 'false' | 'all'
+  sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListKnowledgeChunksResponseRef0 = {
   id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListKnowledgeChunksResponse = {
+  data: Array<ListKnowledgeChunksResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents` */
+export type ListKnowledgeConnectorDocumentsParams = {
+  connectorId: string
+  knowledgeBaseId: string
+}
+
+export type ListKnowledgeConnectorDocumentsQuery = {
+  workspaceId: string
+  includeExcluded?: boolean
+  limit?: number
+  cursor?: string
+}
+
+type ListKnowledgeConnectorDocumentsResponseRef0 = {
+  id: string
+  filename: string
+  externalId: string | null
+  sourceUrl: string | null
+  enabled: boolean
+  userExcluded: boolean
+  createdAt: string
+  processingStatus: string
+}
+
+export type ListKnowledgeConnectorDocumentsResponse = {
+  data: Array<ListKnowledgeConnectorDocumentsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/connectors` */
+export type ListKnowledgeConnectorsParams = {
+  knowledgeBaseId: string
+}
+
+export type ListKnowledgeConnectorsQuery = {
+  workspaceId: string
+  sortBy?: 'connectorType' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListKnowledgeConnectorsResponseRef0 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListKnowledgeConnectorsResponse = {
+  data: Array<ListKnowledgeConnectorsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents` */
+export type ListKnowledgeDocumentsParams = {
+  knowledgeBaseId: string
 }
 
 export type ListKnowledgeDocumentsQuery = {
@@ -3601,9 +8143,9 @@ export type ListKnowledgeFoldersResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/knowledge/[id]/tags` */
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/tags` */
 export type ListKnowledgeTagsParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type ListKnowledgeTagsQuery = {
@@ -3611,6 +8153,7 @@ export type ListKnowledgeTagsQuery = {
 }
 
 type ListKnowledgeTagsResponseRef0 = {
+  id: string
   displayName: string
   tagSlot: string
   fieldType: string
@@ -3618,6 +8161,29 @@ type ListKnowledgeTagsResponseRef0 = {
 
 export type ListKnowledgeTagsResponse = {
   data: Array<ListKnowledgeTagsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/tags/usage` */
+export type ListKnowledgeTagUsageParams = {
+  knowledgeBaseId: string
+}
+
+export type ListKnowledgeTagUsageQuery = {
+  workspaceId: string
+}
+
+type ListKnowledgeTagUsageResponseRef0 = {
+  id: string
+  tagSlot: string
+  displayName: string
+  fieldType: string
+  documentCount: number
+  chunkCount: number
+}
+
+export type ListKnowledgeTagUsageResponse = {
+  data: Array<ListKnowledgeTagUsageResponseRef0>
   nextCursor: string | null
 }
 
@@ -3639,12 +8205,18 @@ export type ListLogsQuery = {
   includeFinalOutput?: boolean
   limit?: number
   cursor?: string
-  order?: 'asc' | 'desc'
+  includeHandledErrors?: boolean
+  status?: string
+  workflowName?: string
+  includeJobRuns?: boolean
   runId?: string
+  sortBy?: 'startedAt' | 'durationMs' | 'cost' | 'status'
+  sortOrder?: 'asc' | 'desc'
   folderPaths?: string
 }
 
 type ListLogsResponseRef0 = {
+  kind: 'workflow' | 'job'
   runId: string
   workflowId: string | null
   deploymentVersionId: string | null
@@ -3657,7 +8229,8 @@ type ListLogsResponseRef0 = {
   cost: {
     total: number
   } | null
-  files: Array<unknown> | null
+  files: Array<ListLogsResponseRef1> | null
+  hasHandledErrors: boolean
   workflow?: {
     id: string | null
     name: string
@@ -3665,10 +8238,18 @@ type ListLogsResponseRef0 = {
     deleted: boolean
   }
   finalOutput?: unknown
-  traceSpans?: Array<ListLogsResponseRef1>
+  traceSpans?: Array<ListLogsResponseRef2>
 }
 
 type ListLogsResponseRef1 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  downloadPath: string
+}
+
+type ListLogsResponseRef2 = {
   id: string
   name: string
   type: string
@@ -3707,7 +8288,7 @@ type ListLogsResponseRef1 = {
     endTime?: string
     duration?: number
   }>
-  children?: Array<ListLogsResponseRef1>
+  children?: Array<ListLogsResponseRef2>
 }
 
 export type ListLogsResponse = {
@@ -3753,9 +8334,9 @@ export type ListMcpServersResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/mcp-servers/[id]/tools` */
+/** `GET /api/v2/mcp-servers/[mcpServerId]/tools` */
 export type ListMcpServerToolsParams = {
-  id: string
+  mcpServerId: string
 }
 
 export type ListMcpServerToolsQuery = {
@@ -3780,6 +8361,670 @@ export type ListMcpServerToolsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/access-requests/mine` */
+export type ListMyOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type ListMyOrganizationAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListMyOrganizationAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListMyOrganizationAccessRequestsResponse = {
+  data: Array<ListMyOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/access-requests` */
+export type ListMyWorkspaceAccessRequestsParams = {
+  workspaceId: string
+}
+
+export type ListMyWorkspaceAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListMyWorkspaceAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListMyWorkspaceAccessRequestsResponse = {
+  data: Array<ListMyWorkspaceAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests` */
+export type ListOrganizationAccessRequestsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationAccessRequestsQuery = {
+  status?: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  sortBy?: 'createdAt' | 'targetLabel'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+  search?: string
+}
+
+type ListOrganizationAccessRequestsResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ListOrganizationAccessRequestsResponse = {
+  data: Array<ListOrganizationAccessRequestsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations` */
+export type ListOrganizationInvitationsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationInvitationsQuery = {
+  search?: string
+  status?: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  sortBy?: 'email' | 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationInvitationsResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type ListOrganizationInvitationsResponse = {
+  data: Array<ListOrganizationInvitationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces` */
+export type ListOrganizationInvitationWorkspacesParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type ListOrganizationInvitationWorkspacesQuery = {
+  search?: string
+  sortBy?: 'name' | 'id'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationInvitationWorkspacesResponseRef0 = {
+  id: string
+  name: string
+  permission: 'admin' | 'write' | 'read'
+  archivedAt: string | null
+}
+
+export type ListOrganizationInvitationWorkspacesResponse = {
+  data: Array<ListOrganizationInvitationWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/members` */
+export type ListOrganizationMembersParams = {
+  organizationId: string
+}
+
+export type ListOrganizationMembersQuery = {
+  search?: string
+  sortBy?: 'name' | 'email' | 'joinedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationMembersResponseRef0 = {
+  userId: string
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+export type ListOrganizationMembersResponse = {
+  data: Array<ListOrganizationMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations` */
+export type ListOrganizationsQuery = {
+  search?: string
+  sortBy?: 'name' | 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationsResponseRef0 = {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: 'owner' | 'admin' | 'member'
+  createdAt: string
+}
+
+export type ListOrganizationsResponse = {
+  data: Array<ListOrganizationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/usage/events` */
+export type ListOrganizationUsageEventsParams = {
+  organizationId: string
+}
+
+export type ListOrganizationUsageEventsQuery = {
+  preset?: 'current-period' | 'previous-period' | '7d' | '30d' | 'custom'
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  source?:
+    | 'workflow'
+    | 'wand'
+    | 'sim-chat'
+    | 'mcp_copilot'
+    | 'mothership_block'
+    | 'knowledge-base'
+    | 'voice-input'
+    | 'enrichment'
+    | 'voice-output'
+    | 'api-tool'
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+type ListOrganizationUsageEventsResponseRef0 = {
+  id: string
+  createdAt: string
+  source:
+    | 'workflow'
+    | 'wand'
+    | 'sim-chat'
+    | 'mcp_copilot'
+    | 'mothership_block'
+    | 'knowledge-base'
+    | 'voice-input'
+    | 'enrichment'
+    | 'voice-output'
+    | 'api-tool'
+  description: string
+  workflowName: string | null
+  credits: number
+  hasCost: boolean
+}
+
+export type ListOrganizationUsageEventsResponse = {
+  data: Array<ListOrganizationUsageEventsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/workspaces` */
+export type ListOrganizationWorkspacesParams = {
+  organizationId: string
+}
+
+export type ListOrganizationWorkspacesQuery = {
+  search?: string
+  sortBy?: 'name' | 'id'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListOrganizationWorkspacesResponseRef0 = {
+  id: string
+  name: string
+}
+
+export type ListOrganizationWorkspacesResponse = {
+  data: Array<ListOrganizationWorkspacesResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members` */
+export type ListPermissionGroupMembersParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type ListPermissionGroupMembersQuery = {
+  sortBy?: 'assignedAt' | 'userId'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListPermissionGroupMembersResponseRef0 = {
+  id: string
+  userId: string
+  assignedAt: string
+  userName: string | null
+  userEmail: string | null
+  userImage: string | null
+}
+
+export type ListPermissionGroupMembersResponse = {
+  data: Array<ListPermissionGroupMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/organizations/[organizationId]/permission-groups` */
+export type ListPermissionGroupsParams = {
+  organizationId: string
+}
+
+export type ListPermissionGroupsQuery = {
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListPermissionGroupsResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListPermissionGroupsResponse = {
+  data: Array<ListPermissionGroupsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/sandboxes` */
+export type ListSandboxesQuery = {
+  workspaceId: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListSandboxesResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListSandboxesResponse = {
+  data: Array<ListSandboxesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/secrets` */
 export type ListSecretsQuery = {
   workspaceId: string
@@ -3795,13 +9040,172 @@ type ListSecretsResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
   description: string | null
+  unredacted: boolean
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
+  value?: string
 }
 
 export type ListSecretsResponse = {
   data: Array<ListSecretsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `POST /api/v2/selectors/list` */
+export type ListSelectorQuery = Record<string, unknown>
+
+export type ListSelectorBody = {
+  workspaceId: string
+  selectorKey:
+    | 'airtable.bases'
+    | 'airtable.tables'
+    | 'asana.workspaces'
+    | 'attio.lists'
+    | 'attio.objects'
+    | 'bigquery.datasets'
+    | 'bigquery.tables'
+    | 'bitbucket.workspaces'
+    | 'bitbucket.repositories'
+    | 'calcom.eventTypes'
+    | 'calcom.schedules'
+    | 'clickup.workspaces'
+    | 'clickup.spaces'
+    | 'clickup.folders'
+    | 'clickup.lists'
+    | 'coda.docs'
+    | 'coda.pages'
+    | 'coda.tables'
+    | 'coda.columns'
+    | 'coda.rows'
+    | 'coda.formulas'
+    | 'coda.controls'
+    | 'coda.folders'
+    | 'coda.permissions'
+    | 'confluence.spaces'
+    | 'confluence.spacesById'
+    | 'confluence.pages'
+    | 'google.tasks.lists'
+    | 'gmail.labels'
+    | 'google.calendar'
+    | 'google.drive'
+    | 'google.sheets'
+    | 'harmonic.savedSearches'
+    | 'hubspot.lists'
+    | 'hubspot.owners'
+    | 'hubspot.pipelines'
+    | 'hubspot.pipelineStages'
+    | 'hubspot.properties'
+    | 'jsm.requestTypes'
+    | 'jsm.serviceDesks'
+    | 'microsoft.planner.plans'
+    | 'notion.databases'
+    | 'notion.pages'
+    | 'netsuite.recordTypes'
+    | 'netsuite.asyncTasks'
+    | 'pipedrive.pipelines'
+    | 'sharepoint.lists'
+    | 'trello.boards'
+    | 'zoho_desk.organizations'
+    | 'zoho_desk.departments'
+    | 'zoho_desk.agents'
+    | 'zoom.meetings'
+    | 'slack.channels'
+    | 'snowflake.databases'
+    | 'snowflake.schemas'
+    | 'snowflake.tables'
+    | 'snowflake.warehouses'
+    | 'snowflake.roles'
+    | 'snowflake.fileFormats'
+    | 'snowflake.procedures'
+    | 'slack.users'
+    | 'outlook.folders'
+    | 'outlook.calendars'
+    | 'microsoft.teams'
+    | 'microsoft.chats'
+    | 'microsoft.channels'
+    | 'microsoft.planner'
+    | 'onedrive.files'
+    | 'onedrive.folders'
+    | 'sharepoint.sites'
+    | 'microsoft.excel'
+    | 'microsoft.excel.drives'
+    | 'microsoft.excel.sheets'
+    | 'microsoft.word'
+    | 'wealthbox.contacts'
+    | 'jira.issues'
+    | 'jira.projects'
+    | 'jira.projectKeys'
+    | 'linear.projects'
+    | 'linear.teams'
+    | 'monday.boards'
+    | 'monday.groups'
+    | 'webflow.sites'
+    | 'webflow.collections'
+    | 'webflow.items'
+    | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
+    | 'planetscale.branches'
+    | 'planetscale.backups'
+    | 'planetscale.deployRequests'
+    | 'cloudwatch.logGroups'
+    | 'cloudwatch.logStreams'
+    | 'imap.mailboxes'
+    | 'mcp.tools'
+    | 'managedAgent.agents'
+    | 'managedAgent.environments'
+    | 'managedAgent.vaults'
+    | 'managedAgent.memoryStores'
+    | 'knowledge.documents'
+    | 'sim.workflows'
+    | 'table.columns'
+    | 'table.outputColumns'
+    | 'workspace.secretNames'
+    | 'workspace.sandboxes'
+    | 'providers.ollamaEmbeddingModels'
+    | 'providers.openrouterEmbeddingModels'
+  context?: Record<string, string>
+  search?: string
+  cursor?: string
+  limit?: number
+}
+
+type ListSelectorResponseRef0 = {
+  id: string
+  label: string
+  meta?: Record<string, string | number | boolean | null>
+}
+
+export type ListSelectorResponse = {
+  data: Array<ListSelectorResponseRef0>
+  nextCursor: string | null
+  truncated: boolean
+}
+
+/** `GET /api/v2/skills/[skillId]/editors` */
+export type ListSkillEditorsParams = {
+  skillId: string
+}
+
+export type ListSkillEditorsQuery = {
+  workspaceId: string
+  sortBy?: 'email' | 'name'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListSkillEditorsResponseRef0 = {
+  email: string
+  name: string | null
+  image: string | null
+  isWorkspaceAdmin: boolean
+}
+
+export type ListSkillEditorsResponse = {
+  data: Array<ListSkillEditorsResponseRef0>
   nextCursor: string | null
 }
 
@@ -3826,6 +9230,43 @@ type ListSkillsResponseRef0 = {
 
 export type ListSkillsResponse = {
   data: Array<ListSkillsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/tables/[tableId]/dispatches` */
+export type ListTableDispatchesParams = {
+  tableId: string
+}
+
+export type ListTableDispatchesQuery = {
+  workspaceId: string
+}
+
+type ListTableDispatchesResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'canceled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+    filtered?: boolean
+    excludeRowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  canceledAt: string | null
+}
+
+export type ListTableDispatchesResponse = {
+  data: Array<ListTableDispatchesResponseRef0>
   nextCursor: string | null
 }
 
@@ -3862,16 +9303,28 @@ export type ListTableRowsQuery = {
   workspaceId: string
   limit?: number
   cursor?: string
+  includeRunState?: boolean
 }
 
 type ListTableRowsResponseRef0 = {
   id: string
   data: ListTableRowsResponseRef1
+  runState?: Record<string, ListTableRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
 type ListTableRowsResponseRef1 = Record<string, unknown>
+
+type ListTableRowsResponseRef2 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
 
 export type ListTableRowsResponse = {
   data: Array<ListTableRowsResponseRef0>
@@ -3883,6 +9336,7 @@ type ListTablesQueryRef0 = string
 
 export type ListTablesQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListTablesQueryRef0
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
@@ -3893,6 +9347,7 @@ export type ListTablesQuery = {
 
 type ListTablesResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -3900,7 +9355,7 @@ type ListTablesResponseRef0 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -3976,6 +9431,36 @@ export type ListTableViewsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/tools` */
+export type ListToolsQuery = {
+  workspaceId: string
+  search?: string
+  hostedApiKey?: 'always' | 'conditional' | 'none'
+  oauthProvider?: string
+  sortBy?: 'id' | 'name'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListToolsResponseRef0 = {
+  id: string
+  name: string
+  description: string
+  version?: string
+  hostedApiKey: 'always' | 'conditional' | 'none'
+  oauth?: {
+    required: boolean
+    provider: string
+    requiredScopes?: Array<string>
+  }
+}
+
+export type ListToolsResponse = {
+  data: Array<ListToolsResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows/folders` */
 type ListWorkflowFoldersQueryRef0 = string
 
@@ -4029,7 +9514,7 @@ type ListWorkflowGroupsResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -4038,9 +9523,62 @@ export type ListWorkflowGroupsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/workflows/[id]/runs` */
-export type ListWorkflowRunsParams = {
+/** `GET /api/v2/workflow-mcp-servers` */
+export type ListWorkflowMcpServersQuery = {
+  workspaceId: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListWorkflowMcpServersResponseRef0 = {
   id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+  toolCount: number
+  toolNames: Array<string>
+}
+
+export type ListWorkflowMcpServersResponse = {
+  data: Array<ListWorkflowMcpServersResponseRef0>
+  nextCursor: string | null
+  toolNamesTruncated: boolean
+}
+
+/** `GET /api/v2/workflow-mcp-servers/[serverId]/tools` */
+export type ListWorkflowMcpToolsParams = {
+  serverId: string
+}
+
+export type ListWorkflowMcpToolsQuery = Record<string, unknown>
+
+type ListWorkflowMcpToolsResponseRef0 = {
+  id: string
+  serverId: string
+  workflowId: string
+  toolName: string
+  toolDescription: string | null
+  mcpServerUrl: string
+  apiEndpoint: string
+  createdAt: string
+  updatedAt: string
+  status: 'active' | 'inactive'
+}
+
+export type ListWorkflowMcpToolsResponse = {
+  data: Array<ListWorkflowMcpToolsResponseRef0>
+  nextCursor: string | null
+  truncated: boolean
+}
+
+/** `GET /api/v2/workflows/[workflowId]/runs` */
+export type ListWorkflowRunsParams = {
+  workflowId: string
 }
 
 export type ListWorkflowRunsQuery = {
@@ -4076,6 +9614,7 @@ type ListWorkflowsQueryRef0 = string
 
 export type ListWorkflowsQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListWorkflowsQueryRef0
   deployedOnly?: boolean
   limit?: number
@@ -4087,6 +9626,7 @@ export type ListWorkflowsQuery = {
 
 type ListWorkflowsResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -4104,9 +9644,9 @@ export type ListWorkflowsResponse = {
   nextCursor: string | null
 }
 
-/** `GET /api/v2/workflows/[id]/versions` */
+/** `GET /api/v2/workflows/[workflowId]/versions` */
 export type ListWorkflowVersionsParams = {
-  id: string
+  workflowId: string
 }
 
 export type ListWorkflowVersionsQuery = {
@@ -4130,6 +9670,62 @@ export type ListWorkflowVersionsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/fork/children` */
+export type ListWorkspaceForkChildrenParams = {
+  workspaceId: string
+}
+
+export type ListWorkspaceForkChildrenQuery = {
+  limit?: number
+  cursor?: string
+  sortBy?: 'createdAt'
+  sortOrder?: 'desc'
+}
+
+type ListWorkspaceForkChildrenResponseRef0 = {
+  id: string
+  name: string
+  organizationId: string | null
+  createdAt: string
+}
+
+export type ListWorkspaceForkChildrenResponse = {
+  data: Array<ListWorkspaceForkChildrenResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/fork/resources` */
+export type ListWorkspaceForkResourcesParams = {
+  workspaceId: string
+}
+
+export type ListWorkspaceForkResourcesQuery = {
+  limit?: number
+  cursor?: string
+  kind:
+    | 'files'
+    | 'tables'
+    | 'knowledgeBases'
+    | 'customTools'
+    | 'skills'
+    | 'mcpServers'
+    | 'workflowMcpServers'
+  sortBy?: 'id'
+  sortOrder?: 'asc'
+}
+
+type ListWorkspaceForkResourcesResponseRef0 = {
+  id: string
+  label: string
+  folderId?: string | null
+  folderName?: string | null
+}
+
+export type ListWorkspaceForkResourcesResponse = {
+  data: Array<ListWorkspaceForkResourcesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workspaces/[workspaceId]/members` */
 export type ListWorkspaceMembersParams = {
   workspaceId: string
@@ -4141,6 +9737,7 @@ export type ListWorkspaceMembersQuery = {
 }
 
 type ListWorkspaceMembersResponseRef0 = {
+  userId: string
   email: string
   name: string
   image: string | null
@@ -4151,6 +9748,87 @@ type ListWorkspaceMembersResponseRef0 = {
 
 export type ListWorkspaceMembersResponse = {
   data: Array<ListWorkspaceMembersResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/operations` */
+export type ListWorkspaceOperationsParams = {
+  workspaceId: string
+}
+
+export type ListWorkspaceOperationsQuery = {
+  limit?: number
+  cursor?: string
+  requestId?: string
+}
+
+type ListWorkspaceOperationsResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type ListWorkspaceOperationsResponse = {
+  data: Array<ListWorkspaceOperationsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces` */
+export type ListWorkspacesQuery = {
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListWorkspacesResponseRef0 = {
+  id: string
+  name: string
+  color: string
+  logoUrl: string | null
+  memberCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListWorkspacesResponse = {
+  data: Array<ListWorkspacesResponseRef0>
   nextCursor: string | null
 }
 
@@ -4173,6 +9851,1092 @@ type MoveFileItemsResponseRef0 = {
 
 export type MoveFileItemsResponse = {
   data: MoveFileItemsResponseRef0
+}
+
+/** `POST /api/v2/tables/move` */
+export type MoveTablesQuery = Record<string, unknown>
+
+type MoveTablesBodyRef0 = string
+
+export type MoveTablesBody = {
+  workspaceId: string
+  tableIds?: Array<string>
+  folderPaths?: Array<MoveTablesBodyRef0>
+  targetFolderPath?: MoveTablesBodyRef0
+}
+
+type MoveTablesResponseRef0 = {
+  moved: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  skipped: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  notFound: Array<{
+    kind: 'table' | 'folder'
+    id: string
+  }>
+  failed: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+    reason: string
+  }>
+}
+
+export type MoveTablesResponse = {
+  data: MoveTablesResponseRef0
+}
+
+/** `POST /api/v2/workflows/move` */
+export type MoveWorkflowsQuery = Record<string, unknown>
+
+type MoveWorkflowsBodyRef0 = string
+
+export type MoveWorkflowsBody = {
+  workspaceId: string
+  workflowIds: Array<string>
+  folderPath: MoveWorkflowsBodyRef0
+}
+
+type MoveWorkflowsResponseRef0 = {
+  moved: Array<string>
+  failed: Array<string>
+  folderPath: string
+}
+
+export type MoveWorkflowsResponse = {
+  data: MoveWorkflowsResponseRef0
+}
+
+/** `GET /api/v2/organizations/[organizationId]/access-requests/[requestId]/preview` */
+export type PreviewOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type PreviewOrganizationAccessRequestQuery = Record<string, unknown>
+
+type PreviewOrganizationAccessRequestResponseRef0 = {
+  newLimitCredits: number | null
+  request: {
+    id: string
+    organizationId: string
+    workspaceId: string | null
+    target:
+      | {
+          kind: 'feature'
+          configKey:
+            | 'hideTraceSpans'
+            | 'hideKnowledgeBaseTab'
+            | 'hideTablesTab'
+            | 'hideCopilot'
+            | 'hideIntegrationsTab'
+            | 'hideSecretsTab'
+            | 'hideApiKeysTab'
+            | 'hideInboxTab'
+            | 'hideFilesTab'
+            | 'disableMcpTools'
+            | 'disableCustomTools'
+            | 'disableSkills'
+            | 'disableInvitations'
+            | 'disablePublicApi'
+            | 'disablePublicFileSharing'
+            | 'hideDeployApi'
+            | 'hideDeployMcp'
+            | 'hideDeployChatbot'
+            | 'disablePersonalApiKeys'
+            | 'disableLogExport'
+            | 'hideCostInfo'
+            | 'disableKnowledgeBaseCreation'
+            | 'disableKnowledgeBaseFileUpload'
+            | 'disableTableCreation'
+            | 'disableTableExport'
+            | 'disableBulkFileDownload'
+            | 'disablePersonalCredentials'
+            | 'disableWorkspaceCreation'
+            | 'hideOrgMemberDirectory'
+            | 'disableCliAccess'
+            | 'disableWebhookTriggers'
+            | 'disableToolAutoApproval'
+            | 'hideSandboxesTab'
+            | 'disableOAuthAppAccess'
+            | 'disableKnowledgeBaseExport'
+        }
+      | {
+          kind: 'integration'
+          id: string
+        }
+      | {
+          kind: 'provider'
+          id: string
+        }
+      | {
+          kind: 'model'
+          id: string
+        }
+      | {
+          kind: 'tool'
+          id: string
+        }
+      | {
+          kind: 'knowledge_connector'
+          id: string
+        }
+      | {
+          kind: 'file_share_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'chat_deploy_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'usage_limit'
+          id: 'member'
+        }
+    targetLabel: string
+    reason: string
+    status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+    decisionReason: string | null
+    createdAt: string
+    decidedAt: string | null
+    groupName: string | null
+    requester: {
+      id: string
+      name: string | null
+      email: string
+    }
+  }
+  changes: Array<{
+    configKey:
+      | 'allowedIntegrations'
+      | 'allowedModelProviders'
+      | 'deniedModels'
+      | 'deniedTools'
+      | 'hideTraceSpans'
+      | 'hideKnowledgeBaseTab'
+      | 'hideTablesTab'
+      | 'hideCopilot'
+      | 'hideIntegrationsTab'
+      | 'hideSecretsTab'
+      | 'hideApiKeysTab'
+      | 'hideInboxTab'
+      | 'hideFilesTab'
+      | 'disableMcpTools'
+      | 'disableCustomTools'
+      | 'disableSkills'
+      | 'disableInvitations'
+      | 'disablePublicApi'
+      | 'disablePublicFileSharing'
+      | 'allowedFileShareAuthTypes'
+      | 'hideDeployApi'
+      | 'hideDeployMcp'
+      | 'hideDeployChatbot'
+      | 'allowedChatDeployAuthTypes'
+      | 'disablePersonalApiKeys'
+      | 'disableLogExport'
+      | 'hideCostInfo'
+      | 'disableKnowledgeBaseCreation'
+      | 'disableKnowledgeBaseFileUpload'
+      | 'allowedKnowledgeConnectors'
+      | 'disableTableCreation'
+      | 'disableTableExport'
+      | 'disableBulkFileDownload'
+      | 'disablePersonalCredentials'
+      | 'disableWorkspaceCreation'
+      | 'hideOrgMemberDirectory'
+      | 'disableCliAccess'
+      | 'disableWebhookTriggers'
+      | 'disableToolAutoApproval'
+      | 'hideSandboxesTab'
+      | 'disableOAuthAppAccess'
+      | 'disableKnowledgeBaseExport'
+    label: string
+    before: boolean | Array<string> | null
+    after: boolean | Array<string> | null
+  }>
+  impact: {
+    memberCount: number
+    workspaceCount: number
+    workspaceNames: Array<string>
+    truncated: boolean
+  }
+  fingerprint: string
+  canApply: boolean
+  unavailableReason: string | null
+  resolutionKind: 'permission'
+  group: {
+    id: string
+    name: string
+  } | null
+  currentLimitCredits: null
+}
+
+type PreviewOrganizationAccessRequestResponseRef1 = {
+  newLimitCredits: number | null
+  request: {
+    id: string
+    organizationId: string
+    workspaceId: string | null
+    target:
+      | {
+          kind: 'feature'
+          configKey:
+            | 'hideTraceSpans'
+            | 'hideKnowledgeBaseTab'
+            | 'hideTablesTab'
+            | 'hideCopilot'
+            | 'hideIntegrationsTab'
+            | 'hideSecretsTab'
+            | 'hideApiKeysTab'
+            | 'hideInboxTab'
+            | 'hideFilesTab'
+            | 'disableMcpTools'
+            | 'disableCustomTools'
+            | 'disableSkills'
+            | 'disableInvitations'
+            | 'disablePublicApi'
+            | 'disablePublicFileSharing'
+            | 'hideDeployApi'
+            | 'hideDeployMcp'
+            | 'hideDeployChatbot'
+            | 'disablePersonalApiKeys'
+            | 'disableLogExport'
+            | 'hideCostInfo'
+            | 'disableKnowledgeBaseCreation'
+            | 'disableKnowledgeBaseFileUpload'
+            | 'disableTableCreation'
+            | 'disableTableExport'
+            | 'disableBulkFileDownload'
+            | 'disablePersonalCredentials'
+            | 'disableWorkspaceCreation'
+            | 'hideOrgMemberDirectory'
+            | 'disableCliAccess'
+            | 'disableWebhookTriggers'
+            | 'disableToolAutoApproval'
+            | 'hideSandboxesTab'
+            | 'disableOAuthAppAccess'
+            | 'disableKnowledgeBaseExport'
+        }
+      | {
+          kind: 'integration'
+          id: string
+        }
+      | {
+          kind: 'provider'
+          id: string
+        }
+      | {
+          kind: 'model'
+          id: string
+        }
+      | {
+          kind: 'tool'
+          id: string
+        }
+      | {
+          kind: 'knowledge_connector'
+          id: string
+        }
+      | {
+          kind: 'file_share_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'chat_deploy_auth'
+          id: 'public' | 'password' | 'email' | 'sso'
+        }
+      | {
+          kind: 'usage_limit'
+          id: 'member'
+        }
+    targetLabel: string
+    reason: string
+    status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+    decisionReason: string | null
+    createdAt: string
+    decidedAt: string | null
+    groupName: string | null
+    requester: {
+      id: string
+      name: string | null
+      email: string
+    }
+  }
+  changes: Array<{
+    configKey:
+      | 'allowedIntegrations'
+      | 'allowedModelProviders'
+      | 'deniedModels'
+      | 'deniedTools'
+      | 'hideTraceSpans'
+      | 'hideKnowledgeBaseTab'
+      | 'hideTablesTab'
+      | 'hideCopilot'
+      | 'hideIntegrationsTab'
+      | 'hideSecretsTab'
+      | 'hideApiKeysTab'
+      | 'hideInboxTab'
+      | 'hideFilesTab'
+      | 'disableMcpTools'
+      | 'disableCustomTools'
+      | 'disableSkills'
+      | 'disableInvitations'
+      | 'disablePublicApi'
+      | 'disablePublicFileSharing'
+      | 'allowedFileShareAuthTypes'
+      | 'hideDeployApi'
+      | 'hideDeployMcp'
+      | 'hideDeployChatbot'
+      | 'allowedChatDeployAuthTypes'
+      | 'disablePersonalApiKeys'
+      | 'disableLogExport'
+      | 'hideCostInfo'
+      | 'disableKnowledgeBaseCreation'
+      | 'disableKnowledgeBaseFileUpload'
+      | 'allowedKnowledgeConnectors'
+      | 'disableTableCreation'
+      | 'disableTableExport'
+      | 'disableBulkFileDownload'
+      | 'disablePersonalCredentials'
+      | 'disableWorkspaceCreation'
+      | 'hideOrgMemberDirectory'
+      | 'disableCliAccess'
+      | 'disableWebhookTriggers'
+      | 'disableToolAutoApproval'
+      | 'hideSandboxesTab'
+      | 'disableOAuthAppAccess'
+      | 'disableKnowledgeBaseExport'
+    label: string
+    before: boolean | Array<string> | null
+    after: boolean | Array<string> | null
+  }>
+  impact: {
+    memberCount: number
+    workspaceCount: number
+    workspaceNames: Array<string>
+    truncated: boolean
+  }
+  fingerprint: string
+  canApply: boolean
+  unavailableReason: string | null
+  resolutionKind: 'usage_limit'
+  group: null
+  currentLimitCredits: number | null
+}
+
+export type PreviewOrganizationAccessRequestResponse = {
+  data: PreviewOrganizationAccessRequestResponseRef0 | PreviewOrganizationAccessRequestResponseRef1
+}
+
+/** `POST /api/v2/workflows/import/preview` */
+export type PreviewWorkflowImportQuery = Record<string, unknown>
+
+type PreviewWorkflowImportBodyRef0 = string
+
+export type PreviewWorkflowImportBody = {
+  workspaceId: string
+  workflow: string | Record<string, unknown>
+  folderPath?: PreviewWorkflowImportBodyRef0
+  name?: string
+  description?: string
+  mappings?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+  }>
+  bindings?: Array<{
+    blockId: string
+    subBlockKey: string
+    valuePath?: Array<string | number>
+    positions?: Array<number>
+    encoding?: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    blockId: string
+    subBlockKey: string
+    value: string
+  }>
+}
+
+type PreviewWorkflowImportResponseRef0 = {
+  previewFingerprint: string
+  ready: boolean
+  bindings: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+    required: boolean
+    occurrence: {
+      blockId: string
+      subBlockKey: string
+      valuePath: Array<string | number>
+      positions?: Array<number>
+      encoding: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    }
+  }>
+  unresolvedBindings: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+      | 'workflow'
+    sourceId: string
+    targetId: string | null
+    required: boolean
+    occurrence: {
+      blockId: string
+      subBlockKey: string
+      valuePath: Array<string | number>
+      positions?: Array<number>
+      encoding: 'scalar' | 'array' | 'csv' | 'files' | 'environment'
+    }
+  }>
+  configuration: Array<{
+    blockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    configured: boolean
+    multiSelect?: boolean
+    selectorKey?: string
+    context: Record<string, string>
+    requiresAuthentication: boolean
+  }>
+  unresolvedConfiguration: Array<{
+    blockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    configured: boolean
+    multiSelect?: boolean
+    selectorKey?: string
+    context: Record<string, string>
+    requiresAuthentication: boolean
+  }>
+  discovery: Array<{
+    kind: string
+    command: string
+    humanAuthorizationMayBeRequired: boolean
+  }>
+}
+
+export type PreviewWorkflowImportResponse = {
+  data: PreviewWorkflowImportResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/preview` */
+export type PreviewWorkspaceForkParams = {
+  workspaceId: string
+}
+
+export type PreviewWorkspaceForkQuery = Record<string, unknown>
+
+export type PreviewWorkspaceForkBody = {
+  name?: string
+  copy?: {
+    files?: Array<string>
+    tables?: Array<string>
+    knowledgeBases?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    mcpServers?: Array<string>
+    workflowMcpServers?: Array<string>
+  }
+}
+
+type PreviewWorkspaceForkResponseRef0 = {
+  previewFingerprint: string
+  sourceWorkspaceId: string
+  workflows: Array<{
+    sourceWorkflowId: string
+    name: string
+  }>
+  selectedResourceCount: number
+  draftOnly: true
+}
+
+export type PreviewWorkspaceForkResponse = {
+  data: PreviewWorkspaceForkResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/pull/preview` */
+export type PreviewWorkspacePullParams = {
+  workspaceId: string
+}
+
+export type PreviewWorkspacePullQuery = Record<string, unknown>
+
+export type PreviewWorkspacePullBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+}
+
+type PreviewWorkspacePullResponseRef0 = {
+  previewFingerprint: string
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  ready: boolean
+  workflows: Array<{
+    action: 'create' | 'replace' | 'archive'
+    sourceWorkflowId?: string
+    targetWorkflowId?: string
+    name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
+  }>
+  unresolvedBindings: Array<{
+    kind: string
+    sourceId: string
+    blockName?: string
+    reason?: string
+  }>
+  configuration: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    currentValue: string
+    multiSelect?: boolean
+    selectorKey?: string
+    discoveryWorkspaceId: string
+    context: Record<string, string>
+    parentKind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    parentSourceId: string
+    parentContextKey?: string
+  }>
+  excludedTargets: Array<{
+    id: string
+    name: string
+  }>
+  triggerSlots: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    blockName: string
+    workflowName: string
+    ownPath: string | null
+    adoptablePaths: Array<string>
+    defaultAdoptPath: string | null
+  }>
+  triggerUrlChanges: Array<{
+    workflowName: string
+    path: string
+  }>
+}
+
+export type PreviewWorkspacePullResponse = {
+  data: PreviewWorkspacePullResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/push/preview` */
+export type PreviewWorkspacePushParams = {
+  workspaceId: string
+}
+
+export type PreviewWorkspacePushQuery = Record<string, unknown>
+
+export type PreviewWorkspacePushBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+}
+
+type PreviewWorkspacePushResponseRef0 = {
+  previewFingerprint: string
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  ready: boolean
+  workflows: Array<{
+    action: 'create' | 'replace' | 'archive'
+    sourceWorkflowId?: string
+    targetWorkflowId?: string
+    name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
+  }>
+  unresolvedBindings: Array<{
+    kind: string
+    sourceId: string
+    blockName?: string
+    reason?: string
+  }>
+  configuration: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    title: string
+    required: boolean
+    currentValue: string
+    multiSelect?: boolean
+    selectorKey?: string
+    discoveryWorkspaceId: string
+    context: Record<string, string>
+    parentKind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    parentSourceId: string
+    parentContextKey?: string
+  }>
+  excludedTargets: Array<{
+    id: string
+    name: string
+  }>
+  triggerSlots: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    blockName: string
+    workflowName: string
+    ownPath: string | null
+    adoptablePaths: Array<string>
+    defaultAdoptPath: string | null
+  }>
+  triggerUrlChanges: Array<{
+    workflowName: string
+    path: string
+  }>
+}
+
+export type PreviewWorkspacePushResponse = {
+  data: PreviewWorkspacePushResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/pull` */
+export type PullWorkspaceParams = {
+  workspaceId: string
+}
+
+export type PullWorkspaceQuery = Record<string, unknown>
+
+export type PullWorkspaceBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+  requestId: string
+  previewFingerprint: string
+  confirm: true
+}
+
+type PullWorkspaceResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type PullWorkspaceResponse = {
+  data: PullWorkspaceResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/push` */
+export type PushWorkspaceParams = {
+  workspaceId: string
+}
+
+export type PushWorkspaceQuery = Record<string, unknown>
+
+export type PushWorkspaceBody = {
+  otherWorkspaceId: string
+  mappings?: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+  dependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
+  copyResources?: {
+    knowledgeBases?: Array<string>
+    tables?: Array<string>
+    customTools?: Array<string>
+    skills?: Array<string>
+    files?: Array<string>
+    mcpServers?: Array<string>
+  }
+  dropReferences?: Array<{
+    kind:
+      | 'credential'
+      | 'env-var'
+      | 'knowledge-base'
+      | 'knowledge-document'
+      | 'table'
+      | 'file'
+      | 'file-folder'
+      | 'mcp-server'
+      | 'custom-tool'
+      | 'custom-block'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+  }>
+  triggerMappings?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    adoptPath: string | null
+  }>
+  requestId: string
+  previewFingerprint: string
+  confirm: true
+}
+
+type PushWorkspaceResponseRef0 = {
+  operationId: string
+  requestId: string
+  workspaceId: string
+  kind: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
+  applied: true
+  status:
+    | 'processing'
+    | 'completed'
+    | 'completed_with_warnings'
+    | 'requires_configuration'
+    | 'failed'
+  resourceIds: Array<string>
+  issues: Array<{
+    code: string
+    message: string
+    workflowId?: string
+    blockId?: string
+    subBlockKey?: string
+  }>
+  idMap?: Record<string, string>
+  deploymentOperationIds?: Array<string>
+  deployments?: Array<{
+    operationId: string
+    workflowId: string
+    version: number
+    status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+    ready: boolean
+    pendingComponents: Array<string>
+  }>
+  triggerUrlChanges?: Array<{
+    workflowName: string
+    path: string
+  }>
+  backgroundWorkId?: string
+  copyProgress?: {
+    status: 'pending' | 'completed' | 'failed'
+    copied: number
+    failed: number
+  }
+}
+
+export type PushWorkspaceResponse = {
+  data: PushWorkspaceResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/query` */
@@ -4243,6 +11007,31 @@ type QueryRowsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type QueryRowsBody = {
   workspaceId: string
@@ -4253,16 +11042,28 @@ export type QueryRowsBody = {
   }>
   limit?: number
   cursor?: string
+  includeRunState?: boolean
 }
 
 type QueryRowsResponseRef0 = {
   id: string
   data: QueryRowsResponseRef1
+  runState?: Record<string, QueryRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
 type QueryRowsResponseRef1 = Record<string, unknown>
+
+type QueryRowsResponseRef2 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
 
 export type QueryRowsResponse = {
   data: Array<QueryRowsResponseRef0>
@@ -4337,6 +11138,31 @@ type QueryRowsCountBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type QueryRowsCountBody = {
   workspaceId: string
@@ -4351,15 +11177,89 @@ export type QueryRowsCountResponse = {
   data: QueryRowsCountResponseRef0
 }
 
+/** `GET /api/v2/files/[fileId]/text` */
+export type ReadFileTextParams = {
+  fileId: string
+}
+
+export type ReadFileTextQuery = {
+  workspaceId: string
+  maxBytes?: number
+  offset?: number
+  limit?: number
+}
+
+type ReadFileTextResponseRef0 = {
+  fileId: string
+  name: string
+  path: string
+  type: string
+  text: string
+  truncated: boolean
+  degraded: boolean
+  degradedReason: string | null
+  charCount: number
+  byteCount: number
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    totalLinesExact: boolean
+  }
+}
+
+export type ReadFileTextResponse = {
+  data: ReadFileTextResponseRef0
+}
+
+/** `GET /api/v2/files/[fileId]/versions/[version]/text` */
+export type ReadFileVersionTextParams = {
+  fileId: string
+  version: number
+}
+
+export type ReadFileVersionTextQuery = {
+  workspaceId: string
+  maxBytes?: number
+  offset?: number
+  limit?: number
+}
+
+type ReadFileVersionTextResponseRef0 = {
+  fileId: string
+  name: string
+  path: string
+  type: string
+  text: string
+  truncated: boolean
+  degraded: boolean
+  degradedReason: string | null
+  charCount: number
+  byteCount: number
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    totalLinesExact: boolean
+  }
+  version: number
+}
+
+export type ReadFileVersionTextResponse = {
+  data: ReadFileVersionTextResponseRef0
+}
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
 type RelocateFileFolderBodyRef0 = string
 
+type RelocateFileFolderBodyRef1 = string
+
 export type RelocateFileFolderBody = {
   workspaceId: string
   path: RelocateFileFolderBodyRef0
-  destinationPath: RelocateFileFolderBodyRef0
+  destinationPath: RelocateFileFolderBodyRef1
 }
 
 type RelocateFileFolderResponseRef0 = {
@@ -4379,10 +11279,12 @@ export type RelocateKnowledgeFolderQuery = Record<string, unknown>
 
 type RelocateKnowledgeFolderBodyRef0 = string
 
+type RelocateKnowledgeFolderBodyRef1 = string
+
 export type RelocateKnowledgeFolderBody = {
   workspaceId: string
   path: RelocateKnowledgeFolderBodyRef0
-  destinationPath: RelocateKnowledgeFolderBodyRef0
+  destinationPath: RelocateKnowledgeFolderBodyRef1
 }
 
 type RelocateKnowledgeFolderResponseRef0 = {
@@ -4402,10 +11304,12 @@ export type RelocateTableFolderQuery = Record<string, unknown>
 
 type RelocateTableFolderBodyRef0 = string
 
+type RelocateTableFolderBodyRef1 = string
+
 export type RelocateTableFolderBody = {
   workspaceId: string
   path: RelocateTableFolderBodyRef0
-  destinationPath: RelocateTableFolderBodyRef0
+  destinationPath: RelocateTableFolderBodyRef1
 }
 
 type RelocateTableFolderResponseRef0 = {
@@ -4425,10 +11329,12 @@ export type RelocateWorkflowFolderQuery = Record<string, unknown>
 
 type RelocateWorkflowFolderBodyRef0 = string
 
+type RelocateWorkflowFolderBodyRef1 = string
+
 export type RelocateWorkflowFolderBody = {
   workspaceId: string
   path: RelocateWorkflowFolderBodyRef0
-  destinationPath: RelocateWorkflowFolderBodyRef0
+  destinationPath: RelocateWorkflowFolderBodyRef1
 }
 
 type RelocateWorkflowFolderResponseRef0 = {
@@ -4442,6 +11348,41 @@ type RelocateWorkflowFolderResponseRef0 = {
 
 export type RelocateWorkflowFolderResponse = {
   data: RelocateWorkflowFolderResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/members/[userId]` */
+export type RemoveOrganizationMemberParams = {
+  organizationId: string
+  userId: string
+}
+
+export type RemoveOrganizationMemberQuery = Record<string, unknown>
+
+type RemoveOrganizationMemberResponseRef0 = {
+  userId: string
+  deleted: true
+}
+
+export type RemoveOrganizationMemberResponse = {
+  data: RemoveOrganizationMemberResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]` */
+export type RemovePermissionGroupMemberParams = {
+  organizationId: string
+  groupId: string
+  userId: string
+}
+
+export type RemovePermissionGroupMemberQuery = Record<string, unknown>
+
+type RemovePermissionGroupMemberResponseRef0 = {
+  userId: string
+  deleted: true
+}
+
+export type RemovePermissionGroupMemberResponse = {
+  data: RemovePermissionGroupMemberResponseRef0
 }
 
 /** `PATCH /api/v2/files/[fileId]` */
@@ -4458,6 +11399,7 @@ export type RenameFileBody = {
 
 type RenameFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -4473,6 +11415,395 @@ export type RenameFileResponse = {
   data: RenameFileResponseRef0
 }
 
+/** `PUT /api/v2/workflows/[workflowId]/deployments/chat` */
+export type ReplaceWorkflowChatDeploymentParams = {
+  workflowId: string
+}
+
+export type ReplaceWorkflowChatDeploymentQuery = Record<string, unknown>
+
+type ReplaceWorkflowChatDeploymentBodyRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type ReplaceWorkflowChatDeploymentBodyRef1 = {
+  workflowId?: string
+  blockId: string
+  path: string
+}
+
+export type ReplaceWorkflowChatDeploymentBody = {
+  identifier: string
+  title: string
+  description?: string
+  customizations?: ReplaceWorkflowChatDeploymentBodyRef0
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+  outputConfigs?: Array<ReplaceWorkflowChatDeploymentBodyRef1>
+  includeThinking?: boolean
+  includeToolCalls?: boolean
+}
+
+type ReplaceWorkflowChatDeploymentResponseRef0 = {
+  primaryColor?: string
+  welcomeMessage?: string
+  imageUrl?: string
+}
+
+type ReplaceWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
+  blockId: string
+  path: string
+}
+
+type ReplaceWorkflowChatDeploymentResponseRef2 = {
+  id: string
+  workflowId: string
+  workspaceId: string
+  identifier: string
+  url: string
+  title: string
+  description: string
+  isActive: boolean
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+  customizations: ReplaceWorkflowChatDeploymentResponseRef0
+  outputConfigs: Array<ReplaceWorkflowChatDeploymentResponseRef1>
+  includeThinking: boolean
+  includeToolCalls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type ReplaceWorkflowChatDeploymentResponse = {
+  data: ReplaceWorkflowChatDeploymentResponseRef2
+}
+
+/** `PUT /api/v2/workflows/[workflowId]/state` */
+export type ReplaceWorkflowStateParams = {
+  workflowId: string
+}
+
+export type ReplaceWorkflowStateQuery = {
+  dryRun?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef0 = {
+  id: string
+  type: string
+  name: string
+  position: {
+    x: number
+    y: number
+  }
+  subBlocks: Record<
+    string,
+    {
+      id: string
+      type: string
+      value: unknown
+    }
+  >
+  outputs: Record<string, unknown>
+  enabled: boolean
+  horizontalHandles?: boolean
+  height?: number
+  advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: {
+    enabled: boolean
+    maxTries: number
+    waitBetweenTriesMs: number
+  }
+  triggerMode?: boolean
+  data?: {
+    parentId?: string
+    extent?: 'parent'
+    width?: number
+    height?: number
+    collection?: unknown
+    count?: number
+    loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
+    whileCondition?: string
+    doWhileCondition?: string
+    parallelType?: 'collection' | 'count'
+    batchSize?: number
+    type?: string
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  }
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef1 = {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+  type?: string
+}
+
+type ReplaceWorkflowStateBodyRef2 = {
+  id: string
+  nodes: Array<string>
+  iterations: number
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
+  forEachItems?: Array<unknown> | Record<string, unknown> | string
+  whileCondition?: string
+  doWhileCondition?: string
+  enabled?: boolean
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef3 = {
+  id: string
+  nodes: Array<string>
+  distribution?: Array<unknown> | Record<string, unknown> | string
+  count?: number
+  parallelType?: 'count' | 'collection'
+  batchSize?: number
+  enabled?: boolean
+  locked?: boolean
+}
+
+type ReplaceWorkflowStateBodyRef4 = {
+  id: string
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  value: unknown
+}
+
+export type ReplaceWorkflowStateBody = {
+  blocks: Record<string, ReplaceWorkflowStateBodyRef0>
+  edges: Array<ReplaceWorkflowStateBodyRef1>
+  loops?: Record<string, ReplaceWorkflowStateBodyRef2>
+  parallels?: Record<string, ReplaceWorkflowStateBodyRef3>
+  variables?: Record<string, ReplaceWorkflowStateBodyRef4>
+}
+
+type ReplaceWorkflowStateResponseRef0 = {
+  sources: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  sinks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  orphanBlocks: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+  }>
+  emptyOutgoingPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    handle: string
+    label: string
+  }>
+  invalidBranchPorts: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    sourceHandle: string
+    reason: string
+  }>
+  invalidConnectionTargets: Array<{
+    sourceBlockId: string
+    sourceBlockName: string | null
+    sourceHandle: string | null
+    targetBlockId: string
+    reason: string
+  }>
+  fieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    missingRequiredFields: Array<string>
+    inactiveModeValues: Array<{
+      canonicalId: string
+      activeMemberId: string | null
+      inactiveMemberId: string
+      kind: 'credential' | 'resource' | 'other'
+    }>
+  }>
+  unresolvedReferences: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    value: string | Array<string>
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    reason: string
+  }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
+  }>
+  notes: Array<string>
+}
+
+type ReplaceWorkflowStateResponseRef1 = {
+  id: string
+  warnings: Array<string>
+  needsRedeployment: boolean
+  lint: ReplaceWorkflowStateResponseRef0
+  dryRun: boolean
+}
+
+export type ReplaceWorkflowStateResponse = {
+  data: ReplaceWorkflowStateResponseRef1
+}
+
+/** `POST /api/v2/organizations/[organizationId]/invitations/[invitationId]/resend` */
+export type ResendOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type ResendOrganizationInvitationQuery = Record<string, unknown>
+
+export type ResendOrganizationInvitationBody = Record<string, unknown>
+
+type ResendOrganizationInvitationResponseRef0 = {
+  id: string
+  organizationId: string
+  email: string
+  role: 'member' | 'admin'
+  kind: 'organization' | 'workspace'
+  membershipIntent: 'internal' | 'external'
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired'
+  createdAt: string
+  expiresAt: string
+}
+
+export type ResendOrganizationInvitationResponse = {
+  data: ResendOrganizationInvitationResponseRef0
+}
+
+/** `POST /api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve` */
+export type ResolveOrganizationAccessRequestParams = {
+  organizationId: string
+  requestId: string
+}
+
+export type ResolveOrganizationAccessRequestQuery = Record<string, unknown>
+
+export type ResolveOrganizationAccessRequestBody =
+  | {
+      action: 'apply'
+      expectedFingerprint: string
+      newLimitCredits?: number
+    }
+  | {
+      action: 'decline'
+      reason: string
+    }
+
+type ResolveOrganizationAccessRequestResponseRef0 = {
+  id: string
+  organizationId: string
+  workspaceId: string | null
+  target:
+    | {
+        kind: 'feature'
+        configKey:
+          | 'hideTraceSpans'
+          | 'hideKnowledgeBaseTab'
+          | 'hideTablesTab'
+          | 'hideCopilot'
+          | 'hideIntegrationsTab'
+          | 'hideSecretsTab'
+          | 'hideApiKeysTab'
+          | 'hideInboxTab'
+          | 'hideFilesTab'
+          | 'disableMcpTools'
+          | 'disableCustomTools'
+          | 'disableSkills'
+          | 'disableInvitations'
+          | 'disablePublicApi'
+          | 'disablePublicFileSharing'
+          | 'hideDeployApi'
+          | 'hideDeployMcp'
+          | 'hideDeployChatbot'
+          | 'disablePersonalApiKeys'
+          | 'disableLogExport'
+          | 'hideCostInfo'
+          | 'disableKnowledgeBaseCreation'
+          | 'disableKnowledgeBaseFileUpload'
+          | 'disableTableCreation'
+          | 'disableTableExport'
+          | 'disableBulkFileDownload'
+          | 'disablePersonalCredentials'
+          | 'disableWorkspaceCreation'
+          | 'hideOrgMemberDirectory'
+          | 'disableCliAccess'
+          | 'disableWebhookTriggers'
+          | 'disableToolAutoApproval'
+          | 'hideSandboxesTab'
+          | 'disableOAuthAppAccess'
+          | 'disableKnowledgeBaseExport'
+      }
+    | {
+        kind: 'integration'
+        id: string
+      }
+    | {
+        kind: 'provider'
+        id: string
+      }
+    | {
+        kind: 'model'
+        id: string
+      }
+    | {
+        kind: 'tool'
+        id: string
+      }
+    | {
+        kind: 'knowledge_connector'
+        id: string
+      }
+    | {
+        kind: 'file_share_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'chat_deploy_auth'
+        id: 'public' | 'password' | 'email' | 'sso'
+      }
+    | {
+        kind: 'usage_limit'
+        id: 'member'
+      }
+  targetLabel: string
+  reason: string
+  status: 'pending' | 'fulfilled' | 'declined' | 'cancelled' | 'closed'
+  decisionReason: string | null
+  createdAt: string
+  decidedAt: string | null
+  groupName: string | null
+  requester: {
+    id: string
+    name: string | null
+    email: string
+  }
+}
+
+export type ResolveOrganizationAccessRequestResponse = {
+  data: ResolveOrganizationAccessRequestResponseRef0
+}
+
 /** `POST /api/v2/files/[fileId]/restore` */
 export type RestoreFileParams = {
   fileId: string
@@ -4486,6 +11817,7 @@ export type RestoreFileBody = {
 
 type RestoreFileResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -4501,9 +11833,200 @@ export type RestoreFileResponse = {
   data: RestoreFileResponseRef0
 }
 
-/** `POST /api/v2/workflows/[id]/runs/[runId]/resume` */
-export type ResumeWorkflowParams = {
+/** `POST /api/v2/files/folders/restore` */
+export type RestoreFileFolderQuery = Record<string, unknown>
+
+type RestoreFileFolderBodyRef0 = string
+
+export type RestoreFileFolderBody = {
+  workspaceId: string
+  path: RestoreFileFolderBodyRef0
+}
+
+type RestoreFileFolderResponseRef0 = {
+  name: string
+  path: string
+  parentPath: string
+  createdAt: string
+  updatedAt: string
+}
+
+type RestoreFileFolderResponseRef1 = {
+  folder: RestoreFileFolderResponseRef0
+  restoredItems: {
+    files: number
+    folders: number
+  }
+}
+
+export type RestoreFileFolderResponse = {
+  data: RestoreFileFolderResponseRef1
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/restore` */
+export type RestoreKnowledgeBaseParams = {
+  knowledgeBaseId: string
+}
+
+export type RestoreKnowledgeBaseQuery = Record<string, unknown>
+
+export type RestoreKnowledgeBaseBody = {
+  workspaceId: string
+}
+
+type RestoreKnowledgeBaseResponseRef0 = {
+  maxSize: number
+  minSize: number
+  overlap: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
+}
+
+type RestoreKnowledgeBaseResponseRef1 = {
   id: string
+  name: string
+  description: string | null
+  tokenCount: number
+  embeddingModel: string
+  embeddingDimension: number
+  chunkingConfig: RestoreKnowledgeBaseResponseRef0
+  docCount?: number
+  connectorTypes?: Array<string>
+  createdAt: string
+  updatedAt: string
+  webUrl: string
+  ownerEmail: string
+  folderPath: string
+  deletedAt: string | null
+}
+
+export type RestoreKnowledgeBaseResponse = {
+  data: RestoreKnowledgeBaseResponseRef1
+}
+
+/** `POST /api/v2/tables/[tableId]/restore` */
+export type RestoreTableParams = {
+  tableId: string
+}
+
+export type RestoreTableQuery = Record<string, unknown>
+
+export type RestoreTableBody = {
+  workspaceId: string
+}
+
+type RestoreTableResponseRef0 = {
+  id: string | null
+  type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+  status: 'running' | 'ready' | 'failed' | 'canceled'
+  rowsProcessed: number
+  error: string | null
+}
+
+type RestoreTableResponseRef1 = {
+  id: string
+  webUrl: string
+  name: string
+  description: string | null
+  ownerEmail: string
+  schema: {
+    columns: Array<{
+      id?: string
+      name: string
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+      required: boolean
+      unique: boolean
+      workflowGroupId?: string
+      options?: Array<{
+        id: string
+        name: string
+      }>
+      multiple?: boolean
+      currencyCode?: string
+    }>
+  }
+  rowCount: number
+  maxRows: number
+  folderPath: string
+  locks: {
+    schemaLocked: boolean
+    insertLocked: boolean
+    updateLocked: boolean
+    deleteLocked: boolean
+  }
+  job: RestoreTableResponseRef0 | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type RestoreTableResponse = {
+  data: RestoreTableResponseRef1
+}
+
+/** `POST /api/v2/tables/folders/restore` */
+export type RestoreTableFolderQuery = Record<string, unknown>
+
+type RestoreTableFolderBodyRef0 = string
+
+export type RestoreTableFolderBody = {
+  workspaceId: string
+  path: RestoreTableFolderBodyRef0
+}
+
+type RestoreTableFolderResponseRef0 = {
+  name: string
+  path: string
+  parentPath: string
+  createdAt: string
+  updatedAt: string
+}
+
+type RestoreTableFolderResponseRef1 = {
+  folder: RestoreTableFolderResponseRef0
+  restoredItems: {
+    folders: number
+    tables: number
+  }
+}
+
+export type RestoreTableFolderResponse = {
+  data: RestoreTableFolderResponseRef1
+}
+
+/** `POST /api/v2/workflows/[workflowId]/restore` */
+export type RestoreWorkflowParams = {
+  workflowId: string
+}
+
+export type RestoreWorkflowQuery = Record<string, unknown>
+
+type RestoreWorkflowResponseRef0 = {
+  id: string
+  webUrl: string
+  name: string
+  description: string | null
+  folderPath: string
+  workspaceId: string
+  isDeployed: boolean
+  deployedAt: string | null
+  runCount: number
+  lastRunAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type RestoreWorkflowResponse = {
+  data: RestoreWorkflowResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/runs/[runId]/resume` */
+export type ResumeWorkflowParams = {
+  workflowId: string
   runId: string
 }
 
@@ -4534,6 +12057,7 @@ type ResumeWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ResumeWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -4554,9 +12078,121 @@ export type ResumeWorkflowResponse =
       data: ResumeWorkflowResponseRef2
     }
 
-/** `POST /api/v2/workflows/[id]/rollback` */
-export type RollbackWorkflowParams = {
+/** `POST /api/v2/files/[fileId]/versions/[version]/revert` */
+export type RevertFileVersionParams = {
+  fileId: string
+  version: number
+}
+
+export type RevertFileVersionQuery = Record<string, unknown>
+
+export type RevertFileVersionBody = {
+  workspaceId: string
+  expectedCurrentVersion?: number
+  expectedRevision?: string
+}
+
+type RevertFileVersionResponseRef0 = {
   id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type RevertFileVersionResponseRef1 = {
+  fileId: string
+  version: number
+  isCurrent: boolean
+  size: number
+  contentType: string
+  source: 'upload' | 'user' | 'api' | 'copilot' | 'workflow' | 'collab' | 'revert' | 'unknown'
+  authors: Array<{
+    id: string
+    email: string | null
+  }>
+  restoredFromVersion: number | null
+  createdAt: string
+  updatedAt: string
+  supersededAt: string | null
+}
+
+type RevertFileVersionResponseRef2 = {
+  reverted: boolean
+  file: RevertFileVersionResponseRef0
+  version: RevertFileVersionResponseRef1
+  revision?: string
+}
+
+export type RevertFileVersionResponse = {
+  data: RevertFileVersionResponseRef2
+}
+
+/** `POST /api/v2/workflows/[workflowId]/versions/[version]/revert` */
+export type RevertWorkflowVersionParams = {
+  version: number | 'active'
+  workflowId: string
+}
+
+export type RevertWorkflowVersionQuery = Record<string, unknown>
+
+export type RevertWorkflowVersionBody = Record<string, unknown>
+
+type RevertWorkflowVersionResponseRef0 = {
+  id: string
+  version: number | 'active'
+  lastSaved: number
+}
+
+export type RevertWorkflowVersionResponse = {
+  data: RevertWorkflowVersionResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/invitations/[invitationId]` */
+export type RevokeOrganizationInvitationParams = {
+  organizationId: string
+  invitationId: string
+}
+
+export type RevokeOrganizationInvitationQuery = Record<string, unknown>
+
+type RevokeOrganizationInvitationResponseRef0 = {
+  id: string
+  status: 'cancelled'
+}
+
+export type RevokeOrganizationInvitationResponse = {
+  data: RevokeOrganizationInvitationResponseRef0
+}
+
+/** `DELETE /api/v2/skills/[skillId]/editors` */
+export type RevokeSkillEditorParams = {
+  skillId: string
+}
+
+export type RevokeSkillEditorQuery = {
+  workspaceId: string
+  email: string
+}
+
+type RevokeSkillEditorResponseRef0 = {
+  email: string
+  revoked: true
+}
+
+export type RevokeSkillEditorResponse = {
+  data: RevokeSkillEditorResponseRef0
+}
+
+/** `POST /api/v2/workflows/[workflowId]/rollback` */
+export type RollbackWorkflowParams = {
+  workflowId: string
 }
 
 export type RollbackWorkflowQuery = Record<string, unknown>
@@ -4610,6 +12246,29 @@ export type RollbackWorkflowResponse = {
   data: RollbackWorkflowResponseRef4
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/fork/rollback` */
+export type RollbackWorkspaceForkParams = {
+  workspaceId: string
+}
+
+export type RollbackWorkspaceForkQuery = Record<string, unknown>
+
+export type RollbackWorkspaceForkBody = {
+  otherWorkspaceId: string
+}
+
+type RollbackWorkspaceForkResponseRef0 = {
+  restored: number
+  archived: number
+  unarchived: number
+  skipped: number
+  pendingActivations: Array<string>
+}
+
+export type RollbackWorkspaceForkResponse = {
+  data: RollbackWorkspaceForkResponseRef0
+}
+
 /** `POST /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
 export type RunRowEnrichmentParams = {
   tableId: string
@@ -4631,94 +12290,48 @@ export type RunRowEnrichmentResponse = {
   data: RunRowEnrichmentResponseRef0
 }
 
-/** `POST /api/v2/tables/[tableId]/columns/run` */
-export type RunTableColumnParams = {
-  tableId: string
+/** `GET /api/v2/files/search` */
+export type SearchFileContentQuery = {
+  workspaceId: string
+  query: string
+  mode?: 'exact' | 'regex'
+  maxResults?: number
+  folderPaths?: string
+  includeSubfolders?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
 }
 
-export type RunTableColumnQuery = Record<string, unknown>
-
-type RunTableColumnBodyRef0 =
-  | {
-      all: Array<
-        | RunTableColumnBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-  | {
-      any: Array<
-        | RunTableColumnBodyRef0
-        | {
-            field: string
-            op:
-              | 'eq'
-              | 'ne'
-              | 'gt'
-              | 'gte'
-              | 'lt'
-              | 'lte'
-              | 'in'
-              | 'nin'
-              | 'contains'
-              | 'ncontains'
-              | 'startsWith'
-              | 'endsWith'
-              | 'like'
-              | 'ilike'
-              | 'nlike'
-              | 'nilike'
-              | 'isEmpty'
-              | 'isNotEmpty'
-              | 'isNull'
-              | 'isNotNull'
-            value?: unknown
-          }
-      >
-    }
-
-export type RunTableColumnBody = {
-  workspaceId: string
-  groupIds: Array<string>
-  runMode?: 'all' | 'incomplete'
-  rowIds?: Array<string>
-  filter?: RunTableColumnBodyRef0
-  excludeRowIds?: Array<string>
-  limit?: {
-    type: 'rows'
-    max: number
+type SearchFileContentResponseRef0 = {
+  results: Array<{
+    fileId: string
+    lineNumber: number
+    text: string
+  }>
+  count: number
+  truncated: boolean
+  complete: boolean
+  indexStatus: {
+    readyFiles: number
+    pendingFiles: number
+    failedFiles: number
+    skippedFiles: number
+    partialFiles: number
   }
 }
 
-type RunTableColumnResponseRef0 = {
-  dispatchId: string | null
-}
-
-export type RunTableColumnResponse = {
-  data: RunTableColumnResponseRef0
+export type SearchFileContentResponse = {
+  data: SearchFileContentResponseRef0
 }
 
 /** `POST /api/v2/knowledge/search` */
@@ -4764,6 +12377,8 @@ type SearchKnowledgeResponseRef0 = {
   chunkIndex: number
   metadata: Record<string, unknown>
   similarity: number
+  rankScore: number
+  rank: number
   rerankerScore?: number
 }
 
@@ -4780,6 +12395,125 @@ export type SearchKnowledgeResponse = {
   data: SearchKnowledgeResponseRef1
 }
 
+/** `POST /api/v2/tables/[tableId]/rows/search` */
+export type SearchTableRowsParams = {
+  tableId: string
+}
+
+export type SearchTableRowsQuery = Record<string, unknown>
+
+type SearchTableRowsBodyRef0 =
+  | {
+      all: Array<
+        | SearchTableRowsBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      any: Array<
+        | SearchTableRowsBodyRef0
+        | {
+            field: string
+            op:
+              | 'eq'
+              | 'ne'
+              | 'gt'
+              | 'gte'
+              | 'lt'
+              | 'lte'
+              | 'in'
+              | 'nin'
+              | 'contains'
+              | 'ncontains'
+              | 'startsWith'
+              | 'endsWith'
+              | 'like'
+              | 'ilike'
+              | 'nlike'
+              | 'nilike'
+              | 'isEmpty'
+              | 'isNotEmpty'
+              | 'isNull'
+              | 'isNotNull'
+            value?: unknown
+          }
+      >
+    }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
+
+export type SearchTableRowsBody = {
+  workspaceId: string
+  q: string
+  predicate?: SearchTableRowsBodyRef0
+  sort?: Array<{
+    field: string
+    direction: 'asc' | 'desc'
+  }>
+}
+
+type SearchTableRowsResponseRef0 = {
+  ordinal: number
+  rowId: string
+  column: string
+}
+
+type SearchTableRowsResponseRef1 = {
+  matches: Array<SearchTableRowsResponseRef0>
+  truncated: boolean
+}
+
+export type SearchTableRowsResponse = {
+  data: SearchTableRowsResponseRef1
+}
+
 /** `PUT /api/v2/secrets/[name]` */
 export type SetSecretParams = {
   name: string
@@ -4790,14 +12524,16 @@ export type SetSecretQuery = Record<string, unknown>
 export type SetSecretBody = {
   workspaceId: string
   scope: 'workspace' | 'personal'
-  value: string
+  value?: string
   description?: string | null
+  unredacted?: boolean
 }
 
 type SetSecretResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
   description: string | null
+  unredacted: boolean
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
@@ -4807,8 +12543,31 @@ export type SetSecretResponse = {
   data: SetSecretResponseRef0
 }
 
-/** `GET /api/v2/tables/exports/[exportId]/download` */
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync` */
+export type SyncKnowledgeConnectorParams = {
+  connectorId: string
+  knowledgeBaseId: string
+}
+
+export type SyncKnowledgeConnectorQuery = Record<string, unknown>
+
+export type SyncKnowledgeConnectorBody = {
+  workspaceId: string
+  rehydrate?: boolean
+}
+
+type SyncKnowledgeConnectorResponseRef0 = {
+  id: string
+  syncTriggered: true
+}
+
+export type SyncKnowledgeConnectorResponse = {
+  data: SyncKnowledgeConnectorResponseRef0
+}
+
+/** `GET /api/v2/tables/[tableId]/exports/[exportId]/download` */
 export type TableExportDownloadParams = {
+  tableId: string
   exportId: string
 }
 
@@ -4826,9 +12585,9 @@ export type TableExportDownloadResponse = {
   data: TableExportDownloadResponseRef0
 }
 
-/** `DELETE /api/v2/workflows/[id]/deploy` */
+/** `DELETE /api/v2/workflows/[workflowId]/deploy` */
 export type UndeployWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type UndeployWorkflowQuery = Record<string, unknown>
@@ -4865,21 +12624,131 @@ type UndeployWorkflowResponseRef3 = {
 }
 
 type UndeployWorkflowResponseRef4 = {
+  serverId: string
+  toolName: string
+}
+
+type UndeployWorkflowResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
   warnings: Array<string>
   activeDeployment: UndeployWorkflowResponseRef0 | null
   latestDeploymentAttempt: UndeployWorkflowResponseRef1 | null
+  archivedMcpTools: Array<UndeployWorkflowResponseRef4>
 }
 
 export type UndeployWorkflowResponse = {
-  data: UndeployWorkflowResponseRef4
+  data: UndeployWorkflowResponseRef5
 }
 
-/** `PATCH /api/v2/custom-tools/[id]` */
-export type UpdateCustomToolParams = {
+/** `DELETE /api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]` */
+export type UndeployWorkflowMcpToolParams = {
+  serverId: string
+  workflowId: string
+}
+
+export type UndeployWorkflowMcpToolQuery = Record<string, unknown>
+
+type UndeployWorkflowMcpToolResponseRef0 = {
   id: string
+  serverId: string
+  workflowId: string
+  deleted: true
+}
+
+export type UndeployWorkflowMcpToolResponse = {
+  data: UndeployWorkflowMcpToolResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/fork/unlink` */
+export type UnlinkWorkspaceForkParams = {
+  workspaceId: string
+}
+
+export type UnlinkWorkspaceForkQuery = Record<string, unknown>
+
+export type UnlinkWorkspaceForkBody = {
+  otherWorkspaceId: string
+}
+
+type UnlinkWorkspaceForkResponseRef0 = {
+  unlinked: boolean
+}
+
+export type UnlinkWorkspaceForkResponse = {
+  data: UnlinkWorkspaceForkResponseRef0
+}
+
+/** `POST /api/v2/files/[fileId]/unzip` */
+export type UnzipFileParams = {
+  fileId: string
+}
+
+export type UnzipFileQuery = Record<string, unknown>
+
+export type UnzipFileBody = {
+  workspaceId: string
+}
+
+type UnzipFileResponseRef0 = {
+  folderPath: string
+  extractedFileCount: number
+  skippedFileCount: number
+}
+
+export type UnzipFileResponse = {
+  data: UnzipFileResponseRef0
+}
+
+/** `PATCH /api/v2/credentials/[credentialId]` */
+export type UpdateCredentialParams = {
+  credentialId: string
+}
+
+export type UpdateCredentialQuery = {
+  workspaceId: string
+}
+
+export type UpdateCredentialBody = {
+  displayName?: string
+  description?: string | null
+  serviceAccountJson?: string
+  apiToken?: string
+  domain?: string
+  atlassianProduct?: 'jira' | 'confluence'
+  signingSecret?: string
+  botToken?: string
+  clientId?: string
+  clientSecret?: string
+  certificateId?: string
+  orgId?: string
+  dataCenter?: string
+  authMethod?: string
+  privateKey?: string
+  username?: string
+}
+
+type UpdateCredentialResponseRef0 = {
+  id: string
+  type: 'oauth' | 'service_account'
+  displayName: string
+  description: string | null
+  providerId: string | null
+  accountId: string | null
+  hasServiceAccountKey: boolean
+  role: 'admin' | 'member'
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateCredentialResponse = {
+  data: UpdateCredentialResponseRef0
+}
+
+/** `PATCH /api/v2/custom-tools/[customToolId]` */
+export type UpdateCustomToolParams = {
+  customToolId: string
 }
 
 export type UpdateCustomToolQuery = Record<string, unknown>
@@ -4937,10 +12806,12 @@ export type UpdateFileContentBody = {
   workspaceId: string
   content: string
   encoding?: 'utf-8' | 'base64'
+  expectedRevision?: string
 }
 
 type UpdateFileContentResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   size: number
   type: string
@@ -4950,15 +12821,16 @@ type UpdateFileContentResponseRef0 = {
   uploadedAt: string
   updatedAt: string
   deletedAt: string | null
+  revision?: string
 }
 
 export type UpdateFileContentResponse = {
   data: UpdateFileContentResponseRef0
 }
 
-/** `PATCH /api/v2/knowledge/[id]` */
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]` */
 export type UpdateKnowledgeBaseParams = {
-  id: string
+  knowledgeBaseId: string
 }
 
 export type UpdateKnowledgeBaseQuery = Record<string, unknown>
@@ -4967,6 +12839,13 @@ type UpdateKnowledgeBaseBodyRef0 = {
   maxSize?: number
   minSize?: number
   overlap?: number
+  strategy?: 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+  strategyOptions?: {
+    pattern?: string
+    separators?: Array<string>
+    recipe?: 'plain' | 'markdown' | 'code'
+    strictBoundaries?: boolean
+  }
 }
 
 type UpdateKnowledgeBaseBodyRef1 = string
@@ -5004,18 +12883,120 @@ type UpdateKnowledgeBaseResponseRef1 = {
   connectorTypes?: Array<string>
   createdAt: string
   updatedAt: string
+  webUrl: string
   ownerEmail: string
   folderPath: string
+  deletedAt: string | null
 }
 
 export type UpdateKnowledgeBaseResponse = {
   data: UpdateKnowledgeBaseResponseRef1
 }
 
-/** `PATCH /api/v2/knowledge/[id]/documents/[documentId]` */
-export type UpdateKnowledgeDocumentParams = {
-  id: string
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]` */
+export type UpdateKnowledgeChunkParams = {
   documentId: string
+  chunkId: string
+  knowledgeBaseId: string
+}
+
+export type UpdateKnowledgeChunkQuery = Record<string, unknown>
+
+export type UpdateKnowledgeChunkBody = {
+  workspaceId: string
+  content?: string
+  enabled?: boolean
+}
+
+type UpdateKnowledgeChunkResponseRef0 = {
+  id: string
+  chunkIndex: number
+  content: string
+  contentLength: number
+  tokenCount: number
+  enabled: boolean
+  startOffset: number
+  endOffset: number
+  tag1: string | null
+  tag2: string | null
+  tag3: string | null
+  tag4: string | null
+  tag5: string | null
+  tag6: string | null
+  tag7: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateKnowledgeChunkResponse = {
+  data: UpdateKnowledgeChunkResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]` */
+export type UpdateKnowledgeConnectorParams = {
+  connectorId: string
+  knowledgeBaseId: string
+}
+
+export type UpdateKnowledgeConnectorQuery = Record<string, unknown>
+
+export type UpdateKnowledgeConnectorBody = {
+  workspaceId: string
+  sourceConfig?: Record<string, unknown>
+  syncIntervalMinutes?: number
+  status?: 'active' | 'paused'
+}
+
+type UpdateKnowledgeConnectorResponseRef0 = {
+  id: string
+  knowledgeBaseId: string
+  connectorType: string
+  credentialId: string | null
+  sourceConfig: Record<string, unknown>
+  syncMode: string
+  syncIntervalMinutes: number
+  status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+  lastSyncAt: string | null
+  lastSyncError: string | null
+  lastSyncDocCount: number | null
+  nextSyncAt: string | null
+  consecutiveFailures: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateKnowledgeConnectorResponse = {
+  data: UpdateKnowledgeConnectorResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents` */
+export type UpdateKnowledgeConnectorDocumentsParams = {
+  connectorId: string
+  knowledgeBaseId: string
+}
+
+export type UpdateKnowledgeConnectorDocumentsQuery = Record<string, unknown>
+
+export type UpdateKnowledgeConnectorDocumentsBody = {
+  workspaceId: string
+  operation: 'restore' | 'exclude'
+  documentIds: Array<string>
+}
+
+type UpdateKnowledgeConnectorDocumentsResponseRef0 = {
+  operation: 'restore' | 'exclude'
+  updatedCount: number
+  documentIds: Array<string>
+}
+
+export type UpdateKnowledgeConnectorDocumentsResponse = {
+  data: UpdateKnowledgeConnectorDocumentsResponseRef0
+}
+
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]` */
+export type UpdateKnowledgeDocumentParams = {
+  documentId: string
+  knowledgeBaseId: string
 }
 
 export type UpdateKnowledgeDocumentQuery = Record<string, unknown>
@@ -5070,9 +13051,34 @@ export type UpdateKnowledgeDocumentResponse = {
   data: UpdateKnowledgeDocumentResponseRef0 | UpdateKnowledgeDocumentResponseRef1
 }
 
-/** `PATCH /api/v2/mcp-servers/[id]` */
-export type UpdateMcpServerParams = {
+/** `PATCH /api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]` */
+export type UpdateKnowledgeTagParams = {
+  tagId: string
+  knowledgeBaseId: string
+}
+
+export type UpdateKnowledgeTagQuery = Record<string, unknown>
+
+export type UpdateKnowledgeTagBody = {
+  workspaceId: string
+  displayName?: string
+  fieldType?: 'text' | 'number' | 'date' | 'boolean'
+}
+
+type UpdateKnowledgeTagResponseRef0 = {
   id: string
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
+export type UpdateKnowledgeTagResponse = {
+  data: UpdateKnowledgeTagResponseRef0
+}
+
+/** `PATCH /api/v2/mcp-servers/[mcpServerId]` */
+export type UpdateMcpServerParams = {
+  mcpServerId: string
 }
 
 export type UpdateMcpServerQuery = Record<string, unknown>
@@ -5117,6 +13123,189 @@ type UpdateMcpServerResponseRef0 = {
 
 export type UpdateMcpServerResponse = {
   data: UpdateMcpServerResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/access-requests/settings` */
+export type UpdateOrganizationAccessRequestSettingsParams = {
+  organizationId: string
+}
+
+export type UpdateOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+
+export type UpdateOrganizationAccessRequestSettingsBody = {
+  allowRequests: boolean
+}
+
+type UpdateOrganizationAccessRequestSettingsResponseRef0 = {
+  allowRequests: boolean
+}
+
+export type UpdateOrganizationAccessRequestSettingsResponse = {
+  data: UpdateOrganizationAccessRequestSettingsResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/members/[userId]` */
+export type UpdateOrganizationMemberParams = {
+  organizationId: string
+  userId: string
+}
+
+export type UpdateOrganizationMemberQuery = Record<string, unknown>
+
+export type UpdateOrganizationMemberBody = {
+  role: 'member' | 'admin'
+}
+
+type UpdateOrganizationMemberResponseRef0 = {
+  userId: string
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+export type UpdateOrganizationMemberResponse = {
+  data: UpdateOrganizationMemberResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/members/[userId]/usage-limit` */
+export type UpdateOrganizationMemberUsageLimitParams = {
+  organizationId: string
+  userId: string
+}
+
+export type UpdateOrganizationMemberUsageLimitQuery = Record<string, unknown>
+
+export type UpdateOrganizationMemberUsageLimitBody = {
+  creditLimit: number | null
+}
+
+type UpdateOrganizationMemberUsageLimitResponseRef0 = {
+  creditLimit: number | null
+}
+
+export type UpdateOrganizationMemberUsageLimitResponse = {
+  data: UpdateOrganizationMemberUsageLimitResponseRef0
+}
+
+/** `PATCH /api/v2/organizations/[organizationId]/permission-groups/[groupId]` */
+export type UpdatePermissionGroupParams = {
+  organizationId: string
+  groupId: string
+}
+
+export type UpdatePermissionGroupQuery = Record<string, unknown>
+
+export type UpdatePermissionGroupBody = {
+  name?: string
+  description?: string | null
+  config?: {
+    allowedIntegrations?: Array<string> | null
+    allowedModelProviders?: Array<string> | null
+    deniedModels?: Array<string>
+    deniedTools?: Array<string>
+    hideTraceSpans?: boolean
+    hideKnowledgeBaseTab?: boolean
+    hideTablesTab?: boolean
+    hideCopilot?: boolean
+    hideIntegrationsTab?: boolean
+    hideSecretsTab?: boolean
+    hideApiKeysTab?: boolean
+    hideInboxTab?: boolean
+    hideFilesTab?: boolean
+    disableMcpTools?: boolean
+    disableCustomTools?: boolean
+    disableSkills?: boolean
+    disableInvitations?: boolean
+    disablePublicApi?: boolean
+    disablePublicFileSharing?: boolean
+    allowedFileShareAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi?: boolean
+    hideDeployMcp?: boolean
+    hideDeployChatbot?: boolean
+    allowedChatDeployAuthTypes?: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys?: boolean
+    disableLogExport?: boolean
+    hideCostInfo?: boolean
+    disableKnowledgeBaseCreation?: boolean
+    disableKnowledgeBaseFileUpload?: boolean
+    allowedKnowledgeConnectors?: Array<string> | null
+    disableTableCreation?: boolean
+    disableTableExport?: boolean
+    disableBulkFileDownload?: boolean
+    disablePersonalCredentials?: boolean
+    disableWorkspaceCreation?: boolean
+    hideOrgMemberDirectory?: boolean
+    disableCliAccess?: boolean
+    disableWebhookTriggers?: boolean
+    disableToolAutoApproval?: boolean
+    hideSandboxesTab?: boolean
+    disableOAuthAppAccess?: boolean
+    disableKnowledgeBaseExport?: boolean
+  }
+  isDefault?: boolean
+  workspaceIds?: Array<string>
+}
+
+type UpdatePermissionGroupResponseRef0 = {
+  id: string
+  organizationId: string
+  name: string
+  description: string | null
+  config: {
+    allowedIntegrations: Array<string> | null
+    allowedModelProviders: Array<string> | null
+    deniedModels: Array<string>
+    deniedTools: Array<string>
+    hideTraceSpans: boolean
+    hideKnowledgeBaseTab: boolean
+    hideTablesTab: boolean
+    hideCopilot: boolean
+    hideIntegrationsTab: boolean
+    hideSecretsTab: boolean
+    hideApiKeysTab: boolean
+    hideInboxTab: boolean
+    hideFilesTab: boolean
+    disableMcpTools: boolean
+    disableCustomTools: boolean
+    disableSkills: boolean
+    disableInvitations: boolean
+    disablePublicApi: boolean
+    disablePublicFileSharing: boolean
+    allowedFileShareAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    hideDeployApi: boolean
+    hideDeployMcp: boolean
+    hideDeployChatbot: boolean
+    allowedChatDeployAuthTypes: Array<'public' | 'password' | 'email' | 'sso'> | null
+    disablePersonalApiKeys: boolean
+    disableLogExport: boolean
+    hideCostInfo: boolean
+    disableKnowledgeBaseCreation: boolean
+    disableKnowledgeBaseFileUpload: boolean
+    allowedKnowledgeConnectors: Array<string> | null
+    disableTableCreation: boolean
+    disableTableExport: boolean
+    disableBulkFileDownload: boolean
+    disablePersonalCredentials: boolean
+    disableWorkspaceCreation: boolean
+    hideOrgMemberDirectory: boolean
+    disableCliAccess: boolean
+    disableWebhookTriggers: boolean
+    disableToolAutoApproval: boolean
+    hideSandboxesTab: boolean
+    disableOAuthAppAccess: boolean
+    disableKnowledgeBaseExport: boolean
+  }
+  isDefault: boolean
+  membershipMode: string
+  workspaceIds: Array<string>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdatePermissionGroupResponse = {
+  data: UpdatePermissionGroupResponseRef0
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows` */
@@ -5187,6 +13376,31 @@ type UpdateRowsByFilterBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 type UpdateRowsByFilterBodyRef1 = Record<string, unknown>
 
@@ -5206,9 +13420,95 @@ export type UpdateRowsByFilterResponse = {
   data: UpdateRowsByFilterResponseRef0
 }
 
-/** `PATCH /api/v2/skills/[id]` */
-export type UpdateSkillParams = {
+/** `PATCH /api/v2/sandboxes/[sandboxId]` */
+export type UpdateSandboxParams = {
+  sandboxId: string
+}
+
+export type UpdateSandboxQuery = Record<string, unknown>
+
+export type UpdateSandboxBody = {
+  workspaceId: string
+  name?: string
+  language?: 'javascript' | 'python'
+  dependencies?: Array<string>
+  cliTools?: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages?: Array<string>
+}
+
+type UpdateSandboxResponseRef0 = {
   id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateSandboxResponse = {
+  data: UpdateSandboxResponseRef0
+}
+
+/** `PATCH /api/v2/skills/[skillId]` */
+export type UpdateSkillParams = {
+  skillId: string
 }
 
 export type UpdateSkillQuery = Record<string, unknown>
@@ -5260,6 +13560,7 @@ type UpdateTableResponseRef0 = {
 
 type UpdateTableResponseRef1 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   ownerEmail: string
@@ -5267,7 +13568,7 @@ type UpdateTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -5309,7 +13610,7 @@ export type UpdateTableColumnBody = {
   columnName: string
   updates: {
     name?: string
-    type?: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type?: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
     options?: Array<{
@@ -5322,10 +13623,18 @@ export type UpdateTableColumnBody = {
 }
 
 type UpdateTableColumnResponseRef0 = {
+  workflowId: string
+  workflowName: string
+  blockId: string
+  blockName: string
+  fields: Array<'filter' | 'order' | 'data'>
+}
+
+type UpdateTableColumnResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -5336,10 +13645,11 @@ type UpdateTableColumnResponseRef0 = {
     multiple?: boolean
     currencyCode?: string
   }>
+  unmigrated: Array<UpdateTableColumnResponseRef0>
 }
 
 export type UpdateTableColumnResponse = {
-  data: UpdateTableColumnResponseRef0
+  data: UpdateTableColumnResponseRef1
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -5360,14 +13670,25 @@ export type UpdateTableRowBody = {
 type UpdateTableRowResponseRef0 = Record<string, unknown>
 
 type UpdateTableRowResponseRef1 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type UpdateTableRowResponseRef2 = {
   id: string
   data: UpdateTableRowResponseRef0
+  runState?: Record<string, UpdateTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
 export type UpdateTableRowResponse = {
-  data: UpdateTableRowResponseRef1
+  data: UpdateTableRowResponseRef2
 }
 
 /** `PATCH /api/v2/tables/[tableId]/views/[viewId]` */
@@ -5520,9 +13841,9 @@ export type UpdateTableViewResponse = {
   data: UpdateTableViewResponseRef1
 }
 
-/** `PATCH /api/v2/workflows/[id]` */
+/** `PATCH /api/v2/workflows/[workflowId]` */
 export type UpdateWorkflowParams = {
-  id: string
+  workflowId: string
 }
 
 export type UpdateWorkflowQuery = Record<string, unknown>
@@ -5537,6 +13858,7 @@ export type UpdateWorkflowBody = {
 
 type UpdateWorkflowResponseRef0 = {
   id: string
+  webUrl: string
   name: string
   description: string | null
   folderPath: string
@@ -5576,7 +13898,7 @@ export type UpdateWorkflowGroupBody = {
   }>
   newOutputColumns?: Array<{
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
   }>
@@ -5613,7 +13935,7 @@ type UpdateWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -5622,7 +13944,7 @@ type UpdateWorkflowGroupResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -5639,9 +13961,136 @@ export type UpdateWorkflowGroupResponse = {
   data: UpdateWorkflowGroupResponseRef1
 }
 
-/** `POST /api/v2/knowledge/[id]/documents` */
-export type UploadKnowledgeDocumentParams = {
+/** `PATCH /api/v2/workflow-mcp-servers/[serverId]` */
+export type UpdateWorkflowMcpServerParams = {
+  serverId: string
+}
+
+export type UpdateWorkflowMcpServerQuery = Record<string, unknown>
+
+export type UpdateWorkflowMcpServerBody = {
+  name?: string
+  description?: string | null
+  isPublic?: boolean
+}
+
+type UpdateWorkflowMcpServerResponseRef0 = {
   id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  mcpServerUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateWorkflowMcpServerResponse = {
+  data: UpdateWorkflowMcpServerResponseRef0
+}
+
+/** `PATCH /api/v2/workflows/[workflowId]/deployment` */
+export type UpdateWorkflowPublicApiParams = {
+  workflowId: string
+}
+
+export type UpdateWorkflowPublicApiQuery = Record<string, unknown>
+
+export type UpdateWorkflowPublicApiBody = {
+  isPublicApi: boolean
+}
+
+type UpdateWorkflowPublicApiResponseRef0 = {
+  id: string
+  isPublicApi: boolean
+}
+
+export type UpdateWorkflowPublicApiResponse = {
+  data: UpdateWorkflowPublicApiResponseRef0
+}
+
+/** `PATCH /api/v2/workflows/[workflowId]/versions/[version]` */
+export type UpdateWorkflowVersionParams = {
+  version: number
+  workflowId: string
+}
+
+export type UpdateWorkflowVersionQuery = Record<string, unknown>
+
+export type UpdateWorkflowVersionBody = {
+  name?: string
+  description?: string | null
+}
+
+type UpdateWorkflowVersionResponseRef0 = {
+  version: number
+  name: string | null
+  description: string | null
+}
+
+export type UpdateWorkflowVersionResponse = {
+  data: UpdateWorkflowVersionResponseRef0
+}
+
+/** `PUT /api/v2/workspaces/[workspaceId]/fork/exclusions` */
+export type UpdateWorkspaceForkExclusionsParams = {
+  workspaceId: string
+}
+
+export type UpdateWorkspaceForkExclusionsQuery = Record<string, unknown>
+
+export type UpdateWorkspaceForkExclusionsBody = {
+  workflowIds: Array<string>
+  forkSyncExcluded: boolean
+}
+
+type UpdateWorkspaceForkExclusionsResponseRef0 = {
+  updated: number
+}
+
+export type UpdateWorkspaceForkExclusionsResponse = {
+  data: UpdateWorkspaceForkExclusionsResponseRef0
+}
+
+/** `PUT /api/v2/workspaces/[workspaceId]/fork/mappings` */
+export type UpdateWorkspaceForkMappingsParams = {
+  workspaceId: string
+}
+
+export type UpdateWorkspaceForkMappingsQuery = Record<string, unknown>
+
+export type UpdateWorkspaceForkMappingsBody = {
+  otherWorkspaceId: string
+  direction: 'push' | 'pull'
+  mappings: Array<{
+    resourceType:
+      | 'oauth_credential'
+      | 'service_account_credential'
+      | 'env_var'
+      | 'table'
+      | 'knowledge_base'
+      | 'file'
+      | 'file_folder'
+      | 'mcp_server'
+      | 'custom_block'
+      | 'custom_tool'
+      | 'skill'
+      | 'sandbox'
+    sourceId: string
+    targetId: string | null
+  }>
+}
+
+type UpdateWorkspaceForkMappingsResponseRef0 = {
+  updated: number
+}
+
+export type UpdateWorkspaceForkMappingsResponse = {
+  data: UpdateWorkspaceForkMappingsResponseRef0
+}
+
+/** `POST /api/v2/knowledge/[knowledgeBaseId]/documents` */
+export type UploadKnowledgeDocumentParams = {
+  knowledgeBaseId: string
 }
 
 export type UploadKnowledgeDocumentQuery = {
@@ -5715,32 +14164,47 @@ export type UpsertTableRowBody = {
 type UpsertTableRowResponseRef0 = Record<string, unknown>
 
 type UpsertTableRowResponseRef1 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type UpsertTableRowResponseRef2 = {
   id: string
   data: UpsertTableRowResponseRef0
+  runState?: Record<string, UpsertTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
-type UpsertTableRowResponseRef2 = {
-  row: UpsertTableRowResponseRef1
+type UpsertTableRowResponseRef3 = {
+  row: UpsertTableRowResponseRef2
   operation: 'insert' | 'update'
 }
 
 export type UpsertTableRowResponse = {
-  data: UpsertTableRowResponseRef2
+  data: UpsertTableRowResponseRef3
 }
 
 /**
  * Every v2 operation, keyed by name.
  *
- * `query` and `body` describe each field well enough for the CLI to build a
- * flag for it and coerce the string argv gives back: its kind, whether it is
- * required, its enum values, and its server-side default. A slot the contract
- * does not declare — or one whose shape is a union with no flat field list —
- * is absent, and the runtime falls back to taking it as JSON.
+ * `query`, `body`, and `headers` describe each field well enough for the CLI
+ * to build a flag for it and coerce the string argv gives back: its kind,
+ * whether it is required, its enum values, and its server-side default. A slot
+ * the contract does not declare is absent. Discriminated bodies carry branch
+ * field maps; other unions fall back to taking their variant data as JSON.
+ * Headers the CLI sets itself, such as the API key, are never listed.
  *
  * `summary` is the operation's one-line description, lifted from the OpenAPI
  * specs so `--help` reuses prose that is already written and already checked.
+ *
+ * `workspaceKeyUnsupported` marks an operation whose spec says a workspace
+ * API key is rejected, so `--help` can say so before the request is sent.
  */
 export const V2_OPERATIONS = {
   abortFileUpload: {
@@ -5757,13 +14221,20 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the upload session.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   abortKnowledgeDocumentUpload: {
     method: 'DELETE',
-    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]',
-    pathParams: ['id', 'uploadId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]',
+    pathParams: ['knowledgeBaseId', 'uploadId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
@@ -5774,6 +14245,40 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace that owns the knowledge base.',
       },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  activateWorkflowVersion: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/versions/[version]/activate',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version.',
+    },
+    responseMode: 'json',
+    summary: 'Activate Workflow Version',
+    workspaceKeyUnsupported: true,
+  },
+  addPermissionGroupMember: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Add Permission Group Member',
+    workspaceKeyUnsupported: true,
+    body: {
+      userId: { kind: 'string', required: true, describe: 'Existing organization member to add.' },
     },
   },
   addTableColumn: {
@@ -5804,13 +14309,112 @@ export const V2_OPERATIONS = {
       },
       outputColumns: {
         kind: 'array',
-        required: true,
-        describe: 'Columns created for producer outputs.',
+        default: [],
+        describe:
+          'Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.',
       },
       autoRun: {
         kind: 'boolean',
         default: false,
         describe: 'Whether to schedule existing rows after group creation.',
+      },
+    },
+  },
+  addWorkspaceFilesToKnowledgeBase: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Index Workspace Files',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns both the files and the base.',
+      },
+      fileReferences: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.',
+      },
+    },
+  },
+  applyWorkflowOperations: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/operations',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Apply Workflow Operations',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
+      },
+    },
+    body: {
+      operations: { kind: 'array', required: true, describe: 'Edits to apply, in a single batch.' },
+      atomic: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead.',
+      },
+      layout: {
+        kind: 'enum',
+        values: ['targeted', 'none'] as const,
+        default: 'targeted',
+        describe:
+          'Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied.',
+      },
+      setBlockEnabled: {
+        kind: 'array',
+        describe:
+          'Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined.',
+      },
+    },
+  },
+  applyWorkflowVariables: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/variables',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow Variables',
+    body: {
+      operations: {
+        kind: 'array',
+        required: true,
+        describe: 'Variable changes to apply, in order.',
+      },
+    },
+  },
+  bulkAddPermissionGroupMembers: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/bulk',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Bulk Add Permission Group Members',
+    workspaceKeyUnsupported: true,
+    body: {
+      userIds: {
+        kind: 'array',
+        describe:
+          'Organization member identifiers. Existing group members are skipped; users outside the organization are ignored.',
+      },
+      addAllOrganizationMembers: {
+        kind: 'boolean',
+        describe:
+          'Add every current organization member in bounded batches within one transaction. Cannot be combined with userIds.',
       },
     },
   },
@@ -5822,16 +14426,112 @@ export const V2_OPERATIONS = {
     summary: 'Delete Files',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
-      fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
+      fileIds: { kind: 'array', required: true, describe: 'File identifiers to delete.' },
+    },
+  },
+  bulkDeleteTables: {
+    method: 'POST',
+    path: '/api/v2/tables/bulk-delete',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Bulk Delete Tables and Folders',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns every selected item.',
+      },
+      tableIds: { kind: 'array', default: [], describe: 'Tables to archive, by identifier.' },
+      folderPaths: {
+        kind: 'array',
+        describe:
+          'Table folders to delete, by canonical path. Each cascades to everything inside it.',
+      },
+    },
+  },
+  bulkDownloadFiles: {
+    method: 'GET',
+    path: '/api/v2/files/bulk-download',
+    pathParams: [] as const,
+    responseMode: 'binary',
+    summary: 'Bulk Download Files',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace containing the selection.',
+      },
+      fileIds: {
+        kind: 'string',
+        describe: 'File identifiers to include, comma-separated. At most 100 entries.',
+      },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated folder paths whose contents are included recursively. Up to 100 paths; resolved files share the 100-file download limit. Unknown paths are rejected.',
+      },
+    },
+  },
+  bulkSaveKnowledgeTagDefinitions: {
+    method: 'PUT',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Bulk Save Tag Definitions',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      definitions: {
+        kind: 'array',
+        required: true,
+        describe: 'Tag definitions to create or update on the knowledge base.',
+      },
+    },
+  },
+  bulkUpdateKnowledgeChunks: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Bulk Update Chunks',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      operation: {
+        kind: 'enum',
+        required: true,
+        values: ['enable', 'disable', 'delete'] as const,
+        describe: 'What to do with the selected chunks.',
+      },
+      chunkIds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request.',
+      },
     },
   },
   bulkUpdateKnowledgeDocuments: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]/documents',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Bulk Enable or Disable Documents',
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -5857,11 +14557,60 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  bulkUpdateTableRows: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/rows/bulk-update',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Bulk Update Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      updates: {
+        kind: 'array',
+        required: true,
+        describe: 'One merge patch per row. Each row identifier may appear at most once.',
+      },
+    },
+  },
+  cancelOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Organization Access Request',
+    workspaceKeyUnsupported: true,
+  },
+  cancelTableDispatch: {
+    method: 'DELETE',
+    path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
+    pathParams: ['tableId', 'dispatchId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      dispatchId: 'Unique table run-dispatch identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Run Dispatch',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
+    },
+  },
   cancelTableExport: {
     method: 'DELETE',
-    path: '/api/v2/tables/exports/[exportId]',
-    pathParams: ['exportId'] as const,
-    pathParamDocs: { exportId: 'Unique table-export identifier.' },
+    path: '/api/v2/tables/[tableId]/exports/[exportId]',
+    pathParams: ['tableId', 'exportId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      exportId: 'Unique table-export identifier.',
+    },
     responseMode: 'json',
     summary: 'Cancel Table Export',
     query: {
@@ -5886,6 +14635,12 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
+      },
+    },
   },
   cancelTableRuns: {
     method: 'POST',
@@ -5906,18 +14661,72 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from an all-scope cancellation.' },
     },
   },
   cancelWorkflowRun: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
-    pathParams: ['id', 'runId'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]/cancel',
+    pathParams: ['workflowId', 'runId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+    },
     responseMode: 'json',
     summary: 'Cancel Workflow Run',
+  },
+  cancelWorkspaceAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel',
+    pathParams: ['workspaceId', 'requestId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace in which the acting user requests access.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Cancel Workspace Access Request',
+    workspaceKeyUnsupported: true,
+  },
+  chat: {
+    method: 'POST',
+    path: '/api/v2/chat',
+    pathParams: [] as const,
+    responseMode: 'json',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace the conversation runs in.',
+      },
+      message: { kind: 'string', required: true, describe: 'The message to send to Sim.' },
+      conversationId: {
+        kind: 'string',
+        describe: 'Conversation to continue; a new one starts when omitted.',
+      },
+      effort: {
+        kind: 'enum',
+        values: ['low', 'medium', 'high', 'xhigh', 'max'] as const,
+        describe: 'Model effort for this turn; defaults to the deployment default (high).',
+      },
+    },
+  },
+  compareWorkflowVersions: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/versions/compare',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Compare Workflow Versions',
+    query: {
+      base: { kind: 'integer', required: true, describe: 'Deployment version to compare from.' },
+      target: {
+        kind: 'integer',
+        required: true,
+        describe: 'Deployment version to compare to, in the same workflow.',
+      },
+    },
   },
   completeFileUpload: {
     method: 'POST',
@@ -5933,13 +14742,20 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the upload session.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   completeKnowledgeDocumentUpload: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete',
-    pathParams: ['id', 'uploadId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete',
+    pathParams: ['knowledgeBaseId', 'uploadId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
@@ -5949,6 +14765,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
       },
     },
   },
@@ -5966,6 +14789,13 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createCredentialConnection: {
     method: 'POST',
@@ -5973,13 +14803,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Credential Connection',
-    body: {
-      workspaceId: {
-        kind: 'string',
-        required: true,
-        describe: 'Workspace that will own the credential.',
-      },
-    },
+    workspaceKeyUnsupported: true,
     opaqueBody: true,
   },
   createCustomTool: {
@@ -6108,6 +14932,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createKnowledgeBase: {
     method: 'POST',
@@ -6133,11 +14964,77 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createKnowledgeChunk: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Create Chunk',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      content: {
+        kind: 'string',
+        required: true,
+        describe: 'Text to embed. It is embedded on write, so the chunk is searchable immediately.',
+      },
+      enabled: {
+        kind: 'boolean',
+        default: true,
+        describe: 'Whether the new chunk participates in search.',
+      },
+    },
+  },
+  createKnowledgeConnector: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Create Knowledge Connector',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      credentialId: {
+        kind: 'string',
+        describe:
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.',
+      },
+      apiKey: {
+        kind: 'string',
+        describe:
+          'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        required: true,
+        describe: 'Connector-specific source selection and filtering configuration.',
+      },
+      syncIntervalMinutes: {
+        kind: 'integer',
+        default: 1440,
+        describe: 'Scheduled synchronization interval in minutes; zero disables scheduling.',
+      },
+    },
+  },
   createKnowledgeDocumentUpload: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents/uploads',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Document Upload',
     body: {
@@ -6169,10 +15066,10 @@ export const V2_OPERATIONS = {
   },
   createKnowledgeDocumentUploadPartUrls: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts',
-    pathParams: ['id', 'uploadId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts',
+    pathParams: ['knowledgeBaseId', 'uploadId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
@@ -6191,6 +15088,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createKnowledgeFolder: {
     method: 'POST',
@@ -6205,6 +15109,58 @@ export const V2_OPERATIONS = {
         describe: 'Workspace in which to create the folder.',
       },
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
+    },
+  },
+  createKnowledgeTag: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Create Tag',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      displayName: {
+        kind: 'string',
+        required: true,
+        describe: 'Name tag filters and document reads use for this tag.',
+      },
+      fieldType: {
+        kind: 'enum',
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        default: 'text',
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.',
+      },
+      tagSlot: {
+        kind: 'enum',
+        values: [
+          'tag1',
+          'tag2',
+          'tag3',
+          'tag4',
+          'tag5',
+          'tag6',
+          'tag7',
+          'number1',
+          'number2',
+          'number3',
+          'number4',
+          'number5',
+          'date1',
+          'date2',
+          'boolean1',
+          'boolean2',
+          'boolean3',
+        ] as const,
+        describe:
+          'Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected.',
+      },
     },
   },
   createMcpServer: {
@@ -6225,8 +15181,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['streamable-http'] as const,
         default: 'streamable-http',
-        describe:
-          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+        describe: 'Transport protocol. Defaults to `streamable-http` on creation.',
       },
       url: {
         kind: 'string',
@@ -6248,19 +15203,17 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
-        describe:
-          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+        describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
-        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+        describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
         kind: 'boolean',
         default: true,
-        describe:
-          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+        describe: "Whether workflows can use the server's tools. Defaults to true on creation.",
       },
       oauthClientId: {
         kind: 'string',
@@ -6274,12 +15227,123 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Create Organization Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      target: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable.',
+      },
+      reason: { kind: 'string', default: '', describe: 'Why the acting user needs this access.' },
+    },
+  },
+  createOrganizationInvitation: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/invitations',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Create Organization Invitation',
+    workspaceKeyUnsupported: true,
+    body: {
+      email: { kind: 'string', required: true, describe: 'Email address of the person to invite.' },
+      role: {
+        kind: 'enum',
+        values: ['member', 'admin'] as const,
+        default: 'member',
+        describe:
+          'Organization role to offer. Defaults to member; grants no workspace-specific permissions.',
+      },
+    },
+  },
+  createPermissionGroup: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/permission-groups',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
+    responseMode: 'json',
+    summary: 'Create Permission Group',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Group name, unique within the organization.',
+      },
+      description: { kind: 'string', describe: 'Optional group description.' },
+      config: {
+        kind: 'object',
+        describe:
+          'Permission restrictions to set. Omitted keys use the default permission configuration.',
+      },
+      isDefault: {
+        kind: 'boolean',
+        describe:
+          'Whether the group is the organization default. Only one group can be the default.',
+      },
+      workspaceIds: {
+        kind: 'array',
+        describe:
+          'Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.',
+      },
+    },
+  },
+  createSandbox: {
+    method: 'POST',
+    path: '/api/v2/sandboxes',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Sandbox',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the sandbox.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Display name, unique within the workspace; 1 to 64 characters.',
+      },
+      language: {
+        kind: 'enum',
+        required: true,
+        values: ['javascript', 'python'] as const,
+        describe: 'Dependency ecosystem: `javascript` installs from npm, `python` from PyPI.',
+      },
+      dependencies: {
+        kind: 'array',
+        default: [],
+        describe: 'Package specifiers installed into the sandbox, one per entry.',
+      },
+      cliTools: {
+        kind: 'array',
+        default: [],
+        describe: 'Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates.',
+      },
+      systemPackages: {
+        kind: 'array',
+        default: [],
+        describe: 'Debian packages installed into the sandbox, one per entry.',
+      },
+    },
+  },
   createServiceAccountCredential: {
     method: 'POST',
     path: '/api/v2/credentials',
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Service-Account Credential',
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -6303,24 +15367,15 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Optional credential description.' },
       id: {
         kind: 'string',
-        describe: 'Required only when provider discovery requests a client-generated ID.',
+        describe:
+          'Optional client-generated credential ID. The server mints one when it is omitted, so no provider requires it. A `slack-custom-bot` credential may supply one so its Slack Request URL, which embeds the ID, can be configured before the credential exists; every other provider ignores it.',
       },
-      serviceAccountJson: {
+      credentials: {
         kind: 'string',
-        describe: 'Write-only Google service-account JSON key.',
+        required: true,
+        describe:
+          'Write-only JSON object string containing the fields declared by credential-provider discovery.',
       },
-      apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
-      domain: { kind: 'string', describe: 'Provider account domain.' },
-      signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
-      botToken: { kind: 'string', describe: 'Write-only bot token.' },
-      clientId: { kind: 'string', describe: 'OAuth client identifier.' },
-      clientSecret: { kind: 'string', describe: 'Write-only OAuth client secret.' },
-      certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
-      orgId: { kind: 'string', describe: 'Provider organization ID.' },
-      dataCenter: { kind: 'string', describe: 'Provider data center.' },
-      authMethod: { kind: 'string', describe: 'Provider authentication method.' },
-      privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
-      username: { kind: 'string', describe: 'Provider run-as username.' },
     },
   },
   createSkill: {
@@ -6329,6 +15384,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'Create Skill',
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -6365,6 +15421,36 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       schema: { kind: 'object', required: true, describe: 'Initial table column definitions.' },
       folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
+    },
+  },
+  createTableDispatch: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/dispatches',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Create Run Dispatch',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      groupIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflow or enrichment groups to run.',
+      },
+      runMode: {
+        kind: 'enum',
+        values: ['all', 'incomplete'] as const,
+        default: 'all',
+        describe: 'Whether to run all or only incomplete cells.',
+      },
+      rowIds: { kind: 'array', describe: 'Explicit row subset to run.' },
+      filter: {
+        kind: 'unknown',
+        describe:
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+      },
+      excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
+      limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
     },
   },
   createTableExport: {
@@ -6438,6 +15524,13 @@ export const V2_OPERATIONS = {
         describe: 'Multipart part numbers for which signed URLs should be created.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
   },
   createTableRows: {
     method: 'POST',
@@ -6504,6 +15597,85 @@ export const V2_OPERATIONS = {
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
+  createWorkflowMcpServer: {
+    method: 'POST',
+    path: '/api/v2/workflow-mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Workflow MCP Server',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to publish the server.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Server display name, shown to connecting MCP clients.',
+      },
+      description: { kind: 'string', describe: 'Optional server description.' },
+      isPublic: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL.',
+      },
+      workflowIds: {
+        kind: 'array',
+        describe: 'Deployed workflows to publish as tools on the new server.',
+      },
+    },
+  },
+  createWorkspaceAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'Create Workspace Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      target: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable.',
+      },
+      reason: { kind: 'string', default: '', describe: 'Why the acting user needs this access.' },
+    },
+  },
+  createWorkspaceInvitations: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/invitations',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
+    responseMode: 'json',
+    summary: 'Create Workspace Invitations',
+    workspaceKeyUnsupported: true,
+    body: {
+      emails: {
+        kind: 'array',
+        required: true,
+        describe:
+          'Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients.',
+      },
+      permission: {
+        kind: 'enum',
+        values: ['admin', 'write', 'read'] as const,
+        default: 'read',
+        describe: 'Workspace permission to grant. Existing workspace access is preserved.',
+      },
+      membership: {
+        kind: 'enum',
+        values: ['member', 'admin', 'external'] as const,
+        default: 'member',
+        describe:
+          'Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external.',
+      },
+    },
+  },
   deleteCredential: {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
@@ -6511,6 +15683,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { credentialId: 'Credential to disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -6521,9 +15694,9 @@ export const V2_OPERATIONS = {
   },
   deleteCustomTool: {
     method: 'DELETE',
-    path: '/api/v2/custom-tools/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique custom tool identifier.' },
+    path: '/api/v2/custom-tools/[customToolId]',
+    pathParams: ['customToolId'] as const,
+    pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Delete Custom Tool',
     query: {
@@ -6576,11 +15749,22 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteFileVersion: {
+    method: 'DELETE',
+    path: '/api/v2/files/[fileId]/versions/[version]',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Delete File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   deleteKnowledgeBase: {
     method: 'DELETE',
-    path: '/api/v2/knowledge/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Delete Knowledge Base',
     query: {
@@ -6591,12 +15775,55 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteKnowledgeChunk: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['knowledgeBaseId', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Chunk',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  deleteKnowledgeConnector: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Knowledge Connector',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      deleteDocuments: {
+        kind: 'boolean',
+        describe: 'Also permanently delete documents produced by this connector.',
+      },
+    },
+  },
   deleteKnowledgeDocument: {
     method: 'DELETE',
-    path: '/api/v2/knowledge/[id]/documents/[documentId]',
-    pathParams: ['id', 'documentId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
@@ -6640,11 +15867,51 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteKnowledgeTag: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]',
+    pathParams: ['knowledgeBaseId', 'tagId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      tagId: 'Unique tag definition identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Tag',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  deleteKnowledgeTagDefinitions: {
+    method: 'DELETE',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Tag Definitions',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      unused: {
+        kind: 'boolean',
+        describe:
+          'Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass `unused=false` to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable.',
+      },
+    },
+  },
   deleteMcpServer: {
     method: 'DELETE',
-    path: '/api/v2/mcp-servers/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Delete MCP Server',
     query: {
@@ -6655,13 +15922,38 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deletePermissionGroup: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Permission Group',
+    workspaceKeyUnsupported: true,
+  },
+  deleteSandbox: {
+    method: 'DELETE',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Sandbox',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+    },
+  },
   deleteSecret: {
     method: 'DELETE',
     path: '/api/v2/secrets/[name]',
     pathParams: ['name'] as const,
-    pathParamDocs: { name: 'Secret to create, replace, or delete.' },
+    pathParamDocs: { name: 'Secret to delete.' },
     responseMode: 'json',
     summary: 'Delete Secret',
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -6680,13 +15972,15 @@ export const V2_OPERATIONS = {
   },
   deleteSkill: {
     method: 'DELETE',
-    path: '/api/v2/skills/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Delete Skill',
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
@@ -6768,7 +16062,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
       rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
@@ -6787,11 +16081,20 @@ export const V2_OPERATIONS = {
   },
   deleteWorkflow: {
     method: 'DELETE',
-    path: '/api/v2/workflows/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow',
+  },
+  deleteWorkflowChatDeployment: {
+    method: 'DELETE',
+    path: '/api/v2/workflows/[workflowId]/deployments/chat',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Workflow Chat Deployment',
+    workspaceKeyUnsupported: true,
   },
   deleteWorkflowFolder: {
     method: 'DELETE',
@@ -6836,18 +16139,176 @@ export const V2_OPERATIONS = {
       groupId: { kind: 'string', required: true, describe: 'Workflow group to delete.' },
     },
   },
+  deleteWorkflowMcpServer: {
+    method: 'DELETE',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Workflow MCP Server',
+    workspaceKeyUnsupported: true,
+  },
   deployWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/deploy',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/deploy',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Deploy Workflow',
+    workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Optional label for the deployment version.' },
       description: {
         kind: 'string',
         describe: 'Optional release note for the deployment version.',
+      },
+    },
+  },
+  deployWorkflowMcpTool: {
+    method: 'POST',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Publish Workflow As MCP Tool',
+    workspaceKeyUnsupported: true,
+    body: {
+      workflowId: {
+        kind: 'string',
+        required: true,
+        describe: 'Deployed workflow to publish. The workflow must already be deployed.',
+      },
+      toolName: {
+        kind: 'string',
+        describe:
+          'Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted.',
+      },
+      toolDescription: {
+        kind: 'string',
+        describe: 'Description shown to MCP clients. Derived from the workflow name when omitted.',
+      },
+      parameterDescriptions: {
+        kind: 'array',
+        describe:
+          'Per-field description overrides applied to the schema generated from the deployed workflow inputs. A name matching no input field is ignored.',
+      },
+    },
+  },
+  discoverOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/discovery',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Discover Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the access item label.',
+      },
+      targetKind: {
+        kind: 'enum',
+        values: [
+          'feature',
+          'integration',
+          'provider',
+          'model',
+          'tool',
+          'knowledge_connector',
+          'file_share_auth',
+          'chat_deploy_auth',
+          'usage_limit',
+        ] as const,
+        describe: 'Category of access to discover.',
+      },
+      state: {
+        kind: 'enum',
+        values: ['allowed', 'requestable', 'unavailable'] as const,
+        describe:
+          'Filter by the acting user’s current access. Requestable items can be submitted for review.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['label'] as const,
+        default: 'label',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  discoverWorkspaceAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests/discovery',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'Discover Workspace Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the access item label.',
+      },
+      targetKind: {
+        kind: 'enum',
+        values: [
+          'feature',
+          'integration',
+          'provider',
+          'model',
+          'tool',
+          'knowledge_connector',
+          'file_share_auth',
+          'chat_deploy_auth',
+          'usage_limit',
+        ] as const,
+        describe: 'Category of access to discover.',
+      },
+      state: {
+        kind: 'enum',
+        values: ['allowed', 'requestable', 'unavailable'] as const,
+        describe:
+          'Filter by the acting user’s current access. Requestable items can be submitted for review.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['label'] as const,
+        default: 'label',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },
@@ -6862,28 +16323,131 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  downloadFileVersion: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]/content',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'binary',
+    summary: 'Download File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
+  downloadRunFile: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]',
+    pathParams: ['workflowId', 'runId', 'fileId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+      fileId: 'Identifier of a file the run produced, as reported by the run resource.',
+    },
+    responseMode: 'binary',
+    summary: 'Download Workflow Run File',
+  },
+  duplicateWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/duplicate',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Duplicate Workflow',
+    body: {
+      name: {
+        kind: 'string',
+        describe: 'Name for the copy. Defaults to the source name, deduplicated within the folder.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: "Destination folder path. Defaults to the source workflow's folder.",
+      },
+    },
+  },
+  editFileContent: {
+    method: 'PATCH',
+    path: '/api/v2/files/[fileId]/content',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Edit File Content',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      edit: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+      },
+    },
+  },
+  executeTool: {
+    method: 'POST',
+    path: '/api/v2/tools/[toolId]/execute',
+    pathParams: ['toolId'] as const,
+    pathParamDocs: {
+      toolId:
+        'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.',
+    },
+    responseMode: 'json',
+    summary: 'Run Tool',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, credentials, and environment variables govern this call.',
+      },
+      input: {
+        kind: 'object',
+        default: {},
+        describe:
+          'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.',
+      },
+      credentialId: {
+        kind: 'string',
+        describe:
+          'Credential to authenticate with. Required when the tool declares an OAuth requirement; the workspace credentials list names the candidates.',
+      },
+      timeoutSeconds: {
+        kind: 'integer',
+        describe: 'How long to wait for the tool before abandoning the call.',
+      },
+    },
+  },
   executeWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/execute',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/execute',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Execute Workflow',
     body: {
       input: {
         kind: 'object',
-        describe: 'Workflow input keyed by deployed trigger input-field name.',
+        describe: 'Workflow input keyed by the selected trigger input-field name.',
+      },
+      run: {
+        kind: 'unknown',
+        describe:
+          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.',
       },
       async: {
         kind: 'boolean',
         default: false,
         describe:
-          'Queue the run and return a 202 receipt when true. Requires an API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).',
+          'Queue the run and return a 202 receipt when true. Requires an OAuth access token or API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).',
       },
       executionTimeoutSeconds: {
         kind: 'integer',
         describe:
-          "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true.",
+          "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`.",
       },
       stream: {
         kind: 'boolean',
@@ -6894,7 +16458,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response. Rejected when `async` is true.',
+          'Select `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>` using normalized block reference names. Child selectors cover every invocation. Synchronous results use selector strings verbatim as `blockOutputs` keys; streaming selections shape the envelope. Unknown block names or IDs return `400` with available blocks before execution. Unexecuted blocks and absent paths are omitted. Incompatible with `async`; select outputs from the finished run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
@@ -6915,48 +16479,102 @@ export const V2_OPERATIONS = {
       base64MaxBytes: {
         kind: 'integer',
         describe:
-          'Maximum total bytes of file content to inline as base64. Rejected when `async` is true.',
+          'Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true.',
+      },
+    },
+    headers: {
+      'x-run-id': {
+        kind: 'string',
+        describe:
+          'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.',
+      },
+      'x-sim-via': {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
+      },
+    },
+  },
+  exportKnowledgeBase: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/export',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'binary',
+    summary: 'Export Knowledge Base',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      vectors: {
+        kind: 'boolean',
+        describe:
+          'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.',
       },
     },
   },
   exportWorkflow: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/export',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/export',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Export Workflow',
-  },
-  findTableRows: {
-    method: 'POST',
-    path: '/api/v2/tables/[tableId]/rows/find',
-    pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
-    responseMode: 'json',
-    summary: 'Find Rows',
-    body: {
-      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
-      q: { kind: 'string', required: true, describe: 'Case-insensitive cell substring to find.' },
-      predicate: {
-        kind: 'unknown',
+    query: {
+      includeReferences: {
+        kind: 'boolean',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'Include non-secret resource identifiers and source field occurrences for mapped imports.',
       },
-      sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
+      includeWorkspaceBindings: {
+        kind: 'boolean',
+        describe:
+          'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.',
+      },
+    },
+  },
+  forkWorkspace: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Fork Workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Display name of the workflow or workspace.' },
+      copy: {
+        kind: 'object',
+        describe:
+          'Explicit resource selections to copy into the new fork; omitted resource kinds are not copied.',
+      },
+      requestId: {
+        kind: 'string',
+        required: true,
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        required: true,
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
     },
   },
   getAuditLog: {
     method: 'GET',
-    path: '/api/v2/audit-logs/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Audit-log entry identifier.' },
+    path: '/api/v2/audit-logs/[auditLogId]',
+    pathParams: ['auditLogId'] as const,
+    pathParamDocs: { auditLogId: 'Audit-log entry identifier.' },
     responseMode: 'json',
     summary: 'Get Audit Log',
+    workspaceKeyUnsupported: true,
     query: {
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit-log entry should be returned.',
+        describe:
+          "Organization whose audit-log entry should be returned. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
     },
   },
@@ -6970,15 +16588,34 @@ export const V2_OPERATIONS = {
       workspaceId: {
         kind: 'string',
         describe:
-          'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.',
+          'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.',
+      },
+    },
+  },
+  getBlock: {
+    method: 'GET',
+    path: '/api/v2/blocks/[blockId]',
+    pathParams: ['blockId'] as const,
+    pathParamDocs: {
+      blockId:
+        'Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id.',
+    },
+    responseMode: 'json',
+    summary: 'Get Block',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
       },
     },
   },
   getCustomTool: {
     method: 'GET',
-    path: '/api/v2/custom-tools/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique custom tool identifier.' },
+    path: '/api/v2/custom-tools/[customToolId]',
+    pathParams: ['customToolId'] as const,
+    pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Get Custom Tool',
     query: {
@@ -7003,7 +16640,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.',
+          'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both.',
       },
     },
   },
@@ -7018,11 +16655,44 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  getFileUpload: {
+    method: 'GET',
+    path: '/api/v2/files/uploads/[uploadId]',
+    pathParams: ['uploadId'] as const,
+    pathParamDocs: { uploadId: 'Upload session identifier.' },
+    responseMode: 'json',
+    summary: 'Get File Upload',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the upload session.',
+      },
+    },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        required: true,
+        describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  getFileVersion: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Get File Version',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
   getKnowledgeBase: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Get Knowledge Base',
     query: {
@@ -7033,12 +16703,51 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getKnowledgeChunk: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['knowledgeBaseId', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Chunk',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  getKnowledgeConnector: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Get Knowledge Connector',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
   getKnowledgeDocument: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/documents/[documentId]',
-    pathParams: ['id', 'documentId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
@@ -7058,12 +16767,94 @@ export const V2_OPERATIONS = {
     pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Log',
+    query: {
+      includeWorkflowState: {
+        kind: 'boolean',
+        describe:
+          'Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
+  },
+  getLogStats: {
+    method: 'GET',
+    path: '/api/v2/logs/stats',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get Log Statistics',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose execution statistics to summarize.',
+      },
+      workflowIds: {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected.',
+      },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.',
+      },
+      triggers: {
+        kind: 'string',
+        describe:
+          'Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter.',
+      },
+      level: {
+        kind: 'enum',
+        values: ['info', 'error'] as const,
+        describe: 'Severity level to include.',
+      },
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace.',
+      },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      segmentCount: {
+        kind: 'integer',
+        default: 72,
+        describe:
+          'Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
+      },
+      includeEmpty: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        default: false,
+        describe:
+          'Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
+      },
+    },
   },
   getMcpServer: {
     method: 'GET',
-    path: '/api/v2/mcp-servers/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Get MCP Server',
     query: {
@@ -7074,12 +16865,343 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getMeta: {
+    method: 'GET',
+    path: '/api/v2/meta',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get API Capabilities',
+  },
+  getNextKnowledgeTagSlot: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/next-slot',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Get Next Tag Slot',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      fieldType: {
+        kind: 'enum',
+        required: true,
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3.',
+      },
+    },
+  },
+  getOrganization: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationAccessRequestSettings: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/settings',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Get Organization Access Request Settings',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationInvitation: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Organization Invitation',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationMemberUsageLimit: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]/usage-limit',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId:
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
+    },
+    responseMode: 'json',
+    summary: 'Get Organization Member Credit Limit',
+    workspaceKeyUnsupported: true,
+  },
+  getOrganizationUsageBreakdown: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/breakdown',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization Usage Breakdown',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      workspaceId: {
+        kind: 'string',
+        describe: 'Restrict usage to one workspace owned by the organization.',
+      },
+      dimension: {
+        kind: 'enum',
+        required: true,
+        values: ['member', 'workspace', 'workflow', 'model', 'byok', 'source'] as const,
+        describe: 'Usage grouping dimension.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+    },
+  },
+  getOrganizationUsageSummary: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/summary',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Get Organization Usage Summary',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      workspaceId: {
+        kind: 'string',
+        describe: 'Restrict usage to one workspace owned by the organization.',
+      },
+    },
+  },
+  getPermissionGroup: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Permission Group',
+    workspaceKeyUnsupported: true,
+  },
+  getRowEnrichment: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
+    pathParams: ['tableId', 'rowId', 'groupId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      rowId: 'Unique table row identifier.',
+      groupId: 'Workflow or enrichment group to run.',
+    },
+    responseMode: 'json',
+    summary: 'Get Row Group Run',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
+  getSandbox: {
+    method: 'GET',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Get Sandbox',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+    },
+  },
+  getSelector: {
+    method: 'POST',
+    path: '/api/v2/selectors/get',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Get Selector Option',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Explicit current workspace scope.',
+      },
+      selectorKey: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'airtable.bases',
+          'airtable.tables',
+          'asana.workspaces',
+          'attio.lists',
+          'attio.objects',
+          'bigquery.datasets',
+          'bigquery.tables',
+          'bitbucket.workspaces',
+          'bitbucket.repositories',
+          'calcom.eventTypes',
+          'calcom.schedules',
+          'clickup.workspaces',
+          'clickup.spaces',
+          'clickup.folders',
+          'clickup.lists',
+          'coda.docs',
+          'coda.pages',
+          'coda.tables',
+          'coda.columns',
+          'coda.rows',
+          'coda.formulas',
+          'coda.controls',
+          'coda.folders',
+          'coda.permissions',
+          'confluence.spaces',
+          'confluence.spacesById',
+          'confluence.pages',
+          'google.tasks.lists',
+          'gmail.labels',
+          'google.calendar',
+          'google.drive',
+          'google.sheets',
+          'harmonic.savedSearches',
+          'hubspot.lists',
+          'hubspot.owners',
+          'hubspot.pipelines',
+          'hubspot.pipelineStages',
+          'hubspot.properties',
+          'jsm.requestTypes',
+          'jsm.serviceDesks',
+          'microsoft.planner.plans',
+          'notion.databases',
+          'notion.pages',
+          'netsuite.recordTypes',
+          'netsuite.asyncTasks',
+          'pipedrive.pipelines',
+          'sharepoint.lists',
+          'trello.boards',
+          'zoho_desk.organizations',
+          'zoho_desk.departments',
+          'zoho_desk.agents',
+          'zoom.meetings',
+          'slack.channels',
+          'snowflake.databases',
+          'snowflake.schemas',
+          'snowflake.tables',
+          'snowflake.warehouses',
+          'snowflake.roles',
+          'snowflake.fileFormats',
+          'snowflake.procedures',
+          'slack.users',
+          'outlook.folders',
+          'outlook.calendars',
+          'microsoft.teams',
+          'microsoft.chats',
+          'microsoft.channels',
+          'microsoft.planner',
+          'onedrive.files',
+          'onedrive.folders',
+          'sharepoint.sites',
+          'microsoft.excel',
+          'microsoft.excel.drives',
+          'microsoft.excel.sheets',
+          'microsoft.word',
+          'wealthbox.contacts',
+          'jira.issues',
+          'jira.projects',
+          'jira.projectKeys',
+          'linear.projects',
+          'linear.teams',
+          'monday.boards',
+          'monday.groups',
+          'webflow.sites',
+          'webflow.collections',
+          'webflow.items',
+          'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
+          'cloudwatch.logGroups',
+          'cloudwatch.logStreams',
+          'imap.mailboxes',
+          'mcp.tools',
+          'managedAgent.agents',
+          'managedAgent.environments',
+          'managedAgent.vaults',
+          'managedAgent.memoryStores',
+          'knowledge.documents',
+          'sim.workflows',
+          'table.columns',
+          'table.outputColumns',
+          'workspace.secretNames',
+          'workspace.sandboxes',
+          'providers.ollamaEmbeddingModels',
+          'providers.openrouterEmbeddingModels',
+        ] as const,
+        describe: 'Registered selector key for discovering this field’s destination options.',
+      },
+      context: {
+        kind: 'object',
+        default: {},
+        describe:
+          'Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization.',
+      },
+      id: { kind: 'string', required: true, describe: 'Resource identifier.' },
+    },
+  },
   getSkill: {
     method: 'GET',
-    path: '/api/v2/skills/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Get Skill',
@@ -7098,11 +17220,32 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  getTableDispatch: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
+    pathParams: ['tableId', 'dispatchId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      dispatchId: 'Unique table run-dispatch identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Get Run Dispatch',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
+    },
+  },
   getTableExport: {
     method: 'GET',
-    path: '/api/v2/tables/exports/[exportId]',
-    pathParams: ['exportId'] as const,
-    pathParamDocs: { exportId: 'Unique table-export identifier.' },
+    path: '/api/v2/tables/[tableId]/exports/[exportId]',
+    pathParams: ['tableId', 'exportId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      exportId: 'Unique table-export identifier.',
+    },
     responseMode: 'json',
     summary: 'Get Table Export',
     query: {
@@ -7127,6 +17270,12 @@ export const V2_OPERATIONS = {
         describe: 'Workspace that owns the transfer resource.',
       },
     },
+    headers: {
+      'upload-token': {
+        kind: 'string',
+        describe: 'Signed upload control token returned when an upload-backed import was created.',
+      },
+    },
   },
   getTableRow: {
     method: 'GET',
@@ -7137,6 +17286,10 @@ export const V2_OPERATIONS = {
     summary: 'Get Row',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      includeRunState: {
+        kind: 'boolean',
+        describe: 'Include per-workflow-group run state on the returned row. Off by default.',
+      },
     },
   },
   getTableView: {
@@ -7150,27 +17303,67 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  getTool: {
+    method: 'GET',
+    path: '/api/v2/tools/[toolId]',
+    pathParams: ['toolId'] as const,
+    pathParamDocs: {
+      toolId:
+        'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.',
+    },
+    responseMode: 'json',
+    summary: 'Get Tool',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+    },
+  },
   getWorkflow: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow',
   },
+  getWorkflowChatDeployment: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/deployments/chat',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow Chat Deployment',
+    workspaceKeyUnsupported: true,
+  },
   getWorkflowDeployment: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/deployment',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/deployment',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow Deployment',
   },
+  getWorkflowMcpServer: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow MCP Server',
+    workspaceKeyUnsupported: true,
+  },
   getWorkflowRun: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/runs/[runId]',
-    pathParams: ['id', 'runId'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]',
+    pathParams: ['workflowId', 'runId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+    },
     responseMode: 'json',
     summary: 'Get Workflow Run',
     query: {
@@ -7182,15 +17375,35 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'string',
         describe:
-          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.',
+          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a selector that is not headed by a block id answers `400` instead of an empty `blockOutputs`.',
+      },
+      includeFileBase64: {
+        kind: 'boolean',
+        describe:
+          "Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead.",
+      },
+      base64MaxBytes: {
+        kind: 'integer',
+        describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
       },
     },
   },
+  getWorkflowState: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/state',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workflow State',
+  },
   getWorkflowVersion: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/versions/[version]',
-    pathParams: ['id', 'version'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', version: 'Numeric deployment version.' },
+    path: '/api/v2/workflows/[workflowId]/versions/[version]',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version.',
+    },
     responseMode: 'json',
     summary: 'Get Workflow Version',
   },
@@ -7201,6 +17414,110 @@ export const V2_OPERATIONS = {
     pathParamDocs: { workspaceId: 'Workspace to retrieve.' },
     responseMode: 'json',
     summary: 'Get Workspace',
+  },
+  getWorkspaceForkAvailability: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/availability',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Fork Availability',
+    workspaceKeyUnsupported: true,
+  },
+  getWorkspaceForkLineage: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/lineage',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Fork Lineage',
+    workspaceKeyUnsupported: true,
+  },
+  getWorkspaceForkMappings: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/mappings',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Fork Mappings',
+    workspaceKeyUnsupported: true,
+    query: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      direction: {
+        kind: 'enum',
+        required: true,
+        values: ['push', 'pull'] as const,
+        describe:
+          'Push means current to other; pull means other to current, independent of parent/child orientation.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id'] as const,
+        default: 'id',
+        describe: 'Supported stable sort key for this collection.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
+  getWorkspaceOperation: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/operations/[operationId]',
+    pathParams: ['workspaceId', 'operationId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Explicit current workspace scope.',
+      operationId: 'Durable operation identifier to use for polling.',
+    },
+    responseMode: 'json',
+    summary: 'Get Workspace Operation',
+  },
+  getWorkspacePermissionConfig: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/permission-config',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
+    responseMode: 'json',
+    summary: 'Get Workspace Permission Config',
+    workspaceKeyUnsupported: true,
+  },
+  grantSkillEditor: {
+    method: 'POST',
+    path: '/api/v2/skills/[skillId]/editors',
+    pathParams: ['skillId'] as const,
+    pathParamDocs: {
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
+    responseMode: 'json',
+    summary: 'Grant Skill Editor',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      email: {
+        kind: 'string',
+        required: true,
+        describe: 'Email address of a current workspace member.',
+      },
+    },
   },
   importWorkflow: {
     method: 'POST',
@@ -7226,6 +17543,27 @@ export const V2_OPERATIONS = {
       },
       name: { kind: 'string', describe: 'Override for the imported workflow name.' },
       description: { kind: 'string', describe: 'Override for the imported workflow description.' },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      bindings: {
+        kind: 'array',
+        describe: 'Resolved and unresolved source occurrences with their destination selections.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      requestId: {
+        kind: 'string',
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
     },
   },
   listAuditLogs: {
@@ -7234,6 +17572,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Audit Logs',
+    workspaceKeyUnsupported: true,
     query: {
       action: { kind: 'string', describe: 'Filter by exact action name.' },
       resourceType: {
@@ -7270,8 +17609,8 @@ export const V2_OPERATIONS = {
       },
       organizationId: {
         kind: 'string',
-        required: true,
-        describe: 'Organization whose audit trail should be queried.',
+        describe:
+          "Organization whose audit trail should be queried. Defaults to the caller's own organization when omitted. A caller that belongs to no organization, or that names one it is not a member of, is refused with a 403.",
       },
       actorEmail: { kind: 'string', describe: 'Filter by actor email address.' },
     },
@@ -7295,12 +17634,14 @@ export const V2_OPERATIONS = {
           'voice-input',
           'enrichment',
           'voice-output',
+          'api-tool',
         ] as const,
         describe: 'Restrict results to one usage source.',
       },
       workspaceId: {
         kind: 'string',
-        describe: 'Restrict results to one workspace whose payer the caller can inspect.',
+        describe:
+          "Narrow the ledger to one workspace. An OAuth token or personal API key reports only its user's events; a workspace API key reports every member's events in its bound workspace. The response `scope` identifies which view was returned. A workspace key asking for another workspace receives the same `404 Workspace not found` as an unknown id.",
       },
       period: {
         kind: 'enum',
@@ -7324,6 +17665,146 @@ export const V2_OPERATIONS = {
         default: 50,
         describe:
           'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listBlocks: {
+    method: 'GET',
+    path: '/api/v2/blocks',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Blocks',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the block id, name, and description.',
+      },
+      category: {
+        kind: 'enum',
+        values: ['blocks', 'tools', 'triggers'] as const,
+        describe: 'Restrict to one toolbar category.',
+      },
+      capability: {
+        kind: 'enum',
+        values: ['trigger'] as const,
+        describe:
+          'Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields.',
+      },
+      source: {
+        kind: 'enum',
+        values: ['builtin', 'custom'] as const,
+        describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
+      },
+      includeSunset: {
+        kind: 'boolean',
+        describe:
+          'Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id', 'name', 'category'] as const,
+        default: 'id',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum blocks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listChatDeployments: {
+    method: 'GET',
+    path: '/api/v2/chat-deployments',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Chat Deployments',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose chat deployments to list.',
+      },
+      workflowId: { kind: 'string', describe: 'Restrict to deployments of one workflow.' },
+      isActive: { kind: 'boolean', describe: 'Restrict to active or inactive deployments.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['identifier', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum chat deployments to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listConnectorTypes: {
+    method: 'GET',
+    path: '/api/v2/connector-types',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Connector Types',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the connector name.',
+      },
+      detail: {
+        kind: 'enum',
+        values: ['summary', 'full'] as const,
+        default: 'summary',
+        describe:
+          'Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 25,
+        describe:
+          'Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
       cursor: {
         kind: 'string',
@@ -7456,7 +17937,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -7475,6 +17957,35 @@ export const V2_OPERATIONS = {
         default: 'asc',
         describe: 'Sort direction.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.',
+      },
+      recursive: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe: 'Whether parentPath includes every descendant instead of direct children only.',
+      },
+      depth: {
+        kind: 'integer',
+        describe: 'Deepest level below parentPath to include when recursive is true.',
+      },
     },
   },
   listFiles: {
@@ -7492,14 +18003,33 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict files to this folder, including subfolders when `recursive` is true. Unknown folder paths contribute no matches.',
+      },
+      recursive: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter.',
       },
       scope: {
         kind: 'enum',
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+          'Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
       },
       search: {
         kind: 'string',
@@ -7531,6 +18061,40 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listFileVersions: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'List File Versions',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['version'] as const,
+        default: 'version',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listKnowledgeBases: {
     method: 'GET',
     path: '/api/v2/knowledge',
@@ -7543,10 +18107,17 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace whose knowledge bases should be listed.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.',
+      },
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to knowledge bases in this folder. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -7578,11 +18149,136 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listKnowledgeChunks: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Chunks',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against chunk content.',
+      },
+      enabled: {
+        kind: 'enum',
+        values: ['true', 'false', 'all'] as const,
+        default: 'all',
+        describe: 'Restrict to enabled or disabled chunks. `all` returns both.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['chunkIndex', 'tokenCount', 'enabled'] as const,
+        default: 'chunkIndex',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum chunks to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listKnowledgeConnectorDocuments: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'List Knowledge Connector Documents',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      includeExcluded: {
+        kind: 'boolean',
+        describe: 'Include documents explicitly excluded by a user.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum connector documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listKnowledgeConnectors: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'List Knowledge Connectors',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['connectorType', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listKnowledgeDocuments: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/documents',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Documents',
     query: {
@@ -7654,7 +18350,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -7677,11 +18374,27 @@ export const V2_OPERATIONS = {
   },
   listKnowledgeTags: {
     method: 'GET',
-    path: '/api/v2/knowledge/[id]/tags',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Tags',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  listKnowledgeTagUsage: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/usage',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'List Tag Usage',
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -7704,12 +18417,13 @@ export const V2_OPERATIONS = {
       },
       workflowIds: {
         kind: 'string',
-        describe: 'Comma-separated workflow identifiers to include. An empty entry is rejected.',
+        describe:
+          'Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries.',
       },
       triggers: {
         kind: 'string',
         describe:
-          'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.',
+          'Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values. At most 100 entries.',
       },
       level: {
         kind: 'enum',
@@ -7752,7 +18466,7 @@ export const V2_OPERATIONS = {
         values: ['basic', 'full'] as const,
         default: 'basic',
         describe:
-          'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.',
+          'Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.',
       },
       includeTraceSpans: {
         kind: 'boolean',
@@ -7775,18 +18489,44 @@ export const V2_OPERATIONS = {
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
-      order: {
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.',
+      },
+      status: {
+        kind: 'string',
+        describe:
+          'Comma-separated execution statuses to include, from `pending` | `running` | `paused` | `redacting` | `completed` | `failed` | `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle.',
+      },
+      workflowName: {
+        kind: 'string',
+        describe:
+          "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable.",
+      },
+      includeJobRuns: {
+        kind: 'boolean',
+        describe:
+          'Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`.',
+      },
+      runId: { kind: 'string', describe: 'Exact run identifier to match.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['startedAt', 'durationMs', 'cost', 'status'] as const,
+        default: 'startedAt',
+        describe:
+          'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.',
+      },
+      sortOrder: {
         kind: 'enum',
         values: ['asc', 'desc'] as const,
         default: 'desc',
-        describe:
-          'Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.',
+        describe: 'Sort direction.',
       },
-      runId: { kind: 'string', describe: 'Exact run identifier to match.' },
       folderPaths: {
         kind: 'string',
         describe:
-          'Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Comma-separated workflow folder paths, including descendants. Up to 100 paths. Unknown folder paths contribute no matches.',
       },
     },
   },
@@ -7834,11 +18574,12 @@ export const V2_OPERATIONS = {
   },
   listMcpServerTools: {
     method: 'GET',
-    path: '/api/v2/mcp-servers/[id]/tools',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]/tools',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'List MCP Server Tools',
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -7848,7 +18589,514 @@ export const V2_OPERATIONS = {
       refresh: {
         kind: 'boolean',
         describe:
-          'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.',
+          "Refresh tools using your credentials. Otherwise results may reuse another workspace member's recent discovery and omit newly added tools.",
+      },
+    },
+  },
+  listMyOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/mine',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'List My Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listMyWorkspaceAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/access-requests',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
+    responseMode: 'json',
+    summary: 'List My Workspace Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationAccessRequests: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'List Organization Access Requests',
+    workspaceKeyUnsupported: true,
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] as const,
+        describe: 'Filter by request status; omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt', 'targetLabel'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum access requests to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      search: {
+        kind: 'string',
+        describe:
+          'Case-insensitive substring match against the target label or requester name or email.',
+      },
+    },
+  },
+  listOrganizationInvitations: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Invitations',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the invitee email.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['pending', 'accepted', 'rejected', 'cancelled', 'expired'] as const,
+        describe: 'Filter by current invitation status. Omit to include all statuses.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['email', 'createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum invitations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationInvitationWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Organization Invitation Workspaces',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the workspace name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'id'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationMembers: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/members',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Members',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against member name or email.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'email', 'joinedAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizations: {
+    method: 'GET',
+    path: '/api/v2/organizations',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Organizations',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the organization name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum organizations to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listOrganizationUsageEvents: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/usage/events',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Usage Events',
+    workspaceKeyUnsupported: true,
+    query: {
+      preset: {
+        kind: 'enum',
+        values: ['current-period', 'previous-period', '7d', '30d', 'custom'] as const,
+        default: '30d',
+        describe:
+          'Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days.',
+      },
+      startDate: {
+        kind: 'string',
+        describe: 'First calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      endDate: {
+        kind: 'string',
+        describe: 'Last calendar date included, in the selected timezone. Requires preset=custom.',
+      },
+      timezone: {
+        kind: 'string',
+        default: 'UTC',
+        describe: 'IANA timezone for calendar boundaries; defaults to UTC.',
+      },
+      source: {
+        kind: 'enum',
+        values: [
+          'workflow',
+          'wand',
+          'sim-chat',
+          'mcp_copilot',
+          'mothership_block',
+          'knowledge-base',
+          'voice-input',
+          'enrichment',
+          'voice-output',
+          'api-tool',
+        ] as const,
+        describe: 'Restrict events to one product surface.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
+  listOrganizationWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/workspaces',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Organization Workspaces',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the workspace name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'id'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPermissionGroupMembers: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'List Permission Group Members',
+    workspaceKeyUnsupported: true,
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['assignedAt', 'userId'] as const,
+        default: 'assignedAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum group members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listPermissionGroups: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/permission-groups',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
+    responseMode: 'json',
+    summary: 'List Permission Groups',
+    workspaceKeyUnsupported: true,
+    query: {
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the group name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum permission groups to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listSandboxes: {
+    method: 'GET',
+    path: '/api/v2/sandboxes',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Sandboxes',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the sandbox name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum sandboxes to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },
@@ -7858,6 +19106,7 @@ export const V2_OPERATIONS = {
     pathParams: [] as const,
     responseMode: 'json',
     summary: 'List Secrets',
+    workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
@@ -7891,6 +19140,190 @@ export const V2_OPERATIONS = {
         default: 50,
         describe:
           'Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listSelector: {
+    method: 'POST',
+    path: '/api/v2/selectors/list',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Selector Options',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Explicit current workspace scope.',
+      },
+      selectorKey: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'airtable.bases',
+          'airtable.tables',
+          'asana.workspaces',
+          'attio.lists',
+          'attio.objects',
+          'bigquery.datasets',
+          'bigquery.tables',
+          'bitbucket.workspaces',
+          'bitbucket.repositories',
+          'calcom.eventTypes',
+          'calcom.schedules',
+          'clickup.workspaces',
+          'clickup.spaces',
+          'clickup.folders',
+          'clickup.lists',
+          'coda.docs',
+          'coda.pages',
+          'coda.tables',
+          'coda.columns',
+          'coda.rows',
+          'coda.formulas',
+          'coda.controls',
+          'coda.folders',
+          'coda.permissions',
+          'confluence.spaces',
+          'confluence.spacesById',
+          'confluence.pages',
+          'google.tasks.lists',
+          'gmail.labels',
+          'google.calendar',
+          'google.drive',
+          'google.sheets',
+          'harmonic.savedSearches',
+          'hubspot.lists',
+          'hubspot.owners',
+          'hubspot.pipelines',
+          'hubspot.pipelineStages',
+          'hubspot.properties',
+          'jsm.requestTypes',
+          'jsm.serviceDesks',
+          'microsoft.planner.plans',
+          'notion.databases',
+          'notion.pages',
+          'netsuite.recordTypes',
+          'netsuite.asyncTasks',
+          'pipedrive.pipelines',
+          'sharepoint.lists',
+          'trello.boards',
+          'zoho_desk.organizations',
+          'zoho_desk.departments',
+          'zoho_desk.agents',
+          'zoom.meetings',
+          'slack.channels',
+          'snowflake.databases',
+          'snowflake.schemas',
+          'snowflake.tables',
+          'snowflake.warehouses',
+          'snowflake.roles',
+          'snowflake.fileFormats',
+          'snowflake.procedures',
+          'slack.users',
+          'outlook.folders',
+          'outlook.calendars',
+          'microsoft.teams',
+          'microsoft.chats',
+          'microsoft.channels',
+          'microsoft.planner',
+          'onedrive.files',
+          'onedrive.folders',
+          'sharepoint.sites',
+          'microsoft.excel',
+          'microsoft.excel.drives',
+          'microsoft.excel.sheets',
+          'microsoft.word',
+          'wealthbox.contacts',
+          'jira.issues',
+          'jira.projects',
+          'jira.projectKeys',
+          'linear.projects',
+          'linear.teams',
+          'monday.boards',
+          'monday.groups',
+          'webflow.sites',
+          'webflow.collections',
+          'webflow.items',
+          'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
+          'planetscale.branches',
+          'planetscale.backups',
+          'planetscale.deployRequests',
+          'cloudwatch.logGroups',
+          'cloudwatch.logStreams',
+          'imap.mailboxes',
+          'mcp.tools',
+          'managedAgent.agents',
+          'managedAgent.environments',
+          'managedAgent.vaults',
+          'managedAgent.memoryStores',
+          'knowledge.documents',
+          'sim.workflows',
+          'table.columns',
+          'table.outputColumns',
+          'workspace.secretNames',
+          'workspace.sandboxes',
+          'providers.ollamaEmbeddingModels',
+          'providers.openrouterEmbeddingModels',
+        ] as const,
+        describe: 'Registered selector key for discovering this field’s destination options.',
+      },
+      context: {
+        kind: 'object',
+        default: {},
+        describe:
+          'Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization.',
+      },
+      search: { kind: 'string', describe: 'Provider option search text.' },
+      cursor: {
+        kind: 'string',
+        describe: 'Opaque continuation cursor returned by the preceding page.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe: 'Maximum number of items to return on one page.',
+      },
+    },
+  },
+  listSkillEditors: {
+    method: 'GET',
+    path: '/api/v2/skills/[skillId]/editors',
+    pathParams: ['skillId'] as const,
+    pathParamDocs: {
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
+    responseMode: 'json',
+    summary: 'List Skill Editors',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      sortBy: {
+        kind: 'enum',
+        values: ['email', 'name'] as const,
+        default: 'email',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum skill editors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
       },
       cursor: {
         kind: 'string',
@@ -7937,6 +19370,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listTableDispatches: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/dispatches',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'List Run Dispatches',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
   listTableFolders: {
     method: 'GET',
     path: '/api/v2/tables/folders',
@@ -7951,7 +19395,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -7992,6 +19437,11 @@ export const V2_OPERATIONS = {
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
+      includeRunState: {
+        kind: 'boolean',
+        describe:
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.',
+      },
     },
   },
   listTables: {
@@ -8006,10 +19456,17 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace whose tables should be listed.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+      },
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to tables in this folder. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -8052,6 +19509,58 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  listTools: {
+    method: 'GET',
+    path: '/api/v2/tools',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Tools',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the tool id, name, and description.',
+      },
+      hostedApiKey: {
+        kind: 'enum',
+        values: ['always', 'conditional', 'none'] as const,
+        describe: 'Restrict to tools by how their API key is supplied.',
+      },
+      oauthProvider: {
+        kind: 'string',
+        describe: 'Restrict to tools that authenticate against this OAuth service.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id', 'name'] as const,
+        default: 'id',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listWorkflowFolders: {
     method: 'GET',
     path: '/api/v2/workflows/folders',
@@ -8066,7 +19575,8 @@ export const V2_OPERATIONS = {
       },
       parentPath: {
         kind: 'string',
-        describe: 'Restrict results to direct children of this parent path.',
+        describe:
+          'Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.',
       },
       search: {
         kind: 'string',
@@ -8098,11 +19608,59 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
+  listWorkflowMcpServers: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Workflow MCP Servers',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose published MCP servers to list.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workflow-MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listWorkflowMcpTools: {
+    method: 'GET',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'List Workflow MCP Tools',
+    workspaceKeyUnsupported: true,
+  },
   listWorkflowRuns: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/runs',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'List Workflow Runs',
     query: {
@@ -8154,10 +19712,17 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace whose workflows should be listed.',
       },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too.',
+      },
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to workflows in this folder path. Unknown folder paths contribute no matches.',
       },
       deployedOnly: {
         kind: 'boolean',
@@ -8195,9 +19760,9 @@ export const V2_OPERATIONS = {
   },
   listWorkflowVersions: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/versions',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/versions',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'List Workflow Versions',
     query: {
@@ -8211,6 +19776,88 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
+  listWorkspaceForkChildren: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/children',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'List Workspace Fork Children',
+    workspaceKeyUnsupported: true,
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['createdAt'] as const,
+        default: 'createdAt',
+        describe: 'Supported stable sort key for this collection.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+    },
+  },
+  listWorkspaceForkResources: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/fork/resources',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'List Workspace Fork Resources',
+    workspaceKeyUnsupported: true,
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      kind: {
+        kind: 'enum',
+        required: true,
+        values: [
+          'files',
+          'tables',
+          'knowledgeBases',
+          'customTools',
+          'skills',
+          'mcpServers',
+          'workflowMcpServers',
+        ] as const,
+        describe: 'Resource or operation kind.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['id'] as const,
+        default: 'id',
+        describe: 'Supported stable sort key for this collection.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
       },
     },
   },
@@ -8235,6 +19882,64 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listWorkspaceOperations: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/operations',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'List Workspace Operations',
+    query: {
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum items to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      requestId: {
+        kind: 'string',
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+    },
+  },
+  listWorkspaces: {
+    method: 'GET',
+    path: '/api/v2/workspaces',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Workspaces',
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 25,
+        describe:
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   moveFileItems: {
     method: 'POST',
     path: '/api/v2/files/move',
@@ -8250,6 +19955,304 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  moveTables: {
+    method: 'POST',
+    path: '/api/v2/tables/move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Move Tables and Folders',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns every selected item.',
+      },
+      tableIds: { kind: 'array', default: [], describe: 'Tables to move, by identifier.' },
+      folderPaths: { kind: 'array', describe: 'Table folders to re-parent, by canonical path.' },
+      targetFolderPath: {
+        kind: 'string',
+        describe: 'Destination folder path. Omit to move the selection to the workspace root.',
+      },
+    },
+  },
+  moveWorkflows: {
+    method: 'POST',
+    path: '/api/v2/workflows/move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Move Workflows',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace holding every workflow in the batch.',
+      },
+      workflowIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflows to move. Duplicates are collapsed.',
+      },
+      folderPath: {
+        kind: 'string',
+        required: true,
+        describe: 'Destination folder path; `/` moves the workflows to the workspace root.',
+      },
+    },
+  },
+  previewOrganizationAccessRequest: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Preview Organization Access Request',
+    workspaceKeyUnsupported: true,
+  },
+  previewWorkflowImport: {
+    method: 'POST',
+    path: '/api/v2/workflows/import/preview',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Preview Workflow Import',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to import the workflow.',
+      },
+      workflow: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Workflow export object, bare workflow state, or JSON string containing either form.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: 'Destination folder path; omit for the workspace root.',
+      },
+      name: { kind: 'string', describe: 'Override for the imported workflow name.' },
+      description: { kind: 'string', describe: 'Override for the imported workflow description.' },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      bindings: {
+        kind: 'array',
+        describe: 'Resolved and unresolved source occurrences with their destination selections.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+    },
+  },
+  previewWorkspaceFork: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/preview',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Preview Workspace Fork',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Display name of the workflow or workspace.' },
+      copy: {
+        kind: 'object',
+        describe:
+          'Explicit resource selections to copy into the new fork; omitted resource kinds are not copied.',
+      },
+    },
+  },
+  previewWorkspacePull: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/pull/preview',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Preview Workspace Pull',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+    },
+  },
+  previewWorkspacePush: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/push/preview',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Preview Workspace Push',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+    },
+  },
+  pullWorkspace: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/pull',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Pull Workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+      requestId: {
+        kind: 'string',
+        required: true,
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        required: true,
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
+      confirm: {
+        kind: 'boolean',
+        required: true,
+        describe: 'Explicit acknowledgement that sync replaces target workflows.',
+      },
+    },
+  },
+  pushWorkspace: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/push',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Push Workspace',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      mappings: {
+        kind: 'array',
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+      dependentValues: {
+        kind: 'array',
+        describe:
+          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+      copyResources: {
+        kind: 'object',
+        describe: 'Explicit source resources to copy before syncing the workflows.',
+      },
+      dropReferences: {
+        kind: 'array',
+        describe:
+          'Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped.',
+      },
+      triggerMappings: {
+        kind: 'array',
+        describe:
+          'Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected.',
+      },
+      requestId: {
+        kind: 'string',
+        required: true,
+        describe: 'Stable client request ID for reconciliation and identical retries.',
+      },
+      previewFingerprint: {
+        kind: 'string',
+        required: true,
+        describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
+      confirm: {
+        kind: 'boolean',
+        required: true,
+        describe: 'Explicit acknowledgement that sync replaces target workflows.',
+      },
+    },
+  },
   queryRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
@@ -8262,7 +20265,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
       limit: {
@@ -8270,6 +20273,12 @@ export const V2_OPERATIONS = {
         describe: 'Maximum rows to return; zero requests an unbounded result.',
       },
       cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
+      includeRunState: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200.',
+      },
     },
   },
   queryRowsCount: {
@@ -8284,7 +20293,60 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+      },
+    },
+  },
+  readFileText: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/text',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: {
+      fileId:
+        'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.',
+    },
+    responseMode: 'json',
+    summary: 'Read File Text',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      maxBytes: {
+        kind: 'integer',
+        describe:
+          'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
+      },
+      offset: {
+        kind: 'integer',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
+      },
+      limit: {
+        kind: 'integer',
+        describe: 'How many lines to return from `offset`. Absent reads to the end.',
+      },
+    },
+  },
+  readFileVersionText: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/versions/[version]/text',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Read File Version Text',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      maxBytes: {
+        kind: 'integer',
+        describe:
+          'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
+      },
+      offset: {
+        kind: 'integer',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
+      },
+      limit: {
+        kind: 'integer',
+        describe: 'How many lines to return from `offset`. Absent reads to the end.',
       },
     },
   },
@@ -8300,7 +20362,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -8316,7 +20379,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -8332,7 +20396,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -8348,9 +20413,35 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
+  },
+  removeOrganizationMember: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId: 'User identifier of the organization member.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Organization Member',
+    workspaceKeyUnsupported: true,
+  },
+  removePermissionGroupMember: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]/members/[userId]',
+    pathParams: ['organizationId', 'groupId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+      userId: 'User identifier of the member to remove.',
+    },
+    responseMode: 'json',
+    summary: 'Remove Permission Group Member',
+    workspaceKeyUnsupported: true,
   },
   renameFile: {
     method: 'PATCH',
@@ -8362,6 +20453,177 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
+    },
+  },
+  replaceWorkflowChatDeployment: {
+    method: 'PUT',
+    path: '/api/v2/workflows/[workflowId]/deployments/chat',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Create or Replace Workflow Chat Deployment',
+    workspaceKeyUnsupported: true,
+    body: {
+      identifier: {
+        kind: 'string',
+        required: true,
+        describe: 'URL slug the deployed chat answers on. Must be free across live deployments.',
+      },
+      title: { kind: 'string', required: true, describe: 'Title shown to visitors.' },
+      description: {
+        kind: 'string',
+        describe: 'Description shown to visitors. Omitted clears it.',
+      },
+      customizations: {
+        kind: 'object',
+        describe: 'Presentation overrides. Omitted fields take platform defaults.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        default: 'public',
+        describe:
+          'How visitors are gated. `public` leaves the chat open to anyone holding the URL.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe:
+          'Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes.',
+      },
+      outputConfigs: {
+        kind: 'array',
+        describe: 'Block outputs to surface to visitors. Omitted surfaces none.',
+      },
+      includeThinking: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Allow visitors to receive provider thinking events.',
+      },
+      includeToolCalls: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Allow visitors to receive tool lifecycle events.',
+      },
+    },
+  },
+  replaceWorkflowState: {
+    method: 'PUT',
+    path: '/api/v2/workflows/[workflowId]/state',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Replace Workflow State',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.',
+      },
+    },
+    body: {
+      blocks: { kind: 'object', required: true, describe: 'Blocks keyed by block id.' },
+      edges: { kind: 'array', required: true, describe: 'Directed connections between blocks.' },
+      loops: {
+        kind: 'object',
+        describe: 'Ignored on write: loop containers are recomputed from `blocks`.',
+      },
+      parallels: {
+        kind: 'object',
+        describe: 'Ignored on write: parallel containers are recomputed from `blocks`.',
+      },
+      variables: {
+        kind: 'object',
+        describe: 'Replacement variable set. Omit to leave the stored variables untouched.',
+      },
+    },
+  },
+  resendOrganizationInvitation: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Resend Organization Invitation',
+    workspaceKeyUnsupported: true,
+  },
+  resolveOrganizationAccessRequest: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve',
+    pathParams: ['organizationId', 'requestId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the access requests.',
+      requestId: 'Access request identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Resolve Organization Access Request',
+    workspaceKeyUnsupported: true,
+    body: {
+      action: {
+        kind: 'enum',
+        required: true,
+        values: ['apply', 'decline'] as const,
+        describe:
+          'apply: Apply the reviewed change to the governing group or member credit cap. decline: Decline the request without changing permissions or credit limits.',
+      },
+      expectedFingerprint: {
+        kind: 'string',
+        describe:
+          'Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict. Available when action is apply. Required when action is apply.',
+      },
+      newLimitCredits: {
+        kind: 'integer',
+        describe:
+          'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply.',
+      },
+      reason: {
+        kind: 'string',
+        describe:
+          'Required explanation for declining this request. Available when action is decline. Required when action is decline.',
+      },
+    },
+    bodyDiscriminator: {
+      field: 'action',
+      variants: {
+        apply: {
+          action: {
+            kind: 'string',
+            required: true,
+            describe: 'Apply the reviewed change to the governing group or member credit cap.',
+          },
+          expectedFingerprint: {
+            kind: 'string',
+            required: true,
+            describe:
+              'Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict.',
+          },
+          newLimitCredits: {
+            kind: 'integer',
+            describe:
+              'Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests.',
+          },
+        },
+        decline: {
+          action: {
+            kind: 'string',
+            required: true,
+            describe: 'Decline the request without changing permissions or credit limits.',
+          },
+          reason: {
+            kind: 'string',
+            required: true,
+            describe: 'Required explanation for declining this request.',
+          },
+        },
+      },
     },
   },
   restoreFile: {
@@ -8379,11 +20641,87 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  restoreFileFolder: {
+    method: 'POST',
+    path: '/api/v2/files/folders/restore',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Restore Folder',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the archived folder.',
+      },
+      path: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Path of the archived folder to restore, as reported by an archived-scope folder list.',
+      },
+    },
+  },
+  restoreKnowledgeBase: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/restore',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Knowledge Base',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+    },
+  },
+  restoreTable: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/restore',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Table',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+    },
+  },
+  restoreTableFolder: {
+    method: 'POST',
+    path: '/api/v2/tables/folders/restore',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Restore Folder',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the archived folder.',
+      },
+      path: {
+        kind: 'string',
+        required: true,
+        describe: 'Path the folder held when a folder delete archived it.',
+      },
+    },
+  },
+  restoreWorkflow: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/restore',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Workflow',
+  },
   resumeWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/runs/[runId]/resume',
-    pathParams: ['id', 'runId'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
+    path: '/api/v2/workflows/[workflowId]/runs/[runId]/resume',
+    pathParams: ['workflowId', 'runId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+    },
     responseMode: 'json',
     summary: 'Resume Workflow Run',
     body: {
@@ -8395,17 +20733,99 @@ export const V2_OPERATIONS = {
       input: { kind: 'unknown', describe: 'Input supplied to the paused workflow block.' },
     },
   },
+  revertFileVersion: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/versions/[version]/revert',
+    pathParams: ['fileId', 'version'] as const,
+    pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
+    responseMode: 'json',
+    summary: 'Revert File Version',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      expectedCurrentVersion: {
+        kind: 'integer',
+        describe:
+          'Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content.',
+      },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
+      },
+    },
+  },
+  revertWorkflowVersion: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/versions/[version]/revert',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version, or `active` for the currently live version.',
+    },
+    responseMode: 'json',
+    summary: 'Revert Workflow To Version',
+    workspaceKeyUnsupported: true,
+  },
+  revokeOrganizationInvitation: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/invitations/[invitationId]',
+    pathParams: ['organizationId', 'invitationId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      invitationId: 'Invitation identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Revoke Organization Invitation',
+    workspaceKeyUnsupported: true,
+  },
+  revokeSkillEditor: {
+    method: 'DELETE',
+    path: '/api/v2/skills/[skillId]/editors',
+    pathParams: ['skillId'] as const,
+    pathParamDocs: {
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
+    responseMode: 'json',
+    summary: 'Revoke Skill Editor',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      email: {
+        kind: 'string',
+        required: true,
+        describe: 'Email address of a current workspace member.',
+      },
+    },
+  },
   rollbackWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/rollback',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/rollback',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Rollback Workflow',
+    workspaceKeyUnsupported: true,
     body: {
       version: {
         kind: 'integer',
         describe: 'Deployment version to reactivate. Omit to select the previous active version.',
+      },
+    },
+  },
+  rollbackWorkspaceFork: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/rollback',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Rollback Workspace Fork',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
       },
     },
   },
@@ -8424,34 +20844,50 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
   },
-  runTableColumn: {
-    method: 'POST',
-    path: '/api/v2/tables/[tableId]/columns/run',
-    pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+  searchFileContent: {
+    method: 'GET',
+    path: '/api/v2/files/search',
+    pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Run Column Groups',
-    body: {
-      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
-      groupIds: {
-        kind: 'array',
+    summary: 'Search File Content',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace to search.' },
+      query: {
+        kind: 'string',
         required: true,
-        describe: 'Workflow or enrichment groups to run.',
+        describe: 'Regular expression, or exact text when `mode` is `exact`.',
       },
-      runMode: {
+      mode: {
         kind: 'enum',
-        values: ['all', 'incomplete'] as const,
-        default: 'all',
-        describe: 'Whether to run all or only incomplete cells.',
+        values: ['exact', 'regex'] as const,
+        default: 'regex',
+        describe: 'How `query` is read.',
       },
-      rowIds: { kind: 'array', describe: 'Explicit row subset to run.' },
-      filter: {
-        kind: 'unknown',
+      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      folderPaths: {
+        kind: 'string',
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.',
       },
-      excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
-      limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
+      includeSubfolders: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
+      },
     },
   },
   searchKnowledge: {
@@ -8480,16 +20916,15 @@ export const V2_OPERATIONS = {
         kind: 'number',
         default: 10,
         describe:
-          'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.',
+          'Maximum number of search results to return. Must be a whole number between 1 and 100.',
       },
       tagFilters: {
         kind: 'array',
         describe:
-          'Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{id}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.',
+          'Up to 10 filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.',
       },
       searchMode: {
         kind: 'enum',
-        default: 'vector',
         describe:
           'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.',
       },
@@ -8512,13 +20947,32 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  searchTableRows: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/rows/search',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Search Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      q: { kind: 'string', required: true, describe: 'Case-insensitive cell substring to find.' },
+      predicate: {
+        kind: 'unknown',
+        describe:
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+      },
+      sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
+    },
+  },
   setSecret: {
     method: 'PUT',
     path: '/api/v2/secrets/[name]',
     pathParams: ['name'] as const,
-    pathParamDocs: { name: 'Secret to create, replace, or delete.' },
+    pathParamDocs: { name: 'Secret to create or replace.' },
     responseMode: 'json',
     summary: 'Set Secret',
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -8535,21 +20989,53 @@ export const V2_OPERATIONS = {
       },
       value: {
         kind: 'string',
-        required: true,
-        describe: 'Write-only secret value. It is never returned.',
+        describe:
+          'Write-only secret value. It is never returned. Omit it on a workspace secret to change description or unredacted alone, leaving the stored value untouched; the secret must already exist. Always required for a personal secret, which carries no other writable field.',
       },
       description: {
         kind: 'string',
         describe:
           'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.',
       },
+      unredacted: {
+        kind: 'boolean',
+        describe:
+          'Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched.',
+      },
+    },
+  },
+  syncKnowledgeConnector: {
+    method: 'POST',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Sync Knowledge Connector',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      rehydrate: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Re-fetch and re-index every existing connector document.',
+      },
     },
   },
   tableExportDownload: {
     method: 'GET',
-    path: '/api/v2/tables/exports/[exportId]/download',
-    pathParams: ['exportId'] as const,
-    pathParamDocs: { exportId: 'Unique table-export identifier.' },
+    path: '/api/v2/tables/[tableId]/exports/[exportId]/download',
+    pathParams: ['tableId', 'exportId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      exportId: 'Unique table-export identifier.',
+    },
     responseMode: 'json',
     summary: 'Download Table Export',
     query: {
@@ -8562,17 +21048,102 @@ export const V2_OPERATIONS = {
   },
   undeployWorkflow: {
     method: 'DELETE',
-    path: '/api/v2/workflows/[id]/deploy',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]/deploy',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Undeploy Workflow',
+    workspaceKeyUnsupported: true,
+  },
+  undeployWorkflowMcpTool: {
+    method: 'DELETE',
+    path: '/api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]',
+    pathParams: ['serverId', 'workflowId'] as const,
+    pathParamDocs: {
+      serverId: 'Unique workflow-MCP server identifier.',
+      workflowId: 'Workflow published as a tool on this server.',
+    },
+    responseMode: 'json',
+    summary: 'Unpublish Workflow MCP Tool',
+    workspaceKeyUnsupported: true,
+  },
+  unlinkWorkspaceFork: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/fork/unlink',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Unlink Workspace Fork',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+    },
+  },
+  unzipFile: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/unzip',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Unzip File',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
+    },
+  },
+  updateCredential: {
+    method: 'PATCH',
+    path: '/api/v2/credentials/[credentialId]',
+    pathParams: ['credentialId'] as const,
+    pathParamDocs: { credentialId: 'Credential to update.' },
+    responseMode: 'json',
+    summary: 'Update Credential',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the credential.',
+      },
+    },
+    body: {
+      displayName: { kind: 'string', describe: 'New name shown for the credential in Sim.' },
+      description: {
+        kind: 'string',
+        describe: 'New credential description. Send null to clear the stored one.',
+      },
+      serviceAccountJson: {
+        kind: 'string',
+        describe: 'Write-only Google service-account JSON key.',
+      },
+      apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
+      domain: { kind: 'string', describe: 'Provider account domain.' },
+      atlassianProduct: {
+        kind: 'enum',
+        values: ['jira', 'confluence'] as const,
+        describe:
+          'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.',
+      },
+      signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
+      botToken: { kind: 'string', describe: 'Write-only bot token.' },
+      clientId: { kind: 'string', describe: 'OAuth client identifier.' },
+      clientSecret: { kind: 'string', describe: 'Write-only OAuth client secret.' },
+      certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
+      orgId: { kind: 'string', describe: 'Provider organization ID.' },
+      dataCenter: { kind: 'string', describe: 'Provider data center.' },
+      authMethod: { kind: 'string', describe: 'Provider authentication method.' },
+      privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
+      username: { kind: 'string', describe: 'Provider run-as username.' },
+    },
   },
   updateCustomTool: {
     method: 'PATCH',
-    path: '/api/v2/custom-tools/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique custom tool identifier.' },
+    path: '/api/v2/custom-tools/[customToolId]',
+    pathParams: ['customToolId'] as const,
+    pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Update Custom Tool',
     body: {
@@ -8607,13 +21178,18 @@ export const V2_OPERATIONS = {
         default: 'utf-8',
         describe: 'Encoding of the content field.',
       },
+      expectedRevision: {
+        kind: 'string',
+        describe:
+          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+      },
     },
   },
   updateKnowledgeBase: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Update Knowledge Base',
     body: {
@@ -8628,16 +21204,109 @@ export const V2_OPERATIONS = {
       folderPath: { kind: 'string', describe: 'New containing-folder path.' },
     },
   },
+  updateKnowledgeChunk: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]',
+    pathParams: ['knowledgeBaseId', 'documentId', 'chunkId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+      chunkId: 'Unique chunk identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Chunk',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      content: {
+        kind: 'string',
+        describe:
+          'Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts.',
+      },
+      enabled: {
+        kind: 'boolean',
+        describe: 'Whether the chunk participates in search. Disabling keeps it indexed.',
+      },
+    },
+  },
+  updateKnowledgeConnector: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Update Knowledge Connector',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        describe:
+          'Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused.',
+      },
+      syncIntervalMinutes: {
+        kind: 'integer',
+        describe: 'New scheduled synchronization interval in minutes.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['active', 'paused'] as const,
+        describe: 'New connector state.',
+      },
+    },
+  },
+  updateKnowledgeConnectorDocuments: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
+    pathParams: ['knowledgeBaseId', 'connectorId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Knowledge base that owns the connector.',
+      connectorId: 'Connector selected for the operation.',
+    },
+    responseMode: 'json',
+    summary: 'Update Knowledge Connector Documents',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      operation: {
+        kind: 'enum',
+        required: true,
+        values: ['restore', 'exclude'] as const,
+        describe: 'Whether to restore or exclude the selected documents.',
+      },
+      documentIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Connector document identifiers to update.',
+      },
+    },
+  },
   updateKnowledgeDocument: {
     method: 'PATCH',
-    path: '/api/v2/knowledge/[id]/documents/[documentId]',
-    pathParams: ['id', 'documentId'] as const,
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
     pathParamDocs: {
-      id: 'Unique knowledge base identifier.',
+      knowledgeBaseId: 'Unique knowledge base identifier.',
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
     summary: 'Update Document',
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
@@ -8673,11 +21342,36 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  updateKnowledgeTag: {
+    method: 'PATCH',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/tags/[tagId]',
+    pathParams: ['knowledgeBaseId', 'tagId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      tagId: 'Unique tag definition identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Tag',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      displayName: { kind: 'string', describe: 'New tag display name.' },
+      fieldType: {
+        kind: 'enum',
+        values: ['text', 'number', 'date', 'boolean'] as const,
+        describe: 'New value type for the tag.',
+      },
+    },
+  },
   updateMcpServer: {
     method: 'PATCH',
-    path: '/api/v2/mcp-servers/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique MCP server identifier.' },
+    path: '/api/v2/mcp-servers/[mcpServerId]',
+    pathParams: ['mcpServerId'] as const,
+    pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Update MCP Server',
     body: {
@@ -8692,8 +21386,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['streamable-http'] as const,
         default: 'streamable-http',
-        describe:
-          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+        describe: 'Transport protocol. Defaults to `streamable-http` on creation.',
       },
       url: {
         kind: 'string',
@@ -8714,19 +21407,17 @@ export const V2_OPERATIONS = {
       timeout: {
         kind: 'integer',
         default: 30000,
-        describe:
-          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+        describe: 'Per-request timeout in milliseconds. Defaults to 30000 on creation.',
       },
       retries: {
         kind: 'integer',
         default: 3,
-        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+        describe: 'Number of retries per request. Defaults to 3 on creation.',
       },
       enabled: {
         kind: 'boolean',
         default: true,
-        describe:
-          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+        describe: "Whether workflows can use the server's tools. Defaults to true on creation.",
       },
       oauthClientId: {
         kind: 'string',
@@ -8737,6 +21428,100 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.',
+      },
+    },
+  },
+  updateOrganizationAccessRequestSettings: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/access-requests/settings',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
+    responseMode: 'json',
+    summary: 'Update Organization Access Request Settings',
+    workspaceKeyUnsupported: true,
+    body: {
+      allowRequests: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Allow new requests and approvals. Disabling requests preserves history and still allows cancellation and decline.',
+      },
+    },
+  },
+  updateOrganizationMember: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId: 'User identifier of the organization member.',
+    },
+    responseMode: 'json',
+    summary: 'Update Organization Member',
+    workspaceKeyUnsupported: true,
+    body: {
+      role: {
+        kind: 'enum',
+        required: true,
+        values: ['member', 'admin'] as const,
+        describe: 'New organization role. Ownership transfers use a separate operation.',
+      },
+    },
+  },
+  updateOrganizationMemberUsageLimit: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/members/[userId]/usage-limit',
+    pathParams: ['organizationId', 'userId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      userId:
+        'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
+    },
+    responseMode: 'json',
+    summary: 'Update Organization Member Credit Limit',
+    workspaceKeyUnsupported: true,
+    body: {
+      creditLimit: {
+        kind: 'integer',
+        nullable: true,
+        required: true,
+        describe:
+          'Credit cap for this person. Send null to clear the cap or 0 to prevent further credit-consuming usage. Organization limits still apply.',
+      },
+    },
+  },
+  updatePermissionGroup: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/permission-groups/[groupId]',
+    pathParams: ['organizationId', 'groupId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization that owns the permission groups.',
+      groupId: 'Permission group identifier.',
+    },
+    responseMode: 'json',
+    summary: 'Update Permission Group',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Group name, unique within the organization.' },
+      description: {
+        kind: 'string',
+        describe:
+          'Group description. Null or an empty string clears it; omission leaves it unchanged.',
+      },
+      config: {
+        kind: 'object',
+        describe:
+          'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.',
+      },
+      isDefault: {
+        kind: 'boolean',
+        describe:
+          'Whether the group is the organization default. Only one group can be the default.',
+      },
+      workspaceIds: {
+        kind: 'array',
+        describe:
+          'Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.',
       },
     },
   },
@@ -8753,7 +21538,7 @@ export const V2_OPERATIONS = {
         kind: 'unknown',
         required: true,
         describe:
-          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       data: {
         kind: 'object',
@@ -8763,15 +21548,51 @@ export const V2_OPERATIONS = {
       limit: { kind: 'integer', describe: 'Maximum matching rows to update.' },
     },
   },
+  updateSandbox: {
+    method: 'PATCH',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Update Sandbox',
+    workspaceKeyUnsupported: true,
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+      name: {
+        kind: 'string',
+        describe: 'New display name, unique within the workspace; 1 to 64 characters.',
+      },
+      language: {
+        kind: 'enum',
+        values: ['javascript', 'python'] as const,
+        describe:
+          'Replacement dependency ecosystem. The whole spec is revalidated against it, so a Python dependency list does not survive a switch to JavaScript.',
+      },
+      dependencies: {
+        kind: 'array',
+        describe: 'Replacement package list; replaces the whole list.',
+      },
+      cliTools: {
+        kind: 'array',
+        describe: 'Replacement managed CLI list; replaces the whole list.',
+      },
+      systemPackages: {
+        kind: 'array',
+        describe: 'Replacement Debian package list; replaces the whole list.',
+      },
+    },
+  },
   updateSkill: {
     method: 'PATCH',
-    path: '/api/v2/skills/[id]',
-    pathParams: ['id'] as const,
+    path: '/api/v2/skills/[skillId]',
+    pathParams: ['skillId'] as const,
     pathParamDocs: {
-      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+      skillId:
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
     summary: 'Update Skill',
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       name: { kind: 'string', describe: 'New kebab-case skill name.' },
@@ -8856,9 +21677,9 @@ export const V2_OPERATIONS = {
   },
   updateWorkflow: {
     method: 'PATCH',
-    path: '/api/v2/workflows/[id]',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique workflow identifier.' },
+    path: '/api/v2/workflows/[workflowId]',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow',
     body: {
@@ -8904,11 +21725,112 @@ export const V2_OPERATIONS = {
       autoRun: { kind: 'boolean', describe: 'Replacement automatic-run setting.' },
     },
   },
+  updateWorkflowMcpServer: {
+    method: 'PATCH',
+    path: '/api/v2/workflow-mcp-servers/[serverId]',
+    pathParams: ['serverId'] as const,
+    pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow MCP Server',
+    workspaceKeyUnsupported: true,
+    body: {
+      name: { kind: 'string', describe: 'Server display name, shown to connecting MCP clients.' },
+      description: { kind: 'string', describe: 'New server description, or null to clear it.' },
+      isPublic: {
+        kind: 'boolean',
+        describe: 'Whether the server answers MCP clients without a Sim API key.',
+      },
+    },
+  },
+  updateWorkflowPublicApi: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/deployment',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Update Workflow Public API Access',
+    workspaceKeyUnsupported: true,
+    body: {
+      isPublicApi: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the deployed workflow should accept unauthenticated public API execution.',
+      },
+    },
+  },
+  updateWorkflowVersion: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/versions/[version]',
+    pathParams: ['workflowId', 'version'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      version: 'Numeric deployment version.',
+    },
+    responseMode: 'json',
+    summary: 'Update Workflow Version',
+    body: {
+      name: { kind: 'string', describe: 'New label for the deployment version.' },
+      description: {
+        kind: 'string',
+        describe: 'New release note for the deployment version, or null to clear it.',
+      },
+    },
+  },
+  updateWorkspaceForkExclusions: {
+    method: 'PUT',
+    path: '/api/v2/workspaces/[workspaceId]/fork/exclusions',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Update Workspace Fork Exclusions',
+    workspaceKeyUnsupported: true,
+    body: {
+      workflowIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflow identifiers in the current workspace.',
+      },
+      forkSyncExcluded: {
+        kind: 'boolean',
+        required: true,
+        describe: 'Whether the named workflows should be skipped as sync sources and targets.',
+      },
+    },
+  },
+  updateWorkspaceForkMappings: {
+    method: 'PUT',
+    path: '/api/v2/workspaces/[workspaceId]/fork/mappings',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
+    responseMode: 'json',
+    summary: 'Update Workspace Fork Mappings',
+    workspaceKeyUnsupported: true,
+    body: {
+      otherWorkspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace on the other side of the direct fork edge.',
+      },
+      direction: {
+        kind: 'enum',
+        required: true,
+        values: ['push', 'pull'] as const,
+        describe:
+          'Push means current to other; pull means other to current, independent of parent/child orientation.',
+      },
+      mappings: {
+        kind: 'array',
+        required: true,
+        describe: 'Mappings keyed by resource type and source identifier.',
+      },
+    },
+  },
   uploadKnowledgeDocument: {
     method: 'POST',
-    path: '/api/v2/knowledge/[id]/documents',
-    pathParams: ['id'] as const,
-    pathParamDocs: { id: 'Unique knowledge base identifier.' },
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
+    pathParams: ['knowledgeBaseId'] as const,
+    pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Upload Document',
     query: {
@@ -8926,6 +21848,7 @@ export const V2_OPERATIONS = {
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Enable or Disable File Share',
+    workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       isActive: {
@@ -8943,7 +21866,7 @@ export const V2_OPERATIONS = {
       password: {
         kind: 'string',
         describe:
-          'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.',
+          'Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
       },
       allowedEmails: {
         kind: 'array',
@@ -8965,7 +21888,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.',
+          'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.',
       },
       conflictTarget: { kind: 'string', describe: 'Unique column used to detect a conflict.' },
     },

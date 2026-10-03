@@ -1,12 +1,16 @@
-import type { Principal } from '@sim/auth/principal'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  type Principal,
+  resolvePrincipalAttribution,
+  resolvePrincipalExecutionActorUserId,
+} from '@sim/auth/principal'
 import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeResourceContext } from '@/lib/knowledge/application/contexts'
 
 export class KnowledgeUsageLimitExceededError extends Error {
@@ -20,7 +24,14 @@ export function resolveKnowledgeAttributedUserId(
   principal: Principal,
   context: KnowledgeResourceContext
 ): string {
-  if (context.workspaceId === undefined) return requirePrincipalSubjectUserId(principal)
+  const executionUserId = resolvePrincipalExecutionActorUserId(principal)
+  if (executionUserId) return executionUserId
+  if (context.workspaceId === undefined) {
+    throw new OrchestrationError(
+      'forbidden',
+      'Knowledge operations require a user subject or execution actor'
+    )
+  }
   return resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: context.billedAccountUserId,
   }).attributedUserId
@@ -30,8 +41,13 @@ export function resolveKnowledgeBillingAttribution(
   principal: Principal,
   context: KnowledgeResourceContext
 ): Promise<BillingAttributionSnapshot> {
+  if (context.organizationId)
+    return resolveOrganizationBillingAttribution({
+      actorUserId: resolveKnowledgeAttributedUserId(principal, context),
+      organizationId: context.organizationId,
+    })
   if (context.workspaceId === undefined) {
-    throw new Error('Legacy personal knowledge bases do not have workspace billing attribution')
+    throw new Error('Knowledge base billing requires a workspace or organization')
   }
   if (principal.kind === 'workspace_api_key') {
     return resolveSystemBillingAttribution(context.workspaceId)
@@ -48,13 +64,10 @@ export async function resolveKnowledgeUsageAdmission(
   resolveAttribution?: (workspaceId: string) => Promise<BillingAttributionSnapshot>
 ) {
   const userId = resolveKnowledgeAttributedUserId(principal, context)
-  const billingAttribution = context.workspaceId
-    ? resolveAttribution
+  const billingAttribution =
+    resolveAttribution && context.workspaceId
       ? await resolveAttribution(context.workspaceId)
       : await resolveKnowledgeBillingAttribution(principal, context)
-    : undefined
-  const usage = billingAttribution
-    ? await checkAttributedUsageLimits(billingAttribution)
-    : await checkActorUsageLimits(userId)
+  const usage = await checkAttributedUsageLimits(billingAttribution)
   return { billingAttribution, usage, userId }
 }

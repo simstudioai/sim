@@ -1,15 +1,10 @@
 import { CodeIcon } from '@/components/icons'
-import { isSandboxesEnabled } from '@/lib/core/config/env-flags'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
-import {
-  fetchWorkspaceSandboxOption,
-  fetchWorkspaceSandboxOptions,
-  fetchWorkspaceSecretNameOptions,
-} from '@/lib/workflows/subblocks/options'
+import { SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { BlockConfig } from '@/blocks/types'
-import type { CodeExecutionOutput } from '@/tools/function/types'
 
-export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
+export const FunctionBlock: BlockConfig = {
   type: 'function',
   name: 'Function',
   description: 'Run custom logic',
@@ -22,6 +17,9 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   - Shell code runs CLI commands in a remote sandbox.
   - To import third-party packages or add curated CLI tools, create a sandbox in Settings > Sandboxes and select it under the block's advanced options. Without one, only the default image's packages and commands are available.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
+  - To read a file from an earlier block, reference its path: <blockName.files[0].path> mounts the file and resolves to its location on the sandbox filesystem, which any language can open. Use <blockName.files[0].base64> instead when you only want the contents inline in JavaScript.
+  - Anything the code writes to ${SANDBOX_OUTPUT_DIR} is returned as \`files\`, ready to attach to an email or upload without any extra step.
+  - Referencing a file path runs the block in the remote sandbox, so it is slower to start than a plain local JavaScript run.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/function',
   category: 'blocks',
@@ -38,7 +36,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       options: () => [
         { label: getLanguageDisplayName(CodeLanguage.JavaScript), id: CodeLanguage.JavaScript },
         { label: getLanguageDisplayName(CodeLanguage.Python), id: CodeLanguage.Python },
-        ...(isSandboxesEnabled
+        ...(getDeploymentShape().features.sandboxes
           ? [{ label: getLanguageDisplayName(CodeLanguage.Shell), id: CodeLanguage.Shell }]
           : []),
       ],
@@ -107,6 +105,7 @@ try {
       id: 'sandboxId',
       title: 'Sandbox',
       type: 'combobox',
+      selectorKey: 'workspace.sandboxes',
       mode: 'advanced',
       searchable: true,
       // Empty means the default image — the picker must never auto-select for us.
@@ -120,9 +119,6 @@ try {
       placeholder: 'Default image',
       description:
         'Sim sandbox dependencies, system packages, and managed CLIs available to this block. Shell can use Sim sandboxes from either language. Manage them in Settings > Sandboxes. Leaving this empty runs on the default image.',
-      options: [],
-      fetchOptions: (blockId) => fetchWorkspaceSandboxOptions(blockId),
-      fetchOptionById: (blockId, optionId) => fetchWorkspaceSandboxOption(blockId, optionId),
     },
     {
       id: 'secretScope',
@@ -143,6 +139,7 @@ try {
       id: 'mountedSecrets',
       title: 'Secrets',
       type: 'dropdown',
+      selectorKey: 'workspace.secretNames',
       context: 'tool-input',
       paramVisibility: 'user-only',
       multiSelect: true,
@@ -152,10 +149,8 @@ try {
        * so the picker must preserve the displayed casing.
        */
       preserveLabelCase: true,
-      options: [],
       condition: { field: 'secretScope', value: 'selected' },
       placeholder: 'Select secrets this tool can read',
-      fetchOptions: () => fetchWorkspaceSecretNameOptions(),
     },
   ],
   tools: {
@@ -181,6 +176,10 @@ try {
     stdout: {
       type: 'string',
       description: 'Console log output and debug messages from function execution',
+    },
+    files: {
+      type: 'file[]',
+      description: `Files the code wrote to ${SANDBOX_OUTPUT_DIR}, ready to attach or upload downstream`,
     },
   },
 }

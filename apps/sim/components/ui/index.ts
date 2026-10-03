@@ -1,4 +1,4 @@
-export { Button, buttonVariants } from './button'
+export { ActivityStatus } from '@/components/ui/activity-status'
 export {
   collapseFolderPath,
   FolderPathLabel,

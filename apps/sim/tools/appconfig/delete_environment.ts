@@ -2,9 +2,9 @@ import type {
   AppConfigDeleteEnvironmentParams,
   AppConfigDeleteResourceResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteEnvironmentTool: ToolConfig<
+export const deleteEnvironmentTool: InternalToolConfig<
   AppConfigDeleteEnvironmentParams,
   AppConfigDeleteResourceResponse
 > = {
@@ -46,11 +46,8 @@ export const deleteEnvironmentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/delete-environment',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

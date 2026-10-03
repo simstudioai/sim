@@ -5,7 +5,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { SharepointResponse } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointBlock')
 
@@ -22,7 +21,7 @@ const V2_FILES_FIELD = ['uploadFiles', 'fileRefs'] as const
 /* Reading a page accepts either identifier; neither is a canonical pair. */
 const PAGE_REF_FIELD = ['pageName', 'pageId'] as const
 
-export const SharepointBlock: BlockConfig<SharepointResponse> = {
+export const SharepointBlock: BlockConfig = {
   type: 'sharepoint',
   name: 'Sharepoint',
   description: 'Work with pages and lists',
@@ -908,7 +907,7 @@ const SHAREPOINT_V2_PAGE_MUTATION_OPERATIONS = [
   'sharepoint_delete_page',
 ] as const
 
-export const SharepointV2Block: BlockConfig<SharepointResponse> = {
+export const SharepointV2Block: BlockConfig = {
   ...SharepointBlock,
   sunset: undefined,
   type: 'sharepoint_v2',

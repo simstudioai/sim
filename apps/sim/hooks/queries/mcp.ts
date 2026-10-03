@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/hostnames'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  keepPreviousData,
+  queryOptions,
   useMutation,
   useQueries,
   useQuery,
@@ -16,8 +16,10 @@ import {
   deleteMcpServerContract,
   discoverMcpToolsContract,
   getAllowedMcpDomainsContract,
+  listManagedMcpCatalogContract,
   listMcpServersContract,
   listStoredMcpToolsContract,
+  type ManagedMcpCatalog,
   type McpServer,
   type McpServerTestBody,
   type McpServerTestResult,
@@ -27,6 +29,10 @@ import {
   testMcpServerConnectionContract,
   updateMcpServerContract,
 } from '@/lib/api/contracts/mcp'
+import {
+  createRotatingEventSource,
+  type RotatingEventSourceConnection,
+} from '@/lib/events/rotating-event-source'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type {
   McpAuthType,
@@ -35,13 +41,38 @@ import type {
   McpTransport,
   StoredMcpTool,
 } from '@/lib/mcp/types'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
 
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
+export type { McpServer }
 
 export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
+
+async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
+  try {
+    const data = await requestJson(listMcpServersContract, {
+      query: { workspaceId },
+      signal,
+    })
+    return data.data.servers
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) return []
+    throw error
+  }
+}
+
+export function mcpServersQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: mcpKeys.serversList(workspaceId),
+    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
+    retry: false,
+    retryOnMount: true,
+    staleTime: MCP_SERVER_LIST_STALE_TIME,
+  })
+}
 /**
  * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
  * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
@@ -51,22 +82,6 @@ export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
 export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
 export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
 export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
-
-export const mcpKeys = {
-  all: ['mcp'] as const,
-  servers: () => [...mcpKeys.all, 'servers'] as const,
-  serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
-  serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
-  serverToolsWorkspace: (workspaceId?: string) =>
-    [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
-  serverToolsList: (workspaceId?: string, serverId?: string) =>
-    [...mcpKeys.serverToolsWorkspace(workspaceId), serverId ?? ''] as const,
-  storedTools: () => [...mcpKeys.all, 'storedTools'] as const,
-  storedToolsList: (workspaceId?: string) => [...mcpKeys.storedTools(), workspaceId ?? ''] as const,
-  allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
-}
-
-export type { McpServer }
 
 /** Wire shape for create/update; distinct from runtime McpServerConfig. */
 export interface McpServerInput {
@@ -81,30 +96,47 @@ export interface McpServerInput {
   authType?: McpAuthType
 }
 
-async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
-  try {
-    const data = await requestJson(listMcpServersContract, {
-      query: { workspaceId },
-      signal,
-    })
-    return data.data.servers
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      return []
-    }
-    throw error
-  }
-}
-
 export function useMcpServers(workspaceId: string) {
   return useQuery({
-    queryKey: mcpKeys.serversList(workspaceId),
-    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
+    ...mcpServersQueryOptions(workspaceId),
     enabled: !!workspaceId,
+  })
+}
+
+async function fetchManagedMcpCatalog(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<ManagedMcpCatalog> {
+  return requestJson(listManagedMcpCatalogContract, {
+    query: { workspaceId },
+    signal,
+  })
+}
+
+export function useManagedMcpCatalog(workspaceId: string) {
+  return useQuery({
+    queryKey: mcpKeys.managedCatalogList(workspaceId),
+    queryFn: ({ signal }) => fetchManagedMcpCatalog(workspaceId, signal),
+    enabled: Boolean(workspaceId),
     retry: false,
     staleTime: MCP_SERVER_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
+}
+
+export function useMcpToolServers(workspaceId: string) {
+  const shared = useMcpServers(workspaceId)
+  const managed = useManagedMcpCatalog(workspaceId)
+  return useMemo(
+    () => ({
+      data: [
+        ...(shared.data ?? []).filter((server) => !server.credentialGroupId),
+        ...(managed.data?.servers ?? []),
+      ],
+      isLoading: shared.isLoading || managed.isLoading,
+      error: shared.error ?? managed.error,
+    }),
+    [shared.data, shared.error, shared.isLoading, managed.data, managed.error, managed.isLoading]
+  )
 }
 
 async function fetchMcpTools(
@@ -135,6 +167,7 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
   return (
     server.enabled &&
     server.workspaceId === workspaceId &&
+    !server.credentialGroupId &&
     (server.authType !== 'oauth' || server.connectionStatus === 'connected')
   )
 }
@@ -145,7 +178,12 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
  */
 export function useMcpToolsQuery(workspaceId: string) {
   const queryClient = useQueryClient()
-  const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
+  const {
+    data: servers,
+    isLoading: serversLoading,
+    error: serversError,
+  } = useMcpServers(workspaceId)
+  const managedCatalog = useManagedMcpCatalog(workspaceId)
   // Push is intrinsic to consuming the tools query: every surface that reads tools (settings,
   // tool picker, dynamic args, tool selector, canvas block) gets real-time `list_changed`
   // refresh via the shared, reference-counted subscription — so the 5-min stale time is always
@@ -189,11 +227,21 @@ export function useMcpToolsQuery(workspaceId: string) {
   })
 
   return useMemo(() => {
-    const tools: McpTool[] = []
-    let hasData = false
+    const tools: McpTool[] = [...(managedCatalog.data?.tools ?? [])]
+    let hasData = Boolean(managedCatalog.data?.tools.length)
     let anyServerLoading = false
-    let firstError: Error | null = null
-    const statusById = new Map(servers?.map((s) => [s.id, s.connectionStatus]))
+    let firstError: Error | null =
+      managedCatalog.error instanceof Error
+        ? managedCatalog.error
+        : serversError instanceof Error
+          ? serversError
+          : null
+    const statusById = new Map(
+      [...(servers ?? []), ...(managedCatalog.data?.servers ?? [])].map((server) => [
+        server.id,
+        server.connectionStatus,
+      ])
+    )
     const toolsStateByServer = new Map<
       string,
       { isLoading: boolean; isFetching: boolean; error: Error | null }
@@ -224,13 +272,13 @@ export function useMcpToolsQuery(workspaceId: string) {
     }
     return {
       data: tools,
-      isLoading: (serversLoading || anyServerLoading) && !hasData,
-      isFetching: serversLoading || results.some((r) => r.isFetching),
+      isLoading: (serversLoading || managedCatalog.isLoading || anyServerLoading) && !hasData,
+      isFetching: serversLoading || managedCatalog.isFetching || results.some((r) => r.isFetching),
       // Suppress when any healthy server rendered; per-server errors live in `toolsStateByServer`.
       error: hasData ? null : firstError,
       toolsStateByServer,
     }
-  }, [results, serversLoading, serverIds, servers])
+  }, [results, serversLoading, serversError, serverIds, servers, managedCatalog])
 }
 
 export function useForceRefreshMcpTools() {
@@ -266,6 +314,7 @@ export function useForceRefreshMcpTools() {
     },
     onSettled: (_data, _error, workspaceId) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalogList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
     },
   })
@@ -525,11 +574,11 @@ async function fetchStoredMcpTools(
   return data.data.tools
 }
 
-export function useStoredMcpTools(workspaceId: string) {
+export function useStoredMcpTools(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: mcpKeys.storedToolsList(workspaceId),
     queryFn: ({ signal }) => fetchStoredMcpTools(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: MCP_STORED_TOOL_LIST_STALE_TIME,
   })
 }
@@ -541,7 +590,7 @@ export function useStoredMcpTools(workspaceId: string) {
  */
 const SSE_KEY = '__mcp_sse_connections' as const
 
-type SseEntry = { source: EventSource; refs: number }
+type SseEntry = { source: RotatingEventSourceConnection; refs: number }
 
 const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
@@ -569,6 +618,7 @@ export function useMcpToolsEvents(workspaceId: string) {
         queryClient.invalidateQueries({ queryKey: mcpKeys.serverToolsWorkspace(workspaceId) })
       }
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalogList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: workflowMcpServerKeys.all })
     }
@@ -576,38 +626,27 @@ export function useMcpToolsEvents(workspaceId: string) {
     let entry = sseConnections.get(workspaceId)
 
     if (!entry) {
-      const source = new EventSource(`/api/mcp/events?workspaceId=${workspaceId}`)
-
-      source.addEventListener('tools_changed', (e) => {
-        let serverId: string | undefined
-        try {
-          const parsed = JSON.parse((e as MessageEvent).data) as { serverId?: string }
-          serverId = parsed.serverId
-        } catch {
-          // Non-JSON payload → workspace-wide fallback.
-        }
-        invalidate(serverId)
-      })
-
-      // EventSource fires `onopen` on the initial connect and on every auto-reconnect. Re-sync
-      // the workspace whenever we could have missed a `tools_changed` event: on any reconnect,
-      // on the first open of a RE-subscription (leaving the tab tears the connection down), and
-      // on a first open that only succeeded after an earlier connection error (the initial tools
-      // query may have failed during that gap and won't retry itself). Skip only a clean first
-      // subscription — the queries fetch fresh on their own initial mount.
       const isResubscribe = sseEverSubscribed.has(workspaceId)
       sseEverSubscribed.add(workspaceId)
-      let opened = false
-      let erroredBeforeOpen = false
-      source.onopen = () => {
-        if (opened || isResubscribe || erroredBeforeOpen) invalidate()
-        opened = true
-      }
-
-      source.onerror = () => {
-        if (!opened) erroredBeforeOpen = true
-        logger.warn(`SSE connection error for workspace ${workspaceId}`)
-      }
+      const source = createRotatingEventSource({
+        url: `/api/mcp/events?workspaceId=${encodeURIComponent(workspaceId)}`,
+        events: {
+          tools_changed: (event) => {
+            let serverId: string | undefined
+            try {
+              const parsed = JSON.parse((event as MessageEvent).data) as { serverId?: string }
+              serverId = parsed.serverId
+            } catch {}
+            invalidate(serverId)
+          },
+        },
+        onOpen: (reason) => {
+          if (reason === 'reconnect' || (reason === 'initial' && isResubscribe)) invalidate()
+        },
+        onError: () => {
+          logger.warn(`SSE connection error for workspace ${workspaceId}`)
+        },
+      })
 
       entry = { source, refs: 0 }
       sseConnections.set(workspaceId, entry)
@@ -702,10 +741,11 @@ async function fetchAllowedMcpDomains(signal?: AbortSignal): Promise<string[] | 
   return data.allowedMcpDomains ?? null
 }
 
-export function useAllowedMcpDomains() {
-  return useQuery<string[] | null>({
+export function useAllowedMcpDomains(options?: { enabled?: boolean }) {
+  return useQuery({
     queryKey: mcpKeys.allowedDomains(),
     queryFn: ({ signal }) => fetchAllowedMcpDomains(signal),
+    enabled: options?.enabled ?? true,
     staleTime: MCP_ALLOWED_DOMAINS_STALE_TIME,
   })
 }

@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import {
   materializeLargeValueRefSync,
   materializeLargeValueRefSyncOrThrow,
@@ -19,6 +20,8 @@ export interface PathNavigationExecutionContext {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /** The principal behind the run; knowledge-base files hydrated along the path are read as them. */
+  principal?: WorkflowExecutionPrincipal
   metadata?: { requestId?: string }
   base64MaxBytes?: number
 }

@@ -1,6 +1,17 @@
 import { useCallback } from 'react'
 import { posToDOMRect } from '@tiptap/core'
+import { AllSelection, type Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
+
+/**
+ * A whole-document selection has a viewport-sized bounding box, which gives Floating UI no viable
+ * side to flip to and leaves the toolbar clipped above the editor. Anchor that semantic selection to
+ * the document's leading position; every ordinary selection keeps its complete range geometry.
+ */
+export function bubbleMenuAnchorRange(selection: Selection): { from: number; to: number } {
+  if (selection instanceof AllSelection) return { from: selection.from, to: selection.from }
+  return { from: selection.from, to: selection.to }
+}
 
 /**
  * A Floating UI virtual element anchored to the current selection. The rect is recomputed on every
@@ -11,7 +22,7 @@ import type { Editor } from '@tiptap/react'
 function selectionVirtualElement(editor: Editor) {
   const { view, state } = editor
   if (!view.dom.isConnected) return null
-  const { from, to } = state.selection
+  const { from, to } = bubbleMenuAnchorRange(state.selection)
   const rect = posToDOMRect(view, from, to)
   return {
     getBoundingClientRect: () => rect,

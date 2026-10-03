@@ -1,21 +1,16 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoSearchCompaniesParams,
   ZoomInfoSearchCompaniesResponse,
 } from '@/tools/zoominfo/types'
 import {
-  buildProxyBody,
   extractDataArray,
   extractPagination,
   paginationOutputProperties,
-  parseCsvOrJson,
-  toCsvStringOrUndefined,
-  toNumberOrUndefined,
-  transformZoomInfoEnvelope,
-  ZOOMINFO_PROXY_URL,
+  transformZoomInfoResponse,
 } from '@/tools/zoominfo/utils'
 
-export const zoominfoSearchCompaniesTool: ToolConfig<
+export const zoominfoSearchCompaniesTool: InternalToolConfig<
   ZoomInfoSearchCompaniesParams,
   ZoomInfoSearchCompaniesResponse
 > = {
@@ -137,60 +132,12 @@ export const zoominfoSearchCompaniesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: ZOOMINFO_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const attributes: Record<string, unknown> = {}
-      if (params.companyName) attributes.companyName = params.companyName
-      if (params.companyWebsite) attributes.companyWebsite = params.companyWebsite
-      const companyTicker = parseCsvOrJson(params.companyTicker, 'companyTicker')
-      if (companyTicker) attributes.companyTicker = companyTicker
-      const industryCodes = toCsvStringOrUndefined(params.industryCodes, 'industryCodes')
-      if (industryCodes) attributes.industryCodes = industryCodes
-      if (params.country) attributes.country = params.country
-      if (params.state) attributes.state = params.state
-      if (params.metroRegion) attributes.metroRegion = params.metroRegion
-      const revenueMin = toNumberOrUndefined(params.revenueMin)
-      if (revenueMin !== undefined) attributes.revenueMin = revenueMin
-      const revenueMax = toNumberOrUndefined(params.revenueMax)
-      if (revenueMax !== undefined) attributes.revenueMax = revenueMax
-      const employeeRangeMin = toNumberOrUndefined(params.employeeRangeMin)
-      if (employeeRangeMin !== undefined) attributes.employeeRangeMin = String(employeeRangeMin)
-      const employeeRangeMax = toNumberOrUndefined(params.employeeRangeMax)
-      if (employeeRangeMax !== undefined) attributes.employeeRangeMax = String(employeeRangeMax)
-      if (params.excludeDefunctCompanies !== undefined) {
-        attributes.excludeDefunctCompanies = params.excludeDefunctCompanies
-      }
-
-      const query: Record<string, string | number> = {}
-      const page = toNumberOrUndefined(params.page)
-      const rpp = toNumberOrUndefined(params.rpp)
-      if (page !== undefined) query['page[number]'] = page
-      if (rpp !== undefined) query['page[size]'] = rpp
-      if (params.sortBy) {
-        const order = params.sortOrder === 'desc' ? '-' : ''
-        query.sort = `${order}${params.sortBy}`
-      }
-
-      return {
-        ...buildProxyBody(params),
-        path: '/data/v1/companies/search',
-        method: 'POST',
-        query: Object.keys(query).length > 0 ? query : undefined,
-        body: {
-          data: {
-            type: 'CompanySearch',
-            attributes,
-          },
-        },
-      }
-    },
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    const { data } = await transformZoomInfoEnvelope(response)
+    const { data } = await transformZoomInfoResponse(response)
     const companies = extractDataArray(data)
     const pagination = extractPagination(data)
     return {

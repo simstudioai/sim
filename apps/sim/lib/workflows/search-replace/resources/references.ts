@@ -1,3 +1,4 @@
+import { foldSearchWhitespace } from '@sim/utils/string'
 import {
   getWorkflowSearchSubBlockResourceKind,
   parseWorkflowSearchSubBlockResources,
@@ -6,11 +7,11 @@ import {
 import type {
   WorkflowSearchRange,
   WorkflowSearchResourceMeta,
+  WorkflowSearchSelectorContext,
 } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
-import type { SelectorContext } from '@/hooks/selectors/types'
 
 export interface ParsedInlineReference {
   kind: 'environment' | 'workflow-reference'
@@ -135,7 +136,7 @@ export function resolveInlineReferenceSearchText(
 export function parseStructuredResourceReferences(
   value: unknown,
   subBlockConfig?: Pick<SubBlockConfig, 'type' | 'serviceId' | 'selectorKey' | 'requiredScopes'>,
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 ): StructuredResourceReference[] {
   return parseWorkflowSearchSubBlockResources(value, subBlockConfig, selectorContext)
 }
@@ -146,7 +147,9 @@ export function matchesSearchText(
   caseSensitive = false
 ): boolean {
   if (!query) return true
-  const source = caseSensitive ? candidate : candidate.toLowerCase()
-  const target = caseSensitive ? query : query.toLowerCase()
+  const foldedCandidate = foldSearchWhitespace(candidate)
+  const foldedQuery = foldSearchWhitespace(query)
+  const source = caseSensitive ? foldedCandidate : foldedCandidate.toLowerCase()
+  const target = caseSensitive ? foldedQuery : foldedQuery.toLowerCase()
   return source.includes(target)
 }

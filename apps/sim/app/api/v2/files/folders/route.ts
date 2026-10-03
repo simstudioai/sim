@@ -5,7 +5,6 @@ import {
   v2RelocateFileFolderContract,
 } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { buildFolderPath, parentFolderPath, parseFolderPath } from '@/lib/folders/paths'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
@@ -14,27 +13,9 @@ import {
   listWorkspaceFileFoldersOperation,
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-
+import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-function toV2Folder(folder: { name: string; path: string; createdAt: Date; updatedAt: Date }) {
-  const segments = folder.path.startsWith('/')
-    ? parseFolderPath(folder.path)
-    : parseWorkspaceFileFolderDisplayPath(folder.path)
-  if (segments.at(-1) !== folder.name) {
-    throw new Error('Workspace file folder path does not match its folder name')
-  }
-  const path = buildFolderPath(segments)
-  return {
-    name: folder.name,
-    path,
-    parentPath: parentFolderPath(path),
-    createdAt: folder.createdAt.toISOString(),
-    updatedAt: folder.updatedAt.toISOString(),
-  }
-}
 
 export const GET = defineV2JsonRoute({
   contract: v2ListFileFoldersContract,
@@ -44,13 +25,19 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
+    scope: query.scope,
     parentPath: query.parentPath,
     search: query.search,
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
+    recursive: query.recursive,
+    depth: query.depth,
   }),
   useCase: listWorkspaceFileFoldersOperation,
-  present: ({ folders }) => ({ data: folders.map(toV2Folder), nextCursor: null }),
+  present: ({ folders }) => ({
+    data: folders.map(toWorkspaceFileFolderPathView),
+    nextCursor: null,
+  }),
 })
 
 export const POST = defineV2JsonRoute({
@@ -61,7 +48,7 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
   useCase: createWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: toV2Folder(folder) }),
+  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -76,7 +63,7 @@ export const PATCH = defineV2JsonRoute({
     destinationPath: body.destinationPath,
   }),
   useCase: updateWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: toV2Folder(folder) }),
+  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
 })
 
 export const DELETE = defineV2JsonRoute({

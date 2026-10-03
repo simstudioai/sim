@@ -4,7 +4,7 @@ The official TypeScript/JavaScript SDK for [Sim](https://sim.ai), allowing you t
 
 ## Server compatibility
 
-`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used, and a deployment can also have it switched off — a self-hosted build serves `/api/v2` only when the operator enables `V2_API`. Where it is unavailable every v2 route answers 404, so `executeWorkflow` fails with `HTTP 404: Not Found` — enable or upgrade the v2 API on the server, or stay on `simstudio-ts-sdk@0.1.x`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
+`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used. If it is unavailable, `executeWorkflow` fails with `HTTP 404: Not Found` — upgrade the server or stay on `simstudio-ts-sdk@0.1.x`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
 
 ## Upgrading from 0.1.x to 0.2.0
 
@@ -34,7 +34,7 @@ import { SimStudioClient } from 'simstudio-ts-sdk';
 // Initialize the client
 const client = new SimStudioClient({
   apiKey: 'your-api-key-here',
-  baseUrl: 'https://sim.ai' // optional, defaults to https://sim.ai
+  baseUrl: 'https://www.sim.ai' // optional, defaults to https://www.sim.ai
 });
 
 // Execute a workflow
@@ -57,7 +57,7 @@ new SimStudioClient(config: SimStudioConfig)
 ```
 
 - `config.apiKey` (string): Your Sim API key
-- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://sim.ai`)
+- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://www.sim.ai`)
 
 #### Methods
 

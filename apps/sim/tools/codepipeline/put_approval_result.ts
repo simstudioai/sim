@@ -2,9 +2,9 @@ import type {
   CodePipelinePutApprovalResultParams,
   CodePipelinePutApprovalResultResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const putApprovalResultTool: ToolConfig<
+export const putApprovalResultTool: InternalToolConfig<
   CodePipelinePutApprovalResultParams,
   CodePipelinePutApprovalResultResponse
 > = {
@@ -71,13 +71,8 @@ export const putApprovalResultTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/put-approval-result',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

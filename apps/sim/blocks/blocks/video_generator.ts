@@ -1,7 +1,6 @@
 import { VideoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockConfig } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalBooleanInput } from '@/blocks/utils'
-import type { VideoBlockResponse } from '@/tools/video/types'
 
 const FALAI_PREVIOUS_MODEL_OPTIONS = [
   { label: 'Google Veo 3.1', id: 'veo-3.1' },
@@ -70,7 +69,7 @@ const withFalAIModelOptions = (
     return subBlock
   })
 
-export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
+export const VideoGeneratorBlock: BlockConfig = {
   type: 'video_generator',
   name: 'Video Generator (Legacy)',
   description: 'Generate videos from text using AI',
@@ -897,7 +896,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
   },
 }
 
-export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
+export const VideoGeneratorV2Block: BlockConfig = {
   ...VideoGeneratorBlock,
   type: 'video_generator_v2',
   name: 'Video Generator',
@@ -1658,7 +1657,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
   },
 }
 
-export const VideoGeneratorV3Block: BlockConfig<VideoBlockResponse> = {
+export const VideoGeneratorV3Block: BlockConfig = {
   ...VideoGeneratorV2Block,
   sunset: undefined,
   type: 'video_generator_v3',

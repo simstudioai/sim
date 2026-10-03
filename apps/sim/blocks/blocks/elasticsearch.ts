@@ -1,9 +1,8 @@
 import { ElasticsearchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ElasticsearchResponse } from '@/tools/elasticsearch/types'
 
-export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
+export const ElasticsearchBlock: BlockConfig = {
   type: 'elasticsearch',
   name: 'Elasticsearch',
   description: 'Search, index, and manage data in Elasticsearch',
@@ -73,13 +72,11 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
     },
   },
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Document Operations
         { label: 'Search', id: 'elasticsearch_search' },
         { label: 'Index Document', id: 'elasticsearch_index_document' },
         { label: 'Get Document', id: 'elasticsearch_get_document' },
@@ -87,19 +84,16 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
         { label: 'Delete Document', id: 'elasticsearch_delete_document' },
         { label: 'Bulk Operations', id: 'elasticsearch_bulk' },
         { label: 'Count Documents', id: 'elasticsearch_count' },
-        // Index Management
         { label: 'Create Index', id: 'elasticsearch_create_index' },
         { label: 'Delete Index', id: 'elasticsearch_delete_index' },
         { label: 'Get Index Info', id: 'elasticsearch_get_index' },
         { label: 'List Indices', id: 'elasticsearch_list_indices' },
-        // Cluster Operations
         { label: 'Cluster Health', id: 'elasticsearch_cluster_health' },
         { label: 'Cluster Stats', id: 'elasticsearch_cluster_stats' },
       ],
       value: () => 'elasticsearch_search',
     },
 
-    // Deployment type
     {
       id: 'deploymentType',
       title: 'Deployment Type',
@@ -111,7 +105,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       value: () => 'self_hosted',
     },
 
-    // Self-hosted host
     {
       id: 'host',
       title: 'Elasticsearch Host',
@@ -122,7 +115,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       dependsOn: ['deploymentType'],
     },
 
-    // Cloud ID
     {
       id: 'cloudId',
       title: 'Cloud ID',
@@ -133,7 +125,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       dependsOn: ['deploymentType'],
     },
 
-    // Authentication method
     {
       id: 'authMethod',
       title: 'Authentication Method',
@@ -145,7 +136,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       value: () => 'api_key',
     },
 
-    // API Key
     {
       id: 'apiKey',
       title: 'API Key',
@@ -157,7 +147,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       dependsOn: ['authMethod'],
     },
 
-    // Username
     {
       id: 'username',
       title: 'Username',
@@ -168,7 +157,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       dependsOn: ['authMethod'],
     },
 
-    // Password
     {
       id: 'password',
       title: 'Password',
@@ -180,7 +168,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       dependsOn: ['authMethod'],
     },
 
-    // Index name - for most operations
     {
       id: 'index',
       title: 'Index Name',
@@ -204,7 +191,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       },
     },
 
-    // Document ID - for get/update/delete
     {
       id: 'documentId',
       title: 'Document ID',
@@ -221,7 +207,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       },
     },
 
-    // Optional Document ID - for index document
     {
       id: 'documentId',
       title: 'Document ID',
@@ -230,7 +215,6 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
       condition: { field: 'operation', value: 'elasticsearch_index_document' },
     },
 
-    // Document body - for index
     {
       id: 'document',
       title: 'Document',
@@ -250,7 +234,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Document body - for update (partial)
     {
       id: 'document',
       title: 'Partial Document',
@@ -269,7 +252,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Search query
     {
       id: 'query',
       title: 'Search Query',
@@ -291,7 +273,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Count query
     {
       id: 'query',
       title: 'Query',
@@ -312,7 +293,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Search size
     {
       id: 'size',
       title: 'Number of Results',
@@ -321,7 +301,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'elasticsearch_search' },
     },
 
-    // Search from (offset)
     {
       id: 'from',
       title: 'Offset',
@@ -330,7 +309,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'elasticsearch_search' },
     },
 
-    // Sort
     {
       id: 'sort',
       title: 'Sort',
@@ -351,7 +329,6 @@ Return ONLY valid JSON array - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Source includes
     {
       id: 'sourceIncludes',
       title: 'Fields to Include',
@@ -363,7 +340,6 @@ Return ONLY valid JSON array - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Source excludes
     {
       id: 'sourceExcludes',
       title: 'Fields to Exclude',
@@ -375,7 +351,6 @@ Return ONLY valid JSON array - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Bulk operations
     {
       id: 'operations',
       title: 'Bulk Operations',
@@ -400,7 +375,6 @@ Return ONLY the NDJSON content - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Index settings
     {
       id: 'settings',
       title: 'Index Settings',
@@ -422,7 +396,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Index mappings
     {
       id: 'mappings',
       title: 'Index Mappings',
@@ -446,7 +419,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Refresh option
     {
       id: 'refresh',
       title: 'Refresh',
@@ -468,7 +440,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Cluster health wait for status
     {
       id: 'waitForStatus',
       title: 'Wait for Status',
@@ -483,16 +454,31 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'elasticsearch_cluster_health' },
     },
 
-    // Cluster health timeout
+    // Cluster health timeout. The subBlock id stays `timeout` so saved workflow
+    // state keeps resolving; `tools.config.params` remaps it to `clusterTimeout`
+    // and clears the transport's reserved `timeout` key.
     {
       id: 'timeout',
-      title: 'Timeout (seconds)',
+      title: 'Timeout',
       type: 'short-input',
-      placeholder: '30',
+      placeholder: '30s',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'elasticsearch_cluster_health' },
     },
 
-    // Retry on conflict
+    {
+      id: 'includeSystemIndices',
+      title: 'Include System Indices',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: '' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'elasticsearch_list_indices' },
+    },
+
     {
       id: 'retryOnConflict',
       title: 'Retry on Conflict',
@@ -520,7 +506,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     ],
     config: {
       tool: (params) => {
-        // Return the operation as the tool ID
         return params.operation || 'elasticsearch_search'
       },
       params: (params) => {
@@ -528,9 +513,15 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         if (params.size) result.size = Number(params.size)
         if (params.from) result.from = Number(params.from)
         if (params.retryOnConflict) result.retryOnConflict = Number(params.retryOnConflict)
-        if (params.timeout && typeof params.timeout === 'string') {
-          result.timeout = params.timeout.endsWith('s') ? params.timeout : `${params.timeout}s`
+
+        if (params.includeSystemIndices === 'true') result.includeSystemIndices = true
+
+        const rawTimeout = typeof params.timeout === 'string' ? params.timeout.trim() : ''
+        if (rawTimeout) {
+          result.clusterTimeout = /^\d+$/.test(rawTimeout) ? `${rawTimeout}s` : rawTimeout
         }
+        result.timeout = undefined
+
         return result
       },
     },
@@ -559,31 +550,37 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     mappings: { type: 'string', description: 'Index mappings as JSON' },
     refresh: { type: 'string', description: 'Refresh policy' },
     waitForStatus: { type: 'string', description: 'Wait for cluster status' },
-    timeout: { type: 'string', description: 'Timeout for wait operations' },
+    timeout: {
+      type: 'string',
+      description: 'How long Elasticsearch waits for the cluster to reach the requested status',
+    },
+    includeSystemIndices: {
+      type: 'string',
+      description: 'Include Elasticsearch system indices when listing',
+    },
     retryOnConflict: { type: 'number', description: 'Retry attempts on conflict' },
   },
 
   outputs: {
-    // Search outputs
     hits: { type: 'json', description: 'Search results' },
     took: { type: 'number', description: 'Time taken in milliseconds' },
     timed_out: { type: 'boolean', description: 'Whether the operation timed out' },
     aggregations: { type: 'json', description: 'Aggregation results' },
-    // Document outputs
     _index: { type: 'string', description: 'Index name' },
     _id: { type: 'string', description: 'Document ID' },
     _version: { type: 'number', description: 'Document version' },
     _source: { type: 'json', description: 'Document content' },
     result: { type: 'string', description: 'Operation result' },
     found: { type: 'boolean', description: 'Whether document was found' },
-    // Bulk outputs
     errors: { type: 'boolean', description: 'Whether any errors occurred' },
     items: { type: 'json', description: 'Bulk operation results' },
-    // Count outputs
     count: { type: 'number', description: 'Document count' },
-    // Index outputs
+    _shards: {
+      type: 'json',
+      description: 'Shard statistics (total, successful, skipped, failed)',
+    },
     acknowledged: { type: 'boolean', description: 'Whether operation was acknowledged' },
-    // Cluster outputs
+    message: { type: 'string', description: 'Summary message about the indices listed' },
     cluster_name: { type: 'string', description: 'Cluster name' },
     status: { type: 'string', description: 'Cluster health status' },
     number_of_nodes: { type: 'number', description: 'Number of nodes' },

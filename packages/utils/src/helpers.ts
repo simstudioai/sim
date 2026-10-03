@@ -6,6 +6,31 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * Sleep for `ms`, resolving early if `signal` aborts. Cleans up its own timer and listener
+ * so neither leaks. Callers don't need to distinguish an early (aborted) return from a normal
+ * one — the surrounding wait loop re-checks its budget or the signal immediately after and
+ * bails when it has fired. Falls back to a plain sleep when no signal is provided.
+ */
+export function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return sleep(ms)
+  if (signal.aborted) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
+    // Catch an abort that fired between the guard above and addEventListener.
+    if (signal.aborted) onAbort()
+  })
+}
+
 /** No-operation function for use as default callback. */
 export const noop = () => {}
 

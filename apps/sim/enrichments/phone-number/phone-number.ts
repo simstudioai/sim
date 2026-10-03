@@ -1,5 +1,6 @@
 import { Phone } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
+import { projectProspeoEnrichmentFailure } from '@/enrichments/provider-failures/prospeo'
 import { firstNonEmpty, normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
@@ -103,6 +104,7 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
           enrich_mobile: true,
         })
       },
+      projectFailure: projectProspeoEnrichmentFailure,
       mapOutput: (output) => {
         const person = output.person as Record<string, unknown> | undefined
         const mobile = person?.mobile as Record<string, unknown> | undefined

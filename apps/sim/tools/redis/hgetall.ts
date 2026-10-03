@@ -1,7 +1,7 @@
 import type { RedisHGetAllParams, RedisHGetAllResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisHGetAllTool: ToolConfig<RedisHGetAllParams, RedisHGetAllResponse> = {
+export const redisHGetAllTool: InternalToolConfig<RedisHGetAllParams, RedisHGetAllResponse> = {
   id: 'redis_hgetall',
   name: 'Redis HGETALL',
   description: 'Get all fields and values of a hash stored at a key in Redis.',
@@ -22,11 +22,8 @@ export const redisHGetAllTool: ToolConfig<RedisHGetAllParams, RedisHGetAllRespon
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'HGETALL',
       args: [params.key],

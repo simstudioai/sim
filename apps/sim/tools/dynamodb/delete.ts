@@ -1,7 +1,7 @@
 import type { DynamoDBDeleteParams, DynamoDBDeleteResponse } from '@/tools/dynamodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse> = {
+export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse> = {
   id: 'dynamodb_delete',
   name: 'DynamoDB Delete',
   description: 'Delete an item from a DynamoDB table',
@@ -62,13 +62,8 @@ export const deleteTool: ToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse
     },
   },
 
-  request: {
-    url: '/api/tools/dynamodb/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

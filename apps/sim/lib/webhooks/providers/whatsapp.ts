@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { hmacSha256Hex } from '@sim/security/hmac'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import type {
@@ -202,14 +202,18 @@ async function handleWhatsAppVerification(
         )
       )
 
+    let candidates = 0
+
     for (const row of webhooks) {
       const wh = row.webhook
-      const providerConfig = (wh.providerConfig as Record<string, unknown>) || {}
+      const providerConfig = toRecord(wh.providerConfig)
       const verificationToken = providerConfig.verificationToken
 
       if (!verificationToken) {
         continue
       }
+
+      candidates++
 
       if (safeCompare(token, verificationToken as string)) {
         logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
@@ -222,6 +226,15 @@ async function handleWhatsAppVerification(
       }
     }
 
+    /**
+     * A path with no WhatsApp webhook expecting a token is not a failed verification: the
+     * `hub.*` parameters belong to whoever owns that path. Fall through so the delivery is
+     * routed normally instead of answering 403 for someone else's query parameters.
+     */
+    if (candidates === 0) {
+      return null
+    }
+
     logger.warn(`[${requestId}] No matching WhatsApp verification token found`)
     return new NextResponse('Verification failed', { status: 403 })
   }
@@ -230,6 +243,12 @@ async function handleWhatsAppVerification(
 }
 
 export const whatsappHandler: WebhookProviderHandler = {
+  /**
+   * Meta sends the WhatsApp verification handshake as a `GET` with `hub.*` query parameters, so
+   * this is the one challenge handler that must answer outside `POST`.
+   */
+  challengeMethods: ['GET', 'POST'],
+
   verifyAuth({ request, rawBody, requestId, providerConfig }) {
     const appSecret = providerConfig.appSecret as string | undefined
     if (!appSecret) {

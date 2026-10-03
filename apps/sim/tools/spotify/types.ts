@@ -210,138 +210,6 @@ export const CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Common Spotify objects
- */
-interface SpotifyImage {
-  url: string
-  height: number | null
-  width: number | null
-}
-
-interface SpotifyExternalUrls {
-  spotify: string
-}
-
-interface SpotifyArtistSimplified {
-  id: string
-  name: string
-  external_urls: SpotifyExternalUrls
-}
-
-interface SpotifyAlbumSimplified {
-  id: string
-  name: string
-  album_type: string
-  total_tracks: number
-  release_date: string
-  images: SpotifyImage[]
-  artists: SpotifyArtistSimplified[]
-  external_urls: SpotifyExternalUrls
-}
-
-interface SpotifyTrack {
-  id: string
-  name: string
-  duration_ms: number
-  explicit: boolean
-  popularity: number
-  preview_url: string | null
-  track_number: number
-  disc_number: number
-  album: SpotifyAlbumSimplified
-  artists: SpotifyArtistSimplified[]
-  external_urls: SpotifyExternalUrls
-  uri: string
-}
-
-interface SpotifyArtist {
-  id: string
-  name: string
-  genres: string[]
-  popularity: number
-  followers: { total: number }
-  images: SpotifyImage[]
-  external_urls: SpotifyExternalUrls
-}
-
-interface SpotifyAlbum {
-  id: string
-  name: string
-  album_type: string
-  total_tracks: number
-  release_date: string
-  release_date_precision: string
-  label: string
-  popularity: number
-  genres: string[]
-  images: SpotifyImage[]
-  artists: SpotifyArtistSimplified[]
-  tracks: {
-    items: SpotifyTrack[]
-    total: number
-  }
-  external_urls: SpotifyExternalUrls
-}
-
-interface SpotifyPlaylist {
-  id: string
-  name: string
-  description: string | null
-  public: boolean
-  collaborative: boolean
-  owner: {
-    id: string
-    display_name: string
-  }
-  images: SpotifyImage[]
-  tracks: {
-    total: number
-  }
-  external_urls: SpotifyExternalUrls
-  snapshot_id: string
-}
-
-interface SpotifyPlaylistTrack {
-  added_at: string
-  added_by: {
-    id: string
-  }
-  track: SpotifyTrack
-}
-
-interface SpotifyUser {
-  id: string
-  display_name: string
-  email?: string
-  country?: string
-  product?: string
-  followers: { total: number }
-  images: SpotifyImage[]
-  external_urls: SpotifyExternalUrls
-}
-
-interface SpotifyDevice {
-  id: string
-  is_active: boolean
-  is_private_session: boolean
-  is_restricted: boolean
-  name: string
-  type: string
-  volume_percent: number
-}
-
-interface SpotifyPlaybackState {
-  device: SpotifyDevice
-  shuffle_state: boolean
-  repeat_state: string
-  timestamp: number
-  progress_ms: number
-  is_playing: boolean
-  item: SpotifyTrack | null
-  currently_playing_type: string
-}
-
-/**
  * Search
  */
 export interface SpotifySearchParams extends SpotifyBaseParams {
@@ -476,33 +344,6 @@ export interface SpotifyGetAlbumResponse extends ToolResponse {
       track_number: number
     }>
     external_url: string
-  }
-}
-
-/**
- * Get Album Tracks
- */
-interface SpotifyGetAlbumTracksParams extends SpotifyBaseParams {
-  albumId: string
-  limit?: number
-  offset?: number
-  market?: string
-}
-
-interface SpotifyGetAlbumTracksResponse extends ToolResponse {
-  output: {
-    tracks: Array<{
-      id: string
-      name: string
-      artists: Array<{ id: string; name: string }>
-      duration_ms: number
-      track_number: number
-      disc_number: number
-      explicit: boolean
-      preview_url: string | null
-    }>
-    total: number
-    next: string | null
   }
 }
 
@@ -716,23 +557,6 @@ export interface SpotifyRemoveTracksFromPlaylistResponse extends ToolResponse {
 }
 
 /**
- * Update Playlist
- */
-interface SpotifyUpdatePlaylistParams extends SpotifyBaseParams {
-  playlistId: string
-  name?: string
-  description?: string
-  public?: boolean
-  collaborative?: boolean
-}
-
-interface SpotifyUpdatePlaylistResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
-}
-
-/**
  * Get Current User
  */
 export interface SpotifyGetCurrentUserParams extends SpotifyBaseParams {}
@@ -744,23 +568,6 @@ export interface SpotifyGetCurrentUserResponse extends ToolResponse {
     email: string | null
     country: string | null
     product: string | null
-    followers: number
-    image_url: string | null
-    external_url: string
-  }
-}
-
-/**
- * Get User Profile
- */
-interface SpotifyGetUserProfileParams extends SpotifyBaseParams {
-  userId: string
-}
-
-interface SpotifyGetUserProfileResponse extends ToolResponse {
-  output: {
-    id: string
-    display_name: string
     followers: number
     image_url: string | null
     external_url: string
@@ -889,19 +696,6 @@ export interface SpotifySaveTracksResponse extends ToolResponse {
 }
 
 /**
- * Remove Saved Tracks
- */
-interface SpotifyRemoveSavedTracksParams extends SpotifyBaseParams {
-  trackIds: string
-}
-
-interface SpotifyRemoveSavedTracksResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
-}
-
-/**
  * Check Saved Tracks
  */
 export interface SpotifyCheckSavedTracksParams extends SpotifyBaseParams {
@@ -916,54 +710,6 @@ export interface SpotifyCheckSavedTracksResponse extends ToolResponse {
     }>
     all_saved: boolean
     none_saved: boolean
-  }
-}
-
-/**
- * Browse Categories
- */
-interface SpotifyBrowseCategoriesParams extends SpotifyBaseParams {
-  country?: string
-  locale?: string
-  limit?: number
-  offset?: number
-}
-
-interface SpotifyBrowseCategoriesResponse extends ToolResponse {
-  output: {
-    categories: Array<{
-      id: string
-      name: string
-      icon_url: string | null
-    }>
-    total: number
-    next: string | null
-  }
-}
-
-/**
- * Browse New Releases
- */
-interface SpotifyBrowseNewReleasesParams extends SpotifyBaseParams {
-  country?: string
-  limit?: number
-  offset?: number
-}
-
-interface SpotifyBrowseNewReleasesResponse extends ToolResponse {
-  output: {
-    albums: Array<{
-      id: string
-      name: string
-      artists: string[]
-      album_type: string
-      total_tracks: number
-      release_date: string
-      image_url: string | null
-      external_url: string
-    }>
-    total: number
-    next: string | null
   }
 }
 
@@ -997,32 +743,6 @@ export interface SpotifyGetPlaybackStateResponse extends ToolResponse {
         image_url: string | null
       }
       duration_ms: number
-    } | null
-  }
-}
-
-/**
- * Player - Get Currently Playing
- */
-interface SpotifyGetCurrentlyPlayingParams extends SpotifyBaseParams {
-  market?: string
-}
-
-interface SpotifyGetCurrentlyPlayingResponse extends ToolResponse {
-  output: {
-    is_playing: boolean
-    progress_ms: number | null
-    track: {
-      id: string
-      name: string
-      artists: Array<{ id: string; name: string }>
-      album: {
-        id: string
-        name: string
-        image_url: string | null
-      }
-      duration_ms: number
-      external_url: string
     } | null
   }
 }
@@ -1103,20 +823,6 @@ export interface SpotifySkipPreviousResponse extends ToolResponse {
 }
 
 /**
- * Player - Seek
- */
-interface SpotifySeekParams extends SpotifyBaseParams {
-  position_ms: number
-  device_id?: string
-}
-
-interface SpotifySeekResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
-}
-
-/**
  * Player - Set Volume
  */
 export interface SpotifySetVolumeParams extends SpotifyBaseParams {
@@ -1139,48 +845,6 @@ export interface SpotifyAddToQueueParams extends SpotifyBaseParams {
 }
 
 export interface SpotifyAddToQueueResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
-}
-
-/**
- * Player - Transfer Playback
- */
-interface SpotifyTransferPlaybackParams extends SpotifyBaseParams {
-  device_id: string
-  play?: boolean
-}
-
-interface SpotifyTransferPlaybackResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
-}
-
-/**
- * Player - Set Repeat
- */
-interface SpotifySetRepeatParams extends SpotifyBaseParams {
-  state: 'track' | 'context' | 'off'
-  device_id?: string
-}
-
-interface SpotifySetRepeatResponse extends ToolResponse {
-  output: {
-    success: boolean
-  }
-}
-
-/**
- * Player - Set Shuffle
- */
-interface SpotifySetShuffleParams extends SpotifyBaseParams {
-  state: boolean
-  device_id?: string
-}
-
-interface SpotifySetShuffleResponse extends ToolResponse {
   output: {
     success: boolean
   }

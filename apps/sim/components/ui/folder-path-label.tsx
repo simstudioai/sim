@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 
 /**
  * Ancestors kept before the path collapses. Three is the widest chain that still
@@ -48,15 +48,20 @@ export function FolderPathLabel({ segments, prefix, className }: FolderPathLabel
       className={cn('ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small', className)}
     >
       {prefix && <span className='flex-shrink-0'>{prefix}</span>}
+      {prefix && head.length > 0 && <span className='flex-shrink-0 whitespace-pre'> / </span>}
       {head.length > 0 && (
-        <span className='min-w-0 truncate whitespace-pre [flex-shrink:9999]'>
-          {prefix ? ` / ${head.join(' / ')}` : head.join(' / ')}
-        </span>
+        <OverflowText
+          label={segments.slice(0, -1).join(' / ')}
+          showWhen={visible.length < segments.length}
+          className='[flex-shrink:9999]'
+        >
+          {head.join(' / ')}
+        </OverflowText>
       )}
       {leaf && (
         <>
           {hasLeadIn && <span className='flex-shrink-0 whitespace-pre'> / </span>}
-          <span className='min-w-0 truncate'>{leaf}</span>
+          <OverflowText label={leaf} />
         </>
       )}
     </span>

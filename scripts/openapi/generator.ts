@@ -10,6 +10,7 @@ import type {
 } from '@/lib/api/openapi/types'
 
 type JsonObject = Record<string, unknown>
+type SchemaIo = 'input' | 'output'
 
 const HTTP_SUCCESS_MIN = 200
 const HTTP_SUCCESS_MAX = 299
@@ -41,6 +42,12 @@ const outputExampleValidator = new Ajv2020({
   allErrors: true,
   validateFormats: false,
 })
+const comparableSchemaCache = new WeakMap<ApiSchema, Map<SchemaIo, unknown>>()
+const generatedSchemaCache = new WeakMap<ApiSchema, Map<SchemaIo, JsonObject>>()
+const outputValidatorCache = new WeakMap<
+  ApiSchema,
+  ReturnType<typeof outputExampleValidator.compile>
+>()
 
 function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -98,8 +105,36 @@ function stripLegacySchemaIds(value: unknown): unknown {
   )
 }
 
-function comparableSchema(schema: ApiSchema, io: 'input' | 'output'): unknown {
-  return stripSchemaDocumentation(
+function omitEnumValuesFromOpenApi(
+  metadata: z.core.GlobalMeta | undefined,
+  schema: JsonObject,
+  label: string
+): void {
+  const omittedValues = metadata?.omitEnumValuesFromOpenApi
+  if (omittedValues === undefined) return
+
+  invariant(
+    Array.isArray(omittedValues) && omittedValues.length > 0,
+    `${label} omitEnumValuesFromOpenApi must be a non-empty array`
+  )
+  invariant(
+    Array.isArray(schema.enum),
+    `${label} omitEnumValuesFromOpenApi requires an enum schema`
+  )
+  for (const value of omittedValues) {
+    invariant(schema.enum.includes(value), `${label} omits an enum value that does not exist`)
+  }
+
+  schema.enum = schema.enum.filter((value) => !omittedValues.includes(value))
+  invariant(schema.enum.length > 0, `${label} cannot omit every enum value`)
+  Reflect.deleteProperty(schema, 'omitEnumValuesFromOpenApi')
+}
+
+function comparableSchema(schema: ApiSchema, io: SchemaIo): unknown {
+  const cached = comparableSchemaCache.get(schema)?.get(io)
+  if (cached) return cached
+
+  const comparable = stripSchemaDocumentation(
     sanitizeSchema(
       z.toJSONSchema(schema, {
         io,
@@ -110,6 +145,10 @@ function comparableSchema(schema: ApiSchema, io: 'input' | 'output'): unknown {
       })
     )
   )
+  const byIo = comparableSchemaCache.get(schema) ?? new Map<SchemaIo, unknown>()
+  byIo.set(io, comparable)
+  comparableSchemaCache.set(schema, byIo)
+  return comparable
 }
 
 function addComponent(
@@ -178,28 +217,33 @@ function validateNoSilentOpaqueSchemas(schema: JsonObject, label: string, path =
 
 function generateSchema(
   schema: ApiSchema,
-  io: 'input' | 'output',
+  io: SchemaIo,
   components: JsonObject,
   label: string,
   includeRootComponent = true
 ): { name: string; schema: JsonObject; metadata: z.core.GlobalMeta } {
   const metadata = schemaMetadata(schema, label)
-  const { $defs: definitions, ...generated } = z.toJSONSchema(schema, {
-    io,
-    target: 'draft-2020-12',
-    unrepresentable: 'any',
-    cycles: 'ref',
-    reused: 'inline',
-    override: ({ zodSchema, path }) => {
-      const current = zodSchema as ApiSchema
-      validateExamples(
-        current,
-        z.globalRegistry.get(current)?.examples,
-        io,
-        `${label} at ${path.join('.') || '<root>'}`
-      )
-    },
-  }) as JsonObject
+  let generatedWithDefinitions = generatedSchemaCache.get(schema)?.get(io)
+  if (!generatedWithDefinitions) {
+    generatedWithDefinitions = z.toJSONSchema(schema, {
+      io,
+      target: 'draft-2020-12',
+      unrepresentable: 'any',
+      cycles: 'ref',
+      reused: 'inline',
+      override: ({ zodSchema, jsonSchema, path }) => {
+        const current = zodSchema as ApiSchema
+        const metadata = z.globalRegistry.get(current)
+        const schemaLabel = `${label} at ${path.join('.') || '<root>'}`
+        validateExamples(current, metadata?.examples, io, schemaLabel)
+        omitEnumValuesFromOpenApi(metadata, jsonSchema as JsonObject, schemaLabel)
+      },
+    }) as JsonObject
+    const byIo = generatedSchemaCache.get(schema) ?? new Map<SchemaIo, JsonObject>()
+    byIo.set(io, generatedWithDefinitions)
+    generatedSchemaCache.set(schema, byIo)
+  }
+  const { $defs: definitions, ...generated } = generatedWithDefinitions
 
   if (definitions !== undefined) {
     invariant(
@@ -377,12 +421,7 @@ function statusSuccessContent(
   return content
 }
 
-function validateExamples(
-  schema: ApiSchema,
-  examples: unknown,
-  io: 'input' | 'output',
-  label: string
-): void {
+function validateExamples(schema: ApiSchema, examples: unknown, io: SchemaIo, label: string): void {
   if (examples === undefined) return
   invariant(
     Array.isArray(examples) && examples.length > 0,
@@ -397,14 +436,18 @@ function validateExamples(
       )
       continue
     }
-    const outputSchema = z.toJSONSchema(schema, {
-      io: 'output',
-      target: 'draft-2020-12',
-      unrepresentable: 'any',
-      cycles: 'ref',
-      reused: 'inline',
-    })
-    const validate = outputExampleValidator.compile(stripLegacySchemaIds(outputSchema))
+    let validate = outputValidatorCache.get(schema)
+    if (!validate) {
+      const outputSchema = z.toJSONSchema(schema, {
+        io: 'output',
+        target: 'draft-2020-12',
+        unrepresentable: 'any',
+        cycles: 'ref',
+        reused: 'inline',
+      })
+      validate = outputExampleValidator.compile(stripLegacySchemaIds(outputSchema))
+      outputValidatorCache.set(schema, validate)
+    }
     invariant(
       validate(example),
       `${label} example ${index + 1} is invalid for the output schema: ${outputExampleValidator.errorsText(validate.errors)}`
@@ -448,6 +491,13 @@ function referencedHeaders(headerNames: readonly string[] | undefined): JsonObje
   return Object.fromEntries(
     headerNames.map((name) => [name, { $ref: `#/components/headers/${name}` }])
   )
+}
+
+/** Public APIs reject MCP resource-bound grants; API read access also satisfies Search reads. */
+function publicApiOAuthScope(
+  scope: OpenApiOperationMetadata['applicationOperation']['oauthScope']
+) {
+  return scope === 'search:read' ? 'api:read' : scope
 }
 
 function operationFor(
@@ -494,8 +544,9 @@ function operationFor(
     if (!contractSchema) continue
     invariant(documentedSchema, `${label} is missing its documented ${name} schema`)
     invariant(
-      JSON.stringify(comparableSchema(contractSchema, io)) ===
-        JSON.stringify(comparableSchema(documentedSchema, io)),
+      contractSchema === documentedSchema ||
+        JSON.stringify(comparableSchema(contractSchema, io)) ===
+          JSON.stringify(comparableSchema(documentedSchema, io)),
       `${label} documented ${name} schema does not match the contract schema`
     )
   }
@@ -529,8 +580,9 @@ function operationFor(
     }
     for (const status of expectedStatuses) {
       invariant(
-        JSON.stringify(comparableSchema(contractStatusSchemas[status], 'output')) ===
-          JSON.stringify(comparableSchema(schemas.responses[status], 'output')),
+        contractStatusSchemas[status] === schemas.responses[status] ||
+          JSON.stringify(comparableSchema(contractStatusSchemas[status], 'output')) ===
+            JSON.stringify(comparableSchema(schemas.responses[status], 'output')),
         `${label} documented schema for status ${status} does not match the contract schema`
       )
     }
@@ -603,10 +655,15 @@ function operationFor(
   }
 
   const requestBody = requestBodyFor(route, components, label)
+  const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
   return {
     operationId: operation.operationId,
     summary: operation.summary,
-    description: operation.description,
+    description: oauthScope
+      ? `${operation.description}\n\nOAuth scope: \`${oauthScope}\`.`
+      : operation.description,
+    'x-sim-operation': operation.applicationOperation.id,
+    ...(oauthScope ? { 'x-oauth-scope': oauthScope } : {}),
     tags: [...operation.tags],
     ...(operation.deprecated === undefined ? {} : { deprecated: operation.deprecated }),
     ...(operation.security === undefined ? {} : { security: operation.security }),
@@ -621,6 +678,15 @@ function validateOperationMetadata(
   definition: OpenApiDocumentDefinition,
   label: string
 ): void {
+  nonEmpty(operation.applicationOperation.id, `${label} application operation id`)
+  const security = operation.security ?? definition.security
+  if (security.some((requirement) => 'oauthBearer' in requirement)) {
+    const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
+    invariant(
+      oauthScope === 'api:read' || oauthScope === 'api:write',
+      `${label} must declare its canonical application's OAuth scope`
+    )
+  }
   nonEmpty(operation.operationId, `${label} operationId`)
   nonEmpty(operation.summary, `${label} summary`)
   nonEmpty(operation.description, `${label} description`)
@@ -692,7 +758,20 @@ function validateSecurity(
   }
 }
 
-function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObject): JsonObject {
+/**
+ * The error responses this document's operations actually reference, as `components.responses`.
+ *
+ * Only the referenced ones are built. An error response carries a worked example, and the
+ * message in one is often the domain's rather than the surface's — a `423` reads `Workflow is
+ * locked` in one document and `This table is insert-locked` in another. Emitting the whole set
+ * everywhere would ship each document a body for a status it never answers, phrased by a
+ * domain it does not contain.
+ */
+function errorComponents(
+  definition: OpenApiDocumentDefinition,
+  schemas: JsonObject,
+  referencedErrors: ReadonlySet<string>
+): JsonObject {
   const generated = generateSchema(
     definition.errorSchema,
     'output',
@@ -707,6 +786,7 @@ function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObj
   )
   const responses: JsonObject = {}
   for (const [id, response] of Object.entries(definition.errorResponses)) {
+    if (!referencedErrors.has(id)) continue
     nonEmpty(id, 'Error response id')
     nonEmpty(response.description, `${id} description`)
     invariant(
@@ -718,6 +798,11 @@ function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObj
     for (const header of response.headers ?? []) {
       invariant(definition.headers[header], `${id} references unknown response header ${header}`)
     }
+    /**
+     * Held to the same standard as every other documented example: it must parse against
+     * the error schema, so a documented body cannot describe a shape the API never sends.
+     */
+    validateExamples(definition.errorSchema, [response.example], 'output', `${id} example`)
     responses[id] = {
       description: response.description,
       ...(referencedHeaders(response.headers)
@@ -726,6 +811,13 @@ function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObj
       content: {
         'application/json': {
           schema: { $ref: `#/components/schemas/${generated.name}` },
+          /**
+           * Sits beside the `$ref` rather than on the shared schema: one schema serves every
+           * status, so a schema-level example is necessarily one status's body shown under
+           * all of them. A Media Type Object example overrides the schema's, which is what
+           * makes each status tab show its own.
+           */
+          example: response.example,
         },
       },
     }
@@ -742,7 +834,10 @@ export function generateOpenApiDocument(definition: OpenApiDocumentDefinition): 
   validateSecurity(definition.security, definition, 'OpenAPI document')
 
   const schemas: JsonObject = {}
-  const responses = errorComponents(definition, schemas)
+  const referencedErrors = new Set(
+    definition.routes.flatMap((route) => [...route.operation.errors])
+  )
+  const responses = errorComponents(definition, schemas, referencedErrors)
   const paths: JsonObject = {}
   const operationIds = new Set<string>()
   const routeKeys = new Set<string>()

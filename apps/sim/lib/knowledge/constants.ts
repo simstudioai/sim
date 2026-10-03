@@ -3,6 +3,14 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 /** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
 
+/**
+ * Max character length for a document's filename and text tag values. Both sit under btree
+ * indexes, and Postgres refuses an index row past about 2.7 KB (SQLSTATE 54000); 512 characters
+ * keeps a four-byte-per-character value inside that ceiling. Connectors truncate source titles to
+ * it; the document APIs reject longer input.
+ */
+export const MAX_DOCUMENT_INDEXED_TEXT_LENGTH = 512
+
 /** Hard bound for path-indexed knowledge folder trees and recursive cascades. */
 export const MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE = MAX_FOLDERS_PER_WORKSPACE
 
@@ -19,6 +27,11 @@ export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS = 100
 /** Default and maximum bounded connector-document list page sizes. */
 export const DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 100
 export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 200
+export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH = 200
+
+/** Bound viewer-specific source resolution and document counts to a single page. */
+export const SEARCH_SOURCE_PAGE_SIZE = 25
+export const SEARCH_SOURCE_CANDIDATE_PAGE_SIZE = 100
 
 /**
  * Chunking a knowledge base gets when its creator names no configuration.
@@ -177,3 +190,24 @@ export function getPlaceholderForFieldType(fieldType: string): string {
       return 'Enter value'
   }
 }
+
+/**
+ * Minimum time the client waits before asking the server to classify an active
+ * document-processing run as dead.
+ *
+ * Lives here so the client does not import server configuration. The server
+ * derives its authoritative threshold from the configured task
+ * duration and retry budget and may require longer. Keeping the client at the
+ * same 45-minute floor prevents the default UI from racing a legitimate run.
+ */
+export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 45 * 60 * 1000
+
+/** Bundle layout version written to `manifest.json`; an importer refuses any other. */
+export const KNOWLEDGE_BUNDLE_VERSION = 1
+/** Documents one export bundle may carry, so every produced bundle stays importable. */
+export const MAX_KNOWLEDGE_BUNDLE_DOCUMENTS = 2_000
+/**
+ * Characters one exported chunk may hold. Wider than the manual-chunk API cap
+ * because the processor's largest chunking config emits chunks past 10k.
+ */
+export const MAX_KNOWLEDGE_BUNDLE_CHUNK_CONTENT_LENGTH = 100_000

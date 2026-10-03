@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 

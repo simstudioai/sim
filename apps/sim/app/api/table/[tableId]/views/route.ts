@@ -33,7 +33,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const result = await checkAccess(tableId, authResult.userId, 'read')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     if (result.table.workspaceId !== workspaceId) {
@@ -68,7 +68,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Table
     const { tableId } = parsed.data.params
     const { workspaceId, name, config } = parsed.data.body
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     if (result.table.workspaceId !== workspaceId) {

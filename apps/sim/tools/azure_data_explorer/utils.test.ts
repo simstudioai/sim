@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   buildWithClause,
@@ -26,6 +23,10 @@ describe('renderEntityName', () => {
     expect(renderEntityName('web-requests')).toBe('["web-requests"]')
     expect(renderEntityName('prod.logs')).toBe('["prod.logs"]')
     expect(renderEntityName('1day')).toBe('["1day"]')
+  })
+
+  it('rejects characters that could terminate a quoted identifier', () => {
+    expect(() => renderEntityName('Logs"] | drop table Users //')).toThrow(/Invalid entity name/)
   })
 })
 

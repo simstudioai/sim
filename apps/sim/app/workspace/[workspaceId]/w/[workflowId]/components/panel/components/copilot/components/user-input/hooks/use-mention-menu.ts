@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { SCROLL_TOLERANCE } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
 import type { ChatContext } from '@/stores/panel'
+
+const SCROLL_TOLERANCE = 8
 
 interface UseMentionMenuProps {
   /** Current message text */
   message: string
   /** Currently selected contexts */
   selectedContexts: ChatContext[]
-  /** Callback when a context is selected */
-  onContextSelect: (context: ChatContext) => void
   /** Callback when message changes */
   onMessageChange: (message: string) => void
 }
@@ -23,7 +22,6 @@ interface UseMentionMenuProps {
 export function useMentionMenu({
   message,
   selectedContexts,
-  onContextSelect,
   onMessageChange,
 }: UseMentionMenuProps) {
   // Refs

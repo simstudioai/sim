@@ -6,6 +6,7 @@ import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
+import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../types'
 import { CellContent } from './cells'
 import {
@@ -26,10 +27,14 @@ export interface DataRowProps {
   /** Current workspace id — forwarded to cells so in-workspace resource URLs
    *  render as tagged-resource chips. */
   workspaceId: string
+  /** Whether Date values can be formatted and edited safely. */
+  timezoneStatus: TimezoneState['status']
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
   initialCharacter: string | null
+  /** Opens cell editors read-only, e.g. on an update-locked table. */
+  editorsReadOnly: boolean
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
   onClick: (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => void
@@ -114,9 +119,11 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.row !== next.row ||
     prev.columns !== next.columns ||
     prev.workspaceId !== next.workspaceId ||
+    prev.timezoneStatus !== next.timezoneStatus ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
+    prev.editorsReadOnly !== next.editorsReadOnly ||
     prev.pendingCellValue !== next.pendingCellValue ||
     prev.onClick !== next.onClick ||
     prev.onDoubleClick !== next.onDoubleClick ||
@@ -161,10 +168,12 @@ export const DataRow = React.memo(function DataRow({
   row,
   columns,
   workspaceId,
+  timezoneStatus,
   rowIndex,
   isFirstRow,
   editingColumnName,
   initialCharacter,
+  editorsReadOnly,
   pendingCellValue,
   normalizedSelection,
   isRowChecked,
@@ -396,6 +405,7 @@ export const DataRow = React.memo(function DataRow({
             <div className={CELL_CONTENT}>
               <CellContent
                 workspaceId={workspaceId}
+                timezoneStatus={timezoneStatus}
                 value={
                   pendingCellValue && column.key in pendingCellValue
                     ? pendingCellValue[column.key]
@@ -411,6 +421,7 @@ export const DataRow = React.memo(function DataRow({
                 column={column}
                 isEditing={isEditing}
                 initialCharacter={isEditing ? initialCharacter : undefined}
+                readOnly={editorsReadOnly}
                 onSave={(value, reason) => onSave(row.id, column.key, value, reason)}
                 onCancel={onCancel}
                 waitingOnLabels={

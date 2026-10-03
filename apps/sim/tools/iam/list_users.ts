@@ -1,7 +1,7 @@
 import type { IAMListUsersParams, IAMListUsersResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listUsersTool: ToolConfig<IAMListUsersParams, IAMListUsersResponse> = {
+export const listUsersTool: InternalToolConfig<IAMListUsersParams, IAMListUsersResponse> = {
   id: 'iam_list_users',
   name: 'IAM List Users',
   description: 'List IAM users in your AWS account',
@@ -46,11 +46,8 @@ export const listUsersTool: ToolConfig<IAMListUsersParams, IAMListUsersResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/iam/list-users',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -1,5 +1,5 @@
 import { truncate } from '@sim/utils/string'
-import type { SapConcurBaseParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { SapConcurBaseParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import type { OutputProperty } from '@/tools/types'
 
 export const scimUserOutputProperties: Record<string, OutputProperty> = {
@@ -278,11 +278,7 @@ export const scimListResponseOutputProperties: Record<string, OutputProperty> = 
   },
 }
 
-export const SAP_CONCUR_PROXY_URL = '/api/tools/sap_concur/proxy'
-
-export const SAP_CONCUR_UPLOAD_URL = '/api/tools/sap_concur/upload'
-
-export function baseProxyBody(params: SapConcurBaseParams): Record<string, unknown> {
+export function baseSapConcurInput(params: SapConcurBaseParams): Record<string, unknown> {
   const body: Record<string, unknown> = {
     datacenter: params.datacenter ?? 'us.api.concursolutions.com',
     grantType: params.grantType ?? 'client_credentials',
@@ -304,7 +300,7 @@ export function baseProxyBody(params: SapConcurBaseParams): Record<string, unkno
  * Concur as the literal text `false`, which most filters read as truthy. Only a value that
  * is exactly `'true'` or `'false'` is converted — operator-prefixed filter strings such as
  * `eq:true` or `sw:foo` must pass through untouched. Non-finite numbers are dropped rather
- * than serialized as `NaN`, which the proxy's own schema would reject as `null`.
+ * than serialized as `NaN`, which the operation schema would reject as `null`.
  */
 export function buildListQuery(
   params: Record<string, string | number | boolean | undefined | null>
@@ -333,38 +329,35 @@ export function buildListQuery(
 }
 
 /**
- * Cap for a non-JSON proxy body echoed back in the thrown error, enough to identify an
- * HTML error page or gateway response without pasting a whole document into the message.
+ * Cap for a non-JSON operation body echoed back in the thrown error, enough to identify a
+ * malformed response without pasting a whole document into the message.
  */
-const PROXY_NON_JSON_BODY_MAX_LENGTH = 200
+const OPERATION_NON_JSON_BODY_MAX_LENGTH = 200
 
 /**
- * Normalize the proxy route's envelope into a tool response.
+ * Normalize the direct operation's envelope into a tool response.
  *
- * The body is read as text and parsed explicitly: anything that fails between the tool and
- * the route — an ALB/Next 502 or 504, an HTML error page, an empty body on a dropped
- * connection — would otherwise surface as an opaque `SyntaxError` from `response.json()`.
+ * The body is read as text and parsed explicitly so a malformed provider-operation response
+ * produces an actionable error rather than an opaque `SyntaxError` from `response.json()`.
  */
-export async function transformSapConcurProxyResponse(
-  response: Response
-): Promise<SapConcurProxyResponse> {
+export async function transformSapConcurResponse(response: Response): Promise<SapConcurResponse> {
   const text = await response.text()
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
   } catch {
     throw new Error(
-      `Concur proxy returned a non-JSON response (HTTP ${response.status}): ${truncate(
+      `Concur operation returned a non-JSON response (HTTP ${response.status}): ${truncate(
         text,
-        PROXY_NON_JSON_BODY_MAX_LENGTH
+        OPERATION_NON_JSON_BODY_MAX_LENGTH
       )}`
     )
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(
-      `Concur proxy returned a non-JSON response (HTTP ${response.status}): ${truncate(
+      `Concur operation returned a non-JSON response (HTTP ${response.status}): ${truncate(
         text,
-        PROXY_NON_JSON_BODY_MAX_LENGTH
+        OPERATION_NON_JSON_BODY_MAX_LENGTH
       )}`
     )
   }
@@ -376,7 +369,7 @@ export async function transformSapConcurProxyResponse(
     throw new Error(errMessage)
   }
   if (!data.output) {
-    throw new Error('Concur proxy returned no output')
+    throw new Error('Concur operation returned no output')
   }
   return {
     success: true,

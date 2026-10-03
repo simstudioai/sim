@@ -7,10 +7,15 @@ import { db } from '@sim/db'
 import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, gt } from 'drizzle-orm'
 import { acquireLock, extendLock, releaseLock } from '@/lib/core/config/redis'
+import {
+  resourceScopeColumns,
+  resourceScopeFromOwner,
+  sameResourceScope,
+} from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 const logger = createLogger('McpOauthStorage')
@@ -25,7 +30,8 @@ export interface McpOauthRow {
   id: string
   mcpServerId: string
   userId: string | null
-  workspaceId: string
+  workspaceId: string | null
+  organizationId: string | null
   clientInformation: OAuthClientInformationMixed | null
   tokens: OAuthTokens | null
   codeVerifier: string | null
@@ -71,31 +77,37 @@ async function safeDecrypt<T>(
 
 export async function getOrCreateOauthRow(params: {
   mcpServerId: string
-  userId: string
-  workspaceId: string
+  userId?: string | null
+  workspaceId?: string
+  organizationId?: string
 }): Promise<McpOauthRow> {
+  const scope = resourceScopeFromOwner(params)
   const existing = await loadOauthRow(params)
-  if (existing) return existing
+  if (existing) {
+    if (!sameResourceScope(scope, resourceScopeFromOwner(existing)))
+      throw new Error('MCP OAuth client belongs to another scope')
+    return existing
+  }
 
   const id = generateId()
   try {
     await db.insert(mcpServerOauth).values({
       id,
       mcpServerId: params.mcpServerId,
-      userId: params.userId,
-      workspaceId: params.workspaceId,
+      userId: params.userId ?? null,
+      ...resourceScopeColumns(scope),
     })
   } catch (error) {
     const winner = await loadOauthRow(params)
-    if (winner) return winner
+    if (winner && sameResourceScope(scope, resourceScopeFromOwner(winner))) return winner
     throw error
   }
 
   return {
     id,
     mcpServerId: params.mcpServerId,
-    userId: params.userId,
-    workspaceId: params.workspaceId,
+    userId: params.userId ?? null,
+    ...resourceScopeColumns(scope),
     clientInformation: null,
     tokens: null,
     codeVerifier: null,
@@ -113,6 +125,7 @@ async function mapOauthRow(row: RawOauthRow): Promise<McpOauthRow> {
     mcpServerId: row.mcpServerId,
     userId: row.userId,
     workspaceId: row.workspaceId,
+    organizationId: row.organizationId,
     clientInformation: row.clientInformation
       ? await safeDecrypt(
           row.id,
@@ -275,7 +288,12 @@ const REFRESH_QUEUE_WAIT_TIMEOUT_MS = 90_000
 
 const inflightChains = new Map<string, Promise<unknown>>()
 
-export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promise<T>): Promise<T> {
+export async function withMcpOauthRefreshLock<T>(
+  rowId: string,
+  fn: () => Promise<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  signal?.throwIfAborted()
   const lockKey = `mcp:oauth:refresh:${rowId}`
   const prev = inflightChains.get(lockKey) ?? Promise.resolve()
   const prevSettled = prev.catch(() => undefined)
@@ -285,7 +303,8 @@ export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promis
     if (queueTimedOut) {
       throw new Error(`MCP OAuth refresh queue for ${rowId} abandoned after timeout`)
     }
-    return runWithRedisMutex(lockKey, rowId, fn)
+    signal?.throwIfAborted()
+    return runWithRedisMutex(lockKey, rowId, fn, signal)
   })
   inflightChains.set(lockKey, next)
   const cleanup = () => {
@@ -305,11 +324,25 @@ export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promis
     }, REFRESH_QUEUE_WAIT_TIMEOUT_MS)
     queueTimer.unref?.()
   })
+  let abortListener: (() => void) | undefined
+  const queueAbort = new Promise<never>((_resolve, reject) => {
+    if (!signal) return
+    abortListener = () => {
+      try {
+        signal.throwIfAborted()
+      } catch (error) {
+        reject(error)
+      }
+    }
+    signal.addEventListener('abort', abortListener, { once: true })
+    if (signal.aborted) abortListener()
+  })
 
   try {
-    await Promise.race([prevSettled, queueDeadline])
+    await Promise.race([prevSettled, queueDeadline, queueAbort])
   } finally {
     clearTimeout(queueTimer)
+    if (signal && abortListener) signal.removeEventListener('abort', abortListener)
   }
 
   return next
@@ -318,16 +351,27 @@ export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promis
 async function runWithRedisMutex<T>(
   lockKey: string,
   rowId: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  signal?: AbortSignal
 ): Promise<T> {
   const ownerToken = generateShortId()
   const deadline = Date.now() + REFRESH_MAX_WAIT_MS
 
   while (true) {
+    signal?.throwIfAborted()
     let acquired = false
     try {
       acquired = await acquireLock(lockKey, ownerToken, REFRESH_LOCK_TTL_SEC)
     } catch (error) {
+      if (signal?.aborted) {
+        await releaseLock(lockKey, ownerToken).catch((releaseError) => {
+          logger.warn('Refresh lock cleanup after cancelled acquire failed (will expire via TTL)', {
+            rowId,
+            error: toError(releaseError).message,
+          })
+        })
+        signal.throwIfAborted()
+      }
       logger.warn('Redis unavailable, running OAuth flow uncoordinated', {
         rowId,
         error: toError(error).message,
@@ -345,6 +389,7 @@ async function runWithRedisMutex<T>(
         })
       }, REFRESH_LOCK_EXTEND_INTERVAL_MS)
       try {
+        signal?.throwIfAborted()
         return await fn()
       } finally {
         clearInterval(watchdog)
@@ -357,6 +402,7 @@ async function runWithRedisMutex<T>(
       }
     }
 
+    signal?.throwIfAborted()
     if (Date.now() >= deadline) {
       // Lock still held by another process AND its watchdog is keeping it
       // alive — falling open would let us refresh concurrently and race the
@@ -367,6 +413,6 @@ async function runWithRedisMutex<T>(
         `MCP OAuth refresh lock for ${rowId} held longer than ${REFRESH_MAX_WAIT_MS}ms`
       )
     }
-    await sleep(REFRESH_POLL_INTERVAL_MS)
+    await interruptibleSleep(REFRESH_POLL_INTERVAL_MS, signal)
   }
 }

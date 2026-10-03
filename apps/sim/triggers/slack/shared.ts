@@ -60,9 +60,40 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
         type: 'string',
         description: 'Parent thread timestamp (if message is in a thread)',
       },
+      streaming_message_ts: {
+        type: 'array',
+        description: 'Message timestamps streamed during a stopped agent session',
+        items: { type: 'string', description: 'Streaming message timestamp' },
+      },
+      title: {
+        type: 'string',
+        description: 'Current agent session title',
+      },
+      previous_title: {
+        type: 'string',
+        description: 'Previous agent session title',
+      },
+      tab: {
+        type: 'string',
+        description: 'App Home tab that was opened, including messages for Agent View',
+      },
+      context: {
+        type: 'json',
+        description:
+          'Current Agent View context. Normalized from context on app_context_changed/app_home_opened or app_context on message.im',
+      },
       team_id: {
         type: 'string',
         description: 'Slack workspace/team ID',
+      },
+      user_team_id: {
+        type: 'string',
+        description:
+          'Slack workspace/team ID of the user who triggered the event. Used for Slack Connect response streaming.',
+      },
+      enterprise_id: {
+        type: 'string',
+        description: 'Slack Enterprise Grid organization ID',
       },
       event_id: {
         type: 'string',
@@ -166,8 +197,16 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
  * - `name`: substring match on a created channel's name.
  * - `interaction`: restrict an interactivity event to specific `action_id`s
  *   (block_actions) or `callback_id`s (view_submission).
+ * - `command`: restrict slash-command requests to specific command names.
  */
-export type SlackEventFilter = 'source' | 'channels' | 'threads' | 'emoji' | 'name' | 'interaction'
+export type SlackEventFilter =
+  | 'source'
+  | 'channels'
+  | 'threads'
+  | 'emoji'
+  | 'name'
+  | 'interaction'
+  | 'command'
 
 export interface SlackEventCatalogEntry {
   /** Selected value stored under the `eventType` sub-block. */
@@ -175,6 +214,8 @@ export interface SlackEventCatalogEntry {
   label: string
   /** True when the official shared Sim app already subscribes to the event. */
   simSubscribed: boolean
+  /** Retained for existing workflows; Agent View manifests cannot subscribe to this event. */
+  legacy?: boolean
   /** Contextual filters this event supports. */
   filters: readonly SlackEventFilter[]
 }
@@ -183,9 +224,9 @@ export interface SlackEventCatalogEntry {
  * The full catalog of selectable events for the native OAuth (`slack_app`)
  * trigger, and the single source of truth for event gating. One trigger block
  * fires on exactly one `id`. `simSubscribed` gates which events are offered in
- * Sim mode (the official app), while every event is offered in Custom mode
- * (the bring-your-own app generates a manifest that subscribes to it, driven by
- * SLACK_CAPABILITIES). `filters` drives both the trigger UI (which filter
+ * Sim mode (the official app). Legacy Assistant events remain in the catalog
+ * for native Sim workflows; their options require an OAuth credential because
+ * custom apps use Agent View events instead. `filters` drives both the trigger UI (which filter
  * sub-blocks show) and the ingest route (which checks apply).
  */
 export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
@@ -245,11 +286,36 @@ export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
   { id: 'pin_removed', label: 'Pin removed', simSubscribed: false, filters: ['channels'] },
   { id: 'team_join', label: 'Member joined workspace', simSubscribed: false, filters: [] },
   { id: 'app_home_opened', label: 'App home opened', simSubscribed: false, filters: [] },
-  { id: 'assistant_thread_started', label: 'Assistant opened', simSubscribed: true, filters: [] },
+  {
+    id: 'agent_session_stopped',
+    label: 'Agent session stopped',
+    simSubscribed: false,
+    filters: [],
+  },
+  {
+    id: 'agent_session_title_changed',
+    label: 'Agent session title changed',
+    simSubscribed: false,
+    filters: [],
+  },
+  {
+    id: 'app_context_changed',
+    label: 'Agent context changed',
+    simSubscribed: false,
+    filters: [],
+  },
+  {
+    id: 'assistant_thread_started',
+    label: 'Assistant opened',
+    simSubscribed: true,
+    legacy: true,
+    filters: [],
+  },
   {
     id: 'assistant_thread_context_changed',
     label: 'Assistant context changed',
     simSubscribed: true,
+    legacy: true,
     filters: [],
   },
   {
@@ -263,6 +329,12 @@ export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
     label: 'Modal submitted',
     simSubscribed: true,
     filters: ['interaction'],
+  },
+  {
+    id: 'slash_command',
+    label: 'Slash command',
+    simSubscribed: false,
+    filters: ['command'],
   },
 ] as const
 
@@ -280,10 +352,15 @@ export const SIM_SUBSCRIBED_EVENTS: readonly string[] = SLACK_EVENT_CATALOG.filt
   (entry) => entry.simSubscribed
 ).map((entry) => entry.id)
 
-/** Dropdown options for the event picker — every selectable event. */
+/** Assistant events require native OAuth; custom Agent View bots use the current event family. */
 export const SLACK_ALL_EVENT_OPTIONS = SLACK_EVENT_CATALOG.map((entry) => ({
   label: entry.label,
   id: entry.id,
+  ...(entry.legacy
+    ? {
+        reactiveCondition: { watchFields: ['customBotCredential'], requiredType: 'oauth' as const },
+      }
+    : {}),
 }))
 
 /**

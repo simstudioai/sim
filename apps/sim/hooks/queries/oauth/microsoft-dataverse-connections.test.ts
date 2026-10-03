@@ -1,0 +1,170 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act, createElement, type ReactNode } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createRoot, type Root } from 'react-dom/client'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
+
+vi.mock('@/lib/desktop', () => libDesktopMock)
+
+import { getMicrosoftDataverseRequiredScope } from '@/lib/oauth/microsoft-dataverse'
+import {
+  assertMicrosoftDataverseReconnectAvailable,
+  assertMicrosoftDataverseWebOAuthAvailable,
+  useConnectMicrosoftDataverseOAuthService,
+  useMicrosoftDataverseCredentialBinding,
+} from '@/hooks/queries/oauth/microsoft-dataverse-connections'
+
+const mockBeginOAuthConnect = vi.fn()
+const mockLink = authClientMockFns.mockClient.oauth2.link
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
+  mockBeginOAuthConnect.getMockName() === 'desktop'
+    ? { beginOAuthConnect: mockBeginOAuthConnect }
+    : undefined
+)
+
+function renderHookWithClient<T>(useHook: () => T): {
+  queryClient: QueryClient
+  result: () => T
+  unmount: () => void
+} {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const queryClient = new QueryClient({
+    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+  })
+  const container = document.createElement('div')
+  const root: Root = createRoot(container)
+  let latest: T
+
+  function Probe() {
+    latest = useHook()
+    return null
+  }
+
+  act(() => {
+    root.render(
+      createElement(QueryClientProvider, { client: queryClient }, createElement(Probe) as ReactNode)
+    )
+  })
+
+  return {
+    queryClient,
+    result: () => latest,
+    unmount: () => act(() => root.unmount()),
+  }
+}
+
+describe('Microsoft Dataverse OAuth connections', () => {
+  beforeEach(() => {
+    mockBeginOAuthConnect.mockName('web')
+    mockLink.mockResolvedValue({ data: {}, error: null })
+  })
+
+  it('rejects Better Auth link errors instead of reporting a successful redirect', async () => {
+    mockLink.mockResolvedValue({
+      data: null,
+      error: {
+        message: 'OAuth state could not be created',
+        status: 500,
+        statusText: 'Failed',
+      },
+    })
+    const hook = renderHookWithClient(useConnectMicrosoftDataverseOAuthService)
+
+    await expect(
+      hook.result().mutateAsync({
+        callbackURL: 'https://sim.test/workflow',
+        environmentUrl: 'https://contoso.crm.dynamics.com',
+      })
+    ).rejects.toThrow('OAuth state could not be created')
+    hook.unmount()
+  })
+
+  it('rejects invalid environments and desktop initiation before linking', async () => {
+    const webHook = renderHookWithClient(useConnectMicrosoftDataverseOAuthService)
+    await expect(
+      webHook.result().mutateAsync({
+        callbackURL: 'https://sim.test/workflow',
+        environmentUrl: 'https://evil.example',
+      })
+    ).rejects.toThrow('supported public-cloud Microsoft Dynamics host')
+    webHook.unmount()
+
+    mockBeginOAuthConnect.mockName('desktop')
+    expect(() => assertMicrosoftDataverseWebOAuthAvailable()).toThrow('Sim web app')
+    const desktopHook = renderHookWithClient(useConnectMicrosoftDataverseOAuthService)
+    await expect(
+      desktopHook.result().mutateAsync({
+        callbackURL: 'https://sim.test/workflow',
+        environmentUrl: 'https://contoso.crm.dynamics.com',
+      })
+    ).rejects.toThrow('Sim web app')
+    expect(mockLink).not.toHaveBeenCalled()
+    desktopHook.unmount()
+  })
+
+  it('fails every reconnect precondition before the caller creates a draft', () => {
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'bound',
+        credentialQueryFailed: true,
+      })
+    ).toThrow('Could not verify')
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'invalid',
+        credentialQueryFailed: false,
+      })
+    ).toThrow('invalid environment binding')
+
+    mockBeginOAuthConnect.mockName('desktop')
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'bound',
+        credentialQueryFailed: false,
+      })
+    ).toThrow('Sim web app')
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'legacy',
+        credentialQueryFailed: false,
+      })
+    ).not.toThrow()
+  })
+
+  it.each([
+    ['not-dataverse', 'salesforce', [], false],
+    ['legacy', 'microsoft-dataverse', ['https://dynamics.microsoft.com/user_impersonation'], false],
+    [
+      'bound',
+      'microsoft-dataverse',
+      [getMicrosoftDataverseRequiredScope('https://contoso.crm.dynamics.com')],
+      false,
+    ],
+    [
+      'invalid',
+      'microsoft-dataverse',
+      [
+        getMicrosoftDataverseRequiredScope('https://contoso.crm.dynamics.com'),
+        getMicrosoftDataverseRequiredScope('https://other.crm.dynamics.com'),
+      ],
+      false,
+    ],
+    ['loading', 'microsoft-dataverse', [], true],
+  ])('classifies a stored credential as %s', (state, providerId, scopes, isPending) => {
+    const hook = renderHookWithClient(() =>
+      useMicrosoftDataverseCredentialBinding({ providerId, scopes, isPending })
+    )
+
+    expect(hook.result().state).toBe(state)
+    if (state === 'bound') {
+      expect(hook.result().environmentUrl).toBe('https://contoso.api.crm.dynamics.com')
+    }
+    hook.unmount()
+  })
+})

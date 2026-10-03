@@ -2,7 +2,6 @@ import { VantaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ToolResponse } from '@/tools/types'
 
 const LIST_OPERATIONS = [
   'list_frameworks',
@@ -56,7 +55,7 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
 
-export const VantaBlock: BlockConfig<ToolResponse> = {
+export const VantaBlock: BlockConfig = {
   type: 'vanta',
   name: 'Vanta',
   description: 'Query compliance status and manage evidence in Vanta',
@@ -283,14 +282,6 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
       title: 'File Name',
       type: 'short-input',
       placeholder: 'Optional file name override',
-      condition: { field: 'operation', value: 'upload_document_file' },
-      mode: 'advanced',
-    },
-    {
-      id: 'uploadMimeType',
-      title: 'MIME Type',
-      type: 'short-input',
-      placeholder: 'e.g., application/pdf (used when the file has no type of its own)',
       condition: { field: 'operation', value: 'upload_document_file' },
       mode: 'advanced',
     },
@@ -930,7 +921,6 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
             const normalizedFile = normalizeFileInput(rest.file, { single: true })
             if (normalizedFile) result.file = normalizedFile
             result.fileName = optionalString(rest.uploadFileName)
-            result.mimeType = optionalString(rest.uploadMimeType)
             result.description = optionalString(rest.uploadDescription)
             result.effectiveAtDate = optionalString(rest.effectiveAtDate)
             break
@@ -993,10 +983,6 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
     uploadedFileId: { type: 'string', description: 'Uploaded file ID' },
     file: { type: 'json', description: 'Evidence file to upload' },
     uploadFileName: { type: 'string', description: 'Optional file name override' },
-    uploadMimeType: {
-      type: 'string',
-      description: 'MIME type override used when the uploaded content has no type of its own',
-    },
     uploadDescription: { type: 'string', description: 'Description of the uploaded evidence' },
     effectiveAtDate: { type: 'string', description: 'Effective date of the document (ISO 8601)' },
     frameworkMatchesAny: { type: 'string', description: 'Comma-separated framework ID filters' },

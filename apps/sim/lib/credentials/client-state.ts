@@ -57,12 +57,15 @@ interface OAuthReturnBase {
     accountId: string | null
     updatedAt?: string
   }>
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   reconnect?: boolean
   requestedAt: number
 }
 
 interface OAuthReturnWorkflow extends OAuthReturnBase {
+  workspaceId: string
+  organizationId?: never
   origin: 'workflow'
   workflowId: string
 }
@@ -75,6 +78,8 @@ interface OAuthReturnKBConnectors extends OAuthReturnBase {
   origin: 'kb-connectors'
   knowledgeBaseId: string
   connectorType?: string
+  connectorId?: string
+  sourceAccess?: 'members'
 }
 
 export type OAuthReturnContext =
@@ -92,10 +97,13 @@ export function readOAuthReturnContext(): OAuthReturnContext | null {
   return parseJson<OAuthReturnContext>(window.sessionStorage.getItem(OAUTH_RETURN_CONTEXT_KEY))
 }
 
+export function clearOAuthReturnContext(): void {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(OAUTH_RETURN_CONTEXT_KEY)
+}
+
 export function consumeOAuthReturnContext(): OAuthReturnContext | null {
   const ctx = readOAuthReturnContext()
-  if (ctx) {
-    window.sessionStorage.removeItem(OAUTH_RETURN_CONTEXT_KEY)
-  }
+  if (ctx) clearOAuthReturnContext()
   return ctx
 }

@@ -12,6 +12,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Tooltip,
 } from '@sim/emcn'
 import {
   ArrowDown,
@@ -44,6 +45,12 @@ const LIMITED_RUN_PRESETS = [10, 1000] as const
 /** Labels for the table-scoped run items. With an active filter the run is
  *  scoped to matching rows, so the labels say "filtered rows" to make the
  *  narrowed target visible. Shared by both menu surfaces. */
+/**
+ * Incomplete before all, matching the action bar and the row context menu, which both
+ * present Play (empty or failed) ahead of Refresh (every row). These two menus read the
+ * same four run actions the user already met on the action bar, so they must not invert
+ * the pair — see `.claude/rules/sim-list-ordering.md`.
+ */
 function runMenuLabels(hasActiveFilter: boolean) {
   const rows = hasActiveFilter ? 'filtered rows' : 'rows'
   return {
@@ -64,6 +71,10 @@ interface ColumnOptionsMenuProps {
    *  it leaves the group with siblings). */
   deleteLabel?: string
   onOpenConfig: (columnName: string) => void
+  /** Why column changes are unavailable; disables the schema rows and explains them. */
+  schemaLockedReason?: string
+  /** Why deleting is unavailable; disables the destructive column row. */
+  deleteLockedReason?: string
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
@@ -103,6 +114,24 @@ interface ColumnOptionsMenuProps {
 }
 
 /**
+ * A menu row a lock disables. A disabled `DropdownMenuItem` sets
+ * `pointer-events: none`, so it can never receive the hover its own tooltip
+ * would need — the trigger wraps it instead (same shape as the folder menu).
+ * Renders the row untouched when nothing blocks it.
+ */
+function MenuRow({ reason, children }: { reason?: string; children: React.ReactElement }) {
+  if (!reason) return children
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <div>{children}</div>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{reason}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+/**
  * Shared column-options dropdown rendered next to the column header chevron
  * AND on right-click of the workflow group meta cell. Anchors to a fixed
  * position passed in (so callers can place it under the chevron, or at the
@@ -116,6 +145,8 @@ export function ColumnOptionsMenu({
   column,
   deleteLabel,
   onOpenConfig,
+  schemaLockedReason,
+  deleteLockedReason,
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
@@ -133,6 +164,9 @@ export function ColumnOptionsMenu({
   isPinned,
   onPinToggle,
 }: ColumnOptionsMenuProps) {
+  // Hiding a workflow output leaves the data alone, so no lock covers it.
+  const destructiveReason =
+    deleteLabel === 'Hide column' ? undefined : (schemaLockedReason ?? deleteLockedReason)
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
   const runLabels = runMenuLabels(hasActiveFilter)
@@ -160,34 +194,31 @@ export function ColumnOptionsMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showRunActions && (
-          <>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <PlayOutline />
-                Run
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {showRunSelected && (
-                  <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
-                    {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PlayOutline />
+              Run
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {showRunSelected && (
+                <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
+                  {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
+                {runLabels.incomplete}
+              </DropdownMenuItem>
+              {onRunColumnLimited &&
+                LIMITED_RUN_PRESETS.map((max) => (
+                  <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
+                    {runLabels.limited(max)}
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
-                  {runLabels.all}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
-                  {runLabels.incomplete}
-                </DropdownMenuItem>
-                {onRunColumnLimited &&
-                  LIMITED_RUN_PRESETS.map((max) => (
-                    <DropdownMenuItem key={max} onSelect={() => onRunColumnLimited(max)}>
-                      {runLabels.limited(max)}
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-          </>
+                ))}
+              <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
+                {runLabels.all}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
         {/* Sort leads the column-scoped block: the options bar reads Filter ·
             Sort · Columns, and this menu carries no Filter item, so Sort is the
@@ -217,7 +248,6 @@ export function ColumnOptionsMenu({
               <ArrowDown />
               Sort descending
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
           </>
         )}
         {onViewWorkflow && (
@@ -226,32 +256,52 @@ export function ColumnOptionsMenu({
             View workflow
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
-          <Pencil />
-          Edit column
-        </DropdownMenuItem>
+        <MenuRow reason={schemaLockedReason}>
+          <DropdownMenuItem
+            disabled={Boolean(schemaLockedReason)}
+            onSelect={() => onOpenConfig(column.key)}
+          >
+            <Pencil />
+            Edit column
+          </DropdownMenuItem>
+        </MenuRow>
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}
             {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
+        {/* Stops acting on this column and starts creating siblings — `Edit column`
+            above always renders (disabled or not), so the rule is always backed. */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
-          <ArrowLeft />
-          Insert column left
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onInsertRight(column.key)}>
-          <ArrowRight />
-          Insert column right
-        </DropdownMenuItem>
+        <MenuRow reason={schemaLockedReason}>
+          <DropdownMenuItem
+            disabled={Boolean(schemaLockedReason)}
+            onSelect={() => onInsertLeft(column.key)}
+          >
+            <ArrowLeft />
+            Insert column left
+          </DropdownMenuItem>
+        </MenuRow>
+        <MenuRow reason={schemaLockedReason}>
+          <DropdownMenuItem
+            disabled={Boolean(schemaLockedReason)}
+            onSelect={() => onInsertRight(column.key)}
+          >
+            <ArrowRight />
+            Insert column right
+          </DropdownMenuItem>
+        </MenuRow>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.key))}
-        >
-          {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
-          {deleteLabel ?? 'Delete column'}
-        </DropdownMenuItem>
+        <MenuRow reason={destructiveReason}>
+          <DropdownMenuItem
+            disabled={Boolean(destructiveReason)}
+            onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.key))}
+          >
+            {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
+            {deleteLabel ?? 'Delete column'}
+          </DropdownMenuItem>
+        </MenuRow>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -277,6 +327,10 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
+  /** Why column changes are unavailable; disables the schema rows and explains them. */
+  schemaLockedReason?: string
+  /** Why deleting is unavailable; disables the destructive column row. */
+  deleteLockedReason?: string
   onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[], limit?: RunLimit) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
@@ -330,6 +384,8 @@ export function WorkflowGroupMetaCell({
   isGroupSelected,
   onSelectGroup,
   onOpenConfig,
+  schemaLockedReason,
+  deleteLockedReason,
   onRunColumn,
   onInsertLeft,
   onInsertRight,
@@ -515,7 +571,6 @@ export function WorkflowGroupMetaCell({
                   {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>
                 {runLabels.incomplete}
               </DropdownMenuItem>
@@ -524,6 +579,7 @@ export function WorkflowGroupMetaCell({
                   {runLabels.limited(max)}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onSelect={handleRunAll}>{runLabels.all}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -535,6 +591,8 @@ export function WorkflowGroupMetaCell({
           position={optionsMenuPosition}
           column={column}
           onOpenConfig={onOpenConfig}
+          schemaLockedReason={schemaLockedReason}
+          deleteLockedReason={deleteLockedReason}
           onInsertLeft={onInsertLeft}
           onInsertRight={onInsertRight}
           onDeleteColumn={onDeleteColumn}

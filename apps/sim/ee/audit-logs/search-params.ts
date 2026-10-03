@@ -1,4 +1,4 @@
-import { parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createSerializer, parseAsArrayOf, parseAsString } from 'nuqs/server'
 import {
   parseAsDateString,
   parseAsTimeRange,
@@ -20,6 +20,13 @@ export const DEFAULT_AUDIT_TIME_RANGE: TimeRange = 'Past 30 days'
  */
 export const auditLogFilterParsers = {
   types: parseAsArrayOf(parseAsString).withDefault([]),
+  /**
+   * Nullable by design: the feed is organization-wide unless a link narrows it, and
+   * the usage panel's workspace drill-down is what does. Only the id is stored — the
+   * name is resolved from the loaded workspace list, so a stale id from an old link
+   * clears the filter rather than labelling it with nothing.
+   */
+  workspace: parseAsString,
   timeRange: parseAsTimeRange.withDefault(DEFAULT_AUDIT_TIME_RANGE),
   startDate: parseAsDateString,
   endDate: parseAsDateString,
@@ -36,3 +43,13 @@ export const auditLogFilterUrlKeys = {
     endDate: 'end-date',
   },
 } as const
+
+/**
+ * Outbound links into the audit feed — the usage panel's workspace drill-down builds
+ * one — serialized from the map the feed itself parses rather than by concatenation,
+ * which emitted a bare `?workspace=` for a null id and left the value unencoded.
+ */
+export const serializeAuditLogFilters = createSerializer(auditLogFilterParsers, {
+  clearOnDefault: true,
+  urlKeys: auditLogFilterUrlKeys.urlKeys,
+})

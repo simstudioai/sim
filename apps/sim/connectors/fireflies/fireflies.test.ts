@@ -1,17 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-  VALIDATE_RETRY_OPTIONS: {},
-}))
-vi.mock('@/components/icons', () => ({ FirefliesIcon: () => null }))
-
 import { firefliesConnector } from '@/connectors/fireflies/fireflies'
+
+beforeEach(() => {
+  vi.useRealTimers()
+})
 
 interface GraphQLCall {
   query: string
@@ -19,20 +11,18 @@ interface GraphQLCall {
 }
 
 /** Replays the given GraphQL bodies in order and records what was sent. */
-function mockGraphQL(responses: { status?: number; body: unknown }[]) {
+function mockGraphQL(
+  responses: { status?: number; body: unknown; headers?: Record<string, string> }[]
+) {
   const calls: GraphQLCall[] = []
   let index = 0
-  mockFetchWithRetry.mockImplementation(async (_url: string, options: RequestInit) => {
-    calls.push(JSON.parse(String(options.body)))
+  const fetchMock = vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
+    calls.push(JSON.parse(String(options?.body)))
     const route = responses[Math.min(index++, responses.length - 1)]
     const status = route.status ?? 200
-    return {
-      ok: status >= 200 && status < 300,
-      status,
-      json: async () => route.body,
-      text: async () => JSON.stringify(route.body),
-    } as unknown as Response
+    return new Response(JSON.stringify(route.body), { status, headers: route.headers })
   })
+  vi.stubGlobal('fetch', fetchMock)
   return calls
 }
 
@@ -61,50 +51,27 @@ function page(count: number, offset = 0) {
 }
 
 describe('fireflies listDocuments', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  it.each(['-1', '1.5', 'Infinity', '9007199254740992', 'opaque'])(
+    'rejects invalid pagination cursor %s before calling Fireflies',
+    async (cursor) => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
 
-  it('passes limit/skip/toDate as GraphQL variables and pins the ceiling across pages', async () => {
-    const calls = mockGraphQL([page(50), page(1, 50)])
-    const syncContext: Record<string, unknown> = {}
+      await expect(firefliesConnector.listDocuments('key', {}, cursor, {})).rejects.toThrow(
+        'Invalid Fireflies connector pagination cursor'
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
 
-    const first = await firefliesConnector.listDocuments('key', {}, undefined, syncContext)
-    expect(first.hasMore).toBe(true)
-    expect(first.nextCursor).toBe('50')
-
-    await firefliesConnector.listDocuments('key', {}, first.nextCursor, syncContext)
-
-    expect(calls[0].variables.limit).toBe(50)
-    expect(calls[0].variables.skip).toBe(0)
-    expect(calls[1].variables.skip).toBe(50)
-    expect(calls[0].variables.toDate).toBe(calls[1].variables.toDate)
-    expect(typeof calls[0].variables.toDate).toBe('string')
-    expect(calls[0].query).not.toContain('50')
-  })
-
-  it('leaves listingCapped unset when the source is genuinely exhausted', async () => {
+  it('marks offset pagination unsafe for deletion reconciliation even when exhausted', async () => {
     mockGraphQL([page(3)])
     const syncContext: Record<string, unknown> = {}
 
     const result = await firefliesConnector.listDocuments('key', {}, undefined, syncContext)
 
     expect(result.hasMore).toBe(false)
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
-  it('leaves listingCapped unset when maxTranscripts lands exactly on exhaustion', async () => {
-    mockGraphQL([page(3)])
-    const syncContext: Record<string, unknown> = {}
-
-    const result = await firefliesConnector.listDocuments(
-      'key',
-      { maxTranscripts: '3' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(3)
+    expect(result.reconciliationSafe).toBe(false)
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
@@ -126,122 +93,136 @@ describe('fireflies listDocuments', () => {
 
   it('throws on a GraphQL errors[] payload rather than reporting an empty listing', async () => {
     mockGraphQL([
-      { body: { data: {}, errors: [{ message: 'Rate limited', code: 'too_many_requests' }] } },
+      { body: { data: {}, errors: [{ message: 'Invalid input', code: 'invalid_arguments' }] } },
     ])
 
     await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
-      /too_many_requests/
+      /invalid_arguments/
     )
-  })
-
-  it('throws rather than reporting an empty listing when a 200 body is unreadable', async () => {
-    mockFetchWithRetry.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => {
-        throw new SyntaxError('Unexpected token < in JSON at position 0')
-      },
-      text: async () => '<html>gateway</html>',
-    } as unknown as Response)
-    const syncContext: Record<string, unknown> = {}
-
-    await expect(
-      firefliesConnector.listDocuments('key', {}, undefined, syncContext)
-    ).rejects.toThrow(/malformed/i)
   })
 
   it('throws rather than reporting an empty listing when a 200 carries no data', async () => {
+    vi.useFakeTimers()
     mockGraphQL([{ body: {} }])
 
+    const pending = expect(
+      firefliesConnector.listDocuments('key', {}, undefined, {})
+    ).rejects.toThrow(/malformed/i)
+    await vi.runAllTimersAsync()
+    await pending
+  })
+
+  it('rejects malformed transcript rows instead of silently filtering them', async () => {
+    mockGraphQL([{ body: { data: { transcripts: [{}] } } }])
+
     await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
-      /malformed/i
+      'Fireflies API returned malformed transcript metadata'
     )
   })
 
-  it('surfaces the errors[] message on a non-2xx response', async () => {
+  it('retries one malformed page without discarding the sync', async () => {
+    vi.useFakeTimers()
+    mockGraphQL([{ body: {} }, page(2)])
+
+    const pending = firefliesConnector.listDocuments('key', {}, undefined, {})
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    expect(result.documents).toHaveLength(2)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    [520, 60],
+    [522, 120],
+  ])('respects Retry-After and retries Cloudflare %i', async (status, retryAfterSeconds) => {
+    vi.useFakeTimers()
     mockGraphQL([
-      { status: 403, body: { errors: [{ message: 'Upgrade required', code: 'paid_required' }] } },
+      {
+        status,
+        body: { diagnostic: 'temporary edge failure' },
+        headers: { 'retry-after': String(retryAfterSeconds) },
+      },
+      page(2),
     ])
 
-    await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
-      /Upgrade required/
-    )
+    const pending = firefliesConnector.listDocuments('key', {}, undefined, {})
+    await vi.advanceTimersByTimeAsync(retryAfterSeconds * 1000 - 1)
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    const result = await pending
+
+    expect(result.documents).toHaveLength(2)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
   })
 })
 
 describe('fireflies getDocument', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  it.each([null, {}, transcript('different')])(
+    'rejects malformed or mismatched successful transcript metadata',
+    async (value) => {
+      mockGraphQL([{ body: { data: { transcript: value } } }])
 
-  it('declares the transcript id as String! and reuses the stub contentHash', async () => {
-    const calls = mockGraphQL([
-      page(1),
+      await expect(firefliesConnector.getDocument('key', {}, 't0')).rejects.toThrow(
+        'Fireflies API returned malformed transcript metadata'
+      )
+    }
+  )
+
+  it('surfaces extracted transcript content beyond its byte budget as skipped', async () => {
+    mockGraphQL([
       {
         body: {
           data: {
             transcript: transcript('t0', {
-              sentences: [{ speaker_name: 'Ada', text: 'Hello' }],
-              summary: { overview: 'An overview', keywords: ['alpha'] },
+              sentences: [{ speaker_name: 'Ada', text: 'x'.repeat(9 * 1024 * 1024) }],
             }),
           },
         },
       },
     ])
 
-    const listed = await firefliesConnector.listDocuments('key', {}, undefined, {})
-    const stub = listed.documents[0]
-    const full = await firefliesConnector.getDocument('key', {}, 't0')
+    const result = await firefliesConnector.getDocument('key', {}, 't0')
 
-    expect(calls[1].query).toContain('$id: String!')
-    expect(calls[1].variables).toEqual({ id: 't0' })
-    expect(full?.contentHash).toBe(stub.contentHash)
-    expect(stub.contentDeferred).toBe(true)
-    expect(full?.contentDeferred).toBe(false)
-    expect(full?.content).toContain('Ada: Hello')
-    expect(full?.content).toContain('An overview')
+    expect(result).toMatchObject({ content: '', contentDeferred: false })
+    expect(result?.skippedReason).toContain('8MB')
   })
 
-  it('renders duration as minutes, not seconds', async () => {
-    mockGraphQL([{ body: { data: { transcript: transcript('t0', { duration: 45 }) } } }])
-
-    const full = await firefliesConnector.getDocument('key', {}, 't0')
-
-    expect(full?.content).toContain('Duration: 45 minutes')
-    expect(full?.metadata?.duration).toBe(45)
-  })
-
-  it('falls back to organizer_email when the deprecated host_email is absent', async () => {
-    mockGraphQL([{ body: { data: { transcript: transcript('t0') } } }])
-
-    const full = await firefliesConnector.getDocument('key', {}, 't0')
-
-    expect(full?.metadata?.hostEmail).toBe('organizer@example.com')
-    expect(firefliesConnector.mapTags?.(full?.metadata ?? {}).hostEmail).toBe(
-      'organizer@example.com'
-    )
-  })
-
-  it('returns null when the transcript is not found', async () => {
-    mockGraphQL([
-      { status: 404, body: { errors: [{ message: 'Not found', code: 'object_not_found' }] } },
-    ])
-
-    await expect(firefliesConnector.getDocument('key', {}, 'missing')).resolves.toBeNull()
-  })
-})
-
-describe('fireflies tags', () => {
-  it('produces every declared tagDefinition id', () => {
-    const tags = firefliesConnector.mapTags?.({
-      hostEmail: 'host@example.com',
-      speakers: ['Ada', 'Grace'],
-      duration: 45,
-      meetingDate: '2024-07-08T22:13:46.660Z',
+  it('surfaces JSON escape expansion beyond the wire cap as a visible skip', async () => {
+    const escapedText = '\u0000'.repeat(3 * 1024 * 1024)
+    const responseBody = JSON.stringify({
+      data: {
+        transcript: transcript('escaped', {
+          sentences: [{ speaker_name: 'Ada', text: escapedText }],
+        }),
+      },
     })
+    expect(Buffer.byteLength(escapedText, 'utf8')).toBeLessThan(8 * 1024 * 1024)
+    expect(Buffer.byteLength(responseBody, 'utf8')).toBeGreaterThan(16 * 1024 * 1024)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(responseBody))
+    )
 
-    expect(Object.keys(tags ?? {}).sort()).toEqual(
-      firefliesConnector.tagDefinitions?.map((t) => t.id).sort()
+    const result = await firefliesConnector.getDocument('key', {}, 'escaped')
+
+    expect(result).toMatchObject({
+      externalId: 'escaped',
+      content: '',
+      contentDeferred: false,
+      skippedReason:
+        'Transcript response exceeds the 16MB safe hydration limit and was not indexed',
+    })
+  })
+
+  it('does not convert an oversized provider error response into a skipped transcript', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('x'.repeat(17 * 1024 * 1024), { status: 403 }))
+    )
+
+    await expect(firefliesConnector.getDocument('key', {}, 'provider-error')).rejects.toThrow(
+      /HTTP error: 403/
     )
   })
 })

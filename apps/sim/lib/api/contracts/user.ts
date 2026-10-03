@@ -3,6 +3,7 @@ import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { BILLING_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
 import { isSameOrigin } from '@/lib/core/utils/validation'
+import { AUTHORIZED_APPS_PAGE_SIZE } from '@/lib/users/constants'
 
 export const userProfileSchema = z.object({
   id: z.string(),
@@ -13,6 +14,59 @@ export const userProfileSchema = z.object({
 })
 
 export type UserProfileApiUser = z.output<typeof userProfileSchema>
+
+/** An OAuth client the account has authorized, as the "Authorized apps" settings list shows it. */
+export const authorizedAppSchema = z.object({
+  clientId: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  scopes: z.array(z.string().min(1).max(100)).max(50),
+  /**
+   * When the user granted this app access, which is what decides whether to
+   * revoke it. ISO-checked because the row is rendered through `new Date(...)`
+   * — anything else reaches the settings list as "Invalid Date".
+   */
+  authorizedAt: z.iso.datetime(),
+})
+
+export type AuthorizedApp = z.output<typeof authorizedAppSchema>
+
+export const listAuthorizedAppsQuerySchema = z.object({
+  cursor: z.string().min(1, 'Cursor cannot be empty').max(512).optional(),
+  search: z.string().trim().max(200, 'Search cannot exceed 200 characters').optional(),
+})
+
+export type ListAuthorizedAppsQuery = z.input<typeof listAuthorizedAppsQuerySchema>
+
+export const authorizedAppsPageSchema = z.object({
+  apps: z.array(authorizedAppSchema).max(AUTHORIZED_APPS_PAGE_SIZE),
+  nextCursor: z.string().min(1).max(512).nullable(),
+})
+
+export type AuthorizedAppsPage = z.output<typeof authorizedAppsPageSchema>
+
+export const listAuthorizedAppsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/authorized-apps',
+  query: listAuthorizedAppsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: authorizedAppsPageSchema,
+  },
+})
+
+export const authorizedAppParamsSchema = z.object({
+  clientId: z.string().min(1, 'Client ID is required').max(200),
+})
+
+export const revokeAuthorizedAppContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/users/me/authorized-apps/[clientId]',
+  params: authorizedAppParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
+  },
+})
 
 export const getUserProfileContract = defineRouteContract({
   method: 'GET',
@@ -410,6 +464,78 @@ export const subscriptionTransferContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
       message: z.string(),
+    }),
+  },
+})
+
+/** Every reason an account cannot be erased on its own, as rendered to its owner. */
+export const accountDeletionBlockerSchema = z.object({
+  code: z.enum([
+    'paid_organization_owner',
+    'organization_member',
+    'active_subscription',
+    'shared_workspace',
+    'organization_workspace',
+    'data_drain_owner',
+  ]),
+  /** A sentence naming both the obstacle and the way out. */
+  message: z.string(),
+})
+
+const accountDeletionResourceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+})
+
+export type AccountDeletionResource = z.output<typeof accountDeletionResourceSchema>
+
+export const accountDeletionPlanSchema = z.object({
+  blockers: z.array(accountDeletionBlockerSchema),
+  /** Workspaces nobody else can reach — erased along with the account. */
+  workspacesToDelete: z.array(accountDeletionResourceSchema),
+  /**
+   * Workspaces the account only anchors — it pays for them or is recorded as
+   * their owner while holding no access to them. The anchor moves to an admin
+   * who does; nothing inside changes hands.
+   */
+  workspacesToTransfer: z.array(accountDeletionResourceSchema),
+})
+
+export type AccountDeletionBlocker = z.output<typeof accountDeletionBlockerSchema>
+export type AccountDeletionPlan = z.output<typeof accountDeletionPlanSchema>
+
+export const getAccountDeletionPlanContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/deletion',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      plan: accountDeletionPlanSchema,
+    }),
+  },
+})
+
+export const deleteAccountBodySchema = z.object({
+  /**
+   * The account's own email address, retyped. Checked server-side against the
+   * session's account so a mis-wired client cannot delete anything else.
+   */
+  confirmEmail: z
+    .string({ error: 'Confirm your email address to delete your account' })
+    .min(1, 'Confirm your email address to delete your account')
+    .max(320, 'Email address is too long'),
+})
+
+export type DeleteAccountBody = z.input<typeof deleteAccountBodySchema>
+
+export const deleteAccountContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/users/me/deletion',
+  body: deleteAccountBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
     }),
   },
 })

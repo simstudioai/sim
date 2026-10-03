@@ -8,40 +8,129 @@
  * that is embedded INSIDE the main Sim window, positioned exactly over the
  * chat's browser panel. The panel is therefore natively interactive — the
  * user clicks and types into the real page, no frame streaming or synthetic
- * input. Both sides consume this package so tool names, parameter shapes,
- * and result shapes cannot drift.
+ * input. Both sides consume this package for tool identity, shared timeout
+ * policy, and bridge envelopes. Individual tool parameters and results are
+ * still validated by the desktop driver rather than statically mapped here.
  *
- * Tool names and parameter shapes mirror the mothership tool catalog
- * (`copilot/internal/tools/catalog/browser` in the mothership repo) — that
- * catalog is the source of truth for what the model can call; this package is
- * the source of truth for how those calls travel to the desktop main process.
+ * Current tool names mirror the mothership tool catalog
+ * (`copilot/internal/tools/catalog/browser` in the mothership repo). This
+ * package also retains retired names needed to replay persisted chat history.
+ * The catalog is the source of truth for what the model can call; this package
+ * is the source of truth for how current and compatible legacy calls travel to
+ * the desktop main process.
  */
 
-export const BROWSER_TOOL_NAMES = [
+export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_navigate',
   'browser_open_url',
   'browser_go_back',
   'browser_go_forward',
+  'browser_reload',
   'browser_open_tab',
   'browser_switch_tab',
   'browser_close_tab',
   'browser_list_tabs',
   'browser_list_sessions',
+  'browser_list_downloads',
+  'browser_save_download',
   'browser_wait_for',
   'browser_snapshot',
+  'browser_find',
   'browser_read_text',
   'browser_screenshot',
   'browser_extract',
   'browser_click',
+  'browser_click_at',
   'browser_type',
+  'browser_fill_form',
+  'browser_batch',
+  'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
+  'browser_set_checked',
+  'browser_upload_file',
   'browser_hover',
-  'browser_request_takeover',
+  'browser_drag',
+  'browser_zoom',
+] as const
+
+export type CurrentBrowserToolName = (typeof CURRENT_BROWSER_TOOL_NAMES)[number]
+
+export const RETIRED_BROWSER_TOOL_NAMES = ['browser_request_takeover'] as const
+
+export const BROWSER_TOOL_NAMES = [
+  ...CURRENT_BROWSER_TOOL_NAMES,
+  ...RETIRED_BROWSER_TOOL_NAMES,
 ] as const
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
+
+export const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
+export const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
+export const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
+export const BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS = 8_000
+export const BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS = 60_000
+export const BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS = BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
+const BROWSER_RENDERER_TRANSPORT_GRACE_MS = 2_000
+export const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
+  BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS +
+  BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
+  BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS +
+  BROWSER_RENDERER_TRANSPORT_GRACE_MS
+
+/**
+ * The desktop exchanges browser-agent file bytes with the app here: POST streams a file named by
+ * a claimed `browser_upload_file` call, PUT stores a completed download for `browser_save_download`.
+ */
+export const BROWSER_FILE_TRANSFER_PATH = '/api/desktop/tool/file'
+/** Per-file byte ceiling for browser uploads and saved downloads, enforced on both sides. */
+export const BROWSER_FILE_TRANSFER_MAX_BYTES = 100 * 1024 * 1024
+/** Files one `browser_upload_file` call may attach. */
+export const BROWSER_UPLOAD_MAX_FILES = 10
+
+/**
+ * Normalizes the model-visible `browser_wait_for.timeoutMs` consistently in
+ * the renderer and desktop main process.
+ */
+export function normalizeBrowserWaitForTimeoutMs(value: unknown): number {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : Number.NaN
+  if (!Number.isFinite(parsed) || parsed <= 0) return BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS
+  return Math.min(parsed, BROWSER_WAIT_FOR_MAX_TIMEOUT_MS)
+}
+
+/** Client execution budget, including authorization, native queueing, and result delivery. */
+export function browserToolRendererTimeoutMs(
+  tool: CurrentBrowserToolName,
+  params: Record<string, unknown> = {}
+): number {
+  switch (tool) {
+    case 'browser_navigate':
+    case 'browser_open_url':
+    case 'browser_go_back':
+    case 'browser_go_forward':
+    case 'browser_reload':
+    case 'browser_open_tab':
+    case 'browser_switch_tab':
+    case 'browser_upload_file':
+    case 'browser_save_download':
+    case 'browser_batch':
+      return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
+    case 'browser_wait_for':
+      return (
+        BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
+        normalizeBrowserWaitForTimeoutMs(params.timeoutMs) +
+        BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+      )
+    default:
+      return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
+  }
+}
 
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
@@ -52,10 +141,16 @@ export type BrowserTheme = (typeof BROWSER_THEMES)[number]
 export type BrowserOmniboxFocusMode = 'select' | 'clear'
 
 const BROWSER_TOOL_NAME_SET: ReadonlySet<string> = new Set(BROWSER_TOOL_NAMES)
+const CURRENT_BROWSER_TOOL_NAME_SET: ReadonlySet<string> = new Set(CURRENT_BROWSER_TOOL_NAMES)
 const BROWSER_THEME_SET: ReadonlySet<string> = new Set(BROWSER_THEMES)
 
 export function isBrowserToolName(name: string): name is BrowserToolName {
   return BROWSER_TOOL_NAME_SET.has(name)
+}
+
+/** True only for browser tools the current model catalog may execute. */
+export function isCurrentBrowserToolName(name: string): name is CurrentBrowserToolName {
+  return CURRENT_BROWSER_TOOL_NAME_SET.has(name)
 }
 
 export function isBrowserTheme(value: unknown): value is BrowserTheme {
@@ -136,11 +231,11 @@ export interface BrowserPanelSnapshot {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus `takeover-done`, sent by the question card on the chat's
- * `browser_request_takeover` tool row when the user finishes a
- * hand-control-back request. Page interactions need no protocol — the user
- * acts on the real embedded page directly, and its right-click menu is native
- * and lives entirely in the shell.
+ * reload), the resource tab strip (`switch-tab`, `close-tab`), plus the legacy
+ * `takeover-done` action retained for persisted `browser_request_takeover`
+ * cards. Page interactions need no protocol — the user acts on the real
+ * embedded page directly, and its right-click menu is native and lives
+ * entirely in the shell.
  */
 export interface BrowserPanelAction {
   action:
@@ -148,21 +243,52 @@ export interface BrowserPanelAction {
     | 'reload'
     | 'back'
     | 'forward'
+    /** Fallback for installed shells that predate the acknowledged `openTab` bridge call. */
     | 'new-tab'
-    | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
     | 'print'
     | 'zoom-in'
     | 'zoom-out'
     | 'zoom-reset'
+    | 'respond-media-permission'
+    /** Compatibility response for installed shells with the retired navigation gate. */
+    | 'respond-site-permission'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
-  /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
+  /** Stable tab id for `switch-tab` and `close-tab`. */
   tabId?: string
+  /**
+   * `switch-tab` only: false when the switch mirrors a selection made outside
+   * the page (the resource strip), so it must not count as the user claiming
+   * the page from the agent. Older shells treat every switch as a claim.
+   */
+  claim?: boolean
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
+  /** Exact pending permission request being answered. */
+  requestId?: string
+  /** User decision for a permission response. */
+  allowed?: boolean
+}
+
+export type BrowserMediaDevice = 'microphone' | 'camera'
+
+/** One document-scoped media request awaiting an explicit user decision. */
+export interface BrowserMediaPermissionRequest {
+  requestId: string
+  origin: string
+  devices: BrowserMediaDevice[]
+}
+
+/** Legacy navigation request emitted only by installed shells with per-task site consent. */
+export interface BrowserSitePermissionRequest {
+  requestId: string
+  /** Exact tab whose suspended request will be resumed or cancelled. */
+  tabId: string
+  /** Destination origin only; credentials, paths, query strings, and fragments are excluded. */
+  origin: string
 }
 
 /** Live state of the active page, pushed to the panel header. */
@@ -175,7 +301,35 @@ export interface BrowserPageState {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
+  /** Recoverable problem replacing the native page surface. Optional for older shells. */
+  issue?: BrowserPageIssue
+  /** Main-frame media request awaiting a renderer-owned permission prompt. */
+  mediaPermissionRequest?: BrowserMediaPermissionRequest
+  /** Legacy request from installed shells that still require a site-origin prompt. */
+  sitePermissionRequest?: BrowserSitePermissionRequest
 }
+
+/** A recoverable top-level page problem rendered by Sim instead of a blank native view. */
+export type BrowserPageIssue =
+  | {
+      kind: 'load-error'
+      /** Chromium network error number, such as -102 for connection refused. */
+      code: number
+      /** Chromium network error name, such as ERR_CONNECTION_REFUSED. */
+      description: string
+      /** The attempted URL, which may never have committed in WebContents. */
+      url: string
+    }
+  | {
+      kind: 'crashed'
+      /** Chromium renderer exit reason, such as crashed or oom. */
+      reason: string
+      url: string
+    }
+  | {
+      kind: 'unresponsive'
+      url: string
+    }
 
 /**
  * One find-in-page request against the active tab. Backed by Chromium's own
@@ -219,8 +373,8 @@ export interface BrowserTabState {
   title: string
   loading: boolean
   active: boolean
-  /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned: boolean
+  /** Recoverable problem currently replacing this tab's native page surface. */
+  issue?: BrowserPageIssue
 }
 
 /** Complete live tab list pushed by the desktop shell. */
@@ -263,8 +417,8 @@ export const BROWSER_DATA_KINDS = ['cookies', 'site-data', 'cache'] as const
 /**
  * A kind of browsing data the user can clear independently.
  *
- * Download history is deliberately absent: the built-in browser cancels every
- * download, so there is none to clear and offering the option would be a lie.
+ * Downloads are deliberately absent because their files and per-chat transfer
+ * history have a separate lifecycle from Chromium browsing-data removal.
  * Saved passwords are absent too — they are a separate, explicit action.
  */
 export type BrowserDataKind = (typeof BROWSER_DATA_KINDS)[number]

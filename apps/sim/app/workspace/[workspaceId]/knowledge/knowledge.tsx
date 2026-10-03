@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChipDropdownOption } from '@sim/emcn'
-import { Button, ChipConfirmModal, ChipDropdown, Tooltip, toast } from '@sim/emcn'
+import { Avatar, Button, ChipConfirmModal, ChipDropdown, Tooltip, toast } from '@sim/emcn'
 import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -12,27 +12,6 @@ import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
-  BreadcrumbItem,
-  FilterTag,
-  ResourceAction,
-  ResourceCell,
-  ResourceColumn,
-  ResourceRow,
-  SearchConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  FILTER_SECTION_LABEL_CLASS,
-  OwnerAvatar,
-  ownerCell,
-  Resource,
-  reportBulkOutcome,
-  selectionLabel,
-  timeCell,
-  useResourceRowSelection,
-} from '@/app/workspace/[workspaceId]/components'
-import type {
   MoveOptionNode,
   SortableResource,
 } from '@/app/workspace/[workspaceId]/components/folders'
@@ -40,21 +19,55 @@ import {
   buildDescendantIndex,
   buildMoveOptions,
   buildMoveOptionsExcludingSubtrees,
+  EMPTY_LOCATION_CELL,
+  FOLDER_LOCATION_COLUMN,
   FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
+  folderLocationLabel,
   folderRow,
   folderRowId,
+  isSearchingResources,
   nextUntitledFolderName,
   parseFolderedRowId,
   parseMoveOptionValue,
+  scopeFolderedItems,
   sortResources,
   splitFolderedRowIds,
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { reportBulkOutcome } from '@/app/workspace/[workspaceId]/components/resource/bulk-outcome'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
+import {
+  KnowledgeEmptyState,
+  ResourceNoResults,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type {
+  BreadcrumbItem,
+  ResourceAction,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { FILTER_SECTION_LABEL_CLASS } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
+import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
+import type {
+  ResourceCell,
+  ResourceColumn,
+  ResourceRow,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
+import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal'
 import {
   CreateBaseModal,
   DeleteKnowledgeBaseModal,
@@ -62,19 +75,23 @@ import {
   KnowledgeBaseContextMenu,
   KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
+import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
+import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
 import {
+  knowledgeListPreferenceConfig,
   knowledgeParsers,
   knowledgeSortParams,
   knowledgeUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
-import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/filter'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import {
+  downloadKnowledgeBaseExport,
   useBulkDeleteKnowledgeBases,
   useBulkMoveKnowledgeBases,
   useDeleteKnowledgeBase,
@@ -82,22 +99,21 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useResourceListPreferences } from '@/hooks/use-resource-list-preferences'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import type { WorkflowFolder } from '@/stores/folders/types'
+import type { ResourceListPreference } from '@/stores/resource-list-preferences'
 
 const logger = createLogger('Knowledge')
 
-interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
-  docCount?: number
-}
-
 /** A list row, resolved to the entity it refers to. */
 type KnowledgeResourceItem =
-  | { kind: 'base'; base: KnowledgeBaseWithDocCount }
+  | { kind: 'base'; base: KnowledgeBaseData }
   | { kind: 'folder'; folder: WorkflowFolder }
 
 const COLUMNS: ResourceColumn[] = [
@@ -109,6 +125,8 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
 ]
+
+const SEARCH_COLUMNS: ResourceColumn[] = [...COLUMNS, FOLDER_LOCATION_COLUMN]
 
 const KNOWLEDGE_BASE_ICON = <Database className='size-[14px]' />
 
@@ -156,8 +174,8 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
           return (
             <Tooltip.Root key={type}>
               <Tooltip.Trigger asChild>
-                <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] text-[var(--text-secondary)]'>
-                  <Icon className='size-[13px]' />
+                <span className='flex size-5 shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)]'>
+                  <BrandIcon icon={Icon} className='size-[13px]' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content>{def.name}</Tooltip.Content>
@@ -167,7 +185,7 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
         {hiddenEntries.length > 0 && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] font-medium text-[var(--text-muted)] text-micro'>
+              <span className='flex size-5 shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] font-medium text-[var(--text-muted)] text-micro'>
                 +{hiddenEntries.length}
               </span>
             </Tooltip.Trigger>
@@ -180,6 +198,14 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
 }
 
 export function Knowledge() {
+  return (
+    <PermissionAccessBoundary configKey='hideKnowledgeBaseTab'>
+      <KnowledgeContent />
+    </PermissionAccessBoundary>
+  )
+}
+
+function KnowledgeContent() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -191,7 +217,10 @@ export function Knowledge() {
     }
   }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
 
-  const { knowledgeBases, error } = useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, isLoading, isPlaceholderData, error } = useKnowledgeBasesList(
+    workspaceId,
+    { includeCounts: true }
+  )
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   /**
    * Indexed once: `ownerCell` resolves a member per row, so passing the raw array makes the
@@ -228,6 +257,7 @@ export function Knowledge() {
   const {
     currentFolderId,
     setCurrentFolderId,
+    openFolder,
     ancestors: breadcrumbs,
     folders,
     folderById,
@@ -235,7 +265,26 @@ export function Knowledge() {
   } = useFolderNavigation({
     resourceType: FOLDER_RESOURCE_TYPE,
     workspaceId,
+    /** Declared below; only ever called from a click, long after this render initializes it. */
+    onBeforeOpenFolder: () => setSearchQuery(''),
   })
+
+  const searchIndexFolders = useMemo(() => {
+    const ancestors = new Set<string>()
+    for (const knowledgeBase of knowledgeBases) {
+      if (!knowledgeBase.isSearchIndex) continue
+      let folderId = knowledgeBase.folderId
+      while (folderId && !ancestors.has(folderId)) {
+        ancestors.add(folderId)
+        folderId = folderById.get(folderId)?.parentId ?? null
+      }
+    }
+    return ancestors
+  }, [knowledgeBases, folderById])
+  const canDeleteFolder = useCallback(
+    (folderId: string) => canEdit && !searchIndexFolders.has(folderId),
+    [canEdit, searchIndexFolders]
+  )
 
   const createFolder = useCreateFolder()
   const updateFolder = useUpdateFolder()
@@ -259,34 +308,68 @@ export function Knowledge() {
   const setSearchQuery = useDebouncedSearchSetter((value, options) =>
     setKnowledgeFilters({ search: value }, options)
   )
-  const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS)
+  const debouncedSearchQuery = useSearchFilterValue(urlSearchQuery, SEARCH_DEBOUNCE_MS)
 
   const {
     sort: sortColumn,
     dir: sortDirection,
     activeSort,
-    onSort: onSortColumn,
-    onClear: onClearSort,
+    onSort: applyUrlSort,
   } = useUrlSort(knowledgeSortParams, knowledgeUrlKeys)
 
+  const currentListPreference = useMemo<ResourceListPreference>(
+    () => ({
+      sort: { column: sortColumn, direction: sortDirection },
+      filters: {
+        connector: connectorFilter,
+        content: contentFilter,
+        owner: ownerFilter,
+      },
+    }),
+    [sortColumn, sortDirection, connectorFilter, contentFilter, ownerFilter]
+  )
+
+  const applyListPreference = useCallback(
+    (preference: ResourceListPreference) => {
+      void setKnowledgeFilters({
+        connector: [...preference.filters.connector],
+        content: [...preference.filters.content],
+        owner: [...preference.filters.owner],
+      })
+      applyUrlSort(preference.sort.column, preference.sort.direction)
+    },
+    [applyUrlSort, setKnowledgeFilters]
+  )
+
+  const {
+    isReady: isListPreferenceReady,
+    setFilter: setListFilter,
+    clearFilters: clearKnowledgeFilters,
+    setSort: setListSort,
+    clearSort: clearListSort,
+  } = useResourceListPreferences({
+    workspaceId,
+    config: knowledgeListPreferenceConfig,
+    preference: currentListPreference,
+    applyPreference: applyListPreference,
+  })
+
   const setConnectorFilter = useCallback(
-    (next: string[]) => setKnowledgeFilters({ connector: next }),
-    [setKnowledgeFilters]
+    (next: string[]) => setListFilter('connector', next),
+    [setListFilter]
   )
   const setContentFilter = useCallback(
-    (next: string[]) => setKnowledgeFilters({ content: next }),
-    [setKnowledgeFilters]
+    (next: string[]) => setListFilter('content', next),
+    [setListFilter]
   )
   const setOwnerFilter = useCallback(
-    (next: string[]) => setKnowledgeFilters({ owner: next }),
-    [setKnowledgeFilters]
+    (next: string[]) => setListFilter('owner', next),
+    [setListFilter]
   )
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
-  const [activeKnowledgeBase, setActiveKnowledgeBase] = useState<KnowledgeBaseWithDocCount | null>(
-    null
-  )
+  const [activeKnowledgeBase, setActiveKnowledgeBase] = useState<KnowledgeBaseData | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
@@ -338,8 +421,8 @@ export function Knowledge() {
    * not short-circuit.
    */
   const knowledgeBaseById = useMemo(() => {
-    const byId = new Map<string, KnowledgeBaseWithDocCount>()
-    for (const base of knowledgeBases) byId.set(base.id, base as KnowledgeBaseWithDocCount)
+    const byId = new Map<string, KnowledgeBaseData>()
+    for (const base of knowledgeBases) byId.set(base.id, base)
     return byId
   }, [knowledgeBases])
   const knowledgeBaseByIdRef = useRef(knowledgeBaseById)
@@ -437,11 +520,13 @@ export function Knowledge() {
 
   const handleDeleteKnowledgeBase = useCallback(
     async (id: string) => {
+      const knowledgeBase = knowledgeBases.find((base) => base.id === id)
+      if (!canDeleteKnowledgeBase(knowledgeBase, userPermissions)) return
       await deleteKnowledgeBase.mutateAsync({ knowledgeBaseId: id })
       logger.info(`Knowledge base deleted: ${id}`)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
-    []
+    [knowledgeBases, userPermissions.canEdit, userPermissions.canAdmin]
   )
 
   /**
@@ -452,29 +537,39 @@ export function Knowledge() {
    * Files page. The resource filters (connectors/content/owner) describe properties a folder
    * does not have, so folders answer only to the search term.
    */
-  const visibleFolders = useMemo(() => {
-    const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
-    const needle = debouncedSearchQuery.trim().toLowerCase()
-    return needle
-      ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
-      : siblings
-  }, [folders, currentFolderId, debouncedSearchQuery])
+  /** A query stops scoping the list to the open folder — see {@link scopeFolderedItems}. */
+  const isSearching = isSearchingResources(debouncedSearchQuery)
+
+  const visibleFolders = useMemo(
+    () =>
+      scopeFolderedItems(folders, {
+        currentFolderId,
+        search: debouncedSearchQuery,
+        getParentId: (folder) => folder.parentId ?? null,
+        getSearchText: (folder) => [folder.name],
+      }),
+    [folders, currentFolderId, debouncedSearchQuery]
+  )
 
   const processedKBs = useMemo(() => {
-    /**
-     * A `folderId` that no longer names an active folder — a base restored on its own out of
-     * Recently Deleted while its folder stayed archived, or a cascade that failed partway —
-     * would otherwise match no level at all and leave the base unreachable from every view.
-     * Fall it back to the root instead — but only once `foldersResolved` says the index is the
-     * complete set for THIS workspace. Gating on a loading flag instead would treat an errored
-     * fetch, a disabled query, or the previous workspace's cached folders as "no such folder"
-     * and drag every foldered base to the root.
-     */
-    let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery).filter((kb) => {
-      const folderId = kb.folderId ?? null
-      const effectiveFolderId =
-        !foldersResolved || !folderId || folderById.has(folderId) ? folderId : null
-      return effectiveFolderId === currentFolderId
+    let result = scopeFolderedItems(knowledgeBases, {
+      currentFolderId,
+      search: debouncedSearchQuery,
+      /**
+       * A `folderId` that no longer names an active folder — a base restored on its own out of
+       * Recently Deleted while its folder stayed archived, or a cascade that failed partway —
+       * would otherwise match no level at all and leave the base unreachable from every view.
+       * Fall it back to the root instead — but only once `foldersResolved` says the index is the
+       * complete set for THIS workspace. Gating on a loading flag instead would treat an errored
+       * fetch, a disabled query, or the previous workspace's cached folders as "no such folder"
+       * and drag every foldered base to the root.
+       */
+      getParentId: (kb) => {
+        const folderId = kb.folderId ?? null
+        return !foldersResolved || !folderId || folderById.has(folderId) ? folderId : null
+      },
+      /** A base is findable by its description as well as its name. */
+      getSearchText: (kb) => [kb.name, kb.description],
     })
 
     if (connectorFilter.length > 0) {
@@ -487,7 +582,7 @@ export function Knowledge() {
     }
 
     if (contentFilter.length > 0) {
-      const docCount = (kb: KnowledgeBaseData) => (kb as KnowledgeBaseWithDocCount).docCount ?? 0
+      const docCount = (kb: KnowledgeBaseData) => kb.docCount ?? 0
       result = result.filter((kb) => {
         if (contentFilter.includes('has-docs') && docCount(kb) > 0) return true
         if (contentFilter.includes('empty') && docCount(kb) === 0) return true
@@ -543,12 +638,12 @@ export function Knowledge() {
 
     for (const kb of processedKBs) {
       entries.push({
-        item: { kind: 'base', base: kb as KnowledgeBaseWithDocCount },
+        item: { kind: 'base', base: kb },
         pinned: pinnedBaseIds.has(kb.id),
         name: kb.name,
         key:
           sortColumn === 'documents'
-            ? ((kb as KnowledgeBaseWithDocCount).docCount ?? 0)
+            ? (kb.docCount ?? 0)
             : sortColumn === 'tokens'
               ? (kb.tokenCount ?? 0)
               : sortColumn === 'connectors'
@@ -587,6 +682,16 @@ export function Knowledge() {
               created: timeCell(item.folder.createdAt),
               owner: ownerCell(item.folder.userId, membersById),
               updated: timeCell(item.folder.updatedAt),
+              /** A folder's location is its parent's path, not its own. */
+              location: isSearching
+                ? {
+                    label: folderLocationLabel(
+                      item.folder.parentId,
+                      folderById,
+                      ROOT_BREADCRUMB_LABEL
+                    ),
+                  }
+                : EMPTY_LOCATION_CELL,
             },
           })
         }
@@ -610,10 +715,13 @@ export function Knowledge() {
             created: timeCell(base.createdAt),
             owner: ownerCell(base.userId, membersById),
             updated: timeCell(base.updatedAt),
+            location: isSearching
+              ? { label: folderLocationLabel(base.folderId, folderById, ROOT_BREADCRUMB_LABEL) }
+              : EMPTY_LOCATION_CELL,
           },
         }
       }),
-    [sortedEntries, membersById]
+    [sortedEntries, membersById, folderById, isSearching]
   )
 
   /**
@@ -693,6 +801,15 @@ export function Knowledge() {
     () => splitFolderedRowIds(selectedRowIds),
     [selectedRowIds]
   )
+  const canDeleteSelection =
+    canEdit &&
+    selectedKnowledgeBaseIds.every((id) =>
+      canDeleteKnowledgeBase(
+        knowledgeBases.find((base) => base.id === id),
+        userPermissions
+      )
+    ) &&
+    selectedFolderIds.every(canDeleteFolder)
 
   const bulkDeleteCount = selectedKnowledgeBaseIds.length + selectedFolderIds.length
   const bulkDeleteFirstName =
@@ -708,7 +825,7 @@ export function Knowledge() {
 
       const parsed = parseFolderedRowId(rowId)
       if (parsed.kind === 'folder') {
-        setCurrentFolderId(parsed.id)
+        openFolder(parsed.id)
         return
       }
 
@@ -717,7 +834,7 @@ export function Knowledge() {
       const urlParams = new URLSearchParams({ kbName: kb.name })
       router.push(`/workspace/${workspaceId}/knowledge/${parsed.id}?${urlParams.toString()}`)
     },
-    [router, workspaceId, setCurrentFolderId]
+    [router, workspaceId, openFolder]
   )
 
   const handleRowContextMenu = useCallback(
@@ -738,9 +855,7 @@ export function Knowledge() {
         return
       }
 
-      const kb = knowledgeBasesRef.current.find((k) => k.id === parsed.id) as
-        | KnowledgeBaseWithDocCount
-        | undefined
+      const kb = knowledgeBasesRef.current.find((k) => k.id === parsed.id)
       setActiveKnowledgeBase(kb ?? null)
       handleRowCtxMenu(e)
     },
@@ -749,11 +864,11 @@ export function Knowledge() {
 
   const handleConfirmDelete = useCallback(async () => {
     const kb = activeKnowledgeBaseRef.current
-    if (!kb) return
+    if (!kb || !canDeleteKnowledgeBase(kb, userPermissions)) return
     await handleDeleteKnowledgeBase(kb.id)
     setIsDeleteModalOpen(false)
     setActiveKnowledgeBase(null)
-  }, [handleDeleteKnowledgeBase])
+  }, [handleDeleteKnowledgeBase, userPermissions.canEdit, userPermissions.canAdmin])
 
   const handleCloseDeleteModal = useCallback(() => {
     setIsDeleteModalOpen(false)
@@ -778,13 +893,19 @@ export function Knowledge() {
     }
   }, [])
 
+  const handleExport = useCallback(() => {
+    const kb = activeKnowledgeBaseRef.current
+    if (kb) downloadKnowledgeBaseExport(kb.id)
+  }, [])
+
   const handleEdit = useCallback(() => {
     setIsEditModalOpen(true)
   }, [])
 
   const handleDelete = useCallback(() => {
+    if (!canDeleteKnowledgeBase(activeKnowledgeBaseRef.current, userPermissions)) return
     setIsDeleteModalOpen(true)
-  }, [])
+  }, [userPermissions.canEdit, userPermissions.canAdmin])
 
   const handleCreateFolder = useCallback(async () => {
     if (!workspaceId) return
@@ -828,8 +949,8 @@ export function Knowledge() {
 
   const handleOpenFolder = useCallback(() => {
     const folder = activeFolderRef.current
-    if (folder) setCurrentFolderId(folder.id)
-  }, [setCurrentFolderId])
+    if (folder) openFolder(folder.id)
+  }, [openFolder])
 
   const handleCopyFolderId = useCallback(() => {
     const folder = activeFolderRef.current
@@ -837,15 +958,16 @@ export function Knowledge() {
   }, [])
 
   const handleRequestFolderDelete = useCallback(() => {
+    if (!activeFolderRef.current || !canDeleteFolder(activeFolderRef.current.id)) return
     setFolderPendingDelete(activeFolderRef.current)
-  }, [])
+  }, [canDeleteFolder])
 
   const folderPendingDeleteRef = useRef(folderPendingDelete)
   folderPendingDeleteRef.current = folderPendingDelete
 
   const handleConfirmFolderDelete = useCallback(async () => {
     const folder = folderPendingDeleteRef.current
-    if (!folder) return
+    if (!folder || !canDeleteFolder(folder.id)) return
     try {
       await deleteFolder.mutateAsync({
         workspaceId,
@@ -856,16 +978,17 @@ export function Knowledge() {
       setActiveFolder(null)
       // Deleting the folder you are standing in leaves the list pointed at an archived
       // folder, which renders as an empty page with a dead breadcrumb — step out to its
-      // parent instead.
+      // parent instead. Not `openFolder`: this is a forced correction, so it must neither
+      // clear an active search nor push a back-stack entry aimed at the deleted folder.
       if (currentFolderIdRef.current === folder.id) {
-        setCurrentFolderId(folder.parentId)
+        setCurrentFolderId(folder.parentId, { history: 'replace' })
       }
     } catch (deleteError) {
       logger.error('Failed to delete folder', deleteError)
       toast.error(getErrorMessage(deleteError, 'Failed to delete folder'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, setCurrentFolderId])
+  }, [workspaceId, openFolder, canDeleteFolder])
 
   const descendantsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
 
@@ -1011,15 +1134,17 @@ export function Knowledge() {
     selectedKnowledgeBaseIds.length + selectedFolderIds.length > MAX_KNOWLEDGE_BATCH_ITEMS
 
   const handleBulkDelete = useCallback(() => {
+    if (!canDeleteSelection) return
     if (selectedKnowledgeBaseIds.length === 0 && selectedFolderIds.length === 0) return
     if (exceedsBatchCap) {
       toast.error(`Select ${MAX_KNOWLEDGE_BATCH_ITEMS} or fewer items to delete at once`)
       return
     }
     setIsBulkDeleteModalOpen(true)
-  }, [selectedKnowledgeBaseIds, selectedFolderIds, exceedsBatchCap])
+  }, [selectedKnowledgeBaseIds, selectedFolderIds, exceedsBatchCap, canDeleteSelection])
 
   const confirmBulkDelete = useCallback(async () => {
+    if (!canDeleteSelection) return
     try {
       const result = await bulkDeleteKnowledgeBases.mutateAsync({
         knowledgeBaseIds: selectedKnowledgeBaseIds,
@@ -1033,7 +1158,7 @@ export function Knowledge() {
       logger.error('Failed to delete selected items', deleteError)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
-  }, [selectedKnowledgeBaseIds, selectedFolderIds, clearSelection])
+  }, [selectedKnowledgeBaseIds, selectedFolderIds, clearSelection, canDeleteSelection])
 
   /**
    * Destinations for the action bar's move menu. Every selected folder — and everything beneath
@@ -1098,6 +1223,7 @@ export function Knowledge() {
     selection: { selectedRowIds, visibleRowIds, replaceSelection },
     onSpringOpenFolder: setCurrentFolderId,
     currentFolderId,
+    bodyDropFolderId: isSearching ? undefined : currentFolderId,
   })
 
   const headerActions: ResourceAction[] = useMemo(
@@ -1125,7 +1251,7 @@ export function Knowledge() {
         rootLabel: ROOT_BREADCRUMB_LABEL,
         rootIcon: FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon,
         breadcrumbs,
-        onNavigate: setCurrentFolderId,
+        onNavigate: openFolder,
         currentFolderEditing:
           breadcrumbRename.editingId && breadcrumbRename.editingId === currentFolderId
             ? {
@@ -1148,19 +1274,24 @@ export function Knowledge() {
                     breadcrumbRenameRef.current.startRename(folder.id, folder.name)
                   },
                 },
-                {
-                  label: 'Delete',
-                  icon: Trash,
-                  onClick: () => setFolderPendingDelete(breadcrumbs[breadcrumbs.length - 1]),
-                },
+                ...(canDeleteFolder(breadcrumbs[breadcrumbs.length - 1].id)
+                  ? [
+                      {
+                        label: 'Delete',
+                        icon: Trash,
+                        onClick: () => setFolderPendingDelete(breadcrumbs[breadcrumbs.length - 1]),
+                      },
+                    ]
+                  : []),
               ]
             : undefined,
       }),
     [
       breadcrumbs,
       currentFolderId,
-      setCurrentFolderId,
+      openFolder,
       canEdit,
+      canDeleteFolder,
       breadcrumbRename.editingId,
       breadcrumbRename.editValue,
       breadcrumbRename.isSaving,
@@ -1189,10 +1320,10 @@ export function Knowledge() {
         { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
-      onSort: onSortColumn,
-      onClear: onClearSort,
+      onSort: setListSort,
+      onClear: clearListSort,
     }),
-    [activeSort, onSortColumn, onClearSort]
+    [activeSort, setListSort, clearListSort]
   )
 
   const memberOptions: ChipDropdownOption[] = useMemo(
@@ -1200,7 +1331,7 @@ export function Knowledge() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
+        iconElement: <Avatar size='xs' name={m.name} src={m.image} aria-hidden />,
       })),
     [members]
   )
@@ -1279,7 +1410,15 @@ export function Knowledge() {
         )}
       </div>
     ),
-    [connectorFilter, contentFilter, ownerFilter, memberOptions]
+    [
+      connectorFilter,
+      contentFilter,
+      ownerFilter,
+      memberOptions,
+      setConnectorFilter,
+      setContentFilter,
+      setOwnerFilter,
+    ]
   )
 
   /** Stable identity so the memoized `Resource.Options` can bail; an inline object cannot. */
@@ -1296,7 +1435,7 @@ export function Knowledge() {
         selectedCount={selectedRowIds.size}
         onMove={canEdit ? handleBulkMove : undefined}
         moveOptions={canEdit ? bulkMoveOptions : undefined}
-        onDelete={canEdit ? handleBulkDelete : undefined}
+        onDelete={canDeleteSelection ? handleBulkDelete : undefined}
         isLoading={bulkMoveKnowledgeBases.isPending || bulkDeleteKnowledgeBases.isPending}
         maxSelectable={MAX_KNOWLEDGE_BATCH_ITEMS}
       />
@@ -1304,6 +1443,7 @@ export function Knowledge() {
     [
       selectedRowIds.size,
       canEdit,
+      canDeleteSelection,
       handleBulkMove,
       bulkMoveOptions,
       handleBulkDelete,
@@ -1336,7 +1476,33 @@ export function Knowledge() {
       tags.push({ label, onRemove: () => setOwnerFilter([]) })
     }
     return tags
-  }, [connectorFilter, contentFilter, ownerFilter, members])
+  }, [
+    connectorFilter,
+    contentFilter,
+    ownerFilter,
+    members,
+    setConnectorFilter,
+    setContentFilter,
+    setOwnerFilter,
+  ])
+
+  const listState = resourceListState({
+    rowCount: rows.length,
+    isLoading,
+    isPlaceholderData,
+    error,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+    folderId: currentFolderId,
+    foldersResolved,
+  })
+
+  const clearSearchAndFilters = () => {
+    setSearchQuery('')
+    clearKnowledgeFilters()
+  }
+
+  if (!isListPreferenceReady) return <KnowledgeLoading />
 
   return (
     <>
@@ -1355,8 +1521,19 @@ export function Knowledge() {
           filter={filterConfig}
         />
         <Resource.Table
-          columns={COLUMNS}
+          columns={isSearching ? SEARCH_COLUMNS : COLUMNS}
           rows={rows}
+          emptyState={
+            listState === 'empty' ? (
+              <KnowledgeEmptyState onCreate={handleOpenCreateModal} createDisabled={!canEdit} />
+            ) : listState === 'no-results' ? (
+              <ResourceNoResults
+                search={debouncedSearchQuery}
+                filterCount={filterTags.length}
+                onClear={clearSearchAndFilters}
+              />
+            ) : undefined
+          }
           selectable={canEdit ? selectableConfig : undefined}
           rowDragDrop={rowDragDropConfig}
           onRowClick={handleRowClick}
@@ -1383,6 +1560,7 @@ export function Knowledge() {
           onOpenInNewTab={handleOpenInNewTab}
           onViewTags={handleViewTags}
           onCopyId={handleCopyId}
+          onExport={permissionConfig.disableKnowledgeBaseExport ? undefined : handleExport}
           onTogglePin={handleToggleBasePin}
           pinned={pinnedBaseIds.has(activeKnowledgeBase.id)}
           onEdit={handleEdit}
@@ -1392,9 +1570,15 @@ export function Knowledge() {
           showOpenInNewTab
           showViewTags
           showEdit
-          showDelete
+          showDelete={
+            hasMultiSelection
+              ? canDeleteSelection
+              : !activeKnowledgeBase.isSearchIndex ||
+                canDeleteKnowledgeBase(activeKnowledgeBase, userPermissions)
+          }
           disableEdit={!canEdit}
           disableDelete={!canEdit}
+          selectedCount={selectedRowIds.size}
         />
       )}
 
@@ -1412,6 +1596,13 @@ export function Knowledge() {
           onMove={handleMoveFolderFromMenu}
           moveOptions={activeFolderMoveOptions}
           canEdit={canEdit}
+          canDelete={hasMultiSelection ? canDeleteSelection : canEdit}
+          deleteDisabledReason={
+            searchIndexFolders.has(activeFolder.id)
+              ? 'Delete the search knowledge base first'
+              : undefined
+          }
+          selectedCount={selectedRowIds.size}
         />
       )}
 

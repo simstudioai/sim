@@ -1,0 +1,150 @@
+---
+title: Background Jobs
+description: Scheduled workflows, polling triggers, and the cron endpoints that drive them
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+A large part of Sim runs on a schedule rather than in response to a user request: scheduled workflows, every polling trigger, connector syncs, the outbox, data drains, and retention. All of it is driven by **HTTP endpoints that something external must call on a timer**.
+
+Both deployments ship a scheduler and enable it by default: Kubernetes as CronJobs, Docker Compose as a `cron` service. Both authenticate with `CRON_SECRET`, and both use the same schedules.
+
+## Authentication
+
+Every endpoint is protected by `CRON_SECRET` and expects it as a bearer token:
+
+```bash
+curl -f -s -S --max-time 60 \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  https://sim.yourdomain.com/api/schedules/execute
+```
+
+Generate it like the other secrets:
+
+```bash
+openssl rand -hex 32
+```
+
+<Callout type="warn">
+  `CRON_SECRET` is **required** whenever background jobs are enabled — which is the Helm chart's default. The chart refuses to render without it. If it is unset, the endpoints reject every call and all scheduled work silently stops.
+</Callout>
+
+Point cron at an **internal** address where possible (the in-cluster Service, or `localhost` on a single node). These endpoints should not be reachable from the internet; if they are, `CRON_SECRET` is the only thing protecting them.
+
+## The jobs
+
+| Job | Endpoint | Schedule | Drives |
+|---|---|---|---|
+| Schedule execution | `/api/schedules/execute` | `*/1 * * * *` | **Scheduled workflows** |
+| Gmail poll | `/api/webhooks/poll/gmail` | `*/1 * * * *` | Gmail trigger |
+| Outlook poll | `/api/webhooks/poll/outlook` | `*/1 * * * *` | Outlook trigger |
+| IMAP poll | `/api/webhooks/poll/imap` | `*/1 * * * *` | IMAP trigger |
+| RSS poll | `/api/webhooks/poll/rss` | `*/1 * * * *` | RSS trigger |
+| Google Sheets poll | `/api/webhooks/poll/google-sheets` | `*/1 * * * *` | Sheets trigger |
+| Google Drive poll | `/api/webhooks/poll/google-drive` | `*/1 * * * *` | Drive trigger |
+| Google Calendar poll | `/api/webhooks/poll/google-calendar` | `*/1 * * * *` | Calendar trigger |
+| HubSpot poll | `/api/webhooks/poll/hubspot` | `*/1 * * * *` | HubSpot trigger |
+| Time pause/resume | `/api/resume/poll` | `*/1 * * * *` | Workflows paused on a timer |
+| Outbox processing | `/api/webhooks/outbox/process` | `*/1 * * * *` | Transactional-outbox retries for billing, membership, enterprise issuance, and workflow-deployment side effects |
+| Workspace file search dispatch | `/api/cron/workspace-file-search-dispatch` | `*/1 * * * *` | Dispatches indexing work for workspace file search |
+| Knowledge projection | `/api/cron/knowledge-projection` | `*/1 * * * *` | Brings knowledge base search up to date with document, permission, and chunk changes |
+| Connector sync | `/api/knowledge/connectors/sync` | `*/5 * * * *` | Knowledge base connector syncs |
+| Connector member sync | `/api/knowledge/connectors/member-sync` | `*/5 * * * *` | Per-member content/access sync for indexed connectors; live Search sources are skipped |
+| Connector directory sync | `/api/knowledge/connectors/directory-sync` | `*/5 * * * *` | Refreshes stored groups for indexed administrator-mode connectors; live Search sources are skipped |
+| Workspace events poll | `/api/workspace-events/poll` | `*/15 * * * *` | Workspace event triggers |
+| Table row TTL cleanup | `/api/cron/cleanup-table-row-ttl` | `*/15 * * * *` | Deletes table rows whose TTL column has expired |
+| OAuth token cleanup | `/api/cron/cleanup-oauth-tokens` | `0 * * * *` | Deletes access and refresh tokens after the retention tail |
+| SCIM reconciliation | `/api/cron/scim-reconcile` | `17 * * * *` | Re-applies directory group mappings |
+| Data drains | `/api/cron/run-data-drains` | `0 * * * *` | Enterprise data drains |
+| Renew subscriptions | `/api/cron/renew-subscriptions` | `0 */12 * * *` | Renews Microsoft Teams chat subscriptions (Graph caps them at ~3 days) |
+| Billing cycle close | `/api/cron/billing-cycle-close` | `0 */6 * * *` | Billing only — final overage collection and per-period tracker reset |
+| Reconcile billing seats | `/api/cron/reconcile-billing-seats` | `0 * * * *` | Billing only — safe to disable when self-hosted |
+| Reconcile inbox entitlement | `/api/cron/reconcile-inbox-entitlement` | `0 3 * * *` | Inbox access reconciliation |
+| Cleanup sandbox images | `/api/cron/cleanup-sandbox-images` | `30 4 * * *` | Reclaims sandbox images |
+
+<Callout type="info">
+  **Subscription renewal** covers Microsoft Teams chat triggers, whose Microsoft Graph subscriptions are hard-capped at about three days. Without it, Teams triggers work for a couple of days and then quietly stop. Gmail, Outlook, Drive, Calendar, and Sheets triggers are **polled** instead — they depend on the per-minute poll jobs above, not on this one.
+</Callout>
+
+## Kubernetes
+
+Enabled by default. Nothing to do beyond setting `CRON_SECRET`.
+
+```yaml
+cronjobs:
+  enabled: true
+```
+
+Each job runs a small `curlimages/curl` pod that calls the app's **in-cluster Service** (not the ingress), with `concurrencyPolicy: Forbid` so a slow run never overlaps itself. The Service load-balances that single call to one replica, so a job never fans out across pods. The chart keeps three completed and one failed Job per CronJob, but `ttlSecondsAfterFinished` defaults to 600, so a finished Job is deleted ten minutes after it ends — inspect a failure promptly or collect the logs. It sets no `backoffLimit`, so the Kubernetes default of six applies and the chart exposes no key to change it. `cronjobs.activeDeadlineSeconds` (default `300`) bounds the **whole Job** — retries and the controller's back-off included — so whichever limit is reached first ends the Job — six retries after the initial failure, up to seven attempts, or five minutes of attempts plus back-off. The same deadline cuts off a single hung request. One attempt is already several HTTP calls: the container retries three times, ten seconds apart, with `curl --retry 2` inside each.
+
+Disable individual jobs you do not need — billing reconciliation is the obvious one on a self-hosted install:
+
+```yaml
+cronjobs:
+  jobs:
+    reconcileBillingSeats:
+      enabled: false
+```
+
+Do not disable schedule execution, outbox processing, or subscription renewal unless you know you do not use the features behind them.
+
+Check they are running:
+
+```bash
+kubectl get cronjobs -n simstudio
+kubectl get jobs -n simstudio --sort-by=.metadata.creationTimestamp | tail
+kubectl logs -n simstudio job/<job-name>
+```
+
+A CronJob whose `LAST SCHEDULE` is stale, or whose jobs are failing, means the corresponding feature is dead. Alert on it — see [Observability](/platform/self-hosting/observability).
+
+## Docker Compose
+
+The `cron` service runs the same jobs on the same schedules, so nothing to configure beyond `CRON_SECRET`:
+
+```bash
+CRON_SECRET=$(openssl rand -hex 32)
+```
+
+Without it the `cron` service logs exactly what to set — including a freshly generated value — and exits, leaving the rest of the stack running. Schedules live in `docker/crontab` and mirror `helm/sim/values.yaml` `cronjobs.jobs` one-for-one.
+
+<Callout type="info">
+  Upgrading a deployment created before the scheduler existed? Your `.env` has no `CRON_SECRET`, so the stack comes up as before and `cron` exits with instructions. Add the value and re-run `up -d` to turn background jobs on.
+</Callout>
+
+The service runs [supercronic](https://github.com/aptible/supercronic) rather than the app image: it logs each job's output to the container log, forwards `SIGTERM` so `docker compose stop` is graceful, and will not start an iteration while the previous one is still running.
+
+```bash
+docker compose -f docker-compose.prod.yml logs -f cron
+```
+
+A healthy log line looks like:
+
+```
+level=info msg=starting iteration=0 job.schedule="*/1 * * * *"
+level=info msg="job succeeded" iteration=0
+```
+
+To drop a job you do not need, comment out its line in `docker/crontab` and restart the service.
+
+## Verifying
+
+Create a workflow with a Schedule trigger set to every minute, deploy it, and watch the Logs view. An execution should appear within ~2 minutes. If nothing appears:
+
+1. Check the scheduler's own logs — `docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio` for a recent `LAST SCHEDULE`.
+2. Confirm the app and the scheduler share the same `CRON_SECRET`. A mismatch shows up as `401` in the scheduler log.
+3. A `202` means the endpoint accepted the run; it does not confirm a schedule was due, so check the Logs view.
+
+## Concurrency
+
+Scheduled execution volume is bounded per app instance by:
+
+| Variable | Default | Applies to |
+|---|---|---|
+| `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Scheduled workflows in flight, on every install |
+
+<Callout type="info">
+  `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT`, `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT`, and `RESUME_EXECUTION_CONCURRENCY_LIMIT` are `concurrencyLimit` settings on Trigger.dev task definitions. They have **no effect** unless `TRIGGER_DEV_ENABLED` is set, and neither the Helm chart nor Docker Compose configures Trigger.dev — so on a default self-host they are inert.
+</Callout>
+
+Raise the schedule limit only alongside memory headroom: concurrent executions run in the app process, so throughput is bounded by the pod's memory before it is bounded by this number.

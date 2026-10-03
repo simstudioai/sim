@@ -7,7 +7,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import type {
   ForkReferenceResolver,
   ForkRemapKind,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
 
 /** Mapping rows per insert; each row binds ~8 params, keeping well under PG's limit. */
 const MAPPING_INSERT_CHUNK = 1000
@@ -53,12 +53,15 @@ const RESOURCE_TYPE_TO_FORK_KIND: Record<ForkResourceType, ForkRemapKind | null>
   knowledge_base: 'knowledge-base',
   knowledge_document: 'knowledge-document',
   file: 'file',
+  file_folder: 'file-folder',
   mcp_server: 'mcp-server',
   // Identity-only, like `workflow`: nothing in a subblock references a workflow-publishing
   // server, so these rows never participate in reference remapping.
   workflow_mcp_server: null,
+  custom_block: 'custom-block',
   custom_tool: 'custom-tool',
   skill: 'skill',
+  sandbox: 'sandbox',
 }
 
 /** The remapper kind a stored resource type participates in, or null when it does not remap. */
@@ -75,9 +78,12 @@ const NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE = {
   'knowledge-base': 'knowledge_base',
   'knowledge-document': 'knowledge_document',
   file: 'file',
+  'file-folder': 'file_folder',
   'mcp-server': 'mcp_server',
   'custom-tool': 'custom_tool',
+  'custom-block': 'custom_block',
   skill: 'skill',
+  sandbox: 'sandbox',
 } as const satisfies Record<
   Exclude<ForkRemapKind, 'credential'>,
   Exclude<ForkResourceType, 'workflow'>

@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  type ClipboardContent,
   cn,
   Duplicate,
   Split,
@@ -15,90 +16,71 @@ import {
   ThumbsUp,
   Tooltip,
   toast,
+  useCopyToClipboard,
 } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { isLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
 
-const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file|question'
-
-function toPlainText(raw: string): string {
-  return (
-    raw
-      // Strip special tags and their contents
-      .replace(new RegExp(`<\\/?(${SPECIAL_TAGS})(?:>[\\s\\S]*?<\\/(${SPECIAL_TAGS})>|>)`, 'g'), '')
-      // Strip markdown
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/\*\*(.+?)\*\*/g, '$1')
-      .replace(/\*(.+?)\*/g, '$1')
-      .replace(/`{3}[\s\S]*?`{3}/g, '')
-      .replace(/`(.+?)`/g, '$1')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/^[>\-*]\s+/gm, '')
-      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
-      // Normalize whitespace
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  )
-}
-
 const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
-  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
 
 interface MessageActionsProps {
   content: string
-  userQuery?: string
+  getCopyContent?: () => string
+  hasCopyContent?: boolean
+  prepareContentForCopy?: (content: string) => ClipboardContent
+  userQuery: string | undefined
   requestId?: string
   messageId?: string
 }
 
+/** Fork refusals whose message tells the person what to do: the response is unfinished, or the chat is too long. */
+const FORK_REFUSAL_STATUSES = new Set([409, 413])
+
 export const MessageActions = memo(function MessageActions({
   content,
+  getCopyContent,
+  hasCopyContent,
+  prepareContentForCopy,
   userQuery,
   requestId,
   messageId,
 }: MessageActionsProps) {
   const router = useRouter()
-  const params = useParams<{ workspaceId: string }>()
+  const params = useParams<{ workspaceId?: string; organizationId?: string }>()
+  const owner = params.organizationId
+    ? { organizationId: params.organizationId }
+    : params.workspaceId
   const { chatId } = useChatSurface()
-  const [copied, setCopied] = useState(false)
+  const { copied, copy: copyMessage } = useCopyToClipboard({ resetMs: 1500 })
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
-  const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
-  const forkChat = useForkMothershipChat(params.workspaceId)
+  const forkChat = useForkMothershipChat(owner)
 
   useEffect(() => {
     return () => {
-      if (resetTimeoutRef.current !== null) {
-        window.clearTimeout(resetTimeoutRef.current)
-      }
       if (requestIdTimeoutRef.current !== null) {
         window.clearTimeout(requestIdTimeoutRef.current)
       }
     }
   }, [])
 
-  const copyToClipboard = async () => {
-    if (!content) return
-    const text = toPlainText(content)
-    if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      if (resetTimeoutRef.current !== null) {
-        window.clearTimeout(resetTimeoutRef.current)
-      }
-      resetTimeoutRef.current = window.setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard unavailable */
-    }
+  const copyToClipboard = () => {
+    const contentToCopy = getCopyContent?.() ?? content
+    if (!contentToCopy) return
+    const copyContent = prepareContentForCopy?.(contentToCopy) ?? contentToCopy
+    if (typeof copyContent === 'string' && !copyContent) return
+    void copyMessage(copyContent)
   }
 
   const copyRequestId = async () => {
@@ -151,7 +133,7 @@ export const MessageActions = memo(function MessageActions({
   }
 
   const handleFork = async () => {
-    if (!chatId || !messageId || forkChat.isPending) return
+    if (!owner || !chatId || !messageId || forkChat.isPending) return
     try {
       const result = await forkChat.mutateAsync({ chatId, upToMessageId: messageId })
       if (result.failedFileCopies) {
@@ -159,25 +141,33 @@ export const MessageActions = memo(function MessageActions({
           `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
         )
       }
-      useFolderStore.getState().clearChatSelection()
-      router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
-    } catch {
-      toast.error('Failed to fork chat')
+      if (params.organizationId) {
+        router.push(organizationRoutes(params.organizationId).chat(result.id))
+      } else {
+        useFolderStore.getState().clearChatSelection()
+        router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
+      }
+    } catch (error) {
+      toast.error(
+        isApiClientError(error) && FORK_REFUSAL_STATUSES.has(error.status)
+          ? error.message
+          : 'Failed to fork chat'
+      )
     }
   }
 
-  const hasContent = Boolean(content)
+  const canCopyContent = hasCopyContent ?? Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
   // A live (just-streamed) assistant message carries a synthetic id that the
   // persisted transcript doesn't know — forking it would 400. The button
   // appears once the transcript refetch swaps in the persisted message id.
-  const canFork = Boolean(chatId && messageId && !isLiveAssistantMessageId(messageId))
-  if (!hasContent && !canSubmitFeedback && !canFork) return null
+  const canFork = Boolean(owner && chatId && messageId && !isLiveAssistantMessageId(messageId))
+  if (!canCopyContent && !canSubmitFeedback && !canFork) return null
 
   return (
     <>
       <div className='flex items-center gap-0.5'>
-        {hasContent && (
+        {canCopyContent && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <button

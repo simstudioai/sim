@@ -2,9 +2,9 @@ import type {
   CrowdStrikeExecuteRtrCommandParams,
   CrowdStrikeExecuteRtrCommandResponse,
 } from '@/tools/crowdstrike/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
+export const crowdstrikeExecuteRtrCommandTool: InternalToolConfig<
   CrowdStrikeExecuteRtrCommandParams,
   CrowdStrikeExecuteRtrCommandResponse
 > = {
@@ -55,13 +55,8 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/crowdstrike/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       baseCommand: params.baseCommand,
       cloud: params.cloud,
       clientId: params.clientId,

@@ -14,11 +14,12 @@ export const revalidate = 0
  * `DELETE /api/v2/files/[fileId]` is a soft delete; this reverses it. Find the
  * ids to pass here with `GET /api/v2/files?scope=archived`.
  *
- * Restore is not a pure undo: the file returns to the workspace root regardless
- * of the folder it was deleted from, and it is renamed when its original name
- * is no longer free. The response is therefore the post-restore record, not the
- * one the caller deleted. Restoring an already-active file is a no-op that
- * returns that file, so a retried request is safe.
+ * Restore is not a pure undo: the file returns to the folder it was deleted
+ * from while that folder is still active, and to the workspace root once the
+ * folder has been archived; it is renamed when its original name is no longer
+ * free there. The response is therefore the post-restore record, not the one
+ * the caller deleted. Restoring an already-active file is a no-op that returns
+ * that file, so a retried request is safe.
  */
 export const POST = defineV2JsonRoute({
   contract: v2RestoreFileContract,

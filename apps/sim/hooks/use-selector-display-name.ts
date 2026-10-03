@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
+import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import { summarizeNames } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
-import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
-import type { SelectorKey } from '@/hooks/selectors/types'
 import {
+  type SelectorClientContext,
   useSelectorOptionDetail,
+  useSelectorOptionDetails,
   useSelectorOptionMap,
   useSelectorOptions,
-} from '@/hooks/selectors/use-selector-query'
+} from '@/hooks/queries/selectors'
 
 interface SelectorDisplayNameArgs {
   subBlock?: SubBlockConfig
@@ -66,8 +67,8 @@ export function useSelectorDisplayName({
   const hasSelection = selectedIds.length > 0
 
   const resolution = useMemo(() => {
-    if (!subBlock || !hasSelection) return null
-    return resolveSelectorForSubBlock(subBlock, {
+    if (!subBlock?.selectorKey || !hasSelection) return null
+    const context: SelectorClientContext = {
       workflowId,
       oauthCredential,
       domain,
@@ -82,7 +83,9 @@ export function useSelectorDisplayName({
       collectionId,
       spreadsheetId,
       fileId,
-    })
+      mimeType: subBlock.mimeType,
+    }
+    return { key: subBlock.selectorKey, context }
   }, [
     subBlock,
     hasSelection,
@@ -107,10 +110,11 @@ export function useSelectorDisplayName({
   const enabled = Boolean(key && hasSelection)
   const resolvedKey: SelectorKey = (key ?? 'slack.channels') as SelectorKey
   const resolvedContext = enabled ? context : {}
+  const supportsDetail = getSelectorManifestEntry(resolvedKey).supportsDetail
 
   const { data: options = [], isFetching: listLoading } = useSelectorOptions(resolvedKey, {
     context: resolvedContext,
-    enabled,
+    enabled: enabled && !supportsDetail,
   })
 
   const { data: detailOption, isLoading: detailLoading } = useSelectorOptionDetail(resolvedKey, {
@@ -118,8 +122,19 @@ export function useSelectorDisplayName({
     detailId: enabled ? detailId : undefined,
     enabled,
   })
+  const detailOptions = useSelectorOptionDetails(resolvedKey, {
+    context: resolvedContext,
+    detailIds: supportsDetail && selectedIds.length > 1 ? selectedIds : [],
+    enabled,
+  })
 
-  const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
+  const resolvedOptions = useMemo(() => {
+    const merged = new Map(options.map((option) => [option.id, option]))
+    for (const option of detailOptions.data) merged.set(option.id, option)
+    return [...merged.values()]
+  }, [detailOptions.data, options])
+
+  const optionMap = useSelectorOptionMap(resolvedOptions, detailOption ?? undefined)
 
   /* All or nothing: a partial resolution would silently drop selections, and the
      caller's raw-value fallback at least shows every id. */
@@ -131,6 +146,6 @@ export function useSelectorDisplayName({
 
   return {
     displayName: enabled ? displayName : null,
-    isLoading: enabled ? listLoading || detailLoading : false,
+    isLoading: enabled ? listLoading || detailLoading || detailOptions.isLoading : false,
   }
 }

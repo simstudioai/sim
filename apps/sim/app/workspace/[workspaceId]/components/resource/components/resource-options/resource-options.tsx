@@ -48,6 +48,7 @@ export interface SortConfig {
   active: { column: string; direction: SortDirection } | null
   onSort: (column: string, direction: SortDirection) => void
   onClear?: () => void
+  keepOpenOnSelect?: boolean
 }
 
 export interface FilterTag {
@@ -200,7 +201,7 @@ export const ResourceOptions = memo(function ResourceOptions({
                     sideOffset={6}
                     className={cn(
                       POPOVER_ANIMATION_CLASSES,
-                      'z-[var(--z-popover)] w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                      'z-[var(--z-popover)] w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xs'
                     )}
                   >
                     {popoverFilter.content}
@@ -231,7 +232,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
             active={search.highlightedTagIndex === i}
             className='max-w-[280px] shrink-0'
           >
-            <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block truncate'>
+            <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block'>
               {tag.label}: {tag.value}
             </FloatingOverflowText>
           </Chip>
@@ -261,7 +262,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
       {search.dropdown && (
         <div
           ref={search.dropdownRef}
-          className='absolute top-full left-0 z-[var(--z-dropdown)] mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+          className='absolute top-full left-0 z-[var(--z-dropdown)] mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-xs'
         >
           {search.dropdown}
         </div>
@@ -283,7 +284,7 @@ export const SortDropdown = memo(function SortDropdown({
   open,
   onOpenChange,
 }: SortDropdownProps) {
-  const { options, active, onSort, onClear } = config
+  const { options, active, onSort, onClear, keepOpenOnSelect = false } = config
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
@@ -299,7 +300,12 @@ export const SortDropdown = memo(function SortDropdown({
       >
         {active && onClear && (
           <>
-            <DropdownMenuItem onSelect={onClear}>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                if (keepOpenOnSelect) event.preventDefault()
+                onClear()
+              }}
+            >
               <X />
               Clear sort
             </DropdownMenuItem>
@@ -314,7 +320,8 @@ export const SortDropdown = memo(function SortDropdown({
           return (
             <DropdownMenuItem
               key={option.id}
-              onSelect={() => {
+              onSelect={(event) => {
+                if (keepOpenOnSelect) event.preventDefault()
                 if (isActive) {
                   onSort(option.id, active.direction === 'asc' ? 'desc' : 'asc')
                 } else {
@@ -323,7 +330,7 @@ export const SortDropdown = memo(function SortDropdown({
               }}
             >
               {Icon && <Icon />}
-              <FloatingOverflowText label={option.label} className='block truncate' />
+              <FloatingOverflowText label={option.label} className='block' />
               {DirectionIcon && (
                 <DirectionIcon className='ml-auto size-[12px] text-[var(--text-tertiary)]' />
               )}

@@ -4,8 +4,8 @@ import { useCallback, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useUnsavedChangesGuard } from '@/app/workspace/[workspaceId]/components/credential-detail/hooks/use-unsaved-changes-guard'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
-import { useUnsavedChangesGuard } from './use-unsaved-changes-guard'
 
 const logger = createLogger('CredentialDetailForm')
 
@@ -26,6 +26,7 @@ export interface CredentialDetailFormSection {
 }
 
 interface UseCredentialDetailFormParams {
+  workspaceId?: string
   credential: WorkspaceCredential | null
   isAdmin: boolean
   /** Where the back link / discard navigates to. */
@@ -47,24 +48,27 @@ interface UseCredentialDetailFormParams {
  * into that one save and one guard.
  */
 export function useCredentialDetailForm({
+  workspaceId,
   credential,
   isAdmin,
   backHref,
   section,
 }: UseCredentialDetailFormParams) {
-  const updateCredential = useUpdateWorkspaceCredential()
+  const updateCredential = useUpdateWorkspaceCredential(workspaceId)
 
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
+  const [unredactedDraft, setUnredactedDraft] = useState(false)
   const [seededCredentialId, setSeededCredentialId] = useState<string | null>(null)
 
   // Seed drafts when the credential first resolves (or the route id changes); a
   // background refetch of the same credential must not clobber an in-progress
   // edit — Discard is the one way to reset.
-  /** Applies a credential to both drafts — the one definition of "reset to server state". */
+  /** Applies a credential to every draft — the one definition of "reset to server state". */
   const seedDrafts = useCallback((source: WorkspaceCredential) => {
     setDisplayNameDraft(source.displayName)
     setDescriptionDraft(source.description ?? '')
+    setUnredactedDraft(source.unredacted)
   }, [])
 
   if (credential && credential.id !== seededCredentialId) {
@@ -76,7 +80,8 @@ export function useCredentialDetailForm({
   const isDescriptionDirty = credential
     ? descriptionDraft !== (credential.description || '')
     : false
-  const isMetadataDirty = isDisplayNameDirty || isDescriptionDirty
+  const isUnredactedDirty = credential ? unredactedDraft !== credential.unredacted : false
+  const isMetadataDirty = isDisplayNameDirty || isDescriptionDirty || isUnredactedDirty
   const isSectionDirty = section?.isDirty ?? false
   const isDirty = isMetadataDirty || isSectionDirty
   const isSaving = updateCredential.isPending || (section?.isSaving ?? false)
@@ -93,6 +98,7 @@ export function useCredentialDetailForm({
         credentialId: credential.id,
         ...(isDisplayNameDirty ? { displayName: displayNameDraft.trim() } : {}),
         ...(isDescriptionDirty ? { description: descriptionDraft.trim() || null } : {}),
+        ...(isUnredactedDirty ? { unredacted: unredactedDraft } : {}),
       })
       if (isDisplayNameDirty) setDisplayNameDraft((value) => value.trim())
       if (isDescriptionDirty) setDescriptionDraft((value) => value.trim())
@@ -111,8 +117,10 @@ export function useCredentialDetailForm({
     section,
     isDisplayNameDirty,
     isDescriptionDirty,
+    isUnredactedDirty,
     displayNameDraft,
     descriptionDraft,
+    unredactedDraft,
     updateCredential.mutateAsync,
   ])
 
@@ -126,6 +134,8 @@ export function useCredentialDetailForm({
     setDisplayNameDraft,
     descriptionDraft,
     setDescriptionDraft,
+    unredactedDraft,
+    setUnredactedDraft,
     isDirty,
     save,
     discard,

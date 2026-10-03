@@ -5,12 +5,25 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
+import {
+  getMothershipAttachmentPreviewUrl,
+  getMothershipAttachmentUrl,
+} from '@/lib/mothership/chat/attachment-preview'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
+import {
+  ASSISTANT_IMAGE_MAX_BYTES,
+  ASSISTANT_IMAGE_MAX_COUNT,
+  ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
+  isAssistantImageType,
+} from '@/lib/uploads/shared/assistant-images'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
+import type {
+  ChatRequestMode,
+  FileAttachmentForApi,
+} from '@/app/workspace/[workspaceId]/home/types'
 
 const logger = createLogger('useFileAttachments')
 
@@ -78,8 +91,10 @@ export interface MessageFileAttachment {
 interface UseFileAttachmentsProps {
   userId?: string
   workspaceId?: string
+  organizationId?: string
+  requestMode?: ChatRequestMode
   disabled?: boolean
-  isLoading?: boolean
+  initialAttachments?: FileAttachmentForApi[]
 }
 
 /**
@@ -90,14 +105,28 @@ interface UseFileAttachmentsProps {
  * @returns File attachment state and operations
  */
 export function useFileAttachments(props: UseFileAttachmentsProps) {
-  const { userId, workspaceId, disabled, isLoading } = props
+  const { userId, workspaceId, organizationId, requestMode, disabled } = props
+  const imagesOnly = Boolean(organizationId) && requestMode !== 'agent' && requestMode !== 'plan'
 
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() =>
+    (props.initialAttachments ?? []).map((file) => ({
+      id: file.id,
+      name: file.filename,
+      size: file.size,
+      type: file.media_type,
+      key: file.key,
+      path:
+        file.path || getMothershipAttachmentPreviewUrl(file) || getMothershipAttachmentUrl(file),
+      previewUrl: getMothershipAttachmentPreviewUrl(file),
+      uploading: false,
+    }))
+  )
   const [dragCounter, setDragCounter] = useState(0)
   const isDragging = dragCounter > 0
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const attachedFilesRef = useRef<AttachedFile[]>([])
-  const uploadControllersRef = useRef(new Map<string, AbortController>())
+  const attachedFilesRef = useRef<AttachedFile[]>(attachedFiles)
+  const uploadControllersRef = useRef<Map<string, AbortController> | null>(null)
+  const uploadControllers = (uploadControllersRef.current ??= new Map())
 
   const updateAttachedFiles = useCallback((update: (files: AttachedFile[]) => AttachedFile[]) => {
     const next = update(attachedFilesRef.current)
@@ -110,8 +139,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    */
   useEffect(() => {
     return () => {
-      for (const controller of uploadControllersRef.current.values()) controller.abort()
-      uploadControllersRef.current.clear()
+      for (const controller of uploadControllers.values()) controller.abort()
+      uploadControllers.clear()
       attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     }
   }, [])
@@ -152,16 +181,29 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         logger.error('User ID not available for file upload')
         return
       }
-      if (!workspaceId) {
-        logger.error('workspaceId required for mothership uploads')
+      if (!workspaceId && !organizationId) {
+        logger.error('Workspace or organization context required for attachments')
         return
       }
 
       if (fileList.length === 0) return
       try {
+        if (
+          imagesOnly &&
+          Array.from(fileList).some((file) => !isAssistantImageType(resolveFileType(file)))
+        ) {
+          toast.error('Attach PNG, JPEG, GIF, or WebP images.')
+          return
+        }
         assertMultiFileUploadAdmission(fileList, {
           existingFiles: attachedFilesRef.current,
-          maxFileBytes: MAX_WORKSPACE_FILE_SIZE,
+          maxFileBytes: imagesOnly ? ASSISTANT_IMAGE_MAX_BYTES : MAX_WORKSPACE_FILE_SIZE,
+          ...(imagesOnly
+            ? {
+                maxFiles: ASSISTANT_IMAGE_MAX_COUNT,
+                maxTotalBytes: ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
+              }
+            : {}),
         })
       } catch (error) {
         toast.error("Couldn't add files", { description: toError(error).message })
@@ -186,7 +228,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       })
       const controllers = placeholders.map(() => new AbortController())
       placeholders.forEach((placeholder, index) => {
-        uploadControllersRef.current.set(placeholder.id, controllers[index])
+        uploadControllers.set(placeholder.id, controllers[index])
       })
 
       updateAttachedFiles((current) => [...current, ...placeholders])
@@ -198,7 +240,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
           const result = await uploadInternalFileSession({
             purpose: 'mothership_attachment',
             file,
-            workspaceId,
+            ...(organizationId ? { organizationId, requestMode } : { workspaceId: workspaceId! }),
             signal: controller.signal,
           })
 
@@ -232,11 +274,11 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
           revokePreviewUrl(placeholder.previewUrl)
           updateAttachedFiles((current) => current.filter((file) => file.id !== placeholder.id))
         } finally {
-          uploadControllersRef.current.delete(placeholder.id)
+          uploadControllers.delete(placeholder.id)
         }
       })
     },
-    [userId, workspaceId, updateAttachedFiles]
+    [userId, workspaceId, organizationId, requestMode, imagesOnly, updateAttachedFiles]
   )
 
   /**
@@ -272,8 +314,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    */
   const removeFile = useCallback(
     (fileId: string) => {
-      uploadControllersRef.current.get(fileId)?.abort()
-      uploadControllersRef.current.delete(fileId)
+      uploadControllers.get(fileId)?.abort()
+      uploadControllers.delete(fileId)
       const file = attachedFilesRef.current.find((f) => f.id === fileId)
       revokePreviewUrl(file?.previewUrl)
       updateAttachedFiles((current) => current.filter((file) => file.id !== fileId))
@@ -340,8 +382,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    * Clears all attached files and cleanup preview URLs
    */
   const clearAttachedFiles = useCallback(() => {
-    for (const controller of uploadControllersRef.current.values()) controller.abort()
-    uploadControllersRef.current.clear()
+    for (const controller of uploadControllers.values()) controller.abort()
+    uploadControllers.clear()
     attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     updateAttachedFiles(() => [])
   }, [updateAttachedFiles])
@@ -353,8 +395,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
    */
   const restoreAttachedFiles = useCallback(
     (files: AttachedFile[]) => {
-      for (const controller of uploadControllersRef.current.values()) controller.abort()
-      uploadControllersRef.current.clear()
+      for (const controller of uploadControllers.values()) controller.abort()
+      uploadControllers.clear()
       attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
       updateAttachedFiles(() => files)
     },

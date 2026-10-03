@@ -43,8 +43,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
 
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const payload = isRecordLike(body) ? unwrapEmailBisonPayload(body) : {}
-    const event = isRecordLike(payload.event) ? payload.event : null
-    const data = isRecordLike(payload.data) ? payload.data : null
+    const event = toRecordOrNull(payload.event)
+    const data = toRecordOrNull(payload.data)
     const providerConfig = getProviderConfig(webhook)
     const triggerId = providerConfig.triggerId as string | undefined
     const input: Record<string, unknown> = {
@@ -153,13 +153,14 @@ export const emailBisonHandler: WebhookProviderHandler = {
     })
 
     const targetUrl = emailBisonUrl('/api/webhook-url', {}, apiBaseUrl)
-    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`)
       throw new Error('Email Bison Instance URL could not be validated.')
     }
 
-    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP, {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       body: JSON.stringify({
@@ -229,7 +230,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
         {},
         apiBaseUrl
       )
-      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
       if (!urlValidation.isValid) {
         logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`, {
           webhookId: webhook.id,
@@ -239,7 +240,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP, {
+        profile: 'configuredEndpoint',
         method: 'DELETE',
         headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       })
@@ -283,7 +285,7 @@ async function parseJsonResponse(
 ): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await response.json()
-    return isRecordLike(body) ? body : null
+    return toRecordOrNull(body)
   } catch {
     return null
   }

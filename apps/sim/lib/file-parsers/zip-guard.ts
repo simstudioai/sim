@@ -1,6 +1,9 @@
 import { inflateRawSync } from 'zlib'
 import { createLogger } from '@sim/logger'
 import {
+  ArchiveIntegrityError,
+  MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES,
+  MAX_OOXML_CENTRAL_DIRECTORY_RECORDS,
   MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES,
   MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES,
   ZipBombError,
@@ -26,18 +29,18 @@ const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
 const EOCD_SIGNATURE = 0x06054b50
 const ZIP64_EOCD_LOCATOR_SIGNATURE = 0x07064b50
 const ZIP64_EOCD_SIGNATURE = 0x06064b50
-const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
+export const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
 const ZIP64_EXTRA_FIELD_ID = 0x0001
 
-const EOCD_MIN_SIZE = 22
+export const EOCD_MIN_SIZE = 22
 const ZIP64_EOCD_LOCATOR_SIZE = 20
-const CENTRAL_DIRECTORY_HEADER_MIN_SIZE = 46
-const LOCAL_FILE_HEADER_MIN_SIZE = 30
+export const CENTRAL_DIRECTORY_HEADER_MIN_SIZE = 46
+export const LOCAL_FILE_HEADER_MIN_SIZE = 30
 const MAX_EOCD_COMMENT_SIZE = 0xffff
 const UINT32_SENTINEL = 0xffffffff
 const UINT16_SENTINEL = 0xffff
 
-const COMPRESSION_METHOD_STORED = 0
+export const COMPRESSION_METHOD_STORED = 0
 const COMPRESSION_METHOD_DEFLATE = 8
 
 /** General-purpose bit 3: sizes live in a trailing data descriptor, not the local header. */
@@ -96,7 +99,7 @@ export function isZipShaped(buffer: Buffer): boolean {
  * at the buffer tail, so a decoy EOCD signature planted in the comment region
  * cannot redirect the guard to a smaller, attacker-chosen central directory.
  */
-function findEocdOffset(buffer: Buffer): number {
+export function findEocdOffset(buffer: Buffer): number {
   const minStart = Math.max(0, buffer.length - EOCD_MIN_SIZE - MAX_EOCD_COMMENT_SIZE)
   for (let offset = buffer.length - EOCD_MIN_SIZE; offset >= minStart; offset--) {
     if (buffer.readUInt32LE(offset) !== EOCD_SIGNATURE) {
@@ -110,7 +113,7 @@ function findEocdOffset(buffer: Buffer): number {
   return -1
 }
 
-interface CentralDirectoryLocation {
+export interface CentralDirectoryLocation {
   offset: number
   entryCount: number
 }
@@ -119,7 +122,7 @@ interface CentralDirectoryLocation {
  * Resolve the central directory offset and entry count, following the ZIP64
  * end-of-central-directory chain when the 32-bit fields are saturated.
  */
-function locateCentralDirectory(
+export function locateCentralDirectory(
   buffer: Buffer,
   eocdOffset: number
 ): CentralDirectoryLocation | null {
@@ -224,6 +227,10 @@ interface DeclaredSizeStats {
   total: number
   /** Largest single entry's declared uncompressed size. */
   largestEntry: number
+  /** Records a downstream ZIP parser would materialize. */
+  entryCount: number
+  /** Summed central-directory extra-field bytes retained by ZIP parsers. */
+  totalExtraFieldBytes: number
 }
 
 /**
@@ -267,6 +274,7 @@ function sumDeclaredUncompressedSize(
   let total = 0
   let largestEntry = 0
   let counted = 0
+  let totalExtraFieldBytes = 0
   let cursor = location.offset
   while (
     cursor + CENTRAL_DIRECTORY_HEADER_MIN_SIZE <= buffer.length &&
@@ -282,12 +290,13 @@ function sumDeclaredUncompressedSize(
       fileNameLength,
       extraFieldLength
     ).uncompressedSize
+    totalExtraFieldBytes += extraFieldLength
     total += entryBytes
     if (entryBytes > largestEntry) {
       largestEntry = entryBytes
     }
     if (total > limits.maxTotalUncompressedBytes || entryBytes > limits.maxEntryUncompressedBytes) {
-      return { total, largestEntry }
+      return { total, largestEntry, entryCount: counted + 1, totalExtraFieldBytes }
     }
 
     counted += 1
@@ -300,7 +309,7 @@ function sumDeclaredUncompressedSize(
     return null
   }
 
-  return { total, largestEntry }
+  return { total, largestEntry, entryCount: counted, totalExtraFieldBytes }
 }
 
 /**
@@ -506,14 +515,14 @@ export function assertOoxmlArchiveWithinLimits(
       logger.warn('Rejected ZIP-shaped archive: central directory could not be parsed', {
         compressedBytes: buffer.length,
       })
-      throw new ZipBombError(
+      throw new ArchiveIntegrityError(
         'Unable to inspect ZIP central directory; refusing to parse an unverifiable ZIP-shaped archive'
       )
     }
     return
   }
 
-  const { total: totalUncompressed, largestEntry } = declared
+  const { total: totalUncompressed, largestEntry, entryCount, totalExtraFieldBytes } = declared
 
   if (largestEntry > limits.maxEntryUncompressedBytes) {
     logger.warn('Rejected OOXML archive: a single entry exceeds the per-entry limit', {
@@ -537,6 +546,28 @@ export function assertOoxmlArchiveWithinLimits(
     )
   }
 
+  if (entryCount > MAX_OOXML_CENTRAL_DIRECTORY_RECORDS) {
+    logger.warn('Rejected OOXML archive: central-directory record count exceeds limit', {
+      entryCount,
+      maxEntryCount: MAX_OOXML_CENTRAL_DIRECTORY_RECORDS,
+      compressedBytes: buffer.length,
+    })
+    throw new ZipBombError(
+      `Archive contains ${entryCount} entries, exceeding the maximum allowed ${MAX_OOXML_CENTRAL_DIRECTORY_RECORDS}`
+    )
+  }
+
+  if (totalExtraFieldBytes > MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES) {
+    logger.warn('Rejected OOXML archive: central-directory metadata exceeds limit', {
+      totalExtraFieldBytes,
+      maxExtraFieldBytes: MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES,
+      compressedBytes: buffer.length,
+    })
+    throw new ZipBombError(
+      `Archive central-directory metadata (${totalExtraFieldBytes} bytes) exceeds the maximum allowed ${MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES} bytes`
+    )
+  }
+
   const ratio = totalUncompressed / Math.max(buffer.length, 1)
   if (totalUncompressed > limits.ratioCheckFloorBytes && ratio > limits.maxCompressionRatio) {
     logger.warn('Rejected OOXML archive: compression ratio exceeds limit', {
@@ -556,7 +587,7 @@ export function assertOoxmlArchiveWithinLimits(
     logger.warn('Rejected ZIP-shaped archive: central directory could not be re-read', {
       compressedBytes: buffer.length,
     })
-    throw new ZipBombError(
+    throw new ArchiveIntegrityError(
       'Unable to inspect ZIP central directory; refusing to parse an unverifiable ZIP-shaped archive'
     )
   }
@@ -568,6 +599,6 @@ export function assertOoxmlArchiveWithinLimits(
       declaredTotalUncompressed: totalUncompressed,
       compressedBytes: buffer.length,
     })
-    throw new ZipBombError(`Archive contents do not match declared sizes: ${mismatch}`)
+    throw new ArchiveIntegrityError(`Archive contents do not match declared sizes: ${mismatch}`)
   }
 }

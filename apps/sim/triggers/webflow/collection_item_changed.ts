@@ -1,14 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import {
-  webflowCollectionsSelectorContract,
-  webflowSitesSelectorContract,
-} from '@/lib/api/contracts/selectors/webflow'
-import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '../types'
-
-const logger = createLogger('webflow-collection-item-changed-trigger')
 
 export const webflowCollectionItemChangedTrigger: TriggerConfig = {
   id: 'webflow_collection_item_changed',
@@ -24,6 +15,7 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       id: 'triggerCredentials',
       title: 'Credentials',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
       description: 'This trigger requires webflow credentials to access your account.',
       serviceId: 'webflow',
       requiredScopes: [],
@@ -38,52 +30,15 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       id: 'triggerSiteId',
       title: 'Site',
       type: 'dropdown',
+      canonicalParamId: 'siteId',
+      selectorKey: 'webflow.sites',
       placeholder: 'Select a site',
       description: 'The Webflow site to monitor',
       required: true,
-      options: [],
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_changed',
-      },
-      fetchOptions: async (blockId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        if (!credentialId) {
-          throw new Error('No Webflow credential selected')
-        }
-        try {
-          const data = await requestJson(webflowSitesSelectorContract, {
-            body: { credential: credentialId },
-          })
-          return (data.sites ?? []).map((site) => ({
-            id: site.id,
-            label: site.name,
-          }))
-        } catch (error) {
-          logger.error('Error fetching Webflow sites:', error)
-          throw error
-        }
-      },
-      fetchOptionById: async (blockId: string, optionId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        if (!credentialId) return null
-        try {
-          const data = await requestJson(webflowSitesSelectorContract, {
-            body: { credential: credentialId, siteId: optionId },
-          })
-          const site = data.sites?.find((s) => s.id === optionId)
-          if (site) {
-            return { id: site.id, label: site.name }
-          }
-          return null
-        } catch {
-          return null
-        }
       },
       dependsOn: ['triggerCredentials'],
     },
@@ -91,54 +46,15 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       id: 'triggerCollectionId',
       title: 'Collection',
       type: 'dropdown',
+      canonicalParamId: 'collectionId',
+      selectorKey: 'webflow.collections',
       placeholder: 'Select a collection (optional)',
       description: 'Optionally filter to monitor only a specific collection',
       required: false,
-      options: [],
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_changed',
-      },
-      fetchOptions: async (blockId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        const siteId = (await readSubBlockValue(blockId, 'triggerSiteId')) as string | null
-        if (!credentialId || !siteId) {
-          return []
-        }
-        try {
-          const data = await requestJson(webflowCollectionsSelectorContract, {
-            body: { credential: credentialId, siteId },
-          })
-          return (data.collections ?? []).map((collection) => ({
-            id: collection.id,
-            label: collection.name,
-          }))
-        } catch (error) {
-          logger.error('Error fetching Webflow collections:', error)
-          throw error
-        }
-      },
-      fetchOptionById: async (blockId: string, optionId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        const siteId = (await readSubBlockValue(blockId, 'triggerSiteId')) as string | null
-        if (!credentialId || !siteId) return null
-        try {
-          const data = await requestJson(webflowCollectionsSelectorContract, {
-            body: { credential: credentialId, siteId },
-          })
-          const collection = data.collections?.find((c) => c.id === optionId)
-          if (collection) {
-            return { id: collection.id, label: collection.name }
-          }
-          return null
-        } catch {
-          return null
-        }
       },
       dependsOn: ['triggerCredentials', 'triggerSiteId'],
     },

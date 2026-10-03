@@ -6,6 +6,7 @@
 
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import {
   type InfiniteData,
   infiniteQueryOptions,
@@ -159,6 +160,12 @@ export type TableRowsResponse = Pick<
 interface RowMutationContext {
   workspaceId: string
   tableId: string
+  /**
+   * Suppresses the error toast for callers that render the failure themselves —
+   * the row modal shows it inline, and two copies of the same sentence read as
+   * two separate failures. The cache self-heal on a 423 still runs.
+   */
+  suppressErrorToast?: boolean
 }
 
 type UpdateTableRowParams = Pick<TableRowParamsInput, 'rowId'> &
@@ -312,18 +319,6 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_DETAIL_STALE_TIME,
   })
-}
-
-/**
- * Shared table-detail query options so non-component callers (e.g. selector
- * providers) can `ensureQueryData` the same cache entry `useTable` populates.
- */
-export function getTableDetailQueryOptions(workspaceId: string, tableId: string) {
-  return {
-    queryKey: tableKeys.detail(tableId),
-    queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
-    staleTime: TABLE_DETAIL_STALE_TIME,
-  }
 }
 
 export interface TableRunState {
@@ -497,6 +492,47 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
     staleTime: TABLE_FIND_STALE_TIME,
     gcTime: TABLE_FIND_GC_TIME,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Bounded single-page row read for chart files (`.chart` previews): one fetch
+ * of up to `limit` rows with the spec's verbatim filter/sort. Charts accept a
+ * truncated page — they visualize a sample, not a drained table.
+ */
+export function useTableRowsSample({
+  workspaceId,
+  tableId,
+  filter,
+  sort,
+  limit,
+  enabled = true,
+}: {
+  workspaceId?: string
+  tableId?: string
+  /** Passed through verbatim from the chart document; the contract validates. */
+  filter?: unknown
+  sort?: unknown
+  limit: number
+  enabled?: boolean
+}) {
+  const paramsKey = JSON.stringify({ filter: filter ?? null, sort: sort ?? null, limit })
+  return useQuery({
+    // rq-lint-allow: tableId is globally unique; workspaceId is only the authz scope
+    queryKey: tableKeys.sample(tableId ?? '', paramsKey),
+    queryFn: ({ signal }) =>
+      fetchTableRows({
+        workspaceId: workspaceId as string,
+        tableId: tableId as string,
+        limit,
+        filter: (filter ?? null) as TablePredicate | null,
+        sort: (sort ?? null) as SortSpec | null,
+        includeTotal: false,
+        signal,
+      }),
+    enabled: Boolean(workspaceId && tableId) && enabled,
+    staleTime: TABLE_ROWS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -768,16 +804,22 @@ function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
 function handleTableLockRejection(
   error: unknown,
   queryClient: ReturnType<typeof useQueryClient>,
-  tableId: string
+  tableId: string,
+  options?: { silent?: boolean }
 ): boolean {
   if (!isApiClientError(error) || error.status !== 423) return false
   void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
   void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-  toast.error(error.message, { duration: 5000 })
+  // `silent` only drops the toast; the refetches above are what un-stale the grid.
+  if (!options?.silent) toast.error(error.message, { duration: 5000 })
   return true
 }
 
-export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
+export function useCreateTableRow({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
   const router = useRouter()
 
@@ -825,7 +867,9 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
+      if (suppressErrorToast) return
       notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
     },
     onSettled: () => {
@@ -1024,7 +1068,11 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
  * Update a single row in a table.
  * Uses optimistic updates for instant UI feedback on inline cell edits.
  */
-export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) {
+export function useUpdateTableRow({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -1109,8 +1157,10 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
       if (isValidationError(error)) return
+      if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
   })
@@ -1193,7 +1243,11 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
 /**
  * Delete a single row from a table.
  */
-export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) {
+export function useDeleteTableRow({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -1204,8 +1258,10 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
       if (isValidationError(error)) return
+      if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -1218,7 +1274,11 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
  * Delete multiple rows from a table.
  * Returns both deleted ids and failure details for partial-failure UI.
  */
-export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext) {
+export function useDeleteTableRows({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -1253,8 +1313,10 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       return { deletedRowIds }
     },
     onError: (error) => {
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
       if (isValidationError(error)) return
+      if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -1498,14 +1560,7 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
  * is rendered client-side, so this list contains only user-created views and is
  * legitimately empty for a table nobody has saved a view on.
  */
-export function useTableViews({
-  workspaceId,
-  tableId,
-  enabled = true,
-}: RowMutationContext & {
-  /** Carries the `table-views` flag, so a gated-off table never fetches. */
-  enabled?: boolean
-}) {
+export function useTableViews({ workspaceId, tableId }: RowMutationContext) {
   // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.views(tableId),
@@ -1517,7 +1572,7 @@ export function useTableViews({
       })
       return response.data.views
     },
-    enabled: enabled && Boolean(workspaceId && tableId),
+    enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_VIEWS_STALE_TIME,
   })
 }
@@ -1540,8 +1595,8 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
         prev ? [...prev, view] : [view]
       )
     },
-    // Returned so the mutation stays pending until the refetch settles — otherwise
-    // the Save chip re-enables and flashes dirty against a stale cached config.
+    // Keep creation pending until the refetch settles so the newly selected
+    // view does not briefly resolve against an incomplete list.
     onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }
@@ -1549,7 +1604,7 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
 interface UpdateTableViewParams {
   viewId: string
   name?: string
-  /** Full replace (explicit Save). Mutually exclusive with `configPatch`. */
+  /** Full replacement for API consumers. Mutually exclusive with `configPatch`. */
   config?: TableViewConfigInput
   /** Server-side shallow merge — used for the grid's incremental layout writes. */
   configPatch?: TableViewConfigInput
@@ -1565,6 +1620,10 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
   const queryClient = useQueryClient()
 
   return useMutation({
+    // View config and layout patches can touch the same top-level JSON keys.
+    // Preserve gesture order so rapid visibility toggles cannot finish out of
+    // order and leave an older snapshot stored last.
+    scope: { id: `table-view:${tableId}` },
     mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
       const response = await requestJson(updateTableViewContract, {
         params: { tableId, viewId },
@@ -1572,21 +1631,43 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
       })
       return response.data.view
     },
-    // Without this the edited view's cached config stays stale until the refetch,
-    // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
+    // Keep the active view's server baseline current immediately; the refetch
+    // remains the authoritative reconciliation for concurrent collaborators.
     onSuccess: (view) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev?.map((existing) => {
-          if (existing.id !== view.id) return existing
-          // Layout auto-saves and an explicit Save fire concurrently, and their
-          // responses can arrive out of order. The DB merge is authoritative, so
-          // only let a row at least as new as the cached one win — otherwise a
-          // slower response rewinds the cache until the refetch lands.
-          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) => {
+        if (!prev) return prev
+        // Layout and view controls auto-save concurrently, and their
+        // responses can arrive out of order. The DB merge is authoritative, so
+        // only let a response at least as new as the cached row win — for
+        // installing the row AND for demoting the previous default. A stale
+        // response applies nothing; otherwise it would rewind the cache (or
+        // strip isDefault from a newer default, leaving none) until the
+        // refetch lands.
+        const cached = prev.find((existing) => existing.id === view.id)
+        const currentDefault = view.isDefault
+          ? prev.find((existing) => existing.id !== view.id && existing.isDefault)
+          : undefined
+        const responseTime = new Date(view.updatedAt)
+        if (
+          (cached && responseTime < new Date(cached.updatedAt)) ||
+          (currentDefault && responseTime < new Date(currentDefault.updatedAt))
+        ) {
+          return prev
+        }
+        return prev.map((existing) => {
+          if (view.isDefault && existing.id !== view.id && existing.isDefault) {
+            return { ...existing, isDefault: false }
+          }
+          return existing.id === view.id ? view : existing
         })
-      )
+      })
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+    onSettled: () => {
+      // A scoped mutation only needs the database write ahead of the next
+      // patch. Let reconciliation run alongside the queue instead of making
+      // every rapid visibility toggle wait for a full list refetch.
+      void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
+    },
   })
 }
 
@@ -2127,9 +2208,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         const nextMetadata = prevWidths
           ? {
               ...previousDetail.metadata,
-              columnWidths: Object.fromEntries(
-                Object.entries(prevWidths).filter(([k]) => k !== stripKey)
-              ),
+              columnWidths: omit(prevWidths, [stripKey]),
             }
           : previousDetail.metadata
         queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {

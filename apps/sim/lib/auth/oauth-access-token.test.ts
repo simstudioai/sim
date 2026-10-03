@@ -1,0 +1,198 @@
+import { setRequestAuth } from '@sim/logger'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/security/hash', () => ({ sha256Hex: (value: string) => `hash:${value}` }))
+
+import {
+  InvalidOAuthAccessTokenError,
+  parseBearerToken,
+  verifyOAuthAccessToken,
+} from '@/lib/auth/oauth-access-token'
+
+function row(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'token-1',
+    userId: 'user-1',
+    clientId: 'sim-cli',
+    clientName: 'Sim CLI',
+    scopes: ['offline_access', 'api:read'],
+    resource: null,
+    expiresAt: new Date(Date.now() + 60_000),
+    clientDisabled: false,
+    userBanned: false,
+    userBanExpires: null,
+    userSuspendedAt: null,
+    userExists: 'user-1',
+    ...overrides,
+  }
+}
+
+async function reason(token: string): Promise<string> {
+  const failure = await verifyOAuthAccessToken(token).catch((error) => error)
+  expect(failure).toBeInstanceOf(InvalidOAuthAccessTokenError)
+  return failure.reason
+}
+
+describe('parseBearerToken', () => {
+  it('reads exactly one bearer credential and nothing else', () => {
+    expect(parseBearerToken(new Headers({ authorization: 'Bearer sim_oat_abc' }))).toBe(
+      'sim_oat_abc'
+    )
+    expect(parseBearerToken(new Headers({ authorization: 'Bearer  sim_oat_abc ' }))).toBe(
+      'sim_oat_abc'
+    )
+    expect(parseBearerToken(new Headers())).toBeNull()
+    expect(parseBearerToken(new Headers({ authorization: 'Basic abc' }))).toBeNull()
+    expect(parseBearerToken(new Headers({ authorization: 'Bearer ' }))).toBeNull()
+    expect(parseBearerToken(new Headers({ authorization: 'Bearer a b' }))).toBeNull()
+  })
+
+  /**
+   * RFC 7235 §2.1 defines the scheme as case-insensitive, so `bearer` is a
+   * real credential. Reading it as no credential would let it past the
+   * optional-auth path as an anonymous request instead of being refused.
+   */
+  it('matches the scheme case-insensitively', () => {
+    expect(parseBearerToken(new Headers({ authorization: 'bearer sim_oat_abc' }))).toBe(
+      'sim_oat_abc'
+    )
+    expect(parseBearerToken(new Headers({ authorization: 'BEARER sim_oat_abc' }))).toBe(
+      'sim_oat_abc'
+    )
+  })
+})
+
+describe('verifyOAuthAccessToken', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('looks the token up by its hash and returns the principal it stands for', async () => {
+    queueTableRows(schemaMock.oauthAccessToken, [row()])
+
+    const principal = await verifyOAuthAccessToken('sim_oat_secret')
+
+    expect(principal).toEqual({
+      kind: 'oauth_access_token',
+      userId: 'user-1',
+      clientId: 'sim-cli',
+      clientName: 'Sim CLI',
+      tokenId: 'token-1',
+      scopes: ['offline_access', 'api:read'],
+      expiresAt: expect.any(Date),
+    })
+    expect(dbChainMockFns.where).toHaveBeenCalledOnce()
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls[0])).toContain('hash:secret')
+    expect(vi.mocked(setRequestAuth)).toHaveBeenCalledWith(
+      { kind: 'oauth_access_token', clientId: 'sim-cli' },
+      { preserveExisting: true }
+    )
+  })
+
+  it('does not invent a display name for an unnamed OAuth client', async () => {
+    queueTableRows(schemaMock.oauthAccessToken, [row({ clientName: null })])
+    const principal = await verifyOAuthAccessToken('sim_oat_secret')
+    expect(principal).not.toHaveProperty('clientName')
+    expect(principal.clientId).toBe('sim-cli')
+  })
+
+  it('refuses a credential that is not one of ours without a database read', async () => {
+    expect(await reason('sim_abc')).toBe('malformed')
+    expect(await reason('sim_oat_')).toBe('malformed')
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    expect(vi.mocked(setRequestAuth)).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unknown, expired, disabled-client, orphaned, or banned token', async () => {
+    expect(await reason('sim_oat_unknown')).toBe('unknown')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ expiresAt: new Date(Date.now() - 1) })])
+    expect(await reason('sim_oat_x')).toBe('expired')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ clientDisabled: true })])
+    expect(await reason('sim_oat_x')).toBe('client_disabled')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ userId: null, userExists: null })])
+    expect(await reason('sim_oat_x')).toBe('user_missing')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ userBanned: true })])
+    expect(await reason('sim_oat_x')).toBe('user_banned')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ userSuspendedAt: new Date() })])
+    expect(await reason('sim_oat_x')).toBe('user_banned')
+
+    queueTableRows(schemaMock.oauthAccessToken, [
+      row({ userBanned: true, userBanExpires: new Date(Date.now() - 1) }),
+    ])
+    await expect(verifyOAuthAccessToken('sim_oat_x')).resolves.toMatchObject({ userId: 'user-1' })
+  })
+
+  it('propagates a store failure rather than reporting an invalid token', async () => {
+    const failure = new Error('database unavailable')
+    dbChainMockFns.limit.mockRejectedValueOnce(failure)
+
+    await expect(verifyOAuthAccessToken('sim_oat_x')).rejects.toBe(failure)
+  })
+
+  it('accepts resource tokens only at the exact authenticated resource', async () => {
+    const resource = 'https://sim.example/api/mcp/search/organizations/one'
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    await expect(verifyOAuthAccessToken('sim_oat_search', { resource })).resolves.toMatchObject({
+      userId: 'user-1',
+      scopes: ['search:read'],
+    })
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource })])
+    expect(await reason('sim_oat_search')).toBe('wrong_resource')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource })])
+    await expect(
+      verifyOAuthAccessToken('sim_oat_search', { resource: `${resource}-other` })
+    ).rejects.toMatchObject({ reason: 'wrong_resource' })
+
+    queueTableRows(schemaMock.oauthAccessToken, [row()])
+    await expect(verifyOAuthAccessToken('sim_oat_api', { resource })).rejects.toMatchObject({
+      reason: 'wrong_resource',
+    })
+  })
+
+  it.each(['api:read', 'api:write'])(
+    'preserves %s tokens only when the resource explicitly accepts API grants',
+    async (scope) => {
+      const resource = 'https://sim.example/api/mcp/search/organizations/one'
+      queueTableRows(schemaMock.oauthAccessToken, [row({ scopes: [scope] })])
+      await expect(
+        verifyOAuthAccessToken('sim_oat_api', { resource, allowUnboundApiTokens: true })
+      ).resolves.toMatchObject({ userId: 'user-1', scopes: [scope] })
+    }
+  )
+
+  it('does not accept old workspace Search tokens at organization Search or the general API', async () => {
+    const resource = 'https://sim.example/api/mcp/search/workspace-one'
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    await expect(
+      verifyOAuthAccessToken('sim_oat_old_workspace', {
+        resource: 'https://sim.example/api/mcp/search/organizations/one',
+        allowUnboundApiTokens: true,
+      })
+    ).rejects.toMatchObject({ reason: 'wrong_resource' })
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    expect(await reason('sim_oat_old_workspace')).toBe('wrong_resource')
+  })
+
+  it('never relaxes audience checks for Search-only or differently bound grants', async () => {
+    const resource = 'https://sim.example/api/mcp/search/organizations/one'
+    for (const token of [
+      row({ scopes: ['search:read'] }),
+      row({ scopes: ['offline_access'] }),
+      row({ resource: `${resource}-other`, scopes: ['api:read'] }),
+      row({ resource: `${resource}-other`, scopes: ['search:read'] }),
+    ]) {
+      queueTableRows(schemaMock.oauthAccessToken, [token])
+      await expect(
+        verifyOAuthAccessToken('sim_oat_other', { resource, allowUnboundApiTokens: true })
+      ).rejects.toMatchObject({ reason: 'wrong_resource' })
+    }
+  })
+})

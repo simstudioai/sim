@@ -4,9 +4,9 @@ import {
   PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
 import { createPublishTransform } from '@/tools/instagram/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const instagramPublishCarouselTool: ToolConfig<
+export const instagramPublishCarouselTool: InternalToolConfig<
   InstagramPublishCarouselParams,
   InstagramPublishResponse
 > = {
@@ -47,13 +47,8 @@ export const instagramPublishCarouselTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/publish-carousel',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: InstagramPublishCarouselParams) => ({
+  operation: {
+    input: (params: InstagramPublishCarouselParams) => ({
       accessToken: params.accessToken,
       igUserId: params.igUserId,
       media: params.media,

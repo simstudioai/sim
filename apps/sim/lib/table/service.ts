@@ -9,7 +9,7 @@
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
+import { tableJobs, tableViews, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -31,14 +31,26 @@ import {
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  COLUMN_TYPES,
+  DEFAULT_TABLE_VIEW_NAME,
+  NAME_PATTERN,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
-import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
+import { generateTableId } from '@/lib/table/ids'
+import {
+  EMPTY_JOB_FIELDS,
+  latestJobsForTables,
+  latestNonExportJobJson,
+  mapJobRow,
+} from '@/lib/table/jobs/service'
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -47,6 +59,7 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -112,7 +125,7 @@ function readLocks(row: {
  * Uses an advisory lock (not `SELECT ... FOR UPDATE` on the definition row) so
  * it adds no edges to the row-lock graph — the row-count trigger (migration
  * 0198) locks the definition row from `insertRow`/`deleteRow`, and a FOR UPDATE
- * here would invert that order. Mirrors `acquireTablePositionLock`. The lock and
+ * here would invert that order. Mirrors `acquireRowOrderLock`. The lock and
  * the read both release at COMMIT/ROLLBACK; the wait is bounded by the
  * `statement_timeout` set in `setTableTxTimeouts`.
  */
@@ -123,9 +136,7 @@ export async function withLockedTable<T>(
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
-    await trx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table || (opts?.expectedWorkspaceId && table.workspaceId !== opts.expectedWorkspaceId)) {
       throw new OrchestrationError('not_found', 'Table not found')
@@ -168,6 +179,12 @@ function applyColumnOrderToSchema(
 /**
  * Gets a table by ID with full details.
  *
+ * One round trip: the table's latest non-export job comes back in the same SELECT as
+ * a correlated lateral ({@link latestNonExportJobJson}) rather than a second query.
+ * The two cannot be separated — the reported `rowCount` is the stored count minus the
+ * running delete job's `pendingDeleteRemaining`, so dropping the job read would
+ * overstate the count mid-delete and let over-capacity inserts through.
+ *
  * @param tableId - Table ID to fetch
  * @returns Table definition or null if not found
  */
@@ -192,6 +209,7 @@ export async function getTableById(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
+      latestJob: latestNonExportJobJson(userTableDefinitions.id),
       ...LOCK_SELECT,
     })
     .from(userTableDefinitions)
@@ -206,7 +224,7 @@ export async function getTableById(
 
   const table = results[0]
   const metadata = (table.metadata as TableMetadata) ?? null
-  const { pendingDeleteRemaining, ...jobFields } = await latestJobForTable(tableId, executor)
+  const { pendingDeleteRemaining, ...jobFields } = mapJobRow(table.latestJob)
   return {
     id: table.id,
     name: table.name,
@@ -489,7 +507,7 @@ function workspaceTableLimitReached(maxTables: number): ForbiddenOperationError 
  * Advisory table-quota check for a caller that is about to make the user pay
  * for work before {@link createTable} would run.
  *
- * The authoritative check is the `FOR UPDATE` count inside `createTable`'s
+ * The authoritative check is the `FOR NO KEY UPDATE` count inside `createTable`'s
  * transaction and stays there — this one races, by construction, because the
  * ceiling can be reached (or cleared) during whatever the caller does next. It
  * exists so that "next" is not a multi-gigabyte upload: the CSV import used to
@@ -543,7 +561,11 @@ export async function createTable(
     )
   }
 
-  const tableId = `tbl_${generateId().replace(/-/g, '')}`
+  if (data.schema.columns.some((column) => column.type === 'ttl')) {
+    await assertTableRowTtlEnabled()
+  }
+
+  const tableId = generateTableId()
   const now = new Date()
 
   // Stamp stable ids so the table is id-keyed from its first row write.
@@ -596,12 +618,16 @@ export async function createTable(
     })
   }
 
-  // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
-  // to prevent TOCTOU race on the table count limit
+  // Wrap count check, duplicate check, and insert in a transaction with FOR NO KEY UPDATE
+  // to prevent TOCTOU race on the table count limit. The weaker lock still conflicts with
+  // itself, so table creations stay serialized, but it does not block unrelated inserts
+  // into the workspace's other child tables. See lib/billing/storage/tracking.ts.
   try {
     await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx)
-      await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
+      await trx.execute(
+        sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR NO KEY UPDATE`
+      )
 
       const [{ count: existingCount }] = await trx
         .select({ count: count() })
@@ -632,6 +658,17 @@ export async function createTable(
       }
 
       await trx.insert(userTableDefinitions).values(newTable)
+      await trx.insert(tableViews).values({
+        id: generateId(),
+        tableId,
+        workspaceId: data.workspaceId,
+        name: DEFAULT_TABLE_VIEW_NAME,
+        config: {},
+        isDefault: true,
+        createdBy: data.userId,
+        createdAt: now,
+        updatedAt: now,
+      })
 
       if (initialJob) {
         await trx.insert(tableJobs).values({
@@ -796,6 +833,7 @@ export async function addTableColumnsWithTx(
     ...table.schema,
     columns: [...table.schema.columns, ...additions],
   }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
   const now = new Date()
 
   await trx

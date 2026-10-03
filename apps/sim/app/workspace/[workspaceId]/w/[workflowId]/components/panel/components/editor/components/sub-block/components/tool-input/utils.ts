@@ -1,6 +1,14 @@
+import { stripVersionSuffix } from '@sim/utils/string'
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import type { BlockConfig } from '@/blocks/types'
 
+/**
+ * Core blocks the agent tool picker offers even though they are not
+ * `category: 'tools'`. Stored as BASE types and matched after stripping the
+ * `_vN` suffix, so a superseded version never has to be re-listed here at
+ * cutover time. Naming a specific version instead is what kept `table_v2` out
+ * of the picker while the toolbar had already moved to it.
+ */
 const CORE_AGENT_TOOL_TYPES = new Set([
   'api',
   'webhook_request',
@@ -9,18 +17,22 @@ const CORE_AGENT_TOOL_TYPES = new Set([
   'knowledge',
   'function',
   'table',
-  'file_v5',
+  'file',
 ])
 
 /**
  * Checks whether a registered block should appear in the agent tool picker.
+ *
+ * The `hideFromToolbar` guard is what keeps older versions out: superseded
+ * blocks carry it statically, and `getAllBlocks()` projects unrevealed
+ * `preview` blocks into clones that carry it too.
  */
 export function isAgentToolBlock(
   block: Pick<BlockConfig, 'category' | 'hideFromToolbar' | 'type'>
 ): boolean {
-  return (
-    !block.hideFromToolbar && (block.category === 'tools' || CORE_AGENT_TOOL_TYPES.has(block.type))
-  )
+  if (block.hideFromToolbar) return false
+  if (block.category === 'tools') return true
+  return CORE_AGENT_TOOL_TYPES.has(stripVersionSuffix(block.type))
 }
 
 /**

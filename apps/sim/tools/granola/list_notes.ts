@@ -1,4 +1,5 @@
 import type { GranolaListNotesParams, GranolaListNotesResponse } from '@/tools/granola/types'
+import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesResponse> = {
@@ -54,7 +55,7 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
 
   request: {
     url: (params) => {
-      const url = new URL('https://public-api.granola.ai/v1/notes')
+      const url = new URL(`${GRANOLA_API_BASE}/notes`)
       if (params.createdBefore) url.searchParams.append('created_before', params.createdBefore)
       if (params.createdAfter) url.searchParams.append('created_after', params.createdAfter)
       if (params.updatedAfter) url.searchParams.append('updated_after', params.updatedAfter)
@@ -64,17 +65,11 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
       return url.toString()
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => granolaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Granola API error (${response.status}): ${error}`)
-    }
+    if (!response.ok) await throwGranolaError(response)
 
     const data = await response.json()
 
@@ -105,15 +100,18 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
 
   outputs: {
     notes: {
-      type: 'json',
+      type: 'array',
       description: 'List of meeting notes',
-      properties: {
-        id: { type: 'string', description: 'Note ID' },
-        title: { type: 'string', description: 'Note title' },
-        ownerName: { type: 'string', description: 'Note owner name' },
-        ownerEmail: { type: 'string', description: 'Note owner email' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-        updatedAt: { type: 'string', description: 'Last update timestamp' },
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Note ID' },
+          title: { type: 'string', description: 'Note title' },
+          ownerName: { type: 'string', description: 'Note owner name' },
+          ownerEmail: { type: 'string', description: 'Note owner email' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
+          updatedAt: { type: 'string', description: 'Last update timestamp' },
+        },
       },
     },
     hasMore: {

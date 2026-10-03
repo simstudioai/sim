@@ -1,13 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import {
   type DeploymentAuthKind,
+  type DeploymentAuthResource,
   deploymentAuthCookieName,
   isEmailAllowed,
-  validateAuthToken,
+  readDeploymentAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -27,17 +29,29 @@ const PASSWORD_IP_RATE_LIMIT: TokenBucketConfig = {
 }
 
 /**
- * A password/email-gated resource (a deployed chat or a public file share). Only
- * the fields the auth check needs — the `password` is the encrypted secret.
+ * Caps guesses against one resource independently of client identity. This is
+ * the backstop for distributed attempts and for requests whose proxy chain
+ * cannot be resolved safely.
  */
-export interface DeploymentAuthResource {
-  id: string
-  authType: string | null
-  password?: string | null
-  allowedEmails?: unknown
+const PASSWORD_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 100,
+  refillRate: 100,
+  refillIntervalMs: 15 * 60_000,
 }
 
-interface DeploymentAuthBody {
+function passwordRateLimitResult(
+  retryAfterMs: number | undefined,
+  fallbackMs: number
+): DeploymentAuthResult {
+  return {
+    authorized: false,
+    error: 'Too many attempts. Please try again later.',
+    status: 429,
+    retryAfterMs: retryAfterMs ?? fallbackMs,
+  }
+}
+
+export interface DeploymentAuthBody {
   password?: string
   email?: string
   input?: unknown
@@ -45,6 +59,7 @@ interface DeploymentAuthBody {
 
 export interface DeploymentAuthResult {
   authorized: boolean
+  authenticatedEmail?: string
   error?: string
   status?: number
   retryAfterMs?: number
@@ -69,14 +84,12 @@ export async function validateDeploymentAuth(
     return { authorized: true }
   }
 
-  if (authType !== 'sso') {
+  if (authType === 'password' || authType === 'email') {
     const authCookie = request.cookies.get(deploymentAuthCookieName(cookiePrefix, resource.id))
 
-    if (
-      authCookie &&
-      validateAuthToken(authCookie.value, resource.id, authType, resource.password)
-    ) {
-      return { authorized: true }
+    if (authCookie) {
+      const claims = await readDeploymentAuthToken({ token: authCookie.value, resource })
+      if (claims) return { authorized: true, ...claims }
     }
   }
 
@@ -106,20 +119,39 @@ export async function validateDeploymentAuth(
       }
 
       const ip = getClientIp(request)
-      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `${cookiePrefix}-password:ip:${resource.id}:${ip}`,
-        PASSWORD_IP_RATE_LIMIT
-      )
-      if (!ipRateLimit.allowed) {
-        logger.warn(
-          `[${requestId}] Password attempt IP rate limit exceeded for ${resource.id} from ${ip}`
+      if (ip) {
+        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+          `${cookiePrefix}-password:ip:${resource.id}:${ip}`,
+          PASSWORD_IP_RATE_LIMIT,
+          { failClosed: true }
         )
-        return {
-          authorized: false,
-          error: 'Too many attempts. Please try again later.',
-          status: 429,
-          retryAfterMs: ipRateLimit.retryAfterMs ?? PASSWORD_IP_RATE_LIMIT.refillIntervalMs,
+        if (!ipRateLimit.allowed) {
+          logger.warn(`[${requestId}] Password attempt IP rate limit exceeded`, {
+            resourceId: resource.id,
+            cookiePrefix,
+            ip,
+          })
+          return passwordRateLimitResult(
+            ipRateLimit.retryAfterMs,
+            PASSWORD_IP_RATE_LIMIT.refillIntervalMs
+          )
         }
+      }
+
+      const resourceRateLimit = await rateLimiter.checkRateLimitDirect(
+        `${cookiePrefix}-password:resource:${resource.id}`,
+        PASSWORD_RESOURCE_RATE_LIMIT,
+        { failClosed: true }
+      )
+      if (!resourceRateLimit.allowed) {
+        logger.warn(`[${requestId}] Password attempt resource rate limit exceeded`, {
+          resourceId: resource.id,
+          cookiePrefix,
+        })
+        return passwordRateLimitResult(
+          resourceRateLimit.retryAfterMs,
+          PASSWORD_RESOURCE_RATE_LIMIT.refillIntervalMs
+        )
       }
 
       const { decrypted } = await decryptSecret(resource.password)
@@ -154,9 +186,7 @@ export async function validateDeploymentAuth(
         return { authorized: false, error: 'Email is required' }
       }
 
-      const allowedEmails = (resource.allowedEmails as string[]) || []
-
-      if (isEmailAllowed(email, allowedEmails)) {
+      if (isEmailAllowed(email, resource.allowedEmails)) {
         return { authorized: false, error: 'otp_required' }
       }
 
@@ -185,10 +215,8 @@ export async function validateDeploymentAuth(
         return { authorized: false, error: 'SSO session does not contain email' }
       }
 
-      const allowedEmails = (resource.allowedEmails as string[]) || []
-
-      if (isEmailAllowed(userEmail, allowedEmails)) {
-        return { authorized: true }
+      if (isEmailAllowed(userEmail, resource.allowedEmails)) {
+        return { authorized: true, authenticatedEmail: normalizeEmail(userEmail) }
       }
 
       return { authorized: false, error: 'Your email is not authorized to access this resource' }

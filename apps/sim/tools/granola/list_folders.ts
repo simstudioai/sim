@@ -1,4 +1,5 @@
 import type { GranolaListFoldersParams, GranolaListFoldersResponse } from '@/tools/granola/types'
+import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFoldersTool: ToolConfig<GranolaListFoldersParams, GranolaListFoldersResponse> = {
@@ -30,23 +31,17 @@ export const listFoldersTool: ToolConfig<GranolaListFoldersParams, GranolaListFo
 
   request: {
     url: (params) => {
-      const url = new URL('https://public-api.granola.ai/v1/folders')
+      const url = new URL(`${GRANOLA_API_BASE}/folders`)
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
       if (params.pageSize) url.searchParams.append('page_size', String(params.pageSize))
       return url.toString()
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => granolaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Granola API error (${response.status}): ${error}`)
-    }
+    if (!response.ok) await throwGranolaError(response)
 
     const data = await response.json()
 
@@ -68,15 +63,18 @@ export const listFoldersTool: ToolConfig<GranolaListFoldersParams, GranolaListFo
 
   outputs: {
     folders: {
-      type: 'json',
+      type: 'array',
       description: 'List of folders',
-      properties: {
-        id: { type: 'string', description: 'Folder ID' },
-        name: { type: 'string', description: 'Folder name' },
-        parentFolderId: {
-          type: 'string',
-          description: 'Parent folder ID, or null for top-level folders',
-          optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Folder ID' },
+          name: { type: 'string', description: 'Folder name' },
+          parentFolderId: {
+            type: 'string',
+            description: 'Parent folder ID, or null for top-level folders',
+            optional: true,
+          },
         },
       },
     },

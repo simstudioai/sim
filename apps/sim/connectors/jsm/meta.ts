@@ -36,6 +36,7 @@ export const jsmConnectorMeta: ConnectorMeta = {
     ],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxRequests'] },
   configFields: [
     {
       id: 'domain',

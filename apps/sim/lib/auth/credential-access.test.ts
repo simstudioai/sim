@@ -1,29 +1,16 @@
-/**
- * @vitest-environment node
- */
 import { account, credential, credentialMember, workflow } from '@sim/db/schema'
 import { createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckSessionOrInternalAuth, mockResolveWorkspaceAccess, mockGetUserEntityPermissions } =
-  vi.hoisted(() => ({
-    mockCheckSessionOrInternalAuth: vi.fn(),
-    mockResolveWorkspaceAccess: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockResolveWorkspaceAccess,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { authorizeCredentialUse, authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
+
+const { mockCheckSessionOrInternalAuth } = hybridAuthMockFns
+const { mockCheckWorkspaceAccess: mockResolveWorkspaceAccess, mockGetUserEntityPermissions } =
+  permissionsMockFns
 
 afterAll(resetDbChainMock)
 
@@ -70,7 +57,6 @@ function authorize(credentialId: string, workflowId?: string) {
 
 describe('authorizeCredentialUse', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     actAs('acting-user')
     mockGetUserEntityPermissions.mockResolvedValue('admin')
@@ -160,6 +146,25 @@ describe('authorizeCredentialUse', () => {
       expect(result.ok).toBe(true)
       expect(result.credentialOwnerUserId).toBe(OWNER)
       expect(result.workspaceId).toBe(WORKSPACE)
+      expect(result.resolvedCredentialId).toBe(ACCOUNT_ID)
+    })
+
+    it('pins a legacy account id to the explicitly authorized workspace', async () => {
+      const targetWorkspace = 'ws-2'
+      const targetRow = { id: 'cred-2', workspaceId: targetWorkspace, type: 'oauth' }
+      queueTableRows(credential, [])
+      queueTableRows(credential, [targetRow])
+      queueActorContext(targetRow)
+      queueTokenIdentity(null, OWNER)
+      mockResolveWorkspaceAccess.mockResolvedValue(workspaceAdmin)
+
+      const result = await authorizeCredentialUseForAuth(
+        { success: true, userId: 'acting-user', authType: 'session' },
+        { credentialId: ACCOUNT_ID, workspaceId: targetWorkspace }
+      )
+
+      expect(result.ok).toBe(true)
+      expect(result.workspaceId).toBe(targetWorkspace)
       expect(result.resolvedCredentialId).toBe(ACCOUNT_ID)
     })
 

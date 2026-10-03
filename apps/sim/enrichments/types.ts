@@ -23,18 +23,40 @@ export interface EnrichmentOutputField {
 }
 
 /**
- * Execution context for an enrichment run (runs server-side). `tableId`/`rowId`
- * are present for the table per-row path but optional — the workflow block path
- * (`/api/tools/enrichment/run`) has no table/row and passes only `workspaceId`.
+ * Execution context for an enrichment run. `tableId` and `rowId` are present
+ * for the table per-row path but optional for workflow tool execution.
  */
 export interface EnrichmentRunContext {
   tableId?: string
   rowId?: string
   workspaceId: string
+  /**
+   * The person the run acts for, or `null` for a deliberately actorless run.
+   *
+   * Load-bearing, not decorative: the per-tool permission gate is skipped
+   * entirely when a tool call carries no user, so a run without one sends row
+   * data to its provider with the workspace's `deniedTools` denylist silently
+   * not applied. Required, and explicitly nullable, so that is a decision a
+   * caller states rather than one it falls into by leaving a field off — the
+   * only actorless caller is a system-triggered table dispatch, which has no
+   * person to name and must not borrow the billing owner instead.
+   */
+  userId: string | null
   signal?: AbortSignal
   /** Isolated provenance for the exact mapped row inputs used by this run. */
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
+
+/** Failed tool result projected into the enrichment provider boundary. */
+export interface EnrichmentProviderFailure {
+  error: string
+  output: unknown
+}
+
+/** Normalized result of projecting a failed provider tool call. */
+export type EnrichmentProviderFailureProjection =
+  | { status: 'no_match' }
+  | { status: 'error'; error: string }
 
 /**
  * One data source an enrichment can try, described as plain data so the catalog
@@ -55,6 +77,11 @@ export interface EnrichmentProvider {
    * inputs to run this provider (cascade falls through to the next).
    */
   buildParams: (inputs: Record<string, unknown>) => Record<string, unknown> | null
+  /**
+   * Projects a failed tool call into the provider-neutral cascade outcome.
+   * `toolProvider` supplies the standard HTTP projection unless overridden.
+   */
+  projectFailure: (failure: EnrichmentProviderFailure) => EnrichmentProviderFailureProjection
   /**
    * Maps the tool's output to `{ [outputId]: value }`, or `null` for no result.
    * An empty/`null` result falls through to the next provider.

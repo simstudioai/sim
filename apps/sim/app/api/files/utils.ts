@@ -1,17 +1,17 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import {
+  isPayloadSizeLimitError,
+  readNodeStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { ensureFileNameExtension, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
 export interface ApiSuccessResponse {
   success: true
   [key: string]: any
-}
-
-interface ApiErrorResponse {
-  error: string
-  message?: string
 }
 
 export interface FileResponse {
@@ -35,7 +35,7 @@ export class InvalidRequestError extends Error {
   }
 }
 
-export const contentTypeMap: Record<string, string> = {
+const contentTypeMap: Record<string, string> = {
   txt: 'text/plain',
   csv: 'text/csv',
   json: 'application/json',
@@ -236,12 +236,19 @@ export function encodeFilenameForHeader(storageKey: string): string {
   return `filename="${asciiSafe}"; filename*=UTF-8''${encodeExtValue(filename)}`
 }
 
+/**
+ * Derives the served filename from the CALLER's content type (`getSecureFileHeaders`
+ * downgrades `text/html`) before the header decision, so a derived `.html` name gets the
+ * same forced-attachment treatment a stored `.html` file gets.
+ */
 export function createFileResponse(file: FileResponse): NextResponse {
-  const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
+  const servedFilename = ensureFileNameExtension(file.filename, file.contentType)
+
+  const { contentType, disposition } = getSecureFileHeaders(servedFilename, file.contentType)
 
   const headers: Record<string, string> = {
     'Content-Type': contentType,
-    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(servedFilename)}`,
     // Default to PRIVATE: this response is served only after access verification, so it must never be
     // stored by a shared cache/CDN and re-served cross-user. Genuinely public assets (avatars, OG images,
     // workspace logos) pass an explicit `cacheControl` (see PUBLIC_ASSET_CACHE_CONTROL in the serve route).
@@ -256,9 +263,68 @@ export function createFileResponse(file: FileResponse): NextResponse {
   return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
 }
 
+/**
+ * Whether an `If-None-Match` header claims the client already holds `etag`.
+ *
+ * Compared weakly, per RFC 9110: a cache that stored the response under a weak validator sends
+ * `W/"…"` back, and that still identifies the same bytes for a GET.
+ */
+function ifNoneMatchHolds(header: string | null, etag: string): boolean {
+  if (!header) return false
+  if (header.trim() === '*') return true
+  return header.split(',').some((candidate) => candidate.trim().replace(/^W\//, '').trim() === etag)
+}
+
+/**
+ * A file response carrying a strong validator, answering 304 when the client already holds
+ * exactly these bytes.
+ *
+ * For responses the browser is told to revalidate, the alternative is re-sending the whole body on
+ * every check — and a document resolved against other files is re-resolved per request precisely
+ * BECAUSE its bytes may have changed, so it cannot be given a cache lifetime instead. The
+ * validator is the digest of the bytes about to be sent, which makes it exact by construction: it
+ * cannot claim freshness for a body that differs, however the body was produced.
+ *
+ * This is deliberately NOT folded into {@link createFileResponse}. Digesting costs a pass over the
+ * buffer — up to the full transfer ceiling — which is worth it only where a 304 can actually be
+ * returned. A response already served as immutable is never revalidated, so it would pay the pass
+ * and never collect.
+ */
+export function createConditionalFileResponse(
+  file: FileResponse,
+  ifNoneMatch: string | null
+): NextResponse {
+  const etag = `"${createHash('sha256').update(file.buffer).digest('base64url')}"`
+
+  if (ifNoneMatchHolds(ifNoneMatch, etag)) {
+    // A 304 repeats the headers that govern caching, so the stored response is refreshed with the
+    // lifetime this request would have granted it rather than keeping the one it was stored with.
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        'Cache-Control': file.cacheControl || 'private, no-cache',
+      },
+    })
+  }
+
+  const response = createFileResponse(file)
+  response.headers.set('ETag', etag)
+  return response
+}
+
 export function createErrorResponse(error: Error, status = 500): NextResponse {
   const statusCode =
-    error instanceof FileNotFoundError ? 404 : error instanceof InvalidRequestError ? 400 : status
+    error instanceof FileNotFoundError
+      ? 404
+      : error instanceof InvalidRequestError
+        ? 400
+        : // A file too large to hold resident is the caller asking for something this
+          // route will not do, not a server fault — 413 keeps it out of the 5xx alarms
+          // and tells the client retrying is pointless.
+          isPayloadSizeLimitError(error)
+          ? 413
+          : status
 
   return NextResponse.json(
     {
@@ -267,6 +333,33 @@ export function createErrorResponse(error: Error, status = 500): NextResponse {
     },
     { status: statusCode }
   )
+}
+
+/**
+ * Reads a local upload into memory under a hard byte ceiling.
+ *
+ * The self-hosted mirror of the `maxBytes` every cloud provider download takes:
+ * a bare `readFile` inherits the 5 GB admission ceiling workspace files are stored
+ * under and allocates all of it inside the shared app process.
+ *
+ * The limit is enforced on the bytes as they arrive, through the same bounded-stream
+ * reader the S3/Blob/GCS downloads use, rather than by checking `stat` and then
+ * reading. A declared size only describes the file at the moment it was measured, so
+ * a stat-then-read pair admits whatever the file becomes in between — the cloud
+ * providers check `ContentLength` too, but never trust it as the only bound.
+ */
+export async function readLocalFileWithinLimit(
+  filePath: string,
+  maxBytes: number,
+  label: string
+): Promise<Buffer> {
+  const { createReadStream } = await import('fs')
+  const stream = createReadStream(filePath)
+  try {
+    return await readNodeStreamToBufferWithLimit(stream, { maxBytes, label })
+  } finally {
+    stream.destroy()
+  }
 }
 
 export function createSuccessResponse(data: ApiSuccessResponse): NextResponse {

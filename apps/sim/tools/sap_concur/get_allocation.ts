@@ -1,13 +1,12 @@
-import type { GetAllocationParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetAllocationParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getAllocationTool: ToolConfig<GetAllocationParams, SapConcurProxyResponse> = {
+export const getAllocationTool: InternalToolConfig<GetAllocationParams, SapConcurResponse> = {
   id: 'sap_concur_get_allocation',
   name: 'SAP Concur Get Allocation',
   description:
@@ -81,23 +80,20 @@ export const getAllocationTool: ToolConfig<GetAllocationParams, SapConcurProxyRe
       description: 'Allocation ID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = trimRequired(params.contextType, 'contextType')
       const reportId = trimRequired(params.reportId, 'reportId')
       const allocationId = trimRequired(params.allocationId, 'allocationId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}/allocations/${encodeURIComponent(allocationId)}`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

@@ -1,5 +1,6 @@
 import type { AshbyCandidate } from '@/tools/ashby/types'
 import {
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   CANDIDATE_OUTPUTS,
@@ -9,6 +10,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyAnonymizeCandidateParams {
   apiKey: string
+  onBehalfOfUserId?: string
   candidateId: string
 }
 
@@ -33,6 +35,7 @@ export const anonymizeCandidateTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     candidateId: {
       type: 'string',
       required: true,
@@ -44,7 +47,7 @@ export const anonymizeCandidateTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/candidate.anonymize',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     body: (params) => ({ candidateId: params.candidateId.trim() }),
   },
 

@@ -1,13 +1,8 @@
-import type { CreateSalesOrderParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  parseJsonInput,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { CreateSalesOrderParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildSapOperationBaseInput, parseJsonInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createSalesOrderTool: ToolConfig<CreateSalesOrderParams, SapProxyResponse> = {
+export const createSalesOrderTool: InternalToolConfig<CreateSalesOrderParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_create_sales_order',
   name: 'SAP S/4HANA Create Sales Order',
   description:
@@ -119,11 +114,8 @@ export const createSalesOrderTool: ToolConfig<CreateSalesOrderParams, SapProxyRe
       description: 'Optional additional A_SalesOrder fields merged into the create payload',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const items = parseJsonInput<Array<Record<string, unknown>>>(params.items, 'items')
       if (!Array.isArray(items) || items.length === 0) {
         throw new Error('items must be a non-empty JSON array of sales order item objects')
@@ -139,7 +131,7 @@ export const createSalesOrderTool: ToolConfig<CreateSalesOrderParams, SapProxyRe
         to_Item: items,
       }
       return {
-        ...baseProxyBody(params),
+        ...buildSapOperationBaseInput(params),
         service: 'API_SALES_ORDER_SRV',
         path: '/A_SalesOrder',
         method: 'POST',
@@ -148,7 +140,6 @@ export const createSalesOrderTool: ToolConfig<CreateSalesOrderParams, SapProxyRe
       }
     },
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP (201 on create)' },
     data: {

@@ -1,0 +1,332 @@
+import { CloudWatchClient } from '@aws-sdk/client-cloudwatch'
+import {
+  CloudWatchLogsClient,
+  DescribeLogStreamsCommand,
+  FilterLogEventsCommand,
+  GetLogEventsCommand,
+  GetQueryResultsCommand,
+  type ResultField,
+} from '@aws-sdk/client-cloudwatch-logs'
+import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+
+interface AwsCredentials {
+  region: string
+  accessKeyId: string
+  secretAccessKey: string
+}
+
+export function createCloudWatchClient(
+  config: AwsCredentials,
+  options?: { maxAttempts?: number }
+): CloudWatchClient {
+  return new CloudWatchClient({
+    region: config.region,
+    ...(options?.maxAttempts !== undefined && { maxAttempts: options.maxAttempts }),
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  })
+}
+
+export function createCloudWatchLogsClient(config: AwsCredentials): CloudWatchLogsClient {
+  return new CloudWatchLogsClient({
+    region: config.region,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  })
+}
+
+interface PollOptions {
+  maxWaitMs?: number
+  pollIntervalMs?: number
+}
+
+interface PollResult {
+  results: Record<string, string>[]
+  statistics: {
+    bytesScanned: number
+    recordsMatched: number
+    recordsScanned: number
+  }
+  status: string
+}
+
+function parseResultFields(fields: ResultField[] | undefined): Record<string, string> {
+  const record: Record<string, string> = {}
+  if (!fields) return record
+  for (const field of fields) {
+    if (field.field && field.value !== undefined) {
+      record[field.field] = field.value ?? ''
+    }
+  }
+  return record
+}
+
+export async function pollQueryResults(
+  client: CloudWatchLogsClient,
+  queryId: string,
+  options: PollOptions = {},
+  signal?: AbortSignal
+): Promise<PollResult> {
+  const { maxWaitMs = DEFAULT_EXECUTION_TIMEOUT_MS, pollIntervalMs = 1_000 } = options
+  const startTime = Date.now()
+
+  while (Date.now() - startTime < maxWaitMs) {
+    signal?.throwIfAborted()
+    const command = new GetQueryResultsCommand({ queryId })
+    const response = await client.send(command, { abortSignal: signal })
+
+    const status = response.status ?? 'Unknown'
+
+    if (status === 'Complete') {
+      return {
+        results: (response.results ?? []).map(parseResultFields),
+        statistics: {
+          bytesScanned: response.statistics?.bytesScanned ?? 0,
+          recordsMatched: response.statistics?.recordsMatched ?? 0,
+          recordsScanned: response.statistics?.recordsScanned ?? 0,
+        },
+        status,
+      }
+    }
+
+    if (status === 'Failed' || status === 'Cancelled') {
+      throw new Error(`CloudWatch Log Insights query ${status.toLowerCase()}`)
+    }
+
+    await sleep(pollIntervalMs)
+  }
+
+  signal?.throwIfAborted()
+  const finalResponse = await client.send(new GetQueryResultsCommand({ queryId }), {
+    abortSignal: signal,
+  })
+  return {
+    results: (finalResponse.results ?? []).map(parseResultFields),
+    statistics: {
+      bytesScanned: finalResponse.statistics?.bytesScanned ?? 0,
+      recordsMatched: finalResponse.statistics?.recordsMatched ?? 0,
+      recordsScanned: finalResponse.statistics?.recordsScanned ?? 0,
+    },
+    status: `Timeout (last status: ${finalResponse.status ?? 'Unknown'})`,
+  }
+}
+
+/** AWS DescribeLogStreams caps `limit` at 50 items per page. */
+const LOG_STREAMS_PAGE_SIZE = 50
+
+/** Upper bound on pages drained to avoid unbounded loops on log groups with many streams. */
+const MAX_LOG_STREAMS_PAGES = 20
+
+const logger = createLogger('CloudWatchUtils')
+
+export interface DescribedLogStream {
+  logStreamName: string
+  lastEventTimestamp: number | undefined
+  firstEventTimestamp: number | undefined
+  creationTime: number | undefined
+  storedBytes: number
+}
+
+/**
+ * Lists log streams for a log group, following `nextToken` so the complete set
+ * is returned rather than just the first page. Bounded by
+ * `MAX_LOG_STREAMS_PAGES`; logs a warning rather than silently dropping streams
+ * when the cap is hit. Ordering/prefix inputs are preserved across all pages.
+ *
+ * When `limit` is provided it is treated as a total result cap: draining stops
+ * once enough streams have been collected. When omitted, every page is drained.
+ */
+export async function describeLogStreams(
+  client: CloudWatchLogsClient,
+  logGroupName: string,
+  options?: {
+    prefix?: string
+    limit?: number
+    nextToken?: string
+    suppressTruncationLog?: boolean
+  },
+  signal?: AbortSignal
+): Promise<{
+  logStreams: DescribedLogStream[]
+  truncated: boolean
+  pages: number
+  nextToken?: string
+}> {
+  const hasPrefix = Boolean(options?.prefix)
+  const totalLimit = options?.limit
+  const logStreams: DescribedLogStream[] = []
+  let nextToken = options?.nextToken
+  let pages = 0
+  let truncated = false
+
+  for (let page = 0; page < MAX_LOG_STREAMS_PAGES; page++) {
+    const pageLimit =
+      totalLimit !== undefined
+        ? Math.min(LOG_STREAMS_PAGE_SIZE, totalLimit - logStreams.length)
+        : LOG_STREAMS_PAGE_SIZE
+
+    const command = new DescribeLogStreamsCommand({
+      logGroupName,
+      ...(hasPrefix
+        ? { orderBy: 'LogStreamName', logStreamNamePrefix: options!.prefix }
+        : { orderBy: 'LastEventTime', descending: true }),
+      limit: pageLimit,
+      ...(nextToken !== undefined ? { nextToken } : {}),
+    })
+
+    const response = await client.send(command, { abortSignal: signal })
+    pages = page + 1
+
+    for (const ls of response.logStreams ?? []) {
+      logStreams.push({
+        logStreamName: ls.logStreamName ?? '',
+        lastEventTimestamp: ls.lastEventTimestamp,
+        firstEventTimestamp: ls.firstEventTimestamp,
+        creationTime: ls.creationTime,
+        storedBytes: ls.storedBytes ?? 0,
+      })
+    }
+
+    nextToken = response.nextToken
+    if (!nextToken) break
+    if (totalLimit !== undefined && logStreams.length >= totalLimit) break
+
+    if (page === MAX_LOG_STREAMS_PAGES - 1) {
+      truncated = true
+      if (!options?.suppressTruncationLog) {
+        logger.warn(
+          `DescribeLogStreams hit pagination cap of ${MAX_LOG_STREAMS_PAGES} pages; log stream list may be incomplete`,
+          { logGroupName }
+        )
+      }
+    }
+  }
+
+  return {
+    logStreams: totalLimit !== undefined ? logStreams.slice(0, totalLimit) : logStreams,
+    truncated,
+    pages,
+    ...(nextToken !== undefined ? { nextToken } : {}),
+  }
+}
+
+/** AWS FilterLogEvents caps `limit` at 10,000 events per page. */
+const FILTER_LOG_EVENTS_PAGE_SIZE = 10_000
+
+/** Upper bound on pages drained to avoid unbounded loops on very active log groups. */
+const MAX_FILTER_LOG_EVENTS_PAGES = 20
+
+interface FilteredLogEventResult {
+  logStreamName: string | undefined
+  timestamp: number | undefined
+  message: string | undefined
+  ingestionTime: number | undefined
+}
+
+/**
+ * Searches log events across all streams (or a prefix-matched subset) in a log
+ * group, following `nextToken` so the complete matching set is returned rather
+ * than just the first page. Bounded by `MAX_FILTER_LOG_EVENTS_PAGES`.
+ *
+ * When `limit` is provided it is treated as a total result cap: draining stops
+ * once enough events have been collected. When omitted, every page is drained.
+ */
+export async function filterLogEvents(
+  client: CloudWatchLogsClient,
+  logGroupName: string,
+  options?: {
+    filterPattern?: string
+    logStreamNamePrefix?: string
+    startTime?: number
+    endTime?: number
+    startFromHead?: boolean
+    limit?: number
+  },
+  signal?: AbortSignal
+): Promise<{ events: FilteredLogEventResult[] }> {
+  const totalLimit = options?.limit
+  const events: FilteredLogEventResult[] = []
+  let nextToken: string | undefined
+
+  for (let page = 0; page < MAX_FILTER_LOG_EVENTS_PAGES; page++) {
+    const pageLimit =
+      totalLimit !== undefined
+        ? Math.min(FILTER_LOG_EVENTS_PAGE_SIZE, totalLimit - events.length)
+        : FILTER_LOG_EVENTS_PAGE_SIZE
+
+    const command = new FilterLogEventsCommand({
+      logGroupName,
+      ...(options?.filterPattern && { filterPattern: options.filterPattern }),
+      ...(options?.logStreamNamePrefix && { logStreamNamePrefix: options.logStreamNamePrefix }),
+      ...(options?.startTime !== undefined && { startTime: options.startTime }),
+      ...(options?.endTime !== undefined && { endTime: options.endTime }),
+      ...(options?.startFromHead !== undefined && { startFromHead: options.startFromHead }),
+      limit: pageLimit,
+      ...(nextToken && { nextToken }),
+    })
+
+    const response = await client.send(command, { abortSignal: signal })
+
+    for (const e of response.events ?? []) {
+      events.push({
+        logStreamName: e.logStreamName,
+        timestamp: e.timestamp,
+        message: e.message,
+        ingestionTime: e.ingestionTime,
+      })
+    }
+
+    nextToken = response.nextToken
+    if (!nextToken) break
+    if (totalLimit !== undefined && events.length >= totalLimit) break
+
+    if (page === MAX_FILTER_LOG_EVENTS_PAGES - 1) {
+      logger.warn(
+        `FilterLogEvents hit pagination cap of ${MAX_FILTER_LOG_EVENTS_PAGES} pages; event list may be incomplete`,
+        { logGroupName }
+      )
+    }
+  }
+
+  return {
+    events: totalLimit !== undefined ? events.slice(0, totalLimit) : events,
+  }
+}
+
+export async function getLogEvents(
+  client: CloudWatchLogsClient,
+  logGroupName: string,
+  logStreamName: string,
+  options?: { startTime?: number; endTime?: number; limit?: number },
+  signal?: AbortSignal
+): Promise<{
+  events: {
+    timestamp: number | undefined
+    message: string | undefined
+    ingestionTime: number | undefined
+  }[]
+}> {
+  const command = new GetLogEventsCommand({
+    logGroupName,
+    logStreamName,
+    ...(options?.startTime !== undefined && { startTime: options.startTime * 1000 }),
+    ...(options?.endTime !== undefined && { endTime: options.endTime * 1000 }),
+    ...(options?.limit !== undefined && { limit: options.limit }),
+    startFromHead: true,
+  })
+
+  const response = await client.send(command, { abortSignal: signal })
+  return {
+    events: (response.events ?? []).map((e) => ({
+      timestamp: e.timestamp,
+      message: e.message,
+      ingestionTime: e.ingestionTime,
+    })),
+  }
+}

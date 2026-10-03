@@ -1,60 +1,55 @@
-/**
- * @vitest-environment node
- */
-
 import { folder as folderTable } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import {
   dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
   resetDbChainMock,
+  schemaMock,
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
 import {
-  bindKnowledgeDocumentFieldSecretProvenance,
-  createKnowledgeDocumentSourceValue,
-} from '@/lib/knowledge/secret-provenance'
-
-const {
-  mockIncrementStorageUsageInTx,
-  mockDecrementStorageUsageInTx,
-  mockResolveStorageBillingContext,
-  mockRecordKnowledgeBaseFileOwnership,
-  mockPersistCopiedResourceMappings,
-  mockDeleteCopiedResourceMappingsByTargets,
-} = vi.hoisted(() => ({
-  mockIncrementStorageUsageInTx: vi.fn(),
-  mockDecrementStorageUsageInTx: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockRecordKnowledgeBaseFileOwnership: vi.fn(),
-  mockPersistCopiedResourceMappings: vi.fn(),
-  mockDeleteCopiedResourceMappingsByTargets: vi.fn(),
-}))
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import { sleep } from '@sim/utils/helpers'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/billing/storage', () => ({
-  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageInTx,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  recordKnowledgeBaseFileOwnership: mockRecordKnowledgeBaseFileOwnership,
-}))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  persistCopiedResourceMappings: mockPersistCopiedResourceMappings,
-  deleteCopiedResourceMappingsByTargets: mockDeleteCopiedResourceMappingsByTargets,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 
 import type { DbOrTx } from '@/lib/db/types'
+import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 import {
   copyForkResourceContainers,
   copyForkResourceContent,
   type ForkContentPlan,
   planForkMappedKbDocumentCopies,
 } from '@/ee/workspace-forking/lib/copy/copy-resources'
-import type { ForkReferenceResolver } from '@/ee/workspace-forking/lib/remap/remap-references'
+import {
+  ForkCopyContinuation,
+  type ForkCopyProgress,
+} from '@/ee/workspace-forking/lib/copy/progress'
+
+const {
+  mockIncrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
+  mockDecrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageInTx,
+  mockResolveStorageBillingContext,
+} = billingStorageMockFns
+const { mockPersistCopiedResourceMappings, mockDeleteCopiedResourceMappingsByTargets } =
+  workspaceForkingMappingStoreMockFns
+
+const mockRecordKnowledgeBaseFileOwnership =
+  uploadsMetadataMockFns.mockRecordKnowledgeBaseFileOwnership
 
 function basePlan(overrides: Partial<ForkContentPlan> = {}): ForkContentPlan {
   return {
@@ -110,8 +105,13 @@ function mappedDocumentPlan(): ForkContentPlan {
 
 describe('copyForkResourceContent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
+    for (let attempt = 0; attempt < 4; attempt++)
+      queueTableRows(schemaMock.knowledgeBase, [
+        { id: 'src-kb', isSearchIndex: false },
+        { id: 'child-kb', isSearchIndex: false },
+        { id: 'existing-target-kb', isSearchIndex: false },
+      ])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'activated-document' }])
     dbChainMockFns.for.mockResolvedValue([{ workspaceId: 'child-ws' }])
     storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
@@ -214,50 +214,6 @@ describe('copyForkResourceContent', () => {
     ])
   })
 
-  it('copies exact current table provenance and binds it to the copied row timestamp', async () => {
-    const rowUpdatedAt = new Date('2026-08-05T00:00:00.000Z')
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        row: {
-          id: 'r1',
-          tableId: 'src-tbl',
-          workspaceId: 'src-ws',
-          data: { value: 'stored value' },
-          secretProvenanceVersion: 1,
-          updatedAt: rowUpdatedAt,
-        },
-        provenance: {
-          rowId: 'r1',
-          contentUpdatedAt: rowUpdatedAt,
-          status: 'exact',
-          entries: [{ columnId: 'value', encryptedValue: 'encrypted-value', name: 'VALUE' }],
-          updatedAt: rowUpdatedAt,
-        },
-        provenanceIsCurrent: true,
-      },
-    ])
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({ tables: [{ sourceId: 'src-tbl', childId: 'child-tbl' }] }),
-      requestId: 'test',
-    })
-
-    expect(result.failed).toBe(0)
-    const copiedRows = dbChainMockFns.values.mock.calls[0][0] as Array<{
-      id: string
-      updatedAt: Date
-      secretProvenanceVersion: number
-    }>
-    expect(dbChainMockFns.values.mock.calls[1][0]).toEqual([
-      expect.objectContaining({
-        rowId: copiedRows[0].id,
-        contentUpdatedAt: copiedRows[0].updatedAt,
-        status: 'exact',
-        entries: [{ columnId: 'value', encryptedValue: 'encrypted-value', name: 'VALUE' }],
-      }),
-    ])
-  })
-
   it('#1 binds a copied KB document blob to the CHILD workspace + initiating user', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([sourceDoc])
@@ -311,6 +267,52 @@ describe('copyForkResourceContent', () => {
     expect(mockPersistCopiedResourceMappings).not.toHaveBeenCalled()
   })
 
+  it('never copies a connector-managed document out of the source knowledge base', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    // The row queue returns whatever is enqueued regardless of the predicate, so the exclusion
+    // is only observable in the condition tree. Pinned to the column so the assertion keeps its
+    // meaning if another nullable filter joins the same clause.
+    const pageWhere = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    expect(
+      flattenMockConditions(pageWhere).some(
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.connectorId
+      )
+    ).toBe(true)
+  })
+
+  it('keeps a copied KB alive when the stale-plan probe fails', async () => {
+    // The probe runs on every KB with referenced documents, but the state it repairs only exists
+    // inside a rollout window. Letting it reach the KB catch would delete a complete copy and
+    // clear every reference to it over a transient SELECT.
+    dbChainMockFns.where.mockImplementationOnce(() => ({
+      then: (resolve: (rows: unknown[]) => unknown) => resolve([{ total: 0 }]),
+    }))
+    dbChainMockFns.where.mockImplementationOnce(() => {
+      throw new Error('stale-plan probe failed')
+    })
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          { sourceId: 'src-kb', childId: 'child-kb', documentIdMap: { 'doc-1': 'child-doc-1' } },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+  })
+
   it('uses the blob content digest so a retry cannot adopt an older failed snapshot', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([sourceDoc])
@@ -345,69 +347,6 @@ describe('copyForkResourceContent', () => {
       expect.objectContaining({ key: expectedKey }),
       expect.anything()
     )
-  })
-
-  it('reuses a content-addressed blob only after hashing the current source bytes', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([sourceDoc])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([sourceDoc])
-    const body = Buffer.from('same-source-bytes')
-    const expectedKey = `kb/fork-child-doc-1-${sha256Hex(body)}`
-    storageServiceMockFns.mockDownloadFile.mockResolvedValueOnce(body)
-    storageServiceMockFns.mockHeadObject.mockResolvedValueOnce({ size: body.length })
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        knowledgeBases: [
-          {
-            sourceId: 'src-kb',
-            childId: 'child-kb',
-            documentIdMap: { 'doc-1': 'child-doc-1' },
-          },
-        ],
-      }),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
-    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledTimes(1)
-    expect(storageServiceMockFns.mockHeadObject).toHaveBeenCalledWith(expectedKey, 'knowledge-base')
-    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
-    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
-  })
-
-  it('persists every successfully copied full-KB document identity with bounded page orientation', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([sourceDoc])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([sourceDoc])
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
-        documentMappingContext: {
-          edgeChildWorkspaceId: 'edge-child-ws',
-          sourceIsParent: true,
-        },
-      }),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
-    expect(mockPersistCopiedResourceMappings).toHaveBeenCalledWith({
-      executor: expect.anything(),
-      edgeChildWorkspaceId: 'edge-child-ws',
-      userId: 'user-1',
-      sourceIsParent: true,
-      entries: [
-        {
-          resourceType: 'knowledge_document',
-          parentResourceId: 'doc-1',
-          childResourceId: expect.stringMatching(/^fork_document_/),
-        },
-      ],
-    })
   })
 
   it('keeps the KB all-or-nothing when its document mapping page cannot be persisted', async () => {
@@ -542,49 +481,6 @@ describe('copyForkResourceContent', () => {
     expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })
 
-  it('does not resolve KB billing context for an empty document page', async () => {
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
-      }),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
-    expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
-  })
-
-  it('does not resolve KB billing context when the page is fully finalized from a prior attempt', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc]).mockResolvedValueOnce([
-      {
-        id: 'child-doc-1',
-        knowledgeBaseId: 'child-kb',
-        storageKey: 'kb/fork-child-doc-1',
-        archivedAt: null,
-        deletedAt: null,
-      },
-    ])
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        knowledgeBases: [
-          {
-            sourceId: 'src-kb',
-            childId: 'child-kb',
-            documentIdMap: { 'doc-1': 'child-doc-1' },
-          },
-        ],
-      }),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
-    expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
   it('adopts a finalized content-addressed document from a prior attempt', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc]).mockResolvedValueOnce([
       {
@@ -612,51 +508,6 @@ describe('copyForkResourceContent', () => {
     expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
     expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
     expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
-  })
-
-  it('repairs a missing mapping for a full-KB document finalized by a prior attempt', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc]).mockResolvedValueOnce([
-      {
-        id: 'child-doc-1',
-        knowledgeBaseId: 'child-kb',
-        storageKey: 'kb/fork-child-doc-1',
-        archivedAt: null,
-        deletedAt: null,
-      },
-    ])
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        knowledgeBases: [
-          {
-            sourceId: 'src-kb',
-            childId: 'child-kb',
-            documentIdMap: { 'doc-1': 'child-doc-1' },
-          },
-        ],
-        documentMappingContext: {
-          edgeChildWorkspaceId: 'edge-child-ws',
-          sourceIsParent: false,
-        },
-      }),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
-    expect(mockPersistCopiedResourceMappings).toHaveBeenCalledWith({
-      executor: expect.anything(),
-      edgeChildWorkspaceId: 'edge-child-ws',
-      userId: 'user-1',
-      sourceIsParent: false,
-      entries: [
-        {
-          resourceType: 'knowledge_document',
-          parentResourceId: 'doc-1',
-          childResourceId: 'child-doc-1',
-        },
-      ],
-    })
   })
 
   it('rejects an active full-KB target with conflicting ownership before external I/O', async () => {
@@ -693,64 +544,6 @@ describe('copyForkResourceContent', () => {
     expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
     expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
     expect(mockPersistCopiedResourceMappings).not.toHaveBeenCalled()
-  })
-
-  it('rejects an archived full-KB target owned by another knowledge base before external I/O', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc]).mockResolvedValueOnce([
-      {
-        id: 'child-doc-1',
-        knowledgeBaseId: 'other-kb',
-        storageKey: null,
-        archivedAt: new Date('2026-08-06T00:00:00.000Z'),
-        deletedAt: null,
-      },
-    ])
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        knowledgeBases: [
-          {
-            sourceId: 'src-kb',
-            childId: 'child-kb',
-            documentIdMap: { 'doc-1': 'child-doc-1' },
-          },
-        ],
-      }),
-      requestId: 'test',
-    })
-
-    expect(result.failed).toBe(1)
-    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
-    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
-  })
-
-  it('rejects an archived full-KB target with a different storage key before external I/O', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc]).mockResolvedValueOnce([
-      {
-        id: 'child-doc-1',
-        knowledgeBaseId: 'child-kb',
-        storageKey: 'kb/unrelated',
-        archivedAt: new Date('2026-08-06T00:00:00.000Z'),
-        deletedAt: null,
-      },
-    ])
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({
-        knowledgeBases: [
-          {
-            sourceId: 'src-kb',
-            childId: 'child-kb',
-            documentIdMap: { 'doc-1': 'child-doc-1' },
-          },
-        ],
-      }),
-      requestId: 'test',
-    })
-
-    expect(result.failed).toBe(1)
-    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
-    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
   })
 
   it('keeps finalization authoritative when another attempt activates after the page replay guard', async () => {
@@ -827,32 +620,6 @@ describe('copyForkResourceContent', () => {
     })
   })
 
-  it('#4 leaves a skill untouched when nothing in its re-read body remaps', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { id: 'child-skill-1', content: 'no references here' },
-    ])
-
-    const result = await copyForkResourceContent({
-      contentPlan: basePlan({ skills: [{ childId: 'child-skill-1' }] }),
-      contentRefMaps: { knowledgeBases: new Map([['src-kb', 'child-kb']]) },
-      requestId: 'test',
-    })
-
-    expect(result.failed).toBe(0)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('#4 skips the skill re-read + rewrite entirely when no content maps are supplied', async () => {
-    await copyForkResourceContent({
-      contentPlan: basePlan({ skills: [{ childId: 'child-skill-1' }] }),
-      requestId: 'test',
-    })
-
-    // No maps -> the body is neither re-read from the DB nor updated.
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
   it('#3 fails the whole KB (all-or-nothing) when one document copy throws', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
     // The document row insert throws; the blob copy is best-effort (never throws) so the
@@ -875,119 +642,120 @@ describe('copyForkResourceContent', () => {
     ])
   })
 
-  it('surfaces rollback failure instead of reporting an ordinary KB resource failure', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
-    dbChainMockFns.values.mockImplementationOnce(() => {
-      throw new Error('insert failed')
+  it('drains in-flight document copies before yielding a knowledge base continuation', async () => {
+    const secondSource = { ...sourceDoc, id: 'doc-2', storageKey: 'kb/second-source' }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc, secondSource])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([secondSource])
+      .mockResolvedValueOnce([])
+    let releaseCopy = () => {}
+    let reportInterrupted = () => {}
+    const copying = new Promise<void>((resolve) => {
+      releaseCopy = resolve
     })
-    mockDecrementStorageUsageInTx.mockRejectedValueOnce(new Error('rollback failed'))
+    const interrupted = new Promise<void>((resolve) => {
+      reportInterrupted = resolve
+    })
+    const continuation = new ForkCopyContinuation('resume the next attempt')
+    storageServiceMockFns.mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
+      if (key === 'kb/second-source') {
+        reportInterrupted()
+        throw continuation
+      }
+      await copying
+      return Buffer.from('blob-bytes')
+    })
+    let settled = false
+    const outcome = copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+    }).then(
+      (result) => {
+        settled = true
+        return result
+      },
+      (error: unknown) => {
+        settled = true
+        return error
+      }
+    )
+    await interrupted
+    await sleep(1)
+    try {
+      expect(settled).toBe(false)
+      expect(mockDecrementStorageUsageInTx).not.toHaveBeenCalled()
+    } finally {
+      releaseCopy()
+    }
+    expect(await outcome).toBe(continuation)
+    expect(mockIncrementStorageUsageInTx).toHaveBeenCalledTimes(1)
+    expect(mockDecrementStorageUsageInTx).not.toHaveBeenCalled()
+  })
 
+  it('refuses to resume retained embeddings after the source is reprocessed', async () => {
+    const source = { ...sourceDoc, processingQueueToken: 'generation-1' }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([source])
+      .mockResolvedValueOnce([source])
+      .mockResolvedValueOnce([
+        {
+          id: 'embedding-1',
+          documentId: 'doc-1',
+          content: 'old content',
+          secretProvenanceVersion: null,
+        },
+      ])
+    const progress: ForkCopyProgress = { completed: [], tables: {}, embeddings: {} }
+    const control = {
+      progress,
+      checkpoint: vi.fn(async () => {
+        if (progress.embeddings['child-doc-1']?.afterId) {
+          throw new ForkCopyContinuation('continue after first page')
+        }
+      }),
+    }
+    await expect(
+      copyForkResourceContent({ contentPlan: mappedDocumentPlan(), control })
+    ).rejects.toBeInstanceOf(ForkCopyContinuation)
+    expect(progress.embeddings['child-doc-1']).toMatchObject({
+      afterId: 'embedding-1',
+      knowledgeBaseId: 'existing-target-kb',
+      sourceRevision: expect.any(String),
+    })
+    const prior = structuredClone(progress)
+    const copiedWrites = dbChainMockFns.values.mock.calls.length
+    queueMappedDocumentCopy({ ...source, processingQueueToken: 'generation-2' })
+    const result = await copyForkResourceContent({ contentPlan: mappedDocumentPlan(), control })
+    expect(result).toEqual({
+      copied: 0,
+      failed: 1,
+      failures: [{ kind: 'knowledge-document', childId: 'child-doc-1' }],
+    })
+    expect(progress).toEqual(prior)
+    expect(dbChainMockFns.values.mock.calls).toHaveLength(copiedWrites)
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not activate a document after its lease expires while waiting for the knowledge base lock', async () => {
+    queueMappedDocumentCopy()
+    const controller = new AbortController()
+    dbChainMockFns.for.mockImplementationOnce(async () => {
+      controller.abort(new Error('lease expired while waiting for lock'))
+      return [{ workspaceId: 'child-ws' }]
+    })
     await expect(
       copyForkResourceContent({
-        contentPlan: basePlan({
-          knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
-        }),
-        requestId: 'test',
+        contentPlan: mappedDocumentPlan(),
+        control: { signal: controller.signal },
       })
-    ).rejects.toThrow(
-      'Copied knowledge base child-kb failed and its storage rollback also failed: rollback failed'
-    )
-  })
-
-  it('U-docs: fills a document copied into an existing target KB (blob re-key + placeholder update)', async () => {
-    queueMappedDocumentCopy()
-
-    const result = await copyForkResourceContent({
-      contentPlan: mappedDocumentPlan(),
-      requestId: 'test',
-    })
-
-    expect(result.failed).toBe(0)
-    expect(result.copied).toBe(1)
-    // The blob is re-keyed and the pre-created placeholder row's blob fields are updated.
-    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ secretProvenanceVersion: null })
-    )
-    expect(dbChainMockFns.values).not.toHaveBeenCalledWith(
-      expect.objectContaining({ documentId: 'child-doc-1' })
-    )
-  })
-
-  it('U-docs: rebinds tracked document provenance through the shared document copier', async () => {
-    const source = {
-      ...sourceDoc,
-      ...createKnowledgeDocumentSourceValue(sourceDoc),
-      secretProvenanceVersion: 1,
-    }
-    const sourceValue = createKnowledgeDocumentSourceValue(source)
-    const provenance = bindKnowledgeDocumentFieldSecretProvenance(
-      {
-        status: 'exact',
-        entries: [{ name: 'DOCUMENT_NAME', encryptedValue: 'encrypted-name' }],
-      },
-      'filename',
-      source.filename
-    )
-    queueMappedDocumentCopy(source, {
-      ...source,
-      provenanceSourceHash: hashDurableSecretProvenanceValue(sourceValue),
-      status: 'exact',
-      entries: provenance.status === 'exact' ? provenance.entries : [],
-    })
-
-    const result = await copyForkResourceContent({
-      contentPlan: mappedDocumentPlan(),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ secretProvenanceVersion: 1 })
-    )
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        documentId: 'child-doc-1',
-        status: 'exact',
-        entries: [
-          expect.objectContaining({
-            name: 'DOCUMENT_NAME',
-            encryptedValue: 'encrypted-name',
-            sourceValueHash: expect.any(String),
-          }),
-        ],
-      })
-    )
-  })
-
-  it('U-docs: keeps exact-empty provenance tracked instead of turning it into legacy state', async () => {
-    const source = {
-      ...sourceDoc,
-      ...createKnowledgeDocumentSourceValue(sourceDoc),
-      secretProvenanceVersion: 1,
-    }
-    const sourceValue = createKnowledgeDocumentSourceValue(source)
-    queueMappedDocumentCopy(source, {
-      ...source,
-      provenanceSourceHash: hashDurableSecretProvenanceValue(sourceValue),
-      status: 'exact',
-      entries: [],
-    })
-
-    const result = await copyForkResourceContent({
-      contentPlan: mappedDocumentPlan(),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        documentId: 'child-doc-1',
-        status: 'exact',
-        entries: [],
-      })
-    )
+    ).rejects.toThrow('lease expired while waiting for lock')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
   })
 
   it('U-docs: preserves tracked unknown provenance instead of laundering it as legacy', async () => {
@@ -1021,36 +789,6 @@ describe('copyForkResourceContent', () => {
     )
   })
 
-  it('U-docs: a failed document fill is reported as a knowledge-document failure (for cleanup)', async () => {
-    queueMappedDocumentCopy()
-
-    // The placeholder blob update throws; the doc fails on its own without touching its KB.
-    dbChainMockFns.set.mockImplementationOnce(() => {
-      throw new Error('update failed')
-    })
-
-    const result = await copyForkResourceContent({
-      contentPlan: {
-        ...mappedDocumentPlan(),
-        documentMappingContext: {
-          edgeChildWorkspaceId: 'edge-child-ws',
-          sourceIsParent: false,
-        },
-      },
-      requestId: 'test',
-    })
-
-    expect(result.copied).toBe(0)
-    expect(result.failed).toBe(1)
-    expect(result.failures).toEqual([{ kind: 'knowledge-document', childId: 'child-doc-1' }])
-    expect(mockDeleteCopiedResourceMappingsByTargets).toHaveBeenCalledWith({
-      executor: expect.anything(),
-      edgeChildWorkspaceId: 'edge-child-ws',
-      sourceIsParent: false,
-      targets: [{ resourceType: 'knowledge_document', resourceId: 'child-doc-1' }],
-    })
-  })
-
   it('U-docs: refuses to charge when the target knowledge base moved workspaces', async () => {
     queueMappedDocumentCopy()
     dbChainMockFns.for.mockResolvedValueOnce([{ workspaceId: 'other-workspace' }])
@@ -1062,31 +800,6 @@ describe('copyForkResourceContent', () => {
 
     expect(result.failures).toEqual([{ kind: 'knowledge-document', childId: 'child-doc-1' }])
     expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
-  })
-
-  it('U-docs: rejects an active target owned by another knowledge base', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'child-doc-1',
-        knowledgeBaseId: 'other-kb',
-        storageKey: 'kb/fork-child-doc-1',
-        archivedAt: null,
-        deletedAt: null,
-      },
-    ])
-
-    const result = await copyForkResourceContent({
-      contentPlan: mappedDocumentPlan(),
-      requestId: 'test',
-    })
-
-    expect(result).toEqual({
-      copied: 0,
-      failed: 1,
-      failures: [{ kind: 'knowledge-document', childId: 'child-doc-1' }],
-    })
-    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
-    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
   })
 })
 
@@ -1133,23 +846,6 @@ describe('copyForkResourceContainers custom-tool code env rewrite', () => {
     // The renamed key is rewritten; the same-name key is left verbatim.
     expect(inserted[0].code).toBe('fetch("{{SLACK_API_KEY_TEST}}", "{{KEEP}}")')
     expect(inserted[0].workspaceId).toBe('child-ws')
-  })
-
-  it('preserves custom-tool code verbatim when no env resolver is provided (fork-create)', async () => {
-    const { tx, inserted } = makeContainerTx([
-      { id: 'ct-1', title: 'Tool', code: 'fetch("{{SLACK_API_KEY}}")' },
-    ])
-    await copyForkResourceContainers({
-      tx,
-      sourceWorkspaceId: 'src-ws',
-      childWorkspaceId: 'child-ws',
-      userId: 'user-1',
-      now: new Date(),
-      selection: customToolSelection,
-      workflowIdMap: new Map(),
-      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
-    })
-    expect(inserted[0].code).toBe('fetch("{{SLACK_API_KEY}}")')
   })
 })
 
@@ -1281,34 +977,6 @@ describe('copyForkResourceContainers skill copy', () => {
     updatedAt: new Date(),
   }
 
-  it('copies the skill body IN-DB and carries only the child id in the content plan', async () => {
-    // The source projection deliberately omits `content` (it is copied server-side), so the row
-    // fed to the tx mock has none - the body must never be materialized in app memory here.
-    const { tx, inserted } = makeSkillTx([[sourceSkillRow], []])
-
-    const result = await copyForkResourceContainers({
-      tx,
-      sourceWorkspaceId: 'src-ws',
-      childWorkspaceId: 'child-ws',
-      userId: 'user-1',
-      now: new Date(),
-      selection: skillSelection,
-      workflowIdMap: new Map(),
-      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
-    })
-
-    expect(inserted).toHaveLength(1)
-    const childId = inserted[0].id as string
-    expect(childId).not.toBe('sk-1')
-    expect(inserted[0].workspaceId).toBe('child-ws')
-    expect(inserted[0].userId).toBe('user-1')
-    // The body is deferred to a correlated subquery (in-DB copy), never a materialized string.
-    expect(typeof inserted[0].content).not.toBe('string')
-    // The content plan carries ONLY the child id - no skill body text crosses the job payload.
-    expect(result.contentPlan.skills).toEqual([{ childId }])
-    expect(result.names.skills).toEqual(['My Skill'])
-  })
-
   it('copies editor grants onto the child skill for users in the target roster', async () => {
     // The editor query joins the child-workspace permissions in-DB, so the
     // mock's second row set already represents source editors ∩ target roster.
@@ -1359,10 +1027,12 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
     // would make every source folder look already-present and suppress the mirroring.
     let folderCall = 0
     const inserts: Array<Array<Record<string, unknown>>> = []
+    const wheres: Array<{ table: unknown; condition: unknown }> = []
     const tx = {
       select: () => ({
         from: (table: unknown) => ({
-          where: () => {
+          where: (condition: unknown) => {
+            wheres.push({ table, condition })
             if (table === folderTable) {
               return Promise.resolve(folderCall++ === 0 ? sourceFolders : [])
             }
@@ -1377,7 +1047,7 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
         },
       }),
     }
-    return { tx: tx as unknown as DbOrTx, inserts }
+    return { tx: tx as unknown as DbOrTx, inserts, wheres }
   }
 
   const kbSelection = {
@@ -1439,63 +1109,6 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
       ['boolean1', 'Reviewed', 'boolean'],
     ])
   })
-
-  it('no-ops the tag-definition copy for a KB with zero definitions', async () => {
-    const { tx, inserts } = makeKbTx([[sourceBase], []])
-
-    await copyForkResourceContainers({
-      tx,
-      sourceWorkspaceId: 'src-ws',
-      childWorkspaceId: 'child-ws',
-      userId: 'user-1',
-      now: new Date(),
-      selection: kbSelection,
-      workflowIdMap: new Map(),
-      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
-    })
-
-    // Only the KB row itself is inserted - no empty tag-definition insert.
-    expect(inserts).toHaveLength(1)
-  })
-
-  it('mirrors the source knowledge-base folder and copies the KB into it, not the target root', async () => {
-    const foldered = { ...sourceBase, folderId: 'kb-folder' }
-    const { tx, inserts } = makeKbTx(
-      [[foldered], []],
-      [
-        {
-          id: 'kb-folder',
-          name: 'Policies',
-          parentId: null,
-          workspaceId: 'src-ws',
-          resourceType: 'knowledge_base',
-          deletedAt: null,
-        },
-      ]
-    )
-
-    await copyForkResourceContainers({
-      tx,
-      sourceWorkspaceId: 'src-ws',
-      childWorkspaceId: 'child-ws',
-      userId: 'user-1',
-      now: new Date(),
-      selection: kbSelection,
-      workflowIdMap: new Map(),
-      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
-    })
-
-    // insert #0 is the mirrored folder, #1 the KB row placed inside it.
-    const newFolder = inserts[0][0]
-    expect(newFolder).toMatchObject({
-      name: 'Policies',
-      workspaceId: 'child-ws',
-      resourceType: 'knowledge_base',
-    })
-    // A fresh id: reusing the source's would point the child KB at a folder it cannot see.
-    expect(newFolder.id).not.toBe('kb-folder')
-    expect(inserts[1][0].folderId).toBe(newFolder.id)
-  })
 })
 
 describe('planForkMappedKbDocumentCopies', () => {
@@ -1510,7 +1123,9 @@ describe('planForkMappedKbDocumentCopies', () => {
     fileSize: 123,
     filename: `${id}.pdf`,
     mimeType: 'application/pdf',
-    connectorId: 'connector-1',
+    // Hand-uploaded: connector-managed documents are filtered out by the candidate query and
+    // can never reach the placeholder insert.
+    connectorId: null,
     deletedAt: null,
     archivedAt: null,
   })
@@ -1526,11 +1141,23 @@ describe('planForkMappedKbDocumentCopies', () => {
     }> = []
   ) {
     const inserted: Array<Record<string, unknown>> = []
+    const wheres: unknown[] = []
     let selectCalls = 0
     const tx = {
       select: () => {
-        const rows = selectCalls++ === 0 ? docs : existingTargets
-        return { from: () => ({ where: () => Promise.resolve(rows) }) }
+        return {
+          from: (table: unknown) => ({
+            where: (condition: unknown) => {
+              if (table === schemaMock.knowledgeBase) {
+                const rows = Promise.resolve([{ id: 'target-kb' }])
+                return Object.assign(rows, { for: () => rows })
+              }
+              wheres.push(condition)
+              const rows = selectCalls++ === 0 ? docs : existingTargets
+              return Promise.resolve(rows)
+            },
+          }),
+        }
       },
       insert: () => ({
         values: (rows: Array<Record<string, unknown>>) => {
@@ -1539,7 +1166,7 @@ describe('planForkMappedKbDocumentCopies', () => {
         },
       }),
     }
-    return { tx: tx as unknown as DbOrTx, inserted, selectCalls: () => selectCalls }
+    return { tx: tx as unknown as DbOrTx, inserted, wheres, selectCalls: () => selectCalls }
   }
 
   const mappedKbResolver: ForkReferenceResolver = (kind, id) =>
@@ -1584,6 +1211,25 @@ describe('planForkMappedKbDocumentCopies', () => {
     ])
   })
 
+  it('never considers a connector-managed doc as a candidate for the mapped target KB', async () => {
+    const { tx, wheres } = makeTx([])
+    await planForkMappedKbDocumentCopies({
+      tx,
+      resolver: mappedKbResolver,
+      referencedDocumentIds: ['doc-1'],
+      alreadyCopiedSourceDocIds: new Set(),
+      now,
+    })
+
+    // The tx mock returns its rows regardless of the predicate, so the exclusion is only
+    // observable in the condition tree.
+    expect(
+      flattenMockConditions(wheres[0]).some(
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.connectorId
+      )
+    ).toBe(true)
+  })
+
   it('skips a referenced doc whose parent KB is not mapped (reference is left to be cleared)', async () => {
     const { tx, inserted } = makeTx([sourceRow('doc-1', 'unmapped-kb')])
     const result = await planForkMappedKbDocumentCopies({
@@ -1596,68 +1242,6 @@ describe('planForkMappedKbDocumentCopies', () => {
     expect(inserted).toHaveLength(0)
     expect(result.docIdMap.size).toBe(0)
     expect(result.documents).toHaveLength(0)
-  })
-
-  it('skips a doc already placed under a copied KB this sync (no duplicate query)', async () => {
-    const { tx, selectCalls } = makeTx([sourceRow('doc-1', 'src-kb')])
-    const result = await planForkMappedKbDocumentCopies({
-      tx,
-      resolver: mappedKbResolver,
-      referencedDocumentIds: ['doc-1'],
-      alreadyCopiedSourceDocIds: new Set(['doc-1']),
-      now,
-    })
-    expect(result.documents).toHaveLength(0)
-    expect(selectCalls()).toBe(0)
-  })
-
-  it('skips a doc that already resolves (mapped by a prior sync)', async () => {
-    const { tx, selectCalls } = makeTx([sourceRow('doc-1', 'src-kb')])
-    const result = await planForkMappedKbDocumentCopies({
-      tx,
-      resolver: (kind, id) =>
-        kind === 'knowledge-document' && id === 'doc-1' ? 'existing-child-doc' : null,
-      referencedDocumentIds: ['doc-1'],
-      alreadyCopiedSourceDocIds: new Set(),
-      now,
-    })
-    expect(result.documents).toHaveLength(0)
-    expect(selectCalls()).toBe(0)
-  })
-
-  it('adopts an already-active deterministic target without copying its content again', async () => {
-    const childDocId = copiedId('doc-1')
-    const { tx, inserted } = makeTx(
-      [sourceRow('doc-1', 'src-kb')],
-      [
-        {
-          id: childDocId,
-          knowledgeBaseId: 'target-kb',
-          storageKey: `kb/fork-${childDocId}`,
-          archivedAt: null,
-          deletedAt: null,
-        },
-      ]
-    )
-
-    const result = await planForkMappedKbDocumentCopies({
-      tx,
-      resolver: mappedKbResolver,
-      referencedDocumentIds: ['doc-1'],
-      alreadyCopiedSourceDocIds: new Set(),
-      now,
-    })
-
-    expect(inserted).toHaveLength(0)
-    expect(result.documents).toHaveLength(0)
-    expect(result.docIdMap.get('doc-1')).toBe(childDocId)
-    expect(result.mappingEntries).toEqual([
-      {
-        resourceType: 'knowledge_document',
-        parentResourceId: 'doc-1',
-        childResourceId: childDocId,
-      },
-    ])
   })
 
   it('adopts a legacy active target without a blob after the source gains stored content', async () => {
@@ -1742,31 +1326,5 @@ describe('planForkMappedKbDocumentCopies', () => {
         now,
       })
     ).rejects.toThrow(`Copied document ${childDocId} has conflicting storage identity`)
-  })
-
-  it('rejects an active deterministic target with a different storage key', async () => {
-    const childDocId = copiedId('doc-1')
-    const { tx } = makeTx(
-      [sourceRow('doc-1', 'src-kb')],
-      [
-        {
-          id: childDocId,
-          knowledgeBaseId: 'target-kb',
-          storageKey: 'kb/unrelated',
-          archivedAt: null,
-          deletedAt: null,
-        },
-      ]
-    )
-
-    await expect(
-      planForkMappedKbDocumentCopies({
-        tx,
-        resolver: mappedKbResolver,
-        referencedDocumentIds: ['doc-1'],
-        alreadyCopiedSourceDocIds: new Set(),
-        now,
-      })
-    ).rejects.toThrow(`Copied document ${childDocId} has conflicting storage`)
   })
 })

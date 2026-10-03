@@ -103,23 +103,18 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {isRetryable && (
-          <>
-            <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
-              <Redo />
-              {isRetryPending ? 'Retrying...' : 'Retry'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+          <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
+            <Redo />
+            {isRetryPending ? 'Retrying…' : 'Retry'}
+          </DropdownMenuItem>
         )}
         {showCancelAction && (
-          <>
-            <DropdownMenuItem onSelect={onCancelExecution} disabled={isStopping}>
-              <X />
-              {isStopping ? 'Stopping…' : 'Cancel Run'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+          <DropdownMenuItem onSelect={onCancelExecution} disabled={isStopping}>
+            <X />
+            {isStopping ? 'Stopping…' : 'Cancel Run'}
+          </DropdownMenuItem>
         )}
+        {(isRetryable || showCancelAction) && <DropdownMenuSeparator />}
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Duplicate />
           Copy Run ID
@@ -128,8 +123,6 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <Link />
           Copy Link
         </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasOpenableWorkflow} onSelect={onOpenWorkflow}>
           <SquareArrowUpRight />
           Open Workflow
@@ -138,8 +131,9 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <Eye />
           Open Snapshot
         </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
+        {/* Stops acting on this run and starts acting on the page's filters — the
+            second of the two scope changes this menu has. */}
+        {(!isFilteredByThisWorkflow || hasActiveFilters) && <DropdownMenuSeparator />}
         {!isFilteredByThisWorkflow && (
           <DropdownMenuItem disabled={!hasWorkflow} onSelect={onToggleWorkflowFilter}>
             <ListFilter />

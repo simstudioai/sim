@@ -1,24 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useId, useState } from 'react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalHeader,
   cn,
   Expand,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalHeader,
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import {
+  type ComparePair,
+  resolveComparePair,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/compare-pair'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
@@ -29,10 +31,19 @@ import { formatVersionLabel } from './format-version-label'
 
 const logger = createLogger('GeneralDeploy')
 
+/** The comparison canvas is heavy and rarely opened, so it stays out of the editor's initial bundle. */
+const CompareVersionsModal = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components/compare-versions-modal'
+  ).then((module) => ({ default: module.CompareVersionsModal }))
+)
+
 interface GeneralDeployProps {
   workflowId: string | null
   deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
+  /** A snapshot is expected but has not arrived — render loading, not "undeployed". */
+  isAwaitingSnapshot: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
   isPromotingVersion: boolean
@@ -51,6 +62,7 @@ export function GeneralDeploy({
   workflowId,
   deployedState,
   isLoadingDeployedState,
+  isAwaitingSnapshot,
   versions,
   versionsLoading,
   isPromotingVersion,
@@ -59,6 +71,8 @@ export function GeneralDeploy({
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
+  const expandedPreviewDescriptionId = useId()
+  const [comparePair, setComparePair] = useState<ComparePair | null>(null)
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
   const previewMode: PreviewMode =
@@ -74,6 +88,9 @@ export function GeneralDeploy({
     workflowId: string
     version: number
   } | null>(null)
+  const handleCompareVersion = (version: number) => {
+    setComparePair(resolveComparePair(version, versions))
+  }
 
   const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
   const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote?.version)
@@ -135,13 +152,6 @@ export function GeneralDeploy({
     }
   }
 
-  useEffect(() => {
-    setShowLoadDialog(false)
-    setVersionToLoad(null)
-    setShowPromoteDialog(false)
-    setVersionToPromote(null)
-  }, [workflowId])
-
   const confirmPromoteToLive = async () => {
     if (!versionToPromote || isPromotingVersion) return
     const target = versionToPromote
@@ -169,7 +179,13 @@ export function GeneralDeploy({
   const showToggle = selectedVersion !== null && deployedState
 
   const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
-  const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
+  /*
+   * `isAwaitingSnapshot` counts as loading. A missing snapshot is not evidence
+   * that the workflow is undeployed — it is usually the snapshot not having
+   * arrived yet — and treating it as evidence is what rendered "Deploy your
+   * workflow to see a preview" directly above a row reading `v1 (live)`.
+   */
+  const showLoadingSkeleton = (isLoadingDeployedState || isAwaitingSnapshot) && !hasDeployedData
 
   if (showLoadingSkeleton) {
     return (
@@ -179,13 +195,13 @@ export function GeneralDeploy({
             <Skeleton className='h-[16px] w-[90px]' />
           </div>
           <div className='h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
-            <Skeleton className='h-full w-full rounded-none' />
+            <Skeleton className='size-full rounded-none' />
           </div>
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[60px]' />
           <div className='h-[120px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
-            <Skeleton className='h-full w-full rounded-none' />
+            <Skeleton className='size-full rounded-none' />
           </div>
         </div>
       </div>
@@ -197,25 +213,25 @@ export function GeneralDeploy({
       <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
-            <Label className='block truncate pl-0.5 text-[var(--text-primary)] text-small'>
+            <Label className='block truncate pl-0.5 text-small'>
               {previewMode === 'selected' && selectedVersionInfo
                 ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
                 : 'Live Workflow'}
             </Label>
             <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
-              <ButtonGroup
+              <ChipButtonGroup
                 value={previewMode}
                 onValueChange={(val) =>
                   setShowActiveDespiteSelection((val as PreviewMode) === 'active')
                 }
               >
-                <ButtonGroupItem value='active'>Live</ButtonGroupItem>
-                <ButtonGroupItem value='selected' className='truncate'>
+                <ChipButtonGroupItem value='active'>Live</ChipButtonGroupItem>
+                <ChipButtonGroupItem value='selected' className='truncate'>
                   {selectedVersionInfo
                     ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
                     : `v${selectedVersion}`}
-                </ButtonGroupItem>
-              </ButtonGroup>
+                </ChipButtonGroupItem>
+              </ChipButtonGroup>
             </div>
           </div>
 
@@ -228,7 +244,7 @@ export function GeneralDeploy({
           >
             {workflowToShow ? (
               <>
-                <div className='[&_*]:!cursor-default h-full w-full cursor-default'>
+                <div className='size-full cursor-default [&_*]:cursor-default!'>
                   <PreviewWorkflow
                     workflowState={workflowToShow}
                     height='100%'
@@ -241,10 +257,11 @@ export function GeneralDeploy({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label='See preview'
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       <Expand className='size-[14px]' />
                     </Button>
@@ -261,9 +278,7 @@ export function GeneralDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-            Versions
-          </Label>
+          <Label className='mb-[6.5px] block pl-0.5 text-small'>Versions</Label>
           <Versions
             workflowId={workflowId}
             versions={versions}
@@ -273,6 +288,7 @@ export function GeneralDeploy({
             onSelectVersion={handleSelectVersion}
             onPromoteToLive={handlePromoteToLive}
             onLoadDeployment={handleLoadDeployment}
+            onCompare={handleCompareVersion}
           />
         </div>
       </div>
@@ -326,22 +342,43 @@ export function GeneralDeploy({
         }}
       />
 
+      {workflowId && comparePair && (
+        <Suspense fallback={null}>
+          <CompareVersionsModal
+            key={JSON.stringify(comparePair)}
+            open
+            onOpenChange={(open) => {
+              if (!open) setComparePair(null)
+            }}
+            workflowId={workflowId}
+            versions={versions}
+            initialBase={comparePair.base}
+            initialTarget={comparePair.target}
+          />
+        </Suspense>
+      )}
+
       {workflowToShow && (
-        <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>
-          <ModalContent size='full' className='flex h-[90vh] flex-col'>
-            <ModalHeader>
-              {previewMode === 'selected' && selectedVersionInfo
-                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
-            </ModalHeader>
-            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
-              <ModalDescription className='sr-only'>
-                Visual preview of the selected workflow version.
-              </ModalDescription>
-              <Preview workflowState={workflowToShow} autoSelectLeftmost />
-            </ModalBody>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={showExpandedPreview}
+          onOpenChange={setShowExpandedPreview}
+          srTitle='Workflow preview'
+          aria-describedby={expandedPreviewDescriptionId}
+          size='full'
+          className='h-[90vh] [&>div]:h-full'
+        >
+          <ChipModalHeader onClose={() => setShowExpandedPreview(false)}>
+            {previewMode === 'selected' && selectedVersionInfo
+              ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
+              : 'Live Workflow'}
+          </ChipModalHeader>
+          <ChipModalBody fullBleed>
+            <p id={expandedPreviewDescriptionId} className='sr-only'>
+              Visual preview of the selected workflow version.
+            </p>
+            <Preview workflowState={workflowToShow} autoSelectLeftmost />
+          </ChipModalBody>
+        </ChipModal>
       )}
     </>
   )

@@ -1,12 +1,9 @@
 import type { NetSuiteGetAsyncResultParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  encodePathSegment,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteGetAsyncResultTool: ToolConfig<
+export const netsuiteGetAsyncResultTool: InternalToolConfig<
   NetSuiteGetAsyncResultParams,
   NetSuiteResponse
 > = {
@@ -29,17 +26,9 @@ export const netsuiteGetAsyncResultTool: ToolConfig<
       description: 'Task ID within the asynchronous job',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'GET',
-        path: `/services/rest/async/v1/job/${encodePathSegment(params.jobId, 'Job ID')}/task/${encodePathSegment(params.taskId, 'Task ID')}/result`,
-        success: { status: 200, body: 'optional-object' },
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

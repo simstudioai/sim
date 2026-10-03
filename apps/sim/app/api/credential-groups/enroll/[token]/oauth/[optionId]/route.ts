@@ -10,7 +10,7 @@ import { startPublicCredentialGroupOAuth } from '@/lib/credential-groups/applica
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import {
   enforceCredentialGroupEnrollmentOAuthRateLimit,
-  enforcePublicCredentialGroupIpRateLimit,
+  enforcePublicCredentialGroupOAuthStartIpRateLimit,
 } from '@/lib/credential-groups/rate-limit'
 import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
 
@@ -24,30 +24,32 @@ export const GET = withRouteHandler(
     request: NextRequest,
     context: { params: Promise<{ token: string; optionId: string }> }
   ) => {
-    const limited = await enforcePublicCredentialGroupIpRateLimit(request, 'oauth-start')
+    const limited = await enforcePublicCredentialGroupOAuthStartIpRateLimit(request)
 
     const parsed = await parseRequest(startCredentialGroupOAuthContract, request, context)
     if (!parsed.success) return limited ?? parsed.response
     const { token, optionId } = parsed.data.params
+    const { returnTo } = parsed.data.query
+    const focus: Record<string, string> = returnTo ? { optionId, returnTo } : {}
     if (limited) {
-      return createCredentialGroupEnrollmentRedirect(token, { oauth: 'rate_limited' })
+      return createCredentialGroupEnrollmentRedirect(token, { ...focus, oauth: 'rate_limited' })
     }
     const principal = await authenticateCredentialGroupEnrollment(token)
     if (!principal) {
-      return createCredentialGroupEnrollmentRedirect(token, { oauth: 'unavailable' })
+      return createCredentialGroupEnrollmentRedirect(token, { ...focus, oauth: 'unavailable' })
     }
 
     const enrollmentLimited = await enforceCredentialGroupEnrollmentOAuthRateLimit(
       principal.enrollmentId
     )
     if (enrollmentLimited) {
-      return createCredentialGroupEnrollmentRedirect(token, { oauth: 'rate_limited' })
+      return createCredentialGroupEnrollmentRedirect(token, { ...focus, oauth: 'rate_limited' })
     }
 
     try {
       const { authorizationUrl } = await startPublicCredentialGroupOAuth.execute({
         principal,
-        input: { invitationToken: token, optionId },
+        input: { invitationToken: token, optionId, ...(returnTo ? { returnTo } : {}) },
         request,
       })
       const response = NextResponse.redirect(authorizationUrl)
@@ -59,6 +61,7 @@ export const GET = withRouteHandler(
         error: getErrorMessage(error),
       })
       return createCredentialGroupEnrollmentRedirect(token, {
+        ...focus,
         oauth:
           error instanceof CredentialGroupOAuthError && error.statusCode === 409
             ? 'configuration_changed'

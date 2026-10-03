@@ -13,7 +13,7 @@ import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 
-type WorkflowLogRow = typeof workflowExecutionLogs.$inferSelect
+type WorkflowLogRow = Omit<typeof workflowExecutionLogs.$inferSelect, 'cost'>
 
 /**
  * Cursors on `endedAt` (terminal timestamp) rather than `startedAt`. A running

@@ -21,11 +21,17 @@ import {
 } from '@/components/emails/billing'
 import {
   BatchInvitationEmail,
+  EnterpriseOwnerInvitationEmail,
   InvitationEmail,
   WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
-import { ScheduleDisabledEmail } from '@/components/emails/notifications'
+import {
+  PermissionAccessRequestEmail,
+  ScheduleDisabledEmail,
+  type SubprocessorChange,
+  SubprocessorChangeEmail,
+} from '@/components/emails/notifications'
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import type { UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -39,7 +45,6 @@ interface WorkspaceInvitation {
 
 export async function renderOTPEmail(
   otp: string,
-  email: string,
   type:
     | 'sign-in'
     | 'email-verification'
@@ -47,7 +52,7 @@ export async function renderOTPEmail(
     | 'forget-password' = 'email-verification',
   chatTitle?: string
 ): Promise<string> {
-  return await render(OTPVerificationEmail({ otp, email, type, chatTitle }))
+  return await render(OTPVerificationEmail({ otp, type, chatTitle }))
 }
 
 export async function renderExistingAccountEmail(username: string): Promise<string> {
@@ -90,6 +95,16 @@ export async function renderBatchInvitationEmail(
       workspaceInvitations,
       acceptUrl,
     })
+  )
+}
+
+export async function renderEnterpriseOwnerInvitationEmail(
+  organizationName: string,
+  inviteLink: string,
+  expiresInDays: number
+): Promise<string> {
+  return await render(
+    EnterpriseOwnerInvitationEmail({ organizationName, inviteLink, expiresInDays })
   )
 }
 
@@ -149,6 +164,13 @@ export async function renderUsageLimitReachedEmail(params: {
   return await render(UsageLimitReachedEmail(params))
 }
 
+export async function renderPermissionAccessRequestEmail(params: {
+  kind: 'created' | 'decided'
+  requestLink: string
+}): Promise<string> {
+  return await render(PermissionAccessRequestEmail(params))
+}
+
 export async function renderScheduleDisabledEmail(params: {
   recipientName?: string
   resourceName?: string
@@ -157,6 +179,18 @@ export async function renderScheduleDisabledEmail(params: {
   manageLink?: string
 }): Promise<string> {
   return await render(ScheduleDisabledEmail(params))
+}
+
+export async function renderSubprocessorChangeEmail(params: {
+  recipientName?: string
+  changes: SubprocessorChange[]
+  effectiveDate: Date
+  objectionDeadline: Date
+  objectionEmail: string
+  subprocessorListUrl: string
+  subscriptionUrl?: string
+}): Promise<string> {
+  return await render(SubprocessorChangeEmail(params))
 }
 
 export async function renderFreeTierUpgradeEmail(params: {

@@ -1,0 +1,16 @@
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+
+export const SELECTOR_DELEGATION_AUDIENCE = 'sim:selectors'
+
+export const selectorOperations = {
+  // permission-group-exempt: no static capability names selector browsing — credential access is authorized per credential, and per-integration denial is the parameterized allowedIntegrations key, which the funnel cannot apply because it never sees which integration a selector reaches. That decision is enforced from the use case by assertSelectorIntegrationAllowed, against the selector's own resource, ahead of the provider call.
+  execute: defineWorkspaceOperation({
+    id: 'selectors.execute',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
+    oauthScope: 'api:read',
+    capability: 'none',
+  }),
+} as const

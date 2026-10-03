@@ -30,7 +30,7 @@ export const oktaListFactorsTool: ToolConfig<OktaListFactorsParams, OktaListFact
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID or login to list enrolled factors for',
+      description: 'Okta user ID (not a login or email) to list enrolled factors for',
     },
   },
 

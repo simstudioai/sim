@@ -16,8 +16,8 @@ import type {
   workflow,
   workspace,
 } from '@sim/db/schema'
+import type { Edge } from '@xyflow/react'
 import type { InferSelectModel } from 'drizzle-orm'
-import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 // Database Model Types (inferred from schema)
@@ -358,7 +358,6 @@ export interface AdminOrganization {
   logo: string | null
   orgUsageLimit: string | null
   storageUsedBytes: number
-  departedMemberUsage: string
   createdAt: string
   updatedAt: string
 }
@@ -370,15 +369,7 @@ export interface AdminOrganizationDetail extends AdminOrganization {
 
 export type AdminOrganizationSource = Pick<
   DbOrganization,
-  | 'id'
-  | 'name'
-  | 'slug'
-  | 'logo'
-  | 'orgUsageLimit'
-  | 'storageUsedBytes'
-  | 'departedMemberUsage'
-  | 'createdAt'
-  | 'updatedAt'
+  'id' | 'name' | 'slug' | 'logo' | 'orgUsageLimit' | 'storageUsedBytes' | 'createdAt' | 'updatedAt'
 >
 
 export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrganization {
@@ -389,7 +380,6 @@ export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrgani
     logo: dbOrg.logo,
     orgUsageLimit: dbOrg.orgUsageLimit,
     storageUsedBytes: dbOrg.storageUsedBytes,
-    departedMemberUsage: dbOrg.departedMemberUsage,
     createdAt: dbOrg.createdAt.toISOString(),
     updatedAt: dbOrg.updatedAt.toISOString(),
   }
@@ -480,8 +470,7 @@ interface AdminUserBilling {
   billedOverageThisPeriod: string
   storageUsedBytes: number
   billingBlocked: boolean
-  // Copilot usage (active per-period baselines)
-  currentPeriodCopilotCost: string
+  // Copilot usage
   lastPeriodCopilotCost: string | null
 }
 

@@ -1,13 +1,12 @@
-import type { SapConcurProxyResponse, UpdateAllocationParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, UpdateAllocationParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateAllocationTool: ToolConfig<UpdateAllocationParams, SapConcurProxyResponse> = {
+export const updateAllocationTool: InternalToolConfig<UpdateAllocationParams, SapConcurResponse> = {
   id: 'sap_concur_update_allocation',
   name: 'SAP Concur Update Allocation',
   description:
@@ -88,24 +87,21 @@ export const updateAllocationTool: ToolConfig<UpdateAllocationParams, SapConcurP
         'JSON Merge Patch (RFC 7386) payload. Must be the two-key envelope { "allocation": { "customData": [{ "id": "custom9", "value": "...", "isValid": true }] }, "expenseIds": ["29EE..."] }.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = trimRequired(params.contextType, 'contextType')
       const reportId = trimRequired(params.reportId, 'reportId')
       const allocationId = trimRequired(params.allocationId, 'allocationId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}/allocations/${encodeURIComponent(allocationId)}`,
         method: 'PATCH',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

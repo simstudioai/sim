@@ -4,7 +4,7 @@ import type {
   QueryLogsParams,
   QueryLogsResponse,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage } from '@/tools/datadog/utils'
+import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
@@ -83,7 +83,7 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       return `https://api.${site}/api/v2/logs/events/search`
     },
     method: 'POST',

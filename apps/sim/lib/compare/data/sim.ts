@@ -1,4 +1,6 @@
 import type { CompetitorProfile } from '@/lib/compare/data/types'
+import { SITE_URL } from '@/lib/core/utils/urls'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 
 /**
  * Sim's own profile, for use as the constant left-hand column on every
@@ -11,9 +13,8 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const simProfile: CompetitorProfile = {
   id: 'sim',
   name: 'Sim',
-  website: 'https://sim.ai',
-  oneLiner:
-    'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting 1,000+ integrations and every major LLM to automate real work visually, conversationally, or with code.',
+  website: SITE_URL,
+  oneLiner: `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting ${INTEGRATION_COUNT_LABEL} integrations and every major LLM to automate real work visually, conversationally, or with code.`,
   standoutFeatures: [
     {
       title: 'AI Copilot / Chat agent-building surface',
@@ -182,7 +183,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing Page',
             asOf: '2026-07-02',
           },
@@ -622,11 +623,9 @@ export const simProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value:
-          '1,000+ integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions',
-        detail:
-          'Sim\'s landing page cites the "1,000+ integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.',
-        shortValue: '1,000+ integrations (266 blocks, ~3,900 tool actions)',
+        value: `${INTEGRATION_COUNT_LABEL} integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions`,
+        detail: `Sim's landing page cites the "${INTEGRATION_COUNT_LABEL} integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.`,
+        shortValue: `${INTEGRATION_COUNT_LABEL} integrations (266 blocks, ~3,900 tool actions)`,
         confidence: 'verified',
         sources: [
           {
@@ -640,7 +639,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://sim.ai',
+            url: SITE_URL,
             label: 'Sim Landing Page',
             asOf: '2026-07-02',
           },
@@ -752,7 +751,7 @@ export const simProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Cursor, Claude Code, Claude Desktop, and VS Code',
+          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Codex, Cursor, Claude Code, Claude Desktop, and VS Code',
         shortValue: 'Deployed workflows publish as MCP server tools',
         confidence: 'verified',
         sources: [
@@ -772,7 +771,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
             asOf: '2026-07-02',
           },
@@ -784,7 +783,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
             asOf: '2026-07-02',
           },
@@ -792,19 +791,19 @@ export const simProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Yes: Free plan with 1,000 monthly credits (worth $5, env-configurable), granted monthly with no daily refresh (daily refresh is a paid-plan feature)',
-        shortValue: 'Free plan, 1,000 credits/month',
+          'Yes: Free plan with 1,000 one-time credits (worth $5, env-configurable), granted once at signup and never refreshed — no monthly reset and no weekly refresh (weekly refresh is a paid-plan feature)',
+        shortValue: 'Free plan, 1,000 one-time credits',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-08-26',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/constants.ts',
             label: 'Sim codebase: DEFAULT_FREE_CREDITS',
-            asOf: '2026-07-08',
+            asOf: '2026-08-26',
           },
         ],
       },
@@ -839,12 +838,12 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai',
+            url: SITE_URL,
             label: 'Sim Landing Page',
             asOf: '2026-07-02',
           },
           {
-            url: 'https://sim.ai/enterprise',
+            url: `${SITE_URL}/enterprise`,
             label: 'Sim Enterprise Page',
             asOf: '2026-07-02',
           },
@@ -888,7 +887,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/fields.ts',
             label: 'Sim codebase: permission groups',
             asOf: '2026-07-04',
           },
@@ -920,7 +919,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://sim.ai/enterprise',
+            url: `${SITE_URL}/enterprise`,
             label: 'Sim Enterprise Page',
             asOf: '2026-07-02',
           },
@@ -935,7 +934,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/fields.ts',
             label:
               'Sim codebase: PermissionGroupConfig (allowedModelProviders, deniedModels, deniedTools)',
             asOf: '2026-07-02',
@@ -961,7 +960,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/fields.ts',
             label: 'Sim codebase: PermissionGroupConfig (allowedIntegrations)',
             asOf: '2026-07-02',
           },
@@ -1008,14 +1007,19 @@ export const simProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain and automatically provisioned into the organization on first sign-in',
-        shortValue: 'SAML 2.0 and OIDC SSO with auto-provisioning',
+          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain, plus SCIM 2.0 directory provisioning for Okta, Microsoft Entra ID, OneLogin, and JumpCloud that creates, updates, deactivates, and removes members and maps pushed groups to permission groups, workspace access, and the organization admin role',
+        shortValue: 'SAML 2.0 and OIDC SSO with SCIM 2.0 provisioning',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/sso',
             label: 'Sim Docs: Single Sign-On (SSO)',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/enterprise/scim',
+            label: 'Sim Docs: Directory provisioning (SCIM)',
+            asOf: '2026-09-07',
           },
         ],
       },
@@ -1208,7 +1212,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing Page',
             asOf: '2026-07-02',
           },
@@ -1221,7 +1225,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sim.ai/pricing',
+            url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing Page',
             asOf: '2026-07-08',
           },
@@ -1233,7 +1237,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://sim.ai',
+            url: SITE_URL,
             label: 'Sim Landing Page',
             asOf: '2026-07-02',
           },

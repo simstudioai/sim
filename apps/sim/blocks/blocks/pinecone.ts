@@ -1,9 +1,8 @@
 import { PineconeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PineconeResponse } from '@/tools/pinecone/types'
 
-export const PineconeBlock: BlockConfig<PineconeResponse> = {
+export const PineconeBlock: BlockConfig = {
   type: 'pinecone',
   name: 'Pinecone',
   description: 'Use Pinecone vector database',
@@ -305,8 +304,8 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       title: 'Options',
       type: 'checkbox-list',
       options: [
-        { id: 'includeValues', label: 'Include Values' },
-        { id: 'includeMetadata', label: 'Include Metadata' },
+        { id: 'includeValues', label: 'Include Values', defaultChecked: true },
+        { id: 'includeMetadata', label: 'Include Metadata', defaultChecked: true },
       ],
       condition: { field: 'operation', value: 'search_vector' },
     },

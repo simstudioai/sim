@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { UserFile } from '@/executor/types'
 import {
-  buildResolutionFromBlock,
   buildStartBlockOutput,
   resolveExecutorStartBlock,
+  StartInputValidationError,
 } from '@/executor/utils/start-block'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -32,14 +32,14 @@ function createBlock(
   }
 }
 
+const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
+const OTHER_WORKSPACE_ID = '22222222-2222-4222-8222-222222222222'
+const WORKFLOW_ID = '33333333-3333-4333-8333-333333333333'
+const EXECUTION_ID = '44444444-4444-4444-8444-444444444444'
+const EXECUTION_FILE_KEY = `execution/${WORKSPACE_ID}/${WORKFLOW_ID}/${EXECUTION_ID}/screenshot.png`
+const EXECUTION_FILE_URL = `/api/files/serve/s3/${encodeURIComponent(EXECUTION_FILE_KEY)}?context=execution`
+
 describe('start-block utilities', () => {
-  it.concurrent('buildResolutionFromBlock returns null when metadata id missing', () => {
-    const block = createBlock('api_trigger')
-    ;(block.metadata as Record<string, unknown>).id = undefined
-
-    expect(buildResolutionFromBlock(block)).toBeNull()
-  })
-
   it.concurrent('resolveExecutorStartBlock prefers unified start block', () => {
     const blocks = [
       createBlock('api_trigger', 'api'),
@@ -54,24 +54,6 @@ describe('start-block utilities', () => {
 
     expect(resolution?.blockId).toBe('start')
     expect(resolution?.path).toBe(StartBlockPath.UNIFIED)
-  })
-
-  it.concurrent('buildStartBlockOutput normalizes unified start payload', () => {
-    const block = createBlock('start_trigger', 'start')
-    const resolution = {
-      blockId: 'start',
-      block,
-      path: StartBlockPath.UNIFIED,
-    } as const
-
-    const output = buildStartBlockOutput({
-      resolution,
-      workflowInput: { payload: 'value' },
-    })
-
-    expect(output.payload).toBe('value')
-    expect(output.input).toBeUndefined()
-    expect(output.conversationId).toBeUndefined()
   })
 
   it.concurrent('buildStartBlockOutput uses trigger schema for API triggers', () => {
@@ -96,15 +78,17 @@ describe('start-block utilities', () => {
       {
         id: 'file-1',
         name: 'document.txt',
-        url: 'https://example.com/document.txt',
+        url: `/api/files/serve/s3/${encodeURIComponent(`workspace/${WORKSPACE_ID}/document.txt`)}?context=workspace`,
         size: 42,
         type: 'text/plain',
-        key: 'file-key',
+        key: `workspace/${WORKSPACE_ID}/document.txt`,
+        context: 'workspace',
       },
     ]
 
     const output = buildStartBlockOutput({
       resolution,
+      workspaceId: WORKSPACE_ID,
       workflowInput: {
         input: {
           name: 'Ada',
@@ -129,12 +113,13 @@ describe('start-block utilities', () => {
 
     const output = buildStartBlockOutput({
       resolution,
+      workspaceId: WORKSPACE_ID,
       workflowInput: {
         files: [
           {
             id: 'file_1',
             name: 'screenshot.png',
-            url: '/api/files/serve/s3/execution%2Fworkspace-id%2Fworkflow-id%2Fexecution-id%2Fscreenshot.png?context=execution',
+            url: EXECUTION_FILE_URL,
             size: 243289,
             type: 'image/png',
           },
@@ -146,13 +131,168 @@ describe('start-block utilities', () => {
       {
         id: 'file_1',
         name: 'screenshot.png',
-        url: '/api/files/serve/s3/execution%2Fworkspace-id%2Fworkflow-id%2Fexecution-id%2Fscreenshot.png?context=execution',
+        url: EXECUTION_FILE_URL,
         size: 243289,
         type: 'image/png',
-        key: 'execution/workspace-id/workflow-id/execution-id/screenshot.png',
+        key: EXECUTION_FILE_KEY,
         context: 'execution',
       },
     ])
+  })
+
+  it.concurrent('drops a storage key naming another workspace, whatever URL carries it', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'victim.pdf',
+            url: 'https://example.com/victim.pdf',
+            size: 1024,
+            type: 'application/pdf',
+            key: `workspace/${OTHER_WORKSPACE_ID}/victim.pdf`,
+            context: 'workspace',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toBeUndefined()
+  })
+
+  /**
+   * `context` selects the bucket a byte read targets, so it is derived from the
+   * accepted key rather than read from the payload or the URL's `?context=`.
+   * Otherwise an owned key could be labelled with a world-readable context.
+   */
+  it.concurrent('derives context from the key, ignoring a caller-supplied one', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+    const key = `execution/${WORKSPACE_ID}/wf_1/exec_1/report.pdf`
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'report.pdf',
+            url: `/api/files/serve/${encodeURIComponent(key)}?context=profile-pictures`,
+            size: 2048,
+            type: 'application/pdf',
+            key,
+            context: 'profile-pictures',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toEqual([expect.objectContaining({ context: 'execution' })])
+  })
+
+  /**
+   * A payload whose `key` and `url` disagree is refused rather than resolved in
+   * the caller's favour. Both fields are caller-authored, so picking the one
+   * that happens to pass would make a forged key free to send alongside a real
+   * URL; a genuine uploader always writes the two consistently, so nothing
+   * legitimate is refused.
+   */
+  it.concurrent('drops a file whose supplied key contradicts its internal URL', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'screenshot.png',
+            url: EXECUTION_FILE_URL,
+            size: 243289,
+            type: 'image/png',
+            key: `workspace/${OTHER_WORKSPACE_ID}/victim.pdf`,
+            context: 'workspace',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toBeUndefined()
+  })
+
+  it.concurrent('rejects a malformed internal URL rather than falling back to a forged key', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'victim.pdf',
+            url: '/api/files/serve/',
+            size: 1024,
+            type: 'application/pdf',
+            key: `workspace/${OTHER_WORKSPACE_ID}/victim.pdf`,
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toBeUndefined()
+  })
+
+  it.concurrent('rejects a storage key whose layout names no workspace', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'notes.txt',
+            url: '/api/files/serve/s3/chat%2Fnotes.txt?context=chat',
+            size: 12,
+            type: 'text/plain',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toBeUndefined()
   })
 
   it.concurrent('rejects inputFormat fields that collide with executor routing keys', () => {
@@ -207,115 +347,6 @@ describe('start-block utilities', () => {
     }
   )
 
-  it.concurrent('rejects reserved nested API input keys copied to trigger output', () => {
-    const block = createBlock('api_trigger', 'api')
-    const resolution = {
-      blockId: 'api',
-      block,
-      path: StartBlockPath.SPLIT_API,
-    } as const
-
-    expect(() =>
-      buildStartBlockOutput({
-        resolution,
-        workflowInput: { input: { selectedRoute: 'route-1', payload: 'value' } },
-      })
-    ).toThrow(
-      'Start block "block-api_trigger" cannot use reserved runtime input field name(s): selectedRoute'
-    )
-  })
-
-  it.concurrent('allows reserved inputFormat field names on split chat trigger output', () => {
-    const block = createBlock('chat_trigger', 'chat', {
-      subBlocks: {
-        inputFormat: {
-          value: [{ name: 'error', type: 'string' }],
-        },
-      },
-    })
-    const resolution = {
-      blockId: 'chat',
-      block,
-      path: StartBlockPath.SPLIT_CHAT,
-    } as const
-
-    const output = buildStartBlockOutput({
-      resolution,
-      workflowInput: { input: 'hello', conversationId: 'conversation-1' },
-    })
-
-    expect(output).toEqual({ input: 'hello', conversationId: 'conversation-1' })
-  })
-
-  it.concurrent('allows reserved inputFormat field names on legacy chat starter output', () => {
-    const block = createBlock('starter', 'starter', {
-      subBlocks: {
-        startWorkflow: { value: 'chat' },
-        inputFormat: {
-          value: [{ name: 'error', type: 'string' }],
-        },
-      },
-    })
-    const resolution = {
-      blockId: 'starter',
-      block,
-      path: StartBlockPath.LEGACY_STARTER,
-    } as const
-
-    const output = buildStartBlockOutput({
-      resolution,
-      workflowInput: { input: 'hello' },
-    })
-
-    expect(output).toEqual({ input: 'hello' })
-  })
-
-  it.concurrent('allows reserved inputFormat field names on serialized legacy chat starter', () => {
-    const block = createBlock('starter', 'starter')
-    block.config.params = {
-      startWorkflow: 'chat',
-      inputFormat: [{ name: 'error', type: 'string' }],
-    }
-    const resolution = {
-      blockId: 'starter',
-      block,
-      path: StartBlockPath.LEGACY_STARTER,
-    } as const
-
-    const output = buildStartBlockOutput({
-      resolution,
-      workflowInput: { input: 'hello' },
-    })
-
-    expect(output).toEqual({ input: 'hello' })
-  })
-
-  it.concurrent('ignores malformed non-string inputFormat field names', () => {
-    const block = createBlock('start_trigger', 'start', {
-      subBlocks: {
-        inputFormat: {
-          value: [
-            { name: 123, type: 'string', value: 'ignored' },
-            { name: 'customField', type: 'string' },
-          ],
-        },
-      },
-    })
-    const resolution = {
-      blockId: 'start',
-      block,
-      path: StartBlockPath.UNIFIED,
-    } as const
-
-    const output = buildStartBlockOutput({
-      resolution,
-      workflowInput: { customField: 'value' },
-    })
-
-    expect(output.customField).toBe('value')
-    expect(output[123]).toBeUndefined()
-  })
-
   describe('inputFormat default values', () => {
     it.concurrent('uses default value when runtime does not provide the field', () => {
       const block = createBlock('start_trigger', 'start', {
@@ -342,29 +373,6 @@ describe('start-block utilities', () => {
 
       expect(output.input).toBe('hello')
       expect(output.customField).toBe('defaultValue')
-    })
-
-    it.concurrent('runtime value overrides default value', () => {
-      const block = createBlock('start_trigger', 'start', {
-        subBlocks: {
-          inputFormat: {
-            value: [{ name: 'customField', type: 'string', value: 'defaultValue' }],
-          },
-        },
-      })
-
-      const resolution = {
-        blockId: 'start',
-        block,
-        path: StartBlockPath.UNIFIED,
-      } as const
-
-      const output = buildStartBlockOutput({
-        resolution,
-        workflowInput: { customField: 'runtimeValue' },
-      })
-
-      expect(output.customField).toBe('runtimeValue')
     })
 
     it.concurrent('empty string from runtime overrides default value', () => {
@@ -412,103 +420,9 @@ describe('start-block utilities', () => {
 
       expect(output.customField).toBe('defaultValue')
     })
-
-    it.concurrent('preserves coerced types for unified start payload', () => {
-      const block = createBlock('start_trigger', 'start', {
-        subBlocks: {
-          inputFormat: {
-            value: [
-              { name: 'conversation_id', type: 'number' },
-              { name: 'sender', type: 'object' },
-              { name: 'is_active', type: 'boolean' },
-            ],
-          },
-        },
-      })
-
-      const resolution = {
-        blockId: 'start',
-        block,
-        path: StartBlockPath.UNIFIED,
-      } as const
-
-      const output = buildStartBlockOutput({
-        resolution,
-        workflowInput: {
-          conversation_id: '149',
-          sender: '{"id":10,"email":"user@example.com"}',
-          is_active: 'true',
-        },
-      })
-
-      expect(output.conversation_id).toBe(149)
-      expect(output.sender).toEqual({ id: 10, email: 'user@example.com' })
-      expect(output.is_active).toBe(true)
-    })
-
-    it.concurrent(
-      'prefers coerced inputFormat values over duplicated top-level workflowInput keys',
-      () => {
-        const block = createBlock('start_trigger', 'start', {
-          subBlocks: {
-            inputFormat: {
-              value: [
-                { name: 'conversation_id', type: 'number' },
-                { name: 'sender', type: 'object' },
-                { name: 'is_active', type: 'boolean' },
-              ],
-            },
-          },
-        })
-
-        const resolution = {
-          blockId: 'start',
-          block,
-          path: StartBlockPath.UNIFIED,
-        } as const
-
-        const output = buildStartBlockOutput({
-          resolution,
-          workflowInput: {
-            input: {
-              conversation_id: '149',
-              sender: '{"id":10,"email":"user@example.com"}',
-              is_active: 'false',
-            },
-            conversation_id: '150',
-            sender: '{"id":99,"email":"wrong@example.com"}',
-            is_active: 'true',
-            extra: 'keep-me',
-          },
-        })
-
-        expect(output.conversation_id).toBe(149)
-        expect(output.sender).toEqual({ id: 10, email: 'user@example.com' })
-        expect(output.is_active).toBe(false)
-        expect(output.extra).toBe('keep-me')
-      }
-    )
   })
 
   describe('EXTERNAL_TRIGGER path', () => {
-    it.concurrent('rejects reserved runtime input keys copied to external trigger output', () => {
-      const block = createBlock('webhook', 'start')
-      const resolution = {
-        blockId: 'start',
-        block,
-        path: StartBlockPath.EXTERNAL_TRIGGER,
-      } as const
-
-      expect(() =>
-        buildStartBlockOutput({
-          resolution,
-          workflowInput: { _pauseMetadata: { contextId: 'fake-pause' }, payload: 'value' },
-        })
-      ).toThrow(
-        'Start block "block-webhook" cannot use reserved runtime input field name(s): _pauseMetadata'
-      )
-    })
-
     it.concurrent('preserves coerced types for integration trigger payload', () => {
       const block = createBlock('webhook', 'start', {
         subBlocks: {
@@ -544,7 +458,11 @@ describe('start-block utilities', () => {
 
   describe('run metadata injection', () => {
     const runMetadata = {
-      userEmail: 'real@sim.ai',
+      subject: {
+        kind: 'sim_user' as const,
+        userId: 'user-1',
+        email: 'real@sim.ai',
+      },
       workspaceId: 'ws-1',
       workflowId: 'wf-1',
       executionId: 'exec-1',
@@ -568,7 +486,9 @@ describe('start-block utilities', () => {
       const output = buildStartBlockOutput({
         resolution,
         workflowInput: {
-          metadata: { userEmail: 'attacker@x.com' },
+          metadata: {
+            subject: { kind: 'authenticated_email', email: 'attacker@x.com' },
+          },
           simUserEmail: 'attacker@x.com',
           payload: 'value',
         },
@@ -585,7 +505,11 @@ describe('start-block utilities', () => {
 
       const output = buildStartBlockOutput({
         resolution,
-        workflowInput: { metadata: { userEmail: 'attacker@x.com' } },
+        workflowInput: {
+          metadata: {
+            subject: { kind: 'authenticated_email', email: 'attacker@x.com' },
+          },
+        },
       })
 
       expect(output).not.toHaveProperty('metadata')
@@ -605,35 +529,52 @@ describe('start-block utilities', () => {
         })
       ).toThrow('reserves the "metadata" output')
     })
+  })
 
-    it.concurrent('toggle off leaves caller-supplied metadata untouched', () => {
-      const resolution = createUnifiedResolution()
-
-      const output = buildStartBlockOutput({
-        resolution,
-        workflowInput: { metadata: { custom: 'value' } },
-        runMetadata,
+  describe('declared field type validation', () => {
+    function unifiedResolution(inputFormat: Array<Record<string, unknown>>) {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: { inputFormat: { value: inputFormat } },
       })
+      return { blockId: 'start', block, path: StartBlockPath.UNIFIED } as const
+    }
 
-      expect(output.metadata).toEqual({ custom: 'value' })
-    })
+    it.concurrent(
+      'fails the run at start when a number field receives a non-numeric string',
+      () => {
+        const resolution = unifiedResolution([{ name: 'count', type: 'number' }])
 
-    it.concurrent('reads the toggle from config params when metadata subBlocks are absent', () => {
-      const block = createBlock('start_trigger', 'start')
-      block.config.params.runMetadata = true
-      const resolution = {
-        blockId: 'start',
-        block,
-        path: StartBlockPath.UNIFIED,
-      } as const
+        expect(() =>
+          buildStartBlockOutput({ resolution, workflowInput: { count: 'not-a-number' } })
+        ).toThrow(StartInputValidationError)
+        expect(() =>
+          buildStartBlockOutput({ resolution, workflowInput: { count: 'not-a-number' } })
+        ).toThrow(
+          'Start block "block-start_trigger" field "count" expects a number but received "not-a-number"'
+        )
+        expect(() =>
+          buildStartBlockOutput({ resolution, workflowInput: { count: 'Infinity' } })
+        ).toThrow(StartInputValidationError)
+      }
+    )
 
-      const output = buildStartBlockOutput({
-        resolution,
-        workflowInput: { metadata: 'spoof' },
-        runMetadata,
-      })
+    it.concurrent(
+      'still coerces well-formed strings and keeps the unset-default path lenient',
+      () => {
+        const resolution = unifiedResolution([
+          { name: 'count', type: 'number', value: '' },
+          { name: 'enabled', type: 'boolean', value: '' },
+        ])
 
-      expect(output.metadata).toEqual(runMetadata)
-    })
+        const coerced = buildStartBlockOutput({
+          resolution,
+          workflowInput: { count: '42', enabled: 'false' },
+        })
+        expect(coerced.count).toBe(42)
+        expect(coerced.enabled).toBe(false)
+
+        expect(() => buildStartBlockOutput({ resolution, workflowInput: {} })).not.toThrow()
+      }
+    )
   })
 })

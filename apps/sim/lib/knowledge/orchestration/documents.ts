@@ -5,6 +5,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
 import {
   createDocumentRecords,
   createSingleDocument,
@@ -13,11 +14,12 @@ import {
   getDocumentByUploadId,
   markDocumentAsFailedTimeout,
   type ProcessingOptions,
-  processDocumentAsync,
-  processDocumentsWithQueue,
   retryDocumentProcessing,
-  updateDocument,
 } from '@/lib/knowledge/documents/service'
+import type {
+  DocumentProcessingOutcome,
+  DocumentProcessingStatus,
+} from '@/lib/knowledge/documents/types'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -66,7 +68,7 @@ export type CreatedKnowledgeDocument = Omit<
   'processingStatus'
 > & {
   /** New documents are pending; idempotent completion may return a later persisted state. */
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStatus: DocumentProcessingStatus
 }
 
 export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperationContext {
@@ -248,28 +250,13 @@ export async function performUploadKnowledgeDocument(
     mimeType: document.mimeType,
   }
 
-  if (startProcessing === 'queue') {
-    processDocumentsWithQueue(
-      [documentData],
-      knowledgeBase.id,
-      processingOptions ?? {},
+  if (startProcessing === 'queue' || startProcessing === 'async') {
+    void dispatchDocumentProcessing({
+      documents: [documentData],
+      knowledgeBaseId: knowledgeBase.id,
+      processingOptions: processingOptions ?? {},
       requestId,
-      billingAttribution
-    ).catch((error: unknown) => {
-      logger.error(`[${requestId}] Document processing pipeline failed`, { error })
-    })
-  } else if (startProcessing === 'async') {
-    processDocumentAsync(
-      knowledgeBase.id,
-      created.id,
-      document,
-      processingOptions ?? {},
-      billingAttribution
-    ).catch((error: unknown) => {
-      logger.error(`[${requestId}] Background document processing failed`, {
-        documentId: created.id,
-        error: toError(error).message,
-      })
+      billingAttribution,
     })
   }
 
@@ -354,14 +341,12 @@ export async function performUploadKnowledgeDocuments(
 
   logger.info(`[${requestId}] Starting controlled async processing of ${created.length} documents`)
 
-  processDocumentsWithQueue(
-    created,
-    knowledgeBase.id,
-    processingOptions ?? {},
+  void dispatchDocumentProcessing({
+    documents: created,
+    knowledgeBaseId: knowledgeBase.id,
+    processingOptions: processingOptions ?? {},
     requestId,
-    billingAttribution
-  ).catch((error: unknown) => {
-    logger.error(`[${requestId}] Critical error in document processing pipeline`, { error })
+    billingAttribution,
   })
 
   if (params.recordProductAnalytics !== false) {
@@ -384,61 +369,6 @@ export async function performUploadKnowledgeDocuments(
   }
 
   return { success: true, documents: created }
-}
-
-export interface PerformUpdateKnowledgeDocumentParams extends KnowledgeOperationContext {
-  knowledgeBase: KnowledgeBaseTarget
-  document: { id: string; filename: string }
-  updates: Parameters<typeof updateDocument>[1]
-}
-
-export type PerformUpdateKnowledgeDocumentResult = KnowledgeOrchestrationResult<{
-  document: Awaited<ReturnType<typeof updateDocument>>
-}>
-
-/** Renames a document, toggles it, or edits its tags, and records the change. */
-export async function performUpdateKnowledgeDocument(
-  params: PerformUpdateKnowledgeDocumentParams
-): Promise<PerformUpdateKnowledgeDocumentResult> {
-  const { knowledgeBase, document, updates, request, source } = params
-  const requestId = params.requestId ?? generateRequestId()
-
-  const updatedFields = Object.keys(updates).filter(
-    (key) => updates[key as keyof typeof updates] !== undefined
-  )
-  if (updatedFields.length === 0) {
-    return fail('No updates specified', 'validation')
-  }
-
-  let updated: Awaited<ReturnType<typeof updateDocument>>
-  try {
-    updated = await updateDocument(document.id, updates, requestId)
-  } catch (error) {
-    return classifyKnowledgeFailure(error, requestId, `Update document ${document.id}`)
-  }
-
-  const filename = updates.filename ?? document.filename
-
-  recordAudit({
-    workspaceId: knowledgeBase.workspaceId,
-    ...auditActorFields(params),
-    action: AuditAction.DOCUMENT_UPDATED,
-    resourceType: AuditResourceType.DOCUMENT,
-    resourceId: document.id,
-    resourceName: filename,
-    description: `Updated document "${filename}" in knowledge base "${knowledgeBase.name ?? knowledgeBase.id}"`,
-    metadata: {
-      source,
-      knowledgeBaseId: knowledgeBase.id,
-      knowledgeBaseName: knowledgeBase.name,
-      fileName: filename,
-      updatedFields,
-      ...(updates.enabled !== undefined && { enabled: updates.enabled }),
-    },
-    ...(request ? { request } : {}),
-  })
-
-  return { success: true, document: updated }
 }
 
 export interface PerformDeleteKnowledgeDocumentParams extends KnowledgeOperationContext {
@@ -496,6 +426,7 @@ export async function performDeleteKnowledgeDocument(
 }
 
 export interface PerformMarkKnowledgeDocumentTimedOutParams {
+  knowledgeBaseId: string
   document: {
     id: string
     processingStatus: string
@@ -516,7 +447,7 @@ export type PerformKnowledgeDocumentProcessingResult = KnowledgeOrchestrationRes
 export async function performMarkKnowledgeDocumentTimedOut(
   params: PerformMarkKnowledgeDocumentTimedOutParams
 ): Promise<PerformKnowledgeDocumentProcessingResult> {
-  const { document } = params
+  const { document, knowledgeBaseId } = params
   const requestId = params.requestId ?? generateRequestId()
 
   if (document.processingStatus !== 'processing') {
@@ -531,6 +462,7 @@ export async function performMarkKnowledgeDocumentTimedOut(
 
   try {
     const result = await markDocumentAsFailedTimeout(
+      knowledgeBaseId,
       document.id,
       document.processingStartedAt,
       requestId
@@ -562,6 +494,9 @@ export interface PerformRetryKnowledgeDocumentParams {
     fileSize: number
     mimeType: string
     processingStatus: string
+    processingOutcome?: DocumentProcessingOutcome
+    connectorId?: string | null
+    contentHash?: string | null
   }
   billingAttribution?: BillingAttributionSnapshot
   requestId?: string
@@ -574,8 +509,37 @@ export async function performRetryKnowledgeDocumentProcessing(
   const { knowledgeBaseId, document, billingAttribution } = params
   const requestId = params.requestId ?? generateRequestId()
 
-  if (document.processingStatus !== 'failed') {
-    return fail('Document is not in failed state', 'validation')
+  if (document.processingOutcome === 'skipped') {
+    return fail(
+      'This source file was intentionally skipped. Sync the connector after changing the source.',
+      'validation'
+    )
+  }
+
+  if (document.connectorId && document.contentHash === null) {
+    return fail(
+      'Source content could not be downloaded. Sync the connector to retry.',
+      'validation'
+    )
+  }
+
+  /**
+   * `pending` is admitted alongside `failed`, and the decision is left to the
+   * guarded requeue itself.
+   *
+   * A worker killed before its claim UPDATE burns a processing attempt without
+   * moving the document off `pending`, and once its attempt budget is spent the
+   * connector sweep stops taking it too. Rejecting `pending` here made that row
+   * unrecoverable from every surface. Whether it is old enough to be certainly
+   * abandoned is a race-sensitive question the requeue answers in SQL against
+   * the same grace the sweep uses; this check only rejects the states no retry
+   * can ever apply to.
+   */
+  if (document.processingStatus !== 'failed' && document.processingStatus !== 'pending') {
+    return fail(
+      `Document is not in a retryable state (current: ${document.processingStatus})`,
+      'validation'
+    )
   }
 
   try {
@@ -591,6 +555,12 @@ export async function performRetryKnowledgeDocumentProcessing(
       requestId,
       billingAttribution
     )
+    // Forwarded rather than hard-coded to `true`: a retry whose dispatch never
+    // got off the ground leaves a dead document, and reporting that as success
+    // paints the UI green over it.
+    if (!result.success) {
+      return fail(result.message, result.status === 'skipped' ? 'validation' : 'internal')
+    }
     return { success: true, status: result.status, message: result.message }
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Retry document ${document.id}`)
