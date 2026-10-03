@@ -42,7 +42,6 @@ export type {
   PaginationConfig,
   ResourceCell,
   ResourceCellEditing,
-  ResourceColumn,
   ResourceRow,
   ResourceTableHandle,
   RowDragDropConfig,

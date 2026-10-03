@@ -371,7 +371,6 @@
   "apps/sim/app/workspace/[workspaceId]/components/index.ts#ResourceCell",
   "apps/sim/app/workspace/[workspaceId]/components/index.ts#ResourceCellEditing",
   "apps/sim/app/workspace/[workspaceId]/components/index.ts#ResourceChromeFallback",
-  "apps/sim/app/workspace/[workspaceId]/components/index.ts#ResourceNotFound",
   "apps/sim/app/workspace/[workspaceId]/components/index.ts#ResourceRow",
   "apps/sim/app/workspace/[workspaceId]/components/index.ts#ResourceRowSelection",
   "apps/sim/app/workspace/[workspaceId]/components/index.ts#ResourceTableHandle",

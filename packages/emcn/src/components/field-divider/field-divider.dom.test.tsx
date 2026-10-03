@@ -39,7 +39,8 @@ describe('FieldDisclosure', () => {
       </form>
     )
     act(() => root?.render(render(false)))
-    const button = container.querySelector('button')!
+    const button = container.querySelector('button')
+    if (!button) throw new Error('Missing field disclosure button')
     expect(button.getAttribute('aria-expanded')).toBe('false')
     expect(button.getAttribute('aria-controls')).toBe('additional-fields')
     act(() => {

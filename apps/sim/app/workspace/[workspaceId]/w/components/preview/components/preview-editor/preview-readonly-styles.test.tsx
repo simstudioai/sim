@@ -2,13 +2,11 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-  usePathname: () => '/workspace/workspace-1/w/workflow-1',
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/hooks/use-webhook-management', () => ({
   useWebhookManagement: () => ({ webhookUrl: null }),
 }))
@@ -33,6 +31,8 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+  nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/w/workflow-1')
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -78,10 +78,12 @@ describe('workflow preview read-only appearance', () => {
       )
     )
 
-    const preview = container.querySelector('[data-testid="preview"]')!
-    const previewSwitch = preview.querySelector('[role="switch"]') as HTMLButtonElement
-    const disabled = container.querySelector('[data-testid="disabled"]')!
-    const disabledSwitch = disabled.querySelector('[role="switch"]') as HTMLButtonElement
+    const preview = container.querySelector('[data-testid="preview"]')
+    const disabled = container.querySelector('[data-testid="disabled"]')
+    if (!preview || !disabled) throw new Error('Missing preview or disabled section')
+    const previewSwitch = preview.querySelector<HTMLButtonElement>('[role="switch"]')
+    const disabledSwitch = disabled.querySelector<HTMLButtonElement>('[role="switch"]')
+    if (!previewSwitch || !disabledSwitch) throw new Error('Missing preview or disabled switch')
 
     expect(preview.querySelector('[data-preview-readonly]')).not.toBeNull()
     expect(previewSwitch.hasAttribute('disabled')).toBe(true)
@@ -90,12 +92,14 @@ describe('workflow preview read-only appearance', () => {
     expect(getComputedStyle(previewSwitch).pointerEvents).toBe('none')
     const piiTrigger = Array.from(preview.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Configure PII Types')
-    )!
+    )
+    if (!piiTrigger) throw new Error('Missing PII configuration trigger')
     expect(piiTrigger.disabled).toBe(true)
     expect(piiTrigger.hasAttribute('data-preview-full-opacity')).toBe(true)
     const removeButton = Array.from(preview.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Remove file')
-    )!
+    )
+    if (!removeButton) throw new Error('Missing remove file button')
     expect(getComputedStyle(removeButton).pointerEvents).toBe('none')
     expect(getComputedStyle(removeButton).opacity).toBe('0.5')
 

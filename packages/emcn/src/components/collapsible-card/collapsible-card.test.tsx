@@ -13,6 +13,7 @@ function mount(children: ReactNode) {
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => root?.render(children))
+  return container
 }
 
 afterEach(() => {
@@ -37,9 +38,11 @@ describe('CollapsibleCard', () => {
         </CollapsibleCard>
       )
     }
-    mount(<Example />)
-    const card = container!.querySelector('[data-filter-id="condition-1"]')!
-    const trigger = card.querySelector<HTMLElement>('[role="button"]')!
+    const mountedContainer = mount(<Example />)
+    const card = mountedContainer.querySelector('[data-filter-id="condition-1"]')
+    if (!card) throw new Error('Missing condition card')
+    const trigger = card.querySelector<HTMLElement>('[role="button"]')
+    if (!trigger) throw new Error('Missing collapse trigger')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(card.querySelector('input')).toBeNull()
     act(() => trigger.click())
@@ -56,7 +59,7 @@ describe('CollapsibleCard', () => {
     const add = vi.fn()
     const remove = vi.fn()
     const parentClick = vi.fn()
-    mount(
+    const mountedContainer = mount(
       <CollapsibleCard
         title={<span>Long condition name</span>}
         badge={<span>Text</span>}
@@ -77,8 +80,9 @@ describe('CollapsibleCard', () => {
         Content
       </CollapsibleCard>
     )
-    const trigger = container!.querySelector('[role="button"]')!
-    const [addButton, deleteButton] = container!.querySelectorAll('button')
+    const trigger = mountedContainer.querySelector('[role="button"]')
+    const [addButton, deleteButton] = mountedContainer.querySelectorAll('button')
+    if (!trigger || !addButton || !deleteButton) throw new Error('Missing card actions')
     expect(trigger.contains(addButton)).toBe(false)
     act(() => {
       addButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))

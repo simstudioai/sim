@@ -39,9 +39,11 @@ describe('table sidebar layout', () => {
     }
 
     render(true)
-    const dialog = container.querySelector<HTMLElement>('[role="dialog"]')!
-    const input = container.querySelector<HTMLInputElement>('input')!
-    const scrollBody = input.parentElement!
+    const dialog = container.querySelector<HTMLElement>('[role="dialog"]')
+    const input = container.querySelector<HTMLInputElement>('input')
+    if (!dialog || !input) throw new Error('Missing sidebar dialog or workflow input')
+    const scrollBody = input.parentElement
+    if (!scrollBody) throw new Error('Missing sidebar scroll body')
     expect(dialog.getAttribute('aria-label')).toBe('Configure workflow')
     expect(dialog.classList.contains('translate-x-0')).toBe(true)
     expect(dialog.classList.contains('shadow-overlay')).toBe(true)

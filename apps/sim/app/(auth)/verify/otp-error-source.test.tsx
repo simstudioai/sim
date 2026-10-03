@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,11 +10,10 @@ const mocks = vi.hoisted(() => ({
   chatVerify: vi.fn(),
   fileRequest: vi.fn(),
   fileVerify: vi.fn(),
-  refresh: vi.fn(),
 }))
 
 vi.mock('@sim/emcn', () => ({
-  cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
+  ...emcnMock,
   ChipInput: ({
     error: _error,
     size: _size,
@@ -75,7 +76,7 @@ vi.mock('@/components/auth/public-auth-header', () => ({
 vi.mock('@/app/f/[token]/public-file-auth-shell', () => ({
   PublicFileAuthShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/hooks/queries/chats', () => ({
   useChatEmailOtpRequest: () => ({ mutateAsync: mocks.chatRequest, isPending: false }),
   useChatEmailOtpVerify: () => ({ mutateAsync: mocks.chatVerify, isPending: false }),
@@ -96,6 +97,12 @@ function changeInput(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+function input(selector: string) {
+  const found = container.querySelector<HTMLInputElement>(selector)
+  if (!found) throw new Error(`Missing input: ${selector}`)
+  return found
+}
+
 function button(label: string) {
   const found = Array.from(container.querySelectorAll('button')).find(
     (candidate) => candidate.textContent?.trim() === label
@@ -114,7 +121,6 @@ function expectOtpInvalid(invalid: boolean) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.chatRequest.mockResolvedValue({})
   mocks.chatVerify.mockResolvedValue({})
@@ -128,15 +134,12 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 
 describe('OTP error provenance', () => {
   it('keeps the chat code valid on resend failure and marks only a failed verification invalid', async () => {
     act(() => root.render(<EmailAuth identifier='chat-1' />))
-    act(() =>
-      changeInput(container.querySelector<HTMLInputElement>('#email')!, 'member@example.com')
-    )
+    act(() => changeInput(input('#email'), 'member@example.com'))
     await act(async () => button('Continue').click())
 
     mocks.chatRequest.mockRejectedValueOnce(new Error('Delivery failed'))
@@ -145,18 +148,14 @@ describe('OTP error provenance', () => {
     expectOtpInvalid(false)
 
     mocks.chatVerify.mockRejectedValueOnce(new Error('Incorrect code'))
-    await act(async () =>
-      changeInput(container.querySelector<HTMLInputElement>('[data-testid="otp-code"]')!, '123456')
-    )
+    await act(async () => changeInput(input('[data-testid="otp-code"]'), '123456'))
     expect(container.textContent).toContain('Incorrect code')
     expectOtpInvalid(true)
   })
 
   it('keeps the public-file code valid on resend failure and marks only a failed verification invalid', async () => {
     act(() => root.render(<PublicFileEmailAuth token='share-1' />))
-    act(() =>
-      changeInput(container.querySelector<HTMLInputElement>('#email')!, 'member@example.com')
-    )
+    act(() => changeInput(input('#email'), 'member@example.com'))
     await act(async () => button('Continue').click())
 
     mocks.fileRequest.mockRejectedValueOnce(new Error('Delivery failed'))
@@ -165,9 +164,7 @@ describe('OTP error provenance', () => {
     expectOtpInvalid(false)
 
     mocks.fileVerify.mockRejectedValueOnce(new Error('Incorrect code'))
-    await act(async () =>
-      changeInput(container.querySelector<HTMLInputElement>('[data-testid="otp-code"]')!, '123456')
-    )
+    await act(async () => changeInput(input('[data-testid="otp-code"]'), '123456'))
     expect(container.textContent).toContain('Incorrect code')
     expectOtpInvalid(true)
   })

@@ -1,4 +1,7 @@
 import type { ComponentProps, PropsWithChildren } from 'react'
+import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { JSDOM } from 'jsdom'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -12,27 +15,22 @@ const validation = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  ...emcnMock,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   Label: (props: ComponentProps<'label'>) => (
     <label htmlFor={props.htmlFor} className={props.className}>
       {props.children}
     </label>
   ),
-  cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
   Tooltip: {
     Root: ({ children }: PropsWithChildren) => <>{children}</>,
     Trigger: ({ children }: PropsWithChildren) => <>{children}</>,
     Content: ({ children }: PropsWithChildren) => <>{children}</>,
   },
 }))
-vi.mock('@sim/emcn/icons', () => ({ Check: () => null, TriangleAlert: () => null }))
-vi.mock('@sim/logger', () => ({ createLogger: () => ({}) }))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 vi.mock('@/components/ui', () => ({ GeneratedPasswordInput: () => null }))
-vi.mock('@/lib/core/config/deployment-shape', () => ({ useDeploymentShape: () => ({}) }))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.ai',
-  getEmailDomain: () => 'sim.ai',
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/lib/messaging/email/validation', () => ({ validateAllowlistEntry: () => true }))
 vi.mock('@/lib/workflows/streaming/output-selector', () => ({
   formatInternalOutputSelector: () => '',
