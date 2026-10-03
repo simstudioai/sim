@@ -245,8 +245,6 @@ export interface CleanedOutlookMessage {
   importance?: string
 }
 
-export type OutlookResponse = OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse
-
 export interface OutlookForwardParams {
   accessToken: string
   messageId: string
@@ -323,15 +321,6 @@ export interface OutlookCopyResponse extends ToolResponse {
     }
   }
 }
-
-export type OutlookExtendedResponse =
-  | OutlookResponse
-  | OutlookForwardResponse
-  | OutlookMoveResponse
-  | OutlookMarkReadResponse
-  | OutlookDeleteResponse
-  | OutlookCopyResponse
-  | OutlookCalendarResponse
 
 /**
  * Output definition for mail folder objects.
@@ -813,11 +802,3 @@ export interface OutlookCalendarRespondResponse extends ToolResponse {
     }
   }
 }
-
-export type OutlookCalendarResponse =
-  | OutlookCalendarListEventsResponse
-  | OutlookCalendarGetEventResponse
-  | OutlookCalendarCreateEventResponse
-  | OutlookCalendarUpdateEventResponse
-  | OutlookCalendarDeleteEventResponse
-  | OutlookCalendarRespondResponse

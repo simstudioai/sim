@@ -132,14 +132,6 @@ export interface GoogleContactsSearchResponse extends ToolResponse {
   }
 }
 
-export type GoogleContactsResponse =
-  | GoogleContactsCreateResponse
-  | GoogleContactsGetResponse
-  | GoogleContactsListResponse
-  | GoogleContactsUpdateResponse
-  | GoogleContactsDeleteResponse
-  | GoogleContactsSearchResponse
-
 /** Transforms a raw Google People API person object into a ContactMetadata */
 export function transformPerson(person: Record<string, any>): ContactMetadata {
   return {

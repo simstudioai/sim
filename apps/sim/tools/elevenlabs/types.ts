@@ -170,13 +170,3 @@ export interface ElevenLabsAudioResponse extends ToolResponse {
     audioFile?: UserFile
   }
 }
-
-export type ElevenLabsBlockResponse =
-  | ElevenLabsTtsResponse
-  | ElevenLabsListVoicesResponse
-  | ElevenLabsGetVoiceResponse
-  | ElevenLabsGetVoiceSettingsResponse
-  | ElevenLabsEditVoiceSettingsResponse
-  | ElevenLabsListModelsResponse
-  | ElevenLabsGetUserResponse
-  | ElevenLabsAudioResponse

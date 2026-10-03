@@ -51,8 +51,6 @@ export interface IcypeasVerifyEmailResponse extends ToolResponse {
 
 // Union response type used by the block
 
-export type IcypeasResponse = IcypeasFindEmailResponse | IcypeasVerifyEmailResponse
-
 // Shared output property constants
 
 export const ICYPEAS_SEARCH_ID_OUTPUT: OutputProperty = {

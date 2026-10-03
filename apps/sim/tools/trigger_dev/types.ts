@@ -753,36 +753,3 @@ export interface TriggerDevDeleteScheduleResponse extends ToolResponse {
     scheduleId: string
   }
 }
-
-export type TriggerDevResponse =
-  | TriggerDevTriggerTaskResponse
-  | TriggerDevBatchTriggerTaskResponse
-  | TriggerDevGetBatchResponse
-  | TriggerDevBatchResultsResponse
-  | TriggerDevRunResponse
-  | TriggerDevRunResultResponse
-  | TriggerDevListRunsResponse
-  | TriggerDevRunActionResponse
-  | TriggerDevAddRunTagsResponse
-  | TriggerDevRunEventsResponse
-  | TriggerDevRunTraceResponse
-  | TriggerDevUpdateRunMetadataResponse
-  | TriggerDevScheduleResponse
-  | TriggerDevListSchedulesResponse
-  | TriggerDevDeleteScheduleResponse
-  | TriggerDevListEnvVarsResponse
-  | TriggerDevEnvVarResponse
-  | TriggerDevEnvVarActionResponse
-  | TriggerDevImportEnvVarsResponse
-  | TriggerDevQueueResponse
-  | TriggerDevListQueuesResponse
-  | TriggerDevDeploymentResponse
-  | TriggerDevListDeploymentsResponse
-  | TriggerDevPromoteDeploymentResponse
-  | TriggerDevExecuteQueryResponse
-  | TriggerDevQuerySchemaResponse
-  | TriggerDevCreateWaitpointTokenResponse
-  | TriggerDevCompleteWaitpointTokenResponse
-  | TriggerDevWaitpointTokenResponse
-  | TriggerDevListWaitpointTokensResponse
-  | TriggerDevListTimezonesResponse

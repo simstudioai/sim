@@ -744,31 +744,3 @@ export interface VantaListVulnerabilitiesResponse extends ToolResponse {
     pageInfo: VantaPageInfo | null
   }
 }
-
-export type VantaResponse =
-  | VantaListFrameworksResponse
-  | VantaGetFrameworkResponse
-  | VantaListControlsResponse
-  | VantaGetControlResponse
-  | VantaListTestsResponse
-  | VantaGetTestResponse
-  | VantaListTestEntitiesResponse
-  | VantaListDocumentsResponse
-  | VantaGetDocumentResponse
-  | VantaListDocumentUploadsResponse
-  | VantaUploadDocumentFileResponse
-  | VantaDownloadDocumentFileResponse
-  | VantaSubmitDocumentResponse
-  | VantaListPeopleResponse
-  | VantaGetPersonResponse
-  | VantaListPoliciesResponse
-  | VantaGetPolicyResponse
-  | VantaListVendorsResponse
-  | VantaGetVendorResponse
-  | VantaListMonitoredComputersResponse
-  | VantaListVulnerabilitiesResponse
-  | VantaListVulnerabilityRemediationsResponse
-  | VantaListVulnerableAssetsResponse
-  | VantaGetVulnerableAssetResponse
-  | VantaListRiskScenariosResponse
-  | VantaGetRiskScenarioResponse

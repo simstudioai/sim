@@ -1675,42 +1675,6 @@ export interface ReadmeResponse extends ToolResponse {
   }
 }
 
-export type GitHubResponse =
-  | PullRequestResponse
-  | PullRequestV2Response
-  | PRReviewResponse
-  | TagsListResponse
-  | ReadmeResponse
-  | ReleaseResponse
-  | CreateCommentResponse
-  | LatestCommitResponse
-  | RepoInfoResponse
-  | IssueCommentResponse
-  | CommentsListResponse
-  | DeleteCommentResponse
-  | PRResponse
-  | MergeResultResponse
-  | PRListResponse
-  | PRFilesListResponse
-  | ReviewersResponse
-  | ListProjectsResponse
-  | ProjectResponse
-  | BranchResponse
-  | BranchListResponse
-  | BranchProtectionResponse
-  | RefResponse
-  | DeleteBranchResponse
-  | WorkflowResponse
-  | WorkflowRunResponse
-  | ListWorkflowsResponse
-  | ListWorkflowRunsResponse
-  | TriggerWorkflowResponse
-  | CancelWorkflowRunResponse
-  | RerunWorkflowResponse
-  | IssueResponse
-  | IssuesListResponse
-  | LabelsResponse
-
 export interface CreateReleaseParams extends BaseGitHubParams {
   tag_name: string
   target_commitish?: string

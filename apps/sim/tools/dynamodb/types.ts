@@ -75,8 +75,6 @@ export type DynamoDBQueryResponse = DynamoDBBaseResponse
 export type DynamoDBScanResponse = DynamoDBBaseResponse
 export type DynamoDBUpdateResponse = DynamoDBBaseResponse
 export type DynamoDBDeleteResponse = DynamoDBBaseResponse
-export type DynamoDBResponse = DynamoDBBaseResponse
-
 export interface DynamoDBIntrospectParams extends DynamoDBConnectionConfig {
   tableName?: string
 }

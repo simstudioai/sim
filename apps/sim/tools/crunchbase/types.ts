@@ -118,8 +118,3 @@ export interface CrunchbaseAutocompleteResponse extends ToolResponse {
     entities: CrunchbaseAutocompleteEntity[]
   }
 }
-
-export type CrunchbaseResponse =
-  | CrunchbaseSearchResponse
-  | CrunchbaseEntityResponse
-  | CrunchbaseAutocompleteResponse

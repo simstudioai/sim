@@ -151,11 +151,6 @@ export interface SqsCancelMessageMoveTaskParams extends SqsConnectionConfig {
   taskHandle: string
 }
 
-interface SqsBaseResponse extends ToolResponse {
-  output: { message: string; id?: string }
-  error?: string
-}
-
 export interface SqsSendMessageResponse extends ToolResponse {
   output: {
     message: string
@@ -272,5 +267,3 @@ export interface SqsCancelMessageMoveTaskResponse extends ToolResponse {
   output: { message: string; approximateNumberOfMessagesMoved: number | null }
   error?: string
 }
-
-export interface SqsResponse extends SqsBaseResponse {}

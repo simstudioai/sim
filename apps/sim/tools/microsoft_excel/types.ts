@@ -182,17 +182,6 @@ export interface MicrosoftExcelSortRangeResponse extends ToolResponse {
   }
 }
 
-export type MicrosoftExcelResponse =
-  | MicrosoftExcelReadResponse
-  | MicrosoftExcelWriteResponse
-  | MicrosoftExcelTableAddResponse
-  | MicrosoftExcelWorksheetAddResponse
-  | MicrosoftExcelClearRangeResponse
-  | MicrosoftExcelFormatRangeResponse
-  | MicrosoftExcelCreateTableResponse
-  | MicrosoftExcelDeleteWorksheetResponse
-  | MicrosoftExcelSortRangeResponse
-
 // V2 Types - with separate sheetName param
 export interface MicrosoftExcelV2ToolParams {
   accessToken: string
@@ -229,5 +218,3 @@ export interface MicrosoftExcelV2WriteResponse extends ToolResponse {
     }
   }
 }
-
-export type MicrosoftExcelV2Response = MicrosoftExcelV2ReadResponse | MicrosoftExcelV2WriteResponse

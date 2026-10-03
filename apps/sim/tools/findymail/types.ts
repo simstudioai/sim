@@ -226,16 +226,3 @@ export interface FindymailGetCreditsResponse extends ToolResponse {
     verifier_credits: number
   }
 }
-
-export type FindymailResponse =
-  | FindymailVerifyEmailResponse
-  | FindymailFindEmailFromNameResponse
-  | FindymailFindEmailsByDomainResponse
-  | FindymailFindEmailFromLinkedInResponse
-  | FindymailReverseEmailLookupResponse
-  | FindymailGetCompanyResponse
-  | FindymailFindEmployeesResponse
-  | FindymailFindPhoneResponse
-  | FindymailSearchTechnologiesResponse
-  | FindymailLookupTechnologiesResponse
-  | FindymailGetCreditsResponse

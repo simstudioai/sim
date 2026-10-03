@@ -166,9 +166,3 @@ export interface WizaIndividualRevealData {
 export interface WizaIndividualRevealResponse extends ToolResponse {
   output: WizaIndividualRevealData
 }
-
-export type WizaResponse =
-  | WizaGetCreditsResponse
-  | WizaProspectSearchResponse
-  | WizaCompanyEnrichmentResponse
-  | WizaIndividualRevealResponse

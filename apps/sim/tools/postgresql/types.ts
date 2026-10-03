@@ -177,5 +177,3 @@ export interface PostgresIntrospectResponse extends ToolResponse {
   }
   error?: string
 }
-
-export interface PostgresResponse extends PostgresBaseResponse {}

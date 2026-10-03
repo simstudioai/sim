@@ -712,39 +712,6 @@ export interface BrexUpdateVendorResponse extends ToolResponse {
   }
 }
 
-export type BrexResponse =
-  | BrexListExpensesResponse
-  | BrexGetExpenseResponse
-  | BrexUpdateExpenseResponse
-  | BrexUploadReceiptResponse
-  | BrexListCardTransactionsResponse
-  | BrexListCashTransactionsResponse
-  | BrexListCardAccountsResponse
-  | BrexListCashAccountsResponse
-  | BrexListUsersResponse
-  | BrexGetUserResponse
-  | BrexListDepartmentsResponse
-  | BrexListLocationsResponse
-  | BrexListBudgetsResponse
-  | BrexListSpendLimitsResponse
-  | BrexListVendorsResponse
-  | BrexListTransfersResponse
-  | BrexGetCompanyResponse
-  | BrexListCardsResponse
-  | BrexListTitlesResponse
-  | BrexGetCashAccountResponse
-  | BrexListStatementsResponse
-  | BrexGetBudgetResponse
-  | BrexGetSpendLimitResponse
-  | BrexGetVendorResponse
-  | BrexGetTransferResponse
-  | BrexCreateTransferResponse
-  | BrexCreateBudgetResponse
-  | BrexArchiveBudgetResponse
-  | BrexCreateSpendLimitResponse
-  | BrexCreateVendorResponse
-  | BrexUpdateVendorResponse
-
 export const BREX_MONEY_PROPERTIES: Record<string, OutputProperty> = {
   amount: {
     type: 'number',

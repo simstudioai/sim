@@ -98,9 +98,3 @@ export interface LatexListFontsResponse extends ToolResponse {
     totalMatches: number
   }
 }
-
-export type LatexResponse =
-  | LatexCompileResponse
-  | LatexSearchPackagesResponse
-  | LatexGetPackageResponse
-  | LatexListFontsResponse

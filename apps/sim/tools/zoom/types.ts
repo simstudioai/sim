@@ -520,16 +520,3 @@ export interface ZoomListPastParticipantsResponse extends ToolResponse {
     }
   }
 }
-
-// Combined response type for block
-export type ZoomResponse =
-  | ZoomCreateMeetingResponse
-  | ZoomListMeetingsResponse
-  | ZoomGetMeetingResponse
-  | ZoomUpdateMeetingResponse
-  | ZoomDeleteMeetingResponse
-  | ZoomGetMeetingInvitationResponse
-  | ZoomListRecordingsResponse
-  | ZoomGetMeetingRecordingsResponse
-  | ZoomDeleteRecordingResponse
-  | ZoomListPastParticipantsResponse

@@ -580,22 +580,3 @@ export interface ServiceNowUploadAttachmentResponse extends ToolResponse {
     }
   }
 }
-
-export type ServiceNowResponse =
-  | ServiceNowCreateResponse
-  | ServiceNowReadResponse
-  | ServiceNowUpdateResponse
-  | ServiceNowDeleteResponse
-  | ServiceNowAggregateResponse
-  | ServiceNowListAttachmentsResponse
-  | ServiceNowDownloadAttachmentResponse
-  | ServiceNowUploadAttachmentResponse
-  | ServiceNowRecordListResponse
-  | ServiceNowSingleRecordResponse
-  | ServiceNowChangeTaskListResponse
-  | ServiceNowGetChangeNextStatesResponse
-  | ServiceNowListCatalogItemsResponse
-  | ServiceNowOrderCatalogItemResponse
-  | ServiceNowGetCiResponse
-  | ServiceNowSearchKnowledgeResponse
-  | ServiceNowGetKnowledgeArticleResponse

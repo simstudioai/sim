@@ -1,12 +1,6 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
 
-export interface GraphApiErrorResponse {
-  error?: {
-    message?: string
-  }
-}
-
 export interface GraphDriveItem {
   id: string
   webUrl?: string
@@ -211,13 +205,3 @@ export interface MicrosoftTeamsReactionResponse extends ToolResponse {
     metadata: MicrosoftTeamsMetadata
   }
 }
-
-export type MicrosoftTeamsResponse =
-  | MicrosoftTeamsReadResponse
-  | MicrosoftTeamsWriteResponse
-  | MicrosoftTeamsDeleteResponse
-  | MicrosoftTeamsListMembersResponse
-  | MicrosoftTeamsReactionResponse
-  | MicrosoftTeamsListTeamsResponse
-  | MicrosoftTeamsListChatsResponse
-  | MicrosoftTeamsListChannelsResponse

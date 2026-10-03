@@ -1,19 +1,5 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type LinkedInResponse = {
-  success: boolean
-  output: {
-    postId?: string
-    profile?: {
-      id: string
-      name: string
-      email?: string
-      picture?: string
-    }
-  }
-  error?: string
-}
-
 // Tool-specific type definitions
 export interface LinkedInProfileOutput {
   profile?: {

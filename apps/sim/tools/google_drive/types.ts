@@ -359,9 +359,3 @@ export interface GoogleDriveToolParams {
   exportMimeType?: string
   includeRevisions?: boolean
 }
-
-export type GoogleDriveResponse =
-  | GoogleDriveUploadResponse
-  | GoogleDriveGetContentResponse
-  | GoogleDriveDownloadResponse
-  | GoogleDriveListResponse

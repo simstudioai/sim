@@ -1,5 +1,3 @@
-import type { ToolResponse } from '@/tools/types'
-
 export interface SailPointCredentials {
   clientId: string
   clientSecret: string
@@ -25,20 +23,6 @@ export interface SailPointListOutput<T = Record<string, unknown>> {
   items: T[]
   count: number
   totalCount: number | null
-}
-
-export interface SailPointListResponse<T = Record<string, unknown>> extends ToolResponse {
-  output: SailPointListOutput<T>
-}
-
-export interface SailPointResourceResponse<
-  T extends Record<string, unknown> = Record<string, unknown>,
-> extends ToolResponse {
-  output: T
-}
-
-export interface SailPointAcceptedResponse extends ToolResponse {
-  output: { accepted: boolean; status: number }
 }
 
 export interface SailPointListIdentitiesParams extends SailPointListParams {
@@ -170,22 +154,6 @@ export interface SailPointSearchAggregateParams
   extends SailPointSearchBodyParams,
     SailPointPaginationParams {}
 
-export interface SailPointSearchResponse extends ToolResponse {
-  output: { results: Record<string, unknown>[]; count: number; totalCount: number | null }
-}
-
-export interface SailPointSearchCountResponse extends ToolResponse {
-  output: { total: number }
-}
-
-export interface SailPointSearchAggregateResponse extends ToolResponse {
-  output: {
-    aggregations: Record<string, unknown>
-    hits: Record<string, unknown>[]
-    totalCount: number | null
-  }
-}
-
 export type SailPointAccessRequestType = 'GRANT_ACCESS' | 'REVOKE_ACCESS' | 'MODIFY_ACCESS'
 export type SailPointRequestedItemType = 'ACCESS_PROFILE' | 'ROLE' | 'ENTITLEMENT'
 
@@ -236,15 +204,6 @@ export interface SailPointAccessRequestTracking {
   accessRequestIds?: string[]
 }
 
-export interface SailPointAccessRequestResponse extends ToolResponse {
-  output: {
-    accepted: boolean
-    status: number
-    newRequests: SailPointAccessRequestTracking[]
-    existingRequests: SailPointAccessRequestTracking[]
-  }
-}
-
 export interface SailPointCancelAccessRequestParams extends SailPointCredentials {
   accountActivityId: string
   comment: string
@@ -286,18 +245,6 @@ export interface SailPointTask {
   percentComplete?: number
   attributes?: Record<string, unknown>
   returns?: Record<string, unknown>[]
-}
-
-export interface SailPointTaskResponse extends ToolResponse {
-  output: { task: SailPointTask }
-}
-
-export interface SailPointLoadAccountsResponse extends ToolResponse {
-  output: { success: boolean; task: SailPointTask }
-}
-
-export interface SailPointLoadEntitlementsResponse extends ToolResponse {
-  output: { task: SailPointTask }
 }
 
 export interface SailPointReviewRecommendation {

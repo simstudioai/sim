@@ -242,10 +242,3 @@ export interface ExaAgentResponse extends ToolResponse {
     __costDollars?: ExaCostDollars
   }
 }
-
-export type ExaResponse =
-  | ExaSearchResponse
-  | ExaGetContentsResponse
-  | ExaFindSimilarLinksResponse
-  | ExaAnswerResponse
-  | ExaAgentResponse

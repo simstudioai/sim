@@ -675,31 +675,3 @@ export interface ApolloSequenceSearchResponse extends ToolResponse {
     total_entries: number
   }
 }
-
-// Union type for all Apollo responses
-export type ApolloResponse =
-  | ApolloPeopleSearchResponse
-  | ApolloPeopleEnrichResponse
-  | ApolloPeopleBulkEnrichResponse
-  | ApolloOrganizationSearchResponse
-  | ApolloOrganizationEnrichResponse
-  | ApolloOrganizationBulkEnrichResponse
-  | ApolloContactCreateResponse
-  | ApolloContactUpdateResponse
-  | ApolloContactBulkCreateResponse
-  | ApolloContactBulkUpdateResponse
-  | ApolloContactSearchResponse
-  | ApolloAccountCreateResponse
-  | ApolloAccountUpdateResponse
-  | ApolloAccountSearchResponse
-  | ApolloAccountBulkCreateResponse
-  | ApolloAccountBulkUpdateResponse
-  | ApolloSequenceAddContactsResponse
-  | ApolloTaskCreateResponse
-  | ApolloTaskSearchResponse
-  | ApolloEmailAccountsResponse
-  | ApolloSequenceSearchResponse
-  | ApolloOpportunityCreateResponse
-  | ApolloOpportunitySearchResponse
-  | ApolloOpportunityGetResponse
-  | ApolloOpportunityUpdateResponse

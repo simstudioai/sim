@@ -300,19 +300,3 @@ export interface DowndetectorGetProviderResponse extends ToolResponse {
     provider: DowndetectorProvider
   }
 }
-
-export type DowndetectorResponse =
-  | DowndetectorSearchCompaniesResponse
-  | DowndetectorGetCompanyResponse
-  | DowndetectorGetCompanyStatusResponse
-  | DowndetectorGetCompanyBaselineResponse
-  | DowndetectorGetCompanyIndicatorsResponse
-  | DowndetectorGetReportsResponse
-  | DowndetectorIncidentsResponse
-  | DowndetectorListCategoriesResponse
-  | DowndetectorListSitesResponse
-  | DowndetectorGetCompanyLast15Response
-  | DowndetectorGetCompanyEventsResponse
-  | DowndetectorGetCompanyAttributionResponse
-  | DowndetectorGetSiteCompaniesResponse
-  | DowndetectorGetProviderResponse

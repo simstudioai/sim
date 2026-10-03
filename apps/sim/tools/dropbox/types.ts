@@ -202,13 +202,6 @@ export interface DropboxSearchResponse extends ToolResponse {
   }
 }
 
-interface DropboxGetTemporaryLinkResponse extends ToolResponse {
-  output: {
-    metadata?: DropboxFileMetadata
-    link?: string
-  }
-}
-
 export interface DropboxListSharedLinksParams extends DropboxBaseParams {
   path?: string
   directOnly?: boolean
@@ -258,19 +251,3 @@ export interface DropboxRestoreResponse extends ToolResponse {
     metadata?: DropboxFileMetadata
   }
 }
-
-export type DropboxResponse =
-  | DropboxUploadResponse
-  | DropboxDownloadResponse
-  | DropboxListFolderResponse
-  | DropboxCreateFolderResponse
-  | DropboxDeleteResponse
-  | DropboxCopyResponse
-  | DropboxMoveResponse
-  | DropboxGetMetadataResponse
-  | DropboxCreateSharedLinkResponse
-  | DropboxSearchResponse
-  | DropboxGetTemporaryLinkResponse
-  | DropboxListSharedLinksResponse
-  | DropboxListRevisionsResponse
-  | DropboxRestoreResponse

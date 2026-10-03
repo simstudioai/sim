@@ -651,28 +651,3 @@ export const GENIE_AGENT_ITEM_OUTPUT_PROPERTIES = {
     nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/** Union type for all Databricks responses */
-export type DatabricksResponse =
-  | DatabricksExecuteSqlResponse
-  | DatabricksListJobsResponse
-  | DatabricksRunJobResponse
-  | DatabricksGetJobResponse
-  | DatabricksGetRunResponse
-  | DatabricksListRunsResponse
-  | DatabricksCancelRunResponse
-  | DatabricksGetRunOutputResponse
-  | DatabricksListClustersResponse
-  | DatabricksGetClusterResponse
-  | DatabricksListWarehousesResponse
-  | DatabricksGenieAskResponse
-  | DatabricksGenieGetMessageResponse
-  | DatabricksGenieListMessagesResponse
-  | DatabricksGenieQueryResultResponse
-  | DatabricksGenieDownloadVisualizationResponse
-  | DatabricksGenieListConversationsResponse
-  | DatabricksGenieSuccessResponse
-  | DatabricksGenieListSpacesResponse
-  | DatabricksGenieGetSpaceResponse
-  | DatabricksGenieAgentAskResponse
-  | DatabricksGenieAgentListItemsResponse

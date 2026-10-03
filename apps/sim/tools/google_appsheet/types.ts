@@ -64,9 +64,3 @@ export interface GoogleAppsheetDeleteResponse extends ToolResponse {
     }
   }
 }
-
-export type GoogleAppsheetResponse =
-  | GoogleAppsheetFindResponse
-  | GoogleAppsheetAddResponse
-  | GoogleAppsheetEditResponse
-  | GoogleAppsheetDeleteResponse

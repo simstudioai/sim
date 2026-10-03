@@ -128,10 +128,3 @@ export interface LangsmithCreateFeedbackResponse extends ToolResponse {
     createdAt: string | null
   }
 }
-
-export type LangsmithResponse =
-  | LangsmithCreateRunResponse
-  | LangsmithCreateRunsBatchResponse
-  | LangsmithUpdateRunResponse
-  | LangsmithGetRunResponse
-  | LangsmithCreateFeedbackResponse

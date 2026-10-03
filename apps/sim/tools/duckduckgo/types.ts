@@ -51,5 +51,3 @@ interface DuckDuckGoSearchOutput {
 export interface DuckDuckGoSearchResponse extends ToolResponse {
   output: DuckDuckGoSearchOutput
 }
-
-export type DuckDuckGoResponse = DuckDuckGoSearchResponse

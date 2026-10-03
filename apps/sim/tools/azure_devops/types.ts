@@ -414,24 +414,6 @@ export interface AddCommentResponse extends ToolResponse {
 
 // ── Response Union ────────────────────────────────────────────────────────────
 
-export type AzureDevOpsResponse =
-  | ListPipelinesResponse
-  | GetPipelineResponse
-  | ListPipelineRunsResponse
-  | GetPipelineRunResponse
-  | ListBuildsResponse
-  | ListBuildLogsResponse
-  | GetBuildLogResponse
-  | GetBuildTimelineResponse
-  | GetWorkItemsBetweenBuildsResponse
-  | QueryWorkItemsResponse
-  | GetWorkItemResponse
-  | GetWorkItemsBatchResponse
-  | CreateWorkItemResponse
-  | UpdateWorkItemResponse
-  | AddCommentResponse
-  | GetCommentsResponse
-
 // ── Get Comments ──────────────────────────────────────────────────────────────
 
 export interface GetCommentsParams extends AzureDevOpsBaseParams {
