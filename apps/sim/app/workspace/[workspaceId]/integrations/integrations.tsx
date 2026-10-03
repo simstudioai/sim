@@ -20,7 +20,7 @@ import {
   type Integration,
   resolveCredentialDisplay,
 } from '@/lib/integrations'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
+import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
@@ -34,6 +34,7 @@ import {
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -138,6 +139,14 @@ function ConnectedItem({ href, blockType, name, description, icon: Icon }: Conne
 }
 
 export function Integrations() {
+  return (
+    <PermissionAccessBoundary configKey='hideIntegrationsTab'>
+      <IntegrationsContent />
+    </PermissionAccessBoundary>
+  )
+}
+
+function IntegrationsContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -164,7 +173,10 @@ export function Integrations() {
   useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
 
   const oauthCredentials = useMemo(
-    () => credentials.filter((c) => c.type === 'oauth' || c.type === 'service_account'),
+    () =>
+      credentials.filter(
+        (c) => c.type === 'oauth' || c.type === 'service_account' || c.type === 'personal_token'
+      ),
     [credentials]
   )
 

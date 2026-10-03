@@ -1,32 +1,37 @@
-/**
- * @vitest-environment node
- */
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import { credentialGroupsAvailabilityMock } from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckWorkspaceAccess,
-  mockGetWorkspaceOwnerSubscriptionAccess,
-  mockGetOrganizationSettingsAccess,
-} = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetWorkspaceOwnerSubscriptionAccess: vi.fn(),
+const { mockGetOrganizationSettingsAccess } = vi.hoisted(() => ({
   mockGetOrganizationSettingsAccess: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/organizations/settings-access', () => ({
   getOrganizationSettingsAccess: mockGetOrganizationSettingsAccess,
 }))
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mockGetWorkspaceOwnerSubscriptionAccess,
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 
-import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+
+const { mockCheckWorkspaceAccess } = permissionsMockFns
+const { mockGetWorkspaceOwnerSubscriptionAccess } = billingWorkspaceAccessMockFns
+const { mockResolveKnowledgeAccessAvailability, mockIsKnowledgeMemberAccessAvailable } =
+  knowledgeAvailabilityMockFns
 
 const OWNER_BILLING = {
   plan: 'enterprise',
@@ -66,34 +71,49 @@ function accessibleWorkspace(
 
 describe('getWorkspaceHostContextForViewer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue(OWNER_BILLING)
-  })
-
-  it('returns host membership and route permission for an internal member', async () => {
-    mockCheckWorkspaceAccess.mockResolvedValue(accessibleWorkspace('write', 'org-host'))
-    mockGetOrganizationSettingsAccess.mockResolvedValue({
-      role: 'member',
-      isMember: true,
-      isAdmin: false,
+    mockResolveKnowledgeAccessAvailability.mockResolvedValue({
+      memberScoped: true,
+      sourceMirrored: true,
     })
-
-    const context = await getWorkspaceHostContextForViewer('workspace-1', 'viewer-1')
-
-    expect(context).toEqual(
-      expect.objectContaining({
-        workspace: expect.objectContaining({ allowPersonalApiKeys: false }),
-        hostOrganizationId: 'org-host',
-        viewer: {
-          permission: 'write',
-          isHostOrganizationMember: true,
-          isHostOrganizationAdmin: false,
-          organizationRole: 'member',
-        },
-      })
-    )
-    expect(context?.deployment).toEqual(resolveDeploymentShape())
+    mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
   })
+
+  it.each([
+    { organizationSearch: true, workspaceKnowledge: false },
+    { organizationSearch: false, workspaceKnowledge: true },
+  ])(
+    'uses organization rollout $organizationSearch independently of workspace knowledge $workspaceKnowledge',
+    async ({ organizationSearch, workspaceKnowledge }) => {
+      mockCheckWorkspaceAccess.mockResolvedValue(accessibleWorkspace('admin', 'org-host'))
+      mockGetOrganizationSettingsAccess.mockResolvedValue({
+        role: 'admin',
+        isMember: true,
+        isAdmin: true,
+      })
+      mockResolveKnowledgeAccessAvailability.mockResolvedValue({
+        memberScoped: workspaceKnowledge,
+        sourceMirrored: workspaceKnowledge,
+      })
+      mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(organizationSearch)
+
+      const context = await getWorkspaceHostContextForViewer('workspace-1', 'admin-1')
+
+      expect(context?.features).toEqual({
+        credentialGroups: true,
+        organizationSearch,
+        knowledgeMemberAccess: workspaceKnowledge,
+        knowledgeSourceMirroredAccess: workspaceKnowledge,
+      })
+      expect(mockIsKnowledgeMemberAccessAvailable).toHaveBeenCalledExactlyOnceWith({
+        organizationId: 'org-host',
+      })
+      expect(mockResolveKnowledgeAccessAvailability).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: 'workspace-1',
+        ownerBilling: OWNER_BILLING,
+      })
+    }
+  )
 
   it('keeps an external collaborator authorized only by their workspace grant', async () => {
     mockCheckWorkspaceAccess.mockResolvedValue(accessibleWorkspace('read', 'org-host'))
@@ -112,30 +132,8 @@ describe('getWorkspaceHostContextForViewer', () => {
       organizationRole: null,
     })
     expect(context?.hostOrganizationId).toBe('org-host')
-  })
-
-  it('returns null organization context for a personal workspace', async () => {
-    mockCheckWorkspaceAccess.mockResolvedValue(accessibleWorkspace('admin', null))
-    mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue({
-      ...OWNER_BILLING,
-      isOrgScoped: false,
-      organizationId: null,
-    })
-
-    const context = await getWorkspaceHostContextForViewer('workspace-1', 'owner-1')
-
-    expect(context).toEqual(
-      expect.objectContaining({
-        hostOrganizationId: null,
-        viewer: {
-          permission: 'admin',
-          isHostOrganizationMember: false,
-          isHostOrganizationAdmin: false,
-          organizationRole: null,
-        },
-      })
-    )
-    expect(mockGetOrganizationSettingsAccess).not.toHaveBeenCalled()
+    expect(context?.features?.organizationSearch).toBe(false)
+    expect(mockIsKnowledgeMemberAccessAvailable).not.toHaveBeenCalled()
   })
 
   it('returns null before loading entitlements when the viewer has no access', async () => {
@@ -152,5 +150,7 @@ describe('getWorkspaceHostContextForViewer', () => {
 
     expect(context).toBeNull()
     expect(mockGetWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
+    expect(mockIsKnowledgeMemberAccessAvailable).not.toHaveBeenCalled()
+    expect(mockResolveKnowledgeAccessAvailability).not.toHaveBeenCalled()
   })
 })

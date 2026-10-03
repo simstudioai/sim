@@ -3,6 +3,8 @@ import { credential, pendingCredentialDraft, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, lt } from 'drizzle-orm'
+import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
 import {
@@ -27,7 +29,8 @@ export interface CreatedConnectDraft {
  */
 export async function createConnectDraft(params: {
   userId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   providerId: string
   /** Reconnect only: the existing credential the callback should rebind instead of creating a new one. */
   credentialId?: string
@@ -37,6 +40,7 @@ export async function createConnectDraft(params: {
   oauthClientConfig?: QuickBooksOAuthClientConfig
 }): Promise<CreatedConnectDraft> {
   const { userId, workspaceId, providerId, credentialId } = params
+  const scope = resourceScopeFromOwner(params)
 
   if (providerId === 'quickbooks' && !params.oauthClientConfig) {
     throw new Error(
@@ -71,7 +75,7 @@ export async function createConnectDraft(params: {
     const rows = await db
       .select({ displayName: credential.displayName })
       .from(credential)
-      .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
+      .where(and(resourceScopeCondition(credential, scope), eq(credential.type, 'oauth')))
       .limit(MAX_CONNECT_DRAFT_CREDENTIAL_NAMES + 1)
     if (rows.length > MAX_CONNECT_DRAFT_CREDENTIAL_NAMES) {
       throw new Error('Workspace has too many OAuth credentials to generate a default name')
@@ -94,7 +98,7 @@ export async function createConnectDraft(params: {
     .values({
       id,
       userId,
-      workspaceId,
+      ...resourceScopeColumns(scope),
       providerId,
       displayName,
       description: params.description?.trim() || null,
@@ -107,7 +111,9 @@ export async function createConnectDraft(params: {
       target: [
         pendingCredentialDraft.userId,
         pendingCredentialDraft.providerId,
-        pendingCredentialDraft.workspaceId,
+        scope.kind === 'workspace'
+          ? pendingCredentialDraft.workspaceId
+          : pendingCredentialDraft.organizationId,
       ],
       /**
        * A new launch supersedes an abandoned or failed launch for this provider.

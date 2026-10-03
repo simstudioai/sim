@@ -5,6 +5,7 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { trackFreebuffConversion } from '@/lib/analytics/freebuff'
 import { trackGoogleEvent } from '@/lib/analytics/google'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
@@ -109,7 +110,7 @@ function SignupFormContent({
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
   const posthog = usePostHog()
-  const { measurement } = useTrackingConsent()
+  const { measurement, marketing } = useTrackingConsent()
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -348,6 +349,7 @@ function SignupFormContent({
       }
 
       if (measurement) trackGoogleEvent('sign_up', { method: 'email' })
+      if (marketing) trackFreebuffConversion('signup_completed', response.data.user.id)
 
       try {
         await refetchSession()
@@ -372,12 +374,10 @@ function SignupFormContent({
 
       if (destination.kind === 'verify') {
         router.push(VERIFY_FROM_SIGNUP_ROUTE)
-      } else if (destination.kind === 'redirect') {
-        // Full navigation, matching the verify hop: the destination (invite, CLI
-        // handoff) is server-rendered and must see the fresh session cookie.
-        window.location.href = destination.url
       } else {
-        router.push(DEFAULT_POST_AUTH_ROUTE)
+        /** Match login/verification: refresh session-bound shells and their theme default. */
+        window.location.href =
+          destination.kind === 'redirect' ? destination.url : DEFAULT_POST_AUTH_ROUTE
       }
     } catch (error) {
       logger.error('Signup error:', error)
@@ -408,7 +408,9 @@ function SignupFormContent({
     <div className='space-y-6'>
       <AuthHeader title='Create an account' description='Create an account or log in' />
 
-      {hasOnlySSO && <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />}
+      {hasOnlySSO && (
+        <SSOLoginButton callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE} variant='primary' />
+      )}
 
       {emailEnabled && (
         <form onSubmit={onSubmit} className='space-y-6'>
@@ -486,10 +488,13 @@ function SignupFormContent({
           githubAvailable={githubAvailable}
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}
-          callbackURL={redirectUrl || '/workspace'}
+          callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE}
         >
           {ssoEnabled && !hasOnlySSO && (
-            <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
+            <SSOLoginButton
+              callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE}
+              variant='outline'
+            />
           )}
         </SocialLoginButtons>
       )}

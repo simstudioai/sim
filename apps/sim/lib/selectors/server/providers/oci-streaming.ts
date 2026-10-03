@@ -55,11 +55,13 @@ async function prepareStreamingDestination(
   const pools = args.selectorKey === 'oci_streaming.streamPools'
   const scopeId = requireIdentifier(pools ? args.context.compartmentId : args.context.streamPoolId)
   const access = args.credential?.access
+  const workspaceId = args.workspaceId
   if (
+    !workspaceId ||
     !access?.ok ||
     access.credentialType !== 'service_account' ||
     !access.resolvedCredentialId ||
-    access.workspaceId !== args.workspaceId ||
+    access.workspaceId !== workspaceId ||
     args.credential?.providerId !== OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID
   ) {
     throw new SelectorConnectionUnavailableError()
@@ -71,7 +73,7 @@ async function prepareStreamingDestination(
       const client = await awaitOciStreaming(
         createOciClient({
           credentialId,
-          workspaceId: args.workspaceId,
+          workspaceId,
           serviceId: OCI_STREAMING_SERVICE_ID,
           region: args.context.ociRegion,
         }),

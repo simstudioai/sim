@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import type { InputFormatFieldState } from '@/lib/workflows/input-format-schema'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
@@ -30,20 +31,6 @@ export interface WorkflowInputField {
 }
 
 /**
- * Stateful input-format field as stored in sub-block values: the editor's
- * per-row shape, including the editor-only `id` and `collapsed` fields. Stricter
- * than the wire-level {@link InputFormatField} (required `name`/`type`/`value`).
- */
-interface InputFormatFieldState {
-  id: string
-  name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
-  value: string
-  description?: string
-  collapsed: boolean
-}
-
-/**
  * Creates a new empty input-format field with a fresh id.
  *
  * Single source of truth for the default field shape used when seeding
@@ -59,15 +46,9 @@ export function createDefaultInputFormatField(): InputFormatFieldState {
   }
 }
 
-/**
- * Whether an input-format field type denotes a file input. Matches the canonical
- * `file[]` written by the field-type dropdown — the same literal the execution
- * and webhook file paths already key off (`lib/execution/files.ts`,
- * `lib/webhooks/providers/generic.ts`) — so the editor and runtime agree and no
- * existing non-`file[]` field changes behavior.
- */
+/** Whether a field is a canonical file array or its legacy MCP alias. */
 export function isFileFieldType(type: string | null | undefined): boolean {
-  return type === 'file[]'
+  return type === 'file[]' || type === 'files'
 }
 
 /**

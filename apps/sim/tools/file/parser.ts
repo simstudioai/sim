@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type {
@@ -57,7 +57,7 @@ const normalizeFileParseResult = (value: unknown): FileParseResult => {
     return value
   }
 
-  const record = isRecordLike(value) ? value : {}
+  const record = toRecord(value)
   const file = isUserFile(record.file) ? record.file : undefined
   const metadata = isRecordLike(record.metadata) ? record.metadata : undefined
   const fallback: FileParseResult = {
@@ -197,6 +197,7 @@ export const fileParserTool: InternalToolConfig<FileParserInput, FileParserOutpu
   },
 
   operation: {
+    secretProvenance: { response: { incomplete: 'reject' } },
     input: (params: ToolBodyParams) => {
       logger.info('Request parameters received by tool body:', params)
 
@@ -384,6 +385,7 @@ export const fileFetchTool: InternalToolConfig<FileFetchInput, FileParserV3Outpu
     },
   },
   operation: {
+    secretProvenance: fileParserTool.operation.secretProvenance,
     input: ({ fileUrl, ...params }) =>
       fileParserTool.operation.input({
         ...params,

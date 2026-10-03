@@ -8,11 +8,10 @@ import {
   extractInnermostOuterBranchIndex,
   extractOuterBranchIndex,
   findEffectiveContainerId,
-  isSubflowNestedInside,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
-  subflowContainsBlock,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
+import { isSubflowNestedInside, subflowContainsBlock } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
   navigatePath,
@@ -427,7 +426,7 @@ export class ParallelResolver implements Resolver {
           return Object.entries(parsed)
         }
         return []
-      } catch (e) {
+      } catch {
         logger.error('Failed to parse distribution items', { rawItems })
         return []
       }

@@ -10,8 +10,10 @@
  */
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
-import { nativeImage, type WebContents, type WebFrameMain } from 'electron'
+import { getErrorMessage } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
+import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
 const logger = createLogger('BrowserAgentCdp')
 
@@ -25,11 +27,19 @@ export interface PageDialog {
   type: string
   message: string
   handled: boolean
+  accepted: boolean
+}
+
+/** How an agent action asked its JavaScript dialogs to be answered. Electron removes prompt(). */
+export interface DialogResponse {
+  accept: boolean
 }
 
 export interface CdpCallbacks {
-  /** A JS dialog was auto-handled; the driver surfaces it to the model. */
+  /** A JS dialog was handled; the driver surfaces it to the model. */
   onDialog: (dialog: PageDialog) => void
+  /** The running action's requested answer; dialogs are dismissed when it has none. */
+  dialogResponse: () => DialogResponse | null
 }
 
 /** Per-tab callbacks, so a background tab's events reach ITS driver, not the
@@ -182,34 +192,29 @@ function handleDebuggerEvent(
   if (method === 'Page.javascriptDialogOpening') {
     const type = String(params.type ?? 'dialog')
     const message = String(params.message ?? '').slice(0, 500)
-    // beforeunload is accepted (navigation proceeds); everything else is
-    // dismissed — the model reacts to the recorded message instead of a
-    // dialog that would block the page.
+    // Dialogs never stay open: beforeunload is accepted (navigation proceeds),
+    // and alert/confirm follow the running action's requested answer, defaulting
+    // to dismissal so an unexpected dialog can never block the page.
+    const accept = type === 'beforeunload' || callbacks?.dialogResponse()?.accept === true
+    const answer = { accept }
     void (async () => {
       let handled = false
       try {
-        await send(
-          contents,
-          'Page.handleJavaScriptDialog',
-          { accept: type === 'beforeunload' },
-          parentSessionId
-        )
+        await send(contents, 'Page.handleJavaScriptDialog', answer, parentSessionId)
         handled = true
       } catch {
         // Some Chromium builds surface an OOPIF's tab-modal dialog on its
-        // flattened session but accept the dismissal only on the root target.
+        // flattened session but accept the answer only on the root target.
         if (parentSessionId) {
           try {
-            await send(contents, 'Page.handleJavaScriptDialog', {
-              accept: type === 'beforeunload',
-            })
+            await send(contents, 'Page.handleJavaScriptDialog', answer)
             handled = true
           } catch {}
         }
       }
-      if (handled) logger.info('Auto-handled page dialog', { type })
-      else logger.warn('Could not auto-handle page dialog', { type })
-      callbacks?.onDialog({ type, message, handled })
+      if (handled) logger.info('Handled page dialog', { type, accept })
+      else logger.warn('Could not handle page dialog', { type })
+      callbacks?.onDialog({ type, message, handled, accepted: handled && accept })
     })()
     return
   }
@@ -255,7 +260,11 @@ export function sameWebFrame(left: WebFrameMain, right: WebFrameMain): boolean {
   return false
 }
 
-function locateProtocolFrame(root: ProtocolFrameTree, target: WebFrameMain): ProtocolFrame | null {
+function locateProtocolFrame(
+  root: ProtocolFrameTree,
+  target: WebFrameMain,
+  ordered = true
+): ProtocolFrame | null {
   const path: WebFrameMain[] = []
   for (let current: WebFrameMain | null = target; current?.parent; current = current.parent) {
     path.push(current)
@@ -269,11 +278,13 @@ function locateProtocolFrame(root: ProtocolFrameTree, target: WebFrameMain): Pro
   while (electronParent.parent) electronParent = electronParent.parent
   for (const frame of path) {
     const children = tree.childFrames ?? []
+    /** A partial tree cannot distinguish an omitted sibling with the same URL. */
+    if (children.length !== electronParent.frames.length) return null
     const siblingIndex = electronParent.frames.findIndex((candidate) =>
       sameWebFrame(candidate, frame)
     )
     const indexed = siblingIndex >= 0 ? children[siblingIndex] : undefined
-    if (indexed && frameMatches(indexed.frame, frame)) {
+    if (ordered && indexed && frameMatches(indexed.frame, frame)) {
       tree = indexed
     } else {
       const matches = children.filter((candidate) => frameMatches(candidate.frame, frame))
@@ -285,20 +296,47 @@ function locateProtocolFrame(root: ProtocolFrameTree, target: WebFrameMain): Pro
   return tree.frame
 }
 
-/**
- * Executes code in a persistent isolated world belonging to one child frame.
- * WebFrameMain.executeJavaScript runs in the untrusted page's main world,
- * where the page can replace the ref registry and built-ins between tools.
- */
-export async function evaluateInIsolatedFrame(
+async function isolatedFrameContext(
   contents: WebContents,
-  frame: WebFrameMain,
-  expression: string,
-  userGesture = false
-): Promise<unknown> {
+  frame: WebFrameMain
+): Promise<{ contextId: number; sessionId?: string }> {
   const { frameTree } = await send<{ frameTree?: ProtocolFrameTree }>(contents, 'Page.getFrameTree')
   if (!frameTree) throw new Error('Chromium did not return a frame tree')
-  const protocolFrame = locateProtocolFrame(frameTree, frame)
+  let protocolFrame = locateProtocolFrame(frameTree, frame)
+  if (!protocolFrame) {
+    /** Chromium omits out-of-process frames from the root target's tree. */
+    const childSessions = [...(childSessionsByContents.get(contents)?.values() ?? [])]
+    const results = await Promise.allSettled(
+      childSessions.map(async (sessionId) => {
+        const result = await send<{ frameTree?: ProtocolFrameTree }>(
+          contents,
+          'Page.getFrameTree',
+          undefined,
+          sessionId
+        )
+        return result.frameTree
+      })
+    )
+    const trees = results.flatMap((result) =>
+      result.status === 'fulfilled' && result.value ? [result.value] : []
+    )
+    const nodes = new Map<string, ProtocolFrameTree>()
+    const visit = (tree: ProtocolFrameTree) => {
+      nodes.set(tree.frame.id, tree)
+      tree.childFrames?.forEach(visit)
+    }
+    visit(frameTree)
+    for (const tree of trees) if (tree) visit(tree)
+    for (const tree of trees) {
+      const parent = tree?.frame.parentId ? nodes.get(tree.frame.parentId) : undefined
+      if (!tree || !parent) continue
+      parent.childFrames ??= []
+      if (!parent.childFrames.some((child) => child.frame.id === tree.frame.id))
+        parent.childFrames.push(tree)
+    }
+    /** Target attachment order is not DOM order; ambiguous siblings must not be guessed. */
+    protocolFrame = locateProtocolFrame(frameTree, frame, false)
+  }
   if (!protocolFrame) throw new Error('Could not map the Electron frame to Chromium')
 
   const childSession = childSessionsByContents.get(contents)?.get(protocolFrame.id)
@@ -331,7 +369,21 @@ export async function evaluateInIsolatedFrame(
   if (contextId === undefined) {
     throw lastError instanceof Error ? lastError : new Error('Could not create an isolated world')
   }
+  return { contextId, sessionId: selectedSession }
+}
 
+/**
+ * Executes code in a persistent isolated world belonging to one frame.
+ * WebFrameMain.executeJavaScript runs in the untrusted page's main world,
+ * where the page can replace the ref registry and built-ins between tools.
+ */
+export async function evaluateInIsolatedFrame(
+  contents: WebContents,
+  frame: WebFrameMain,
+  expression: string,
+  userGesture = false
+): Promise<unknown> {
+  const { contextId, sessionId } = await isolatedFrameContext(contents, frame)
   const evaluation = await send<{
     result?: { type?: string; value?: unknown; unserializableValue?: string }
     exceptionDetails?: { text?: string; exception?: { description?: string } }
@@ -345,7 +397,7 @@ export async function evaluateInIsolatedFrame(
       awaitPromise: true,
       userGesture,
     },
-    selectedSession
+    sessionId
   )
   if (evaluation.exceptionDetails) {
     throw new Error(
@@ -370,14 +422,13 @@ export async function evaluateInIsolatedFrame(
  */
 const MAX_SCREENSHOT_EDGE = 1024
 const SCREENSHOT_QUALITY = 70
-/**
- * Quality of the intermediate capture, before the in-process downscale
- * re-encodes at {@link SCREENSHOT_QUALITY}. Higher than the final quality so
- * the two lossy passes together land near where one pass did — the model reads
- * text out of these frames, and compression artifacts on glyphs cost more than
- * the transient bytes do.
- */
-const SCREENSHOT_CAPTURE_QUALITY = 90
+const UNSCALED_SCREENSHOT_QUALITY = 90
+const SCREENSHOT_CAPTURE_TIMEOUT_MS = 5_000
+/** Native surface copies cannot be cancelled; never accumulate them on a stalled tab. */
+const pendingScreenshotCaptures = new WeakSet<WebContents>()
+const activeScreenshotCaptures = new WeakSet<WebContents>()
+
+class ScreenshotCaptureTimeoutError extends Error {}
 
 interface CdpViewport {
   clientWidth: number
@@ -401,7 +452,8 @@ export interface ScreenshotCapture {
   dataUrl: string
   scale: number
   viewport: ScreenshotSize | null
-  imageSize: ScreenshotSize | null
+  imageSize: ScreenshotSize
+  clip?: ScreenshotClip
 }
 
 export interface ScreenshotClip {
@@ -456,8 +508,105 @@ function sameScreenshotViewport(
   )
 }
 
+async function captureNativeViewportImage(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  pendingScreenshotCaptures.add(contents)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort = () => {}
+  let onDestroyed = () => {}
+  try {
+    const interrupted = new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(new Error('Screenshot capture was cancelled'))
+      onDestroyed = () => reject(new Error('The screenshot tab was closed'))
+      signal?.addEventListener('abort', onAbort, { once: true })
+      contents.once('destroyed', onDestroyed)
+      timer = setTimeout(
+        () =>
+          reject(
+            new ScreenshotCaptureTimeoutError('Screenshot pixel capture timed out after 5 seconds')
+          ),
+        SCREENSHOT_CAPTURE_TIMEOUT_MS
+      )
+    })
+    const capture = (async () => {
+      try {
+        return await contents.capturePage(undefined, { stayHidden: true })
+      } finally {
+        pendingScreenshotCaptures.delete(contents)
+      }
+    })()
+    return await Promise.race([capture, interrupted])
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+    contents.removeListener('destroyed', onDestroyed)
+  }
+}
+
+/** Observes one complete frame; unlike a native surface copy, this wait can be cancelled. */
+async function captureViewportFrame(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort = () => {}
+  let onDestroyed = () => {}
+  let subscribed = false
+  try {
+    return await new Promise<NativeImage>((resolve, reject) => {
+      onAbort = () => reject(new Error('Screenshot capture was cancelled'))
+      onDestroyed = () => reject(new Error('The screenshot tab was closed'))
+      signal?.addEventListener('abort', onAbort, { once: true })
+      contents.once('destroyed', onDestroyed)
+      timer = setTimeout(
+        () => reject(new Error('Screenshot frame capture timed out after 5 seconds')),
+        SCREENSHOT_CAPTURE_TIMEOUT_MS
+      )
+      subscribed = true
+      contents.beginFrameSubscription(false, (image) => resolve(image))
+      contents.invalidate()
+    })
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+    contents.removeListener('destroyed', onDestroyed)
+    if (subscribed && !contents.isDestroyed()) contents.endFrameSubscription()
+  }
+}
+
+/** Captures pixels without reloading the page, changing geometry, or exposing a hidden window. */
+async function captureViewportImage(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  if (activeScreenshotCaptures.has(contents)) {
+    throw new Error('A screenshot capture is already in progress on this tab')
+  }
+  activeScreenshotCaptures.add(contents)
+  try {
+    if (!pendingScreenshotCaptures.has(contents)) {
+      try {
+        return await captureNativeViewportImage(contents, signal)
+      } catch (error) {
+        if (!(error instanceof ScreenshotCaptureTimeoutError)) throw error
+      }
+    }
+    return await captureViewportFrame(contents, signal)
+  } finally {
+    activeScreenshotCaptures.delete(contents)
+  }
+}
+
 /**
- * Screenshot via CDP (works while the view is hidden), bounded in resolution.
+ * Native viewport capture, bounded in time and resolution.
  *
  * The capture is deliberately UNCLIPPED. Chromium implements `clip` by applying
  * device-emulation parameters (viewport offset and scale) to the widget and
@@ -468,12 +617,14 @@ function sameScreenshotViewport(
  * snapshot capture refuses to scale a visible surface for the same reason.
  *
  * Bounding resolution therefore happens here instead, on the returned image.
- * Optional element crops also happen in memory. Convert output coordinates
- * with cssX = (clip?.x ?? 0) + imageX / scale, and the equivalent Y formula.
+ * Optional element crops also happen in memory. The returned clip records the
+ * rounded/clamped CSS bounds. Map each image axis using those bounds and the
+ * returned imageSize, since resizing can round the two dimensions differently.
  */
 export async function captureScreenshot(
   contents: WebContents,
-  clip?: ScreenshotClip
+  clip?: ScreenshotClip,
+  signal?: AbortSignal
 ): Promise<ScreenshotCapture> {
   const metrics = await send<{
     cssLayoutViewport?: CdpViewport
@@ -492,10 +643,7 @@ export async function captureScreenshot(
   const scale =
     width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
 
-  const result = await send<{ data: string }>(contents, 'Page.captureScreenshot', {
-    format: 'jpeg',
-    quality: SCREENSHOT_CAPTURE_QUALITY,
-  })
+  const image = await captureViewportImage(contents, signal)
   const metricsAfterCapture = await send<{
     cssLayoutViewport?: CdpViewport
     layoutViewport?: CdpViewport
@@ -503,15 +651,12 @@ export async function captureScreenshot(
   if (!sameScreenshotViewport(captureViewport, screenshotViewportMetrics(metricsAfterCapture))) {
     throw new Error('The page viewport changed or could not be verified during screenshot capture')
   }
-  const captured = `data:image/jpeg;base64,${result.data}`
 
   const targetWidth = Math.round(width * scale)
   const targetHeight = Math.round(height * scale)
-  const image = nativeImage.createFromBuffer(Buffer.from(result.data, 'base64'))
   const size = image.isEmpty() ? { width: 0, height: 0 } : image.getSize()
   if (size.width === 0 || size.height === 0) {
-    if (clip) throw new Error('The screenshot could not be decoded for element cropping')
-    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: null }
+    throw new Error('Screenshot pixel capture returned an empty image')
   }
   if (clip && cssViewport) {
     const xScale = size.width / cssViewport.width
@@ -533,6 +678,12 @@ export async function captureScreenshot(
     if (croppedSize.width === 0 || croppedSize.height === 0) {
       throw new Error('The requested screenshot element produced an empty crop')
     }
+    const capturedClip = {
+      x: cropX / xScale,
+      y: cropY / yScale,
+      width: croppedSize.width / xScale,
+      height: croppedSize.height / yScale,
+    }
     const cropScale = Math.min(
       1,
       MAX_SCREENSHOT_EDGE / Math.max(croppedSize.width, croppedSize.height)
@@ -548,13 +699,19 @@ export async function captureScreenshot(
     const outputSize = output.getSize()
     return {
       dataUrl: `data:image/jpeg;base64,${output.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
-      scale: outputSize.width / clip.width,
+      scale: outputSize.width / capturedClip.width,
       viewport: cssViewport,
       imageSize: outputSize,
+      clip: capturedClip,
     }
   }
   if (size.width === targetWidth && size.height === targetHeight) {
-    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }
+    return {
+      dataUrl: `data:image/jpeg;base64,${image.toJPEG(UNSCALED_SCREENSHOT_QUALITY).toString('base64')}`,
+      scale,
+      viewport: cssViewport,
+      imageSize: size,
+    }
   }
 
   const resized = image.resize({ width: targetWidth, height: targetHeight, quality: 'good' })
@@ -563,6 +720,200 @@ export async function captureScreenshot(
     scale,
     viewport: cssViewport,
     imageSize: { width: targetWidth, height: targetHeight },
+  }
+}
+
+/** Opaque isolated-world wrapper retaining one input and its original owner document. */
+export interface FileInputHandle {
+  readonly objectId: string
+  readonly sessionId?: string
+  readonly multiple: boolean
+  readonly accept?: string
+}
+
+interface RemoteObject {
+  objectId?: string
+  value?: unknown
+}
+
+interface RemoteEvaluation {
+  result?: RemoteObject
+  exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
+}
+
+interface CapturedFileInput {
+  input: HTMLInputElement
+  document: Document
+}
+
+/** Runs in the wrapper's isolated world; owner documents may belong to same-origin child frames. */
+function inspectFileInput(
+  this: CapturedFileInput,
+  mode: 'metadata' | 'input' | 'files',
+  fileCount: number
+): unknown {
+  const { input, document: capturedDocument } = this
+  if (mode === 'files') {
+    return {
+      files: Array.from(input.files ?? [], (file) => ({ name: file.name, size: file.size })),
+    }
+  }
+  if (!input || String(input.tagName).toUpperCase() !== 'INPUT' || input.type !== 'file') {
+    throw new Error('The upload target is no longer a file input')
+  }
+  if (
+    !input.isConnected ||
+    input.ownerDocument !== capturedDocument ||
+    !capturedDocument.defaultView ||
+    capturedDocument.defaultView.document !== capturedDocument
+  ) {
+    throw new Error('The upload input or its document changed. Inspect the page before uploading.')
+  }
+  if (input.matches(':disabled')) throw new Error('The upload input is disabled')
+  if (fileCount > 1 && !input.multiple) {
+    throw new Error('The upload input no longer accepts multiple files')
+  }
+  return mode === 'input' ? input : { multiple: input.multiple, accept: input.accept || undefined }
+}
+
+async function releaseRemoteObject(
+  contents: WebContents,
+  objectId: string | undefined,
+  sessionId?: string
+): Promise<void> {
+  if (objectId) {
+    await send(contents, 'Runtime.releaseObject', { objectId }, sessionId).catch(() => {})
+  }
+}
+
+async function checkedRemoteResult(
+  contents: WebContents,
+  evaluation: RemoteEvaluation,
+  sessionId?: string
+): Promise<RemoteObject> {
+  if (evaluation.exceptionDetails) {
+    const ids = new Set([
+      evaluation.result?.objectId,
+      evaluation.exceptionDetails.exception?.objectId,
+    ])
+    await Promise.all([...ids].map((id) => releaseRemoteObject(contents, id, sessionId)))
+    throw new Error(
+      evaluation.exceptionDetails.exception?.description ||
+        evaluation.exceptionDetails.text ||
+        'File input evaluation failed'
+    )
+  }
+  if (!evaluation.result) throw new Error('Chromium returned no file input evaluation result')
+  return evaluation.result
+}
+
+async function callFileInput(
+  contents: WebContents,
+  handle: Pick<FileInputHandle, 'objectId' | 'sessionId'>,
+  mode: 'metadata' | 'input' | 'files',
+  fileCount = 0
+): Promise<RemoteObject> {
+  const evaluation = await send<RemoteEvaluation>(
+    contents,
+    'Runtime.callFunctionOn',
+    {
+      objectId: handle.objectId,
+      functionDeclaration: inspectFileInput.toString(),
+      arguments: [{ value: mode }, { value: fileCount }],
+      returnByValue: mode !== 'input',
+    },
+    handle.sessionId
+  )
+  return checkedRemoteResult(contents, evaluation, handle.sessionId)
+}
+
+/** Captures a trusted isolated-world expression's input/document wrapper without exposing a DOM marker. */
+export async function resolveFileInput(
+  contents: WebContents,
+  frame: WebFrameMain,
+  expression: string
+): Promise<FileInputHandle> {
+  const { contextId, sessionId } = await isolatedFrameContext(contents, frame)
+  const evaluation = await send<RemoteEvaluation>(
+    contents,
+    'Runtime.evaluate',
+    { expression, contextId, returnByValue: false, awaitPromise: true, userGesture: false },
+    sessionId
+  )
+  const remote = await checkedRemoteResult(contents, evaluation, sessionId)
+  if (!remote.objectId) throw new Error('Chromium did not retain the upload input')
+  const handle = { objectId: remote.objectId, sessionId }
+  try {
+    const { value } = await callFileInput(contents, handle, 'metadata')
+    if (
+      !isRecordLike(value) ||
+      typeof value.multiple !== 'boolean' ||
+      (value.accept !== undefined && typeof value.accept !== 'string')
+    ) {
+      throw new Error('Chromium did not return valid upload input metadata')
+    }
+    return { ...handle, multiple: value.multiple, accept: value.accept }
+  } catch (error) {
+    await releaseRemoteObject(contents, handle.objectId, sessionId)
+    throw error
+  }
+}
+
+/** Releases the captured input/document wrapper after upload preparation or dispatch finishes. */
+export async function releaseFileInput(
+  contents: WebContents,
+  handle: FileInputHandle
+): Promise<void> {
+  await releaseRemoteObject(contents, handle.objectId, handle.sessionId)
+}
+
+/**
+ * Reports assignment dispatch and acknowledgement separately before reading the captured input.
+ * Stopping a wait cannot revoke a CDP command, so its outcome becomes uncertain before the send.
+ */
+export async function setFileInputFiles(
+  contents: WebContents,
+  handle: FileInputHandle,
+  files: readonly string[],
+  signal?: AbortSignal,
+  onDispatch?: (status: 'pending' | 'acknowledged') => void
+): Promise<{ files: Array<{ name: string; size: number }> } | { readbackError: string }> {
+  signal?.throwIfAborted()
+  const input = await callFileInput(contents, handle, 'input', files.length)
+  if (!input.objectId) throw new Error('Chromium did not retain the upload input node')
+  try {
+    signal?.throwIfAborted()
+    onDispatch?.('pending')
+    await send(
+      contents,
+      'DOM.setFileInputFiles',
+      { files, objectId: input.objectId },
+      handle.sessionId
+    )
+    onDispatch?.('acknowledged')
+    try {
+      const { value } = await callFileInput(contents, handle, 'files')
+      if (!isRecordLike(value) || !Array.isArray(value.files)) {
+        throw new Error('Chromium did not confirm the uploaded files')
+      }
+      const uploaded = value.files.map((file: unknown) => {
+        if (
+          !isRecordLike(file) ||
+          typeof file.name !== 'string' ||
+          typeof file.size !== 'number' ||
+          !Number.isFinite(file.size) ||
+          file.size < 0
+        ) {
+          throw new Error('Chromium did not confirm the uploaded files')
+        }
+        return { name: file.name, size: file.size }
+      })
+      return { files: uploaded }
+    } catch (error) {
+      return { readbackError: getErrorMessage(error) }
+    }
+  } finally {
+    await releaseRemoteObject(contents, input.objectId, handle.sessionId)
   }
 }
 
@@ -597,14 +948,145 @@ export async function moveMouse(contents: WebContents, x: number, y: number): Pr
   })
 }
 
+/** A point in CSS viewport pixels. */
+export interface ViewportPoint {
+  x: number
+  y: number
+}
+
+/** The points a pointer passes through on its way, and how long the whole movement takes. */
+export interface PointerPath {
+  via: ViewportPoint[]
+  /** Total movement time; null keeps the default brisk pace. */
+  durationMs: number | null
+}
+
+export const DIRECT_PATH: PointerPath = { via: [], durationMs: null }
+
+const DEFAULT_PATH_STEPS = 12
+const DEFAULT_PATH_STEP_MS = 20
+/** One display frame, so a timed movement looks continuous to animation-driven pages. */
+const TIMED_PATH_STEP_MS = 16
+
+/**
+ * The moves from `from` through `path.via` to `to`, and the pause after each. A direct path
+ * keeps the default 12 moves 20 ms apart. A path with via points or a duration moves one frame
+ * at a time, shares the steps across segments by length, and lands exactly on every via point.
+ */
+export function pointerPathSteps(
+  from: ViewportPoint,
+  path: PointerPath,
+  to: ViewportPoint
+): { points: ViewportPoint[]; stepDelayMs: number } {
+  const lerp = (a: ViewportPoint, b: ViewportPoint, t: number): ViewportPoint => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+  })
+  if (path.via.length === 0 && path.durationMs === null) {
+    const points: ViewportPoint[] = []
+    for (let step = 1; step <= DEFAULT_PATH_STEPS; step++) {
+      points.push(lerp(from, to, step / DEFAULT_PATH_STEPS))
+    }
+    return { points, stepDelayMs: DEFAULT_PATH_STEP_MS }
+  }
+  const vertices = [from, ...path.via, to]
+  const durationMs = path.durationMs ?? DEFAULT_PATH_STEPS * DEFAULT_PATH_STEP_MS
+  const lengths = vertices
+    .slice(1)
+    .map((vertex, index) => Math.hypot(vertex.x - vertices[index].x, vertex.y - vertices[index].y))
+  const totalLength = lengths.reduce((sum, length) => sum + length, 0)
+  const totalSteps = Math.max(lengths.length, Math.round(durationMs / TIMED_PATH_STEP_MS))
+  const points: ViewportPoint[] = []
+  lengths.forEach((length, index) => {
+    const share = totalLength > 0 ? length / totalLength : 1 / lengths.length
+    const segmentSteps = Math.max(1, Math.round(totalSteps * share))
+    for (let step = 1; step <= segmentSteps; step++) {
+      points.push(lerp(vertices[index], vertices[index + 1], step / segmentSteps))
+    }
+  })
+  return { points, stepDelayMs: durationMs / points.length }
+}
+
+/**
+ * Moves the pointer with no button pressed through `path.via` to `to`, starting from the first
+ * via point (or `to` itself for a direct move), for hover effects that follow the cursor.
+ */
+export async function movePointer(
+  contents: WebContents,
+  path: PointerPath,
+  to: ViewportPoint,
+  signal?: AbortSignal
+): Promise<void> {
+  const [start, ...rest] = [...path.via, to]
+  signal?.throwIfAborted()
+  await moveMouse(contents, start.x, start.y)
+  if (rest.length === 0) return
+  const { points, stepDelayMs } = pointerPathSteps(
+    start,
+    { via: rest.slice(0, -1), durationMs: path.durationMs },
+    to
+  )
+  for (const point of points) {
+    await interruptibleSleep(stepDelayMs, signal)
+    signal?.throwIfAborted()
+    await moveMouse(contents, point.x, point.y)
+  }
+}
+
+/** One trusted click gesture: which button, how many presses, and held modifiers. */
+export interface PointerClick {
+  button: 'left' | 'right' | 'middle'
+  clickCount: 1 | 2 | 3
+  /** CDP modifier bitmask (Alt=1, Ctrl=2, Meta=4, Shift=8). */
+  modifiers: number
+  /** How long the button stays down before release; press-and-hold controls need it. */
+  holdMs: number
+}
+
+export const PRIMARY_CLICK: PointerClick = {
+  button: 'left',
+  clickCount: 1,
+  modifiers: 0,
+  holdMs: 0,
+}
+
+const BUTTON_MASKS: Record<PointerClick['button'], number> = { left: 1, right: 2, middle: 4 }
+const agentContextClicks = new WeakMap<WebContents, number>()
+const AGENT_CONTEXT_CLICK_WINDOW_MS = 1000
+
+/** Consumes the single context menu echo expected from an agent right-click. */
+export function consumeAgentContextMenu(contents: WebContents): boolean {
+  const at = agentContextClicks.get(contents)
+  agentContextClicks.delete(contents)
+  if (at === undefined) return false
+  const elapsed = Date.now() - at
+  return elapsed >= 0 && elapsed < AGENT_CONTEXT_CLICK_WINDOW_MS
+}
+
+/** A real user gesture supersedes an agent click whose page prevented its native menu. */
+export function clearAgentContextMenu(contents: WebContents): void {
+  agentContextClicks.delete(contents)
+}
+
+/**
+ * Clicks at viewport coordinates. An already-aborted `signal` rejects before any input is sent.
+ * During a press-and-hold it ends the hold early: the click rejects with the abort reason and the
+ * button is released at once, so a cancelled or timed-out click cannot stay held into the next
+ * action. That release can still activate the control under the pointer.
+ */
 export async function clickAt(
   contents: WebContents,
   x: number,
   y: number,
   moveBeforePress = true,
-  clickCount = 1
+  click: PointerClick = PRIMARY_CLICK,
+  signal?: AbortSignal
 ): Promise<void> {
+  signal?.throwIfAborted()
   if (moveBeforePress) await moveMouse(contents, x, y)
+  signal?.throwIfAborted()
+  const { button, clickCount, modifiers, holdMs } = click
+  const buttons = BUTTON_MASKS[button]
   let pressed = false
   try {
     // Set before awaiting: CDP can deliver the press and then lose/reject the
@@ -614,20 +1096,32 @@ export async function clickAt(
     // A multi-click is a sequence of press/release pairs with an increasing
     // clickCount — Blink synthesizes dblclick from the pair whose count is 2.
     for (let count = 1; count <= clickCount; count++) {
+      if (button === 'right') agentContextClicks.set(contents, Date.now())
       await sendInput(contents, 'Input.dispatchMouseEvent', {
         type: 'mousePressed',
         x,
         y,
-        button: 'left',
-        buttons: 1,
+        button,
+        buttons,
+        modifiers,
         clickCount: count,
       })
+      if (holdMs > 0) {
+        await interruptibleSleep(holdMs, signal)
+        // Windows opens the context menu on release, after the hold; renew a marker a
+        // press-time menu has not already consumed.
+        if (button === 'right' && agentContextClicks.has(contents)) {
+          agentContextClicks.set(contents, Date.now())
+        }
+        signal?.throwIfAborted()
+      }
       await sendInput(contents, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x,
         y,
-        button: 'left',
+        button,
         buttons: 0,
+        modifiers,
         clickCount: count,
       })
     }
@@ -641,8 +1135,9 @@ export async function clickAt(
         type: 'mouseReleased',
         x,
         y,
-        button: 'left',
+        button,
         buttons: 0,
+        modifiers,
         clickCount: 1,
       }).catch(() => {})
     }
@@ -665,11 +1160,13 @@ export async function clickAt(
  */
 export async function dragPointer(
   contents: WebContents,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  steps = 12,
-  stepDelayMs = 20
+  from: ViewportPoint,
+  to: ViewportPoint,
+  path: PointerPath = DIRECT_PATH,
+  signal?: AbortSignal
 ): Promise<{ nativeDragIntercepted: boolean }> {
+  signal?.throwIfAborted()
+  const { points, stepDelayMs } = pointerPathSteps(from, path, to)
   const interception: DragInterception = { intercepted: false, data: null }
   dragInterceptionsByContents.set(contents, interception)
   let interceptEnabled = false
@@ -714,17 +1211,19 @@ export async function dragPointer(
     })
     // Small first nudge so libraries with a start threshold (commonly 3-8px)
     // register the drag before the pointer sweeps across the page.
-    await dragMove(from.x + Math.sign(to.x - from.x || 1) * 4, from.y + 2)
-    await sleep(stepDelayMs)
-    const stepCount = Math.max(2, steps)
-    for (let step = 1; step <= stepCount; step++) {
-      const progress = step / stepCount
-      await dragMove(from.x + (to.x - from.x) * progress, from.y + (to.y - from.y) * progress)
-      await sleep(stepDelayMs)
+    const heading = points[0] ?? to
+    await dragMove(from.x + Math.sign(heading.x - from.x || 1) * 4, from.y + 2)
+    await interruptibleSleep(stepDelayMs, signal)
+    for (const point of points) {
+      signal?.throwIfAborted()
+      await dragMove(point.x, point.y)
+      await interruptibleSleep(stepDelayMs, signal)
     }
+    signal?.throwIfAborted()
     // Hold over the target so drop zones running enter/over animations settle
     // before the release lands.
-    await sleep(120)
+    await interruptibleSleep(120, signal)
+    signal?.throwIfAborted()
     if (interception.intercepted && interception.data) {
       await sendInput(contents, 'Input.dispatchDragEvent', {
         type: 'drop',

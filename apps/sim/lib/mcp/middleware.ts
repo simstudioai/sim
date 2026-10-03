@@ -8,6 +8,7 @@ import {
   checkSessionOrInternalAuth,
   type AuthResult as HybridAuthResult,
 } from '@/lib/auth/hybrid'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   assertContentLengthWithinLimit,
@@ -328,7 +329,10 @@ export function withMcpAuth<TParams = Record<string, string>>(
       }
 
       try {
-        return await handler(request, (authResult as AuthResult).context, routeContext)
+        const context = (authResult as AuthResult).context
+        return await withResourceOutboundScope({ workspaceId: context.workspaceId }, () =>
+          handler(request, context, routeContext)
+        )
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
         if (bodyErrorResponse) return bodyErrorResponse

@@ -3,11 +3,10 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DocuSignResponse } from '@/tools/docusign/types'
 
 const DOCUMENT_FIELD = ['uploadDocument', 'documentRef'] as const
 
-export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
+export const DocuSignBlock: BlockConfig = {
   type: 'docusign',
   name: 'DocuSign',
   description: 'Send documents for e-signature via DocuSign',

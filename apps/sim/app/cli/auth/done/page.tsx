@@ -1,21 +1,28 @@
 import type { Metadata } from 'next'
+import type { SearchParams } from 'nuqs/server'
 import { AuthShell } from '@/app/(auth)/components'
 import { CliAuthDoneView } from '@/app/cli/auth/done/cli-auth-done-view'
+import { cliAuthDoneSearchParamsCache } from '@/app/cli/auth/done/search-params'
 
 export const metadata: Metadata = {
-  title: 'Terminal connected',
+  title: 'Terminal sign-in',
   robots: { index: false, follow: false },
 }
 
 /**
- * The CLI's loopback listener redirects here, so the flow ends on Sim's own
- * chrome instead of a page served by the wizard. Public and sessionless on
- * purpose — it renders a static confirmation and never touches the API.
+ * Sessionless completion for OAuth and pairing flows. The status is informational
+ * and never exchanges credentials or changes authorization.
  */
-export default function CliAuthDonePage() {
+export default async function CliAuthDonePage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
+  const { status } = await cliAuthDoneSearchParamsCache.parse(searchParams)
+
   return (
     <AuthShell>
-      <CliAuthDoneView />
+      <CliAuthDoneView status={status} />
     </AuthShell>
   )
 }

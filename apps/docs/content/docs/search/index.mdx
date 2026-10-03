@@ -1,0 +1,85 @@
+---
+title: Search
+description: Search connected sources live with each person's current access
+---
+
+Search queries your connected providers when you ask a question. It does not copy their documents into a Sim vector index or wait for a background sync.
+
+An organization admin adds sources under **Settings → Sources**. Teammates connect their provider accounts under **Integrations** in the main sidebar. Credential Groups remain a separate feature for sharing account connections with workflows.
+
+## Add your first source
+
+1. Open **Settings → Sources → Add source** and choose a provider or Generic Secrets.
+2. For a searchable provider, choose **Member accounts** or, when supported, **Service account**. GitHub calls the second mode **GitHub App**. Slack and Jira use member accounts; GitLab uses a service account. [Generic Secrets](/search/generic-secrets) instead offers **Organization** and **Member**.
+3. For provider member mode, save the source. For service mode, add or select a connection and configure its resources. GitHub uses **Add repository** for each repository; GitLab uses **Add project** for each project.
+4. For provider sources, open **Integrations** and connect your personal account, including when you are the admin. GitLab is the exception: its configured project permissions identify readers without a personal connection. Generic Secrets uses its built-in editor and needs no provider authorization.
+5. For a provider source, open **Search** or ask the assistant on **Home** about a document you can access. For Generic Secrets, use [Build or Plan](/search/generic-secrets).
+
+Adding a member-account provider source makes that integration available for members to connect. A provider that needs deployment or app configuration must have that configuration completed before account authorization can succeed.
+
+## Choose the right connection method
+
+| Mode | Admin configuration | How a search is restricted |
+| --- | --- | --- |
+| **Member accounts** | Add the integration. There are no organization resource filters in this mode. | The provider searches what the connected member's account can access. |
+| **Service account** | Select a service connection and its resources, such as folders, labels, spaces, or documents. | The member's provider results must also be readable by the service connection and match its current resource settings. |
+| **GitHub App** | Connect an installation and add repositories individually. | Each repository must be allowed by both the App installation and the member's connected GitHub account. |
+| **GitLab service account** | Add a self-managed project with an administrator token, or a non-admin token and CSV permissions. | The configured token retrieves content; Sim separately verifies the reader against current GitLab permissions or the uploaded grants. |
+
+A service account limits the searchable resources; it does not grant members access they lack. For example, a Gmail source limited to **INBOX** returns only matching messages from the connected member's own mailbox. A personal message outside that source's settings remains excluded. See the [Gmail example](/search/gmail#how-inbox-filtering-works).
+
+In Sources, open an integration to manage its connection and resource settings. Removing a source stops it from authorizing subsequent Search requests. Account connections and source configuration are distinct: connecting an account does not create additional resource selections or start indexing.
+
+## Connector guides
+
+These providers support live Search. Google Docs, Sheets, and Slides are accessed through Drive. Other [knowledge-base connectors](/knowledgebase/connectors) do not automatically become Search integrations.
+
+| Source | Search path | Modes |
+| --- | --- | --- |
+| [Coda](/search/coda) | Personal Coda MCP; legacy REST connections search document titles | Member or service |
+| [Confluence](/search/confluence) | Confluence Cloud CQL and content APIs | Member or service |
+| [Fireflies](/search/fireflies) | Meeting titles and spoken transcripts | Member only |
+| [GitHub](/search/github) | Repositories, code, issues and pull request discussions | Member or GitHub App |
+| [GitLab](/search/gitlab) | Configured self-managed project's search and read APIs | Service only; admin or CSV permissions |
+| [Gmail](/search/gmail) | Message search and conversation reads | Member or service |
+| [Google Calendar](/search/google-calendar) | Calendar lists and event APIs | Member or service |
+| [Google Drive](/search/google-drive) | File search, supported document reads and comments | Member or service |
+| [Google Meet](/search/google-meet) | Recent conference transcripts and generated-note links | Member only |
+| [Granola](/search/granola) | Semantic meeting search with source notes and transcript reads | Member only |
+| [HubSpot](/search/hubspot) | Contacts, companies, deals and tickets | Member only |
+| [Jira](/search/jira) | Jira Cloud JQL and issue APIs | Member only |
+| [Linear](/search/linear) | Issues and their comment discussions | Member only |
+| [Lucid](/search/lucid) | Lucidchart diagrams and Lucidspark boards | Member only |
+| [Notion](/search/notion) | Page and database content through Notion MCP | Member only |
+| [Slack](/search/slack) | Slack real-time search with the member's user token | Member only |
+| [Zoom](/search/zoom) | Past meetings with available transcripts, notes and summaries | Member only |
+
+[Generic Secrets](/search/generic-secrets) is also available as a source, but does not add searchable documents. Organization mode makes its secrets available across the organization; Member mode lets each person manage their own secrets in Integrations. Build and Plan can use these secrets for requests; Search cannot mount them.
+
+## Access and freshness
+
+Search authorizes your current Sim membership, resolves your current provider connection, and applies the current source policy on each request. Document reads repeat those checks. Source admins follow the same reader rules as other members.
+
+There is no background per-document ACL index to build for live Search. Providers enforce normal member access directly. Service sources add live resource checks. GitLab administrator sources reconstruct the required permission evidence during the request; non-admin sources use the administrator's saved CSV grants. Update CSV grants when membership changes.
+
+Results follow the provider's search behavior. A provider can delay visibility of newly edited content, limit search types, or return only a page of matches. Rate limits and bounded permission checks can produce incomplete coverage. An empty result is not proof that a document does not exist, and an unavailable provider is not an indexing failure.
+
+## Search, Assistant, Slack, and MCP
+
+Organization **Search** finds documents directly. The assistant on **Home**, [Sim Search in Slack](/search/slack), and [Search MCP](/search/mcp) use the same live retrieval and access rules. The Search assistant can search and read; it does not expose arbitrary integration tools.
+
+Conversations remain private to their author. Connecting an external account does not grant Sim organization membership: invite teammates through **Settings → Members** or your organization's SSO.
+
+## Check that it works
+
+1. Connect an account and search for a distinctive phrase in a supported document that account can open.
+2. Read the result and follow its source link.
+3. Repeat as a teammate with different access; private content must remain private.
+4. For a service source, search for content both inside and outside its configured boundary.
+5. Revoke access at the provider, or update GitLab CSV permissions, and repeat the search and read. There is no Sim content sync to wait for.
+
+## Legacy indexing and workspace knowledge bases
+
+Enterprise Search uses live provider queries. Search sources do not run content indexing or stored permission maintenance; ordinary knowledge-base connectors retain their indexing behavior.
+
+Ordinary workspace [knowledge bases](/knowledgebase) still ingest, chunk, and index documents for their own features. Their connector setup, processing status, and access settings remain separate.

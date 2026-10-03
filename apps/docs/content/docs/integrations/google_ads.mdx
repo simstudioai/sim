@@ -11,9 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Ads](https://ads.google.com) is Google's online advertising platform that lets businesses create ads to reach customers across Google Search, YouTube, Gmail, and millions of partner websites. It supports campaign types including Search, Display, Video, Shopping, and Performance Max, with detailed targeting, bidding strategies, and performance analytics.
-
-In Sim, the Google Ads integration enables your agents to query campaign data, monitor ad group performance, and pull detailed metrics using the Google Ads Query Language (GAQL). This supports use cases such as automated performance reporting, budget monitoring, campaign health checks, and data-driven optimization workflows. By connecting Sim with Google Ads, your agents can retrieve real-time advertising data and act on insights without manual dashboard navigation.
+Use [Google Ads](https://ads.google.com) in Sim to list accessible accounts and campaigns, retrieve ad groups and performance metrics, and run custom Google Ads Query Language (GAQL) queries. These read operations support campaign reporting and budget monitoring workflows.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -188,5 +186,20 @@ Get performance metrics for individual ads over a date range
 |   ↳ `conversions` | number | Number of conversions |
 |   ↳ `date` | string | Date for this row \(YYYY-MM-DD\) |
 | `totalCount` | number | Total number of result rows |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Ads account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-ads` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/adwords` | Manage Google Ads campaigns and reporting |
 
 

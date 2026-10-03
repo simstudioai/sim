@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, permissions } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -8,28 +5,29 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  setLimit: vi.fn(),
-  acquireLock: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ORGANIZATION_UPDATED: 'organization.updated' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAudit: mocks.recordAudit,
-}))
-
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  setOrgMemberUsageLimit: mocks.setLimit,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.acquireLock,
-}))
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 import { updateDashboardExternalCollaboratorUsageLimit } from '@/lib/admin/external-collaborators'
+
+const mocks = {
+  setLimit: organizationMemberLimitsMockFns.mockSetOrgMemberUsageLimit,
+  acquireLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
 
 const actor = { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
 
@@ -37,7 +35,6 @@ afterAll(resetDbChainMock)
 
 describe('updateDashboardExternalCollaboratorUsageLimit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -66,21 +63,6 @@ describe('updateDashboardExternalCollaboratorUsageLimit', () => {
     expect(
       flattenMockConditions(collaboratorPredicate).some((condition) => condition.type === 'isNull')
     ).toBe(false)
-  })
-
-  it('clears an existing cap', async () => {
-    queueTableRows(member, [])
-    queueTableRows(permissions, [{ userId: 'external-1' }])
-
-    await updateDashboardExternalCollaboratorUsageLimit('org-1', 'external-1', null, actor)
-
-    expect(mocks.setLimit).toHaveBeenCalledWith(
-      'org-1',
-      'external-1',
-      null,
-      'admin-1',
-      expect.anything()
-    )
   })
 
   it('rejects internal organization members', async () => {

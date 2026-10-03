@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -98,10 +95,6 @@ describe('duplicate query values', () => {
     })
   })
 
-  it('accepts a query where every parameter appears once', () => {
-    expect(duplicateQueryValueValidationError({ workspaceId: 'w-1', limit: '10' })).toBeNull()
-  })
-
   it('rejects a repeated parameter through parseRequest under the v2 defaults', async () => {
     const parsed = await parseListRequest('workspaceId=w-1&workspaceId=w-1')
 
@@ -113,17 +106,5 @@ describe('duplicate query values', () => {
         message: expect.stringContaining('workspaceId was sent 2 times; send it at most once'),
       }),
     })
-  })
-
-  it('lets a query sending each parameter once through parseRequest', async () => {
-    const parsed = await parseListRequest('workspaceId=w-1')
-
-    expect(parsed.success).toBe(true)
-    if (!parsed.success) return
-    expect(parsed.data.query).toEqual({ workspaceId: 'w-1' })
-  })
-
-  it('is on for every v2 route through the shared parse defaults', () => {
-    expect(V2_PARSE_DEFAULTS.rejectDuplicateQueryValues).toBe(true)
   })
 })

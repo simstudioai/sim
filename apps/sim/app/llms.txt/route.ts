@@ -1,69 +1,119 @@
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
+import { toSiteUrl } from '@/lib/core/utils/urls'
+import { getAllCustomerStoryMeta } from '@/lib/customers/registry'
+import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
+import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
+import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
+import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
+import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
+import {
+  LLMS_HEADER,
+  linkLine,
+  markdownResponse,
+  navMenuLines,
+  SOLUTION_LINES,
+  section,
+} from '@/app/llms.txt/llms'
 
-export function GET() {
-  const baseUrl = getBaseUrl()
+export const dynamic = 'force-static'
+export const revalidate = 86400
 
-  const content = `# Sim
+/**
+ * `/llms.txt` per https://llmstxt.org: a curated, link-first index of the
+ * public site. Content sections are generated from the same registries the
+ * sitemap reads, so new and retired pages track automatically. Individual
+ * integration and model pages are left to their hubs and the sitemap.
+ */
+export async function GET() {
+  const [blogPosts, libraryPosts, customerStories] = await Promise.all([
+    getAllBlogPostMeta(),
+    getAllLibraryPostMeta(),
+    getAllCustomerStoryMeta(),
+  ])
 
-> Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.
-
-Sim lets teams create agents visually with the workflow builder, conversationally through Chat, or programmatically with the API. The workspace includes knowledge bases, tables, files, and full observability.
-
-## Preferred URLs
-
-- [Homepage](${baseUrl}): Product overview and primary entry point
-- [Integrations directory](${baseUrl}/integrations): Public catalog of integrations and automation capabilities
-- [Models directory](${baseUrl}/models): Public catalog of AI models, pricing, context windows, and capabilities
-- [Blog](${baseUrl}/blog): Announcements, guides, and product context
-- [Changelog](${baseUrl}/changelog): Product updates and release notes
-
-## Documentation
-
-- [Documentation](https://docs.sim.ai): Product guides and technical reference
-- [Quickstart](https://docs.sim.ai/getting-started): Fastest path to getting started
-- [API Reference](https://docs.sim.ai/api-reference): API documentation
-
-## Key Concepts
-
-- **Workspace**: The AI workspace — container for agents, workflows, data sources, and runs
-- **Workflow**: Visual builder — directed graph of blocks defining agent logic
-- **Block**: Individual step such as an LLM call, tool call, HTTP request, or code execution
-- **Trigger**: Event or schedule that initiates a workflow run
-- **Execution**: A single run of a workflow with logs and outputs
-- **Knowledge Base**: Document store used for retrieval-augmented generation
-
-## Capabilities
-
-- AI workspace for teams
-- AI agent creation and deployment
-- Integrations across business tools, databases, and communication platforms
-- Multi-model LLM orchestration
-- Knowledge bases and retrieval-augmented generation
-- Table creation and management
-- Document creation and processing
-- Scheduled and webhook-triggered runs
-
-## Use Cases
-
-- AI agent deployment and orchestration
-- Knowledge bases and RAG pipelines
-- Customer support automation
-- Internal operations workflows across sales, marketing, legal, and finance
-
-## Additional Links
-
-- [GitHub Repository](https://github.com/simstudioai/sim): Open-source codebase
-- [Docs](https://docs.sim.ai): Canonical documentation source
-- [Terms of Service](${baseUrl}/terms): Legal terms
-- [Privacy Policy](${baseUrl}/privacy): Data handling practices
-- [Cookie Policy](${baseUrl}/cookie-policy): Cookies Sim sets, why, and how to change your choice
-- [Sitemap](${baseUrl}/sitemap.xml): Public URL inventory
-`
-
-  return new Response(content, {
-    headers: {
-      'Content-Type': 'text/markdown; charset=utf-8',
-      'Cache-Control': 'public, max-age=86400, s-maxage=86400',
-    },
-  })
+  return markdownResponse(
+    [
+      LLMS_HEADER,
+      'Teams build agents in the visual workflow builder, by talking to Sim in Chat, or with code through the API and SDKs. The workspace includes knowledge bases, tables, files, and logs for every run. Sim is open source (Apache 2.0) and runs in the cloud or self-hosted.',
+      `The full text of the library, customer stories, and comparison facts is in [llms-full.txt](${toSiteUrl('/llms-full.txt')}).`,
+      section('Platform', [
+        linkLine('Home', '/', 'Product overview and primary entry point'),
+        ...navMenuLines(PLATFORM_MENU),
+        linkLine('Pricing', '/pricing', 'Free, Pro, Max, and Enterprise plans'),
+      ]),
+      section('Solutions', SOLUTION_LINES),
+      section(
+        'Customers',
+        customerStories.length > 0
+          ? [
+              linkLine(
+                'Customer stories',
+                '/customers',
+                'How teams build and run AI agents with Sim'
+              ),
+              ...customerStories.map((story) =>
+                linkLine(story.title, story.canonical, story.description)
+              ),
+            ]
+          : []
+      ),
+      section('Comparisons', [
+        linkLine(
+          'All comparisons',
+          '/comparisons',
+          'Sourced, dated comparisons of Sim with AI agent and workflow automation platforms'
+        ),
+        ...ALL_COMPETITORS.map((c) =>
+          linkLine(`Sim vs ${c.name}`, `/comparisons/${c.id}`, c.oneLiner)
+        ),
+      ]),
+      section('Library', [
+        linkLine('Library', '/library', 'Comparisons, how-tos, and roundups on building AI agents'),
+        ...libraryPosts.map((p) => linkLine(p.title, p.canonical, p.description)),
+      ]),
+      section('Integrations and models', [
+        linkLine(
+          'Integrations',
+          '/integrations',
+          `${INTEGRATION_COUNT_LABEL} integrations, triggers, and tools agents can use`
+        ),
+        linkLine(
+          'Models',
+          '/models',
+          'Every supported model with pricing, context window, and capabilities'
+        ),
+        ...MODEL_PROVIDERS_WITH_CATALOGS.map((provider) =>
+          linkLine(`${provider.name} models`, provider.href, provider.description)
+        ),
+      ]),
+      section('Docs', [
+        linkLine('Docs index', `${DOCS_URL}/llms.txt`, 'llms.txt index of the Sim documentation'),
+        linkLine(
+          'Docs full text',
+          `${DOCS_URL}/llms-full.txt`,
+          'Full text of the Sim documentation'
+        ),
+        linkLine('Documentation', DOCS_URL, 'Guides, SDKs, and API reference'),
+      ]),
+      section('Blog', [
+        linkLine('Blog', '/blog', 'Announcements, engineering deep dives, and product context'),
+        ...blogPosts.map((p) => linkLine(p.title, p.canonical, p.description)),
+      ]),
+      section('Optional', [
+        linkLine('Changelog', '/changelog', 'Product updates and release notes'),
+        linkLine('GitHub', 'https://github.com/simstudioai/sim', 'Open-source codebase'),
+        linkLine('Community Slack', SLACK_COMMUNITY_URL, 'Community workspace'),
+        linkLine('Terms of Service', '/terms'),
+        linkLine('Privacy Policy', '/privacy'),
+        linkLine('Cookie Policy', '/cookie-policy'),
+        linkLine(
+          'Sitemap',
+          '/sitemap.xml',
+          'Every public URL, including each integration and model'
+        ),
+      ]),
+    ],
+    revalidate
+  )
 }

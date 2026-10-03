@@ -19,9 +19,9 @@ export function FeaturedModelCard({
         <span className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em]'>
           {provider.name}
         </span>
-        <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
+        <h2 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
           {model.displayName}
-        </h3>
+        </h2>
         <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
           {model.summary}
         </p>

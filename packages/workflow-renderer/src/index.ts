@@ -1,4 +1,16 @@
 export {
+  BlockTileView,
+  type BlockTileViewProps,
+  getWorkflowTypeAccent,
+  getWorkflowTypeRole,
+  hasWorkflowTypeRole,
+  WorkflowTypeIcon,
+  type WorkflowTypeIconProps,
+  type WorkflowTypeRole,
+  WorkflowTypeTag,
+  type WorkflowTypeTagProps,
+} from '@sim/workflow-renderer/workflow-type'
+export {
   BLOCK_Z_BASE,
   CANVAS_Z_INDEX_MODE,
   CONNECTION_PICKER_Z,
@@ -82,14 +94,6 @@ export {
   getErrorBorderPort,
   getErrorSourceHandleStyle,
   getNearestBranchCursorHandleId,
-  getWorkflowTypeAccent,
-  getWorkflowTypeRole,
-  hasWorkflowTypeRole,
   WorkflowBlockView,
   type WorkflowBlockViewProps,
-  WorkflowTypeIcon,
-  type WorkflowTypeIconProps,
-  type WorkflowTypeRole,
-  WorkflowTypeTag,
-  type WorkflowTypeTagProps,
 } from './workflow-block/workflow-block-view'

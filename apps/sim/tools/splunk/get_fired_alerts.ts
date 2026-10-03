@@ -1,8 +1,8 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SplunkGetFiredAlertsParams, SplunkGetFiredAlertsResponse } from '@/tools/splunk/types'
 import {
   asNumber,
-  asString,
   buildSplunkHeaders,
   buildSplunkUrl,
   getEntryContent,
@@ -58,17 +58,17 @@ export const getFiredAlertsTool: ToolConfig<
           const content = getEntryContent(entry)
           return {
             name: getEntryName(entry),
-            id: asString(entry.id),
-            updated: asString(entry.updated),
-            savedSearchName: asString(content.savedsearch_name),
-            alertType: asString(content.alert_type),
+            id: toStringOrNull(entry.id),
+            updated: toStringOrNull(entry.updated),
+            savedSearchName: toStringOrNull(content.savedsearch_name),
+            alertType: toStringOrNull(content.alert_type),
             severity: asNumber(content.severity),
-            sid: asString(content.sid),
+            sid: toStringOrNull(content.sid),
             triggerTime: asNumber(content.trigger_time),
-            triggerTimeRendered: asString(content.trigger_time_rendered),
-            expirationTimeRendered: asString(content.expiration_time_rendered),
+            triggerTimeRendered: toStringOrNull(content.trigger_time_rendered),
+            expirationTimeRendered: toStringOrNull(content.expiration_time_rendered),
             triggeredAlerts: asNumber(content.triggered_alerts),
-            actions: asString(content.actions),
+            actions: toStringOrNull(content.actions),
           }
         }),
       },

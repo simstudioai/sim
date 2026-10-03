@@ -1,7 +1,9 @@
-import chalk from 'chalk'
-import type { ResolvedProfile } from '../config/index'
-import { USER_AGENT } from '../version'
-import { warnIfKeyOverCleartext, warnIfProxyIgnored } from './environment'
+import { truncate } from '@sim/utils/string'
+import { writeStderr } from '#sim-cli/output/io'
+import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
+import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
+import { identityHeaders } from '../telemetry/client-info'
+import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed
@@ -14,7 +16,8 @@ export class SimApiError extends Error {
     message: string,
     readonly status: number,
     readonly code: string | null = null,
-    readonly details?: unknown
+    readonly details?: unknown,
+    readonly exitCode = 1
   ) {
     super(message)
     this.name = 'SimApiError'
@@ -137,7 +140,7 @@ function toNonJsonError(
   const keepSnippet = !isMarkup && text.length > 0 && text.length <= 200
   return new SimApiError(
     `${url} returned ${kind}, not JSON (HTTP ${status}) — check your endpoint.${
-      keepSnippet ? ` Response: ${truncate(text, 200)}` : ''
+      keepSnippet ? ` Response: ${truncate(text, 200, '…')}` : ''
     }`,
     status
   )
@@ -183,8 +186,41 @@ function toApiError(
   return new SimApiError(`Request failed with status ${status}`, status)
 }
 
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max)}…`
+/**
+ * Keeps the useful nested reason from Node/Undici transport failures without
+ * serializing request options, headers, socket objects, or credentials.
+ */
+function transportErrorMessage(error: unknown): string {
+  const messages: string[] = []
+  const seen = new Set<object>()
+  let current: unknown = error
+
+  while (current && typeof current === 'object' && messages.length < 4 && !seen.has(current)) {
+    seen.add(current)
+    const candidate = current as { message?: unknown; code?: unknown; cause?: unknown }
+    const message =
+      typeof candidate.message === 'string'
+        ? truncate(candidate.message.replace(/\s+/g, ' ').trim(), 300, '…')
+        : ''
+    const code = typeof candidate.code === 'string' ? candidate.code : ''
+    const detail = `${message}${code && !message.includes(code) ? ` (${code})` : ''}`
+    if (detail && messages.at(-1) !== detail) messages.push(detail)
+    current = candidate.cause
+  }
+
+  return messages.join(': ') || 'Unknown network error'
+}
+
+async function readResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text()
+  } catch (error) {
+    throw new SimApiError(
+      `Unable to read the response: ${transportErrorMessage(error)}`,
+      response.status,
+      'RESPONSE_READ_FAILED'
+    )
+  }
 }
 
 /**
@@ -354,8 +390,8 @@ function debugEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  * log the user pasted it into.
  */
 function traceRequest(method: string, url: string, status: number | string, startedAt: number) {
-  process.stderr.write(
-    `${chalk.dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
+  writeStderr(
+    `${styles().dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
   )
 }
 
@@ -409,7 +445,7 @@ export function formatApiErrorDetails(details: unknown): string[] {
   }
 
   visit(details)
-  if (issues.length === 0) return [`  details: ${truncate(JSON.stringify(details), 1000)}`]
+  if (issues.length === 0) return [`  details: ${truncate(JSON.stringify(details), 1000, '…')}`]
 
   const kept = dropUnionBranchNoise(issues)
   const visible = kept.slice(0, 8)
@@ -424,18 +460,77 @@ export function formatApiErrorDetails(details: unknown): string[] {
   return lines
 }
 
-export class SimClient {
-  constructor(private readonly profile: ResolvedProfile) {}
+/**
+ * Renews an OAuth login and returns the new pair; injected so the HTTP client
+ * does not import the OAuth flow, which imports the client.
+ */
+export type OAuthRefresher = (
+  profile: ResolvedProfile,
+  current: StoredOAuthCredential
+) => Promise<StoredOAuthCredential>
 
-  private resolveApiKey(auth: AuthRequirement = 'required'): string | undefined {
-    if (!this.profile.apiKey) {
-      if (auth === 'optional') return undefined
+export interface SimClientOptions {
+  refreshOAuth?: OAuthRefresher
+}
+
+/**
+ * Renew this long before the access token lapses. A request that starts with
+ * a few seconds left can still land after expiry; five minutes is the margin
+ * the AWS CLI and WorkOS's guidance settle on, and well inside the hour a Sim
+ * access token lives.
+ */
+const REFRESH_AHEAD_MS = 5 * 60 * 1000
+
+/** Reads the OAuth error parameter from Sim's Bearer challenge. */
+function bearerChallengeError(header: string | null): string | null {
+  if (!header?.trimStart().toLowerCase().startsWith('bearer')) return null
+  const match = /(?:^|,)\s*error\s*=\s*(?:"([^"]*)"|([^,\s]+))/i.exec(
+    header.replace(/^\s*Bearer\s*/i, '')
+  )
+  return match?.[1] ?? match?.[2] ?? null
+}
+
+export class SimClient {
+  private oauth: StoredOAuthCredential | null
+  private refreshing: Promise<StoredOAuthCredential> | null = null
+
+  constructor(
+    private readonly profile: ResolvedProfile,
+    private readonly options: SimClientOptions = {}
+  ) {
+    this.oauth = profile.oauth ?? null
+  }
+
+  private resolveCredential(auth: AuthRequirement = 'required'): StoredCredential | undefined {
+    if (this.profile.apiKey) return { kind: 'api_key', apiKey: this.profile.apiKey }
+    if (this.oauth) return { kind: 'oauth', oauth: this.oauth }
+    if (auth === 'optional') return undefined
+    throw new SimApiError(
+      `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.authProfile}`,
+      0
+    )
+  }
+
+  /**
+   * One refresh at a time per process, shared by every request that finds the
+   * token expiring; the cross-process half lives behind the refresher.
+   */
+  private async refreshOAuth(current: StoredOAuthCredential): Promise<StoredOAuthCredential> {
+    const refresh = this.options.refreshOAuth
+    if (!refresh) {
       throw new SimApiError(
-        `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.name}`,
-        0
+        `Your Sim login has expired. Run sim logout --profile ${this.profile.name}, then sim login --profile ${this.profile.name}.`,
+        401
       )
     }
-    return this.profile.apiKey
+    if (!this.refreshing) {
+      this.refreshing = refresh(this.profile, current).finally(() => {
+        this.refreshing = null
+      })
+    }
+    const next = await this.refreshing
+    this.oauth = next
+    return next
   }
 
   /**
@@ -447,7 +542,7 @@ export class SimClient {
    * is logging in. Auth-disabled self-hosted protocols opt out explicitly.
    */
   requireWorkspace(explicit?: string, options: WorkspaceOptions = {}): string {
-    this.resolveApiKey(options.auth)
+    this.resolveCredential(options.auth)
     const workspaceId = explicit ?? this.profile.workspaceId
     if (!workspaceId) {
       throw new SimApiError(
@@ -472,7 +567,7 @@ export class SimClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const { response, url } = await this.send(path, options)
-    const raw = await response.text()
+    const raw = await readResponseText(response)
 
     if (!raw) return undefined as T
     try {
@@ -484,34 +579,46 @@ export class SimClient {
 
   private async send(
     path: string,
-    options: RequestOptions
+    options: RequestOptions,
+    retriedAfterRefresh = false
   ): Promise<{ response: Response; url: string }> {
-    const apiKey = this.resolveApiKey(options.auth)
+    let credential = this.resolveCredential(options.auth)
+    if (
+      credential?.kind === 'oauth' &&
+      credential.oauth.expiresAt - Date.now() < REFRESH_AHEAD_MS
+    ) {
+      credential = { kind: 'oauth', oauth: await this.refreshOAuth(credential.oauth) }
+    }
 
     const url = buildUrl(this.profile.endpoint, path, options.query)
     const hasBody = options.body !== undefined
     const method = options.method ?? 'GET'
 
     warnIfProxyIgnored()
-    warnIfKeyOverCleartext(this.profile.endpoint, Boolean(apiKey))
+    warnIfCredentialOverCleartext(this.profile.endpoint, Boolean(credential))
 
     // The caller's signal still cancels; the timeout only adds a second reason
     // to abort, so neither can mask the other.
     const timeoutMs = resolveTimeoutMs()
     const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
-    const signal = combineSignals(options.signal, timeout)
+    const caller = combineSignals(options.signal, this.profile.signal)
+    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+    const signal = combineSignals(caller, timeout)
 
     const trace = debugEnabled()
     const startedAt = performance.now()
 
     let response: Response
     try {
-      response = await fetch(url, {
+      response = await (this.profile.transport ?? fetch)(url, {
         method,
         headers: {
-          ...(apiKey ? { 'x-api-key': apiKey } : {}),
+          ...(credential?.kind === 'api_key' ? { 'x-api-key': credential.apiKey } : {}),
+          ...(credential?.kind === 'oauth'
+            ? { authorization: `Bearer ${credential.oauth.accessToken}` }
+            : {}),
           accept: 'application/json',
-          'user-agent': USER_AGENT,
+          ...identityHeaders(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
@@ -521,7 +628,7 @@ export class SimClient {
       })
     } catch (cause) {
       if (trace) traceRequest(method, url, 'failed', startedAt)
-      if (options.signal?.aborted) {
+      if (caller?.aborted) {
         throw new SimApiError('Request cancelled.', 0)
       }
       if (timeout?.aborted) {
@@ -531,7 +638,7 @@ export class SimClient {
         )
       }
       throw new SimApiError(
-        `Could not reach ${this.profile.endpoint}: ${(cause as Error).message}`,
+        `Could not reach ${this.profile.endpoint}: ${transportErrorMessage(cause)}`,
         0
       )
     }
@@ -540,14 +647,31 @@ export class SimClient {
 
     if (REDIRECT_STATUSES.has(response.status)) throw this.toRedirectError(url, path, response)
 
+    /**
+     * A token the server no longer accepts — revoked, or expired on a clock
+     * this process disagrees with — is renewed once and the request repeated.
+     * Only for `invalid_token` (RFC 6750 §3.1): any other 401 means the
+     * refresh would not change the answer.
+     */
+    if (
+      response.status === 401 &&
+      credential?.kind === 'oauth' &&
+      !retriedAfterRefresh &&
+      bearerChallengeError(response.headers.get('www-authenticate')) === 'invalid_token'
+    ) {
+      await response.body?.cancel()
+      await this.refreshOAuth(credential.oauth)
+      return this.send(path, options, true)
+    }
+
     if (!response.ok) {
-      const raw = await response.text()
+      const raw = await readResponseText(response)
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
       if (response.status === 401) {
-        error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }
       if (namesKeyScopeRefusal(error)) {
-        error.message = `${error.message} — this operation needs a personal API key: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
       }
       throw error
     }
@@ -642,14 +766,23 @@ export function pageProgress(): PageProgress {
   let reported = false
   return {
     advance: (fetched) => {
-      if (!process.stderr.isTTY) return
+      if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${chalk.dim(`fetched ${fetched}…`)}\u001b[K`)
+      writeStderr(`\r${styles().dim(`fetched ${fetched}…`)}\u001b[K`)
     },
     finish: () => {
-      if (reported) process.stderr.write('\r\u001b[K')
+      if (reported) writeStderr('\r\u001b[K')
     },
   }
+}
+
+/** Rejects cursor cycles before a pager repeats requests or returns an unusable continuation. */
+export function assertCursorAdvances(cursor: string | null, seenCursors: Set<string>): void {
+  if (cursor === null) return
+  if (seenCursors.has(cursor)) {
+    throw new SimApiError('The API returned a repeated pagination cursor; cannot continue.', 0)
+  }
+  seenCursors.add(cursor)
 }
 
 /** Follows a standard v2 cursor envelope without duplicating pagination loops. */
@@ -658,27 +791,12 @@ export async function requestAllPages<T>(
   path: string,
   options: RequestAllPagesOptions
 ): Promise<T[]> {
-  return (await requestPages<T>(client, path, options)).items
-}
-
-/**
- * The same walk, also stating whether it stopped short.
- *
- * A caller that prints the rows itself has to say so — `files list` announces
- * "showing the first N" off the surviving cursor and `files ls` did not, so the
- * same capped answer looked complete on one command and incomplete on its
- * neighbour.
- */
-export async function requestPages<T>(
-  client: Pick<SimClient, 'request'>,
-  path: string,
-  options: RequestAllPagesOptions
-): Promise<{ items: T[]; truncated: boolean }> {
   const { query, pageSize, limit: requestedLimit, ...requestOptions } = options
   const limit = requestedLimit ?? Number.POSITIVE_INFINITY
-  if (limit <= 0) return { items: [], truncated: false }
+  if (limit <= 0) return []
 
   const items: T[] = []
+  const seenCursors = new Set<string>()
   const progress = pageProgress()
   let cursor: string | null = null
   // `finally`, because a page that throws part-way through would otherwise skip
@@ -694,6 +812,7 @@ export async function requestPages<T>(
           cursor,
         },
       })
+      assertCursorAdvances(page.nextCursor, seenCursors)
       items.push(...page.data)
       cursor = page.nextCursor
 
@@ -703,7 +822,7 @@ export async function requestPages<T>(
     progress.finish()
   }
 
-  return { items: items.slice(0, limit), truncated: cursor !== null || items.length > limit }
+  return items.slice(0, limit)
 }
 
 /**

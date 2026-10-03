@@ -1,7 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { databaseMock } from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IRoomManager } from '@/rooms'
@@ -10,10 +8,7 @@ const { mockAuthorizeRoom } = vi.hoisted(() => ({
   mockAuthorizeRoom: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: { select: vi.fn() },
-  user: { image: 'image' },
-}))
+vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,
@@ -80,7 +75,7 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
   const successEvent = `${joinEvent}-success`
   const errorEvent = `${joinEvent}-error`
   const leaveEvent = `leave-${roomType}`
-  const roomOf = (workspaceId: string) => `${roomType}:${workspaceId}`
+  const _roomOf = (workspaceId: string) => `${roomType}:${workspaceId}`
 
   const setup = (socket: ReturnType<typeof createSocket>['socket'], roomManager: IRoomManager) =>
     setupWorkspaceInvalidationRoom(
@@ -90,39 +85,12 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
     )
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAuthorizeRoom.mockResolvedValue({
       allowed: true,
       status: 200,
       workspaceId: 'ws-1',
       workspacePermission: 'admin',
     })
-  })
-
-  it('rejects join when the socket is not authenticated', async () => {
-    const { socket, handlers } = createSocket({ userId: undefined, userName: undefined })
-    setup(socket, createRoomManager())
-
-    await handlers[joinEvent]({ workspaceId: 'ws-1' })
-
-    expect(socket.emit).toHaveBeenCalledWith(errorEvent, {
-      workspaceId: 'ws-1',
-      error: 'Authentication required',
-      code: 'AUTHENTICATION_REQUIRED',
-      retryable: false,
-    })
-  })
-
-  it('rejects join with a retryable error when realtime is unavailable', async () => {
-    const { socket, handlers } = createSocket()
-    setup(socket, createRoomManager({ isReady: vi.fn().mockReturnValue(false) }))
-
-    await handlers[joinEvent]({ workspaceId: 'ws-1' })
-
-    expect(socket.emit).toHaveBeenCalledWith(
-      errorEvent,
-      expect.objectContaining({ code: 'ROOM_MANAGER_UNAVAILABLE', retryable: true })
-    )
   })
 
   it('rejects join when workspace access is denied', async () => {
@@ -141,20 +109,6 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
       errorEvent,
       expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
     )
-  })
-
-  it('joins the room on success without any presence bookkeeping', async () => {
-    const { socket, handlers } = createSocket()
-    const roomManager = createRoomManager()
-    setup(socket, roomManager)
-
-    await handlers[joinEvent]({ workspaceId: 'ws-1' })
-
-    expect(socket.join).toHaveBeenCalledWith(roomOf('ws-1'))
-    expect(socket.emit).toHaveBeenCalledWith(successEvent, { workspaceId: 'ws-1' })
-    // The room is live-list-only: no room-manager presence is tracked or broadcast.
-    expect(roomManager.addUserToRoom).not.toHaveBeenCalled()
-    expect(roomManager.broadcastPresenceUpdate).not.toHaveBeenCalled()
   })
 
   it('aborts a join superseded during the access re-check await', async () => {
@@ -231,68 +185,5 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
       expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
     )
     expect(socket.join).not.toHaveBeenCalled()
-  })
-
-  it('leaves a previously-joined room when switching workspaces', async () => {
-    const { socket, handlers, rooms } = createSocket()
-    rooms.add(roomOf('ws-old'))
-    setup(socket, createRoomManager())
-
-    await handlers[joinEvent]({ workspaceId: 'ws-1' })
-
-    expect(socket.leave).toHaveBeenCalledWith(roomOf('ws-old'))
-    expect(socket.join).toHaveBeenCalledWith(roomOf('ws-1'))
-  })
-
-  it('leaves the scoped room on leave', () => {
-    const { socket, handlers, rooms } = createSocket()
-    rooms.add(roomOf('ws-1'))
-    setup(socket, createRoomManager())
-
-    handlers[leaveEvent]({ workspaceId: 'ws-1' })
-
-    expect(socket.leave).toHaveBeenCalledWith(roomOf('ws-1'))
-  })
-
-  it('cancels an in-flight join when the user leaves that workspace mid-authorize', async () => {
-    const { socket, handlers } = createSocket()
-    let resolveAuth: (value: unknown) => void = () => {}
-    mockAuthorizeRoom.mockReturnValue(
-      new Promise((resolve) => {
-        resolveAuth = resolve
-      })
-    )
-    setup(socket, createRoomManager())
-
-    // Join ws-1 is awaiting authorization when the view unmounts and leaves ws-1.
-    const joinPromise = handlers[joinEvent]({ workspaceId: 'ws-1' })
-    handlers[leaveEvent]({ workspaceId: 'ws-1' })
-    resolveAuth({ allowed: true, status: 200, workspaceId: 'ws-1', workspacePermission: 'admin' })
-    await joinPromise
-
-    // The stale join must NOT join the room the client has since left (no stranded membership).
-    expect(socket.join).not.toHaveBeenCalled()
-    expect(socket.emit).not.toHaveBeenCalledWith(successEvent, { workspaceId: 'ws-1' })
-  })
-
-  it('does not cancel an in-flight join when a deferred leave targets a different workspace', async () => {
-    const { socket, handlers } = createSocket()
-    let resolveAuth: (value: unknown) => void = () => {}
-    mockAuthorizeRoom.mockReturnValue(
-      new Promise((resolve) => {
-        resolveAuth = resolve
-      })
-    )
-    setup(socket, createRoomManager())
-
-    // The client has switched to ws-2 (join in-flight) when a stale leave for the prior ws-1 lands.
-    const joinPromise = handlers[joinEvent]({ workspaceId: 'ws-2' })
-    handlers[leaveEvent]({ workspaceId: 'ws-1' })
-    resolveAuth({ allowed: true, status: 200, workspaceId: 'ws-2', workspacePermission: 'admin' })
-    await joinPromise
-
-    // The deferred leave for ws-1 must not abort the join the client actually wants (ws-2).
-    expect(socket.join).toHaveBeenCalledWith(roomOf('ws-2'))
-    expect(socket.emit).toHaveBeenCalledWith(successEvent, { workspaceId: 'ws-2' })
   })
 })

@@ -1,7 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { db, docsEmbeddings } from '@/lib/db'
 import { generateSearchEmbedding } from '@/lib/embeddings'
+
+const logger = createLogger('DocsSearchAPI')
 
 export const runtime = 'nodejs'
 export const revalidate = 0
@@ -196,7 +199,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(searchResults)
   } catch (error) {
-    console.error('Semantic search error:', error)
+    logger.error('Semantic search error:', error)
 
     return NextResponse.json([])
   }

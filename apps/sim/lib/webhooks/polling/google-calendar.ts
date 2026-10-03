@@ -120,7 +120,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       }
 
       // Fetch changed events since last poll
-      const events = await fetchChangedEvents(accessToken, calendarId, config, requestId, logger)
+      const events = await fetchChangedEvents(accessToken, calendarId, config)
 
       if (!events.length) {
         await markWebhookSuccess(webhookId, logger)
@@ -180,9 +180,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
 async function fetchChangedEvents(
   accessToken: string,
   calendarId: string,
-  config: GoogleCalendarWebhookConfig,
-  requestId: string,
-  logger: Logger
+  config: GoogleCalendarWebhookConfig
 ): Promise<CalendarEvent[]> {
   const allEvents: CalendarEvent[] = []
   const maxEvents = config.maxEventsPerPoll || MAX_EVENTS_PER_POLL
