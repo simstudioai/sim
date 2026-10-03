@@ -24,6 +24,7 @@ import {
   HunterIOIcon,
   IcypeasIcon,
   JinaAIIcon,
+  KieIcon,
   KimiIcon,
   LeadMagicIcon,
   LinkupIcon,
@@ -39,6 +40,7 @@ import {
   SerperIcon,
   TinyFishIcon,
   TogetherIcon,
+  TypeSafeIcon,
   WizaIcon,
   xAIIcon,
   ZaiIcon,
@@ -46,7 +48,7 @@ import {
 } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -131,6 +133,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     placeholder: 'sk-...',
   },
   {
+    id: 'typesafe',
+    name: 'TypeSafe',
+    icon: TypeSafeIcon,
+    description: 'Jev evaluation models',
+    placeholder: 'Enter your TypeSafe API key',
+  },
+  {
     id: 'fireworks',
     name: 'Fireworks',
     icon: FireworksIcon,
@@ -157,6 +166,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: OllamaIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Ollama API key',
+  },
+  {
+    id: 'kie',
+    name: 'Kie',
+    icon: KieIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Kie API key',
   },
   {
     id: 'falai',
@@ -352,10 +368,12 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'cohere',
       'xai',
       'kimi',
+      'typesafe',
       'fireworks',
       'together',
       'baseten',
       'ollama-cloud',
+      'kie',
       'falai',
     ],
   },
@@ -400,10 +418,11 @@ export function BYOK() {
   const workspaceId = (params?.workspaceId as string) || ''
   const hostContext = useWorkspaceHostContext()
   const workspacePermissions = useUserPermissionsContext()
+  const { hosted } = useDeploymentShape()
   const canManageWorkspace = canMutateWorkspaceSettingsSection('byok', workspacePermissions)
   const hostOrganizationId = hostContext.hostOrganizationId
   const canSelectOrganization = Boolean(
-    isHosted && hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin
+    hosted && hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin
   )
   const [requestedScope, setRequestedScope] = useQueryState(byokScopeParam.key, {
     ...byokScopeParam.parser,
@@ -415,7 +434,7 @@ export function BYOK() {
   const isOrganizationScope = effectiveScope === 'organization'
   const organizationQueryId = isOrganizationScope ? (hostOrganizationId ?? undefined) : undefined
   const inheritedStatusWorkspaceId =
-    !isOrganizationScope && isHosted && hostOrganizationId ? workspaceId : undefined
+    !isOrganizationScope && hosted && hostOrganizationId ? workspaceId : undefined
 
   const workspaceKeys = useBYOKKeys(workspaceId)
   const organizationKeys = useOrganizationBYOKKeys(organizationQueryId, {

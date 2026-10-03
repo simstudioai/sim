@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { instagramGetConversationMessagesTool } from '@/tools/instagram/get_conversation_messages'

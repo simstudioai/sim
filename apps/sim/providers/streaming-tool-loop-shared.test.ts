@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 

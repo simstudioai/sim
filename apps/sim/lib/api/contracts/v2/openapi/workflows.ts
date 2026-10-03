@@ -18,8 +18,8 @@ import {
   RESOURCE_ERRORS,
   RESOURCE_MUTATION_ERRORS,
   RUN_RETENTION,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
@@ -27,12 +27,14 @@ import {
   WORKSPACE_ERRORS,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
   v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
   v2CancelWorkflowRunContract,
+  v2CompareWorkflowVersionsContract,
   v2CreateWorkflowContract,
   v2CreateWorkflowFolderContract,
   v2DeleteWorkflowContract,
@@ -73,6 +75,8 @@ import {
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
 } from '@/lib/api/openapi/types'
+import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 const WORKFLOW_ID = '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'
@@ -112,6 +116,7 @@ const EMPTY_LINT_EXAMPLE = {
   invalidConnectionTargets: [],
   fieldIssues: [],
   unresolvedReferences: [],
+  tableFieldIssues: [],
   notes: [],
 } as const
 
@@ -133,10 +138,7 @@ const WORKFLOW_VERSION_EXAMPLE = {
  * caller happens to open first.
  */
 const WORKFLOW_DEPLOYMENT_VS_CHAT =
-  'Not to be confused with `/workflows/{workflowId}/deployments/chat`, which is the hosted chat the workflow is published as. This path governs whether the workflow is executable at all; that one governs one surface it is served on. A workflow can be deployed with no chat, and removing its chat leaves it deployed and executable.'
-
-const CHAT_VS_WORKFLOW_DEPLOYMENT =
-  "Not to be confused with `/workflows/{workflowId}/deployment` (singular), which is the workflow's own API deployment — its live version and whether the draft has drifted. That path governs whether the workflow is executable at all; this one governs the hosted chat it is served on. The chat is a singleton of its workflow, so it has no id of its own in any path and no separate create verb: `PUT` is create-or-replace and is the only write."
+  '`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.'
 
 const CHAT_DEPLOYMENT_EXAMPLE = {
   id: 'chat_01J8ZK3QW4M6X2R9T7B5C0V2',
@@ -179,6 +181,7 @@ const RUN_RESULT_EXAMPLE = {
     workflowId: WORKFLOW_ID,
     status: 'completed',
     output: { result: 'Ticket routed to Support' },
+    blockOutputs: null,
     error: null,
     startedAt: '2026-08-09T18:04:10.000Z',
     endedAt: '2026-08-09T18:04:11.000Z',
@@ -245,9 +248,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowsContract,
     workflowOperation({
+      applicationOperation: workflowOperations.list,
       operationId: 'listWorkflows',
       summary: 'List Workflows',
-      description: `List workflows in a workspace with lifecycle scope, folder and deployment filters, search, sorting, and opaque cursor pagination. \`scope\` defaults to \`active\`; pass \`archived\` to list workflows a \`DELETE\` archived. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List active workflows in a workspace. Use \`scope=archived\` to find workflows available for restoration. Supports folder and deployment filters, search, sorting, and cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A page of workflows.'),
     }),
@@ -265,9 +269,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.create,
       operationId: 'createWorkflowV2',
       summary: 'Create Workflow',
-      description: `Create a workflow in a workspace root or canonical workflow folder. The response carries the blocks the platform seeded the workflow with, so the start block's id is available without a second request — attach edges to it directly. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create a workflow at the workspace root or in a workflow folder. The response includes seeded blocks and their IDs for attaching edges. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'Locked', 'PayloadTooLarge'],
       success: jsonSuccess('The created workflow.'),
     }),
@@ -297,10 +302,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkflowStateContract,
     workflowOperation({
+      applicationOperation: workflowOperations.read,
       operationId: 'getWorkflowState',
       summary: 'Get Workflow State',
       description:
-        'Get the editable draft graph of a workflow: blocks, edges, the loop and parallel containers derived from them, and variables. This is the pollable read — it records no audit event, and `HEAD` mirrors `GET`. The payload is **unsanitized**: it carries workspace-scoped `credentialId`, `knowledgeBaseId`, and `tableId` values verbatim, so it is not portable to another workspace. Use `GET /workflows/{workflowId}/export` for a portable, sanitized copy — and note that export is not a read-modify-write source, because sanitizing it drops every credential binding. Unknown members are stripped, so what this returns is exactly the set of keys `PUT /workflows/{workflowId}/state` accepts.',
+        'Get the editable draft graph, including blocks, edges, loop and parallel containers, and variables. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.',
       /**
        * No `413`: unlike the workflow reads beside it this one resolves no
        * folder path, so it never materializes the workspace's folder tree, and
@@ -325,9 +331,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ReplaceWorkflowStateContract,
     workflowOperation({
+      applicationOperation: workflowOperations.replaceState,
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
-      description: `Replace a workflow\u2019s editable draft graph wholesale. \`loops\` and \`parallels\` are accepted but ignored — both are recomputed from \`blocks\`. Omitting \`variables\` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with \`409\` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that \`needsRedeployment\` becomes true; \`POST /workflows/{workflowId}/deploy\` publishes the draft.\n\n\`lint\` is advisory and never blocks the write. \`lint.fieldIssues\` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and \`lint.unresolvedReferences\` names credential, resource, tool, and skill values that do not resolve. ${WORKSPACE_API_KEY_DENIED}\n\nSet \`?dryRun=true\` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and \`lint\` findings the committed write would, with \`dryRun: true\` — including the warnings the write\u2019s own preparation step raises, and the same \`409\` when an id is already owned by another workflow. Only \`needsRedeployment\` differs: it describes the state before the write.`,
+      description: `Atomically replace the draft graph; row-locked concurrent writes are last-write-wins. Block, edge, or subflow IDs owned by another workflow return \`409\`. Deployments remain immutable snapshots; schedules and webhook registrations are unchanged. Deploy to publish edits. Lint is advisory. Use \`dryRun=true\` to validate without writing. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -362,9 +369,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ApplyWorkflowOperationsContract,
     workflowOperation({
+      applicationOperation: workflowOperations.applyOperations,
       operationId: 'applyWorkflowOperations',
       summary: 'Apply Workflow Operations',
-      description: `Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in \`skipped\`, each with a machine-readable \`type\`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. \`deferred\` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet \`atomic\` to fail closed: any genuine skipped item, or any block input that would be dropped rather than persisted, then aborts before the write and answers \`409\` with \`error.details.code: "OPERATIONS_NOT_APPLIED"\`, the same \`skipped\` array, and a \`droppedInputs\` array, having persisted nothing.\n\nA \`block_id\` you supply on an \`add\` or \`insert_into_subflow\` is only a label unless it is already a UUID: the engine mints one and returns the pairing in \`mintedBlockIds\`. References between operations in the same batch are remapped for you, so \`triage\` can be wired up in the same call it is created in — but a later request must use the minted id. Send your own UUIDs when you want an id you chose to survive across requests.\n\nOperation \`params\` is an open object because the accepted inputs come from the block registry, not from this contract — see the per-operation schemas for the envelope: \`inputs\` keyed by sub-block id, with \`retry\`, \`triggerMode\` and \`advancedMode\` beside it rather than inside it, and \`connections\` keyed by source handle. \`GET /blocks/{blockId}\` publishes the inputs a given block type accepts. The Agent block’s \`inputs.tools\` value is the important exception to that open catalog shape: it is published here as the named \`AgentToolInput\` union, covering catalog integrations, workspace custom tools, and MCP tools.\n\n\`lint\` is advisory and never blocks the write. \`lint.fieldIssues\` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and \`lint.unresolvedReferences\` names credential, resource, tool, and skill values that do not resolve. Those values stay persisted; only \`inputValidationErrors\` lists inputs that were actually dropped.\n\nAs with \`PUT /workflows/{workflowId}/state\`, this changes only the draft; deploy to publish it. ${WORKSPACE_API_KEY_DENIED}\n\nSet \`?dryRun=true\` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and \`lint\` findings the committed write would, with \`dryRun: true\` — including the warnings the write\u2019s own preparation step raises, and the same \`409\` when an id is already owned by another workflow. Only \`needsRedeployment\` differs: it describes the state before the write.`,
+      description: `Edit the draft graph and block enablement in one write. Inspect \`skipped\` for failures; do not retry \`deferred\` edges. With \`atomic=true\`, skipped operations or dropped inputs return \`409\` (\`OPERATIONS_NOT_APPLIED\`) without saving. \`mintedBlockIds\` maps labels to generated IDs. Lint is advisory; \`dryRun=true\` validates without saving, auditing, or notifying. The live deployment is unchanged. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The batch was applied.'),
     }),
@@ -408,6 +416,7 @@ const declaredRoutes = [
                   },
                 ],
                 unresolvedReferences: [],
+                tableFieldIssues: [],
                 notes: [],
               },
               warnings: [],
@@ -422,10 +431,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ApplyWorkflowVariablesContract,
     workflowOperation({
+      applicationOperation: workflowOperations.applyVariableOperations,
       operationId: 'applyWorkflowVariables',
       summary: 'Update Workflow Variables',
       description:
-        'Add, edit, and delete a workflow\u2019s variables. Operations are matched by variable `name` and applied in order; a batch that changes nothing answers `200` with `changed: false`. Values are coerced to the declared `type`, and a value that cannot be coerced is stored as supplied. Read the current set from `variables` on `GET /workflows/{workflowId}`.',
+        'Add, edit, or delete variables by name, applying operations in order. Values are coerced to their declared type when possible; otherwise they are stored as supplied. A batch with no changes returns `200` with `changed: false`. Read current variables with Get Workflow.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The variable set after the batch.'),
     }),
@@ -445,9 +455,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DuplicateWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.duplicate,
       operationId: 'duplicateWorkflow',
       summary: 'Duplicate Workflow',
-      description: `Copy a workflow, including its blocks, edges, subflows, and variables, into the same workspace. Omitting \`name\` reuses the source name; a collision inside the destination folder is deduplicated rather than refused. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Copy a workflow's graph and variables into the same workspace. Omit \`name\` to reuse the source name; name collisions in the destination folder are resolved automatically. ${FOLDER_TREE_TOO_LARGE}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The created copy.'),
     }),
@@ -478,9 +489,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RestoreWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.restore,
       operationId: 'restoreWorkflow',
       summary: 'Restore Workflow',
-      description: `Bring an archived workflow back, along with the schedules, webhooks, MCP tools, and chats that were archived with it. A workflow that is not archived answers \`409\`. A workflow whose folder was archived is restored to the workspace root. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Restore an archived workflow and the schedules, webhooks, MCP tools, and chats archived with it. An active workflow returns \`409\`. If its folder is archived, the workflow returns to the workspace root. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The restored workflow.'),
     }),
@@ -499,9 +511,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2MoveWorkflowsContract,
     workflowOperation({
+      applicationOperation: workflowOperations.moveBulk,
       operationId: 'moveWorkflows',
       summary: 'Move Workflows',
-      description: `Relocate up to 100 workflows into one folder. Explicitly best-effort: each workflow moves in its own transaction, and one that is absent from the workspace, archived, or locked lands in \`failed\` while the rest still move. Duplicate ids are collapsed. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Move up to 100 workflows into one folder. Moves succeed or fail independently; missing, archived, or locked workflows appear in \`failed\`. Duplicate IDs are ignored. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: jsonSuccess('Which workflows moved and which did not.'),
     }),
@@ -520,6 +533,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.read,
       operationId: 'getWorkflow',
       summary: 'Get Workflow',
       description: `Get a workflow with its variables and deployed API-trigger inputs. ${FOLDER_TREE_TOO_LARGE}`,
@@ -541,9 +555,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.update,
       operationId: 'updateWorkflowV2',
       summary: 'Update Workflow',
-      description: `Rename, describe, or move a workflow to a canonical folder path. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Update a workflow's name, description, or folder path. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The updated workflow.'),
     }),
@@ -563,10 +578,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.delete,
       operationId: 'deleteWorkflowV2',
       summary: 'Delete Workflow',
       description:
-        'Archive a workflow. Despite the verb, this is not an erasure: the workflow, and the schedules, webhooks, MCP tools, and chats attached to it, are stamped archived and stop running, and `POST /workflows/{workflowId}/restore` brings all of them back. An archived workflow disappears from the default list and is reachable with `scope=archived`. The `deleted` field is retained for shipped clients; `archived` states what actually happened.',
+        'Archive a workflow and stop its schedules, webhooks, MCP tools, and chats. Use List Workflows with `scope=archived` to find it and Restore Workflow to recover it and its archived resources. Both `deleted` and `archived` acknowledge archival.',
       errors: [...RESOURCE_ERRORS, 'Locked'],
       success: jsonSuccess('The workflow was archived.'),
     }),
@@ -585,6 +601,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowVersionsContract,
     workflowOperation({
+      applicationOperation: workflowOperations.listVersions,
       operationId: 'listWorkflowVersionsV2',
       summary: 'List Workflow Versions',
       description: 'List immutable deployment versions of a workflow, newest first.',
@@ -604,8 +621,58 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2CompareWorkflowVersionsContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.compareVersions,
+      operationId: 'compareWorkflowVersionsV2',
+      summary: 'Compare Workflow Versions',
+      description:
+        'Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: jsonSuccess('Changes from the base deployment to the target deployment.'),
+    }),
+    {
+      params: v2CompareWorkflowVersionsContract.params,
+      query: v2CompareWorkflowVersionsContract.query,
+      response: documentedSchema(
+        v2CompareWorkflowVersionsContract.response.schema,
+        'WorkflowVersionComparisonResponse',
+        'Workflow version comparison response',
+        'Changes from base to target, with credential values withheld.',
+        [
+          {
+            data: {
+              workflowId: WORKFLOW_ID,
+              base: 1,
+              target: 2,
+              diff: {
+                addedBlocks: [],
+                removedBlocks: [],
+                modifiedBlocks: [],
+                edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
+                loopChanges: { added: 0, removed: 0, modified: 0 },
+                parallelChanges: { added: 0, removed: 0, modified: 0 },
+                containerChanges: [],
+                variableChanges: {
+                  added: 0,
+                  removed: 0,
+                  modified: 0,
+                  addedNames: [],
+                  removedNames: [],
+                  modifiedNames: [],
+                },
+                hasChanges: false,
+              },
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2GetWorkflowVersionContract,
     workflowOperation({
+      applicationOperation: workflowOperations.readVersion,
       operationId: 'getWorkflowVersionV2',
       summary: 'Get Workflow Version',
       description: 'Get an immutable deployment version and its pinned workflow graph snapshot.',
@@ -639,10 +706,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateWorkflowVersionContract,
     workflowOperation({
+      applicationOperation: workflowOperations.updateVersion,
       operationId: 'updateWorkflowVersionV2',
       summary: 'Update Workflow Version',
       description:
-        'Relabel a deployment version. Merge-patch shaped: an omitted key is unchanged and `description: null` clears the release note. Metadata only — the pinned graph is immutable, and this never changes which version is live. Promote a version with `POST /workflows/{workflowId}/versions/{version}/activate`.',
+        "Update a deployment version's name or release note. Omitted fields remain unchanged; `description: null` clears the note. The graph and live version remain unchanged. Use Activate Workflow Version to make this version live.",
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The updated version metadata.'),
     }),
@@ -670,9 +738,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ActivateWorkflowVersionContract,
     workflowOperation({
+      applicationOperation: workflowOperations.activateVersion,
       operationId: 'activateWorkflowVersion',
       summary: 'Activate Workflow Version',
-      description: `Promote an existing deployment version to live. Activation is asynchronous; inspect \`isDeployed\` and \`latestDeploymentAttempt\` for current state. Unlike \`rollback\`, the target is named by the path and the workflow need not already be deployed. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Asynchronously activate a specific deployment version, including when the workflow is not currently deployed. The draft remains unchanged. Read Get Workflow Deployment for \`isDeployed\` and \`latestDeploymentAttempt\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted activation attempt.'),
     }),
@@ -715,9 +784,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RevertWorkflowVersionContract,
     workflowOperation({
+      applicationOperation: workflowOperations.revertVersion,
       operationId: 'revertWorkflowVersion',
       summary: 'Revert Workflow To Version',
-      description: `Overwrite the editable draft with the graph pinned by a deployment version, discarding every unsaved edit. This is the most destructive operation in the deployment family and it does **not** change what is live — to move production, use \`activate\` or \`rollback\`, both of which leave the draft alone. Pass \`active\` as the version to discard draft edits and return to the live graph. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Replace the editable draft with a deployment version, discarding current draft edits. Use \`active\` for the live version. The live deployment remains unchanged; Activate Workflow Version or Rollback Workflow changes it. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The draft after it was overwritten.'),
     }),
@@ -737,9 +807,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkflowDeploymentContract,
     workflowOperation({
+      applicationOperation: workflowOperations.read,
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
-      description: `Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes \`needsRedeployment\` and \`isPublicApi\`.\n\n\`isPublicApi\` is the security-relevant one: while it is \`true\` the deployed workflow executes without an API key, so anyone holding the execution URL can run it — and consume the workspace’s billed usage — anonymously. It is set through \`PATCH /workflows/{workflowId}/deployment\`, and this read is the only way to audit whether it is on.\n\n${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
+      description: `Read live status, deployment time, latest attempt readiness and failure, draft divergence (\`needsRedeployment\`), anonymous execution access (\`isPublicApi\`), and registered webhook URLs. This read exposes public API access and webhook URLs; see their field descriptions for security and delivery details.\n\n${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
@@ -777,6 +848,13 @@ const declaredRoutes = [
                 activatedAt: '2026-06-12T10:30:00.000Z',
                 error: null,
               },
+              webhooks: [
+                {
+                  blockId: 'blk_01J8ZK3QW4M6X2R9T7B5C0V3',
+                  provider: 'generic',
+                  url: 'https://www.sim.ai/api/webhooks/trigger/leads',
+                },
+              ],
             },
           },
         ]
@@ -786,9 +864,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UpdateWorkflowPublicApiContract,
     workflowOperation({
+      applicationOperation: workflowOperations.updatePublicApi,
       operationId: 'updateWorkflowPublicApi',
       summary: 'Update Workflow Public API Access',
-      description: `Enable or disable unauthenticated public execution of the deployed workflow. While enabled, anyone holding the execution URL can run the workflow without an API key. An organization that forbids public sharing refuses this with \`403\` and \`PUBLIC_SHARING_NOT_ALLOWED\`. ${WORKFLOW_DEPLOYMENT_VS_CHAT} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Enable or disable unauthenticated execution of the deployed workflow. Enabling allows anyone with the execution URL to consume billed usage. Organization sharing restrictions return \`403\` with \`PUBLIC_SHARING_NOT_ALLOWED\`. Hosted chat is managed separately. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The updated public API setting.'),
     }),
@@ -808,9 +887,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeployWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.deploy,
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description: `Create and asynchronously activate a deployment version. Not idempotent: every call mints a new version, so a retry after a timeout creates a second one. A deployment that would conflict with an existing webhook path is a \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create and asynchronously activate a deployment version. Every call creates a new version; retrying after a timeout can create a duplicate. Read Get Workflow Deployment to check activation. A conflicting webhook path returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
@@ -853,6 +933,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2UndeployWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.undeploy,
       operationId: 'undeployWorkflow',
       summary: 'Undeploy Workflow',
       description: `Deactivate the currently serving workflow version. ${WORKSPACE_API_KEY_DENIED}`,
@@ -876,6 +957,7 @@ const declaredRoutes = [
               warnings: [],
               activeDeployment: null,
               latestDeploymentAttempt: null,
+              archivedMcpTools: [],
             },
           },
         ]
@@ -885,9 +967,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RollbackWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.activateVersion,
       operationId: 'rollbackWorkflow',
       summary: 'Rollback Workflow',
-      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. Use this to step back from the currently live version; to make a specific version live by naming it in the path — including when the workflow is not currently deployed — use \`POST /workflows/{workflowId}/versions/{version}/activate\`. Neither touches the draft. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Asynchronously activate a previous deployment version, defaulting to the preceding active version. Requires a deployed workflow and leaves the draft unchanged. Use Activate Workflow Version to select a version when the workflow is undeployed. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted rollback attempt.'),
     }),
@@ -930,9 +1013,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ExportWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.export,
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow. Use includeReferences=true for non-secret source identities and field occurrences used by mapped imports. Use includeWorkspaceBindings=true to retain non-secret workspace bindings for a same-workspace round trip; default exports clear those bindings. Credentials and secrets are cleared either way. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
@@ -966,15 +1050,21 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ImportWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.import,
       operationId: 'importWorkflow',
       summary: 'Import Workflow',
-      description: `Create a workflow from a portable export object, bare state, or JSON string. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create an undeployed workflow from a portable export object, bare state, or JSON string. Mapping options require a preview fingerprint and stable request ID; unresolved required configuration creates nothing. Mapped imports return source-to-imported block IDs and an operation receipt. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The imported workflow.'),
     }),
     {
       query: v2ImportWorkflowContract.query,
-      body: v2ImportWorkflowContract.body,
+      body: documentedSchema(
+        v2ImportWorkflowContract.body,
+        'ImportWorkflowBody',
+        'Import workflow input',
+        'Workflow document, destination, and optional reviewed mappings.'
+      ),
       response: documentedSchema(
         v2ImportWorkflowContract.response.schema,
         'ImportWorkflowResponse',
@@ -990,6 +1080,12 @@ const declaredRoutes = [
               folderPath: '/Operations',
               createdAt: WORKFLOW_EXAMPLE.createdAt,
               updatedAt: WORKFLOW_EXAMPLE.updatedAt,
+              blocks: [
+                { id: 'block_start', type: 'starter', name: 'Start' },
+                { id: 'block_triage', type: 'agent', name: 'Triage' },
+                { id: 'block_reply', type: 'response', name: 'Reply' },
+              ],
+              warnings: ['Triage: knowledgeBaseId was stripped by export; set it before running'],
             },
           },
         ]
@@ -998,11 +1094,13 @@ const declaredRoutes = [
   ),
   defineOpenApiRoute(
     v2ListChatDeploymentsContract,
+
     workflowOperation({
+      applicationOperation: chatDeploymentOperations.list,
       operationId: 'listChatDeployments',
       summary: 'List Chat Deployments',
       description:
-        'List the workflows a workspace has published as hosted chats. Each entry carries the public `url` a visitor uses — there is no chat subdomain, the identifier is a path segment.\n\nThis is the only chat path not addressed under a workflow, and deliberately so: every chat is a singleton of the workflow it publishes, but "what does this workspace serve" is a question no per-workflow path can answer. Filter by `workflowId` to resolve one workflow\'s chat without holding its id.\n\nEntries are deliberately narrower than the singleton read: `allowedEmails`, `hasPassword`, and `customizations` are available only from `GET /api/v2/workflows/{workflowId}/deployments/chat`, which requires workspace `admin`. That is what keeps this list callable at workspace `read` and by a workspace API key. A stored password is never returned by either.',
+        "List hosted chats and their public URLs with cursor pagination. Filter by `workflowId` for one workflow's chat. The list requires workspace read access; Get Workflow Chat Deployment requires admin access and includes visitor access settings and customizations. Passwords are never returned.",
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of chat deployments.'),
     }),
@@ -1020,9 +1118,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkflowChatDeploymentContract,
     workflowOperation({
+      applicationOperation: chatDeploymentOperations.read,
       operationId: 'getWorkflowChatDeployment',
       summary: 'Get Workflow Chat Deployment',
-      description: `Read the hosted chat a workflow is published as. Answers \`404\` when the workflow publishes no chat. ${CHAT_VS_WORKFLOW_DEPLOYMENT} The stored password is never returned — \`hasPassword\` reports only whether one is set. This carries the visitor gate — \`authType\`, \`hasPassword\`, and the \`allowedEmails\` allow-list — so it requires workspace \`admin\`, unlike the workspace-wide list. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Get a workflow's hosted chat and visitor access settings. Requires workspace admin access; a missing chat returns \`404\`. Passwords are never returned; \`hasPassword\` indicates whether one is set. Hosted chat and workflow API deployment are managed separately. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess("The workflow's chat deployment."),
     }),
@@ -1041,9 +1140,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ReplaceWorkflowChatDeploymentContract,
     workflowOperation({
+      applicationOperation: chatDeploymentOperations.replace,
       operationId: 'replaceWorkflowChatDeployment',
       summary: 'Create or Replace Workflow Chat Deployment',
-      description: `Publish a workflow as a hosted chat, or replace the chat it already publishes. ${CHAT_VS_WORKFLOW_DEPLOYMENT}\n\n**Replace, not merge.** The chat ends up as exactly what the body describes: an omitted optional field takes its platform default rather than whatever the previous chat carried, so sending the same body twice leaves the same result. \`password\` is therefore required whenever \`authType\` is \`"password"\` and rejected otherwise — it is write-only and never readable back, so carrying one over implicitly is the one place a replace would quietly stop meaning replace. \`allowedEmails\` follows the same rule: required and non-empty for \`"email"\` and \`"sso"\`, rejected for the modes that admit no allow-list. \`customizations\` is the one documented exception: it merges per field, so an omitted \`imageUrl\` keeps the stored one rather than clearing it, and customization keys this surface does not declare do not survive the write. That behaviour is shared with the in-app editor and the Copilot deploy tool, which both send partial objects.\n\nThis also deploys the workflow, because a chat serves the live version: a draft that has drifted is republished as part of the call. Two conditions answer \`409\` — an \`identifier\` another live chat already holds, and a workflow deployment attempt still preparing, which the caller can retry once it becomes active. \`authType: "public"\` leaves the chat open to anyone holding the URL. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or replace a workflow's hosted chat and deploy its draft. Omitted fields reset to defaults except per-field customizations. Password authentication requires \`password\`; email or SSO requires non-empty \`allowedEmails\`. Public authentication allows anyone with the chat URL to use it. A duplicate identifier or pending deployment returns \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The published chat deployment.'),
     }),
@@ -1063,9 +1163,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteWorkflowChatDeploymentContract,
     workflowOperation({
+      applicationOperation: chatDeploymentOperations.delete,
       operationId: 'deleteWorkflowChatDeployment',
       summary: 'Delete Workflow Chat Deployment',
-      description: `Stop serving a workflow's hosted chat. Its URL stops answering and the identifier becomes free again. The workflow's own deployment is untouched and stays executable through the workflow API — to undeploy that, use \`DELETE /workflows/{workflowId}/deploy\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Remove a workflow's hosted chat and release its URL identifier. The workflow API deployment remains active; use Undeploy Workflow to stop it. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The chat deployment was removed.'),
     }),
@@ -1084,9 +1185,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ExecuteWorkflowContract,
     workflowOperation({
+      applicationOperation: workflowOperations.execute,
       operationId: 'executeWorkflowV2',
       summary: 'Execute Workflow',
-      description: `Execute the active deployment by default, or select manual execution of the current saved workflow state with \`run.source: "manual"\`. Manual runs require a personal API key with current write access and support synchronous or Server-Sent Event execution only; workspace keys, anonymous public access, and async manual runs are rejected. A manual run can enter through one runnable trigger (including external integration/webhook triggers) or resume at a named block from the exact same-workflow run identified by \`sourceRunId\`; the server loads that run's persisted snapshot, which is never accepted from the request. Omit a trigger block id only when the saved workflow has exactly one runnable trigger. Public deployed workflows permit anonymous synchronous and streaming execution, while asynchronous deployed execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
+      description: `Execute a deployment or use \`run.source: "manual"\` for the draft. Manual runs require personal or OAuth write access and reject async. Public deployments allow anonymous sync or streaming. Request \`application/x-ndjson\` for heartbeats and the final result. Timeouts return \`200\` with failed status and \`TIMEOUT\`. Supply \`X-Run-Id\` to prevent duplicate execution; reuse returns \`409\`, never a replay. ${EXECUTE_OPTION_CONSTRAINTS}`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1100,13 +1202,14 @@ const declaredRoutes = [
         'InternalError',
         'ServiceUnavailable',
       ],
-      security: [...V2_API_KEY_SECURITY, {}],
+      security: [...V2_AUTH_SECURITY, {}],
       success: {
         byStatus: {
           200: {
-            description: 'A synchronous run result or Server-Sent Event stream.',
+            description:
+              'A synchronous run result, heartbeat-delimited NDJSON result stream, or Server-Sent Event stream.',
             headers: ['X-Run-Id', ...RATE_LIMIT_HEADERS],
-            additionalContentTypes: ['text/event-stream'],
+            additionalContentTypes: ['application/x-ndjson', 'text/event-stream'],
           },
           202: {
             description: 'The asynchronous run was queued.',
@@ -1127,6 +1230,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowRunsContract,
     workflowRunOperation({
+      applicationOperation: workflowOperations.listRuns,
       operationId: 'listWorkflowRunsV2',
       summary: 'List Workflow Runs',
       description: `List recorded runs of a workflow with filtering and opaque cursor pagination. ${RUN_RETENTION}`,
@@ -1164,9 +1268,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkflowRunContract,
     workflowRunOperation({
+      applicationOperation: workflowOperations.readRun,
       operationId: 'getWorkflowRunV2',
       summary: 'Get Workflow Run',
-      description: `Get current workflow run state, optionally including final and block outputs. With \`includeOutput\`, \`files\` lists the files the run produced, each with a \`downloadPath\`; add \`includeFileBase64\` to inline their bytes, which answers \`413\` naming the download path when a single file, or the run's inlined total, exceeds the 16 MiB ceiling. Because inlining reads object storage, this \`GET\` is not a safe read. ${HEAD_MIRRORS_GET}`,
+      description: `Get current run state with optional final and block outputs. With \`includeOutput\`, \`files\` includes download paths; \`includeFileBase64\` inlines file bytes and returns \`413\` with the download path when one file or the total exceeds 16 MiB. ${HEAD_MIRRORS_GET}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow run status.'),
     }),
@@ -1212,9 +1317,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DownloadRunFileContract,
     workflowRunOperation({
+      applicationOperation: workflowOperations.downloadRunFile,
       operationId: 'downloadWorkflowRunFileV2',
       summary: 'Download Workflow Run File',
-      description: `Download one file a run produced. The run resource reports the files a run emitted; address one of them by its \`id\` here. Run output carries \`/api/files/serve/...\` URLs that reject API keys, so this is the byte path out of a run for an API-key caller. Execution objects are not retained indefinitely, so a \`404\` for a file an older run produced is expected rather than a fault. ${RUN_RETENTION} Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      description: `Download one run-produced file by ID. Downloads record an audit event. ${RUN_RETENTION} ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: [...RESOURCE_CONFLICT_ERRORS],
       success: {
         description: 'The run file bytes.',
@@ -1230,10 +1336,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ResumeWorkflowContract,
     workflowRunOperation({
+      applicationOperation: workflowOperations.resumeRun,
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume Workflow Run',
       description:
-        'Resume one human-in-the-loop pause context. The resumed attempt receives a new run identifier and may complete synchronously or return a queue receipt.',
+        'Resume one human-in-the-loop pause. The resumed attempt receives a new run ID and returns either a synchronous result or a queue receipt.',
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {
@@ -1259,10 +1366,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CancelWorkflowRunContract,
     workflowRunOperation({
+      applicationOperation: workflowOperations.cancelRun,
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description:
-        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state is a `200` no-op answered with `success: false` and an `already_*` reason. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),
@@ -1293,9 +1401,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowFoldersContract,
     workflowOperation({
+      applicationOperation: workflowOperations.listFolders,
       operationId: 'listWorkflowsFolders',
       summary: 'List Workflow Folders',
-      description: `List canonical workflow folders in a workspace. ${FULL_SET_LIST} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List workflow folders in a workspace. ${FULL_SET_LIST} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A list of workflow folders.'),
     }),
@@ -1318,9 +1427,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2CreateWorkflowFolderContract,
     workflowOperation({
+      applicationOperation: workflowOperations.createFolder,
       operationId: 'createWorkflowsFolder',
       summary: 'Create Workflow Folder',
-      description: `Create a canonical workflow folder in a workspace. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create a workflow folder in a workspace. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The created workflow folder.'),
     }),
@@ -1345,9 +1455,10 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RelocateWorkflowFolderContract,
     workflowOperation({
+      applicationOperation: workflowOperations.relocateFolder,
       operationId: 'relocateWorkflowsFolder',
       summary: 'Rename or Move Workflow Folder',
-      description: `Rename or move a workflow folder and its descendants to a canonical path. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Rename or move a workflow folder and update all descendant paths. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The relocated workflow folder.'),
     }),
@@ -1378,9 +1489,11 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2DeleteWorkflowFolderContract,
     workflowOperation({
+      applicationOperation: workflowOperations.deleteFolder,
       operationId: 'deleteWorkflowsFolder',
       summary: 'Delete Workflow Folder',
-      description: 'Delete a workflow folder, optionally including its descendants and workflows.',
+      description:
+        'Archive an empty workflow folder, or set `recursive=true` to archive its subfolders and workflows. Use Restore Workflow to recover workflows.',
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow folder was deleted.'),
     }),
@@ -1433,6 +1546,11 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   servers: [{ url: 'https://www.sim.ai', description: 'Production' }],
   tags: [
     {
+      name: 'Workspace Sync',
+      description:
+        'Portable workflow configuration, workspace forks, push and pull, and durable operation status.',
+    },
+    {
       name: 'Workflows',
       description:
         'Manage and execute workflow definitions, folders, deployment versions, and portable imports and exports.',
@@ -1442,10 +1560,10 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
       description: 'Inspect, resume, and cancel workflow runs.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
-  routes,
+  routes: [...routes, ...workspaceSyncOpenApiRoutes],
 })

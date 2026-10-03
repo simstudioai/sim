@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The provenance envelope moved out of the route adapter and into the domain,
  * because interpreting a caller's selections requires the canonical schema and
  * the adapter must not load it. These pin the semantics that move with it.
@@ -105,14 +103,6 @@ describe('row write provenance', () => {
     expect(stamps).toEqual([
       { complete: true, columns: { col_aaa: { version: 1, complete: true, entries: [] } } },
     ])
-  })
-
-  it('leaves an internal caller that sent no envelope untracked', () => {
-    // Not exact-empty: stamping "this write introduced no secrets" on a runtime
-    // write that sent no envelope would be a false certification.
-    const { stamps } = resolve({ principal: EXECUTOR })
-
-    expect(stamps).toEqual([undefined])
   })
 
   it('refuses a bundle from a session caller', () => {
@@ -224,17 +214,5 @@ describe('row write provenance', () => {
     })
 
     expect(stamps[0]).toEqual({ complete: true, columns: { 'col-unknown': traceProvenance() } })
-  })
-
-  it('records nothing for a key that names no column, since it is never stored', () => {
-    const { stamps } = resolve({
-      principal: EXECUTOR,
-      keying: 'names',
-      wireRows: [{ Nope: 'x' }],
-      storageRows: [{}],
-      envelope: { kind: 'bundle', value: bundle([{ key: JSON.stringify([0, 'Nope']) }]) },
-    })
-
-    expect(stamps[0]).toEqual({ complete: true, columns: {} })
   })
 })

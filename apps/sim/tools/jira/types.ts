@@ -850,7 +850,7 @@ export interface JiraRetrieveResponse extends ToolResponse {
       created: string
     }>
     issue: Record<string, unknown>
-    files?: Array<{ name: string; mimeType: string; data: string; size: number }>
+    files?: Array<{ name: string; mimeType: string; data: Buffer | string; size: number }>
   }
 }
 
@@ -944,30 +944,6 @@ export interface JiraWriteResponse extends ToolResponse {
     url: string
     assigneeId: string | null
   }
-}
-
-interface JiraIssue {
-  key: string
-  summary: string
-  status: string
-  priority?: string
-  assignee?: string
-  updated: string
-}
-
-interface JiraProject {
-  id: string
-  key: string
-  name: string
-  url: string
-}
-
-interface JiraCloudResource {
-  id: string
-  url: string
-  name: string
-  scopes: string[]
-  avatarUrl: string
 }
 
 export interface JiraDeleteIssueParams {
@@ -1222,7 +1198,7 @@ export interface JiraGetAttachmentsResponse extends ToolResponse {
       authorName: string
       created: string
     }>
-    files?: Array<{ name: string; mimeType: string; data: string; size: number }>
+    files?: Array<{ name: string; mimeType: string; data: Buffer | string; size: number }>
   }
 }
 

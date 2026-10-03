@@ -2,7 +2,6 @@ import { Building, ListChecks, Search, Sparkles, Sprout, Users } from '@sim/emcn
 import { CbInsightsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { CbInsightsResponse } from '@/tools/cbinsights/types'
 
 /** Operations that take a single organization ID on the path. */
 const ORG_OPERATIONS = [
@@ -62,7 +61,7 @@ const TITLE_FILTER_OPERATIONS = ['get_org_management_and_board', 'list_managemen
 /** Operations whose history window is bounded by a start and an end date. */
 const DATE_RANGE_OPERATIONS = ['get_commercial_maturity_history', 'get_exit_probability_history']
 
-export const CbInsightsBlock: BlockConfig<CbInsightsResponse> = {
+export const CbInsightsBlock: BlockConfig = {
   type: 'cbinsights',
   name: 'CB Insights',
   description: 'Research private markets — firmographics, funding, and predictive scores',

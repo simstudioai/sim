@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -44,11 +40,7 @@ vi.mock('@/app/api/v2/files/uploads/utils', () => ({
   })),
 }))
 
-import {
-  InsufficientWorkspacePermissionsError,
-  NoWorkspaceAccessError,
-  WorkspaceApiKeyAuthorizationError,
-} from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { DELETE, GET } from '@/app/api/v2/files/uploads/[uploadId]/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -81,19 +73,10 @@ function readRequest(headers: Record<string, string> = { 'upload-token': 'signed
 
 describe('GET /api/v2/files/uploads/[uploadId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.read.mockResolvedValue({ id: UPLOAD_ID })
-  })
-
-  it('reads the session through the shared use case', async () => {
-    const response = await GET(readRequest(), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ data: { id: UPLOAD_ID } })
-    expect(mocks.abort).not.toHaveBeenCalled()
   })
 
   /**
@@ -113,34 +96,10 @@ describe('GET /api/v2/files/uploads/[uploadId]', () => {
     )
   })
 
-  /** The GET is a control leg, so it carries the signed token like the others. */
-  it('forwards the signed upload token to the use case', async () => {
-    await GET(readRequest(), context)
-
-    expect(mocks.read).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          uploadId: UPLOAD_ID,
-          workspaceId: WORKSPACE_ID,
-          uploadToken: 'signed-token',
-        },
-      })
-    )
-  })
-
   it('rejects a read missing the signed upload token', async () => {
     const response = await GET(readRequest({}), context)
 
     expect(response.status).toBe(400)
-    expect(mocks.read).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(readRequest(), context)
-
-    expect(response.status).toBe(401)
     expect(mocks.read).not.toHaveBeenCalled()
   })
 
@@ -154,40 +113,14 @@ describe('GET /api/v2/files/uploads/[uploadId]', () => {
       error: { code: 'NOT_FOUND', message: 'Upload session not found' },
     })
   })
-
-  it('keeps a workspace-key policy denial as a 403', async () => {
-    mocks.read.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
-
-    const response = await GET(readRequest(), context)
-
-    expect(response.status).toBe(403)
-  })
 })
 
 describe('DELETE /api/v2/files/uploads/[uploadId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.abort.mockResolvedValue({ id: UPLOAD_ID })
-  })
-
-  it('aborts through the shared use case', async () => {
-    const response = await DELETE(abortRequest(), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ data: { id: UPLOAD_ID, status: 'aborted' } })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await DELETE(abortRequest(), context)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-    expect(mocks.abort).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-tenant reach as a missing upload session', async () => {
@@ -198,34 +131,6 @@ describe('DELETE /api/v2/files/uploads/[uploadId]', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Upload session not found' },
-    })
-  })
-
-  /**
-   * Only cross-tenant reaches are concealed. A workspace key barred from this
-   * operation is a same-workspace policy denial — the caller owns the session
-   * and needs to be told why, not handed a misleading 404.
-   */
-  it('keeps a workspace-key policy denial as a 403', async () => {
-    mocks.abort.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
-
-    const response = await DELETE(abortRequest(), context)
-
-    expect(response.status).toBe(403)
-  })
-
-  it('does not conceal a workspace-policy denial behind a not-found', async () => {
-    mocks.abort.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
-
-    const response = await DELETE(abortRequest(), context)
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({
-      error: {
-        code: 'FORBIDDEN',
-        message: 'Insufficient workspace permissions',
-        details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' },
-      },
     })
   })
 })

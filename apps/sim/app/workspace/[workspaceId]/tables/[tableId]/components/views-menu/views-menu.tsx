@@ -137,7 +137,7 @@ export const ViewsMenu = memo(function ViewsMenu({
         border
         className={cn(
           POPOVER_ANIMATION_CLASSES,
-          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-xs'
         )}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}

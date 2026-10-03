@@ -2,47 +2,7 @@ import { MondayIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  MondayArchiveItemResponse,
-  MondayChangeColumnValueResponse,
-  MondayCreateBoardResponse,
-  MondayCreateColumnResponse,
-  MondayCreateGroupResponse,
-  MondayCreateItemResponse,
-  MondayCreateSubitemResponse,
-  MondayCreateUpdateResponse,
-  MondayDeleteItemResponse,
-  MondayDuplicateItemResponse,
-  MondayGetBoardResponse,
-  MondayGetGroupsResponse,
-  MondayGetItemResponse,
-  MondayGetItemsResponse,
-  MondayListBoardsResponse,
-  MondayMoveItemToGroupResponse,
-  MondaySearchItemsResponse,
-  MondayUpdateItemResponse,
-} from '@/tools/monday/types'
 import { getTrigger } from '@/triggers'
-
-type MondayResponse =
-  | MondayListBoardsResponse
-  | MondayGetBoardResponse
-  | MondayGetItemResponse
-  | MondayGetItemsResponse
-  | MondayCreateItemResponse
-  | MondayUpdateItemResponse
-  | MondayDeleteItemResponse
-  | MondayArchiveItemResponse
-  | MondayCreateUpdateResponse
-  | MondayCreateGroupResponse
-  | MondaySearchItemsResponse
-  | MondayCreateSubitemResponse
-  | MondayMoveItemToGroupResponse
-  | MondayChangeColumnValueResponse
-  | MondayCreateBoardResponse
-  | MondayCreateColumnResponse
-  | MondayGetGroupsResponse
-  | MondayDuplicateItemResponse
 
 const BOARD_OPS = [
   'get_board',
@@ -71,7 +31,7 @@ const ITEM_ID_OPS = [
 const BOARD_FIELD = ['boardSelector', 'manualBoardId'] as const
 const GROUP_FIELD = ['groupSelector', 'manualGroupId'] as const
 
-export const MondayBlock: BlockConfig<MondayResponse> = {
+export const MondayBlock: BlockConfig = {
   type: 'monday',
   name: 'Monday',
   description: 'Manage Monday.com boards, items, and groups',

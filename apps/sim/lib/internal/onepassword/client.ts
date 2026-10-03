@@ -11,6 +11,7 @@ import type {
   Website,
 } from '@1password/sdk'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   type SecureFetchResponse,
@@ -449,12 +450,6 @@ export function findItemFileAttributes(item: Item, fileId: string): FileAttribut
  * category enum strings vs Connect's SCREAMING_SNAKE_CASE) and silently no-ops or
  * corrupts the write otherwise.
  */
-function objectValue(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
@@ -465,8 +460,8 @@ export function connectItemToSdkItem(connectItem: Record<string, unknown>, exist
 
   const fields = Array.isArray(connectItem.fields)
     ? connectItem.fields.map((value) => {
-        const field = objectValue(value)
-        const section = objectValue(field.section)
+        const field = toRecord(value)
+        const section = toRecord(field.section)
         const id = optionalString(field.id)
         return {
           /** Preserve SDK-only metadata on fields that already existed. */
@@ -482,7 +477,7 @@ export function connectItemToSdkItem(connectItem: Record<string, unknown>, exist
 
   const sections = Array.isArray(connectItem.sections)
     ? connectItem.sections.map((value) => {
-        const section = objectValue(value)
+        const section = toRecord(value)
         const id = optionalString(section.id)
         return {
           ...(id ? existingSectionsById.get(id) : undefined),
@@ -495,7 +490,7 @@ export function connectItemToSdkItem(connectItem: Record<string, unknown>, exist
   const websitesValue = connectItem.urls ?? connectItem.websites
   const websites = Array.isArray(websitesValue)
     ? websitesValue.map((value) => {
-        const website = objectValue(value)
+        const website = toRecord(value)
         return {
           url: optionalString(website.href) || optionalString(website.url) || '',
           label: optionalString(website.label) || '',

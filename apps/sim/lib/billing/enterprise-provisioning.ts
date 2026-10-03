@@ -2746,36 +2746,52 @@ async function resolveEnterpriseInvitationApplicationState(
   workspaceIds: string[]
 ): Promise<EnterpriseInvitationApplicationState> {
   const normalizedEmail = normalizeEmail(payload.email)
-  const [existingUser] = await db
-    .select({ id: user.id, organizationId: member.organizationId, role: member.role })
+  const accessRows = await db
+    .select({
+      userId: user.id,
+      workspaceId: workspace.id,
+      role: member.role,
+      permission: permissions.permissionType,
+    })
     .from(user)
-    .leftJoin(member, eq(member.userId, user.id))
-    .where(eq(user.normalizedEmail, normalizedEmail))
-    .limit(1)
-  const roleSatisfied =
-    existingUser?.organizationId === payload.organizationId &&
-    (payload.role === 'member' || isOrgAdminRole(existingUser.role))
-  if (existingUser && roleSatisfied) {
-    const accessRows = await db
-      .select({ workspaceId: permissions.entityId, permission: permissions.permissionType })
-      .from(permissions)
-      .where(
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.userId, existingUser.id),
-          inArray(permissions.entityId, workspaceIds)
-        )
-      )
-    const accessByWorkspace = new Map(
-      accessRows.map((row) => [row.workspaceId, row.permission] as const)
+    .innerJoin(
+      member,
+      and(eq(member.userId, user.id), eq(member.organizationId, payload.organizationId))
     )
-    if (
-      workspaceIds.every((workspaceId) =>
-        permissionSatisfies(accessByWorkspace.get(workspaceId), payload.permission)
+    /**
+     * Archived workspaces stay in the join: the selection keeps them on purpose (the move
+     * carries them into the organization so they can be unarchived later), so a recipient
+     * whose access on one is already in place must read as applied, or the sweep would
+     * schedule an invitation the archived workspace cannot accept and never converge.
+     */
+    .innerJoin(
+      workspace,
+      and(eq(workspace.organizationId, member.organizationId), inArray(workspace.id, workspaceIds))
+    )
+    .leftJoin(
+      permissions,
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.userId, user.id),
+        eq(permissions.entityId, workspace.id)
       )
-    ) {
-      return { kind: 'applied', resultId: existingUser.id }
-    }
+    )
+    .where(eq(user.normalizedEmail, normalizedEmail))
+  const accessByWorkspace = new Map(accessRows.map((row) => [row.workspaceId, row] as const))
+  const existingUserId = accessRows[0]?.userId
+  if (
+    existingUserId &&
+    workspaceIds.every((workspaceId) => {
+      const access = accessByWorkspace.get(workspaceId)
+      if (!access) return false
+      const inheritsAdmin = isOrgAdminRole(access.role)
+      return (
+        (payload.role === 'member' || inheritsAdmin) &&
+        (inheritsAdmin || permissionSatisfies(access.permission, payload.permission))
+      )
+    })
+  ) {
+    return { kind: 'applied', resultId: existingUserId }
   }
 
   const pendingRows = await db

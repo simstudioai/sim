@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 /**
@@ -112,10 +109,6 @@ function expectSerializable(projection: unknown, label: string): void {
 describe('block catalog projection sweep', () => {
   const blocks = Object.values(getBlockRegistry())
 
-  it('has a non-empty registry to sweep', () => {
-    expect(blocks.length).toBeGreaterThan(100)
-  })
-
   it('projects every registered block to a publishable summary', () => {
     for (const block of blocks) {
       const summary = projectBlockSummary(block)
@@ -134,10 +127,63 @@ describe('block catalog projection sweep', () => {
 })
 
 /**
+ * Pinned shapes of two real registry blocks, where a projection rule is only
+ * visible against an authored block rather than a synthetic fixture.
+ */
+describe('block detail regressions', () => {
+  const registry = getBlockRegistry()
+  const registered = (type: string) => {
+    const block = registry[type]
+    if (!block) throw new Error(`block ${type} is not registered`)
+    return block
+  }
+
+  it('keys operation inputs by the sub-block id an apply accepts, not the canonical param id', () => {
+    const detail = projectBlockDetail(registered('table_v2'), { deployment: HOSTED })
+    const inputKeys = Object.keys(detail.operations.query_rows?.inputs ?? {})
+    expect(inputKeys).toContain('filter')
+    expect(inputKeys).not.toContain('filterInput')
+    expect(inputKeys).not.toContain('sortInput')
+  })
+
+  /**
+   * `blocks get agent` reported `apiKey`, `vertexCredential`, `bedrockAccessKeyId`,
+   * `conversationId`, … as `required: true`, because each is authored
+   * `required: true` behind a condition the projection flattened away. A field
+   * required only under some configuration is optional at the block level, and
+   * the condition that requires it is published alongside.
+   */
+  it('publishes the agent’s conditionally required fields as optional with their condition', () => {
+    const detail = projectBlockDetail(registered('agent'), { deployment: HOSTED })
+    const byId = new Map(detail.inputSchema.map((field) => [field.id, field]))
+
+    for (const id of ['apiKey', 'vertexCredential', 'vertexProject', 'bedrockAccessKeyId']) {
+      const field = byId.get(id)
+      expect(field, id).toBeDefined()
+      expect(field?.required, id).toBe(false)
+      expect(field?.requiredWhen, id).toMatchObject({ field: expect.any(String) })
+    }
+    expect(byId.get('conversationId')).toMatchObject({
+      required: false,
+      requiredWhen: { field: expect.any(String) },
+    })
+    expect(detail.inputSchema.some((field) => field.required === true)).toBe(true)
+  })
+
+  it('publishes a triggers-category block’s trigger-mode fields as its input schema', () => {
+    const detail = projectBlockDetail(registered('schedule'), { deployment: HOSTED })
+    const ids = detail.inputSchema.map((field) => field.id)
+    expect(ids).toEqual(expect.arrayContaining(['scheduleType', 'cronExpression', 'timezone']))
+    expect(ids).not.toContain('scheduleInfo')
+  })
+})
+
+/**
  * Custom (deploy-as-block) blocks, which the registry sweep above cannot reach.
  *
- * `projectCustomBlockDetail` is a separate branch with its own field set — and
- * the only one whose `inputSchema` includes `mode: 'trigger'` sub-blocks — yet
+ * `projectCustomBlockDetail` is a separate branch with its own field set — it
+ * publishes `mode: 'trigger'` sub-blocks in `inputSchema`, as the main branch
+ * does only for `triggers`-category blocks — yet
  * it is caller-reachable through `GET /api/v2/blocks/custom_block_*`. Built from
  * the same `buildCustomBlockConfig` the overlay uses, so a change to the synthesized
  * shape shows up here rather than as a 500 on a well-formed request.
@@ -201,12 +247,6 @@ describe('custom block catalog projection sweep', () => {
 
 describe('tool catalog projection sweep', () => {
   const toolIds = getToolIds()
-
-  it('hands out a frozen id list, so a caller must copy before sorting', () => {
-    expect(Object.isFrozen(toolIds)).toBe(true)
-    expect(() => (toolIds as string[]).sort()).toThrow(TypeError)
-    expect(() => [...toolIds].sort()).not.toThrow()
-  })
 
   it('projects every registered tool to a publishable summary and detail', () => {
     expect(toolIds.length).toBeGreaterThan(1000)

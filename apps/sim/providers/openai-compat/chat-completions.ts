@@ -1,0 +1,717 @@
+import type { Logger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
+import type OpenAI from 'openai'
+import type {
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionMessage,
+  ChatCompletionMessageParam,
+  ChatCompletionToolChoiceOption,
+} from 'openai/resources/chat/completions'
+import type { StreamingExecution } from '@/executor/types'
+import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+  recordProviderConversationUsage,
+} from '@/providers/conversation-history'
+import {
+  createOpenAICompatAssistantHistory,
+  type OpenAICompatReasoningField,
+} from '@/providers/openai-compat/assistant-history'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { executeProviderTool } from '@/providers/runtime-context'
+import { createSettledAgentEventStream } from '@/providers/stream-events'
+import { createStreamingExecution } from '@/providers/streaming-execution'
+import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import type {
+  FunctionCallResponse,
+  Message,
+  ProviderRequest,
+  ProviderResponse,
+  TimeSegment,
+} from '@/providers/types'
+import { ProviderError } from '@/providers/types'
+import {
+  calculateCost,
+  checkForForcedToolUsageOpenAI,
+  isFunctionToolCall,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  sumToolCosts,
+} from '@/providers/utils'
+
+export type ChatCompletionPayload = ChatCompletionCreateParamsNonStreaming & {
+  provider?: { require_parameters?: boolean }
+}
+
+interface ChatCompletionExecutionConfig {
+  providerId: 'baseten' | 'together' | 'fireworks' | 'openrouter'
+  providerName: string
+  client: OpenAI
+  requestedModel: string
+  /** Fireworks sends a wire model but retains its catalog identity for billing and output. */
+  reportedModel: string
+  logger: Logger
+  applyResponseFormat: (
+    payload: ChatCompletionPayload,
+    messages: ChatCompletionMessageParam[],
+    responseFormat: NonNullable<ProviderRequest['responseFormat']>,
+    model: string
+  ) => Promise<ChatCompletionMessageParam[]>
+  reasoningFields: readonly OpenAICompatReasoningField[]
+  preserveReasoningDetails?: boolean
+  /** Together and OpenRouter account for the pending turn when their tool loop reaches its cap. */
+  recordPendingUsage?: boolean
+}
+
+/** Runs the shared Chat Completions request, tool loop and settled-stream lifecycle. */
+export async function executeChatCompletionRequest(
+  request: ProviderRequest,
+  config: ChatCompletionExecutionConfig
+): Promise<ProviderResponse | StreamingExecution> {
+  const {
+    client,
+    requestedModel,
+    reportedModel,
+    logger,
+    applyResponseFormat,
+    providerId,
+    providerName,
+  } = config
+  const allMessages: Message[] = []
+
+  if (request.systemPrompt) {
+    allMessages.push({ role: 'system', content: request.systemPrompt })
+  }
+
+  if (request.context) {
+    allMessages.push({ role: 'user', content: request.context })
+  }
+
+  if (request.messages) {
+    allMessages.push(...request.messages)
+  }
+  const formattedMessages = formatMessagesForProvider(
+    allMessages,
+    providerId
+  ) as ChatCompletionMessageParam[]
+
+  const tools = request.tools?.length
+    ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
+    : undefined
+
+  const payload: ChatCompletionPayload = {
+    model: requestedModel,
+    messages: formattedMessages,
+  }
+
+  if (request.temperature !== undefined) payload.temperature = request.temperature
+  if (request.maxTokens != null) payload.max_tokens = request.maxTokens
+
+  let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+  let hasActiveTools = false
+  if (tools?.length) {
+    preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, providerId)
+    const { tools: filteredTools, toolChoice } = preparedTools
+    if (filteredTools?.length && toolChoice) {
+      payload.tools = filteredTools
+      payload.tool_choice = toolChoice as ChatCompletionToolChoiceOption
+      hasActiveTools = true
+    }
+  }
+
+  const providerStartTime = Date.now()
+  const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+  try {
+    if (request.responseFormat && !hasActiveTools) {
+      payload.messages = await applyResponseFormat(
+        payload,
+        payload.messages,
+        request.responseFormat,
+        requestedModel
+      )
+    }
+
+    if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
+      const streamingParams: ChatCompletionCreateParamsStreaming = {
+        ...payload,
+        stream: true,
+        stream_options: { include_usage: true },
+      }
+      const streamResponse = await client.chat.completions.create(
+        await prepareConversationGeneration(request, 'chat-completions', streamingParams),
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
+
+      const streamingResult = createStreamingExecution({
+        model: reportedModel,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: { kind: 'simple', segmentName: request.model },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { input: 0, output: 0, total: 0 },
+        streamFormat: 'agent-events-v1',
+        createStream: ({ output, finalizeTiming }) =>
+          createOpenAICompatibleAgentEventStream(streamResponse, {
+            request,
+            providerName,
+            onComplete: ({ content, usage }) => {
+              output.content = content
+              output.tokens = {
+                input: usage.prompt_tokens,
+                output: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
+
+              const costResult = calculateCost(
+                reportedModel,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
+
+              finalizeTiming()
+            },
+          }),
+      })
+
+      return streamingResult
+    }
+
+    const initialCallTime = Date.now()
+    const originalToolChoice = payload.tool_choice
+    const forcedTools = preparedTools?.forcedTools || []
+    let usedForcedTools: string[] = []
+
+    let currentResponse = await client.chat.completions.create(
+      await prepareConversationGeneration(request, 'chat-completions', payload),
+      request.abortSignal ? { signal: request.abortSignal } : undefined
+    )
+    if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
+    }
+    const firstResponseTime = Date.now() - initialCallTime
+
+    let content = currentResponse.choices[0]?.message?.content || ''
+    const tokens = {
+      input: currentResponse.usage?.prompt_tokens || 0,
+      output: currentResponse.usage?.completion_tokens || 0,
+      total: currentResponse.usage?.total_tokens || 0,
+    }
+    const toolCalls: FunctionCallResponse[] = []
+    const toolResults: Record<string, unknown>[] = []
+    const currentMessages = [...formattedMessages]
+    let iterationCount = 0
+    let modelTime = firstResponseTime
+    let toolsTime = 0
+    let hasUsedForcedTool = false
+    const timeSegments: TimeSegment[] = [
+      {
+        type: 'model',
+        name: request.model,
+        startTime: initialCallTime,
+        endTime: initialCallTime + firstResponseTime,
+        duration: firstResponseTime,
+      },
+    ]
+
+    const forcedToolResult = checkForForcedToolUsageOpenAI(
+      currentResponse,
+      originalToolChoice ?? 'auto',
+      providerName,
+      forcedTools,
+      usedForcedTools
+    )
+    hasUsedForcedTool = forcedToolResult.hasUsedForcedTool
+    usedForcedTools = forcedToolResult.usedForcedTools
+
+    while (iterationCount < MAX_TOOL_ITERATIONS) {
+      if (currentResponse.choices[0]?.message?.content) {
+        content = currentResponse.choices[0].message.content
+      }
+
+      const toolCallsInResponse =
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+
+      enrichLastModelSegmentFromChatCompletions(
+        timeSegments,
+        currentResponse,
+        toolCallsInResponse,
+        { model: request.model, provider: providerId }
+      )
+
+      if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
+        break
+      }
+
+      const toolsStartTime = Date.now()
+
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
+      const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
+        const toolCallStartTime = Date.now()
+        const toolName = toolCall.function.name
+
+        try {
+          const toolArgs = parseToolArguments(toolCall.function.arguments, toolName)
+          const tool = request.tools?.find((t) => t.id === toolName)
+
+          if (!tool) {
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              `Tool "${toolName}" is not available`
+            )
+            const toolCallEndTime = Date.now()
+            return {
+              toolCall,
+              toolName,
+              toolParams: {},
+              result: {
+                success: false,
+                output: undefined,
+                error: `Tool "${toolName}" is not available`,
+              },
+              startTime: toolCallStartTime,
+              endTime: toolCallEndTime,
+              duration: toolCallEndTime - toolCallStartTime,
+            }
+          }
+
+          const { toolParams, executionParams } = prepareToolExecution(
+            tool,
+            toolArgs,
+            request,
+            toolCall.id
+          )
+          const { rawResponse, modelResponse } = await executeProviderTool(
+            toolName,
+            executionParams,
+            {
+              signal: request.abortSignal,
+            }
+          )
+          const toolCallEndTime = Date.now()
+
+          return {
+            toolCall,
+            toolName,
+            toolParams,
+            result: rawResponse,
+            modelResult: modelResponse,
+            startTime: toolCallStartTime,
+            endTime: toolCallEndTime,
+            duration: toolCallEndTime - toolCallStartTime,
+          }
+        } catch (error) {
+          if (isAbortError(error) || request.abortSignal?.aborted) {
+            throw error
+          }
+          await recordProviderConversationToolError(
+            request,
+            toolCall.id,
+            toolName,
+            getErrorMessage(error, 'Tool execution failed')
+          )
+          const toolCallEndTime = Date.now()
+          logger.error(`Error processing tool call (${providerName}):`, {
+            error: toError(error).message,
+            toolName,
+          })
+
+          return {
+            toolCall,
+            toolName,
+            toolParams: {},
+            result: {
+              success: false,
+              output: undefined,
+              error: getErrorMessage(error, 'Tool execution failed'),
+            },
+            startTime: toolCallStartTime,
+            endTime: toolCallEndTime,
+            duration: toolCallEndTime - toolCallStartTime,
+          }
+        }
+      })
+
+      const executionResults = await Promise.all(toolExecutionPromises)
+      const assistantMessage = currentResponse.choices[0]?.message
+      if (assistantMessage) {
+        const assistantHistory = createOpenAICompatAssistantHistory({
+          message: assistantMessage,
+          toolCalls: toolCallsInResponse,
+          reasoningFields: config.reasoningFields,
+        })
+        const extendedMessage = assistantMessage as ChatCompletionMessage & {
+          reasoning_details?: unknown[]
+        }
+        if (config.preserveReasoningDetails && Array.isArray(extendedMessage.reasoning_details)) {
+          assistantHistory.reasoning_details = extendedMessage.reasoning_details
+        }
+        currentMessages.push(assistantHistory)
+      }
+
+      for (const executionResult of executionResults) {
+        const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
+          executionResult
+        const modelResult =
+          'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
+
+        timeSegments.push({
+          type: 'tool',
+          name: toolName,
+          startTime: startTime,
+          endTime: endTime,
+          duration: duration,
+          toolCallId: toolCall.id,
+        })
+
+        let resultContent: unknown
+        if (result.success) {
+          if (isRecordLike(result.output)) {
+            toolResults.push(result.output)
+          }
+          resultContent = result.output ?? null
+        } else {
+          resultContent = {
+            error: true,
+            message: result.error || 'Tool execution failed',
+            tool: toolName,
+          }
+        }
+        const modelResultContent = modelResult.success
+          ? (modelResult.output ?? null)
+          : {
+              error: true,
+              message: modelResult.error || 'Tool execution failed',
+              tool: toolName,
+            }
+
+        toolCalls.push({
+          name: toolName,
+          arguments: toolParams,
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date(endTime).toISOString(),
+          duration: duration,
+          result: resultContent,
+          success: result.success,
+        })
+
+        currentMessages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(modelResultContent),
+        })
+      }
+
+      const thisToolsTime = Date.now() - toolsStartTime
+      toolsTime += thisToolsTime
+
+      const nextPayload = {
+        ...payload,
+        messages: currentMessages,
+      }
+
+      if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+        const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+        if (remainingTools.length > 0) {
+          nextPayload.tool_choice = { type: 'function', function: { name: remainingTools[0] } }
+        } else {
+          nextPayload.tool_choice = 'auto'
+        }
+      }
+
+      const nextModelStartTime = Date.now()
+      currentResponse = await client.chat.completions.create(
+        await prepareConversationGeneration(request, 'chat-completions', nextPayload),
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
+      const nextForcedToolResult = checkForForcedToolUsageOpenAI(
+        currentResponse,
+        nextPayload.tool_choice ?? 'auto',
+        providerName,
+        forcedTools,
+        usedForcedTools
+      )
+      hasUsedForcedTool = nextForcedToolResult.hasUsedForcedTool
+      usedForcedTools = nextForcedToolResult.usedForcedTools
+      const nextModelEndTime = Date.now()
+      const thisModelTime = nextModelEndTime - nextModelStartTime
+      timeSegments.push({
+        type: 'model',
+        name: request.model,
+        startTime: nextModelStartTime,
+        endTime: nextModelEndTime,
+        duration: thisModelTime,
+      })
+      modelTime += thisModelTime
+      if (currentResponse.choices[0]?.message?.content) {
+        content = currentResponse.choices[0].message.content
+      }
+      if (currentResponse.usage) {
+        tokens.input += currentResponse.usage.prompt_tokens || 0
+        tokens.output += currentResponse.usage.completion_tokens || 0
+        tokens.total += currentResponse.usage.total_tokens || 0
+      }
+      iterationCount++
+    }
+
+    if (iterationCount === MAX_TOOL_ITERATIONS) {
+      if (config.recordPendingUsage && currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await recordProviderConversationUsage(
+          request,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
+      const pendingToolCalls =
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+      enrichLastModelSegmentFromChatCompletions(timeSegments, currentResponse, pendingToolCalls, {
+        model: request.model,
+        provider: providerId,
+      })
+
+      if (pendingToolCalls?.length && !(request.responseFormat && hasActiveTools)) {
+        const finalPayload: ChatCompletionPayload = {
+          ...payload,
+          messages: [...currentMessages],
+          tool_choice: 'none',
+        }
+
+        if (request.responseFormat) {
+          finalPayload.messages = await applyResponseFormat(
+            finalPayload,
+            finalPayload.messages,
+            request.responseFormat,
+            requestedModel
+          )
+        }
+
+        const finalStartTime = Date.now()
+        const finalResponse = await client.chat.completions.create(
+          await prepareConversationGeneration(request, 'chat-completions', finalPayload),
+          request.abortSignal ? { signal: request.abortSignal } : undefined
+        )
+        if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            finalResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(finalResponse.usage)
+          )
+        }
+        const finalEndTime = Date.now()
+        const finalDuration = finalEndTime - finalStartTime
+
+        timeSegments.push({
+          type: 'model',
+          name: 'Final answer after tool iteration limit',
+          startTime: finalStartTime,
+          endTime: finalEndTime,
+          duration: finalDuration,
+        })
+        modelTime += finalDuration
+
+        if (finalResponse.choices[0]?.message?.content) {
+          content = finalResponse.choices[0].message.content
+        }
+        if (finalResponse.usage) {
+          tokens.input += finalResponse.usage.prompt_tokens || 0
+          tokens.output += finalResponse.usage.completion_tokens || 0
+          tokens.total += finalResponse.usage.total_tokens || 0
+        }
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          finalResponse,
+          finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
+          { model: request.model, provider: providerId }
+        )
+      }
+    }
+
+    if (request.responseFormat && hasActiveTools) {
+      const finalPayload: ChatCompletionPayload = {
+        model: payload.model,
+        messages: [...currentMessages],
+      }
+      if (payload.temperature !== undefined) {
+        finalPayload.temperature = payload.temperature
+      }
+      if (payload.max_tokens !== undefined) {
+        finalPayload.max_tokens = payload.max_tokens
+      }
+
+      finalPayload.messages = await applyResponseFormat(
+        finalPayload,
+        finalPayload.messages,
+        request.responseFormat,
+        requestedModel
+      )
+
+      const finalStartTime = Date.now()
+      const finalResponse = await client.chat.completions.create(
+        await prepareConversationGeneration(request, 'chat-completions', finalPayload),
+        request.abortSignal ? { signal: request.abortSignal } : undefined
+      )
+      if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          finalResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(finalResponse.usage)
+        )
+      }
+      const finalEndTime = Date.now()
+      const finalDuration = finalEndTime - finalStartTime
+
+      timeSegments.push({
+        type: 'model',
+        name: 'Final structured response',
+        startTime: finalStartTime,
+        endTime: finalEndTime,
+        duration: finalDuration,
+      })
+      modelTime += finalDuration
+
+      if (finalResponse.choices[0]?.message?.content) {
+        content = finalResponse.choices[0].message.content
+      }
+      if (finalResponse.usage) {
+        tokens.input += finalResponse.usage.prompt_tokens || 0
+        tokens.output += finalResponse.usage.completion_tokens || 0
+        tokens.total += finalResponse.usage.total_tokens || 0
+      }
+
+      enrichLastModelSegmentFromChatCompletions(
+        timeSegments,
+        finalResponse,
+        finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
+        { model: request.model, provider: providerId }
+      )
+    }
+
+    if (request.stream) {
+      const accumulatedCost = calculateCost(reportedModel, tokens.input, tokens.output)
+      const toolCost = sumToolCosts(toolResults)
+      const finalCost = {
+        input: accumulatedCost.input,
+        output: accumulatedCost.output,
+        toolCost: toolCost || undefined,
+        total: accumulatedCost.total + toolCost,
+      }
+
+      const streamingResult = createStreamingExecution({
+        model: reportedModel,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: {
+          kind: 'accumulated',
+          modelTime,
+          toolsTime,
+          firstResponseTime,
+          iterations: timeSegments.filter((segment) => segment.type === 'model').length,
+          timeSegments,
+        },
+        initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
+        initialCost: finalCost,
+        toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+        streamFormat: 'agent-events-v1',
+        createStream: ({ output, finalizeTiming }) => {
+          output.content = content
+          output.tokens = { input: tokens.input, output: tokens.output, total: tokens.total }
+          output.cost = finalCost
+          finalizeTiming()
+          return createSettledAgentEventStream(content)
+        },
+      })
+
+      return streamingResult
+    }
+
+    const providerEndTime = Date.now()
+    const providerEndTimeISO = new Date(providerEndTime).toISOString()
+    const totalDuration = providerEndTime - providerStartTime
+
+    return {
+      content,
+      model: reportedModel,
+      tokens,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      toolResults: toolResults.length > 0 ? toolResults : undefined,
+      timing: {
+        startTime: providerStartTimeISO,
+        endTime: providerEndTimeISO,
+        duration: totalDuration,
+        modelTime: modelTime,
+        toolsTime: toolsTime,
+        firstResponseTime: firstResponseTime,
+        iterations: timeSegments.filter((segment) => segment.type === 'model').length,
+        timeSegments: timeSegments,
+      },
+    }
+  } catch (error) {
+    const providerEndTime = Date.now()
+    const providerEndTimeISO = new Date(providerEndTime).toISOString()
+    const totalDuration = providerEndTime - providerStartTime
+
+    const errorDetails: Record<string, unknown> = {
+      error: toError(error).message,
+      duration: totalDuration,
+    }
+    if (isRecordLike(error)) {
+      const err = error
+      if (err.status) errorDetails.status = err.status
+      if (err.code) errorDetails.code = err.code
+      if (err.type) errorDetails.type = err.type
+      if (isRecordLike(err.error)) {
+        if (err.error.message) errorDetails.providerMessage = err.error.message
+        if (err.error.metadata) errorDetails.metadata = err.error.metadata
+      }
+    }
+
+    logger.error(`Error in ${providerName} request:`, errorDetails)
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
+      throw error
+    }
+
+    throw new ProviderError(toError(error).message, {
+      startTime: providerStartTimeISO,
+      endTime: providerEndTimeISO,
+      duration: totalDuration,
+    })
+  }
+}

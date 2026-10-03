@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   JotformCreateSubmissionsParams,
   JotformCreateSubmissionsResponse,
@@ -5,7 +6,6 @@ import type {
 import {
   buildJotformHeaders,
   buildJotformUrl,
-  isRecord,
   parseJotformResponse,
   requireValue,
   toJsonArray,
@@ -80,7 +80,7 @@ export const createSubmissionsTool: ToolConfig<
     const envelope = await parseJotformResponse(response, 'Jotform Create Submissions')
     const entries = Array.isArray(envelope.content) ? envelope.content : []
 
-    const created = entries.filter(isRecord).map((entry) => ({
+    const created = entries.filter(isRecordLike).map((entry) => ({
       submissionId: toStringOrNull(entry.submissionID),
       url: toStringOrNull(entry.URL),
     }))

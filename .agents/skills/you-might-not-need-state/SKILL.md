@@ -14,7 +14,7 @@ User arguments: $ARGUMENTS
 
 ## Context
 
-This codebase uses React Query for all server state and Zustand for client-only global state. useState should only be used for ephemeral UI concerns (open/closed, hover, local form input). Server data should never be copied into useState or Zustand — React Query is the single source of truth.
+React Query owns server data, nuqs (URL) owns shareable view-state (tabs, filters, search, sort, pagination, selected id), Zustand owns global client state, and `useState` owns only ephemeral UI (open/closed, hover, local form input). Server data should never be copied into useState or Zustand — React Query is the single source of truth.
 
 ## References
 
@@ -31,6 +31,7 @@ Read these before analyzing:
 4. **Chained useEffect state updates**: Never chain Effects that set state to trigger other Effects. Calculate all derived values in the event handler or inline during render.
 5. **Storing objects when an ID suffices**: Store `selectedId` not a copy of the selected object. Derive the object: `items.find(i => i.id === selectedId)`.
 6. **State that duplicates Zustand or React Query**: If the data already lives in a store or query cache, don't create a parallel useState.
+7. **Shareable view-state in useState**: hand off to `/you-might-not-need-url-state`.
 
 ## Steps
 

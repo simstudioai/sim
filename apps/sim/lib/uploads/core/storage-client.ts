@@ -4,16 +4,6 @@ import type { StorageConfig } from '@/lib/uploads/shared/types'
 export type { StorageConfig } from '@/lib/uploads/shared/types'
 
 /**
- * Get the current storage provider name
- */
-export function getStorageProvider(): 'blob' | 's3' | 'gcs' | 'local' {
-  if (USE_BLOB_STORAGE) return 'blob'
-  if (USE_S3_STORAGE) return 's3'
-  if (USE_GCS_STORAGE) return 'gcs'
-  return 'local'
-}
-
-/**
  * Get the serve path prefix (unified across all storage providers)
  */
 export function getServePathPrefix(): string {
@@ -84,7 +74,9 @@ export async function getFileMetadata(
      * absence, because GCS answers a missing object and a missing bucket the same
      * way and only the caller's own bucket configuration separates them.
      */
-    const { getGcsObjectMetadata } = await import('@/lib/uploads/providers/gcs/client')
+    const { getGcsObjectMetadata } = await import(
+      '@/lib/uploads/providers/google-cloud-storage/client'
+    )
     return getGcsObjectMetadata(
       key,
       customConfig?.bucket ? { bucket: customConfig.bucket } : undefined

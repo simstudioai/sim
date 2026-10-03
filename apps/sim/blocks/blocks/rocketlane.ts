@@ -304,7 +304,6 @@ function includeList(params: BlockParams) {
 /** Builds the exact param set declared by the selected operation's tool. */
 function buildOperationParams(params: BlockParams): Record<string, unknown> {
   switch (params.operation) {
-    // Projects
     case 'create_project':
       return {
         projectName: toStr(params.projectName),
@@ -419,7 +418,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         placeholderId: toNumber(params.placeholderId),
       }
 
-    // Tasks
     case 'create_task':
       return {
         taskName: toStr(params.taskName),
@@ -499,7 +497,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         dependencyTaskIds: toNumberList(params.dependencyTaskIds),
       }
 
-    // Phases
     case 'create_phase':
       return {
         phaseName: toStr(params.phaseName),
@@ -533,7 +530,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_phase':
       return { phaseId: toNumber(params.phaseId) }
 
-    // Fields
     case 'create_field':
       return {
         fieldLabel: toStr(params.fieldLabel),
@@ -583,7 +579,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         optionColor: toStr(params.optionColor),
       }
 
-    // Time entries
     case 'create_time_entry': {
       const source = params.timeEntrySource ?? 'task'
       return {
@@ -664,7 +659,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'list_time_entry_categories':
       return pageParams(params)
 
-    // Time-offs
     case 'create_time_off':
       return {
         userId: toNumber(params.userId),
@@ -697,7 +691,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_time_off':
       return { timeOffId: toNumber(params.timeOffId) }
 
-    // Users
     case 'get_user':
       return { userId: toNumber(params.userId), ...includeCsv(params) }
     case 'list_users':
@@ -713,7 +706,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         typeEq: toStr(params.userTypeEq),
       }
 
-    // Spaces
     case 'create_space':
       return {
         projectId: toNumber(params.projectId),
@@ -739,7 +731,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_space':
       return { spaceId: toNumber(params.spaceId) }
 
-    // Space documents
     case 'create_space_document':
       return {
         spaceId: toNumber(params.spaceId),
@@ -772,7 +763,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
     case 'delete_space_document':
       return { spaceDocumentId: toNumber(params.spaceDocumentId) }
 
-    // Resource allocations
     case 'list_resource_allocations':
       return {
         startDate: toStr(params.startDate),
@@ -785,7 +775,6 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         placeholderIdEq: toStr(params.placeholderIdEq),
       }
 
-    // Invoices
     case 'get_invoice':
       return { invoiceId: toNumber(params.invoiceId), ...includeList(params) }
     case 'list_invoices':
@@ -1059,7 +1048,6 @@ export const RocketlaneBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Projects
         { label: 'Create Project', id: 'create_project' },
         { label: 'Get Project', id: 'get_project' },
         { label: 'List Projects', id: 'list_projects' },
@@ -1072,7 +1060,6 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'List Placeholders', id: 'list_placeholders' },
         { label: 'Assign Placeholder', id: 'assign_placeholders' },
         { label: 'Unassign Placeholder', id: 'unassign_placeholders' },
-        // Tasks
         { label: 'Create Task', id: 'create_task' },
         { label: 'Get Task', id: 'get_task' },
         { label: 'List Tasks', id: 'list_tasks' },
@@ -1085,13 +1072,11 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'Remove Task Followers', id: 'remove_task_followers' },
         { label: 'Add Task Dependencies', id: 'add_task_dependencies' },
         { label: 'Remove Task Dependencies', id: 'remove_task_dependencies' },
-        // Phases
         { label: 'Create Phase', id: 'create_phase' },
         { label: 'Get Phase', id: 'get_phase' },
         { label: 'List Phases', id: 'list_phases' },
         { label: 'Update Phase', id: 'update_phase' },
         { label: 'Delete Phase', id: 'delete_phase' },
-        // Fields
         { label: 'Create Field', id: 'create_field' },
         { label: 'Get Field', id: 'get_field' },
         { label: 'List Fields', id: 'list_fields' },
@@ -1099,7 +1084,6 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'Delete Field', id: 'delete_field' },
         { label: 'Add Field Option', id: 'add_field_option' },
         { label: 'Update Field Option', id: 'update_field_option' },
-        // Time entries
         { label: 'Create Time Entry', id: 'create_time_entry' },
         { label: 'Get Time Entry', id: 'get_time_entry' },
         { label: 'List Time Entries', id: 'list_time_entries' },
@@ -1107,29 +1091,23 @@ export const RocketlaneBlock: BlockConfig = {
         { label: 'Update Time Entry', id: 'update_time_entry' },
         { label: 'Delete Time Entry', id: 'delete_time_entry' },
         { label: 'List Time Entry Categories', id: 'list_time_entry_categories' },
-        // Time-offs
         { label: 'Create Time-Off', id: 'create_time_off' },
         { label: 'Get Time-Off', id: 'get_time_off' },
         { label: 'List Time-Offs', id: 'list_time_offs' },
         { label: 'Delete Time-Off', id: 'delete_time_off' },
-        // Users
         { label: 'Get User', id: 'get_user' },
         { label: 'List Users', id: 'list_users' },
-        // Spaces
         { label: 'Create Space', id: 'create_space' },
         { label: 'Get Space', id: 'get_space' },
         { label: 'List Spaces', id: 'list_spaces' },
         { label: 'Update Space', id: 'update_space' },
         { label: 'Delete Space', id: 'delete_space' },
-        // Space documents
         { label: 'Create Space Document', id: 'create_space_document' },
         { label: 'Get Space Document', id: 'get_space_document' },
         { label: 'List Space Documents', id: 'list_space_documents' },
         { label: 'Update Space Document', id: 'update_space_document' },
         { label: 'Delete Space Document', id: 'delete_space_document' },
-        // Resource allocations
         { label: 'List Resource Allocations', id: 'list_resource_allocations' },
-        // Invoices
         { label: 'Get Invoice', id: 'get_invoice' },
         { label: 'List Invoices', id: 'list_invoices' },
         { label: 'Get Invoice Line Items', id: 'get_invoice_line_items' },
@@ -1138,7 +1116,6 @@ export const RocketlaneBlock: BlockConfig = {
       value: () => 'list_projects',
     },
 
-    // Shared identifiers
     {
       id: 'projectId',
       title: 'Project ID',
@@ -1241,7 +1218,6 @@ export const RocketlaneBlock: BlockConfig = {
       },
     },
 
-    // Project fields
     {
       id: 'projectName',
       title: 'Project Name',
@@ -1527,7 +1503,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_project' },
     },
 
-    // Members / assignees / followers / dependencies
     {
       id: 'memberUserIds',
       title: 'Member User IDs',
@@ -1558,7 +1533,6 @@ export const RocketlaneBlock: BlockConfig = {
       },
     },
 
-    // Task fields
     {
       id: 'taskName',
       title: 'Task Name',
@@ -1666,7 +1640,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: EXTERNAL_REFERENCE_OPS },
     },
 
-    // Phase fields
     {
       id: 'phaseName',
       title: 'Phase Name',
@@ -1676,7 +1649,6 @@ export const RocketlaneBlock: BlockConfig = {
       required: { field: 'operation', value: 'create_phase' },
     },
 
-    // Field (custom field) configuration
     {
       id: 'fieldLabel',
       title: 'Field Label',
@@ -1818,7 +1790,6 @@ export const RocketlaneBlock: BlockConfig = {
       required: { field: 'operation', value: 'update_field_option' },
     },
 
-    // Template import
     {
       id: 'templateId',
       title: 'Template ID',
@@ -1836,7 +1807,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'import_template' },
     },
 
-    // Dates
     {
       id: 'startDate',
       title: 'Start Date',
@@ -1870,7 +1840,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: STATUS_VALUE_OPS },
     },
 
-    // Time entry fields
     {
       id: 'date',
       title: 'Date',
@@ -1995,7 +1964,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_time_entry', 'update_time_entry'] },
     },
 
-    // Time-off fields
     {
       id: 'timeOffType',
       title: 'Time-Off Type',
@@ -2056,7 +2024,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_time_off' },
     },
 
-    // Space fields
     {
       id: 'spaceName',
       title: 'Space Name',
@@ -2066,7 +2033,6 @@ export const RocketlaneBlock: BlockConfig = {
       required: { field: 'operation', value: 'create_space' },
     },
 
-    // Space document fields
     {
       id: 'spaceDocumentType',
       title: 'Document Type',
@@ -2102,7 +2068,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_space_document' },
     },
 
-    // List filters — projects
     {
       id: 'projectNameContains',
       title: 'Project Name Contains',
@@ -2218,7 +2183,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_projects' },
     },
 
-    // List filters — tasks
     {
       id: 'taskNameContains',
       title: 'Task Name Contains',
@@ -2274,7 +2238,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_tasks' },
     },
 
-    // List filters — time entries (shared with search)
     {
       id: 'dateEq',
       title: 'Date Equals',
@@ -2450,7 +2413,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: CREATED_UPDATED_AT_OPS },
     },
 
-    // List filters — time-offs
     {
       id: 'startDateGe',
       title: 'Start Date On or After',
@@ -2498,7 +2460,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_time_offs' },
     },
 
-    // List filters — users
     {
       id: 'firstNameCn',
       title: 'First Name Contains',
@@ -2559,7 +2520,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_users' },
     },
 
-    // List filters — spaces / space documents
     {
       id: 'spaceNameEq',
       title: 'Space Name Equals',
@@ -2597,7 +2557,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_space_documents' },
     },
 
-    // List filters — resource allocations
     {
       id: 'memberIdEq',
       title: 'Member ID Filter',
@@ -2615,7 +2574,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_resource_allocations' },
     },
 
-    // List filters — invoices
     {
       id: 'invoiceStatusEq',
       title: 'Invoice Status',
@@ -2718,7 +2676,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_invoices' },
     },
 
-    // Shared list controls
     {
       id: 'sortBy',
       title: 'Sort By',
@@ -2785,7 +2742,6 @@ export const RocketlaneBlock: BlockConfig = {
       condition: { field: 'operation', value: PAGINATED_OPS },
     },
 
-    // Credential
     {
       id: 'apiKey',
       title: 'API Key',

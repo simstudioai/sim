@@ -3,4 +3,4 @@ export {
   getValidWorkflowSearchRange,
   type HighlightContext,
   type WorkflowSearchTextHighlight,
-} from './formatted-text'
+} from '@sim/workflow-renderer/formatted-text'

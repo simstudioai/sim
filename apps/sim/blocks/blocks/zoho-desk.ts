@@ -2,7 +2,6 @@ import { ZohoDeskIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { getTrigger } from '@/triggers'
 
 /** Both members of the `orgId` canonical pair, so the clause survives advanced mode. */
@@ -63,7 +62,7 @@ function parseCustomFields(value: unknown): Record<string, unknown> | undefined 
   }
 }
 
-export const ZohoDeskBlock: BlockConfig<ZohoDeskResponse> = {
+export const ZohoDeskBlock: BlockConfig = {
   type: 'zoho_desk',
   name: 'Zoho Desk',
   description: 'Manage Zoho Desk tickets, comments, threads, and contacts',

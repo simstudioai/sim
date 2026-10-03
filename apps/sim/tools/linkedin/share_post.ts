@@ -62,7 +62,7 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
   },
 
   // Use postProcess to make the actual post creation request
-  postProcess: async (profileResult, params, executeTool) => {
+  postProcess: async (profileResult, params) => {
     try {
       // Extract profile from the first request
       if (!profileResult.success || !profileResult.output) {

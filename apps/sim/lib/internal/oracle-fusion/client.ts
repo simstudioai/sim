@@ -49,14 +49,14 @@ export interface OracleFusionResolvedCredential {
   accessToken: string
 }
 
-export type OracleFusionMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+type OracleFusionMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 
-export type OracleFusionMediaType =
+type OracleFusionMediaType =
   | 'application/json'
   | 'application/vnd.oracle.adf.resourceitem+json'
   | 'application/vnd.oracle.adf.action+json'
 
-export interface OracleFusionOperationHeaders {
+interface OracleFusionOperationHeaders {
   effectiveOf?: string
   ifMatch?: string
   upsertMode?: boolean
