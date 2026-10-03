@@ -3,10 +3,11 @@
 import type React from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Badge, Button, cn, Tooltip } from '@sim/emcn'
-import { ArrowUp, Paperclip, X } from '@sim/emcn/icons'
+import { ArrowUp, Paperclip, StopFilled, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { PublicChatActionButton } from '@/app/(interfaces)/chat/components/input/public-chat-action-button'
 
 const logger = createLogger('ChatInput')
 
@@ -176,10 +177,10 @@ export const ChatInput: React.FC<{
                         <img
                           src={file.dataUrl}
                           alt={file.name}
-                          className='h-full w-full object-cover'
+                          className='size-full object-cover'
                         />
                       ) : (
-                        <div className='flex h-full w-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
+                        <div className='flex size-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
                           <Paperclip className='size-[18px]' />
                           <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
                             {file.name.split('.').pop()}
@@ -221,14 +222,14 @@ export const ChatInput: React.FC<{
             <div>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
+                  <PublicChatActionButton
+                    aria-label='Attach files'
                     variant='quiet'
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isStreaming || attachedFiles.length >= 15}
-                    className='size-[28px] rounded-full p-0'
                   >
                     <Paperclip className='size-[16px]' />
-                  </Button>
+                  </PublicChatActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>
                   <p>Attach files</p>
@@ -251,30 +252,22 @@ export const ChatInput: React.FC<{
 
             <div className='flex items-center gap-1.5'>
               {isStreaming ? (
-                <Button
+                <PublicChatActionButton
                   variant='primary'
                   onClick={onStopStreaming}
-                  className='size-[28px] rounded-full p-0'
                   aria-label='Stop generation'
                 >
-                  <svg
-                    className='block size-[14px] fill-current'
-                    viewBox='0 0 24 24'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-                  </svg>
-                </Button>
+                  <StopFilled className='block size-[14px] fill-current' />
+                </PublicChatActionButton>
               ) : (
-                <Button
+                <PublicChatActionButton
                   variant='primary'
                   onClick={handleSubmit}
                   disabled={!canSubmit}
                   aria-label='Send message'
-                  className='size-[28px] rounded-full p-0'
                 >
                   <ArrowUp className='block size-[16px]' />
-                </Button>
+                </PublicChatActionButton>
               )}
             </div>
           </div>

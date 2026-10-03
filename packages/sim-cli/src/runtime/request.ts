@@ -1,8 +1,10 @@
-import { existsSync, readFileSync, readSync } from 'node:fs'
+import { closeSync, existsSync, fstatSync, openSync, readSync } from 'node:fs'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, FlagSpec } from '../contract/types'
+import { embedStore } from '../embed-context'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { type QueryValue, SimApiError } from '../http/client'
+import { embeddedFileContent } from '../transfer/local-file'
 import { camel, kebab } from './derive'
 import type { OperationSpec } from './types'
 
@@ -10,6 +12,8 @@ import type { OperationSpec } from './types'
 export interface FieldSpec {
   kind: 'string' | 'number' | 'integer' | 'boolean' | 'enum' | 'array' | 'object' | 'unknown'
   required?: boolean
+  /** Numeric fields can represent JSON null without changing literal string flags. */
+  nullable?: true
   values?: readonly string[]
   default?: unknown
   /** The field's `.describe()` from the route contract, used as `--help` text. */
@@ -37,7 +41,7 @@ export function isProfileWorkspacePath(commandSpec: CommandSpec, param: string):
  * lives here rather than beside its reader in `execute.ts` because `options.ts`
  * has to ask the same question while it builds the flag, and importing
  * `execute.ts` from `options.ts` would close a module cycle — `execute.ts`
- * already reads `DEFAULT_LIMIT` from `options.ts`.
+ * already reads `DEFAULT_PAGE_SIZE` from `options.ts`.
  */
 export function cursorSlot(
   operationSpec: Pick<OperationSpec, 'query' | 'body'>
@@ -141,15 +145,18 @@ function coerceRowCap(raw: unknown, flagName: string): { type: 'rows'; max: numb
  * `Atomics.wait` is the only synchronous sleep available; without it the retry
  * spins a core for as long as the writer takes.
  */
-function readStdin(): string {
+export const MAX_JSON_ARGUMENT_BYTES = 10 * 1024 * 1024
+
+function readArgumentDescriptor(descriptor: number): string {
   const idle = new Int32Array(new SharedArrayBuffer(4))
   const buffer = Buffer.alloc(64 * 1024)
   const chunks: Buffer[] = []
+  let bytes = 0
 
   for (;;) {
     let read: number
     try {
-      read = readSync(0, buffer, 0, buffer.length, null)
+      read = readSync(descriptor, buffer, 0, buffer.length, null)
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code === 'EAGAIN') {
@@ -161,6 +168,8 @@ function readStdin(): string {
       throw error
     }
     if (read === 0) break
+    bytes += read
+    if (bytes > MAX_JSON_ARGUMENT_BYTES) throw new SimApiError('JSON input exceeds 10 MiB', 0)
     chunks.push(Buffer.from(buffer.subarray(0, read)))
   }
 
@@ -198,9 +207,36 @@ function literalAtHint(error: unknown, path: string): string {
     : ''
 }
 
-export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
+export async function readArgumentSource(
+  raw: string,
+  flagName: string
+): Promise<{ text: string; from: string }> {
+  if (Buffer.byteLength(raw, 'utf8') > MAX_JSON_ARGUMENT_BYTES)
+    throw new SimApiError(`--${flagName} exceeds the 10 MiB JSON input limit`, 0)
   if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
+
+  // An embedded run executes in-process on the hosting server, so a raw file
+  // path here would read the SERVER's filesystem with argv the model controls.
+  // Read through the host's callback only after this flag consumes a file.
+  const embedded = embedStore.getStore()
+  if (embedded) {
+    if (raw === '@-')
+      throw new SimApiError(
+        `--${flagName}: this invocation has no stdin; use @path or an inline value`,
+        0
+      )
+    const content = await embeddedFileContent(embedded, raw)
+    if (Buffer.byteLength(content) > MAX_JSON_ARGUMENT_BYTES)
+      throw new SimApiError(`--${flagName} exceeds the 10 MiB JSON input limit`, 0)
+    return {
+      text:
+        typeof content === 'string'
+          ? content
+          : new TextDecoder('utf-8', { fatal: true }).decode(content),
+      from: ' (read from your machine)',
+    }
+  }
 
   const path = raw.slice(1)
   if (path === '-') {
@@ -208,14 +244,21 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
       throw new SimApiError(`--${flagName} @- reads stdin, but nothing is piped in`, 0)
     }
     try {
-      return { text: readStdin(), from: ' (read from stdin)' }
+      return { text: readArgumentDescriptor(0), from: ' (read from stdin)' }
     } catch (error) {
       throw new SimApiError(`--${flagName} cannot read stdin: ${(error as Error).message}`, 0)
     }
   }
 
   try {
-    return { text: readFileSync(path, 'utf8'), from: ` (read from ${path})` }
+    const descriptor = openSync(path, 'r')
+    try {
+      if (fstatSync(descriptor).size > MAX_JSON_ARGUMENT_BYTES)
+        throw new SimApiError('JSON input exceeds 10 MiB', 0)
+      return { text: readArgumentDescriptor(descriptor), from: ` (read from ${path})` }
+    } finally {
+      closeSync(descriptor)
+    }
   } catch (error) {
     throw new SimApiError(
       `--${flagName} cannot read ${path}: ${(error as Error).message}${literalAtHint(error, path)}`,
@@ -235,16 +278,24 @@ function isManifestNoise(line: string): boolean {
  * list drops blank and `#` comment lines read from a file, so a requirements
  * file can be passed as it is on disk.
  */
-function readListValues(raw: unknown, flagName: string, manifest = false): string[] {
+export async function readListValues(
+  raw: unknown,
+  flagName: string,
+  manifest = false
+): Promise<string[]> {
   const arguments_ = Array.isArray(raw) ? raw : [raw]
-  const values = arguments_.flatMap((argument) => {
+  const values: string[] = []
+  for (const argument of arguments_) {
     if (typeof argument !== 'string') {
       throw new SimApiError(`--${flagName} values must be strings`, 0)
     }
 
-    if (!argument.startsWith('@')) return [argument]
+    if (!argument.startsWith('@')) {
+      values.push(argument)
+      continue
+    }
 
-    const source = readArgumentSource(argument, flagName)
+    const source = await readArgumentSource(argument, flagName)
     const lines = source.text.split(/\r?\n/)
     if (lines.at(-1) === '') lines.pop()
     const kept = manifest ? lines.filter((line) => !isManifestNoise(line)) : lines
@@ -252,17 +303,19 @@ function readListValues(raw: unknown, flagName: string, manifest = false): strin
       throw new SimApiError(`--${flagName}${source.from} contains no values`, 0)
     }
 
-    return kept.map((line, index) => {
-      const value = line.trim()
-      if (!value) {
-        throw new SimApiError(
-          `--${flagName}${source.from} has an empty value on line ${index + 1}`,
-          0
-        )
-      }
-      return value
-    })
-  })
+    values.push(
+      ...kept.map((line, index) => {
+        const value = line.trim()
+        if (!value) {
+          throw new SimApiError(
+            `--${flagName}${source.from} has an empty value on line ${index + 1}`,
+            0
+          )
+        }
+        return value
+      })
+    )
+  }
 
   return values.map((value) => {
     const trimmed = value.trim()
@@ -348,7 +401,7 @@ const FRACTIONAL_DIGITS = /\.\d*[1-9]/
  */
 function pathHint(raw: string): string {
   if (raw.startsWith('@') || /^\s*[[{"\-\d]|^\s*(true|false|null)/.test(raw)) return ''
-  return existsSync(raw)
+  return !embedStore.getStore() && existsSync(raw)
     ? `. ${raw} is a file — pass it as @${raw}`
     : '. To read a file, pass @path (or @- for stdin)'
 }
@@ -360,7 +413,12 @@ function pathHint(raw: string): string {
  * the caller typed — and every one of these is caught before any request is
  * made, so a typo costs nothing.
  */
-export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName: string): unknown {
+export async function coerce(
+  raw: unknown,
+  field: FieldSpec,
+  flag: FlagSpec,
+  flagName: string
+): Promise<unknown> {
   if (raw === undefined) return undefined
 
   /**
@@ -376,7 +434,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    *   or failed validation outright.
    */
   if (flag.list) {
-    const values = readListValues(raw, flagName, flag.manifest === true).map((value) =>
+    const values = (await readListValues(raw, flagName, flag.manifest === true)).map((value) =>
       flag.folderPath ? encodeFolderPath(value) : value
     )
     // Encoding first is also what keeps the comma-joined form unambiguous: a
@@ -389,7 +447,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
 
   if (takesJson(field, flag)) {
     if (typeof raw !== 'string') return raw
-    const source = readArgumentSource(raw, flagName)
+    const source = await readArgumentSource(raw, flagName)
     try {
       return JSON.parse(source.text)
     } catch (error) {
@@ -401,8 +459,11 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
   }
 
   if (NUMERIC_KINDS.has(field.kind)) {
+    if (field.nullable && (raw === null || (typeof raw === 'string' && raw.trim() === 'null')))
+      return null
     const value = Number(raw)
     if (Number.isNaN(value)) throw new SimApiError(`--${flagName} must be a number`, 0)
+    if (!Number.isFinite(value)) throw new SimApiError(`--${flagName} must be a finite number`, 0)
     /**
      * An `integer` field said so in the contract, and every other constraint on
      * one is already refused here by hand. Leaving integrality to the server
@@ -478,22 +539,23 @@ function asQueryValue(value: unknown): QueryValue {
  * API contract declares it in, so a field that moved from query to body moves
  * here on the next regeneration.
  */
-export function buildRequest(
+function boundedRequest(request: BuiltRequest): BuiltRequest {
+  if (
+    request.body &&
+    Buffer.byteLength(JSON.stringify(request.body), 'utf8') > MAX_JSON_ARGUMENT_BYTES
+  )
+    throw new SimApiError('Aggregate JSON request body exceeds 10 MiB', 0)
+  return request
+}
+
+export async function buildRequest(
   operation: V2OperationName,
   positional: string[],
   flags: Record<string, unknown>,
   workspaceId: string | null
-): BuiltRequest {
+): Promise<BuiltRequest> {
   const commandSpec: CommandSpec = CLI_CONTRACT[operation] ?? {}
-  const spec = V2_OPERATIONS[operation] as {
-    method: string
-    path: string
-    pathParams: readonly string[]
-    query?: Record<string, FieldSpec>
-    body?: Record<string, FieldSpec>
-    headers?: Record<string, FieldSpec>
-    opaqueBody?: boolean
-  }
+  const spec: OperationSpec = V2_OPERATIONS[operation]
 
   let path = spec.path
   let positionalIndex = 0
@@ -534,9 +596,37 @@ export function buildRequest(
    * gets that message instead of the generic refusal below.
    */
   const paginatedLimit = cursorSlot(spec) !== null
+  let bodyFields = spec.body
+  if (spec.bodyDiscriminator) {
+    const { field, variants } = spec.bodyDiscriminator
+    const flagName = flagNameFor(operation, field)
+    const descriptor = spec.body?.[field]
+    if (!descriptor) throw new Error(`Missing body discriminator field: ${field}`)
+    const flag = flagSpecFor(operation, field)
+    const value = await coerce(
+      flags[camel(flagName)] ?? flag.requestDefault ?? descriptor.default,
+      descriptor,
+      flag,
+      flagName
+    )
+    if (value === undefined) throw new SimApiError(`--${flagName} is required`, 0)
+    if (typeof value !== 'string' || !Object.hasOwn(variants, value))
+      throw new SimApiError(`--${flagName} must be one of: ${Object.keys(variants).join(', ')}`, 0)
+    bodyFields = variants[value]
+    for (const candidate of Object.keys(spec.body ?? {})) {
+      const candidateFlag = flagNameFor(operation, candidate)
+      if (!Object.hasOwn(bodyFields, candidate) && flags[camel(candidateFlag)] !== undefined)
+        throw new SimApiError(
+          `--${candidateFlag} is not available when --${flagName} is ${value}`,
+          0
+        )
+    }
+  }
 
   for (const slot of ['query', 'body', 'headers'] as const) {
-    for (const [field, descriptor] of Object.entries(spec[slot] ?? {})) {
+    for (const [field, descriptor] of Object.entries(
+      (slot === 'body' ? bodyFields : spec[slot]) ?? {}
+    )) {
       const flag = flagSpecFor(operation, field)
       if (flag.omit) continue
 
@@ -592,7 +682,7 @@ export function buildRequest(
         throw new SimApiError(`--${flagName} cannot be empty`, 0)
       }
 
-      const value = coerce(raw ?? undefined, descriptor, flag, flagName)
+      const value = await coerce(raw ?? undefined, descriptor, flag, flagName)
 
       /**
        * A non-paginated `limit` is a row cap the route bounds at `1`, which is
@@ -654,7 +744,7 @@ export function buildRequest(
       const variant = provided[0]
       const raw = flags[camel(variant.name)]
       if (typeof raw !== 'string') throw new SimApiError(`--${variant.name} is required`, 0)
-      const parsed = coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
+      const parsed = await coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
       if (
         (variant.kind === 'object' &&
           (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) ||
@@ -662,19 +752,29 @@ export function buildRequest(
       ) {
         throw new SimApiError(`--${variant.name} must be a JSON ${variant.kind}`, 0)
       }
-      return { path, query, body: { ...body, [variant.property]: parsed }, ...headerSlot }
+      return boundedRequest({
+        path,
+        query,
+        body: { ...body, [variant.property]: parsed },
+        ...headerSlot,
+      })
     }
 
     const raw = flags.body
     if (typeof raw !== 'string') throw new SimApiError('--body is required', 0)
-    const parsed = coerce(raw, { kind: 'object' }, { json: true }, 'body')
+    const parsed = await coerce(raw, { kind: 'object' }, { json: true }, 'body')
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new SimApiError('--body must be a JSON object', 0)
     }
-    return { path, query, body: { ...body, ...(parsed as Record<string, unknown>) }, ...headerSlot }
+    return boundedRequest({
+      path,
+      query,
+      body: { ...body, ...(parsed as Record<string, unknown>) },
+      ...headerSlot,
+    })
   }
 
-  return {
+  return boundedRequest({
     path,
     query,
     /**
@@ -683,5 +783,5 @@ export function buildRequest(
      */
     body: spec.body ? body : undefined,
     ...headerSlot,
-  }
+  })
 }

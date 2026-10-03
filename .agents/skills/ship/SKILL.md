@@ -15,7 +15,15 @@ When the user runs `/ship`:
 1. **Check git status** - See what files have changed
 2. **Sync check**: `git fetch origin staging && git log --oneline origin/staging..HEAD`. The list must contain ONLY commits you can attribute to this session (recognizable subjects/SHAs) — a worktree/branch cut from a stale local `staging` silently drags in unrelated commits.
    - If it shows commits you don't recognize, fix it now, **before** staging/committing any new work (step 7 hasn't run yet):
-     - If the working tree has uncommitted changes, stash them first — `git stash push -u -m ship-sync-fix` — so the rebase below isn't blocked by dirty state. Restore with `git stash pop` once the branch is fixed.
+     - If the working tree has uncommitted changes, stash them first so the rebase below isn't blocked by dirty state, and pin the entry by SHA — the stash list is shared across every worktree of the repo, so `stash@{0}` and `git stash pop` can grab another session's entry:
+       ```bash
+       git stash push -u -m ship-sync-fix && SHIP_STASH=$(git rev-parse 'stash@{0}')
+       # once the branch is fixed (`git stash drop` rejects a raw SHA, so resolve the pinned
+       # entry's current stash@{n} and drop only that; an empty lookup drops nothing):
+       git stash apply "$SHIP_STASH" &&
+         SHIP_STASH_REF=$(git stash list --format='%gd %H' | awk -v s="$SHIP_STASH" '$2==s{print $1}') &&
+         { [ -z "$SHIP_STASH_REF" ] || git stash drop "$SHIP_STASH_REF"; }
+       ```
      - Try `git rebase origin/staging` first.
      - **A rebase finishing without conflicts does NOT by itself mean the branch is clean** — it can replay stray commits onto the new base with no conflict at all. After the rebase (clean or not), re-run `git log --oneline origin/staging..HEAD` and re-check the commit list against what you recognize.
      - If the rebase conflicted on unrecognized commits, OR finished cleanly but the log still shows them, abandon it (`git rebase --abort` if mid-rebase) and rebuild, in this exact order:
@@ -30,14 +38,18 @@ When the user runs `/ship`:
   - Types: `fix`, `feat`, `improvement`, `chore`
   - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
   - Keep it concise
-4. **Run the cleanup pass** — only if the diff modifies UI code (any `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`): `/cleanup`
-  - `/cleanup` fans out the React/UI passes (effects, memo, callbacks, state, React Query, emcn, url-state) plus the comment pass; skip it when no UI was touched. When it runs, it applies fixes so they land in this commit.
+4. **Run the cleanup and test gates**
+  - If the diff modifies UI code (any non-test `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`), run `/cleanup`. It fans out the React/UI passes (effects, memo, callbacks, state, React Query, emcn, url-state), the comment pass, and the test-audit pass, and applies fixes so they land in this commit.
+  - Otherwise, if the diff adds or changes tests (`*.test.ts(x)`, `*.integration.ts`, `**/e2e/**`, `apps/sim/scripts/test-*-e2e.ts`), run `/test-audit audit <changed test files>` on its own. Every new or changed test must pass the authoring gate; delete the ones that don't rather than shipping them.
+  - Then run the test files the diff adds or changes, plus the existing tests beside changed source files, with `bun run --cwd <workspace> test <paths>` (`bun run --cwd apps/sim test <paths>` for the app; `*.integration.ts` needs the setup in `.claude/rules/sim-testing.md`). A failing test aborts ship.
+  - Then run root `bun run test` from the repo root. It chains `test:scripts` (the `scripts/*.test.ts` suite CI runs) before every workspace suite; workspace-scoped runs skip it, which is how a `scripts/check-*.test.ts` failure has reached CI. A failing test aborts ship.
 5. **Run migration safety** — only if the diff touches `packages/db/migrations/**` or `packages/db/schema.ts`:
   - Run `/db-migrate` to review the migration for zero-downtime safety (expand/contract phasing, backward-compatibility with the deployed app version).
+  - `(cd packages/db && bunx drizzle-kit generate && git status --porcelain ./migrations)` must print nothing (CI's schema/migration sync step).
   - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
 6. **Run pre-ship checks** from the repo root before staging. This has two phases: first **regenerate** every committed artifact so generated files never drift into a CI failure (this is what catches things like `agent-stream-docs` going stale after a `models.ts` edit), then run the **full audit suite** CI's `Lint and Test` job enforces. Both phases parallelize — but only across commands that write **disjoint** outputs — and a bare `wait` swallows child exit codes, so both phases below explicitly collect each job's status and abort ship if any failed.
 
-  **Phase A — regenerate the always-in-repo committed artifacts (parallel), then let step 7 stage whatever changed.** Regenerate only the generators whose inputs live entirely in this repo and that any ordinary code change can drift — `agent-stream-docs:generate` (derives from the provider model registry), `docs-manifest:generate` (derives from docs page paths), and `skills:sync` (derives from `.agents/skills/**`). They write disjoint outputs (`apps/docs/…/agent.mdx`, `apps/sim/lib/copilot/generated/docs-manifest.ts`, and `.claude/skills` links), so they parallelize safely, and each is idempotent (a no-op when already in sync):
+  **Phase A — regenerate the always-in-repo committed artifacts (parallel), then let step 7 stage whatever changed.** Regenerate only the generators whose inputs live entirely in this repo and that any ordinary code change can drift — `agent-stream-docs:generate` (derives from the provider model registry), `docs-manifest:generate` (derives from docs page paths), and `skills:sync` (derives from `.agents/skills/**`). They write disjoint outputs (`apps/docs/…/agent.mdx`, `apps/sim/lib/mothership/generated/docs-manifest.ts`, and `.claude/skills` links), so they parallelize safely, and each is idempotent (a no-op when already in sync):
   ```bash
   rm -f /tmp/ship-gen-results
   for g in agent-stream-docs:generate docs-manifest:generate skills:sync; do
@@ -52,7 +64,7 @@ When the user runs `/ship`:
   ```
   Then `git status --short` to see what regenerated — those files must be staged in step 7 alongside your own changes.
 
-  **Do NOT blanket-run the domain generators here.** `mship:generate` (`generate-mship-contracts.ts`) is an **umbrella** that drives all nine mothership contract generators (`mship-contracts`, `billing-protocol-contract`, `mship-tools`, the four `trace-*`, `metrics-contract`, `vfs-snapshot-contract`) and biome-formats `apps/sim/lib/copilot/generated/` — never run it *and* its constituents (they write the same files and corrupt each other in parallel), and never run it on an ordinary ship: it reads an **external** copilot-contract source that isn't checked out in most worktrees, so it hard-fails with `ENOENT` and would abort ship for an unrelated reason. `generate:pi-model-catalog` (under `apps/sim`) likewise regenerates from the installed Pi package, not repo source. `scripts/generate-docs.ts` rewrites the integration docs and client-safe catalog; run it when this PR changes their block/icon/landing-content inputs or when `integration-catalog:check` reports drift, then review its broad generated diff. Only when **this PR's diff actually touches** a domain generator's input do you regenerate it deliberately and run its matching `:check` (`bun run mship:check` / the individual `*:check`) — with the external source present.
+  **Do NOT blanket-run the domain generators here.** `mship:generate` (`generate-mship-contracts.ts`) is an **umbrella** that drives all nine mothership contract generators (`mship-contracts`, `billing-protocol-contract`, `mship-tools`, the four `trace-*`, `metrics-contract`, `vfs-snapshot-contract`) and biome-formats `apps/sim/lib/mothership/generated/` — never run it *and* its constituents (they write the same files and corrupt each other in parallel), and never run it on an ordinary ship: it reads an **external** copilot-contract source that isn't checked out in most worktrees, so it hard-fails with `ENOENT` and would abort ship for an unrelated reason. `generate:pi-model-catalog` (under `apps/sim`) likewise regenerates from the installed Pi package, not repo source. `scripts/generate-docs.ts` rewrites the integration docs and client-safe catalog; run it when this PR changes their block/icon/landing-content inputs or when `integration-catalog:check` reports drift, then review its broad generated diff. Only when **this PR's diff actually touches** a domain generator's input do you regenerate it deliberately and run its matching `:check` (`bun run mship:check` / the individual `*:check`) — with the external source present.
 
   **Phase B — run lint + every audit CI enforces, in parallel, and abort ship if any fails.** Before running the commands, compare this list with `.github/workflows/test-build.yml`; when CI adds an audit, run it and update this skill instead of trusting a stale snapshot. The env-flag audit is currently an inline workflow block rather than a package script: when `apps/sim/lib/core/config/env-flags.ts` changed, run that current workflow block verbatim instead of copying a second version into this skill. Run `bun run lint` first (it autofixes formatting and mutates files, so don't parallelize it with the read-only audits), then run the base-sensitive block-registry check, then fan the independent audits out and collect exit codes:
   ```bash
@@ -66,12 +78,13 @@ When the user runs `/ship`:
   # Runs every audit CI runs, concurrently, and replays the output of any that fail.
   # The audit list is derived in scripts/run-audits.ts — do not hand-list audits here.
   bun run check:audits || { echo "❌ audit(s) failed — do not ship"; exit 1; }
+  bun run type-check || { echo "❌ type-check failed — do not ship"; exit 1; }
   # CI's "Verify docs manifest is in sync" step is not a `check:*` script, so the runner above
   # does not cover it. (CI's "Security audit" `bun audit` step is `continue-on-error` — advisory
   # only, not a gate — so it is deliberately not run here.)
   bun run docs-manifest:check || { echo "❌ docs manifest out of sync — do not ship"; exit 1; }
   ```
-  If Phase A regenerated a file, its matching `:check` in Phase B now passes trivially — that parity is the point. Do not ship with any generator or audit failing; fix the cause (never silence it) and re-run. `check:migrations` and `type-check` are covered by steps 5 and CI respectively and are not repeated here.
+  If Phase A regenerated a file, its matching `:check` in Phase B now passes trivially — that parity is the point. Do not ship with any generator or audit failing; fix the cause (never silence it) and re-run. `check:migrations` is covered by step 5 and is not repeated here.
 7. **Stage and commit** the changes with the generated message — including any files Phase A regenerated in step 6
 8. **Push to origin** using the current branch name — `--force-with-lease` if step 2's sync
    check did any history rewrite (a clean rebase or a cherry-pick rebuild) on a branch that had
@@ -112,11 +125,18 @@ The repo is public. **Everything you publish — title, description, commit mess
 
 Describe the bug by its mechanism, not by how you found it. "Expired OAuth credentials fail to refresh in the worker" — not "the Sheets canary failed at 16:31Z for workspace abc-123". Aggregate counts are fine once detached from the tenant ("1,379 PDFs failed"); the same number attributed to a named customer is not. Replace real examples with placeholders (`<real sheet name>`) rather than cutting them — the illustration is usually the useful part.
 
-**Scrub before publishing, not after** — a leak is public the instant it posts, and editing later does not unsend the notification email. This applies to every PR you open, including ones created directly with `gh pr create` rather than through this skill. Grep the title, body, and `git log origin/staging..HEAD` before publishing:
+**Measurements are not the problem; absolute production scale is.** Keep the numbers that justify a change — durations, ratios, before/after timings, test and audit counts. They are the evidence a reviewer needs, and stripping them makes the rationale unfalsifiable. What does not belong is anything that sizes production or a tenant: table and index byte sizes, row/chunk/document totals, dead-tuple counts, buffer and heap-fetch counts, worker or instance counts. "Visiting four times as many tuples took 5.1s and 9.7s on consecutive runs" is fine; "on a 132k-chunk index" or "reclaims ~19 GB" is not. The same rule applies to code comments and migration comments, which are published exactly like a PR body — this is the most commonly missed case, because they do not feel like publishing.
+
+**Scrub before publishing, not after** — a leak is public the instant it posts, and editing later does not unsend the notification email. This applies to every PR you open, including ones created directly with `gh pr create` rather than through this skill. Grep the title, body, `git log origin/staging..HEAD`, AND the diff itself before publishing:
 
 ```bash
+# identities, IDs, infrastructure
 grep -niE 'customer-or-company-name|@[a-z0-9.-]+\.(com|io|ai)|[0-9a-f]{8}-[0-9a-f]{4}-|\.sharepoint\.com|arn:aws|https?://[a-z0-9.-]*\.internal'
+# absolute production scale — byte sizes, k/M-scale entity counts, 7-figure totals
+grep -niE '[0-9][0-9.,]* ?(TB|GB)\b|[0-9]+(\.[0-9]+)?[kKmM][- ](row|chunk|document|vector|tuple|doc)|[0-9]{1,3}(,[0-9]{3}){2,}'
 ```
+
+The second pattern deliberately allows ordinary engineering numbers (`5.1s`, `46 audits`, `2,921 tests`) and flags only production sizing.
 
 ## PR Description Format
 
@@ -131,12 +151,12 @@ Use this exact template in the user's voice (concise, bullet points):
 - [x] Bug fix (or appropriate type)
 
 ## Testing
-Tested manually (or describe testing)
+Describe the checks, tests, and E2E artifacts run
 
 ## Checklist
 - [x] Code follows project style guidelines
 - [x] Self-reviewed my changes
-- [ ] Tests added/updated and passing
+- [ ] Tests added/updated and passing (new tests pass the `test-audit` authoring gate)
 - [x] No new warnings introduced
 - [x] I confirm that I have read and agree to the terms outlined in the [Contributor License Agreement (CLA)](./CONTRIBUTING.md#contributor-license-agreement-cla)
 ```
@@ -161,6 +181,6 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 
 - Short, direct bullet points
 - No unnecessary explanation
-- "Tested manually" is acceptable for testing section; include lint, boundary validation, and (when migrations changed) `check:migrations` results when run
+- Testing section names what actually ran: the test files, lint, `check:audits`, (when migrations changed) `check:migrations`, and any E2E artifacts
 - Checkboxes filled in appropriately
 - No screenshots section unless UI changes

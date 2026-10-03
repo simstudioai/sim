@@ -1,46 +1,47 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+} from '@sim/testing'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockExecuteMemberSync,
-  mockIsTriggerAvailable,
-  mockTrigger,
-  mockResolveRegion,
-  mockResolveSystemBilling,
-} = vi.hoisted(() => ({
-  mockExecuteMemberSync: vi.fn(),
-  mockIsTriggerAvailable: vi.fn(),
-  mockTrigger: vi.fn(),
-  mockResolveRegion: vi.fn(),
-  mockResolveSystemBilling: vi.fn(),
-}))
+const { mockExecuteMemberSync } = vi.hoisted(() => ({ mockExecuteMemberSync: vi.fn() }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: (value: unknown) => value,
-  resolveSystemBillingAttribution: mockResolveSystemBilling,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
   executeMemberSync: mockExecuteMemberSync,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: mockIsTriggerAvailable,
-}))
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: { trigger: mockTrigger },
-  idempotencyKeys: { create: vi.fn(async (key: string) => key) },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mockResolveRegion }))
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
-import { eq, inArray } from 'drizzle-orm'
 import {
   assertMemberSyncPayload,
   dispatchMemberSync,
   dispatchMemberSyncsForCredentialOption,
   MEMBER_SYNC_TASK_ID,
 } from '@/lib/knowledge/connectors/member-queue'
+
+const mockIsTriggerAvailable = triggerAvailabilityMockFns.mockIsTriggerAvailable
+const mockResolveRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
+const mockTrigger = triggerSdkMockFns.mockTasksTrigger
+
+const mockAssertBillingOwner = billingAttributionMockFns.mockAssertBillingAttributionOwner
+const mockResolveSystemBilling = billingAttributionMockFns.mockResolveSystemBillingAttribution
 
 const BILLING = {
   actorUserId: 'user-1',
@@ -66,34 +67,38 @@ const CONNECTOR_ROW = {
 
 describe('member sync queue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    resetEnvFlagsMock()
     resetDbChainMock()
     mockIsTriggerAvailable.mockReturnValue(true)
     mockResolveRegion.mockResolvedValue('us')
     mockExecuteMemberSync.mockResolvedValue({})
   })
 
-  describe('assertMemberSyncPayload', () => {
-    it('restores a well-formed payload', () => {
-      expect(
-        assertMemberSyncPayload({
-          connectorId: 'c-1',
-          requestId: 'r-1',
-          billingAttribution: BILLING,
-          dispatchToken: 't-1',
-        })
-      ).toEqual({
-        connectorId: 'c-1',
-        requestId: 'r-1',
-        billingAttribution: BILLING,
-        dispatchToken: 't-1',
-      })
+  it('does not dispatch a live Search source to member indexing', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, isSearchIndex: true }])
+    expect(await dispatchMemberSync('c-1', { billingAttribution: BILLING })).toEqual({
+      queued: false,
+      reason: 'This source is searched live and does not require indexing.',
     })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteMemberSync).not.toHaveBeenCalled()
+  })
 
+  describe('assertMemberSyncPayload', () => {
     it.each([
       ['no connector', { requestId: 'r-1', billingAttribution: BILLING }],
       ['no request id', { connectorId: 'c-1', billingAttribution: BILLING }],
       ['no billing attribution', { connectorId: 'c-1', requestId: 'r-1' }],
+      [
+        'non-boolean content refresh',
+        {
+          connectorId: 'c-1',
+          requestId: 'r-1',
+          billingAttribution: BILLING,
+          forceContentRefresh: 'yes',
+        },
+      ],
       [
         'a blank token',
         { connectorId: 'c-1', requestId: 'r-1', billingAttribution: BILLING, dispatchToken: ' ' },
@@ -104,45 +109,46 @@ describe('member sync queue', () => {
   })
 
   describe('dispatchMemberSync', () => {
-    it('takes the queue entry and hands the run to the queue with its token', async () => {
+    it('does not reset account backoff when its retry cannot claim the connector', async () => {
       queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
-
+      queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, status: 'paused' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
       await expect(
-        dispatchMemberSync('c-1', { billingAttribution: BILLING, requestId: 'r-1' })
-      ).resolves.toEqual({ queued: true })
-
-      expect(mockTrigger).toHaveBeenCalledWith(
-        MEMBER_SYNC_TASK_ID,
-        expect.objectContaining({
-          connectorId: 'c-1',
-          requestId: 'r-1',
-          dispatchToken: expect.any(String),
-        }),
-        expect.objectContaining({ region: 'us' })
-      )
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          memberSyncStatus: 'pending',
-          memberSyncLockToken: expect.any(String),
+        dispatchMemberSync('c-1', {
+          billingAttribution: BILLING,
+          connectedCredentialId: 'reconnected-account',
         })
-      )
+      ).resolves.toMatchObject({ queued: false })
+      expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
+      expect(mockTrigger).not.toHaveBeenCalled()
     })
 
-    it('runs in-process with the token when the queue is unavailable', async () => {
-      mockIsTriggerAvailable.mockReturnValue(false)
+    it('rejects a rapid manual repeat without making members due', async () => {
       queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
-
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
+        { status: 'completed', completedAt: new Date(), failures: 0 },
+      ])
       await expect(
-        dispatchMemberSync('c-1', { billingAttribution: BILLING, requestId: 'r-1' })
-      ).resolves.toEqual({ queued: true })
-
+        dispatchMemberSync('c-1', { billingAttribution: BILLING, manual: true })
+      ).rejects.toMatchObject({ code: 'conflict' })
+      expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
       expect(mockTrigger).not.toHaveBeenCalled()
-      expect(mockExecuteMemberSync).toHaveBeenCalledWith(
-        'c-1',
-        expect.objectContaining({ billingAttribution: BILLING, dispatchToken: expect.any(String) })
-      )
+      expect(mockExecuteMemberSync).not.toHaveBeenCalled()
+    })
+
+    it('does not reschedule members if a concurrent lifecycle change declines the claim', async () => {
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [])
+      queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, status: 'paused' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      await expect(
+        dispatchMemberSync('c-1', { billingAttribution: BILLING, manual: true })
+      ).resolves.toMatchObject({ queued: false })
+      expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
+      expect(mockTrigger).not.toHaveBeenCalled()
     })
 
     it('releases its own queue entry when the hand-off throws', async () => {
@@ -192,109 +198,23 @@ describe('member sync queue', () => {
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
 
-    it('explains a queue entry it could not take', async () => {
-      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
-      dbChainMockFns.returning.mockResolvedValueOnce([])
-      queueTableRows(schemaMock.knowledgeConnector, [
-        {
-          accessMode: 'members',
-          status: 'active',
-          memberSyncStatus: 'idle',
-          syncLockToken: 'content-run',
-          archivedAt: null,
-          deletedAt: null,
-        },
-      ])
-
-      await expect(
-        dispatchMemberSync('c-1', { billingAttribution: BILLING, requestId: 'r-1' })
-      ).resolves.toEqual({
-        queued: false,
-        reason: 'A workspace sync is still running for this connector',
+    it('refuses the queue handoff when billing owner validation fails', async () => {
+      mockAssertBillingOwner.mockImplementationOnce(() => {
+        throw new Error('Billing attribution does not match resource owner')
       })
-      expect(mockTrigger).not.toHaveBeenCalled()
-    })
-
-    it('refuses billing attribution for another workspace', async () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, workspaceId: 'ws-2' }])
 
       await expect(
         dispatchMemberSync('c-1', { billingAttribution: BILLING, requestId: 'r-1' })
-      ).rejects.toThrow('does not match connector workspace ws-2')
-    })
-
-    /**
-     * The guards above the CAS read the row once; a pause or a schedule change
-     * that lands after that read is only visible to the CAS itself.
-     */
-    it('decides the connector status and the schedule inside the queue CAS', async () => {
-      const expected = new Date('2026-09-01T06:00:00Z')
-      queueTableRows(schemaMock.knowledgeConnector, [
-        { ...CONNECTOR_ROW, nextMemberSyncAt: expected },
-      ])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
-
-      await expect(
-        dispatchMemberSync('c-1', {
-          billingAttribution: BILLING,
-          requestId: 'r-1',
-          requireRunnable: true,
-          expectedNextMemberSyncAt: expected,
-        })
-      ).resolves.toEqual({ queued: true })
-
-      expect(vi.mocked(inArray)).toHaveBeenCalledWith(schemaMock.knowledgeConnector.status, [
-        'active',
-        'error',
-      ])
-      expect(vi.mocked(eq)).toHaveBeenCalledWith(
-        schemaMock.knowledgeConnector.nextMemberSyncAt,
-        expected
-      )
-    })
-
-    it.each([
-      [
-        'a connector paused after the read',
-        { status: 'paused', nextMemberSyncAt: new Date('2026-09-01T06:00:00Z') },
-        'Connector is paused and is not synced',
-      ],
-      [
-        'a schedule that moved after the read',
-        { status: 'active', nextMemberSyncAt: new Date('2026-09-01T07:00:00Z') },
-        'The member sync schedule changed after this run was scheduled',
-      ],
-    ])('explains a queue entry refused for %s', async (_name, current, reason) => {
-      const expected = new Date('2026-09-01T06:00:00Z')
-      queueTableRows(schemaMock.knowledgeConnector, [
-        { ...CONNECTOR_ROW, nextMemberSyncAt: expected },
-      ])
-      dbChainMockFns.returning.mockResolvedValueOnce([])
-      queueTableRows(schemaMock.knowledgeConnector, [
-        {
-          accessMode: 'members',
-          memberSyncStatus: 'idle',
-          syncLockToken: null,
-          archivedAt: null,
-          deletedAt: null,
-          ...current,
-        },
-      ])
-
-      await expect(
-        dispatchMemberSync('c-1', {
-          billingAttribution: BILLING,
-          requestId: 'r-1',
-          requireRunnable: true,
-          expectedNextMemberSyncAt: expected,
-        })
-      ).resolves.toEqual({ queued: false, reason })
-      expect(mockTrigger).not.toHaveBeenCalled()
+      ).rejects.toThrow('Billing attribution does not match resource owner')
     })
   })
 
   describe('dispatchMemberSyncsForCredentialOption', () => {
     it('keeps dispatching the remaining connectors when one hand-off throws', async () => {
+      mockAssertBillingOwner.mockImplementationOnce(() => {
+        throw new Error('Billing attribution does not match resource owner')
+      })
       mockResolveSystemBilling.mockResolvedValue(BILLING)
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }, { id: 'c-2' }])
       queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, workspaceId: 'ws-2' }])

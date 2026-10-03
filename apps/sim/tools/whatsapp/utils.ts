@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { WhatsAppMediaType, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 
 /** WhatsApp Cloud API Graph version used by every outbound tool. */
@@ -69,7 +69,7 @@ export function buildAuthHeaders(accessToken: string | undefined): Record<string
 export async function parseWhatsAppResponse(response: Response): Promise<Record<string, unknown>> {
   const responseText = await response.text()
   const parsed = responseText ? (JSON.parse(responseText) as unknown) : {}
-  return isRecordLike(parsed) ? parsed : {}
+  return toRecord(parsed)
 }
 
 /**

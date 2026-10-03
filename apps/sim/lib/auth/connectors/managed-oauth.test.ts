@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   createAtlassianManagedOAuthConnector,
   getManagedOAuthConnectorPolicy,
@@ -11,10 +8,6 @@ import {
 const ATLASSIAN_SCOPES = ['read:me', 'read:jira-work', 'offline_access']
 
 describe('Atlassian managed OAuth connector', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('uses the existing connector callback contract and verifies the current account', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -45,7 +38,6 @@ describe('Atlassian managed OAuth connector', () => {
       requiresRefreshToken: true,
       pkce: false,
       nonceVerification: 'state_only',
-      includeLoginHint: false,
       authorizationUrlParams: { audience: 'api.atlassian.com' },
     })
     expect(fetchMock).toHaveBeenCalledWith(
@@ -115,13 +107,22 @@ describe('Atlassian managed OAuth connector', () => {
     expect(jira.isTerminalRefreshError('invalid_grant')).toBe(true)
     expect(jira.isTerminalRefreshError('temporarily_unavailable')).toBe(false)
   })
+
+  it.each(['jira', 'confluence'] as const)(
+    'requires reconnect after %s rejects a revoked refresh grant',
+    (provider) => {
+      const connector = createAtlassianManagedOAuthConnector(provider)
+      expect(connector.isTerminalRefreshError('invalid_grant')).toBe(true)
+      expect(connector.isTerminalRefreshError('unauthorized_client')).toBe(true)
+      expect(connector.isTerminalRefreshError('invalid_client')).toBe(false)
+      expect(connector.isTerminalRefreshError('temporarily_unavailable')).toBe(false)
+      expect(connector.isTerminalRefreshError('server_error')).toBe(false)
+      expect(connector.isTerminalRefreshError(undefined)).toBe(false)
+    }
+  )
 })
 
 describe('userinfo-backed managed OAuth connectors', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   function stubProfile(profile: unknown): ReturnType<typeof vi.fn> {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(profile), {
@@ -418,10 +419,6 @@ describe('Microsoft managed OAuth connector', () => {
     }
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   function json(body: unknown): Response {
     return new Response(JSON.stringify(body), {
       status: 200,
@@ -477,7 +474,6 @@ describe('Microsoft managed OAuth connector', () => {
           requiresRefreshToken: true,
           pkce: true,
           nonceVerification: 'id_token',
-          includeLoginHint: true,
           prompt: 'select_account',
         })
         return policy.getAuthorizationAppId(CLIENT_ID)

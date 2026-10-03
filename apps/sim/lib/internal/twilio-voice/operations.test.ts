@@ -1,26 +1,24 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 
-const mocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { getTwilioRecording } from '@/lib/internal/twilio-voice/operations'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
+const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP } = inputValidationMockFns
+
 describe('getTwilioRecording', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
-    mocks.secureFetchWithPinnedIP
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(
         Response.json({
           sid: 'RE123',
@@ -49,19 +47,30 @@ describe('getTwilioRecording', () => {
       { requestId: 'request-1', signal: controller.signal }
     )
 
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledTimes(3)
-    expect(mocks.secureFetchWithPinnedIP.mock.calls[2][2]).toEqual(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(3)
+    expect(mockSecureFetchWithPinnedIP.mock.calls[2][2]).toEqual(
       expect.objectContaining({
         maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
         signal: controller.signal,
       })
     )
-    expect(result.output).toEqual(
-      expect.objectContaining({
-        duration: 42,
-        transcriptionText: 'hello',
-        file: expect.objectContaining({ name: 'RE123.mp3', data: 'AQID', size: 3 }),
-      })
-    )
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'RE123.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from([1, 2, 3]) },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'RE123.mp3',
+      type: 'audio/mpeg',
+      mimeType: 'audio/mpeg',
+      size: 3,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: { duration: 42, transcriptionText: 'hello', file: storedFile },
+    })
   })
 })

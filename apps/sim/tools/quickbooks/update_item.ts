@@ -14,7 +14,8 @@ export const quickbooksUpdateItemTool: InternalToolConfig<
 > = {
   id: 'quickbooks_update_item',
   name: 'QuickBooks Update Item',
-  description: 'Read, merge, and full-update an item without changing its type',
+  description:
+    'Read, merge, and full-update a Service or Non-inventory item without changing its type',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -51,7 +52,8 @@ export const quickbooksUpdateItemTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement item name',
+      description:
+        'Replacement item name, up to 100 characters, without tabs, new lines, or colons',
     },
     incomeAccountId: {
       type: 'string',
@@ -100,7 +102,8 @@ export const quickbooksUpdateItemTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       default: 'unchanged',
-      description: 'Item status change: unchanged, active, or inactive',
+      description:
+        'Item status change: unchanged, active, or inactive. Not valid for Category item types',
     },
   },
   oauth: {

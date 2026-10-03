@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/application/authorization'
 import {
   assertedChatDeploymentWorkspaceId,
   resolveActiveChatDeploymentApplicationContext,
@@ -165,7 +166,7 @@ export const updateChatDeployment = defineAuthorizedWorkspaceUseCase({
       chatDeploymentId: input.chatDeploymentId,
       assertedWorkspaceId: assertedChatDeploymentWorkspaceId(principal, input.assertedWorkspaceId),
     }),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ principal, input, context }): Promise<UpdateChatDeploymentResult> {
     const existing = context.chatDeployment
 

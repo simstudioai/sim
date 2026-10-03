@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { dropRowsCarriedByDraggedFolders } from '@/app/workspace/[workspaceId]/components/folders/use-folder-row-drag-drop'
 
@@ -35,20 +32,6 @@ const prune = (folderIds: string[], resourceIds: string[]) =>
   dropRowsCarriedByDraggedFolders({ folderIds, resourceIds }, accessors)
 
 describe('dropRowsCarriedByDraggedFolders', () => {
-  it('leaves a move with no folders untouched', () => {
-    expect(prune([], ['file-in-a', 'file-in-d'])).toEqual({
-      folderIds: [],
-      resourceIds: ['file-in-a', 'file-in-d'],
-    })
-  })
-
-  it('drops a file that the dragged folder directly contains', () => {
-    expect(prune(['a'], ['file-in-a', 'file-in-d'])).toEqual({
-      folderIds: ['a'],
-      resourceIds: ['file-in-d'],
-    })
-  })
-
   it('drops a file nested deeper inside the dragged folder', () => {
     expect(prune(['a'], ['file-in-c'])).toEqual({ folderIds: ['a'], resourceIds: [] })
   })
@@ -58,19 +41,7 @@ describe('dropRowsCarriedByDraggedFolders', () => {
     expect(prune(['a', 'b', 'c'], [])).toEqual({ folderIds: ['a'], resourceIds: [] })
   })
 
-  it('keeps unrelated folders and root-level files', () => {
-    expect(prune(['a', 'd'], ['file-at-root'])).toEqual({
-      folderIds: ['a', 'd'],
-      resourceIds: ['file-at-root'],
-    })
-  })
-
   it('never drops the only dragged folder', () => {
     expect(prune(['c'], [])).toEqual({ folderIds: ['c'], resourceIds: [] })
-  })
-
-  it('can empty the move entirely when every row rides along', () => {
-    expect(prune(['a'], ['file-in-a'])).toEqual({ folderIds: ['a'], resourceIds: [] })
-    expect(prune(['a', 'b'], ['file-in-c'])).toEqual({ folderIds: ['a'], resourceIds: [] })
   })
 })

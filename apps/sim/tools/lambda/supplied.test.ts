@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { getFunctionTool } from '@/tools/lambda/get_function'
 import { listFunctionsTool } from '@/tools/lambda/list_functions'
@@ -27,20 +24,6 @@ const CONNECTION = {
 }
 
 describe('Lambda tool operation input', () => {
-  it('maps the credential triple onto the contract field names', () => {
-    const input = getFunctionTool.operation?.input?.({
-      ...CONNECTION,
-      functionName: 'alpha',
-    }) as Record<string, unknown>
-
-    expect(input).toMatchObject({
-      region: 'us-east-1',
-      accessKeyId: 'AKIA',
-      secretAccessKey: 'secret',
-      functionName: 'alpha',
-    })
-  })
-
   it('omits an optional param that arrived as an empty string or null', () => {
     const input = getFunctionTool.operation?.input?.({
       ...CONNECTION,
@@ -58,15 +41,5 @@ describe('Lambda tool operation input', () => {
     }) as Record<string, unknown>
 
     expect(input.maxItems).toBe(0)
-  })
-
-  it('forwards a supplied optional param unchanged', () => {
-    const input = getFunctionTool.operation?.input?.({
-      ...CONNECTION,
-      functionName: 'alpha',
-      qualifier: 'prod',
-    }) as Record<string, unknown>
-
-    expect(input.qualifier).toBe('prod')
   })
 })

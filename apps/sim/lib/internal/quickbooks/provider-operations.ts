@@ -55,6 +55,23 @@ import {
   validateQuickBooksOptionalNumber,
 } from '@/tools/quickbooks/values'
 
+/**
+ * Intuit constrains the BillPayment payment account by both classification
+ * fields, not by `AccountType` alone. `BillPaymentCheck.BankAccountRef`: "The
+ * specified account must have `Account.AccountType` set to `Bank` and
+ * `Account.AccountSubType` set to `Checking`."
+ * `BillPaymentCreditCard.CCAccountRef`: "The specified account must have
+ * `Account.AccountType` set to `Credit Card` and `Account.AccountSubType` set
+ * to `CreditCard`."
+ */
+const QUICKBOOKS_BILL_PAYMENT_ACCOUNTS = {
+  check: { label: 'Check', accountType: 'Bank', accountSubType: 'Checking' },
+  credit_card: { label: 'Credit-card', accountType: 'Credit Card', accountSubType: 'CreditCard' },
+} as const satisfies Record<
+  QuickBooksCreateBillPaymentParams['paymentType'],
+  { label: string; accountType: string; accountSubType: string }
+>
+
 function assertCompatiblePaymentAccount(
   account: QuickBooksAccount,
   paymentType: QuickBooksCreateBillPaymentParams['paymentType'],
@@ -68,10 +85,18 @@ function assertCompatiblePaymentAccount(
     throw new Error('QuickBooks payment account is inactive. Select an active account.')
   }
 
-  const expectedAccountType = paymentType === 'check' ? 'Bank' : 'Credit Card'
-  if (account.AccountType !== expectedAccountType) {
+  const expected = QUICKBOOKS_BILL_PAYMENT_ACCOUNTS[paymentType]
+  if (!expected) {
+    throw new Error(`Unsupported QuickBooks bill payment type: ${String(paymentType)}`)
+  }
+  if (account.AccountType !== expected.accountType) {
     throw new Error(
-      `${paymentType === 'check' ? 'Check' : 'Credit-card'} Bill Payments require a QuickBooks ${expectedAccountType} account. Account ${paymentAccountId} is ${account.AccountType || 'missing an account type'}.`
+      `${expected.label} Bill Payments require a QuickBooks ${expected.accountType} account. Account ${paymentAccountId} is ${account.AccountType || 'missing an account type'}.`
+    )
+  }
+  if (account.AccountSubType !== expected.accountSubType) {
+    throw new Error(
+      `${expected.label} Bill Payments require a QuickBooks ${expected.accountType} account with the ${expected.accountSubType} sub-type. Account ${paymentAccountId} is ${account.AccountSubType || 'missing an account sub-type'}.`
     )
   }
 }
@@ -237,19 +262,32 @@ export function executeQuickBooksUpdateCreditMemoOperation(
   })
 }
 
-export function executeQuickBooksUpdateRefundReceiptOperation(
+/**
+ * Intuit documents `RefundReceipt::UPDATE "Sparse update a refund receipt"`:
+ * "Sparse updating provides the ability to update a subset of properties for a
+ * given object; only elements specified in the request are updated. Missing
+ * elements are left untouched." The sparse operation is posted directly, so no
+ * read-merge-write round trip is needed to preserve untouched fields.
+ */
+export async function executeQuickBooksUpdateRefundReceiptOperation(
   params: QuickBooksUpdateRefundReceiptParams,
   signal?: AbortSignal
 ) {
-  return executeQuickBooksFullUpdate({
-    params,
+  const response = await fetch(buildQuickBooksEntityUrl(params, 'refundreceipt'), {
+    method: 'POST',
+    headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
+    body: JSON.stringify(buildQuickBooksUpdateSalesDocumentBody(params)),
     signal,
-    entity: 'RefundReceipt',
-    resource: 'refundreceipt',
-    recordId: params.transactionId,
-    syncToken: params.syncToken,
-    buildPatch: buildQuickBooksUpdateSalesDocumentBody,
   })
+  if (!response.ok) {
+    throw await getQuickBooksOperationError(response, 'RefundReceipt', signal)
+  }
+  return transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(
+    response,
+    'RefundReceipt',
+    undefined,
+    signal
+  )
 }
 
 /** Preserves QuickBooks' all-or-none Payment lines across a full update. */

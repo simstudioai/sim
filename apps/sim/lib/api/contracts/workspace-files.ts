@@ -1,3 +1,4 @@
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { z } from 'zod'
 import {
   folderIdSchema,
@@ -99,6 +100,28 @@ export type CreateWorkspaceFileBody = z.input<typeof createWorkspaceFileBodySche
 
 export type UpdateWorkspaceFileContentBody = z.input<typeof updateWorkspaceFileContentBodySchema>
 
+export const exportWorkspaceFileSnapshotBodySchema = z.object({
+  content: z
+    .string()
+    .max(PASTE_LIMITS.RICH_MARKDOWN_BYTES, 'Markdown snapshot is too large')
+    .refine(
+      (content) =>
+        utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) <=
+        PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+      'Markdown snapshot is too large'
+    ),
+})
+
+export type ExportWorkspaceFileSnapshotBody = z.input<typeof exportWorkspaceFileSnapshotBodySchema>
+
+export const exportWorkspaceFileSnapshotContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/export',
+  params: workspaceFileParamsSchema,
+  body: exportWorkspaceFileSnapshotBodySchema,
+  response: { mode: 'binary' },
+})
+
 /** No real image approaches this; the bound rejects absurd or hostile values on the backfill path. */
 const IMAGE_DIMENSION_MAX = 100_000
 
@@ -137,7 +160,9 @@ export const workspaceFileRecordSchema = z.object({
   updatedAt: z.coerce.date(),
   /** Advances only when file bytes change; metadata edits do not invalidate text drafts. */
   contentUpdatedAt: z.coerce.date().nullable().optional(),
+  revision: z.string().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
+  vfsNamespace: z.literal('uploads').optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 
@@ -181,6 +206,17 @@ export const createWorkspaceFileContract = defineRouteContract({
       file: workspaceFileRecordSchema,
     }),
     status: 201,
+  },
+})
+
+/** Authorized file-by-id reads also admit chat attachments without listing or write access. */
+export const readWorkspaceFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({ file: workspaceFileRecordSchema }),
   },
 })
 
@@ -308,8 +344,3 @@ export const workspaceFileStyleContract = defineRouteContract({
     schema: documentStyleSummarySchema,
   },
 })
-
-const compiledCheckResponseSchema = z.union([
-  z.object({ ok: z.literal(true) }),
-  z.object({ ok: z.literal(false), error: z.string(), errorName: z.string() }),
-])

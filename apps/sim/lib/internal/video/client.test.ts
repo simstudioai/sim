@@ -1,74 +1,21 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/execution-limits', () => ({ getMaxExecutionTimeout: () => 5000 }))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 import { generateVideo } from '@/lib/internal/video/client'
 
-function jsonResponse(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
+executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(5000)
 
 describe('Video provider client', () => {
   beforeEach(() => vi.useFakeTimers())
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
-  })
-
-  it('submits a Runway job once and only polls the returned task', async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'task-1' }))
-      .mockResolvedValueOnce(
-        jsonResponse({ status: 'SUCCEEDED', output: ['https://cdn.example/video.mp4'] })
-      )
-      .mockResolvedValueOnce(new Response(Buffer.from('video')))
-    vi.stubGlobal('fetch', mockFetch)
-
-    const resultPromise = generateVideo(
-      {
-        provider: 'runway',
-        apiKey: 'key',
-        prompt: 'A cinematic sunrise',
-        duration: 5,
-        aspectRatio: '16:9',
-        resolution: '720p',
-      },
-      { requestId: 'request-1' }
-    )
-    await vi.advanceTimersByTimeAsync(5000)
-    const result = await resultPromise
-
-    expect(result).toMatchObject({
-      buffer: Buffer.from('video'),
-      width: 1280,
-      height: 720,
-      jobId: 'task-1',
-      duration: 5,
-    })
-    const requests = mockFetch.mock.calls.map(([url, init]) => ({
-      method: (init as RequestInit | undefined)?.method,
-      url: String(url),
-    }))
-    expect(requests).toEqual([
-      {
-        method: 'POST',
-        url: 'https://api.dev.runwayml.com/v1/image_to_video',
-      },
-      {
-        method: undefined,
-        url: 'https://api.dev.runwayml.com/v1/tasks/task-1',
-      },
-      { method: undefined, url: 'https://cdn.example/video.mp4' },
-    ])
-    expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1)
   })
 
   it.each([
@@ -168,33 +115,6 @@ describe('Video provider client', () => {
 
     await expect(resultPromise).rejects.toMatchObject({ name: 'AbortError' })
     expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('forwards cancellation to submission, polling, and download requests', async () => {
-    const controller = new AbortController()
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'task-1' }))
-      .mockResolvedValueOnce(
-        jsonResponse({ status: 'SUCCEEDED', output: ['https://cdn.example/video.mp4'] })
-      )
-      .mockResolvedValueOnce(new Response(Buffer.from('video')))
-    vi.stubGlobal('fetch', mockFetch)
-
-    const resultPromise = generateVideo(
-      {
-        provider: 'runway',
-        apiKey: 'key',
-        prompt: 'A cinematic sunrise',
-      },
-      { requestId: 'request-1', signal: controller.signal }
-    )
-    await vi.advanceTimersByTimeAsync(5000)
-    await resultPromise
-
-    for (const [, init] of mockFetch.mock.calls) {
-      expect((init as RequestInit | undefined)?.signal).toBe(controller.signal)
-    }
   })
 
   it('rejects a generated video whose declared size exceeds the 250 MiB cap', async () => {

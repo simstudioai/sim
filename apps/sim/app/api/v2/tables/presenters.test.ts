@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { v2ApiRowSchema, v2EnrichmentRunDetailSchema } from '@/lib/api/contracts/v2/tables'
 import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
@@ -134,6 +130,18 @@ describe('presentV2WorkflowGroup', () => {
     } as WorkflowGroup
 
     expect(presentV2WorkflowGroup(orphaned, schema).outputs[0].columnName).toBe('col_deleted')
+  })
+
+  /**
+   * `deploymentMode: null` on the wire was read as "runs the draft", while a
+   * mode-less group has always run the deployment. The presenter publishes
+   * the effective mode so the response can never carry a third, absent state.
+   */
+  it('presents the effective deployment mode, never an absent one', () => {
+    expect(presentV2WorkflowGroup(stored, schema).deploymentMode).toBe('deployed')
+    expect(
+      presentV2WorkflowGroup({ ...stored, deploymentMode: 'live' }, schema).deploymentMode
+    ).toBe('live')
   })
 
   it('leaves a legacy name-keyed group alone', () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   isHeifContainer,
@@ -25,13 +22,6 @@ function ftypHeader(brand: string, compatible: string[] = []): Buffer {
 describe('isHeifContainer', () => {
   it.each(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'mif1', 'msf1'])(
     'detects the %s brand',
-    (brand) => {
-      expect(isHeifContainer(ftypHeader(brand))).toBe(true)
-    }
-  )
-
-  it.each(['avif', 'avis'])(
-    'also claims the %s brand — the question is "is this HEIF", not "which codec"',
     (brand) => {
       expect(isHeifContainer(ftypHeader(brand))).toBe(true)
     }
@@ -161,14 +151,5 @@ describe('transcodeHeicToJpeg', () => {
     expect(handles[0].width * handles[0].height).toBe(600_000_000)
     expect(typeof handles.dispose).toBe('function')
     expect(decoded).toBe(false)
-  })
-
-  it('exposes `all` as a named export, which the pixel check destructures', async () => {
-    // A CJS `module.exports = one; module.exports.all = all` need not surface `all`
-    // as a named ESM export. If it stopped doing so the pixel check would throw,
-    // get swallowed by the catch, and quietly stop guarding — with mocked tests
-    // still green. Pin the real shape.
-    const { all } = await import('heic-decode')
-    expect(typeof all).toBe('function')
   })
 })

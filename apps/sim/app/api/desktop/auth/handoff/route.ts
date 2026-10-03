@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { headers } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { getBetterAuthClientErrorStatus } from '@/lib/auth/better-auth-error'
 import { createDesktopHandoffToken } from '@/lib/auth/desktop-handoff'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -43,15 +44,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const token = await createDesktopHandoffToken(session.user.id)
     return NextResponse.json({ token })
   } catch (error) {
-    // Session creation runs the app's own `session.create.before` hook, which
-    // rejects access-controlled accounts with a Better Auth APIError. That is a
-    // permanent refusal, not a server fault — a 500 would tell the user to try
-    // again forever.
-    if (
-      error instanceof Error &&
-      'statusCode' in error &&
-      (error as Record<string, unknown>).statusCode === 403
-    ) {
+    /**
+     * Session creation runs the app's own `session.create.before` hook, which rejects
+     * access-controlled accounts with a Better Auth `APIError`. That is a permanent refusal, not a
+     * server fault — a 500 would tell the user to try again forever.
+     */
+    if (getBetterAuthClientErrorStatus(error) === 403) {
       logger.warn('Desktop handoff refused for this account', { userId: session.user.id })
       return NextResponse.json(
         { error: getErrorMessage(error, 'Access restricted') },

@@ -4,6 +4,7 @@ import type { DbOrTx } from '@sim/workflow-persistence/types'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   canTransitionDeploymentOperation,
   createDeploymentReadiness,
@@ -95,7 +96,10 @@ export interface MarkDeploymentComponentReadinessParams extends DeploymentOperat
 }
 
 export interface ActivateDeploymentOperationParams extends DeploymentOperationGeneration {
-  onActivateTransaction?: (tx: DbOrTx, operation: WorkflowDeploymentOperation) => Promise<void>
+  onActivateTransaction?: (
+    tx: DbTransaction,
+    operation: WorkflowDeploymentOperation
+  ) => Promise<void>
 }
 
 interface PrepareOperationContext {

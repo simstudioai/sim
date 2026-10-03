@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
 
@@ -6,21 +7,11 @@ const ASANA_RESPONSE_MAX_BYTES = 10 * 1024 * 1024
 
 export type AsanaJsonObject = Record<string, unknown>
 
-export function asObject(value: unknown): AsanaJsonObject {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as AsanaJsonObject)
-    : {}
-}
-
-export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
-}
-
 function providerErrorMessage(response: Response, text: string): string {
   let message = `Asana API error: ${response.status} ${response.statusText}`
   try {
-    const data = asObject(JSON.parse(text))
-    const firstError = asObject(asArray(data.errors)[0])
+    const data = toRecord(JSON.parse(text))
+    const firstError = toRecord(toArray(data.errors)[0])
     if (Object.keys(firstError).length > 0) {
       const providerMessage =
         typeof firstError.message === 'string' && firstError.message ? firstError.message : message
@@ -74,7 +65,7 @@ export class AsanaClient {
         details: text,
       })
     }
-    return asObject(JSON.parse(text))
+    return toRecord(JSON.parse(text))
   }
 
   async empty(path: string, init: RequestInit, signal?: AbortSignal): Promise<void> {

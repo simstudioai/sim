@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { resolveFireworksWireModel } from '@/providers/fireworks/utils'
 

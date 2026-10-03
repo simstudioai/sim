@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeManagedAgentUpdateSessionOperation } from '@/lib/internal/managed-agent/operations/update-session'
 

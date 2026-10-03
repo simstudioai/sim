@@ -339,12 +339,7 @@ export interface GoogleDriveGetContentResponse extends ToolResponse {
 
 export interface GoogleDriveDownloadResponse extends ToolResponse {
   output: {
-    file: {
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }
+    file: UserFile
     metadata: GoogleDriveFile
   }
 }

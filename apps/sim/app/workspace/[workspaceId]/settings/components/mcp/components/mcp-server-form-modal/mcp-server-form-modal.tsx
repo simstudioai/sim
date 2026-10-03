@@ -67,7 +67,7 @@ export interface McpServerFormModalProps {
   domainPolicyError?: string
 }
 
-const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
+const ENV_VAR_PATTERN = /\{\{[^{}]+\}\}/
 
 function hasEnvVarInHostname(url: string): boolean {
   const globalPattern = new RegExp(ENV_VAR_PATTERN.source, 'g')
@@ -180,7 +180,7 @@ function FormattedInput({
           onClose={envVarProps.onClose}
           className='w-full'
           maxHeight='200px'
-          style={{ position: 'absolute', top: '100%', left: 0, zIndex: 99999 }}
+          style={{ top: '100%', left: 0, zIndex: 99999 }}
         />
       )}
     </div>
@@ -763,7 +763,7 @@ export function McpServerFormModal({
               type='button'
               variant='ghost'
               onClick={() => setShowAdvanced((v) => !v)}
-              className='gap-1 self-start px-2 py-0 text-small'
+              className='gap-1 self-start py-0 text-small'
             >
               {showAdvanced ? (
                 <ChevronDown className='size-[14px]' />

@@ -1,4 +1,4 @@
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 
 export function parseWorkspaceFileCreatePath(path: string): {

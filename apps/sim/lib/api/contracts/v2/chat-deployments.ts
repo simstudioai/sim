@@ -4,6 +4,7 @@ import { chatAuthTypeSchema, chatDeploymentPasswordSchema } from '@/lib/api/cont
 import {
   booleanQueryFlagSchema,
   noInputSchema,
+  orExactEnvironmentReference,
   workflowIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -346,11 +347,12 @@ export const v2ReplaceChatDeploymentBodySchema = z
      * make the verb non-idempotent from the caller's point of view — so a
      * password-gated result must state its password every time.
      */
-    password: chatDeploymentPasswordSchema
-      .min(1, 'password cannot be empty')
+    password: orExactEnvironmentReference(
+      chatDeploymentPasswordSchema.min(1, 'password cannot be empty')
+    )
       .optional()
       .describe(
-        'Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back.'
+        'Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.'
       ),
     allowedEmails: chatAllowedEmailsSchema
       .optional()

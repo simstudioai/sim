@@ -291,7 +291,7 @@ export async function executeInstagramDownloadMedia(
   body: InstagramDownloadMediaBody,
   context: InstagramOperationContext
 ): Promise<Response> {
-  const { executionId, requestId, signal, userId, workflowId, workspaceId } = context
+  const { executionId, signal, userId, workflowId, workspaceId } = context
   signal?.throwIfAborted()
   const files: UserFile[] = []
   let storageContext: StorageContext = 'copilot'

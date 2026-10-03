@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
 

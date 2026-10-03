@@ -15,6 +15,7 @@ interface EditorToolbarOptions {
   canFocus: () => boolean
   /** URL editing uses ordinary form tab order so its native arrow keys do not trap action buttons. */
   roving?: boolean
+  onEscape?: () => void
 }
 
 function controls(toolbar: HTMLElement): HTMLElement[] {
@@ -33,6 +34,7 @@ export function useEditorToolbar({
   pluginKey,
   canFocus,
   roving = true,
+  onEscape,
 }: EditorToolbarOptions) {
   const ref = useRef<HTMLDivElement>(null)
 
@@ -113,6 +115,7 @@ export function useEditorToolbar({
     )
       return
     if (event.key === 'Escape') {
+      if (!event.defaultPrevented) onEscape?.()
       event.preventDefault()
       editor.commands.focus()
       editor.commands.setMeta(pluginKey, 'hide')

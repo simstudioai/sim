@@ -10,6 +10,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import {
   readXlsxPreviewData,
+  readXlsxWorkbook,
   XLSX_MAX_COLUMNS,
   XLSX_MAX_ROWS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
@@ -55,7 +56,7 @@ export const XlsxPreview = memo(function XlsxPreview({
         setRenderError(null)
         await assertOoxmlPreviewWithinLimits(data)
         const XLSX = await import('xlsx')
-        const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
+        const workbook = readXlsxWorkbook(XLSX, data)
         if (!cancelled) {
           workbookRef.current = workbook
           setSheetNames(workbook.SheetNames)
@@ -137,7 +138,7 @@ export const XlsxPreview = memo(function XlsxPreview({
       <div ref={scrollRef} className='flex-1 overflow-auto p-6'>
         <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
         {(currentSheet.rowTruncated || currentSheet.columnTruncated) && (
-          <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
+          <p className='mt-3 text-center text-[var(--text-muted)] text-caption'>
             {currentSheet.rowTruncated && currentSheet.columnTruncated
               ? `Showing first ${XLSX_MAX_ROWS.toLocaleString()} rows and ${XLSX_MAX_COLUMNS.toLocaleString()} columns.`
               : currentSheet.rowTruncated

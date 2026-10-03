@@ -1,10 +1,10 @@
 import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import type { OAuthService } from '@/lib/oauth/types'
 
-export type OciDestinationProvenance = 'static' | 'authenticated-discovery'
+type OciDestinationProvenance = 'static' | 'authenticated-discovery'
 export type OciHostnameTemplate = 'regional' | 'regional-oci' | 'region-first-oci'
 
-export interface OciRealm {
+interface OciRealm {
   readonly id: string
   readonly domain: string
 }

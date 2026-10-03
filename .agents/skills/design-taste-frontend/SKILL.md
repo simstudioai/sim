@@ -4,7 +4,7 @@ source: https://github.com/leonxlnx/taste-skill — skills/taste-skill/SKILL.md
 description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.
 ---
 
-> **In this repo:** Tailwind 4 (CSS-first config in `apps/sim/app/_styles/globals.css`); animation via `import { motion } from 'framer-motion'` (not `motion/react` — rewrite every `motion/react` import in the samples below); icons from `@sim/emcn/icons`; colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex/`zinc` utilities, no paired `dark:` utilities). This note overrides any conflicting guidance or code sample anywhere in this file.
+> **In this repo:** Tailwind 4 (CSS-first config in `apps/sim/app/_styles/globals.css`); animation via `import { motion } from 'framer-motion'` (not `motion/react`); icons from `@sim/emcn/icons`; colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex/`zinc` utilities, no paired `dark:` utilities). This note overrides any conflicting guidance or code sample anywhere in this file. Fonts are fixed (Season body, Inter); never introduce new families, and never use Martian Mono on landing (`apps/sim/app/(landing)/CLAUDE.md`). Font weight is only `font-normal`/`font-medium`/`font-semibold`. Elevation uses the `shadow-subtle|medium|overlay|card` tokens. Type size uses named tokens, never `text-[Npx]`. Every labeled field inside a `ChipModalBody` is a `ChipModalField`. Use `bunx`, never `npx`. Do not add GSAP, Lenis, Three, or shadcn. Landing copy and SEO follow `.claude/rules/constitution.md` and `.claude/rules/landing-seo-geo.md`.
 
 # tasteskill: Anti-Slop Frontend Skill
 
@@ -345,7 +345,7 @@ These are tools, not defaults. Use them when the design read calls for them. **N
 import { useRef, useEffect } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useReducedMotion } from "motion/react";
+import { useReducedMotion } from "framer-motion";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -407,7 +407,7 @@ Critical points: `start: "top top"`, `pin: true`, every card except the last is 
 import { useRef, useEffect } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useReducedMotion } from "motion/react";
+import { useReducedMotion } from "framer-motion";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -454,7 +454,7 @@ For simple "items appear as they enter viewport" (no pinning), prefer Motion's `
 
 ```tsx
 "use client";
-import { motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "framer-motion";
 
 export function RevealStagger({ items }: { items: string[] }) {
   const reduce = useReducedMotion();

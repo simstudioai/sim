@@ -1,13 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { listCredentialGroupMcpConnectionReferences } from '@/lib/credential-groups/mcp-connections'
 
 describe('listCredentialGroupMcpConnectionReferences', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { describe, expect, it } from 'vitest'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
 

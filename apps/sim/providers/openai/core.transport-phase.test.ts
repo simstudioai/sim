@@ -1,36 +1,34 @@
 /**
- * @vitest-environment node
- *
  * Covers the phase annotation that separates "never answered" from "answered, but the
  * body never arrived" — the runtime reports both as a bare `TimeoutError`.
  */
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest } from '@/providers/types'
 
-const { mockSupportsReasoningEffort } = vi.hoisted(() => ({
-  mockSupportsReasoningEffort: vi.fn(() => false),
+providersMock.MAX_TOOL_ITERATIONS = 5
+
+const mockSupportsReasoningEffort = providersUtilsMockFns.mockSupportsReasoningEffort
+providersUtilsMockFns.mockIsFunctionToolCall.mockReturnValue(false)
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: {},
+  executionParams: {},
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: undefined,
+  forcedTools: [],
+  hasFilteredTools: false,
 }))
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: () => false,
-  calculateCost: () => ({ input: 0, output: 0, total: 0 }),
-  sumToolCosts: () => 0,
-  enforceStrictSchema: (schema: unknown) => schema,
-  prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
-  prepareToolsWithUsageControl: (tools: unknown[]) => ({
-    tools,
-    toolChoice: undefined,
-    forcedTools: [],
-    hasFilteredTools: false,
-  }),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-  supportsReasoningEffort: mockSupportsReasoningEffort,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/tools', () => toolsMock)
 
 /**
  * Exactly what the runtime raises when a fetch deadline fires: a `DOMException`, NOT a
@@ -41,6 +39,9 @@ vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
 function timeoutError() {
   return new DOMException('The operation timed out.', 'TimeoutError')
 }
+
+/** Pins an error response to one attempt, so these cases exercise presentation, not retry. */
+const NOT_RETRYABLE = new Headers({ 'x-should-retry': 'false' })
 
 const COMPLETED = {
   id: 'resp_1',
@@ -53,7 +54,6 @@ describe('OpenAI transport phase annotation', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsReasoningEffort.mockReturnValue(false)
   })
 
@@ -119,7 +119,7 @@ describe('OpenAI transport phase annotation', () => {
     const apiError = {
       ok: false,
       status: 429,
-      headers: new Headers(),
+      headers: NOT_RETRYABLE,
       text: () => Promise.resolve(JSON.stringify({ error: { message: 'Rate limit reached' } })),
     }
 
@@ -132,7 +132,7 @@ describe('OpenAI transport phase annotation', () => {
     const htmlError = {
       ok: false,
       status: 502,
-      headers: new Headers(),
+      headers: NOT_RETRYABLE,
       text: () => Promise.resolve(`<html><body>${'x'.repeat(5000)}</body></html>`),
     }
 
@@ -183,7 +183,7 @@ describe('OpenAI transport phase annotation', () => {
     const unreadable = {
       ok: false,
       status: 502,
-      headers: new Headers(),
+      headers: NOT_RETRYABLE,
       text: () => Promise.reject(timeoutError()),
     }
 
@@ -210,6 +210,30 @@ describe('OpenAI transport phase annotation', () => {
 
     expect(error.message).toContain('phase=awaiting-response-headers')
     expect(error.message).toMatch(/elapsedMs=\d+/)
+  })
+
+  /** The incident this path once had: a single transient 500 failed the whole run. */
+  it('replays a transient server error before reporting it', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 500, headers: new Headers() })
+        .mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          json: () => Promise.resolve(COMPLETED),
+        })
+
+      const pending = run(fetchMock)
+      await vi.runAllTimersAsync()
+
+      await expect(pending).resolves.toMatchObject({ content: 'ok' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('leaves a healthy response entirely unaffected', async () => {

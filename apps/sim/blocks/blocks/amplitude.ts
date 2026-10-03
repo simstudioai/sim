@@ -170,7 +170,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Send Event fields ---
+    // Send Event fields
     {
       id: 'eventType',
       title: 'Event Type',
@@ -347,7 +347,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Identify User fields ---
+    // Identify User fields
     {
       id: 'identifyUserProperties',
       title: 'User Properties',
@@ -363,7 +363,7 @@ export const AmplitudeBlock: BlockConfig = {
       },
     },
 
-    // --- Group Identify fields ---
+    // Group Identify fields
     {
       id: 'groupType',
       title: 'Group Type',
@@ -395,7 +395,7 @@ export const AmplitudeBlock: BlockConfig = {
       },
     },
 
-    // --- User Search fields ---
+    // User Search fields
     {
       id: 'searchUser',
       title: 'User',
@@ -405,7 +405,7 @@ export const AmplitudeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'user_search' },
     },
 
-    // --- User Activity fields ---
+    // User Activity fields
     {
       id: 'amplitudeId',
       title: 'Amplitude ID',
@@ -443,7 +443,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- User Profile fields ---
+    // User Profile fields
     {
       id: 'getAmpProps',
       title: 'Include User Properties',
@@ -481,7 +481,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Event Segmentation fields ---
+    // Event Segmentation fields
     {
       id: 'segmentationEventType',
       title: 'Event Type',
@@ -616,7 +616,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Get Active Users fields ---
+    // Get Active Users fields
     {
       id: 'activeUsersStart',
       title: 'Start Date',
@@ -687,7 +687,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Get Revenue fields ---
+    // Get Revenue fields
     {
       id: 'revenueStart',
       title: 'Start Date',
@@ -760,7 +760,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Funnels fields ---
+    // Funnels fields
     {
       id: 'funnelEvents',
       title: 'Funnel Steps',
@@ -876,7 +876,7 @@ export const AmplitudeBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Retention fields ---
+    // Retention fields
     {
       id: 'retentionStartEvent',
       title: 'Starting Event',

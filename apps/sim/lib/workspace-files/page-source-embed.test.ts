@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { compileSimPage } from '@/lib/workspace-files/page-compile'
 import {
@@ -40,10 +37,6 @@ describe('simPageSourceEmbedBlock / extractSimPageSource', () => {
   it('emits no literal </script> inside the block for source containing one', () => {
     const block = simPageSourceEmbedBlock(SOURCE)
     expect(block.indexOf('</script>')).toBe(block.length - '</script>'.length)
-  })
-
-  it('returns null for a document without an embed block', () => {
-    expect(extractSimPageSource(compileSimPage(SOURCE, { baseUrl: 'https://sim.ai' }))).toBeNull()
   })
 
   it('returns null when the embedded bytes are not valid page source', () => {

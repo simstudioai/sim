@@ -714,7 +714,7 @@ export class VariableResolver {
         )
         return replacement
       } catch (error) {
-        replacementError = error instanceof Error ? error : new Error(String(error))
+        replacementError = toError(error)
         displayResult += match
         return match
       }
