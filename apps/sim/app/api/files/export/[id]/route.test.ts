@@ -7,6 +7,7 @@ import {
 } from '@sim/testing/mocks/files-authorization.mock'
 import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
 import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import {
   uploadsMetadataMock,
@@ -20,13 +21,11 @@ import { getServeStoragePrefix } from '@/lib/uploads/config'
 const {
   mockExtractEmbeddedFileRefs,
   mockResolveWorkspaceInlineImage,
-  mockEnforceUserRateLimit,
   mockRenderMarkdownPdf,
   MockMarkdownPdfLimitError,
 } = vi.hoisted(() => ({
   mockExtractEmbeddedFileRefs: vi.fn(),
   mockResolveWorkspaceInlineImage: vi.fn(),
-  mockEnforceUserRateLimit: vi.fn(),
   mockRenderMarkdownPdf: vi.fn(),
   MockMarkdownPdfLimitError: class extends Error {},
 }))
@@ -45,9 +44,7 @@ vi.mock('@/lib/uploads/server/embedded-image-refs', () => ({
 vi.mock('@/lib/uploads/server/inline-image', () => ({
   resolveWorkspaceInlineImage: mockResolveWorkspaceInlineImage,
 }))
-vi.mock('@/lib/core/rate-limiter/route-helpers', () => ({
-  enforceUserRateLimit: mockEnforceUserRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter/route-helpers', () => rateLimiterMock)
 vi.mock('@/app/api/files/export/[id]/markdown-pdf', () => ({
   MarkdownPdfLimitError: MockMarkdownPdfLimitError,
   markdownPdfImageKey: (ref: { key?: string; fileId?: string }) =>
@@ -65,6 +62,7 @@ const mockVerifyFileAccess = filesAuthorizationMockFns.mockVerifyFileAccess
 const mockCheckAuth = hybridAuthMockFns.mockCheckSessionOrInternalAuth
 const mockRecordAudit = auditMockFns.mockRecordAudit
 const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
 
 const MB = 1024 * 1024
 const DOC_ID = 'doc-1'

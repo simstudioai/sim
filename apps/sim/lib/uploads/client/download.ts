@@ -1,6 +1,6 @@
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { requestRaw } from '@/lib/api/client/request'
-import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
+import { fileExportContract, type FileExportQuery } from '@/lib/api/contracts/storage-transfer'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -43,7 +43,7 @@ function fileNameFromDisposition(response: Response, fallback: string): string {
 export async function triggerFileDownload(
   record: WorkspaceFileRecord,
   source?: FileDownloadSource | null,
-  options?: { format?: 'pdf' }
+  options?: FileExportQuery
 ): Promise<void> {
   const isMarkdown =
     record.type === 'text/markdown' ||

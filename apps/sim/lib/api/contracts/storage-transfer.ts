@@ -200,7 +200,7 @@ export const fileExportParamsSchema = z.object({
   id: workspaceFileIdSchema,
 })
 
-export const fileExportQuerySchema = z.object({
+const fileExportQuerySchema = z.object({
   format: z.literal('pdf').optional(),
 })
 

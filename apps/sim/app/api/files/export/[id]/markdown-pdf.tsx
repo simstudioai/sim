@@ -68,47 +68,26 @@ function resolveBrandFont(filename: string): string {
   return font
 }
 
-function resolveDependencyFont(packageName: string, filename: string): string {
-  const relativePath = join(packageName, 'files', filename)
-  const candidates = [
-    join(process.cwd(), 'node_modules', relativePath),
-    join(process.cwd(), '..', '..', 'node_modules', relativePath),
-    join(process.cwd(), 'apps', 'sim', 'node_modules', relativePath),
-  ]
-  const font = candidates.find(existsSync)
-  if (!font) throw new Error(`PDF dependency font not found: ${filename}`)
-  return font
-}
-
 const GEIST_REGULAR = resolveBrandFont('Geist-Regular.ttf')
 const GEIST_MEDIUM = resolveBrandFont('Geist-Medium.ttf')
-const UNIFONT_REGULAR = resolveDependencyFont(
-  '@fontsource/unifont',
-  'unifont-latin-400-normal.woff'
+const UNIFONT_REGULAR = require.resolve('@fontsource/unifont/files/unifont-latin-400-normal.woff')
+const NOTO_ARABIC = require.resolve(
+  '@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff'
 )
-const NOTO_ARABIC = resolveDependencyFont(
-  '@fontsource/noto-sans-arabic',
-  'noto-sans-arabic-arabic-400-normal.woff'
+const NOTO_ARABIC_BOLD = require.resolve(
+  '@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-700-normal.woff'
 )
-const NOTO_ARABIC_BOLD = resolveDependencyFont(
-  '@fontsource/noto-sans-arabic',
-  'noto-sans-arabic-arabic-700-normal.woff'
+const NOTO_DEVANAGARI = require.resolve(
+  '@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-400-normal.woff'
 )
-const NOTO_DEVANAGARI = resolveDependencyFont(
-  '@fontsource/noto-sans-devanagari',
-  'noto-sans-devanagari-devanagari-400-normal.woff'
+const NOTO_DEVANAGARI_BOLD = require.resolve(
+  '@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-700-normal.woff'
 )
-const NOTO_DEVANAGARI_BOLD = resolveDependencyFont(
-  '@fontsource/noto-sans-devanagari',
-  'noto-sans-devanagari-devanagari-700-normal.woff'
+const NOTO_HEBREW = require.resolve(
+  '@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-400-normal.woff'
 )
-const NOTO_HEBREW = resolveDependencyFont(
-  '@fontsource/noto-sans-hebrew',
-  'noto-sans-hebrew-hebrew-400-normal.woff'
-)
-const NOTO_HEBREW_BOLD = resolveDependencyFont(
-  '@fontsource/noto-sans-hebrew',
-  'noto-sans-hebrew-hebrew-700-normal.woff'
+const NOTO_HEBREW_BOLD = require.resolve(
+  '@fontsource/noto-sans-hebrew/files/noto-sans-hebrew-hebrew-700-normal.woff'
 )
 
 /**
