@@ -1,20 +1,78 @@
 'use client'
 
-import { Code, CopyCodeButton } from '@sim/emcn'
+import { useState } from 'react'
+import { Chip, ChipLink, Code, useCopyToClipboard } from '@sim/emcn'
+import { Check, Clipboard } from '@sim/emcn/icons'
 
 interface SlackAppManifestProps {
   manifest: string
+  createAppUrl?: string
+  disabled?: boolean
 }
 
-/** Shared manifest preview for Slack app setup flows. */
-export function SlackAppManifest({ manifest }: SlackAppManifestProps) {
+/** Opens new app creation or provides the manifest for updating an existing app. */
+export function SlackAppManifest({ manifest, createAppUrl, disabled }: SlackAppManifestProps) {
+  if (createAppUrl) {
+    return disabled || !manifest ? (
+      <Chip variant='primary' disabled>
+        Create Slack app
+      </Chip>
+    ) : (
+      <ChipLink variant='primary' href={createAppUrl} target='_blank' rel='noopener noreferrer'>
+        Create Slack app
+      </ChipLink>
+    )
+  }
+
+  return <SlackManifestUpdate manifest={manifest} disabled={disabled} />
+}
+
+function SlackManifestUpdate({ manifest, disabled }: Omit<SlackAppManifestProps, 'createAppUrl'>) {
+  const { copied, copy } = useCopyToClipboard()
+  const [copiedManifest, setCopiedManifest] = useState<string | null>(null)
+  const [copyFailed, setCopyFailed] = useState(false)
+  const showCopied = copied && copiedManifest === manifest && !copyFailed
+
+  async function copyManifest() {
+    setCopyFailed(false)
+    const success = await copy(manifest)
+    if (!success) {
+      setCopyFailed(true)
+      return
+    }
+    setCopiedManifest(manifest)
+  }
+
   return (
-    <div className='overflow-hidden rounded-md border border-[var(--border)]'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-3 py-1'>
-        <span className='font-sans text-[var(--text-tertiary)] text-xs'>manifest.json</span>
-        <CopyCodeButton code={manifest} />
+    <div className='space-y-2'>
+      <div className='flex flex-wrap items-center gap-2'>
+        <Chip
+          variant='primary'
+          leftIcon={showCopied ? Check : Clipboard}
+          disabled={disabled || !manifest}
+          onClick={() => void copyManifest()}
+        >
+          Copy manifest
+        </Chip>
+        {showCopied && (
+          <span role='status' className='text-[var(--text-secondary)] text-caption'>
+            Manifest copied
+          </span>
+        )}
       </div>
-      <Code.Viewer code={manifest} language='json' wrapText className='max-h-[180px]' />
+      {copyFailed && (
+        <p role='alert' className='text-[var(--text-error)] text-caption'>
+          Could not copy the manifest. Allow clipboard access and try again.
+        </p>
+      )}
+      <details>
+        <summary className='cursor-pointer text-[var(--text-secondary)] text-caption'>
+          View manifest
+        </summary>
+        <div className='mt-2 overflow-hidden rounded-md border border-[var(--border)]'>
+          <Code.Viewer code={manifest} language='json' wrapText className='max-h-[180px]' />
+        </div>
+      </details>
     </div>
   )
 }

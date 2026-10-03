@@ -1,4 +1,12 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
+
+export interface SSHDownloadFileV2Response extends ToolResponse {
+  output: {
+    file: UserFile
+    remotePath: string
+  }
+}
 
 // Base SSH connection configuration
 interface SSHConnectionConfig {
@@ -123,22 +131,6 @@ interface SSHFileInfo {
 }
 
 // System info interface
-interface SSHSystemInfo {
-  hostname: string
-  os: string
-  architecture: string
-  uptime: number
-  memory: {
-    total: number
-    free: number
-    used: number
-  }
-  diskSpace: {
-    total: number
-    free: number
-    used: number
-  }
-}
 
 export interface SSHResponse extends ToolResponse {
   output: {

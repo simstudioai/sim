@@ -1,18 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { requestUtilsMockFns } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
-  mockCheckRateLimitDirect: vi.fn(),
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mockCheckRateLimitDirect
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+const mockCheckRateLimitDirect = rateLimiterMockFns.mockCheckRateLimitDirect
 
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { MAX_EMBEDDED_IMAGES } from '@/lib/uploads/server/embedded-image-refs'
@@ -21,7 +12,6 @@ const request = new Request('http://localhost')
 
 describe('enforcePublicFileRateLimit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     requestUtilsMockFns.mockGetClientIp.mockReturnValue('192.0.2.1')
     mockCheckRateLimitDirect.mockResolvedValue({ allowed: true })
   })

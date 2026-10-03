@@ -8,14 +8,18 @@ import {
   type WorkspaceAuthorizationContext,
   type WorkspaceAuthorizationOptions,
 } from '@/lib/core/application/workspace-authorization'
+import { withinAuthorizedWorkspaceOperation } from '@/lib/core/application/workspace-invocation-scope'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import type { ResourcePolicyBinding } from '@/lib/resource-policies/registry'
 
 export interface WorkspaceUseCaseAuditEntry {
+  /** Canonical affected workspace; null keeps an organization event outside the authorization workspace. */
+  workspaceId?: string | null
   action: AuditActionType
   resourceType: AuditResourceTypeValue
   resourceId?: string
@@ -103,7 +107,7 @@ export function recordProjectedUseCaseAuditEntries(
   const attribution: PrincipalAuditAttribution = resolvePrincipalAuditAttribution(principal)
   for (const entry of entries) {
     recordAudit({
-      workspaceId,
+      workspaceId: entry.workspaceId === undefined ? workspaceId : entry.workspaceId,
       actorId: attribution.actorId,
       actorName: attribution.actorName,
       action: entry.action,
@@ -197,29 +201,40 @@ export function defineAuthorizedWorkspaceUseCase<
 
   return {
     operation: definition.operation,
+    ...(!isAuthorizationOptionsResolver(definition.authorizationOptions) &&
+    definition.operation.principalKinds.includes('delegated') &&
+    'delegatedServices' in definition.operation &&
+    definition.operation.delegatedServices?.includes('copilot') &&
+    definition.authorizationOptions.delegation
+      ? { delegationAudience: definition.authorizationOptions.delegation.audience }
+      : {}),
     async authorize(args) {
       await authorizePhase(args)
     },
     async execute(args) {
       const executionContext = await authorizePhase(args)
       const { principal, context, request } = executionContext
-      const result = await definition.execute(executionContext)
-      const resultContext = { ...executionContext, result }
-      const projectedAudit = definition.projectAudit?.(resultContext)
-      if (projectedAudit !== undefined) {
-        const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
-        if (auditEntries.length > 0) {
-          recordProjectedUseCaseAuditEntries(
-            definition.operation,
-            context.workspaceId,
-            principal,
-            request,
-            auditEntries
-          )
+      return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
+        const result = await withinAuthorizedWorkspaceOperation(() =>
+          definition.execute(executionContext)
+        )
+        const resultContext = { ...executionContext, result }
+        const projectedAudit = definition.projectAudit?.(resultContext)
+        if (projectedAudit !== undefined) {
+          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+          if (auditEntries.length > 0) {
+            recordProjectedUseCaseAuditEntries(
+              definition.operation,
+              context.workspaceId,
+              principal,
+              request,
+              auditEntries
+            )
+          }
         }
-      }
-      await definition.afterSuccess?.(resultContext)
-      return result
+        await definition.afterSuccess?.(resultContext)
+        return result
+      })
     },
   }
 }

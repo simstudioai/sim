@@ -4,10 +4,11 @@ import {
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 export type AuditLogPrincipal = Extract<
   Principal,
-  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }
+  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' | 'delegated' }
 >
 
 export interface AuditLogOperation<Id extends string = string> extends ApplicationOperation<Id> {
@@ -15,7 +16,12 @@ export interface AuditLogOperation<Id extends string = string> extends Applicati
   readonly organizationRoles: readonly ['admin', 'owner']
   readonly workspaceApiKey: 'deny'
   readonly oauthScope: 'api:read'
-  readonly principalKinds: readonly ['session', 'personal_api_key', 'oauth_access_token']
+  readonly principalKinds: readonly [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'delegated',
+  ]
 }
 
 function defineAuditLogOperation<const Id extends string>(
@@ -40,7 +46,7 @@ export const auditLogOperations = {
     authority: 'organization_admin',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   }),
   // permission-group-exempt: same organization-admin authority as the list it expands; no group key names the audit trail
   readDetail: defineAuditLogOperation({
@@ -50,6 +56,26 @@ export const auditLogOperations = {
     authority: 'organization_admin',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+  }),
+} as const
+
+/** Private workspace reads retain the public operation identity and require current Mothership access. */
+export const copilotAuditLogOperations = {
+  list: defineWorkspaceOperation({
+    id: auditLogOperations.list.id,
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'copilot.use',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
+  readDetail: defineWorkspaceOperation({
+    id: auditLogOperations.readDetail.id,
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'copilot.use',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
   }),
 } as const

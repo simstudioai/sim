@@ -16,16 +16,49 @@ export const gmailConnectorMeta: ConnectorMeta = {
     mode: 'oauth',
     provider: 'google-email',
     requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
+    adminCredentialType: 'service_account',
+    serviceAccountScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    adminServiceAccountScopes: ['https://www.googleapis.com/auth/admin.directory.user.readonly'],
+    serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    serviceAccountSubjectFieldId: 'adminEmail',
   },
 
   permissionScopedListing: { capFieldIds: ['maxThreads'] },
+  mirrorsSourceAcls: true,
+  adminSetupHint:
+    'Use a service account with domain-wide delegation to index selected Google Workspace mailboxes. Each mailbox remains private to its owner.',
+  /** A personal mailbox is indexed from the last six months unless the source says otherwise. */
+  searchDefaultSourceConfig: { dateRange: '6m' },
   configFields: [
+    {
+      id: 'adminEmail',
+      title: 'Directory administrator email',
+      showInAdminModeOnly: true,
+      type: 'short-input',
+      required: false,
+      placeholder: 'admin@yourcompany.com',
+      description:
+        'A Google Workspace administrator who can read the user directory. Mail is read as each selected user.',
+    },
+    {
+      id: 'userEmails',
+      title: 'Users',
+      showInAdminModeOnly: true,
+      setupGroup: 'options',
+      type: 'short-input',
+      multi: true,
+      required: false,
+      placeholder: 'All active Google Workspace users',
+      description:
+        'Optional primary email addresses, separated by commas (up to 100). Leave blank to index all active users across this Google Workspace customer.',
+    },
     {
       id: 'labelSelector',
       title: 'Labels',
       type: 'selector',
       selectorKey: 'gmail.labels',
       hideInMemberMode: true,
+      hideInAdminMode: true,
       canonicalParamId: 'label',
       mode: 'basic',
       multi: true,

@@ -11,7 +11,6 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
-  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -114,6 +113,11 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
         Response.json({ error: { code: 401, message: 'Invalid Credentials' } }, { status: 401 })
       )
     }
+    if (url.pathname === '/gmail/v1/users/me/profile') {
+      return Promise.resolve(
+        Response.json({ emailAddress: `mailbox-${member}@example.com`, historyId: '900' })
+      )
+    }
     if (url.pathname === '/gmail/v1/users/me/labels') {
       return Promise.resolve(
         Response.json({ labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }] })
@@ -121,6 +125,7 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
     }
     if (url.pathname === '/gmail/v1/users/me/threads') {
       expect(url.searchParams.get('maxResults')).toBe('100')
+      expect(url.searchParams.get('q')).toContain('subject:Orion')
       if (cursor === 'empty' && mailbox.failSecondPage) {
         return Promise.resolve(
           Response.json(
@@ -213,10 +218,6 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       credentialGroupOptionId: fixture.optionId,
     })
     await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db
       .update(credentialGroup)
       .set({
         options: [
@@ -237,7 +238,8 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       .update(knowledgeConnector)
       .set({
         connectorType: 'gmail',
-        sourceConfig: { maxThreads: 0 },
+        /** A fixed query keeps this full-listing suite separate from history-feed ingestion. */
+        sourceConfig: { maxThreads: 0, query: 'subject:Orion' },
         status: 'active',
         memberSyncStatus: 'idle',
         memberSyncLockToken: null,
@@ -409,7 +411,12 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       expect(new Set(own.map((row) => row.externalId))).toEqual(
         new Set([`member:${member.id}:shared-thread-id`, `member:${member.id}:private-${index}`])
       )
-      for (const row of own) expect(row.acl).toEqual([member.subjectToken])
+      for (const row of own) {
+        expect(row.acl).toEqual([member.subjectToken])
+        expect(new URL(row.sourceUrl!).searchParams.get('Email')).toBe(
+          `mailbox-${index}@example.com`
+        )
+      }
       const observations = await db
         .select()
         .from(knowledgeDocumentObservation)
@@ -422,6 +429,11 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
         expect(new Set(results.map((row) => row.documentId))).toEqual(
           new Set(own.map((row) => row.id))
         )
+        for (const result of results) {
+          expect(new URL(result.sourceUrl!).searchParams.get('Email')).toBe(
+            `mailbox-${index}@example.com`
+          )
+        }
         expect(results.map((row) => row.content).join('\n')).toContain(
           index === 0 ? 'Alice private reply' : 'Bob private reply'
         )
@@ -464,7 +476,7 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
     const alice = rows.find(
       (row) => row.externalId === `member:${fixture.members[0].id}:shared-thread-id`
     )!
-    expect(alice.contentHash).toBe('gmail:shared-thread-id:101')
+    expect(alice.contentHash).toBe('gmail:shared-thread-id:101:body-v2')
     const after = await vectors()
     expect(after.filter((row) => row.documentId !== alice.id)).toEqual(
       before.filter((row) => row.documentId !== alice.id)

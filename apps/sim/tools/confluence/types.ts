@@ -430,14 +430,6 @@ export interface ConfluenceRetrieveResponse extends ToolResponse {
   }
 }
 
-interface ConfluencePage {
-  id: string
-  title: string
-  spaceKey?: string
-  url?: string
-  lastModified?: string
-}
-
 export interface ConfluenceUpdateParams {
   accessToken: string
   domain: string
@@ -456,16 +448,6 @@ export interface ConfluenceUpdateResponse extends ToolResponse {
   }
 }
 
-interface ConfluenceCreatePageParams {
-  accessToken: string
-  domain: string
-  spaceId: string
-  title: string
-  content: string
-  parentId?: string
-  cloudId?: string
-}
-
 interface ConfluenceCreatePageResponse extends ToolResponse {
   output: {
     ts: string
@@ -475,27 +457,12 @@ interface ConfluenceCreatePageResponse extends ToolResponse {
   }
 }
 
-interface ConfluenceDeletePageParams {
-  accessToken: string
-  domain: string
-  pageId: string
-  cloudId?: string
-}
-
 interface ConfluenceDeletePageResponse extends ToolResponse {
   output: {
     ts: string
     pageId: string
     deleted: boolean
   }
-}
-
-interface ConfluenceSearchParams {
-  accessToken: string
-  domain: string
-  query: string
-  limit?: number
-  cloudId?: string
 }
 
 interface ConfluenceSearchResponse extends ToolResponse {
@@ -511,29 +478,12 @@ interface ConfluenceSearchResponse extends ToolResponse {
   }
 }
 
-interface ConfluenceCommentParams {
-  accessToken: string
-  domain: string
-  pageId: string
-  comment: string
-  cloudId?: string
-}
-
 interface ConfluenceCommentResponse extends ToolResponse {
   output: {
     ts: string
     commentId: string
     pageId: string
   }
-}
-
-interface ConfluenceAttachmentParams {
-  accessToken: string
-  domain: string
-  pageId?: string
-  attachmentId?: string
-  limit?: number
-  cloudId?: string
 }
 
 interface ConfluenceAttachmentResponse extends ToolResponse {
@@ -551,16 +501,6 @@ interface ConfluenceAttachmentResponse extends ToolResponse {
   }
 }
 
-interface ConfluenceUploadAttachmentParams {
-  accessToken: string
-  domain: string
-  pageId: string
-  file: any
-  fileName?: string
-  comment?: string
-  cloudId?: string
-}
-
 interface ConfluenceUploadAttachmentResponse extends ToolResponse {
   output: {
     ts: string
@@ -571,14 +511,6 @@ interface ConfluenceUploadAttachmentResponse extends ToolResponse {
     downloadUrl: string
     pageId: string
   }
-}
-
-interface ConfluenceLabelParams {
-  accessToken: string
-  domain: string
-  pageId: string
-  labelName?: string
-  cloudId?: string
 }
 
 interface ConfluenceLabelResponse extends ToolResponse {
@@ -594,14 +526,6 @@ interface ConfluenceLabelResponse extends ToolResponse {
     added?: boolean
     removed?: boolean
   }
-}
-
-interface ConfluenceSpaceParams {
-  accessToken: string
-  domain: string
-  spaceId?: string
-  limit?: number
-  cloudId?: string
 }
 
 interface ConfluenceSpaceResponse extends ToolResponse {

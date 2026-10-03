@@ -6,10 +6,9 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-
-export const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 
 interface SettingsNavigationOptions {
   section?: SettingsSection
@@ -58,31 +57,6 @@ export function resolveSettingsHref({
   return query ? `${pathname}?${query}` : pathname
 }
 
-interface ResolveSettingsReturnUrlParams {
-  storedUrl: string | null
-  workspaceId?: string
-  fallback: string
-}
-
-/**
- * Resolves the stored settings return url, discarding it when it points at a
- * different workspace than the one currently open. Switching workspaces from
- * settings keeps the user on the new workspace, so a return url captured in the
- * old one would silently navigate them back out of it.
- */
-export function resolveSettingsReturnUrl({
-  storedUrl,
-  workspaceId,
-  fallback,
-}: ResolveSettingsReturnUrlParams): string {
-  if (!storedUrl) return fallback
-  const [, root, storedWorkspaceId] = storedUrl.split('/')
-  if (root === 'workspace' && storedWorkspaceId && storedWorkspaceId !== workspaceId) {
-    return fallback
-  }
-  return storedUrl
-}
-
 export function useSettingsNavigation(): UseSettingsNavigationReturn {
   const router = useRouter()
   const params = useParams<{ workspaceId?: string }>()
@@ -103,28 +77,13 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
     [hostContext, session?.user?.id, workspaceId]
   )
 
-  const popSettingsReturnUrl = useCallback(
-    (fallback: string): string => {
-      try {
-        const storedUrl = sessionStorage.getItem(SETTINGS_RETURN_URL_KEY)
-        sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
-        return resolveSettingsReturnUrl({ storedUrl, workspaceId, fallback })
-      } catch {
-        return fallback
-      }
-    },
-    [workspaceId]
-  )
-
   const navigateToSettings = useCallback(
     (options?: SettingsNavigationOptions) => {
       const currentPath = window.location.pathname
       if (currentPath.startsWith(settingsPrefix)) {
         router.replace(getSettingsHref(options), { scroll: false })
       } else {
-        try {
-          sessionStorage.setItem(SETTINGS_RETURN_URL_KEY, currentPath)
-        } catch {}
+        rememberSettingsReturnUrl(getSettingsHref(options))
         router.push(getSettingsHref(options))
       }
     },

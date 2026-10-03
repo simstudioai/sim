@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import { useSearchParams } from 'next/navigation'
 import { client, useSession } from '@/lib/auth/auth-client'
+import { SSO_REQUIRED_ERROR_CODE } from '@/lib/auth/constants'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { DEFAULT_POST_AUTH_ROUTE, POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
 
@@ -75,18 +76,19 @@ export function useVerification({
   isEmailVerificationEnabled,
 }: UseVerificationParams): UseVerificationReturn {
   const searchParams = useSearchParams()
-  const { refetch: refetchSession } = useSession()
+  const { data: session, refetch: refetchSession } = useSession()
   const [otp, setOtp] = useState('')
-  const [email, setEmail] = useState('')
+  const [storedEmail, setStoredEmail] = useState('')
   const [status, setStatus] = useState<VerificationStatus>('idle')
   const [isResending, setIsResending] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     const storedEmail = sessionStorage.getItem('verificationEmail')
-    if (storedEmail) setEmail(storedEmail)
+    if (storedEmail) setStoredEmail(storedEmail)
   }, [])
 
+  const email = session?.user?.email || storedEmail
   const isOtpComplete = otp.length === 6
 
   async function verifyCode() {
@@ -121,7 +123,14 @@ export function useVerification({
         }, 1000)
       } else {
         logger.info('Setting invalid OTP state - API error response')
-        const message = 'Invalid verification code. Please check and try again.'
+        /**
+         * A refusal by policy — an organization requiring single sign-on — is not a bad code, and
+         * telling the person to re-check their code sends them round a loop they cannot exit.
+         */
+        const message =
+          response?.error?.code === SSO_REQUIRED_ERROR_CODE && response.error.message
+            ? response.error.message
+            : 'Invalid verification code. Please check and try again.'
         setStatus('error')
         setErrorMessage(message)
         logger.info('Error state after API error:', { errorMessage: message })

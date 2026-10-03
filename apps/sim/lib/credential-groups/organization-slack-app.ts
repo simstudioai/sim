@@ -56,7 +56,7 @@ export async function adoptOrganizationSlackMemberApp(
     )
       throw new OrchestrationError(
         'conflict',
-        'Use the same Slack app and workspace already configured for member indexing'
+        'Use the same Slack app and workspace already connected by your members'
       )
     const encrypted = await encryptCredentialGroupProviderConfiguration({
       ...row.configuration,

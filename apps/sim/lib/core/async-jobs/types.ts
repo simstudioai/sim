@@ -47,7 +47,10 @@ export type JobType =
   | 'cleanup-logs'
   | 'cleanup-soft-deletes'
   | 'cleanup-table-row-ttl'
+  | 'cleanup-stale-executions'
   | 'cleanup-tasks'
+  | 'cleanup-file-versions'
+  | 'cleanup-dispatch'
   | 'run-data-drain'
   | 'knowledge-connector-directory-sync'
 
@@ -162,6 +165,8 @@ export interface EnqueueOptions {
 export interface ExecutionJobBinding {
   workflowId: string
   executionId: string
+  /** Known root job identity; cancellation must still verify workflow, execution, and scope. */
+  rootJobId?: string
 }
 
 export type ExecutionJobCancellationScope = 'standalone' | 'resume'

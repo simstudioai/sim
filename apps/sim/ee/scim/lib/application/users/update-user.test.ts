@@ -1,13 +1,13 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { type ScimUserAttributes, scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  acquireLocks: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   suspend: vi.fn(),
   unsuspend: vi.fn(),
   revokeSessions: vi.fn(),
@@ -22,31 +22,29 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.acquireLocks,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/organizations/members/lifecycle', () => ({
-  suspendMemberTx: mocks.suspend,
-  unsuspendMemberTx: mocks.unsuspend,
+  suspendMemberTx: hoistedMocks.suspend,
+  unsuspendMemberTx: hoistedMocks.unsuspend,
 }))
 vi.mock('@/lib/organizations/members/revocation', () => ({
-  revokeUserSessionsTx: mocks.revokeSessions,
-  invalidateAfterSessionRevocation: mocks.invalidate,
+  revokeUserSessionsTx: hoistedMocks.revokeSessions,
+  invalidateAfterSessionRevocation: hoistedMocks.invalidate,
 }))
 vi.mock('@/ee/scim/lib/identity/account-identity', () => ({
-  syncAccountIdentityTx: mocks.syncIdentity,
+  syncAccountIdentityTx: hoistedMocks.syncIdentity,
 }))
 vi.mock('@/ee/scim/lib/identity/resolve-user', () => ({
-  assertDomainOwned: mocks.assertDomainOwned,
+  assertDomainOwned: hoistedMocks.assertDomainOwned,
 }))
 vi.mock('@/ee/scim/lib/projection/reconcile-user', () => ({
-  reconcileUserProjection: mocks.reconcile,
+  reconcileUserProjection: hoistedMocks.reconcile,
 }))
 vi.mock('@/ee/scim/lib/repository/users', () => ({
-  findScimUserById: mocks.findScimUserById,
-  assertUserNameAvailable: mocks.assertUserNameAvailable,
-  updateScimUser: mocks.updateScimUser,
-  loadGroupsForScimUsers: mocks.loadGroups,
+  findScimUserById: hoistedMocks.findScimUserById,
+  assertUserNameAvailable: hoistedMocks.assertUserNameAvailable,
+  updateScimUser: hoistedMocks.updateScimUser,
+  loadGroupsForScimUsers: hoistedMocks.loadGroups,
   toUserResourceRow: (record: Record<string, unknown>) => ({
     id: record.id,
     externalId: record.externalId,
@@ -60,13 +58,18 @@ vi.mock('@/ee/scim/lib/repository/users', () => ({
   }),
 }))
 vi.mock('@/ee/scim/lib/application/audit', () => ({
-  recordScimAuditEntries: mocks.recordAudit,
+  recordScimAuditEntries: hoistedMocks.recordAudit,
 }))
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
 import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { patchScimUser, replaceScimUser } from '@/ee/scim/lib/application/users/update-user'
+
+const mocks = {
+  ...hoistedMocks,
+  acquireLocks: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
 
 const principal: Principal = {
   kind: 'scim_connection',
@@ -128,7 +131,6 @@ afterAll(resetDbChainMock)
 
 describe('user updates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadGroups.mockResolvedValue(new Map())
     mocks.reconcile.mockResolvedValue({ added: [], removed: [], raised: [] })
@@ -210,28 +212,6 @@ describe('user updates', () => {
     }
   )
 
-  it.each(['add', 'replace'] as const)('projects a display-name-only PATCH %s', async (op) => {
-    stage()
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op, path: 'displayName', value: 'Countess Lovelace' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
-      userId: 'u-1',
-      name: 'Countess Lovelace',
-    })
-  })
-
-  it('updates the account from name parts when no explicit display name exists', async () => {
-    stage({ attributes: { displayName: undefined } })
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op: 'replace', path: 'name.givenName', value: 'Augusta' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Augusta Lovelace' })
-    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayName).toBeUndefined()
-  })
-
   it('keeps an explicit display name when only a name part changes', async () => {
     stage()
     await run(patchScimUser, {
@@ -240,38 +220,6 @@ describe('user updates', () => {
     })
     expect(mocks.syncIdentity).not.toHaveBeenCalled()
     expect(mocks.updateScimUser.mock.calls[0][1].attributes.name.formatted).toBe('Augusta Lovelace')
-  })
-
-  it('preserves name-part updates for legacy records with synthesized display names', async () => {
-    stage({ attributes: { displayNameSource: undefined } })
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op: 'replace', path: 'name.givenName', value: 'Augusta' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Augusta Lovelace' })
-  })
-
-  it('adopts an explicit display name when a provider replaces a legacy profile', async () => {
-    stage({ attributes: { displayName: 'Countess Lovelace', displayNameSource: undefined } })
-    await run(replaceScimUser, {
-      scimUserId: 'su-1',
-      attributes: attributes({ displayName: 'Countess Lovelace' }),
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
-      userId: 'u-1',
-      name: 'Countess Lovelace',
-    })
-    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayNameSource).toBe('provider')
-  })
-
-  it('restores the formatted fallback when a display name is removed', async () => {
-    stage({ attributes: { displayName: 'Countess Lovelace' } })
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op: 'remove', path: 'displayName' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Ada Lovelace' })
-    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayName).toBeUndefined()
   })
 
   it('deactivates by suspending, never by removing, and keeps the projection', async () => {

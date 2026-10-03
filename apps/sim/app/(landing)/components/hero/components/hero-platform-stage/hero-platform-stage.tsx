@@ -1,8 +1,12 @@
 import { cn } from '@sim/emcn'
 import Image from 'next/image'
 import { HeroPlatformLoopMount } from '@/app/(landing)/components/hero/components/hero-platform-loop'
+import { HERO_ARTWORK } from '@/app/(landing)/components/hero/components/hero-platform-stage/hero-artwork.generated'
 import { MobileHeroWorkflow } from '@/app/(landing)/components/hero/components/hero-platform-stage/mobile-hero-workflow'
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
+
+const ARTWORK_SIZES =
+  '(min-width: 1728px) 1648px, (min-width: 1280px) calc(100vw - 80px), calc(100vw - 72px)'
 
 /**
  * A focused workflow below 1024px; larger screens show the interactive platform
@@ -12,6 +16,15 @@ import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 export function HeroPlatformStage() {
   return (
     <>
+      <link
+        rel='preload'
+        as='image'
+        type='image/avif'
+        media='(min-width: 1024px)'
+        imageSrcSet={HERO_ARTWORK.avifSrcSet}
+        imageSizes={ARTWORK_SIZES}
+        fetchPriority='high'
+      />
       <MobileHeroWorkflow />
       <div
         data-preview-stage=''
@@ -21,18 +34,20 @@ export function HeroPlatformStage() {
           LANDING_STAGE_RADIUS
         )}
       >
-        <div aria-hidden='true' className='pointer-events-none absolute inset-0'>
+        <picture className='pointer-events-none absolute inset-0'>
+          <source type='image/avif' srcSet={HERO_ARTWORK.avifSrcSet} sizes={ARTWORK_SIZES} />
+          <source type='image/webp' srcSet={HERO_ARTWORK.webpSrcSet} sizes={ARTWORK_SIZES} />
           <Image
             data-preview-background=''
-            src='/landing/hero-painted-4k.webp'
+            src={HERO_ARTWORK.src}
             alt=''
             fill
+            unoptimized
             fetchPriority='high'
-            quality={90}
-            sizes='(max-width: 1727px) 100vw, 1648px'
+            sizes={ARTWORK_SIZES}
             className='object-cover dark:brightness-[0.28]'
           />
-        </div>
+        </picture>
 
         <div
           role='region'

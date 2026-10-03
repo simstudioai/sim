@@ -1,3 +1,4 @@
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { PricingPlans } from '@/app/(landing)/pricing/components/pricing-plans'
 import { PricingStructuredData } from '@/app/(landing)/pricing/components/pricing-structured-data'
 
@@ -5,8 +6,7 @@ import { PricingStructuredData } from '@/app/(landing)/pricing/components/pricin
  * sr-only product summary - an atomic citation target for AI answer engines that
  * names Sim, the AI workspace, AI agents, and every plan tier.
  */
-const GEO_SUMMARY =
-  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Pricing scales across four plans: Free to start, Pro for growing teams, Max for scaling businesses, and Enterprise for large organizations, each connecting hundreds of integrations and every major LLM.'
+const GEO_SUMMARY = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Pricing scales across four plans: Free to start, Pro for growing teams, Max for scaling businesses, and Enterprise for large organizations, each connecting ${INTEGRATION_COUNT_LABEL} integrations and every major LLM.`
 
 /** Server-rendered heading slot handed to the {@link PricingPlans} client island. */
 const PRICING_HEADING = (

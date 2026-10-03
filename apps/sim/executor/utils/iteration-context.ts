@@ -2,7 +2,7 @@ import { DEFAULTS } from '@/executor/constants'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type { IterationContext, ParentIteration } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
-import { findEffectiveContainerId } from '@/executor/utils/subflow-utils'
+import { findEffectiveContainerId } from '@/executor/utils/subflow-node-id-codec'
 
 /** Maximum ancestor depth to prevent runaway traversal in deeply nested subflows. */
 const MAX_PARENT_DEPTH = DEFAULTS.MAX_NESTING_DEPTH

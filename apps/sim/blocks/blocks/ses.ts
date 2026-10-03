@@ -1,9 +1,8 @@
 import { SESIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 
-export const SESBlock: BlockConfig<ToolResponse> = {
+export const SESBlock: BlockConfig = {
   type: 'ses',
   name: 'AWS SES',
   description: 'Send emails and manage templates with AWS Simple Email Service',

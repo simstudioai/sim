@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { APP_ENTRY_PATH, isAppSurfacePath } from '@/lib/navigation/paths'
+import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
+import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
+import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
@@ -49,15 +51,39 @@ const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
 const DEFAULT_API_EXPOSED_HEADERS =
   'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
-const DEFAULT_API_ALLOWED_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
+/**
+ * Every API policy allows these. `X-Sim-Client-Info` is here rather than on one
+ * policy because every official client sends it on every request.
+ */
+const BASE_API_ALLOWED_HEADERS = [
+  'X-CSRF-Token',
+  'X-Requested-With',
+  'Accept',
+  'Accept-Version',
+  'Content-Length',
+  'Content-MD5',
+  'Content-Type',
+  'Date',
+  'X-Api-Version',
+  'X-API-Key',
+  'Authorization',
+  'X-Sim-Client-Info',
+] as const
 
-const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
+function allowedHeaders(...extra: string[]): string {
+  return [...BASE_API_ALLOWED_HEADERS, ...extra].join(', ')
+}
+
+const DEFAULT_API_ALLOWED_HEADERS = allowedHeaders()
+
+const WORKFLOW_EXECUTE_HEADERS = allowedHeaders(
+  'X-Execution-Id',
+  'X-Execution-Mode',
+  'X-Execution-Timeout-Seconds'
+)
 
 /** v2 execute: run identity and modes use the v2 wire names while streaming negotiates its protocol. */
-const WORKFLOW_EXECUTE_V2_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization, X-Run-Id, X-Sim-Stream-Protocol'
+const WORKFLOW_EXECUTE_V2_HEADERS = allowedHeaders('X-Run-Id', 'X-Sim-Stream-Protocol')
 
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
@@ -312,6 +338,18 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 export function proxy(request: NextRequest) {
   const url = request.nextUrl
 
+  const mcpPath = resolveSimMcpHostPath(request.headers.get('host'), url.pathname)
+  if (mcpPath === 'not_found') return new NextResponse(null, { status: 404 })
+  if (mcpPath && mcpPath !== url.pathname) {
+    const rewrite = NextResponse.rewrite(new URL(`${mcpPath}${url.search}`, request.url))
+    if (mcpPath !== SIM_MCP_ROUTE_PATH) return rewrite
+    /** The endpoint keeps the `/api` CORS policy it has on the app host; its metadata sets its own. */
+    const policy = resolveApiCorsPolicy(request)
+    if (request.method === 'OPTIONS') return buildPreflightResponse(policy)
+    applyCorsHeaders(rewrite, policy)
+    return rewrite
+  }
+
   if (url.pathname.startsWith('/api/')) {
     const policy = resolveApiCorsPolicy(request)
     if (request.method === 'OPTIONS') {
@@ -382,7 +420,9 @@ export function proxy(request: NextRequest) {
 }
 
 /**
- * Keeps non-production sim.ai deployments out of search results.
+ * Keeps non-production sim.ai deployments, and app and utility surfaces on every
+ * deployment, out of search results. Applies to redirects too, so a signed-out
+ * crawler bounced from `/workspace/*` to `/login` sees the directive.
  *
  * `noindex` rather than a robots.txt `Disallow` is deliberate: a disallowed URL
  * can still be indexed when linked externally, and blocking the crawl stops
@@ -396,7 +436,7 @@ function applyIndexingPolicy(request: NextRequest, response: NextResponse): Next
     request.headers.get('host') ||
     request.nextUrl.host
 
-  if (isNonCanonicalSimHost(host)) {
+  if (isNonCanonicalSimHost(host) || isNoindexPath(request.nextUrl.pathname)) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   }
 

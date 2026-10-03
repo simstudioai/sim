@@ -52,9 +52,11 @@ import {
   updateKnowledgeDocumentContract,
   updateKnowledgeDocumentTagsContract,
   type WorkspaceKnowledgeSearchBody,
-  type WorkspaceKnowledgeSearchResult,
+  type WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
+import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import {
   type ResourceScope,
@@ -62,13 +64,14 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
-import { connectorKeys, searchSourceKeys } from '@/hooks/queries/kb/connectors'
+import { connectorKeys } from '@/hooks/queries/kb/connectors'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   KNOWLEDGE_BASE_LIST_STALE_TIME,
   type KnowledgeQueryScope,
   knowledgeKeys,
 } from '@/hooks/queries/utils/knowledge-keys'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const logger = createLogger('KnowledgeQueries')
 
@@ -94,10 +97,11 @@ export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export async function fetchKnowledgeBases(
   workspaceId?: string,
   scope: KnowledgeQueryScope = 'active',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeCounts = false
 ): Promise<KnowledgeBaseData[]> {
   const result = await requestJson(listKnowledgeBasesContract, {
-    query: { workspaceId, scope },
+    query: { workspaceId, scope, includeCounts },
     signal,
   })
 
@@ -234,12 +238,17 @@ export function useKnowledgeBasesQuery(
   options?: {
     enabled?: boolean
     scope?: KnowledgeQueryScope
+    /** Adds each base's `docCount` and `tokenCount`, for the one surface that renders them. */
+    includeCounts?: boolean
   }
 ) {
   const scope = options?.scope ?? 'active'
+  const includeCounts = options?.includeCounts ?? false
   return useQuery({
-    queryKey: knowledgeKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
+    queryKey: includeCounts
+      ? knowledgeKeys.countedList(workspaceId, scope)
+      : knowledgeKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal, includeCounts),
     enabled: options?.enabled ?? true,
     staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
   })
@@ -586,9 +595,9 @@ export function useDeleteDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
-      /** The knowledge-base list rows carry `docCount`, so removing a document changes them too. */
+      /** The counted list rows carry `docCount`, so removing a document changes them too. */
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.lists(),
+        queryKey: knowledgeKeys.countedLists(),
       })
     },
   })
@@ -628,10 +637,10 @@ export function useBulkDocumentOperation() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
-      /** Only a bulk delete changes the `docCount` the knowledge-base list rows render. */
+      /** Only a bulk delete changes the `docCount` the counted list rows render. */
       if (operation === 'delete') {
         queryClient.invalidateQueries({
-          queryKey: knowledgeKeys.lists(),
+          queryKey: knowledgeKeys.countedLists(),
         })
       }
     },
@@ -1196,17 +1205,26 @@ export function useBulkDeleteKnowledgeBases(workspaceId: string) {
 async function searchWorkspaceKnowledge(
   body: WorkspaceKnowledgeSearchBody,
   signal?: AbortSignal
-): Promise<WorkspaceKnowledgeSearchResult[]> {
+): Promise<WorkspaceKnowledgeSearchData> {
   const data = await requestJson(searchWorkspaceKnowledgeContract, { body, signal })
-  return data.data.results
+  return data.data
 }
 
-/** Searches the canonical index under the signed-in person's ACLs. */
+interface WorkspaceKnowledgeSearchOptions {
+  nativeQueries?: NativeSearchQuery[]
+  reuseFreshResult?: boolean
+}
+
+/** Searches connected providers with the signed-in person's access. */
 export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
-  filters?: WorkspaceSearchFilters
+  filters?: WorkspaceSearchFilters,
+  topK = 20,
+  options?: WorkspaceKnowledgeSearchOptions
 ) {
+  const { data: session } = useSession()
+  const userId = session?.user?.id
   const trimmed = query.trim()
   const scope =
     typeof owner === 'string'
@@ -1217,18 +1235,31 @@ export function useWorkspaceKnowledgeSearch(
   const scopeKey =
     scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters),
+    queryKey: [
+      ...knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId, options?.nativeQueries),
+      'live',
+    ],
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
           ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
           filters,
+          topK,
+          ...(options?.nativeQueries ? { nativeQueries: options.nativeQueries } : {}),
         },
         signal
       ),
-    enabled: Boolean(scope) && trimmed.length > 0,
-    staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
+    enabled:
+      Boolean(scope && userId) &&
+      Boolean(
+        trimmed ||
+          filters?.startDate ||
+          filters?.endDate ||
+          filters?.modifiedAfter ||
+          filters?.modifiedBefore
+      ),
+    staleTime: options?.reuseFreshResult ? WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME : 0,
     retry: false,
   })
 }

@@ -4,7 +4,10 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  document,
   foldedEmail,
+  knowledgeBase,
+  knowledgeConnector,
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
   member,
@@ -12,17 +15,37 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, gte, inArray, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import {
+  type ConfluenceReaderCredential,
+  resolveConfluenceSiteReadGrants,
+} from '@/lib/knowledge/access/confluence-site'
+import { loadConnectorPermissionGroupTokens } from '@/lib/knowledge/access/connector-permissions'
+import {
   domainMemberWildcard,
   EXTERNAL_GROUP_STALE_AFTER_MS,
   emailDomain,
 } from '@/lib/knowledge/access/external-groups'
+import {
+  type GitHubReaderCredential,
+  resolveGitHubInstallationReadGrants,
+} from '@/lib/knowledge/access/github-installation'
+import {
+  assertExternalGroupTokenCapacity,
+  MAX_EXTERNAL_GROUP_TOKENS,
+  parentGroupTokensQuery,
+} from '@/lib/knowledge/access/group-membership'
+import {
+  confluenceSiteSourceCondition,
+  githubInstallationSourceCondition,
+  liveSourceKnowledgeBaseCondition,
+} from '@/lib/knowledge/access/live-sources'
+import { knowledgeMetadataCandidateAccessCondition } from '@/lib/knowledge/access/predicate'
 import {
   groupToken,
   sortAccessTokens,
@@ -32,6 +55,7 @@ import {
 import {
   type KnowledgeAccessProvider,
   type KnowledgeAccessScope,
+  MAX_KNOWLEDGE_ACCESS_CANDIDATES,
   ORGANIZATION_ACCESS_TOKENS,
   WORKSPACE_ACCESS_TOKENS,
   type WorkspaceAccessScope,
@@ -79,14 +103,14 @@ async function loadExternalGroupTokens(
 ): Promise<string[]> {
   /**
    * A query of its own rather than a fourth join on the credential query in
-   * `loadUserAccessTokens`:
+   * `loadUserAccess`:
    * that one already fans out per managed credential, and joining groups onto
    * it would multiply the two — every credential row repeated for every group.
    * Two indexed reads cost less than one cross product.
    */
   const freshEnough = new Date(Date.now() - EXTERNAL_GROUP_STALE_AFTER_MS)
   const rows = await db
-    .select({
+    .selectDistinct({
       providerId: knowledgeExternalGroup.providerId,
       tenantId: knowledgeExternalGroup.tenantId,
       externalGroupId: knowledgeExternalGroup.externalGroupId,
@@ -103,6 +127,10 @@ async function loadExternalGroupTokens(
         gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
       )
     )
+    .limit(MAX_EXTERNAL_GROUP_TOKENS + 1)
+  if (rows.length > MAX_EXTERNAL_GROUP_TOKENS) {
+    throw new Error('External group access exceeded its token capacity')
+  }
 
   const tokens: string[] = []
   for (const row of rows) {
@@ -113,13 +141,28 @@ async function loadExternalGroupTokens(
     })
     if (token) tokens.push(token)
   }
-  return tokens
+  assertExternalGroupTokenCapacity(tokens)
+  if (tokens.length > 0) {
+    const parents = await db.execute<{ token: string }>(
+      parentGroupTokensQuery(tokens, scope, freshEnough)
+    )
+    if (parents.length > MAX_EXTERNAL_GROUP_TOKENS) {
+      throw new Error('External group access exceeded its token capacity')
+    }
+    for (const parent of parents) tokens.push(parent.token)
+  }
+  const uniqueTokens = sortAccessTokens(tokens)
+  assertExternalGroupTokenCapacity(uniqueTokens)
+  return uniqueTokens
 }
 
 export interface KnowledgeAccessScopeContext {
   /** Exactly one workspace or organization owner is required at resolution. */
   workspaceId?: string
   organizationId?: string
+  /** Canonical bases already selected by the application resolver, never caller assertions. */
+  knowledgeBaseIds?: readonly string[]
+  signal?: AbortSignal
 }
 
 /**
@@ -131,10 +174,14 @@ export interface KnowledgeAccessScopeContext {
  * really owns it. Nothing here is cached: revoking a credential or leaving a
  * group is visible on the next read.
  */
-async function loadUserAccessTokens(
+async function loadUserAccess(
   userId: string,
   context: KnowledgeAccessScopeContext
-): Promise<string[]> {
+): Promise<{
+  tokens: readonly string[]
+  githubReaders?: GitHubReaderCredential[]
+  confluenceReaders?: ConfluenceReaderCredential[]
+}> {
   const { workspaceId, organizationId } = context
   const scope = resourceScopeFromOwner(context)
   const baseline = organizationId ? ORGANIZATION_ACCESS_TOKENS : WORKSPACE_ACCESS_TOKENS
@@ -150,10 +197,10 @@ async function loadUserAccessTokens(
       .from(member)
       .where(and(eq(member.organizationId, scope.organizationId), eq(member.userId, userId)))
       .limit(1)
-    if (!membership) return []
+    if (!membership) return { tokens: [] }
   } else {
     const workspaceAccess = await checkWorkspaceAccess(scope.workspaceId, userId)
-    if (!workspaceAccess.hasAccess) return []
+    if (!workspaceAccess.hasAccess) return { tokens: [] }
   }
   /**
    * An identity token only counts where permission-aware knowledge is on, so
@@ -164,13 +211,14 @@ async function loadUserAccessTokens(
    */
   const availability = await resolveKnowledgeAccessAvailability(context)
   if (!availability.memberScoped && !availability.sourceMirrored) {
-    return [...baseline]
+    return { tokens: [...baseline] }
   }
 
   const rows = await db
     .select({
       emailIsAmbiguous: emailHeldByAnotherAccount,
       email: foldedEmail(user.email),
+      credentialId: credential.id,
       providerId: credential.providerId,
       providerTenantId: credential.providerTenantId,
       providerSubjectId: credential.providerSubjectId,
@@ -218,14 +266,21 @@ async function loadUserAccessTokens(
       userId,
       workspaceId,
     })
-    return [...baseline]
+    return { tokens: [...baseline] }
   }
 
   const identityTokens = new Set<string>()
+  const githubReaders: GitHubReaderCredential[] = []
+  const confluenceReaders: ConfluenceReaderCredential[] = []
   for (const row of rows) {
     if (!availability.memberScoped || !row.providerSubjectId) continue
     try {
-      identityTokens.add(subjectToken(row))
+      const token = subjectToken(row)
+      identityTokens.add(token)
+      if (row.providerId === 'github-repositories' && row.credentialId)
+        githubReaders.push({ credentialId: row.credentialId, subjectToken: token })
+      if (row.providerId === 'confluence' && row.credentialId)
+        confluenceReaders.push({ credentialId: row.credentialId, subjectToken: token })
     } catch (error) {
       logger.warn('Skipping malformed managed credential subject', {
         userId,
@@ -247,6 +302,10 @@ async function loadUserAccessTokens(
     const email = rows[0]?.email
     const own = userToken(email)
     if (own) identityTokens.add(own)
+    if (own) {
+      for (const token of await loadConnectorPermissionGroupTokens(own, scope))
+        identityTokens.add(token)
+    }
     const groupMemberTokens = [...identityTokens]
     if (own && email) groupMemberTokens.push(domainMemberWildcard(emailDomain(email)))
     if (groupMemberTokens.length > 0) {
@@ -256,7 +315,11 @@ async function loadUserAccessTokens(
     }
   }
 
-  return sortAccessTokens(new Set([...baseline, ...identityTokens]))
+  return {
+    tokens: sortAccessTokens(new Set([...baseline, ...identityTokens])),
+    githubReaders,
+    confluenceReaders,
+  }
 }
 
 /**
@@ -270,6 +333,17 @@ export async function resolveKnowledgeAccessScope(
   principal: Principal,
   context: KnowledgeAccessScopeContext
 ): Promise<KnowledgeAccessScope> {
+  return (await resolveKnowledgeIdentity(principal, context)).access
+}
+
+async function resolveKnowledgeIdentity(
+  principal: Principal,
+  context: KnowledgeAccessScopeContext
+): Promise<{
+  access: KnowledgeAccessScope
+  githubReaders: readonly GitHubReaderCredential[]
+  confluenceReaders: readonly ConfluenceReaderCredential[]
+}> {
   if (principal.kind === 'credential_group_enrollment') {
     throw new OrchestrationError(
       'forbidden',
@@ -281,26 +355,23 @@ export async function resolveKnowledgeAccessScope(
   if (subject?.kind !== 'sim_user') {
     if (context.organizationId)
       throw new OrchestrationError('forbidden', 'Organization search requires a user subject')
-    return WORKSPACE_ACCESS_SCOPE
+    return { access: WORKSPACE_ACCESS_SCOPE, githubReaders: [], confluenceReaders: [] }
   }
-  return {
-    kind: 'user',
-    userId: subject.userId,
-    tokens: await loadUserAccessTokens(subject.userId, context),
-  }
+  return resolveUserKnowledgeIdentity(subject.userId, context)
 }
 
-/**
- * The scope of a person identified only by user id — the shape session-backed
- * routes outside the application layer have in hand. Never call this with a
- * user id that stands in for an actorless run (a workflow owner, a billing
- * owner); those callers use {@link WORKSPACE_ACCESS_SCOPE}.
- */
-export async function resolveUserKnowledgeAccessScope(
-  userId: string,
-  workspaceId: string | undefined
-): Promise<KnowledgeAccessScope> {
-  return { kind: 'user', userId, tokens: await loadUserAccessTokens(userId, { workspaceId }) }
+async function resolveUserKnowledgeIdentity(userId: string, context: KnowledgeAccessScopeContext) {
+  resourceScopeFromOwner(context)
+  const {
+    tokens,
+    githubReaders = [],
+    confluenceReaders = [],
+  } = await loadUserAccess(userId, context)
+  return {
+    access: { kind: 'user' as const, userId, tokens },
+    githubReaders,
+    confluenceReaders,
+  }
 }
 
 /** Memoises {@link resolveKnowledgeAccessScope} for one operation; a failed lookup is retried on the next call. */
@@ -308,14 +379,128 @@ export function createKnowledgeAccessProvider(
   principal: Principal,
   context: KnowledgeAccessScopeContext
 ): KnowledgeAccessProvider {
-  let pending: Promise<KnowledgeAccessScope> | undefined
-  return {
-    get() {
-      pending ??= resolveKnowledgeAccessScope(principal, context).catch((error: unknown) => {
-        pending = undefined
-        throw error
-      })
-      return pending
+  return createAccessProvider(() => resolveKnowledgeIdentity(principal, context), context)
+}
+
+/** Candidate access for a user already authenticated by a session or personal-key adapter. */
+export function createUserKnowledgeAccessProvider(
+  userId: string,
+  context: KnowledgeAccessScopeContext
+): KnowledgeAccessProvider {
+  return createAccessProvider(() => resolveUserKnowledgeIdentity(userId, context), context)
+}
+
+function createAccessProvider(
+  resolveIdentity: () => ReturnType<typeof resolveKnowledgeIdentity>,
+  context: KnowledgeAccessScopeContext
+): KnowledgeAccessProvider {
+  let pending: ReturnType<typeof resolveKnowledgeIdentity> | undefined
+  const identity = () => {
+    pending ??= resolveIdentity().catch((error: unknown) => {
+      pending = undefined
+      throw error
+    })
+    return pending
+  }
+  const boundedIds = (ids: readonly string[]) => {
+    if (ids.length > MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+      throw new Error('Knowledge access candidates must be authorized in bounded pages')
+    return [...new Set(ids)]
+  }
+  const provider: KnowledgeAccessProvider = {
+    async get() {
+      return (await identity()).access
+    },
+    async liveSourceConnectorCondition() {
+      const { access, githubReaders, confluenceReaders } = await identity()
+      if (
+        access.kind !== 'user' ||
+        (!githubReaders.length && !confluenceReaders.length) ||
+        context.knowledgeBaseIds?.length === 0
+      )
+        return null
+      return and(
+        or(
+          githubReaders.length ? githubInstallationSourceCondition() : undefined,
+          confluenceReaders.length ? confluenceSiteSourceCondition() : undefined
+        ),
+        inArray(
+          knowledgeConnector.knowledgeBaseId,
+          db
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              liveSourceKnowledgeBaseCondition(
+                resourceScopeFromOwner(context),
+                context.knowledgeBaseIds
+              )
+            )
+        )
+      )!
+    },
+    async getForConnectors(connectorIds, signal) {
+      const ids = boundedIds(connectorIds)
+      const cancellation =
+        context.signal && signal
+          ? AbortSignal.any([context.signal, signal])
+          : (signal ?? context.signal)
+      cancellation?.throwIfAborted()
+      const { access, githubReaders, confluenceReaders } = await identity()
+      cancellation?.throwIfAborted()
+      if (
+        access.kind !== 'user' ||
+        (!githubReaders.length && !confluenceReaders.length) ||
+        !ids.length
+      )
+        return access
+      const input = {
+        scope: resourceScopeFromOwner(context),
+        knowledgeBaseIds: context.knowledgeBaseIds,
+        connectorIds: ids,
+        signal: cancellation,
+      }
+      const [githubInstallationGrants, confluenceSiteGrants] = await Promise.all([
+        githubReaders.length
+          ? resolveGitHubInstallationReadGrants({ ...input, readers: githubReaders })
+          : Promise.resolve([]),
+        confluenceReaders.length
+          ? resolveConfluenceSiteReadGrants({ ...input, readers: confluenceReaders })
+          : Promise.resolve([]),
+      ])
+      return { ...access, githubInstallationGrants, confluenceSiteGrants }
+    },
+    async getForDocuments(documentIds, signal) {
+      const ids = boundedIds(documentIds)
+      signal?.throwIfAborted()
+      context.signal?.throwIfAborted()
+      const { access, githubReaders, confluenceReaders } = await identity()
+      if (
+        access.kind !== 'user' ||
+        (!githubReaders.length && !confluenceReaders.length) ||
+        !ids.length
+      )
+        return access
+      const candidates = await db
+        .select({ connectorId: document.connectorId })
+        .from(document)
+        .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
+        .where(
+          and(
+            inArray(document.id, ids),
+            resourceScopeCondition(knowledgeBase, resourceScopeFromOwner(context)),
+            context.knowledgeBaseIds
+              ? inArray(knowledgeBase.id, [...context.knowledgeBaseIds])
+              : undefined,
+            isNull(knowledgeBase.deletedAt),
+            knowledgeMetadataCandidateAccessCondition(access)
+          )
+        )
+        .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+      return provider.getForConnectors(
+        candidates.flatMap((candidate) => (candidate.connectorId ? [candidate.connectorId] : [])),
+        signal
+      )
     },
   }
+  return provider
 }

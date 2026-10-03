@@ -18,6 +18,7 @@ export interface CredentialMemberView {
   joinedAt: Date | null
   userName: string | null
   userEmail: string | null
+  userImage: string | null
   roleSource: 'explicit' | 'workspace-admin'
 }
 
@@ -34,6 +35,7 @@ export async function listCredentialMembers(
       joinedAt: credentialMember.joinedAt,
       userName: user.name,
       userEmail: user.email,
+      userImage: user.image,
     })
     .from(credentialMember)
     .innerJoin(user, eq(credentialMember.userId, user.id))
@@ -61,6 +63,7 @@ export async function listCredentialMembers(
           joinedAt: null,
           userName: workspaceMember.name,
           userEmail: workspaceMember.email,
+          userImage: workspaceMember.image ?? null,
           roleSource: 'workspace-admin',
         })
       }

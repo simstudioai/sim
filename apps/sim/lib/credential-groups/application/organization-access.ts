@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { ORGANIZATION_ACCOUNT_POLICY_DOCUMENT_MAX_BYTES } from '@sim/db/credential-group-resource-policies'
 import { workspace } from '@sim/db/schema'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
@@ -7,12 +8,16 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineOrganizationAccountsUseCase } from '@/lib/credential-groups/application/organization-accounts'
 import {
   buildOrganizationAccountAccessPolicy,
-  listOrganizationAccountWorkspaceIds,
+  listOrganizationAccountWorkspaceGrants,
   organizationAccountAccessPolicyCodec,
-  organizationAccountWorkspaceIdsSchema,
 } from '@/lib/credential-groups/application/workspace-access-policy'
+import { getOrganizationCredentialTypeCatalog } from '@/lib/credential-groups/credential-types'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
+import {
+  type OrganizationAccountWorkspaceGrant,
+  organizationAccountWorkspaceGrantsSchema,
+} from '@/lib/credential-groups/workspace-grants'
 import {
   ResourcePolicyRevisionConflictError,
   requireResourcePolicy,
@@ -23,13 +28,17 @@ export const organizationAccountAccessOperations = {
   read: defineOrganizationOperation({
     id: 'organization_accounts.workspace_access.read',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   update: defineOrganizationOperation({
     id: 'organization_accounts.workspace_access.update',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
 } as const
@@ -71,8 +80,9 @@ export const getOrganizationAccountWorkspaceAccess = defineOrganizationAccountsU
       )
     return {
       revision: policy.revision,
-      workspaceIds: listOrganizationAccountWorkspaceIds(policy.document),
+      grants: listOrganizationAccountWorkspaceGrants(policy.document),
       workspaces,
+      credentialTypes: getOrganizationCredentialTypeCatalog(),
     }
   },
 })
@@ -83,14 +93,14 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
     input,
     context,
   }: {
-    input: { organizationId: string; revision: number; workspaceIds: string[] }
+    input: { organizationId: string; revision: number; grants: OrganizationAccountWorkspaceGrant[] }
     context: OrganizationMembershipContext
   }) {
-    const parsed = organizationAccountWorkspaceIdsSchema.safeParse(input.workspaceIds)
+    const parsed = organizationAccountWorkspaceGrantsSchema.safeParse(input.grants)
     if (!parsed.success)
       throw new OrchestrationError(
         'validation',
-        'Workspace IDs must be unique, valid identifiers within the supported limit'
+        'Workspace grants must contain unique workspace IDs and valid integration selections'
       )
     const group = await requireGroup(context.organizationId)
     if (parsed.data.length) {
@@ -100,7 +110,10 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
         .where(
           and(
             eq(workspace.organizationId, context.organizationId),
-            inArray(workspace.id, parsed.data),
+            inArray(
+              workspace.id,
+              parsed.data.map((grant) => grant.workspaceId)
+            ),
             isNull(workspace.archivedAt)
           )
         )
@@ -110,6 +123,17 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
           'Every allowed workspace must be active and belong to this organization'
         )
     }
+    const document = buildOrganizationAccountAccessPolicy(group.credentialGroupId, parsed.data)
+    /** Indented JSON conservatively includes the whitespace PostgreSQL adds to jsonb text. */
+    if (
+      Buffer.byteLength(JSON.stringify(document, null, 1), 'utf8') >
+      ORGANIZATION_ACCOUNT_POLICY_DOCUMENT_MAX_BYTES
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        'Workspace access policy is too large. Reduce the number of selected integrations or workspaces.'
+      )
+    }
     try {
       const policy = await writeResourcePolicy({
         organizationId: context.organizationId,
@@ -117,14 +141,14 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
         resourceId: group.credentialGroupId,
         codec: organizationAccountAccessPolicyCodec,
         expectedRevision: input.revision,
-        document: buildOrganizationAccountAccessPolicy(group.credentialGroupId, parsed.data),
+        document,
         actorUserId: context.userId,
       })
       return {
         credentialGroupId: group.credentialGroupId,
         name: group.name,
         revision: policy.revision,
-        workspaceIds: listOrganizationAccountWorkspaceIds(policy.document),
+        grants: listOrganizationAccountWorkspaceGrants(policy.document),
       }
     } catch (error) {
       if (error instanceof ResourcePolicyRevisionConflictError)
@@ -138,6 +162,6 @@ export const updateOrganizationAccountWorkspaceAccess = defineOrganizationAccoun
   projectAudit: (result) => ({
     resourceId: result.credentialGroupId,
     resourceName: result.name,
-    description: `Allowed ${result.workspaceIds.length} workspaces to use organization connected accounts`,
+    description: `Allowed ${result.grants.length} workspaces to use organization connected accounts`,
   }),
 })

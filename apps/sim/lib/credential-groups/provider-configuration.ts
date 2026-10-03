@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
-import { credentialGroup, slackApp } from '@sim/db/schema'
+import { credentialGroup, slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import type { DbOrTx } from '@/lib/db/types'
+import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
+import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
 
 const CREDENTIAL_GROUP_PROVIDER_CONFIGURATION_TYPE =
   'credential-group-provider-configuration' as const
@@ -148,18 +150,36 @@ async function resolveSlackConfiguration(
     .where(
       and(
         eq(slackApp.id, configuration.appId),
-        eq(slackApp.organizationId, params.organizationId),
-        eq(slackApp.kind, 'custom')
+        or(
+          and(eq(slackApp.organizationId, params.organizationId), eq(slackApp.kind, 'custom')),
+          and(eq(slackApp.kind, 'shared'), isNull(slackApp.organizationId))
+        )
       )
     )
     .limit(1)
   if (!app) throw new Error('Organization Slack app configuration is missing')
-  const { decrypted: clientSecret } = await decryptSecret(app.encryptedClientSecret)
+  if (app.kind === 'shared') {
+    await requireSlackSearchAppAvailable(app.id, params.organizationId)
+    const [installation] = await (params.executor ?? db)
+      .select({ id: slackSearchInstallation.id })
+      .from(slackSearchInstallation)
+      .where(
+        and(
+          eq(slackSearchInstallation.slackAppId, app.id),
+          eq(slackSearchInstallation.organizationId, params.organizationId),
+          eq(slackSearchInstallation.teamId, configuration.teamId),
+          eq(slackSearchInstallation.enabled, true)
+        )
+      )
+      .limit(1)
+    if (!installation) throw new Error('The shared Slack installation is disabled or removed')
+  }
+  const resolved = await resolveSlackAppCredentials(app)
   return {
     appId: app.id,
     teamId: configuration.teamId,
-    clientId: app.clientId,
-    clientSecret,
+    clientId: resolved.clientId,
+    clientSecret: resolved.clientSecret,
     scopes: configuration.scopes,
     verifiedAt: configuration.verifiedAt,
   }

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -36,7 +37,7 @@ export const typeformHandler: WebhookProviderHandler = {
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const formResponse = (b?.form_response || {}) as Record<string, unknown>
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const includeDefinition = providerConfig.includeDefinition === true
     return {
       input: {

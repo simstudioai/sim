@@ -1,16 +1,11 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { INTERNAL_CHAT_BILLING_SOURCES } from '@/lib/billing/usage-sources'
 import {
-  BILLING_ACCOUNT_DECISION_HEADER,
-  BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
-  BILLING_ATTRIBUTION_HEADER,
-  BILLING_ATTRIBUTION_HEADER_MAX_BYTES,
-  BILLING_REQUEST_ID_HEADER,
-  COPILOT_BILLING_PROTOCOL_HEADER,
-  COPILOT_BILLING_PROTOCOL_VALUES,
-} from '@/lib/copilot/generated/billing-protocol-v1'
+  usageLimitReadSchema,
+  usageLimitUpdateSchema,
+} from '@/lib/billing/application/usage-limit-validation'
+import { BillingCallbackBody, BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
 
 const booleanQueryParamSchema = z
   .preprocess((value) => {
@@ -21,40 +16,9 @@ const booleanQueryParamSchema = z
   .optional()
   .default(false)
 
-export const billingUpdateCostBodySchema = z
-  .object({
-    userId: z.string().min(1, 'User ID is required'),
-    cost: z.number().min(0, 'Cost must be a non-negative number'),
-    model: z.string().min(1, 'Model is required'),
-    inputTokens: z.number().min(0).default(0),
-    outputTokens: z.number().min(0).default(0),
-    source: z.enum(INTERNAL_CHAT_BILLING_SOURCES).default('copilot'),
-    idempotencyKey: z.string().min(1, 'Idempotency key is required'),
-    /**
-     * Originating workspace, used for org-workspace cost attribution on hosted
-     * Sim. The value remains optional because self-hosted/headless callers may
-     * supply an ID from another deployment or omit it. Modern protocols bind a
-     * locally known workspace to their immutable envelope. Markerless local
-     * self-hosted callbacks re-resolve current workspace payer state; unknown
-     * workspaces remain account-only.
-     */
-    workspaceId: z.string().min(1).optional(),
-    organizationId: z.string().min(1).max(200).optional(),
-  })
-  .refine((body) => !(body.workspaceId && body.organizationId), {
-    message: 'workspaceId and organizationId are mutually exclusive',
-  })
+export const billingUpdateCostBodySchema = BillingCallbackBody
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
-
-export const billingUpdateCostHeadersSchema = z.object({
-  [COPILOT_BILLING_PROTOCOL_HEADER]: z.enum(COPILOT_BILLING_PROTOCOL_VALUES).optional(),
-  [BILLING_REQUEST_ID_HEADER]: z.string().uuid().optional(),
-  [BILLING_ATTRIBUTION_HEADER]: z.string().max(BILLING_ATTRIBUTION_HEADER_MAX_BYTES).optional(),
-  [BILLING_ACCOUNT_DECISION_HEADER]: z
-    .string()
-    .max(BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES)
-    .optional(),
-})
+export const billingUpdateCostHeadersSchema = BillingCallbackHeaders
 export type BillingUpdateCostHeaders = z.input<typeof billingUpdateCostHeadersSchema>
 
 export const billingSwitchPlanBodySchema = z.object({
@@ -203,23 +167,8 @@ export const usageLimitDataSchema = z
   })
   .passthrough()
 
-export const usageQuerySchema = z.object({
-  context: z.enum(['user', 'organization']).optional().default('user'),
-  userId: z.string().optional(),
-  organizationId: z.string().optional(),
-  memberLimit: z.coerce.number().int().min(1).max(100).default(50),
-  memberOffset: z.coerce.number().int().min(0).default(0),
-})
-
-export const updateUsageLimitBodySchema = z
-  .object({
-    limit: z.number().min(0, 'Limit must be a non-negative number'),
-    context: z.enum(['user', 'organization']).optional().default('user'),
-    organizationId: z.string().optional(),
-  })
-  .refine((data) => data.context !== 'organization' || data.organizationId, {
-    message: 'Organization ID is required when context is organization',
-  })
+export const usageQuerySchema = usageLimitReadSchema
+export const updateUsageLimitBodySchema = usageLimitUpdateSchema
 
 export const usageLimitApiResponseSchema = z
   .object({
@@ -274,10 +223,6 @@ export const invoicesApiResponseSchema = z.object({
   invoices: z.array(invoiceItemSchema),
   /** True when Stripe has more invoices than the returned page (overflow). */
   hasMore: z.boolean(),
-})
-
-const successResponseSchema = z.object({
-  success: z.boolean(),
 })
 
 export const getBillingContract = defineRouteContract({
@@ -376,17 +321,54 @@ export const billingSwitchPlanResponseSchema = z.object({
   message: z.string().optional(),
 })
 
-export const billingUpdateCostResponseSchema = z.object({
-  success: z.literal(true),
-  message: z.string().optional(),
-  data: z.object({
-    userId: z.string().optional(),
-    cost: z.number().optional(),
-    billingEnabled: z.boolean().optional(),
-    processedAt: z.string(),
-    requestId: z.string(),
-  }),
+/**
+ * The upgrade card's payload: the JSON body of a `<usage_upgrade>` tag in assistant text, which
+ * the chat renders as the usage card wherever that text appears (live, replayed, or reloaded).
+ * Sim decides the action and copy from the payer's plan; a worker ending a run at the usage
+ * limit writes the tag with this payload verbatim into its durable log.
+ */
+export const usageUpgradePayloadSchema = z.object({
+  reason: z.literal('usage_limit'),
+  action: z.enum(['upgrade_plan', 'increase_limit']),
+  message: z.string(),
 })
+export type UsageUpgradePayload = z.infer<typeof usageUpgradePayloadSchema>
+
+/**
+ * The payer's standing after a cost callback, read through the cached execution usage gate. It
+ * sits at the top level of the body, beside `success`, where the worker's shared
+ * `BillingCallbackResult` reads it, on a 200 and on a duplicate 409 alike. A worker that
+ * predates the fields ignores them.
+ */
+export const billingUsageVerdictSchema = z.discriminatedUnion('usageExceeded', [
+  z.object({
+    /** The payer is within its usage limit, or its standing could not be read. */
+    usageExceeded: z.literal(false),
+    usageUpgrade: z.never().optional(),
+  }),
+  z.object({
+    /** The payer is over its usage limit; the worker pauses the run at its next step boundary. */
+    usageExceeded: z.literal(true),
+    /** The card the worker writes to its log. */
+    usageUpgrade: usageUpgradePayloadSchema,
+  }),
+])
+export type BillingUsageVerdict = z.infer<typeof billingUsageVerdictSchema>
+
+export const billingUpdateCostResponseSchema = z
+  .object({
+    success: z.literal(true),
+    message: z.string().optional(),
+    data: z.object({
+      userId: z.string().optional(),
+      cost: z.number().optional(),
+      billingEnabled: z.boolean().optional(),
+      processedAt: z.string(),
+      requestId: z.string(),
+    }),
+  })
+  .and(billingUsageVerdictSchema)
+export type BillingUpdateCostResponse = z.infer<typeof billingUpdateCostResponseSchema>
 
 export const billingSwitchPlanContract = defineRouteContract({
   method: 'POST',

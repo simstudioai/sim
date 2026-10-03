@@ -1,0 +1,1112 @@
+{
+  "slack_lists_access_delete": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_lists_download_start": [
+    {
+      "ok": true,
+      "job_id": "LeF1234567"
+    }
+  ],
+  "slack_lists_download_get": [
+    {
+      "ok": true,
+      "status": "COMPLETED",
+      "download_url": "https://files.com/files-pri/1234567890-F12345678/csv/list?origin_team=T1234567890"
+    }
+  ],
+  "slack_lists_items_delete_multiple": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_share_canvas": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_revoke_canvas_access": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_join_conversation": [
+    {
+      "ok": true,
+      "channel": {
+        "id": "C061EG9SL",
+        "name": "general",
+        "is_channel": true,
+        "is_group": false,
+        "is_im": false,
+        "created": 1449252889,
+        "creator": "U061F7AUR",
+        "is_archived": false,
+        "is_general": true,
+        "unlinked": 0,
+        "name_normalized": "general",
+        "is_shared": false,
+        "is_ext_shared": false,
+        "is_org_shared": false,
+        "pending_shared": [],
+        "is_pending_ext_shared": false,
+        "is_member": true,
+        "is_private": false,
+        "is_mpim": false,
+        "topic": {
+          "value": "Which widget do you worry about?",
+          "creator": "",
+          "last_set": 0
+        },
+        "purpose": {
+          "value": "For widget discussion",
+          "creator": "",
+          "last_set": 0
+        },
+        "previous_names": []
+      },
+      "warning": "already_in_channel",
+      "response_metadata": {
+        "warnings": ["already_in_channel"]
+      }
+    }
+  ],
+  "slack_leave_conversation": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_kick_conversation": [
+    {
+      "ok": true,
+      "errors": {}
+    }
+  ],
+  "slack_unarchive_conversation": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_close_conversation": [
+    {
+      "ok": true
+    },
+    {
+      "ok": true,
+      "no_op": true,
+      "already_closed": true
+    }
+  ],
+  "slack_mark_conversation_read": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_open_conversation": [
+    {
+      "ok": true,
+      "channel": {
+        "id": "D069C7QFK"
+      }
+    },
+    {
+      "ok": true,
+      "no_op": true,
+      "already_open": true,
+      "channel": {
+        "id": "D069C7QFK",
+        "created": 1460147748,
+        "is_im": true,
+        "is_org_shared": false,
+        "user": "U069C7QF3",
+        "last_read": "0000000000.000000",
+        "latest": null,
+        "unread_count": 0,
+        "unread_count_display": 0,
+        "is_open": true,
+        "priority": 0
+      }
+    }
+  ],
+  "slack_lookup_user_by_email": [
+    {
+      "ok": true,
+      "user": {
+        "id": "W012A3CDE",
+        "team_id": "T012AB3C4",
+        "name": "spengler",
+        "deleted": false,
+        "color": "9f69e7",
+        "real_name": "Egon Spengler",
+        "tz": "America/Los_Angeles",
+        "tz_label": "Pacific Daylight Time",
+        "tz_offset": -25200,
+        "profile": {
+          "avatar_hash": "ge3b51ca72de",
+          "status_text": "Print is dead",
+          "status_emoji": ":books:",
+          "real_name": "Egon Spengler",
+          "display_name": "spengler",
+          "real_name_normalized": "Egon Spengler",
+          "display_name_normalized": "spengler",
+          "email": "spengler@ghostbusters.example.com",
+          "image_24": "https://.../avatar/e3b51ca72dee4ef87916ae2b9240df50.jpg",
+          "image_32": "https://.../avatar/e3b51ca72dee4ef87916ae2b9240df50.jpg",
+          "image_48": "https://.../avatar/e3b51ca72dee4ef87916ae2b9240df50.jpg",
+          "image_72": "https://.../avatar/e3b51ca72dee4ef87916ae2b9240df50.jpg",
+          "image_192": "https://.../avatar/e3b51ca72dee4ef87916ae2b9240df50.jpg",
+          "image_512": "https://.../avatar/e3b51ca72dee4ef87916ae2b9240df50.jpg",
+          "team": "T012AB3C4"
+        },
+        "is_admin": true,
+        "is_owner": false,
+        "is_primary_owner": false,
+        "is_restricted": false,
+        "is_ultra_restricted": false,
+        "is_bot": false,
+        "updated": 1502138686,
+        "is_app_user": false,
+        "has_2fa": false
+      }
+    }
+  ],
+  "slack_list_user_conversations": [
+    {
+      "ok": true,
+      "channels": [
+        {
+          "id": "C012AB3CD",
+          "name": "general",
+          "is_channel": true,
+          "is_group": false,
+          "is_im": false,
+          "created": 1449252889,
+          "creator": "U012A3CDE",
+          "is_archived": false,
+          "is_general": true,
+          "unlinked": 0,
+          "name_normalized": "general",
+          "is_shared": false,
+          "is_ext_shared": false,
+          "is_org_shared": false,
+          "pending_shared": [],
+          "is_pending_ext_shared": false,
+          "is_private": false,
+          "is_mpim": false,
+          "topic": {
+            "value": "Company-wide announcements and work-based matters",
+            "creator": "",
+            "last_set": 0
+          },
+          "purpose": {
+            "value": "This channel is for team-wide communication and announcements. All team members are in this channel.",
+            "creator": "",
+            "last_set": 0
+          },
+          "previous_names": []
+        },
+        {
+          "id": "C061EG9T2",
+          "name": "random",
+          "is_channel": true,
+          "is_group": false,
+          "is_im": false,
+          "created": 1449252889,
+          "creator": "U061F7AUR",
+          "is_archived": false,
+          "is_general": false,
+          "unlinked": 0,
+          "name_normalized": "random",
+          "is_shared": false,
+          "is_ext_shared": false,
+          "is_org_shared": false,
+          "pending_shared": [],
+          "is_pending_ext_shared": false,
+          "is_private": false,
+          "is_mpim": false,
+          "topic": {
+            "value": "Non-work banter and water cooler conversation",
+            "creator": "",
+            "last_set": 0
+          },
+          "purpose": {
+            "value": "A place for non-work-related flimflam, faffing, hodge-podge or jibber-jabber you'd prefer to keep out of more focused work-related channels.",
+            "creator": "",
+            "last_set": 0
+          },
+          "previous_names": []
+        }
+      ],
+      "response_metadata": {
+        "next_cursor": "dGVhbTpDMDYxRkE1UEI="
+      }
+    },
+    {
+      "ok": true,
+      "channels": [
+        {
+          "id": "G0AKFJBEU",
+          "name": "mpdm-mr.banks--slactions-jackson--beforebot-1",
+          "is_channel": false,
+          "is_group": true,
+          "is_im": false,
+          "created": 1493657761,
+          "creator": "U061F7AUR",
+          "is_archived": false,
+          "is_general": false,
+          "unlinked": 0,
+          "name_normalized": "mpdm-mr.banks--slactions-jackson--beforebot-1",
+          "is_shared": false,
+          "is_ext_shared": false,
+          "is_org_shared": false,
+          "pending_shared": [],
+          "is_pending_ext_shared": false,
+          "is_private": true,
+          "is_mpim": true,
+          "is_open": true,
+          "topic": {
+            "value": "Group messaging",
+            "creator": "U061F7AUR",
+            "last_set": 1493657761
+          },
+          "purpose": {
+            "value": "Group messaging with: @mr.banks @slactions-jackson @beforebot",
+            "creator": "U061F7AUR",
+            "last_set": 1493657761
+          },
+          "priority": 0
+        },
+        {
+          "id": "D0C0F7S8Y",
+          "created": 1498500348,
+          "is_im": true,
+          "is_org_shared": false,
+          "user": "U0BS9U4SV",
+          "is_user_deleted": false,
+          "priority": 0
+        },
+        {
+          "id": "D0BSHH4AD",
+          "created": 1498511030,
+          "is_im": true,
+          "is_org_shared": false,
+          "user": "U0C0NS9HN",
+          "is_user_deleted": false,
+          "priority": 0
+        }
+      ],
+      "response_metadata": {
+        "next_cursor": "aW1faWQ6RDBCSDk1RExI"
+      }
+    }
+  ],
+  "slack_get_user_profile": [
+    {
+      "ok": true,
+      "profile": {
+        "title": "Head of Coffee Production",
+        "phone": "",
+        "skype": "",
+        "real_name": "John Smith",
+        "real_name_normalized": "John Smith",
+        "display_name": "john",
+        "display_name_normalized": "john",
+        "fields": {
+          "Xf0111111": {
+            "value": "Barista",
+            "alt": ""
+          },
+          "Xf0222222": {
+            "value": "2022-04-11",
+            "alt": ""
+          },
+          "Xf0333333": {
+            "value": "https://example.com",
+            "alt": ""
+          }
+        },
+        "status_text": "Watching cold brew steep",
+        "status_emoji": ":coffee:",
+        "status_emoji_display_info": [],
+        "status_expiration": 0,
+        "avatar_hash": "123xyz",
+        "start_date": "2022-03-21",
+        "email": "johnsmith@example.com",
+        "pronouns": "they/them/theirs",
+        "huddle_state": "default_unset",
+        "huddle_state_expiration_ts": 0,
+        "first_name": "john",
+        "last_name": "smith",
+        "image_24": "https://.../...-24.png",
+        "image_32": "https://.../...-32.png",
+        "image_48": "https://.../...-48.png",
+        "image_72": "https://.../...-72.png",
+        "image_192": "https://.../....-192png",
+        "image_512": "https://.../...-512.png"
+      }
+    }
+  ],
+  "slack_set_user_presence": [
+    {
+      "ok": true
+    },
+    {
+      "ok": true
+    }
+  ],
+  "slack_get_file_info": [
+    {
+      "ok": true,
+      "file": {
+        "id": "F0S43PZDF",
+        "created": 1531763342,
+        "timestamp": 1531763342,
+        "name": "tedair.gif",
+        "title": "tedair.gif",
+        "mimetype": "image/gif",
+        "filetype": "gif",
+        "pretty_type": "GIF",
+        "user": "U061F7AUR",
+        "editable": false,
+        "size": 137531,
+        "mode": "hosted",
+        "is_external": false,
+        "external_type": "",
+        "is_public": true,
+        "public_url_shared": false,
+        "display_as_bot": false,
+        "username": "",
+        "url_private": "https://.../tedair.gif",
+        "url_private_download": "https://.../tedair.gif",
+        "thumb_64": "https://.../tedair_64.png",
+        "thumb_80": "https://.../tedair_80.png",
+        "thumb_360": "https://.../tedair_360.png",
+        "thumb_360_w": 176,
+        "thumb_360_h": 226,
+        "thumb_160": "https://.../tedair_=_160.png",
+        "thumb_360_gif": "https://.../tedair_360.gif",
+        "image_exif_rotation": 1,
+        "original_w": 176,
+        "original_h": 226,
+        "deanimate_gif": "https://.../tedair_deanimate_gif.png",
+        "pjpeg": "https://.../tedair_pjpeg.jpg",
+        "permalink": "https://.../tedair.gif",
+        "permalink_public": "https://.../...",
+        "comments_count": 0,
+        "is_starred": false,
+        "shares": {
+          "public": {
+            "C0T8SE4AU": [
+              {
+                "reply_users": ["U061F7AUR"],
+                "reply_users_count": 1,
+                "reply_count": 1,
+                "ts": "1531763348.000001",
+                "thread_ts": "1531763273.000015",
+                "latest_reply": "1531763348.000001",
+                "channel_name": "file-under",
+                "team_id": "T061EG9R6"
+              }
+            ]
+          }
+        },
+        "channels": ["C0T8SE4AU"],
+        "groups": [],
+        "ims": [],
+        "has_rich_preview": false,
+        "alt_txt": "tedair.gif"
+      },
+      "comments": [],
+      "response_metadata": {
+        "next_cursor": "dGVhbTpDMUg5UkVTR0w="
+      }
+    }
+  ],
+  "slack_list_files": [
+    {
+      "ok": true,
+      "files": [
+        {
+          "id": "F0S43P1CZ",
+          "created": 1531763254,
+          "timestamp": 1531763254,
+          "name": "billair.gif",
+          "title": "billair.gif",
+          "mimetype": "image/gif",
+          "filetype": "gif",
+          "pretty_type": "GIF",
+          "user": "U061F7AUR",
+          "editable": false,
+          "size": 144538,
+          "mode": "hosted",
+          "is_external": false,
+          "external_type": "",
+          "is_public": true,
+          "public_url_shared": false,
+          "display_as_bot": false,
+          "username": "",
+          "url_private": "https://.../billair.gif",
+          "url_private_download": "https://.../billair.gif",
+          "thumb_64": "https://.../billair_64.png",
+          "thumb_80": "https://.../billair_80.png",
+          "thumb_360": "https://.../billair_360.png",
+          "thumb_360_w": 176,
+          "thumb_360_h": 226,
+          "thumb_160": "https://.../billair_=_160.png",
+          "thumb_360_gif": "https://.../billair_360.gif",
+          "image_exif_rotation": 1,
+          "original_w": 176,
+          "original_h": 226,
+          "deanimate_gif": "https://.../billair_deanimate_gif.png",
+          "pjpeg": "https://.../billair_pjpeg.jpg",
+          "permalink": "https://.../billair.gif",
+          "permalink_public": "https://.../...",
+          "channels": ["C0T8SE4AU"],
+          "groups": [],
+          "ims": [],
+          "comments_count": 0
+        },
+        {
+          "id": "F0S43PZDF",
+          "created": 1531763342,
+          "timestamp": 1531763342,
+          "name": "tedair.gif",
+          "title": "tedair.gif",
+          "mimetype": "image/gif",
+          "filetype": "gif",
+          "pretty_type": "GIF",
+          "user": "U061F7AUR",
+          "editable": false,
+          "size": 137531,
+          "mode": "hosted",
+          "is_external": false,
+          "external_type": "",
+          "is_public": true,
+          "public_url_shared": false,
+          "display_as_bot": false,
+          "username": "",
+          "url_private": "https://.../tedair.gif",
+          "url_private_download": "https://.../tedair.gif",
+          "thumb_64": "https://.../tedair_64.png",
+          "thumb_80": "https://.../tedair_80.png",
+          "thumb_360": "https://.../tedair_360.png",
+          "thumb_360_w": 176,
+          "thumb_360_h": 226,
+          "thumb_160": "https://.../tedair_=_160.png",
+          "thumb_360_gif": "https://.../tedair_360.gif",
+          "image_exif_rotation": 1,
+          "original_w": 176,
+          "original_h": 226,
+          "deanimate_gif": "https://.../tedair_deanimate_gif.png",
+          "pjpeg": "https://.../tedair_pjpeg.jpg",
+          "permalink": "https://.../tedair.gif",
+          "permalink_public": "https://.../...",
+          "channels": ["C0T8SE4AU"],
+          "groups": [],
+          "ims": [],
+          "comments_count": 0
+        }
+      ],
+      "paging": {
+        "count": 100,
+        "total": 2,
+        "page": 1,
+        "pages": 1
+      }
+    }
+  ],
+  "slack_delete_file": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_get_reactions": [
+    {
+      "ok": true,
+      "type": "message",
+      "message": {
+        "type": "message",
+        "text": "Hi there!",
+        "user": "W123456",
+        "ts": "1648602352.215969",
+        "team": "T123456",
+        "reactions": [
+          {
+            "name": "grinning",
+            "users": ["W222222"],
+            "count": 1
+          },
+          {
+            "name": "question",
+            "users": ["W333333"],
+            "count": 1
+          }
+        ],
+        "permalink": "https://xxx.slack.com/archives/C123456/p1648602352215969"
+      },
+      "channel": "C123ABC456"
+    }
+  ],
+  "slack_list_reactions": [
+    {
+      "items": [
+        {
+          "type": "message",
+          "channel": "C123ABC456",
+          "message": {
+            "bot_id": "B123ABC456",
+            "reactions": [
+              {
+                "count": 1,
+                "name": "robot_face",
+                "users": ["U123ABC456"]
+              }
+            ],
+            "subtype": "bot_message",
+            "text": "Hello from Python! :tada:",
+            "ts": "1507849573.000090",
+            "username": "Shipit Notifications"
+          }
+        },
+        {
+          "comment": {
+            "type": "file_comment",
+            "comment": "This is a file comment",
+            "created": 1508286096,
+            "id": "Fc123ABC456",
+            "reactions": [
+              {
+                "count": 1,
+                "name": "white_check_mark",
+                "users": ["U123ABC456"]
+              }
+            ],
+            "timestamp": 1508286096,
+            "user": "U123ABC456"
+          },
+          "file": {
+            "channels": ["C123ABC456"],
+            "comments_count": 1,
+            "created": 1507850315,
+            "reactions": [
+              {
+                "count": 1,
+                "name": "stuck_out_tongue_winking_eye",
+                "users": ["U123ABC456"]
+              }
+            ],
+            "title": "computer.gif",
+            "user": "U123ABC456",
+            "username": ""
+          }
+        },
+        {
+          "file": {
+            "channels": ["C123ABC456"],
+            "comments_count": 1,
+            "created": 1507850315,
+            "id": "F123ABC456",
+            "name": "computer.gif",
+            "reactions": [
+              {
+                "count": 1,
+                "name": "stuck_out_tongue_winking_eye",
+                "users": ["U123ABC456"]
+              }
+            ],
+            "size": 1639034,
+            "title": "computer.gif",
+            "user": "U123ABC456",
+            "username": ""
+          },
+          "type": "file"
+        }
+      ],
+      "ok": true,
+      "response_metadata": {
+        "next_cursor": "dGVhbTpDMUg5UkVTR0w="
+      }
+    }
+  ],
+  "slack_pin_message": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_unpin_message": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_list_pins": [
+    {
+      "items": [
+        {
+          "channel": "C123ABC456",
+          "created": 1508881078,
+          "created_by": "U123ABC456",
+          "message": {
+            "permalink": "https://hitchhikers.slack.com/archives/C2U86NC6H/p1508197641000151",
+            "pinned_to": ["C2U86NC6H"],
+            "text": "What is the meaning of life?",
+            "ts": "1508197641.000151",
+            "type": "message",
+            "user": "U123ABC456"
+          },
+          "type": "message"
+        },
+        {
+          "channel": "C123ABC456",
+          "created": 1508880991,
+          "created_by": "U123ABC456",
+          "message": {
+            "permalink": "https://hitchhikers.slack.com/archives/C2U86NC6H/p1508284197000015",
+            "pinned_to": ["C123ABC456"],
+            "text": "The meaning of life, the universe, and everything is 42.",
+            "ts": "1503289197.000015",
+            "type": "message",
+            "user": "U123ABC456"
+          },
+          "type": "message"
+        }
+      ],
+      "ok": true
+    }
+  ],
+  "slack_add_bookmark": [
+    {
+      "ok": true,
+      "bookmark": {
+        "id": "Bk033XFJ9BTJ",
+        "channel_id": "C1RQ000",
+        "title": "bookmark-1",
+        "link": "https://google.com",
+        "emoji": ":clap:",
+        "icon_url": "https://www.google.com/favicon.ico",
+        "type": "link",
+        "entity_id": null,
+        "date_created": 1644956055,
+        "date_updated": 0,
+        "rank": "g",
+        "last_updated_by_user_id": "U0334B6G6G5",
+        "last_updated_by_team_id": "T018DF03GHY",
+        "shortcut_id": null,
+        "app_id": null
+      }
+    }
+  ],
+  "slack_edit_bookmark": [
+    {
+      "ok": true,
+      "bookmark": {
+        "id": "Bk033XFJ9BTJ",
+        "channel_id": "C1RQ000",
+        "title": "bookmark-1",
+        "link": "https://google.com",
+        "emoji": ":clap:",
+        "icon_url": "https://www.google.com/favicon.ico",
+        "type": "link",
+        "entity_id": null,
+        "date_created": 1644956055,
+        "date_updated": 0,
+        "rank": "g",
+        "last_updated_by_user_id": "U0334B6G6G5",
+        "last_updated_by_team_id": "T018DF03GHY",
+        "shortcut_id": null,
+        "app_id": null
+      }
+    }
+  ],
+  "slack_list_bookmarks": [
+    {
+      "ok": true,
+      "bookmarks": [
+        {
+          "id": "Bk123ABC4DEF",
+          "channel_id": "C1RQ000",
+          "title": "bookmark-1",
+          "link": "https://google.com",
+          "emoji": ":clap:",
+          "icon_url": "https://www.google.com/favicon.ico",
+          "type": "link",
+          "entity_id": null,
+          "date_created": 1644956055,
+          "date_updated": 0,
+          "rank": "g",
+          "last_updated_by_user_id": "U0123A1B1C1",
+          "last_updated_by_team_id": "T012AB34CDE",
+          "shortcut_id": null,
+          "app_id": null
+        }
+      ]
+    }
+  ],
+  "slack_remove_bookmark": [
+    {
+      "ok": true
+    }
+  ],
+  "slack_create_user_group": [
+    {
+      "ok": true
+    },
+    {
+      "ok": true,
+      "usergroup": {
+        "id": "S0615G0KT",
+        "team_id": "T060RNRCH",
+        "is_usergroup": true,
+        "name": "Marketing Team",
+        "description": "Marketing gurus, PR experts and product advocates.",
+        "handle": "marketing-team",
+        "is_external": false,
+        "date_create": 1446746793,
+        "date_update": 1446746793,
+        "date_delete": 0,
+        "auto_type": null,
+        "created_by": "U060RNRCZ",
+        "updated_by": "U060RNRCZ",
+        "deleted_by": null,
+        "prefs": {
+          "channels": [],
+          "groups": []
+        },
+        "user_count": "0"
+      }
+    }
+  ],
+  "slack_update_user_group": [
+    {
+      "ok": true,
+      "usergroup": {
+        "id": "S0616NG6M",
+        "team_id": "T060R4BHN",
+        "is_usergroup": true,
+        "name": "Marketing Team",
+        "description": "Marketing gurus, PR experts and product advocates.",
+        "handle": "marketing-team",
+        "is_external": false,
+        "date_create": 1447096577,
+        "date_update": 1447102109,
+        "date_delete": 0,
+        "auto_type": null,
+        "created_by": "U060R4BJ4",
+        "updated_by": "U060R4BJ4",
+        "deleted_by": null,
+        "prefs": {
+          "channels": [],
+          "groups": []
+        },
+        "users": ["U060R4BJ4", "U060RNRCZ"],
+        "user_count": 1
+      }
+    }
+  ],
+  "slack_enable_user_group": [
+    {
+      "ok": true
+    },
+    {
+      "ok": true,
+      "usergroup": {
+        "id": "S0615G0KT",
+        "team_id": "T060RNRCH",
+        "is_usergroup": true,
+        "name": "Marketing Team",
+        "description": "Marketing gurus, PR experts and product advocates.",
+        "handle": "marketing-team",
+        "is_external": false,
+        "date_create": 1446746793,
+        "date_update": 1446747767,
+        "date_delete": 0,
+        "auto_type": null,
+        "created_by": "U060RNRCZ",
+        "updated_by": "U060RNRCZ",
+        "deleted_by": null,
+        "prefs": {
+          "channels": [],
+          "groups": []
+        },
+        "user_count": "0"
+      }
+    }
+  ],
+  "slack_disable_user_group": [
+    {
+      "ok": true
+    },
+    {
+      "ok": true,
+      "usergroup": {
+        "id": "S0615G0KT",
+        "team_id": "T060RNRCH",
+        "is_usergroup": true,
+        "name": "Marketing Team",
+        "description": "Marketing gurus, PR experts and product advocates.",
+        "handle": "marketing-team",
+        "is_external": false,
+        "date_create": 1446746793,
+        "date_update": 1446747568,
+        "date_delete": 1446747568,
+        "auto_type": null,
+        "created_by": "U060RNRCZ",
+        "updated_by": "U060RNRCZ",
+        "deleted_by": "U060RNRCZ",
+        "prefs": {
+          "channels": [],
+          "groups": []
+        },
+        "user_count": "0"
+      }
+    },
+    {
+      "ok": true
+    }
+  ],
+  "slack_list_user_groups": [
+    {
+      "ok": true,
+      "usergroups": [
+        {
+          "id": "S0614TZR7",
+          "team_id": "T060RNRCH",
+          "is_usergroup": true,
+          "name": "Team Admins",
+          "description": "A group of all Administrators on your team.",
+          "handle": "admins",
+          "is_external": false,
+          "date_create": 1446598059,
+          "date_update": 1446670362,
+          "date_delete": 0,
+          "auto_type": "admin",
+          "created_by": "USLACKBOT",
+          "updated_by": "U060RNRCZ",
+          "deleted_by": null,
+          "prefs": {
+            "channels": [],
+            "groups": []
+          },
+          "user_count": "2"
+        },
+        {
+          "id": "S06158AV7",
+          "team_id": "T060RNRCH",
+          "is_usergroup": true,
+          "name": "Team Owners",
+          "description": "A group of all Owners on your team.",
+          "handle": "owners",
+          "is_external": false,
+          "date_create": 1446678371,
+          "date_update": 1446678371,
+          "date_delete": 0,
+          "auto_type": "owner",
+          "created_by": "USLACKBOT",
+          "updated_by": "USLACKBOT",
+          "deleted_by": null,
+          "prefs": {
+            "channels": [],
+            "groups": []
+          },
+          "user_count": "1"
+        },
+        {
+          "id": "S0615G0KT",
+          "team_id": "T060RNRCH",
+          "is_usergroup": true,
+          "name": "Marketing Team",
+          "description": "Marketing gurus, PR experts and product advocates.",
+          "handle": "marketing-team",
+          "is_external": false,
+          "date_create": 1446746793,
+          "date_update": 1446747767,
+          "date_delete": 1446748865,
+          "auto_type": null,
+          "created_by": "U060RNRCZ",
+          "updated_by": "U060RNRCZ",
+          "deleted_by": null,
+          "prefs": {
+            "channels": [],
+            "groups": []
+          },
+          "user_count": "0"
+        }
+      ]
+    }
+  ],
+  "slack_list_user_group_members": [
+    {
+      "ok": true,
+      "users": ["U060R4BJ4", "W123A4BC5"]
+    }
+  ],
+  "slack_update_user_group_members": [
+    {
+      "ok": true,
+      "usergroup": {
+        "id": "S0616NG6M",
+        "team_id": "T060R4BHN",
+        "is_usergroup": true,
+        "name": "Marketing Team",
+        "description": "Marketing gurus, PR experts and product advocates.",
+        "handle": "marketing-team",
+        "is_external": false,
+        "date_create": 1447096577,
+        "date_update": 1447102109,
+        "date_delete": 0,
+        "auto_type": null,
+        "created_by": "U060R4BJ4",
+        "updated_by": "U060R4BJ4",
+        "deleted_by": null,
+        "prefs": {
+          "channels": [],
+          "groups": []
+        },
+        "users": ["U060R4BJ4", "U060RNRCZ"],
+        "user_count": 1
+      }
+    }
+  ],
+  "slack_get_dnd_info": [
+    {
+      "ok": true
+    },
+    {
+      "ok": true,
+      "dnd_enabled": true,
+      "next_dnd_start_ts": 1450416600,
+      "next_dnd_end_ts": 1450452600,
+      "snooze_enabled": true,
+      "snooze_endtime": 1450416600,
+      "snooze_remaining": 1196,
+      "snooze_is_indefinite": false
+    }
+  ],
+  "slack_get_team_dnd_info": [
+    {
+      "ok": true,
+      "users": {
+        "U023BECGF": {
+          "dnd_enabled": true,
+          "next_dnd_start_ts": 1450387800,
+          "next_dnd_end_ts": 1450423800
+        },
+        "W058CJVAA": {
+          "dnd_enabled": false,
+          "next_dnd_start_ts": 1,
+          "next_dnd_end_ts": 1
+        }
+      }
+    }
+  ],
+  "slack_list_emoji": [
+    {
+      "ok": true
+    },
+    {
+      "ok": true,
+      "emoji": {
+        "bowtie": "https://my.slack.com/emoji/bowtie/46ec6f2bb0.png",
+        "squirrel": "https://my.slack.com/emoji/squirrel/f35f40c0e0.png",
+        "shipit": "alias:squirrel"
+      }
+    }
+  ],
+  "slack_get_team_info": [
+    {
+      "ok": true,
+      "team": {
+        "id": "T12345",
+        "name": "My Team",
+        "domain": "example",
+        "email_domain": "example.com",
+        "icon": {
+          "image_34": "https://...",
+          "image_44": "https://...",
+          "image_68": "https://...",
+          "image_88": "https://...",
+          "image_102": "https://...",
+          "image_132": "https://...",
+          "image_default": true
+        },
+        "enterprise_id": "E1234A12AB",
+        "enterprise_name": "Umbrella Corporation"
+      }
+    }
+  ],
+  "slack_get_team_profile": [
+    {
+      "ok": true,
+      "profile": {
+        "fields": [
+          {
+            "id": "111111ABC",
+            "ordering": 0,
+            "label": "Phone extension",
+            "hint": "Enter the extension to reach your desk",
+            "type": "text",
+            "possible_values": null,
+            "options": {
+              "is_scim": true,
+              "is_protected": true
+            },
+            "is_hidden": false,
+            "section_id": "123ABC"
+          },
+          {
+            "id": "222222ABC",
+            "ordering": 1,
+            "label": "Date of birth",
+            "hint": "When you were born",
+            "type": "date",
+            "possible_values": null,
+            "options": {
+              "is_scim": true,
+              "is_protected": true
+            },
+            "is_hidden": true,
+            "section_id": "123ABC"
+          },
+          {
+            "id": "333333ABC",
+            "ordering": 2,
+            "label": "House",
+            "hint": "Put on the sorting hat",
+            "type": "options_list",
+            "possible_values": ["Gryffindor", "Hufflepuff", "Ravenclaw", "Slytherin"],
+            "options": {
+              "is_scim": false,
+              "is_protected": false
+            },
+            "is_hidden": false,
+            "section_id": "456DEF"
+          }
+        ],
+        "sections": [
+          {
+            "id": "123ABC",
+            "team_id": "T123456",
+            "section_type": "contact",
+            "label": "Contact Information",
+            "order": 1,
+            "is_hidden": true
+          },
+          {
+            "id": "456DEF",
+            "team_id": "T123456",
+            "section_type": "custom",
+            "label": "About Me",
+            "order": 2,
+            "is_hidden": true
+          }
+        ]
+      }
+    }
+  ],
+  "slack_unfurl_links": [
+    {
+      "ok": true
+    }
+  ]
+}

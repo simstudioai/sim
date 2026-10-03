@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DbTokenBucket } from '@/lib/core/rate-limiter/storage/db-token-bucket'
@@ -11,7 +8,6 @@ describe('PostgreSQL token bucket', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-04T12:00:00Z'))
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

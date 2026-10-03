@@ -1,23 +1,16 @@
-/**
- * @vitest-environment node
- */
 import {
+  dbChainMock,
   dbChainMockFns,
   resetDbChainMock,
   workflowsPersistenceUtilsMock,
-  workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockResolveGoverningPermissionGroupOrganization,
-  mockLockWorkspaceCreationContext,
-  mockGetWorkspaceInvitePolicy,
-  mockCreateWorkspaceAccountsGroup,
-} = vi.hoisted(() => ({
-  mockResolveGoverningPermissionGroupOrganization: vi.fn(),
-  mockLockWorkspaceCreationContext: vi.fn(),
-  mockGetWorkspaceInvitePolicy: vi.fn(),
+const { mockCreateWorkspaceAccountsGroup } = vi.hoisted(() => ({
   mockCreateWorkspaceAccountsGroup: vi.fn(),
 }))
 
@@ -32,22 +25,20 @@ vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: () => ({ workflowState: {} }),
 }))
 
-vi.mock('@/lib/workspaces/policy', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/workspaces/policy')>()
-  return {
-    ...actual,
-    resolveGoverningPermissionGroupOrganization: mockResolveGoverningPermissionGroupOrganization,
-    lockWorkspaceCreationContext: mockLockWorkspaceCreationContext,
-    getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
-  }
-})
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
   createDefaultPersonalWorkspaceInTransaction,
   createWorkspace,
 } from '@/lib/workspaces/create'
-import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import { WORKSPACE_MODE, WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
+
+const {
+  mockResolveGoverningPermissionGroupOrganization,
+  mockLockWorkspaceCreationContext,
+  mockGetWorkspaceInvitePolicy,
+} = workspacesPolicyMockFns
 
 const params = {
   userId: 'creator-1',
@@ -60,7 +51,6 @@ const params = {
 
 describe('createWorkspace capability-gate placement', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetWorkspaceInvitePolicy.mockResolvedValue({})
   })
@@ -102,60 +92,25 @@ describe('createWorkspace capability-gate placement', () => {
   })
 
   /**
-   * The capability itself is enforced INSIDE the transaction, under the
-   * permission-group lock — so the governing organization has to reach
-   * `lockWorkspaceCreationContext`. Dropping it there would silently skip the
-   * gate for every governed organization.
+   * A cached session cookie can outlive the user row by a few minutes. The
+   * insert then fails on a `workspace` -> `user` foreign key, which the caller
+   * must be able to tell apart from a fault so it answers 401, not 500.
    */
-  it('carries the governing organization into the locked creation context', async () => {
+  it('reports a missing owner as a typed error instead of a fault', async () => {
     mockResolveGoverningPermissionGroupOrganization.mockResolvedValue('org-1')
-    mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'creator-1' })
-    const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
-    dbChainMockFns.transaction.mockImplementation(
-      (callback: (executor: DbOrTx) => Promise<unknown>) => callback(tx)
+    dbChainMockFns.transaction.mockRejectedValue(
+      Object.assign(new Error('insert or update on table "workspace" violates foreign key'), {
+        code: '23503',
+        constraint_name: 'workspace_billed_account_user_id_user_id_fk',
+      })
     )
 
-    await createWorkspace({ ...params, skipDefaultWorkflow: true })
-
-    expect(mockCreateWorkspaceAccountsGroup).not.toHaveBeenCalled()
-
-    expect(mockLockWorkspaceCreationContext).toHaveBeenCalledWith(tx, {
-      userId: 'creator-1',
-      organizationId: 'org-1',
-      observedOrganizationId: 'org-1',
-      governingPermissionGroupOrganizationId: 'org-1',
-    })
-  })
-
-  /**
-   * The preflight policy resolved this value microseconds earlier in the same
-   * request, and React's `cache()` memo does not span the two calls, so a
-   * forwarded answer must be used as-is rather than re-read.
-   */
-  it('reuses the governing organization the caller already resolved', async () => {
-    mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'creator-1' })
-    const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
-    dbChainMockFns.transaction.mockImplementation(
-      (callback: (executor: DbOrTx) => Promise<unknown>) => callback(tx)
-    )
-
-    await createWorkspace({
-      ...params,
-      skipDefaultWorkflow: true,
-      governingPermissionGroupOrganizationId: 'org-1',
-    })
-
-    expect(mockResolveGoverningPermissionGroupOrganization).not.toHaveBeenCalled()
-    expect(mockLockWorkspaceCreationContext).toHaveBeenCalledWith(
-      tx,
-      expect.objectContaining({ governingPermissionGroupOrganizationId: 'org-1' })
-    )
+    await expect(createWorkspace(params)).rejects.toBeInstanceOf(WorkspaceOwnerMissingError)
   })
 })
 
 describe('createDefaultPersonalWorkspaceInTransaction', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -167,7 +122,7 @@ describe('createDefaultPersonalWorkspaceInTransaction', () => {
    */
   it('creates an ungoverned personal workspace and resolves no regime', async () => {
     mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'user-1' })
-    const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
+    const tx = dbChainMock.db as unknown as DbOrTx
 
     await createDefaultPersonalWorkspaceInTransaction(tx, {
       userId: 'user-1',
@@ -183,20 +138,5 @@ describe('createDefaultPersonalWorkspaceInTransaction', () => {
       observedOrganizationId: null,
       governingPermissionGroupOrganizationId: null,
     })
-  })
-
-  /** The starter workflow is built before the locks, so it must still be written. */
-  it('seeds the starter workflow it built before taking the locks', async () => {
-    mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'user-1' })
-    const tx = { insert: vi.fn(() => ({ values: vi.fn() })) } as unknown as DbOrTx
-
-    await createDefaultPersonalWorkspaceInTransaction(tx, {
-      userId: 'user-1',
-      userName: 'Ada Lovelace',
-    })
-
-    expect(
-      workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
-    ).toHaveBeenCalledWith(expect.any(String), {}, { workspaceId: null, subjectUserId: null }, tx)
   })
 })

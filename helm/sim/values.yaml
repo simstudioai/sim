@@ -1569,6 +1569,17 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Converges knowledge search projections for documents whose source, ACL, or
+    # chunks changed. Writers request passes as they commit; this is the backstop.
+    knowledgeProjection:
+      enabled: true
+      name: knowledge-projection
+      schedule: "*/1 * * * *"
+      path: "/api/cron/knowledge-projection"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
   # Global CronJob settings
   image:
     repository: curlimages/curl

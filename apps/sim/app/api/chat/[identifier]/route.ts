@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { chat, workflow } from '@sim/db/schema'
+import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -156,44 +156,6 @@ export const POST = withRouteHandler(
 
       if (!deployment.isActive) {
         logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
-
-        const [workflowRecord] = await db
-          .select({ workspaceId: workflow.workspaceId })
-          .from(workflow)
-          .where(and(eq(workflow.id, deployment.workflowId), isNull(workflow.archivedAt)))
-          .limit(1)
-
-        const workspaceId = workflowRecord?.workspaceId
-        if (!workspaceId) {
-          logger.warn(
-            `[${requestId}] Cannot log: workflow ${deployment.workflowId} has no workspace`
-          )
-          return createErrorResponse('This chat is currently unavailable', 403)
-        }
-
-        const executionId = generateId()
-        const loggingSession = new LoggingSession(
-          deployment.workflowId,
-          executionId,
-          'chat',
-          requestId
-        )
-
-        await loggingSession.safeStart({
-          userId: deployment.userId,
-          workspaceId,
-          variables: {},
-        })
-
-        await loggingSession.safeCompleteWithError({
-          error: {
-            message: 'This chat is currently unavailable. The chat has been disabled.',
-            stackTrace: undefined,
-          },
-          traceSpans: [],
-          skipCost: true,
-        })
-
         return createErrorResponse('This chat is currently unavailable', 403)
       }
 

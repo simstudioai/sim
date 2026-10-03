@@ -32,6 +32,7 @@ interface ListCredentialGroupMcpConnectionReferencesInput {
   email?: string
   mcpServerId?: string
   connectorId?: string
+  allowedConnectorIds?: readonly string[]
 }
 
 function decodeToolNames(value: unknown): string[] {
@@ -52,15 +53,23 @@ export async function listCredentialGroupMcpConnectionReferences({
   email,
   mcpServerId,
   connectorId,
+  allowedConnectorIds,
 }: ListCredentialGroupMcpConnectionReferencesInput): Promise<{
   mcpConnections: CredentialGroupMcpConnectionReference[]
   nextCursor: string | null
 }> {
+  if (allowedConnectorIds?.length === 0) {
+    if (cursor) throw new CredentialGroupMcpConnectionCursorNotFoundError()
+    return { mcpConnections: [], nextCursor: null }
+  }
   const ownerScope = resourceScopeFromOwner({ workspaceId, organizationId })
   const scope = () =>
     and(
       resourceScopeCondition(credential, ownerScope),
       eq(credential.type, 'managed_mcp'),
+      allowedConnectorIds
+        ? inArray(mcpServers.managedConnectorId, [...allowedConnectorIds])
+        : undefined,
       eq(credential.managedOauthStatus, 'active'),
       eq(credential.mcpOauthConfigVersion, mcpServers.oauthConfigVersion),
       eq(credentialGroup.id, credentialGroupId),

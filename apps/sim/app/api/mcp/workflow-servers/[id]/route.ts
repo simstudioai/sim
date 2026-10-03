@@ -39,7 +39,7 @@ export const GET = withRouteHandler(
   withMcpAuth<RouteParams>(
     'read',
     'deploy.mcp'
-  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  )(async (_request: NextRequest, { workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
@@ -156,7 +156,7 @@ export const DELETE = withRouteHandler(
     'deploy.mcp'
   )(
     async (
-      request: NextRequest,
+      _request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },
       { params }
     ) => {
@@ -179,8 +179,6 @@ export const DELETE = withRouteHandler(
             mcpOrchestrationStatus(result.errorCode)
           )
         }
-        const deletedServer = result.server
-
         logger.info(`[${requestId}] Successfully deleted workflow MCP server: ${serverId}`)
 
         return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })

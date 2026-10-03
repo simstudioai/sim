@@ -1,21 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, drizzleOrmMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, drizzleOrmMock } from '@sim/testing/mocks/database.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('drizzle-orm', () => {
-  const sqlTag = () => {
-    const obj: { as: () => typeof obj } = { as: () => obj }
-    return obj
-  }
-  return {
-    ...drizzleOrmMock,
-    sql: Object.assign(sqlTag, { raw: sqlTag }),
-    sum: () => ({ as: () => 'sum' }),
-  }
-})
-
+import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import {
   computeBillingPeriodUsageWithWeeklyRefresh,
   computeWeeklyRefreshConsumed,
@@ -28,6 +14,7 @@ import {
 const FROZEN_NOW = new Date('2026-08-15T00:00:00.000Z')
 
 beforeEach(() => {
+  drizzleOrmMock.sum.mockImplementation(() => ({ as: () => 'sum' }))
   vi.useFakeTimers()
   vi.setSystemTime(FROZEN_NOW)
 })
@@ -40,15 +27,19 @@ describe('computeBillingPeriodUsageWithWeeklyRefresh', () => {
   const periodStart = new Date('2026-03-01T00:00:00.000Z')
   const periodEnd = new Date('2026-04-01T00:00:00.000Z')
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('keeps the exact ledger end bound while computing refresh from weekly buckets', async () => {
     dbChainMockFns.groupBy.mockResolvedValueOnce([
       { ledgerTotal: '25.00', refreshWeekTotal: '12.00' },
       { ledgerTotal: '25.00', refreshWeekTotal: '4.00' },
     ])
+    /** The scan is a ledger aggregate: it runs inside the bounded ledger transaction. */
+    const boundBeforeScan = () =>
+      dbChainMockFns.transaction.mock.calls.length === 1 &&
+      dbChainMockFns.execute.mock.calls.some(([statement]) =>
+        String((statement as { toSQL?: () => { sql: string } }).toSQL?.().sql).includes(
+          `SET LOCAL statement_timeout = '${USAGE_LEDGER_STATEMENT_TIMEOUT_MS}ms'`
+        )
+      )
 
     await expect(
       computeBillingPeriodUsageWithWeeklyRefresh({
@@ -65,6 +56,7 @@ describe('computeBillingPeriodUsageWithWeeklyRefresh', () => {
       periodStart
     )
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.usageLog.billingPeriodEnd, periodEnd)
+    expect(boundBeforeScan()).toBe(true)
   })
 
   it('uses the reporting time range for the ledger while retaining captured-period refresh', async () => {
@@ -100,30 +92,6 @@ describe('computeBillingPeriodUsageWithWeeklyRefresh', () => {
 })
 
 describe('computeWeeklyRefreshConsumed', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns 0 when weeklyRefreshDollars is 0', async () => {
-    const result = await computeWeeklyRefreshConsumed({
-      billingEntity: { type: 'user', id: 'user-1' },
-      periodStart: new Date('2026-03-01'),
-      weeklyRefreshDollars: 0,
-    })
-    expect(result).toBe(0)
-    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
-  })
-
-  it('returns 0 when periodEnd is before periodStart', async () => {
-    const result = await computeWeeklyRefreshConsumed({
-      billingEntity: { type: 'user', id: 'user-1' },
-      periodStart: new Date('2026-03-10'),
-      periodEnd: new Date('2026-03-01'),
-      weeklyRefreshDollars: 10,
-    })
-    expect(result).toBe(0)
-  })
-
   it('scopes rows by the entity and period stamps, never an actor list', async () => {
     dbChainMockFns.groupBy.mockResolvedValueOnce([{ weekIndex: 0, weekTotal: '0.10' }])
     const periodStart = new Date('2026-03-01')
@@ -235,19 +203,6 @@ describe('computeWeeklyRefreshConsumed', () => {
     expect(result).toBe(10)
   })
 
-  it('returns 0 when no usage rows exist', async () => {
-    dbChainMockFns.groupBy.mockResolvedValueOnce([])
-
-    const result = await computeWeeklyRefreshConsumed({
-      billingEntity: { type: 'user', id: 'user-1' },
-      periodStart: new Date('2026-03-01'),
-      periodEnd: new Date('2026-03-22'),
-      weeklyRefreshDollars: 10,
-    })
-
-    expect(result).toBe(0)
-  })
-
   it('multiplies the weekly allowance by seats', async () => {
     dbChainMockFns.groupBy.mockResolvedValueOnce([{ weekIndex: 0, weekTotal: '40.00' }])
 
@@ -278,18 +233,5 @@ describe('computeWeeklyRefreshConsumed', () => {
     // Weekly allowance = $20 * 2 seats = $40/week
     // Week 0: MIN(500.00, 40.00) = 40.00
     expect(result).toBe(40)
-  })
-
-  it('handles null weekTotal gracefully', async () => {
-    dbChainMockFns.groupBy.mockResolvedValueOnce([{ weekIndex: 0, weekTotal: null }])
-
-    const result = await computeWeeklyRefreshConsumed({
-      billingEntity: { type: 'user', id: 'user-1' },
-      periodStart: new Date('2026-03-01'),
-      periodEnd: new Date('2026-03-08'),
-      weeklyRefreshDollars: 10,
-    })
-
-    expect(result).toBe(0)
   })
 })

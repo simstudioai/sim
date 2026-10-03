@@ -1,8 +1,12 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
+import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -10,9 +14,11 @@ import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
+  prefetchWorkspaceForkAvailability,
   prefetchWorkspaceHostContext,
   prefetchWorkspaceSidebar,
 } from '@/app/workspace/[workspaceId]/prefetch'
+import { prefetchWorkspaceAccess } from '@/app/workspace/[workspaceId]/prefetch-access'
 import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/block-visibility-loader'
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
 import { DesktopOAuthConnectListener } from '@/app/workspace/[workspaceId]/providers/desktop-oauth-connect-listener'
@@ -47,7 +53,21 @@ export default async function WorkspaceLayout({
   }
 
   const activeOrganizationId = getActiveOrganizationId(session)
-  const [cookieStore, initialOrgSettings, , tableRowTtlEnabled] = await Promise.all([
+  const principal = {
+    kind: 'session',
+    userId: session.user.id,
+    sessionId: session.session.id,
+  } as const
+  const [
+    cookieStore,
+    initialOrgSettings,
+    ,
+    tableRowTtlEnabled,
+    modelSelectorEnabled,
+    planModeEnabled,
+    organizationHref,
+    dashboardsEnabled,
+  ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
       ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
@@ -60,12 +80,25 @@ export default async function WorkspaceLayout({
       activeOrganizationId
     ),
     isTableRowTtlEnabled(),
+    isMothershipModelSelectorEnabled(),
+    isPlanModeEnabled(),
+    resolveOrganizationEntryPath(session),
+    isDashboardsEnabled(hostContext.hostOrganizationId),
+    prefetchWorkspaceAccess(queryClient, workspaceId, principal),
+    prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <FeatureFlagsProvider flags={{ 'table-row-ttl': tableRowTtlEnabled }}>
+      <FeatureFlagsProvider
+        flags={{
+          dashboards: dashboardsEnabled,
+          'table-row-ttl': tableRowTtlEnabled,
+          'mothership-model-selector': modelSelectorEnabled,
+          'mothership-plan-mode': planModeEnabled,
+        }}
+      >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
           <BrandingProvider
             hostOrganizationId={hostContext.hostOrganizationId}
@@ -83,12 +116,14 @@ export default async function WorkspaceLayout({
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
-                  <WorkspaceChrome
-                    sidebar={<Sidebar />}
-                    initialSidebarCollapsed={initialSidebarCollapsed}
-                  >
-                    {children}
-                  </WorkspaceChrome>
+                  <SettingsNavigationProvider>
+                    <WorkspaceChrome
+                      sidebar={<Sidebar organizationHref={organizationHref} />}
+                      initialSidebarCollapsed={initialSidebarCollapsed}
+                    >
+                      {children}
+                    </WorkspaceChrome>
+                  </SettingsNavigationProvider>
                 </WorkspacePermissionsProvider>
               </div>
             </GlobalCommandsProvider>

@@ -2,8 +2,10 @@ import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { getErrorMessage } from '@sim/utils/errors'
-import chalk from 'chalk'
+import { toRecord } from '@sim/utils/object'
 import { Command, Option } from 'commander'
+import { printLine } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
 import { buildApprovalUrl, createAuthRequest, pollForKey } from '../auth/device-flow'
 import {
   discoverOAuthProvider,
@@ -18,6 +20,7 @@ import {
 import {
   configPath,
   credentialsPath,
+  DEFAULT_OUTPUT_FORMAT,
   DEFAULT_PROFILE,
   deleteProfile,
   FORBIDDEN_IN_VALUE,
@@ -43,6 +46,7 @@ import {
 } from '../config/index'
 import { ProfileOverrideError, redact } from '../config/profile'
 import { clientFrom, globalsOf, profileFrom } from '../context'
+import { setSoftExitCode } from '../embed-context'
 import {
   type GetMetaResponse,
   type GetWorkspaceResponse,
@@ -84,18 +88,18 @@ function openBrowser(url: string): void {
 }
 
 function presentAuthentication(source: SettingSource): {
-  authenticated: boolean
+  configured: boolean
   source: SettingSource
 } {
   switch (source) {
     case 'flag':
-      return { authenticated: true, source: 'flag' }
+      return { configured: true, source: 'flag' }
     case 'env':
-      return { authenticated: true, source: 'env' }
+      return { configured: true, source: 'env' }
     case 'credentials':
-      return { authenticated: true, source: 'credentials' }
+      return { configured: true, source: 'credentials' }
     case 'unset':
-      return { authenticated: false, source: 'unset' }
+      return { configured: false, source: 'unset' }
     case 'config':
     case 'default':
       throw new SimApiError(`Unexpected credential source "${source}".`, 0)
@@ -296,9 +300,9 @@ async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<Sele
     )
   }
 
-  console.log('\nAvailable workspaces:')
+  printLine('\nAvailable workspaces:')
   for (const [index, workspace] of workspaces.entries()) {
-    console.log(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
+    printLine(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
   }
 
   const prompt = createInterface({ input: process.stdin, output: process.stderr })
@@ -354,10 +358,10 @@ function addProfileCommand(): Command {
         })
       })
 
-      console.log(chalk.green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
-      console.log(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
-      console.log(`  Authentication: ${safeOneLine(authProfile)}`)
-      console.log(chalk.dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
+      printLine(styles().green(`✓ Added profile "${safeOneLine(profileName)}" in ${configPath()}`))
+      printLine(`  Workspace: ${safeOneLine(workspace.name)} (${workspace.id})`)
+      printLine(`  Authentication: ${safeOneLine(authProfile)}`)
+      printLine(styles().dim(`  Try: sim --profile ${safeOneLine(profileName)} whoami`))
     })
 }
 
@@ -392,8 +396,8 @@ async function chooseLoginFlow(
     isLikelyRemoteSession() &&
     options.callbackPort === undefined
   ) {
-    console.log(
-      chalk.dim(
+    printLine(
+      styles().dim(
         'This looks like a remote session; using the pairing code to create a personal API key. To use OAuth, forward a port and pass --method oauth --callback-port <port>.\n'
       )
     )
@@ -410,8 +414,8 @@ async function chooseLoginFlow(
         0
       )
     }
-    console.log(
-      chalk.dim(
+    printLine(
+      styles().dim(
         `${profile.endpoint} does not offer OAuth sign-in; using the pairing code to create a personal API key.\n`
       )
     )
@@ -443,17 +447,17 @@ async function loginWithOAuth(
   callbackPort: number | undefined,
   expected: LoginProfileSnapshot
 ): Promise<void> {
-  console.log(
-    `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
+  printLine(
+    `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`
   )
 
   const tokens = await loginWithBrowser(profile.endpoint, {
     scopes: options.readOnly ? OAUTH_SCOPES_READ_ONLY : OAUTH_SCOPES_FULL,
     callbackPort,
     onAuthorizeUrl: (url) => {
-      console.log(`\n${url}`)
+      printLine(`\n${url}`)
       if (options.browser) openBrowser(url)
-      console.log(chalk.dim('\nWaiting for you to approve in the browser…'))
+      printLine(styles().dim('\nWaiting for you to approve in the browser…'))
     },
   })
 
@@ -486,8 +490,8 @@ async function loginWithOAuth(
           try {
             writeCredentialsProfile(profile.name, null)
           } catch {}
-          console.log(
-            chalk.yellow(
+          printLine(
+            styles().yellow(
               `Could not restore the previous profile safely (${safeOneLine(getErrorMessage(rollbackError))}). Its local login was cleared to avoid using it against the wrong endpoint. The new server login will still be revoked.`
             )
           )
@@ -499,8 +503,8 @@ async function loginWithOAuth(
     try {
       await revokeToken(profile.endpoint, tokens.refreshToken)
     } catch (revocationError) {
-      console.log(
-        chalk.yellow(
+      printLine(
+        styles().yellow(
           `Could not revoke the uncommitted login (${safeOneLine(getErrorMessage(revocationError))}). Revoke Sim CLI in Settings → General → Authorized apps.`
         )
       )
@@ -508,30 +512,30 @@ async function loginWithOAuth(
     throw error
   }
 
-  console.log(chalk.green(`\n✓ Logged in. Login stored in ${credentialsPath()}`))
+  printLine(styles().green(`\n✓ Logged in. Login stored in ${credentialsPath()}`))
   /**
    * Read back from the granted scope rather than the requested flag. The
    * authorization server decides what it issued, and a person can narrow the
    * grant on the consent page, so `--read-only` is a request and this is the
    * answer.
    */
-  console.log(
-    chalk.dim(
+  printLine(
+    styles().dim(
       grantsWriteAccess(tokens.scope)
         ? '  Renews itself; revoke it any time in Settings → General → Authorized apps, or with: sim logout'
         : '  Read-only login — commands that change anything will be refused.'
     )
   )
   if (!profile.workspaceId) {
-    console.log(
-      chalk.dim('  No default workspace. Set one with: sim configure --set-workspace <id>')
+    printLine(
+      styles().dim('  No default workspace. Set one with: sim configure --set-workspace <id>')
     )
   }
 }
 
 export function loginCommand(): Command {
   return new Command('login')
-    .description('Sign in through the browser and store the login for the profile')
+    .description('Log in through the browser and store the login for the profile')
     .addOption(
       new Option(
         '--method <method>',
@@ -565,7 +569,7 @@ export function loginCommand(): Command {
       if (storedCredential && !options.yes) {
         const confirmed = await confirmProfileOverwrite(profile.name)
         if (!confirmed) {
-          console.log(chalk.dim('Login cancelled; the existing profile was not changed.'))
+          printLine(styles().dim('Login cancelled; the existing profile was not changed.'))
           return
         }
       }
@@ -615,15 +619,15 @@ async function loginWithHandoff(
   const auth = createAuthRequest()
   const url = buildApprovalUrl(profile.endpoint, auth, profile.workspaceId ?? undefined)
 
-  console.log(
-    `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(safeOneLine(profile.name))}`
+  printLine(
+    `Signing in to ${styles().bold(profile.endpoint)} as profile ${styles().bold(safeOneLine(profile.name))}`
   )
-  console.log(`\nPairing code: ${chalk.bold(auth.pairing)}`)
-  console.log(chalk.dim('Confirm this code matches what the browser shows before approving.\n'))
-  console.log(url)
+  printLine(`\nPairing code: ${styles().bold(auth.pairing)}`)
+  printLine(styles().dim('Confirm this code matches what the browser shows before approving.\n'))
+  printLine(url)
 
   if (options.browser) openBrowser(url)
-  console.log(chalk.dim('\nWaiting for approval…'))
+  printLine(styles().dim('\nWaiting for approval…'))
 
   const key = await pollForKey(profile.endpoint, auth)
   try {
@@ -660,8 +664,8 @@ async function loginWithHandoff(
           try {
             writeCredentialsProfile(profile.name, null)
           } catch {}
-          console.log(
-            chalk.yellow(
+          printLine(
+            styles().yellow(
               `Could not restore the previous profile safely (${safeOneLine(getErrorMessage(rollbackError))}). Its local login was cleared to avoid using it against the wrong endpoint.`
             )
           )
@@ -671,26 +675,26 @@ async function loginWithHandoff(
     })
   } catch (error) {
     const keyId = typeof key.id === 'string' && key.id ? safeOneLine(key.id) : 'unknown'
-    console.log(
-      chalk.yellow(
+    printLine(
+      styles().yellow(
         `API key ${keyId} was created but could not be stored safely. Revoke it in Settings → API keys.`
       )
     )
     throw error
   }
 
-  console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
+  printLine(styles().green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
   if (key.workspaceBound && key.workspaceId) {
-    console.log(chalk.dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
+    printLine(styles().dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
   } else if (key.workspaceId) {
-    console.log(
-      chalk.dim(
+    printLine(
+      styles().dim(
         `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
       )
     )
   } else {
-    console.log(
-      chalk.dim(
+    printLine(
+      styles().dim(
         '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
       )
     )
@@ -726,10 +730,10 @@ async function revokeStoredOAuth(credential: StoredOAuthCredential): Promise<voi
     const endpoint = issuer.toString().replace(/\/$/, '')
     displayEndpoint = safeOneLine(endpoint)
     await revokeToken(endpoint, credential.refreshToken)
-    console.log(chalk.dim('  Signed out of Sim; every token from this login was revoked.'))
+    printLine(styles().dim('  Signed out of Sim; every token from this login was revoked.'))
   } catch (error) {
-    console.log(
-      chalk.yellow(
+    printLine(
+      styles().yellow(
         `  Could not revoke the login on ${displayEndpoint} (${safeOneLine(getErrorMessage(error))}). Revoke it in Settings → General → Authorized apps.`
       )
     )
@@ -758,13 +762,13 @@ export function logoutCommand(): Command {
           return { removed: deleteProfile(profileName), credential }
         })
         if (!removed.config && !removed.credentials) {
-          console.log(chalk.dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
+          printLine(styles().dim(`Nothing stored for profile "${safeOneLine(profileName)}".`))
           return
         }
-        console.log(chalk.green(`✓ Removed profile "${safeOneLine(profileName)}".`))
+        printLine(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
         if (credential?.kind === 'api_key') {
-          console.log(
-            chalk.dim('  The key itself is still active — revoke it in Settings → API keys.')
+          printLine(
+            styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
           )
         }
         return
@@ -789,17 +793,17 @@ export function logoutCommand(): Command {
         return credential
       })
       if (!credential) {
-        console.log(chalk.dim(`No stored login for profile "${safeOneLine(profileName)}".`))
+        printLine(styles().dim(`No stored login for profile "${safeOneLine(profileName)}".`))
         return
       }
 
-      console.log(
-        chalk.green(`✓ Removed the stored login for profile "${safeOneLine(profileName)}".`)
+      printLine(
+        styles().green(`✓ Removed the stored login for profile "${safeOneLine(profileName)}".`)
       )
       if (credential.kind === 'api_key') {
         /** Local API-key removal cannot revoke the server-side key. */
-        console.log(
-          chalk.dim('  The key itself is still active — revoke it in Settings → API keys.')
+        printLine(
+          styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
         )
       }
     })
@@ -819,7 +823,7 @@ interface VerifiedWorkspace {
  * missing workspace needs `sim configure`, and an unreachable endpoint needs
  * neither.
  */
-type Verification = { keyType: KeyType | null } & (
+type Verification = { keyType: KeyType | null; authenticated: boolean | null } & (
   | { status: 'verified'; workspace: VerifiedWorkspace; detail: null }
   | {
       status: 'rejected' | 'unreachable' | 'unauthenticated' | 'no-workspace' | 'disabled'
@@ -830,48 +834,12 @@ type Verification = { keyType: KeyType | null } & (
 
 type KeyType = GetMetaResponse['data']['keyType']
 
-/**
- * Reads which kind of key is in play, as a diagnostic only.
- *
- * `PRINCIPAL_KIND_NOT_PERMITTED` is the failure this answers: a personal key on
- * a workspace-key operation refuses every call, and the natural move — running
- * `whoami` — used to show a green check and say nothing about the kind. Failures
- * are swallowed to `null` because the verdict and the exit code belong to the
- * workspace read below; a diagnostic must not change either.
- */
-async function readKeyType(client: Pick<SimClient, 'request'>): Promise<KeyType | null> {
-  const operation = V2_OPERATIONS.getMeta
-  try {
-    const response = await client.request<GetMetaResponse>(operation.path, {
-      method: operation.method,
-    })
-    return response.data.keyType
-  } catch {
-    return null
-  }
-}
+/** Definitive profile refusals, including a workspace the credential cannot access. */
+const PROFILE_REJECTION_STATUSES = new Set([401, 403, 404])
 
 /**
- * The only answers that are a verdict on the credentials themselves.
- *
- * 401 and 403 are the server judging the key; 404 means the configured
- * workspace is not one this key can see. Everything else — a 502 from a proxy
- * mid-deploy, a 429, a transport failure (status 0), an endpoint answering 200
- * with a login page — says nothing about the key, and calling it `rejected`
- * told a user to run `sim login` for something logging in cannot fix. That is
- * the flaky-VPN confusion the exit-code split exists to prevent.
- */
-const CREDENTIAL_VERDICT_STATUSES = new Set([401, 403, 404])
-
-/**
- * `whoami` is the command people run to answer "am I set up correctly?", so the
- * exit status has to carry that answer — reporting a junk key with exit 0 is the
- * defect this mapping closes.
- *
- * 1 is the CLI's blanket "explained failure" code and means the credentials
- * themselves are wrong. 2 is reserved for a check that could not be made at all:
- * that is a different fix — retrying or setting a workspace helps, logging in
- * again does not — and a script must be able to tell the two apart.
+ * Exit 1 reports a definitive refusal or missing credential. Exit 2 means the
+ * profile check could not finish: retrying or configuring a workspace may help.
  */
 const WHOAMI_EXIT_CODES = {
   verified: 0,
@@ -892,10 +860,9 @@ const WHOAMI_EXIT_CODES = {
  * workspace's *name*, which is what tells a user the id they pasted is the
  * workspace they meant.
  *
- * It is workspace-scoped, so a profile with no workspace has nothing to check
- * against. That is reported rather than papered over with an account-scoped call
- * a workspace-bound key would fail for reasons having nothing to do with its
- * validity.
+ * Metadata verifies the credential without requiring a workspace. The workspace
+ * read separately verifies access, and remains a fallback for older servers
+ * whose metadata endpoint is unavailable.
  */
 async function verifyProfile(
   client: Pick<SimClient, 'request'>,
@@ -904,20 +871,46 @@ async function verifyProfile(
   if (!profile.apiKey && !profile.oauth) {
     return {
       status: 'unauthenticated',
+      authenticated: false,
       workspace: null,
       keyType: null,
       detail: `not logged in — run: sim login --profile ${safeOneLine(profile.name)}`,
     }
   }
 
-  // Read the kind before the workspace, so it is reported even for a profile
-  // with no workspace to check against — the case where a key that cannot be
-  // used is most likely to look merely unconfigured.
-  const keyType = await readKeyType(client)
+  let keyType: KeyType | null = null
+  let authenticated: boolean | null = null
+  const metaOperation = V2_OPERATIONS.getMeta
+  try {
+    const response = await client.request<unknown>(metaOperation.path, {
+      method: metaOperation.method,
+    })
+    const reportedKeyType = toRecord(toRecord(response).data).keyType
+    if (
+      reportedKeyType === 'personal' ||
+      reportedKeyType === 'workspace' ||
+      reportedKeyType === 'oauth_access_token'
+    ) {
+      keyType = reportedKeyType
+      authenticated = true
+    }
+  } catch (error) {
+    if (!(error instanceof SimApiError)) throw error
+    if (error.status === 401 || error.status === 403) {
+      return {
+        status: 'rejected',
+        authenticated: false,
+        workspace: null,
+        keyType: null,
+        detail: error.message,
+      }
+    }
+  }
 
   if (!profile.workspaceId) {
     return {
       status: 'no-workspace',
+      authenticated,
       workspace: null,
       keyType,
       detail: `no workspace to check against — run: sim configure --profile ${safeOneLine(profile.name)} --set-workspace <id>`,
@@ -933,11 +926,18 @@ async function verifyProfile(
     const { id, name, memberCount } = response.data
     // Projected field by field: the record carries display fields the machine
     // output has no business inventing a contract for.
-    return { status: 'verified', workspace: { id, name, memberCount }, keyType, detail: null }
+    return {
+      status: 'verified',
+      authenticated: true,
+      workspace: { id, name, memberCount },
+      keyType,
+      detail: null,
+    }
   } catch (error) {
     if (!(error instanceof SimApiError)) throw error
     return {
-      status: CREDENTIAL_VERDICT_STATUSES.has(error.status) ? 'rejected' : 'unreachable',
+      status: PROFILE_REJECTION_STATUSES.has(error.status) ? 'rejected' : 'unreachable',
+      authenticated: error.status === 401 ? false : authenticated,
       workspace: null,
       keyType,
       detail: error.message,
@@ -950,19 +950,19 @@ function presentVerification(verification: Verification): string {
     const { name, memberCount } = verification.workspace
     const members = `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`
     // The name is server-supplied and lands in a terminal unescaped otherwise.
-    return `${chalk.green('✓')} ${safeOneLine(name)} · ${members}`
+    return `${styles().green('✓')} ${safeOneLine(name)} · ${members}`
   }
 
   const detail = safeOneLine(verification.detail)
   switch (verification.status) {
     case 'rejected':
-      return `${chalk.red('✗')} ${detail}`
+      return `${styles().red('✗')} ${detail}`
     case 'unauthenticated':
-      return chalk.yellow(`not logged in — ${detail}`)
+      return styles().yellow(`not logged in — ${detail}`)
     case 'disabled':
-      return chalk.dim(detail)
+      return styles().dim(detail)
     default:
-      return chalk.yellow(`could not check — ${detail}`)
+      return styles().yellow(`could not check — ${detail}`)
   }
 }
 
@@ -979,13 +979,14 @@ export function whoamiCommand(): Command {
         ? await verifyProfile(client, profile)
         : {
             status: 'disabled',
+            authenticated: authentication.configured ? null : false,
             workspace: null,
             keyType: null,
             detail: 'not checked (--no-verify)',
           }
 
       const annotate = (value: string, source: string) =>
-        source === 'unset' ? chalk.dim('not set') : `${value} ${chalk.dim(`(${source})`)}`
+        source === 'unset' ? styles().dim('not set') : `${value} ${styles().dim(`(${source})`)}`
 
       printRecord(
         profile.output,
@@ -994,14 +995,14 @@ export function whoamiCommand(): Command {
           ['Endpoint', annotate(profile.endpoint, sources.endpoint)],
           [
             'Login',
-            authentication.authenticated
+            authentication.configured
               ? annotate(profile.oauth ? 'OAuth' : 'API key', authentication.source)
-              : chalk.yellow('not logged in'),
+              : styles().yellow('not logged in'),
           ],
           [
             'Key type',
             verification.keyType ??
-              chalk.dim(options.verify ? 'unknown' : 'not checked (--no-verify)'),
+              styles().dim(options.verify ? 'unknown' : 'not checked (--no-verify)'),
           ],
           ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
           ['Output', annotate(profile.output, sources.output)],
@@ -1012,7 +1013,7 @@ export function whoamiCommand(): Command {
           endpoint: profile.endpoint,
           workspaceId: profile.workspaceId,
           output: profile.output,
-          authenticated: authentication.authenticated,
+          authenticated: verification.authenticated,
           sources: {
             endpoint: sources.endpoint,
             authentication: authentication.source,
@@ -1031,7 +1032,7 @@ export function whoamiCommand(): Command {
       // Set rather than thrown: the resolved settings above are the answer the
       // user came for, and a thrown error would replace them with one red line.
       const exitCode = WHOAMI_EXIT_CODES[verification.status]
-      if (exitCode !== 0) process.exitCode = exitCode
+      if (exitCode !== 0) setSoftExitCode(exitCode)
     })
 }
 
@@ -1046,11 +1047,14 @@ interface ProfileRow {
 }
 
 const PROFILE_COLUMNS: Column<ProfileRow>[] = [
-  { header: '', value: (row) => (row.active ? chalk.green('*') : ' ') },
+  { header: '', value: (row) => (row.active ? styles().green('*') : ' ') },
   { header: 'profile', value: (row) => safeOneLine(row.name) },
   { header: 'key', value: (row) => (row.error ? text(null) : row.hasKey ? 'yes' : 'no') },
   { header: 'auth', value: (row) => (row.authProfile ? safeOneLine(row.authProfile) : text(null)) },
-  { header: 'error', value: (row) => (row.error ? chalk.red(safeOneLine(row.error)) : text(null)) },
+  {
+    header: 'error',
+    value: (row) => (row.error ? styles().red(safeOneLine(row.error)) : text(null)),
+  },
 ]
 
 /**
@@ -1103,14 +1107,14 @@ function profileListingContext(command: Command): { activeName: string; output: 
     if (named && named !== DEFAULT_PROFILE && !listProfiles().includes(named)) throw error
 
     // A bad format is the caller's own request, not a broken profile: falling
-    // back to a table would hand a script human output with exit 0. Only the
+    // back to the default would hand a script output it did not ask for with exit 0. Only the
     // profile's *resolution* is tolerated here, never its arguments.
     const requested = globals.output ?? process.env.SIM_OUTPUT
     if (requested && !(OUTPUT_FORMATS as readonly string[]).includes(requested)) throw error
 
     return {
       activeName: named || DEFAULT_PROFILE,
-      output: requested ? (requested as OutputFormat) : 'table',
+      output: requested ? (requested as OutputFormat) : DEFAULT_OUTPUT_FORMAT,
     }
   }
 }
@@ -1130,7 +1134,7 @@ export function profilesCommand(): Command {
     if (rows.length === 0) {
       // The prose belongs to the human formats; a script asking for json must
       // get an empty list, not a sentence it cannot parse.
-      if (output === 'table') console.log(chalk.dim('No profiles yet. Run: sim login'))
+      if (output === 'table') printLine(styles().dim('No profiles yet. Run: sim login'))
       else printList(output, rows, PROFILE_COLUMNS)
       return
     }

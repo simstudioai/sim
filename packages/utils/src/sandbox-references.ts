@@ -18,15 +18,6 @@ const E2B_TEMPLATE_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]{0,62}$/
 const E2B_TEMPLATE_REFERENCE_NAME_PATTERN =
   /^(?:[a-z0-9][a-z0-9_-]{0,62}\/)?[a-z0-9][a-z0-9_-]{0,62}$/
 
-/** Normalizes a configured provider and rejects values outside the supported registry. */
-export function normalizeSandboxProvider(
-  value: string | undefined
-): SandboxProviderName | undefined {
-  if (!value) return undefined
-  const normalized = value.toLowerCase()
-  return SANDBOX_PROVIDER_IDS.find((provider) => provider === normalized)
-}
-
 /** E2B template families use the provider's untagged, lowercase name grammar. */
 export function isValidE2BTemplateName(value: string): boolean {
   return E2B_TEMPLATE_NAME_PATTERN.test(value)

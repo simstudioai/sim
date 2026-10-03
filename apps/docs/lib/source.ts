@@ -17,8 +17,7 @@ const METHOD_COLORS: Record<string, string> = {
 }
 
 /**
- * Custom openapi plugin that places method badges BEFORE the page name
- * in the sidebar (like Mintlify/Gumloop) instead of after.
+ * Places HTTP method badges before page names in the sidebar.
  */
 function openapiPluginBadgeLeft() {
   return {

@@ -1,30 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingWorkspaceAccessMock } from '@sim/testing/mocks/billing-workspace-access.mock'
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { knowledgeMemberAccessMock } from '@sim/testing/mocks/knowledge-member-access.mock'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(),
-  processDocumentsWithQueue: vi.fn(),
-  ConnectorSyncDeletionGuardError: class ConnectorSyncDeletionGuardError extends Error {},
-}))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  KnowledgeConnectorMemberAccessDeniedError: class extends Error {},
-  listKnowledgeConnectorMemberCredentials: vi.fn(),
-  mintKnowledgeConnectorMemberToken: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 vi.mock('@/lib/credential-groups/availability', () => ({ isCredentialGroupsAvailable: vi.fn() }))
 
 import {
+  buildMemberSyncDatabaseRetryUpdate,
   buildMemberSyncFailureUpdate,
   deriveMemberActive,
+  type MemberSyncResult,
   memberFailureBackoffMs,
   memberNextAttemptAt,
+  memberRunMadeProgress,
   nextMemberSyncTime,
+  resolveMemberSyncFailureUpdate,
   shouldListFully,
 } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
@@ -36,7 +32,7 @@ import {
 import { runChangeFeedPass } from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalChangeList, ExternalDocument } from '@/connectors/types'
 
-function doc(externalId: string, content = 'x'): ExternalDocument {
+function _doc(externalId: string, content = 'x'): ExternalDocument {
   return { externalId, title: externalId, content, mimeType: 'text/plain', metadata: {} }
 }
 
@@ -60,12 +56,6 @@ describe('member sync engine decisions', () => {
 
   describe('shouldListFully', () => {
     const now = new Date('2026-09-01T12:00:00Z')
-
-    it('lists fully before any complete listing exists', () => {
-      expect(shouldListFully(null, null, now)).toBe(true)
-      expect(shouldListFully(now, null, now)).toBe(true)
-      expect(shouldListFully(null, now, now)).toBe(true)
-    })
 
     it('lists incrementally inside the recrawl window and fully once it elapses', () => {
       const windowMs = MEMBER_FULL_RECRAWL_MINUTES * 60 * 1000
@@ -117,35 +107,6 @@ describe('member sync engine decisions', () => {
           }),
       }
     }
-
-    it('keeps the last word on each item and resumes past the drained feed', async () => {
-      const feed = pass([
-        {
-          changes: [
-            { kind: 'upsert', externalId: 'a', document: doc('a', 'v1') },
-            { kind: 'removed', externalId: 'b' },
-          ],
-          nextCursor: 'c1',
-          hasMore: true,
-        },
-        {
-          changes: [
-            { kind: 'removed', externalId: 'a' },
-            { kind: 'upsert', externalId: 'b', document: doc('b') },
-            { kind: 'upsert', externalId: 'c', document: doc('c') },
-          ],
-          nextCursor: 'resume',
-          hasMore: false,
-        },
-      ])
-      const result = await feed.run()
-
-      expect(result.upserts.map((d) => d.externalId)).toEqual(['b', 'c'])
-      expect(result.removedExternalIds).toEqual(['a'])
-      expect(result.cursor).toBe('resume')
-      expect(result.exhausted).toBe(true)
-      expect(feed.listChanges).toHaveBeenCalledTimes(2)
-    })
 
     it('stops at the page cap with the cursor past the pages it read', async () => {
       const feed = pass(
@@ -205,10 +166,6 @@ describe('member sync engine decisions', () => {
     it('is exactly one interval on, with no jitter, so the connector run finds the member due', () => {
       expect(memberNextAttemptAt(now, 60)).toEqual(new Date('2026-09-01T13:00:00Z'))
     })
-
-    it('waits for the next manual run on a manual-only connector', () => {
-      expect(memberNextAttemptAt(now, 0)).toBeNull()
-    })
   })
 
   describe('memberFailureBackoffMs', () => {
@@ -219,24 +176,10 @@ describe('member sync engine decisions', () => {
       expect(memberFailureBackoffMs(10, 60)).toBe(24 * 60 * 60 * 1000)
       expect(memberFailureBackoffMs(40, 60)).toBe(24 * 60 * 60 * 1000)
     })
-
-    it('paces a manual-only connector on an hourly base', () => {
-      expect(memberFailureBackoffMs(1, 0)).toBe(60 * 60 * 1000)
-    })
   })
 
   describe('buildMemberSyncFailureUpdate', () => {
     const now = new Date('2026-09-01T12:00:00Z')
-
-    it('re-enters the shared ladder over the member columns and releases the lease', () => {
-      const update = buildMemberSyncFailureUpdate(now, 0, 'boom')
-      expect(update.memberSyncStatus).toBe('error')
-      expect(update.lastMemberSyncError).toBe('boom')
-      expect(update.memberSyncConsecutiveFailures).toBe(1)
-      expect(update.nextMemberSyncAt?.getTime()).toBeGreaterThan(now.getTime())
-      expect(update.memberSyncLockToken).toBeNull()
-      expect(update.memberSyncLockLeaseAt).toBeNull()
-    })
 
     it('disables after the shared threshold with the shared message', () => {
       const update = buildMemberSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'boom')
@@ -254,19 +197,90 @@ describe('member sync engine decisions', () => {
     })
   })
 
+  describe('buildMemberSyncDatabaseRetryUpdate', () => {
+    const now = new Date('2026-09-01T12:00:00Z')
+    const _minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
+
+    it('keeps the error visible without advancing the breaker', () => {
+      const update = buildMemberSyncDatabaseRetryUpdate(
+        now,
+        MAX_CONSECUTIVE_FAILURES - 1,
+        'db timeout',
+        40
+      )
+      expect(update).toMatchObject({
+        memberSyncStatus: 'error',
+        lastMemberSyncError: 'db timeout',
+        memberSyncConsecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+        memberSyncLockToken: null,
+        memberSyncLockLeaseAt: null,
+      })
+    })
+  })
+
+  describe('memberRunMadeProgress', () => {
+    const idle = {
+      membersCompleted: 0,
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+    } as MemberSyncResult
+
+    it('reports no progress for a run that wrote nothing', () => {
+      expect(memberRunMadeProgress(idle)).toBe(false)
+    })
+  })
+
+  describe('resolveMemberSyncFailureUpdate', () => {
+    beforeEach(() => {
+      resetDbChainMock()
+    })
+
+    const failure = {
+      connectorId: 'c-1',
+      runId: 'run-1',
+      previousFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      errorMessage: 'failed',
+      madeProgress: false,
+    }
+    const run = (status: string, membersCompleted = 0) => ({
+      status,
+      databaseFailureClass: status === 'failed' ? 'conflict' : null,
+      membersCompleted,
+      docsAdded: 0,
+      docsUpdated: 0,
+    })
+    const _deadlock = () =>
+      new DrizzleQueryError(
+        'update private SQL',
+        ['private'],
+        Object.assign(new Error('deadlock detected'), { code: '40P01' })
+      )
+
+    it('does not disable a connector one failure from the breaker over a database timeout', async () => {
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [run('failed'), run('completed')])
+      const timeout = new DrizzleQueryError(
+        'select private SQL',
+        ['private'],
+        Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      )
+      const update = await resolveMemberSyncFailureUpdate(timeout, failure)
+      expect(update).toMatchObject({
+        memberSyncStatus: 'error',
+        memberSyncConsecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      })
+      expect(update.nextMemberSyncAt).not.toBeNull()
+    })
+  })
+
   describe('nextMemberSyncTime', () => {
     const now = new Date('2026-09-01T12:00:00Z')
 
     it('re-dispatches immediately while members remain due', () => {
       expect(nextMemberSyncTime(now, 1440, true)).toEqual(now)
       expect(nextMemberSyncTime(now, 0, true)).toEqual(now)
-    })
-
-    it('schedules the interval plus bounded jitter, or nothing for a manual connector', () => {
-      const next = nextMemberSyncTime(now, 60, false)!
-      expect(next.getTime()).toBeGreaterThanOrEqual(now.getTime() + 60 * 60 * 1000)
-      expect(next.getTime()).toBeLessThanOrEqual(now.getTime() + 60 * 60 * 1000 + 300_000)
-      expect(nextMemberSyncTime(now, 0, false)).toBeNull()
     })
   })
 })

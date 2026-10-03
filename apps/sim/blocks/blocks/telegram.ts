@@ -3,7 +3,6 @@ import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { TelegramResponse } from '@/tools/telegram/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -45,7 +44,7 @@ const AUDIO_FIELD = ['audioFile', 'audioRef', 'audio'] as const
 const ANIMATION_FIELD = ['animationFile', 'animationRef', 'animation'] as const
 const DOCUMENT_FIELD = ['attachmentFiles', 'files'] as const
 
-export const TelegramBlock: BlockConfig<TelegramResponse> = {
+export const TelegramBlock: BlockConfig = {
   type: 'telegram',
   name: 'Telegram',
   description: 'Interact with Telegram',

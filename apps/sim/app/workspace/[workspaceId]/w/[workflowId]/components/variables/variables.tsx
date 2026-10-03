@@ -52,8 +52,6 @@ const TYPE_OPTIONS: ComboboxOption[] = [
 /**
  * UI constants for consistent styling and sizing
  */
-const BADGE_HEIGHT = 20
-const BADGE_TEXT_SIZE = 13
 const ICON_SIZE = 13
 const HEADER_ICON_SIZE = 16
 const LINE_HEIGHT = 21
@@ -458,7 +456,8 @@ export function Variables({ readOnly = false }: VariablesProps) {
         <div className='flex items-center gap-2'>
           <Button
             variant='ghost'
-            className='-m-1.5 p-1.5!'
+            iconPadding='md'
+            className='-m-1.5'
             onClick={(e) => {
               e.stopPropagation()
               handleAddVariable()
@@ -470,7 +469,8 @@ export function Variables({ readOnly = false }: VariablesProps) {
           </Button>
           <Button
             variant='ghost'
-            className='-m-1.5 p-1.5!'
+            iconPadding='md'
+            className='-m-1.5'
             onClick={handleClose}
             aria-label='Close variables panel'
           >

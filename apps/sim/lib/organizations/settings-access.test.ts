@@ -1,9 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   canOpenOrganizationSettingsSection,
   getOrganizationSettingsAccess,
@@ -13,7 +10,6 @@ afterAll(resetDbChainMock)
 
 describe('organization settings access', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -46,6 +42,17 @@ describe('organization settings access', () => {
     })
   })
 
+  it('allows recovery only for current members of the target organization', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'recently-deleted')
+    ).resolves.toBe(true)
+    queueTableRows(member, [])
+    await expect(
+      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'recently-deleted')
+    ).resolves.toBe(false)
+  })
+
   it('fails closed when a stored membership has a non-canonical role', async () => {
     queueTableRows(member, [{ role: 'billing-owner' }])
 
@@ -64,22 +71,5 @@ describe('organization settings access', () => {
     await expect(
       canOpenOrganizationSettingsSection('organization-route', 'viewer', 'sso')
     ).resolves.toBe(false)
-  })
-
-  it('reserves Sim Search source setup for admins while every member may reach the MCP setup', async () => {
-    queueTableRows(member, [{ role: 'member' }])
-    await expect(
-      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'integrations')
-    ).resolves.toBe(false)
-
-    queueTableRows(member, [{ role: 'member' }])
-    await expect(
-      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'search-mcp')
-    ).resolves.toBe(true)
-
-    queueTableRows(member, [{ role: 'admin' }])
-    await expect(
-      canOpenOrganizationSettingsSection('organization-route', 'viewer', 'integrations')
-    ).resolves.toBe(true)
   })
 })

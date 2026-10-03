@@ -3,13 +3,12 @@ slug: what-is-retrieval-augmented-generation
 title: 'What Is Retrieval-Augmented Generation (RAG)?'
 description: 'Learn how retrieval-augmented generation connects language models to current or private knowledge, how RAG compares with fine-tuning, and how agentic RAG works.'
 date: 2026-08-11
-updated: 2026-09-06
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 6
 tags: [RAG, AI Agents, Knowledge Bases, Sim]
 ogImage: /library/what-is-retrieval-augmented-generation/cover.jpg
-canonical: https://www.sim.ai/library/what-is-retrieval-augmented-generation
 draft: false
 faq:
   - q: "Is RAG a type of fine-tuning?"
@@ -79,9 +78,9 @@ An agent can break a task into steps and call retrieval or [other tools exposed 
 
 For example, an agent reviewing a contract might retrieve the standard cancellation policy first. A clause in the contract could then prompt a second search for an account-specific amendment. A fixed retrieve-once pipeline would not issue the second query because the need for it appears only after the first document has been read.
 
-[Sim's native Knowledge Bases](https://sim.ai) make retrieval a workspace resource that an Agent block can call during reasoning. Knowledge bases sit alongside workflow logic and other tools, rather than requiring a separate vector-store integration built around one LLM application. [Dify can suit application-centered workflows](https://docs.dify.ai/en/cloud/use-dify/knowledge/integrate-knowledge-within-application), while Sim places retrieval inside an agent-native workspace so multiple workflow steps can query the same Knowledge Base. See the [Sim and Dify comparison](https://www.sim.ai/library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform) for more context.
+[Sim's native Knowledge Bases](https://www.sim.ai) make retrieval a workspace resource that an Agent block can call during reasoning. Knowledge bases sit alongside workflow logic and other tools, rather than requiring a separate vector-store integration built around one LLM application. [Dify can suit application-centered workflows](https://docs.dify.ai/en/cloud/use-dify/knowledge/integrate-knowledge-within-application), while Sim places retrieval inside an agent-native workspace so multiple workflow steps can query the same Knowledge Base. See the [Sim and Dify comparison](https://www.sim.ai/library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform) for more context.
 
-Sim's [Apache 2.0 repository](https://github.com/simstudioai/sim) also supports self-hosting, which gives you control over the agent runtime and retrieval infrastructure. Agentic RAG still costs more than a single retrieval pass because every retry adds model work and latency. You can limit reasoning depth, cache common searches, and rerank retrieved passages when response time or usage cost requires tighter bounds.
+Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) also supports self-hosting, which gives you control over the agent runtime and retrieval infrastructure. Enterprise features in `apps/sim/ee`, such as SSO, SCIM, access control, and audit logs, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use but requires an Enterprise subscription for production use. Agentic RAG still costs more than a single retrieval pass because every retry adds model work and latency. You can limit reasoning depth, cache common searches, and rerank retrieved passages when response time or usage cost requires tighter bounds.
 
 ## RAG tradeoffs
 
@@ -99,4 +98,4 @@ Before deployment, define targets for retrieval accuracy and response time, then
 
 Use retrieval as a workspace capability when an agent needs private or current information during a task. Sim's native Knowledge Bases give Agent blocks access to grounded context during a workflow, without requiring a separate vector-store integration tied to one chat application.
 
-You can create the workflow with Mothership, inspect and edit its logic in the visual builder, or connect it through the API. [Explore how to build a RAG-grounded agent in Sim](https://sim.ai).
+You can create the workflow with Chat, inspect and edit its logic in the visual builder, or connect it through the API. [Explore how to build a RAG-grounded agent in Sim](https://www.sim.ai).

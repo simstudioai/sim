@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 
 const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
 
@@ -45,7 +46,7 @@ const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
  * acquires it, and `lib/` must not import from `app/api/**`.
  */
 export async function acquirePermissionGroupOrgLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string,
   options?: { lockTimeoutAlreadyBounded?: boolean }
 ): Promise<void> {
@@ -54,7 +55,5 @@ export async function acquirePermissionGroupOrgLock(
       sql`select set_config('lock_timeout', ${`${PERMISSION_GROUP_LOCK_TIMEOUT_MS}ms`}, true)`
     )
   }
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`permission_group:${organizationId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(tx, 'permission_group', `permission_group:${organizationId}`)
 }

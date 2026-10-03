@@ -53,7 +53,7 @@ export async function deferConnectorSync(input: {
       .select({ id: knowledgeBase.id })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, input.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-      .for('update')
+      .for('share')
     if (!liveKnowledgeBase) throw new SyncLockLostException(input.connectorId)
     const [held] = await tx
       .select({ id: knowledgeConnector.id })
@@ -81,6 +81,7 @@ export async function deferConnectorSync(input: {
               docsListed: input.result.docsListed,
               docsHydratedOnce: input.result.docsHydratedOnce,
               observationsAdded: input.result.observationsAdded,
+              observationsRenewed: input.result.observationsRenewed,
               observationsRemoved: input.result.observationsRemoved,
               docsTombstoned: input.result.docsTombstoned,
               docsResurrected: input.result.docsResurrected,

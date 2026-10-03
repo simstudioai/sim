@@ -1,8 +1,8 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsChatParams } from '@/tools/cbinsights/chat'
 import {
   asArray,
-  asString,
   asStringArray,
   cbInsightsRequest,
   compactBody,
@@ -29,9 +29,9 @@ export const executeCbinsightsChatOperation: InternalToolOperationImplementation
       body: compactBody({ message, chatID: parseOptionalStringParam(params.chatId, 'chatId') }),
     },
     (data) => ({
-      chatId: asString(data.chatID),
-      title: asString(data.title),
-      message: asString(data.message),
+      chatId: toStringOrNull(data.chatID),
+      title: toStringOrNull(data.title),
+      message: toStringOrNull(data.message),
       sources: asArray(data.sources),
       relatedContent: asArray(data.relatedContent),
       suggestions: asStringArray(data.suggestions),

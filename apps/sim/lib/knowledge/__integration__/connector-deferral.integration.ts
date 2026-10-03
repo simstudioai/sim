@@ -18,7 +18,7 @@ vi.mock('@/connectors/registry.server', () => ({
     github_fixture: {
       id: 'github_fixture',
       name: 'Fixture GitHub',
-      auth: { mode: 'apiKey' },
+      auth: { mode: 'apiKey', optional: true },
       listDocuments: fixture.list,
       getDocument: vi.fn(),
     },

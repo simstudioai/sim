@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { isSensitiveKey } from '@/lib/core/security/redaction'
 import { anonymizeCandidateTool } from '@/tools/ashby/anonymize_candidate'

@@ -9,6 +9,7 @@ import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { PI_EVENT_FILTER_PATH } from '@/executor/handlers/pi/cloud/event-filter-source'
 import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
+import { PI_PACKAGE_VERSION } from '@/scripts/pi-sandbox-packages'
 
 export const REPO_DIR = '/workspace/repo'
 export const PROMPT_PATH = '/workspace/pi-prompt.txt'
@@ -141,6 +142,10 @@ export const PUSH_SCRIPT = `cd ${REPO_DIR}
  * there first — skipping that write does not fall back to the raw stream, it fails the run on the
  * missing module.
  *
+ * Rejects stale images before starting the agent. Each invocation resets Sim's private agent
+ * directory outside the clone, so neither stored credentials nor cache-warming settings can leak
+ * between rounds. Model credentials remain environment-only.
+ *
  * Selects `/bin/bash` explicitly because `pipefail` is not portable to `/bin/sh`, and without it
  * the pipeline reports the filter's exit code rather than Pi's, so an upstream crash would read as
  * a clean run. Both dedicated Pi images are Debian-based and provide Bash, so provider
@@ -165,7 +170,17 @@ export function buildPiScript(
       ? ' --no-extensions'
       : ''
   const extensionArgs = extensionPath ? ` -e ${extensionPath}` : ''
-  return `/bin/bash -o pipefail -c 'cd ${REPO_DIR}
+  return `/bin/bash -o pipefail -c 'set -e
+if ! PI_INSTALLED_VERSION="$(pi --version 2>/dev/null)" || [ "$PI_INSTALLED_VERSION" != "${PI_PACKAGE_VERSION}" ]; then
+  printf "%s\\n" "Pi sandbox runtime must be ${PI_PACKAGE_VERSION}. Rebuild or update the configured Pi sandbox image before running this workflow." >&2
+  exit 1
+fi
+export PI_CODING_AGENT_DIR=/workspace/sim-pi-agent
+(umask 077
+rm -rf "$PI_CODING_AGENT_DIR"
+mkdir -p "$PI_CODING_AGENT_DIR"
+printf "%s\\n" "{\\"cacheWarming\\":\\"off\\"}" > "$PI_CODING_AGENT_DIR/settings.json")
+cd ${REPO_DIR}
 pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH} | node ${PI_EVENT_FILTER_PATH}'`
 }
 

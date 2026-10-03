@@ -3,6 +3,14 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 /** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
 
+/**
+ * Max character length for a document's filename and text tag values. Both sit under btree
+ * indexes, and Postgres refuses an index row past about 2.7 KB (SQLSTATE 54000); 512 characters
+ * keeps a four-byte-per-character value inside that ceiling. Connectors truncate source titles to
+ * it; the document APIs reject longer input.
+ */
+export const MAX_DOCUMENT_INDEXED_TEXT_LENGTH = 512
+
 /** Hard bound for path-indexed knowledge folder trees and recursive cascades. */
 export const MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE = MAX_FOLDERS_PER_WORKSPACE
 
@@ -21,12 +29,9 @@ export const DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 100
 export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 200
 export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH = 200
 
-/** Maximum source IDs in one viewer-authorized progress request. */
-export const MAX_SEARCH_SOURCE_PROGRESS_ITEMS = 100
 /** Bound viewer-specific source resolution and document counts to a single page. */
 export const SEARCH_SOURCE_PAGE_SIZE = 25
 export const SEARCH_SOURCE_CANDIDATE_PAGE_SIZE = 100
-export const MAX_SEARCH_SOURCE_PROVIDER_TYPES = 100
 
 /**
  * Chunking a knowledge base gets when its creator names no configuration.

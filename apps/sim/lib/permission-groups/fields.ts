@@ -158,7 +158,7 @@ function booleanRestriction(
   enforcement: PermissionGroupEnforcement,
   feature: PlatformFeatureMeta
 ): BooleanRestrictionField {
-  const schema = z.boolean()
+  const schema = z.boolean().describe(feature.hint)
   return {
     kind: 'boolean-restriction',
     writeSchema: schema.optional(),
@@ -175,7 +175,12 @@ function allowlist<TItem extends z.ZodType>(
   enforcement: PermissionGroupEnforcement,
   phrasing: AllowlistPhrasing
 ): AllowlistField<TItem> {
-  const schema = z.array(item).nullable()
+  const schema = z
+    .array(item)
+    .nullable()
+    .describe(
+      `${phrasing.limited.replace(/effectiveConfig\.\w+/g, 'this list')} Null permits every value; an empty list permits none.`
+    )
   return {
     kind: 'allowlist',
     writeSchema: schema.optional(),
@@ -192,7 +197,7 @@ function denylist<TItem extends z.ZodType>(
   enforcement: PermissionGroupEnforcement,
   phrasing: string
 ): DenylistField<TItem> {
-  const schema = z.array(item)
+  const schema = z.array(item).describe(phrasing.replace(/effectiveConfig\.\w+/g, 'this list'))
   return {
     kind: 'denylist',
     writeSchema: schema.optional(),
@@ -593,24 +598,27 @@ type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 
 /**
  * Fails to compile unless `T` is exactly `true`, which is what makes the aliases
- * below load-bearing. They are deliberately unexported: the constraint is
- * checked where the alias is declared, so an export bought nothing but the
- * appearance of a consumer that never existed. Nothing may import them; they
- * are unused on purpose, and deleting one deletes the proof.
+ * below load-bearing. The constraint is checked where each alias is declared;
+ * they are exported only so the unused-variable lint treats them as live.
+ * Nothing imports them, and deleting one deletes the proof.
  */
 type Assert<T extends true> = T
 
-type AssertsAllowlistStaysPrecise = Assert<
+export type AssertsAllowlistStaysPrecise = Assert<
   Exact<PermissionGroupConfig['allowedIntegrations'], string[] | null>
 >
-type AssertsDenylistStaysPrecise = Assert<Exact<PermissionGroupConfig['deniedTools'], string[]>>
-type AssertsRestrictionStaysPrecise = Assert<Exact<PermissionGroupConfig['hideCopilot'], boolean>>
-type AssertsAuthTypesStayPrecise = Assert<
+export type AssertsDenylistStaysPrecise = Assert<
+  Exact<PermissionGroupConfig['deniedTools'], string[]>
+>
+export type AssertsRestrictionStaysPrecise = Assert<
+  Exact<PermissionGroupConfig['hideCopilot'], boolean>
+>
+export type AssertsAuthTypesStayPrecise = Assert<
   Exact<
     PermissionGroupConfig['allowedFileShareAuthTypes'],
     (typeof FILE_SHARE_AUTH_TYPES)[number][] | null
   >
 >
-type AssertsParserReturnsTheConfig = Assert<
+export type AssertsParserReturnsTheConfig = Assert<
   Exact<z.output<typeof tolerantConfigSchema>, PermissionGroupConfig>
 >

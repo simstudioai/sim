@@ -2,6 +2,9 @@ import { z } from 'zod'
 import {
   isCanonicalBase64,
   noInputSchema,
+  orExactEnvironmentReference,
+  requiredFieldSchema,
+  versionNumberSchema,
   workspaceFileIdSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
@@ -39,7 +42,7 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
-import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
+import { MAX_FOLDER_PATH_BYTES, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
@@ -65,6 +68,27 @@ import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
  */
 
 /** A workspace file as exposed by the v2 surface. */
+/**
+ * Makes a content write conditional on the file still holding the content the caller read, named
+ * by the `revision` Get File Metadata returns. A version number cannot express this: collaborative
+ * and workflow writes fold into the current version rather than adding one.
+ */
+/** The token naming the content a write produced, for the caller's next conditional write. */
+export const writtenFileRevisionSchema = z
+  .string()
+  .optional()
+  .describe(
+    'Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.'
+  )
+
+const expectedFileRevisionSchema = z
+  .string()
+  .min(1)
+  .optional()
+  .describe(
+    'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.'
+  )
+
 export const v2FileSchema = z
   .object({
     id: z
@@ -155,6 +179,15 @@ export const v2FileMetadataSchema = v2FileSchema
     share: v2FileShareSchema
       .nullable()
       .describe('Current public-share state, or null when the file has never been shared.'),
+    revision: z
+      .string()
+      .optional()
+      .describe(
+        "Opaque token for the file's current content. Send it back as `expectedRevision` so a write or revert is refused when the content moved on. Absent for a file with no recorded content version."
+      ),
+    currentVersion: versionNumberSchema.describe(
+      'Version number of the current content. List File Versions returns the history; pass this as `expectedCurrentVersion` to revert only if nothing changed since.'
+    ),
   })
   .meta({
     id: 'V2FileMetadata',
@@ -254,6 +287,21 @@ export const v2FileParamsSchema = z.object({
 })
 
 export type V2FileParams = z.output<typeof v2FileParamsSchema>
+
+/**
+ * The text read also takes the file's VFS path, so a Chat upload — which no listing
+ * shows — is readable by the `uploads/<name>` path its upload notice names, and any
+ * file by the `files/…` path `glob` prints, with no listing round-trip first.
+ */
+export const v2FileReferenceParamsSchema = z.object({
+  fileId: requiredFieldSchema('File reference is required')
+    .max(MAX_FOLDER_PATH_BYTES, 'File reference is too long')
+    .describe(
+      'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.'
+    ),
+})
+
+export type V2FileReferenceParams = z.output<typeof v2FileReferenceParamsSchema>
 
 export const v2CreateFileBodySchema = z
   .object({
@@ -428,12 +476,10 @@ export type V2RestoreFileBody = z.input<typeof v2RestoreFileBodySchema>
 
 export type V2RenameFileBody = z.input<typeof v2RenameFileBodySchema>
 
+const fileIdsSchema = z.array(z.string().min(1, 'fileIds entries cannot be empty')).min(1).max(1000)
+
 const fileSelectionSchema = {
-  fileIds: z
-    .array(z.string().min(1, 'fileIds entries cannot be empty'))
-    .min(1)
-    .max(1000)
-    .describe('File identifiers to update.'),
+  fileIds: fileIdsSchema.describe('File identifiers to update.'),
 }
 
 export const v2MoveFileItemsBodySchema = z
@@ -468,7 +514,7 @@ export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
 export const v2BulkDeleteFilesBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the files.'),
-    ...fileSelectionSchema,
+    fileIds: fileIdsSchema.describe('File identifiers to delete.'),
   })
   .strict()
 
@@ -653,10 +699,10 @@ export const v2UpsertFileShareBodySchema = z
       .describe(
         'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.'
       ),
-    password: sharePasswordSchema
+    password: orExactEnvironmentReference(sharePasswordSchema)
       .optional()
       .describe(
-        'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.'
+        'Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.'
       ),
     allowedEmails: z
       .array(z.string().min(1, 'allowedEmails entries cannot be empty').max(320))
@@ -687,6 +733,7 @@ export const v2UpdateFileContentBodySchema = z
       .enum(['utf-8', 'base64'])
       .default('utf-8')
       .describe('Encoding of the content field.'),
+    expectedRevision: expectedFileRevisionSchema,
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -711,6 +758,14 @@ export const v2ListFilesContract = defineRouteContract({
   },
 })
 
+export const v2CreatedFileSchema = v2FileSchema
+  .extend({ revision: writtenFileRevisionSchema })
+  .meta({
+    id: 'V2CreatedFile',
+    title: 'Created file',
+    description: 'A newly created workspace file, with the revision it produced.',
+  })
+
 export const v2CreateFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files',
@@ -718,7 +773,7 @@ export const v2CreateFileContract = defineRouteContract({
   body: v2CreateFileBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2CreatedFileSchema),
     status: 201,
   },
 })
@@ -798,9 +853,11 @@ export const v2ReadFileTextQuerySchema = z
     offset: z.coerce
       .number()
       .int()
-      .min(1, 'offset starts at line 1')
+      .min(0, 'offset cannot be negative')
       .optional()
-      .describe('First line to return, 1-based. Absent starts at the first line.'),
+      .describe(
+        'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.'
+      ),
     limit: z.coerce
       .number()
       .int()
@@ -815,6 +872,11 @@ export const v2FileTextSchema = z
   .object({
     fileId: workspaceFileIdSchema.describe('File the text was extracted from.'),
     name: z.string().describe('File name, including its extension.'),
+    path: z
+      .string()
+      .describe(
+        'Canonical VFS path of the file that was read: `files/…`, or `uploads/<name>` for a Chat upload.'
+      ),
     type: z.string().describe('Stored MIME type of the source file.'),
     text: z.string().describe('Extracted text.'),
     truncated: z
@@ -871,7 +933,7 @@ export type V2FileText = z.output<typeof v2FileTextSchema>
 export const v2ReadFileTextContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]/text',
-  params: v2FileParamsSchema,
+  params: v2FileReferenceParamsSchema,
   query: v2ReadFileTextQuerySchema,
   response: {
     mode: 'json',
@@ -1202,6 +1264,7 @@ export const v2EditFileContentBodySchema = z
       .describe(
         'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.'
       ),
+    expectedRevision: expectedFileRevisionSchema,
   })
   .strict()
 
@@ -1211,6 +1274,7 @@ export const v2EditedFileSchema = z
   .object({
     file: v2FileSchema.describe('The file after the edit.'),
     lineCount: z.number().int().nonnegative().describe('Lines the file holds after the edit.'),
+    revision: writtenFileRevisionSchema,
   })
   .strict()
   .meta({
@@ -1441,6 +1505,14 @@ export const v2EditFileContentContract = defineRouteContract({
   },
 })
 
+export const v2WrittenFileSchema = v2FileSchema
+  .extend({ revision: writtenFileRevisionSchema })
+  .meta({
+    id: 'V2WrittenFile',
+    title: 'Written file',
+    description: 'A workspace file after a content replacement, with the revision it produced.',
+  })
+
 export const v2UpdateFileContentContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/files/[fileId]/content',
@@ -1449,6 +1521,6 @@ export const v2UpdateFileContentContract = defineRouteContract({
   body: v2UpdateFileContentBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2WrittenFileSchema),
   },
 })

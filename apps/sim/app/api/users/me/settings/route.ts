@@ -1,13 +1,16 @@
-import { db } from '@sim/db'
-import { settings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@sim/utils/id'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { updateUserSettingsContract } from '@/lib/api/contracts'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
-import { getSession } from '@/lib/auth'
+import {
+  defineInternalJsonRoute,
+  InternalUnauthenticatedError,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { userAccountOperations } from '@/lib/users/application/operations'
+import { updateCurrentUserPreferences } from '@/lib/users/application/preferences'
 import { getCurrentUserSettingsUseCase } from '@/lib/users/application/read-current-user'
 import { defaultUserSettings } from '@/lib/users/queries'
 
@@ -27,51 +30,13 @@ export const GET = withRouteHandler(async () => {
   }
 })
 
-export const PATCH = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = session.user.id
-
-    const parsed = await parseRequest(
-      updateUserSettingsContract,
-      request,
-      {},
-      {
-        validationErrorResponse: (error) => {
-          logger.warn('Invalid settings data', { errors: error.issues })
-          return validationErrorResponse(error, 'Invalid settings data')
-        },
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const validatedData = parsed.data.body
-
-    await db
-      .insert(settings)
-      .values({
-        id: generateShortId(),
-        userId,
-        ...validatedData,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [settings.userId],
-        set: {
-          ...validatedData,
-          updatedAt: new Date(),
-        },
-      })
-
-    return NextResponse.json({ success: true }, { status: 200 })
-  } catch (error) {
-    logger.error('Settings update error', error)
-    /** Failed writes must trigger the client's optimistic rollback, including privacy choices. */
-    return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
-  }
+export const PATCH = defineInternalJsonRoute({
+  contract: updateUserSettingsContract,
+  auth: internalSessionAuth,
+  operation: userAccountOperations.updateSettings,
+  rateLimit: internalRateLimits.none({ reason: 'Authenticated current-user preference update' }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: ({ body }) => body,
+  useCase: updateCurrentUserPreferences,
+  present: (result) => result,
 })

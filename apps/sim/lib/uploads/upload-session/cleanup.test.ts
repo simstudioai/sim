@@ -1,16 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { mkdir, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { testUploadDirectory } = vi.hoisted(() => ({
-  testUploadDirectory: `/tmp/sim-upload-session-cleanup-${process.pid}`,
-}))
+const testUploadDirectory = `/tmp/sim-upload-session-cleanup-${process.pid}`
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  UPLOAD_DIR_SERVER: testUploadDirectory,
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import {
   LOCAL_UPLOAD_ARTIFACT_TTL_MS,
@@ -18,6 +12,8 @@ import {
   resetLocalUploadCleanupForTesting,
   sweepLocalUploadArtifacts,
 } from '@/lib/uploads/upload-session/cleanup'
+
+setUploadDirServer(testUploadDirectory)
 
 describe('local upload artifact cleanup', () => {
   beforeEach(async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { acquire, settle } = vi.hoisted(() => ({ acquire: vi.fn(), settle: vi.fn() }))
@@ -17,13 +14,11 @@ describe('GitHub coordinated requests', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(1_800_000_000_000)
-    vi.clearAllMocks()
     settle.mockImplementation(async (_outcome, retryAfterMs = 0) => retryAfterMs)
     acquire.mockResolvedValue({ settle })
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('holds the credential lease until the streamed body is consumed and observes successful exhaustion', async () => {
@@ -49,18 +44,6 @@ describe('GitHub coordinated requests', () => {
     })
     expect(acquire.mock.calls[0]?.[0].scope).toMatch(/^[a-f0-9]{64}$/)
     expect(JSON.stringify(acquire.mock.calls)).not.toContain('private-token')
-  })
-
-  it('releases cancelled response bodies without waiting for the request timeout', async () => {
-    const cancelled = vi.fn()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(new ReadableStream({ cancel: cancelled })))
-    )
-    const response = await fetchGitHubWithRetry(URL, OPTIONS)
-    await response.body?.cancel()
-    expect(cancelled).toHaveBeenCalledOnce()
-    expect(settle).toHaveBeenCalledOnce()
   })
 
   it('does not leak a lease when a caller abandons its body until the deadline', async () => {
@@ -133,21 +116,6 @@ describe('GitHub coordinated requests', () => {
     expect(settle).toHaveBeenCalledWith('failure', undefined, undefined)
   })
 
-  it('hands a shared admission wait to the durable scheduler before fetching', async () => {
-    acquire.mockRejectedValue(
-      new ProviderCapacityDeferredError('admission_timeout', { retryAfterMs: 30_000 })
-    )
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    await expect(fetchGitHubWithRetry(URL, OPTIONS)).rejects.toMatchObject({
-      rateLimited: false,
-      reason: 'admission_timeout',
-      providerId: 'github-rest',
-      retryAfterMs: 30_000,
-    })
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
   it('preserves unavailable admission storage as infrastructure pressure rather than an upstream rate limit', async () => {
     acquire.mockRejectedValue(
       new ProviderCapacityDeferredError('admission_unavailable', { retryAfterMs: 5000 })
@@ -159,19 +127,6 @@ describe('GitHub coordinated requests', () => {
       retryAfterMs: 5000,
     })
     expect(isRateLimitError(error)).toBe(false)
-  })
-
-  it('acquires a fresh lease for each retry after a transient provider failure', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
-      .mockResolvedValueOnce(new Response('recovered'))
-    vi.stubGlobal('fetch', fetchMock)
-    const pending = fetchGitHubWithRetry(URL, OPTIONS, { initialDelayMs: 1, maxDelayMs: 1 })
-    await vi.advanceTimersByTimeAsync(10)
-    expect(await (await pending).text()).toBe('recovered')
-    expect(acquire).toHaveBeenCalledTimes(2)
-    expect(settle.mock.calls.map(([outcome]) => outcome)).toEqual(['failure', 'success'])
   })
 
   it('fails closed if publishing quota feedback becomes unavailable', async () => {

@@ -1,6 +1,6 @@
 ---
 title: Snowflake
-description: Query data and manage warehouses and tasks in Snowflake
+description: Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -14,12 +14,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 [Snowflake](https://www.snowflake.com/) stores data in databases and schemas and uses virtual warehouses to run queries. Sim connects over the SQL API with a programmatic access token.
 
 Use the block to execute SQL, synchronize rows, move staged data, manage warehouses and tasks, and inspect history. To unload a query result, first materialize it as a view or with `CREATE TABLE AS SELECT`.
+
+**Cortex Analyst.** Ask Cortex Analyst turns a plain-English question into SQL against a semantic view or semantic model, and can run that SQL to return rows. Pass the returned `conversation` back as history to ask follow-up questions, and start a new conversation after a handful of turns, since Snowflake reprocesses the whole history on every question. Before you use it:
+
+- The access token's role needs the `SNOWFLAKE.CORTEX_USER` or `SNOWFLAKE.CORTEX_ANALYST_USER` database role, `SELECT` on the tables behind the semantic view, and read access to the stage when the model is a staged YAML file.
+- Cortex Analyst always answers under the access token's role. The block's execution role, warehouse, and row limit apply only when it runs the generated SQL.
+- Cortex Analyst runs natively in a limited set of cloud regions. Other accounts need cross-region inference turned on.
+- Snowflake bills each successful answer, and running the SQL uses warehouse credits on top.
+- Snowflake now recommends Cortex Agents for new builds; Cortex Analyst remains available.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.
+Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures. Ask Cortex Analyst questions in natural language against a semantic view or model to get generated SQL and, optionally, its results, with multi-turn follow-ups.
 
 
 
@@ -1353,5 +1361,96 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake Cortex Analyst Ask
+
+Ask Snowflake Cortex Analyst a question in natural language against a semantic view or semantic model. Returns its interpretation and the generated SQL, or suggested questions when the question is ambiguous, and can run the SQL to return rows. Pass the returned conversation as history to ask a follow-up.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `question` | string | Yes | The question to ask about your data |
+| `semanticView` | string | No | Fully qualified semantic view name \(for example MY_DB.MY_SCHEMA.MY_VIEW\). Provide exactly one semantic source. |
+| `semanticModelFile` | string | No | Stage path to a semantic model YAML file \(for example @MY_DB.MY_SCHEMA.MY_STAGE/model.yaml\). Provide exactly one semantic source. |
+| `semanticModel` | string | No | Full semantic model YAML. Provide exactly one semantic source. |
+| `semanticModels` | json | No | Several semantic sources for Cortex Analyst to choose between, as a JSON array of \{"semantic_view": "..."\} or \{"semantic_model_file": "@..."\} objects. Provide exactly one semantic source. |
+| `history` | json | No | Earlier conversation messages in order, as returned in the conversation output of a previous ask |
+| `executeSql` | boolean | No | Run the generated SQL with the same credential and return the result rows |
+| `warehouse` | string | No | Warehouse for running the generated SQL; defaults to the PAT user setting |
+| `role` | string | No | Snowflake role for running the generated SQL. Cortex Analyst itself always answers under the access token role |
+| `maxRows` | number | No | Maximum result rows when running the SQL; defaults to 1000 \(Sim limit 10000\) |
+| `statementTimeoutSeconds` | number | No | Timeout in seconds for running the SQL; 0 uses the Snowflake maximum |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Cortex Analyst request ID, used to send feedback on this answer |
+| `text` | string | How Cortex Analyst interpreted the question, or why it could not answer it \(text content joined in order\) |
+| `sql` | string | SQL Cortex Analyst generated, or null when the question was ambiguous |
+| `verifiedQuery` | object | Verified Query Repository entry used to generate the SQL, or null when none was used |
+|   ↳ `name` | string | Verified query name |
+|   ↳ `question` | string | Question the verified query answers |
+|   ↳ `sql` | string | SQL of the verified query |
+|   ↳ `verifiedAt` | number | When the query was last verified \(Unix epoch seconds, UTC\) |
+|   ↳ `verifiedBy` | string | Who verified the query |
+| `suggestions` | array | Questions the semantic model can answer, returned instead of SQL when the question was ambiguous |
+| `warnings` | array | Warnings Cortex Analyst raised about the request |
+| `questionCategory` | string | How Cortex Analyst categorized the question \(for example CLEAR_SQL\) |
+| `modelNames` | array | Models used to generate the response |
+| `semanticModelSelection` | object | Which semantic source Cortex Analyst chose when several were given, or null for a single source |
+|   ↳ `index` | number | Zero-based position of the chosen source in Semantic Sources |
+|   ↳ `semanticView` | string | Chosen semantic view |
+|   ↳ `semanticModelFile` | string | Chosen staged semantic model file |
+|   ↳ `inlineSemanticModel` | string | Chosen inline semantic model YAML |
+| `cortexSearchRetrieval` | json | Entities Cortex Analyst resolved with Cortex Search \(\[\{service, query, response_body\}\]\), passed through as returned |
+| `conversation` | array | Full conversation including this question and answer \(analyst turns keep their text and SQL\); pass it as History to ask a follow-up. Snowflake recommends starting a new conversation after many turns |
+|   ↳ `role` | string | user or analyst |
+|   ↳ `content` | array | Message content blocks \(text, sql, suggestions\) |
+| `execution` | object | Result of running the generated SQL when Run Generated SQL is on, otherwise null. A query still running after 45 seconds returns status RUNNING with a statementHandle; fetch its rows with Get Statement |
+|   ↳ `statementHandle` | string | Snowflake statement handle |
+|   ↳ `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+|   ↳ `message` | string | Snowflake response message |
+|   ↳ `result` | object | Completed result partition, or null while running or when no result is available |
+|     ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|       ↳ `name` | string | Column name |
+|       ↳ `type` | string | Snowflake data type |
+|       ↳ `length` | number | Column length |
+|       ↳ `precision` | number | Numeric precision |
+|       ↳ `scale` | number | Numeric scale |
+|       ↳ `nullable` | boolean | Whether the column is nullable |
+|     ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|     ↳ `totalRows` | number | Total result rows |
+|     ↳ `currentPartition` | number | Zero-based partition returned |
+|     ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|     ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|     ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|     ↳ `rowsInserted` | number | Rows inserted by the statement |
+|     ↳ `rowsUpdated` | number | Rows updated by the statement |
+|     ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|     ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|     ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake Cortex Analyst Feedback
+
+Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedback appears in the Snowsight Cortex Analyst monitoring tab.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `requestId` | string | Yes | Request ID returned by Cortex Analyst Ask |
+| `positive` | boolean | Yes | true for positive \(thumbs up\) feedback, false for negative \(thumbs down\) |
+| `feedbackMessage` | string | No | Optional feedback comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the feedback was recorded |
 
 

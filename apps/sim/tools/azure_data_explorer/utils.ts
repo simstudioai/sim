@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   AzureDataExplorerBaseParams,
   AzureDataExplorerTable,
@@ -265,10 +266,6 @@ export function transformColumnListResponse<K extends string>(columnName: string
   }
 }
 
-function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 /**
  * Projects `.show table ... cslschema`, whose single row carries the documented
  * TableName, Schema, DatabaseName, Folder, and DocString columns.
@@ -279,11 +276,11 @@ export async function transformTableSchemaResponse(response: Response) {
   return {
     success: true as const,
     output: {
-      tableName: stringOrNull(record.TableName),
-      schema: stringOrNull(record.Schema),
-      databaseName: stringOrNull(record.DatabaseName),
-      folder: stringOrNull(record.Folder),
-      docString: stringOrNull(record.DocString),
+      tableName: toStringOrNull(record.TableName),
+      schema: toStringOrNull(record.Schema),
+      databaseName: toStringOrNull(record.DatabaseName),
+      folder: toStringOrNull(record.Folder),
+      docString: toStringOrNull(record.DocString),
     },
   }
 }

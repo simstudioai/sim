@@ -13,6 +13,8 @@ export type FocusedResourceShortcut =
   | ResourceTabSelectionShortcut
   | 'reload-or-clear'
   | 'hard-reload'
+  | 'back'
+  | 'forward'
   | `zoom-${DesktopZoomAction}`
 
 export type ResourceTabSelectionShortcut =

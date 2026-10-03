@@ -25,7 +25,7 @@ vi.mock('@/lib/internal/slack/client', () => ({
   slackString: (value: Record<string, unknown>, key: string) =>
     typeof value[key] === 'string' ? value[key] : undefined,
 }))
-vi.mock('@/lib/copilot/request/lifecycle/start', () => ({ requestChatTitle: title.request }))
+vi.mock('@/lib/mothership/request/lifecycle/start', () => ({ requestChatTitle: title.request }))
 
 vi.mock('@/lib/core/application/organization-authorization', () => ({
   authorizeOrganizationOperation: async (principal: {
@@ -123,7 +123,10 @@ describe('durable Slack Search turns in PostgreSQL', () => {
     await db.$client.end()
   })
 
-  function job(threadTs = '1000.000001', messageTs = '1000.000002'): SlackSearchJob {
+  function job(
+    threadTs = '1000.000001',
+    messageTs = '1000.000002'
+  ): SlackSearchJob & { message: SlackSearchJob['message'] & { messageTs: string } } {
     return {
       installationId,
       credentialId,
@@ -419,7 +422,7 @@ describe('durable Slack Search turns in PostgreSQL', () => {
   it('does not save a title when access is revoked during generation', async () => {
     const input = job()
     await persistSlackSearchTurn(input)
-    const chat = await resolveSlackSearchChat(principal(input), input)
+    await resolveSlackSearchChat(principal(input), input)
     title.request.mockReset().mockResolvedValue('Generated title')
     await expect(
       generateSlackSearchChatTitle(principal(input), {

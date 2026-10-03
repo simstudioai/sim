@@ -1,8 +1,12 @@
+import { db } from '@sim/db'
+import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { taskContext } from '@trigger.dev/core/v3'
 import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
+import { eq } from 'drizzle-orm'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import {
   AsyncJobEnqueueError,
@@ -47,6 +51,71 @@ function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
     retryable: true,
     cause: error,
   })
+}
+
+/** Trigger's friendly run ids — the only ids `runs.retrieve` can resolve. */
+const TRIGGER_RUN_ID_PREFIX = 'run_'
+
+type TriggerRun = Awaited<ReturnType<typeof runs.retrieve>>
+
+function isTriggerNotFoundError(error: unknown): boolean {
+  return (
+    (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
+    (isRecordLike(error) && error.status === 404)
+  )
+}
+
+/**
+ * Retrieves a run by its Trigger run id, or null when `jobId` is not one or no
+ * such run exists. A caller-chosen job id (`schedule_…`, `workflow-execution:…`)
+ * can never resolve here, and Trigger takes ~10 s to answer that 404, so it is
+ * not sent at all.
+ */
+async function retrieveRunById(jobId: string): Promise<TriggerRun | null> {
+  if (!jobId.startsWith(TRIGGER_RUN_ID_PREFIX)) return null
+  try {
+    return await runs.retrieve(jobId)
+  } catch (error) {
+    if (isTriggerNotFoundError(error)) return null
+    throw error
+  }
+}
+
+/**
+ * Retains Trigger's accepted run ID before enqueue can return success. The
+ * idempotency result table shares receipts across app processes; its ordinary
+ * retention bounds storage, with tag lookup retained for older jobs.
+ */
+async function storeRunReceipt(jobId: string, runId: string): Promise<void> {
+  const result = { runId }
+  await db
+    .insert(idempotencyKey)
+    .values({ key: `trigger-job:${jobId}`, result })
+    .onConflictDoUpdate({
+      target: idempotencyKey.key,
+      set: { result, createdAt: new Date() },
+    })
+}
+
+/** Reads accepted run IDs without depending on Trigger's asynchronous tag index. */
+async function retrieveRunByReceipt(jobId: string): Promise<TriggerRun | null> {
+  const [receipt] = await db
+    .select({ result: idempotencyKey.result })
+    .from(idempotencyKey)
+    .where(eq(idempotencyKey.key, `trigger-job:${jobId}`))
+    .limit(1)
+  const result = receipt?.result
+  return isRecordLike(result) && typeof result.runId === 'string'
+    ? retrieveRunById(result.runId)
+    : null
+}
+
+/** Resolves legacy or expired receipts through the `jobId:` tag set at enqueue. */
+async function retrieveRunByJobIdTag(jobId: string): Promise<TriggerRun | null> {
+  for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
+    return runs.retrieve(candidate.id)
+  }
+  return null
 }
 
 function buildExecutionTag(executionId: string): string {
@@ -184,7 +253,10 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'cleanup-logs': 'cleanup-logs',
   'cleanup-soft-deletes': 'cleanup-soft-deletes',
   'cleanup-table-row-ttl': 'cleanup-table-row-ttl',
+  'cleanup-stale-executions': 'cleanup-stale-executions',
   'cleanup-tasks': 'cleanup-tasks',
+  'cleanup-file-versions': 'cleanup-file-versions',
+  'cleanup-dispatch': 'cleanup-dispatch',
   'run-data-drain': 'run-data-drain',
   'knowledge-connector-directory-sync': 'knowledge-connector-directory-sync',
 }
@@ -293,6 +365,18 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       throw classifyTriggerEnqueueError(error)
     }
 
+    if (options?.jobId) {
+      try {
+        await storeRunReceipt(options.jobId, handle.id)
+      } catch (error) {
+        throw new AsyncJobEnqueueError('Trigger run accepted but its receipt could not be stored', {
+          acceptance: 'unknown',
+          retryable: true,
+          cause: error,
+        })
+      }
+    }
+
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
     return handle.id
   }
@@ -379,25 +463,13 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
   async getJob(jobId: string): Promise<Job | null> {
     try {
-      let run: Awaited<ReturnType<typeof runs.retrieve>>
-      try {
-        run = await runs.retrieve(jobId)
-      } catch (error) {
-        const isNotFound =
-          (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
-          (error && typeof error === 'object' && 'status' in error && error.status === 404)
-        if (!isNotFound) throw error
-
-        let runId: string | undefined
-        for await (const candidate of runs.list({ tag: `jobId:${jobId}`, limit: 1 })) {
-          runId = candidate.id
-          break
-        }
-        if (!runId) {
-          logger.debug('Job not found in trigger.dev', { jobId })
-          return null
-        }
-        run = await runs.retrieve(runId)
+      const run =
+        (await retrieveRunById(jobId)) ??
+        (jobId.startsWith(TRIGGER_RUN_ID_PREFIX) ? null : await retrieveRunByReceipt(jobId)) ??
+        (await retrieveRunByJobIdTag(jobId))
+      if (!run) {
+        logger.debug('Job not found in trigger.dev', { jobId })
+        return null
       }
 
       const payload = run.payload as Record<string, unknown>
@@ -427,11 +499,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         metadata,
       }
     } catch (error) {
-      const isNotFound =
-        (error instanceof Error && error.message.toLowerCase().includes('not found')) ||
-        (error && typeof error === 'object' && 'status' in error && error.status === 404)
-
-      if (isNotFound) {
+      if (isTriggerNotFoundError(error)) {
         logger.debug('Job not found in trigger.dev', { jobId })
         return null
       }
@@ -473,7 +541,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     const executionTag = buildExecutionTag(binding.executionId)
     const workflowTag = buildWorkflowTag(binding.workflowId)
     const allowedTaskIdentifiers = EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE[scope]
+    let cancelledRootRunId: string | undefined
     const isAllowedTask = (run: CancellationListRun) =>
+      run.id !== cancelledRootRunId &&
       (allowedTaskIdentifiers as readonly string[]).includes(run.taskIdentifier)
     const cutoff = new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000)
     const state: CancellationScanState = {
@@ -482,6 +552,24 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
 
     try {
+      if (binding.rootJobId) {
+        try {
+          const root = await this.getJob(binding.rootJobId)
+          if (
+            root &&
+            (allowedTaskIdentifiers as readonly string[]).includes(root.type) &&
+            (root.status === JOB_STATUS.PENDING || root.status === JOB_STATUS.PROCESSING) &&
+            payloadMatchesExecution(root.payload, binding)
+          ) {
+            await this.cancelJob(root.id)
+            cancelledRootRunId = root.id
+            state.cancelledJobs += 1
+          }
+        } catch (error) {
+          recordCancellationCandidateFailure(state, error)
+        }
+      }
+
       await scanAndCancelTriggerRuns({
         binding,
         cancelJob: (jobId) => this.cancelJob(jobId),

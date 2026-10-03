@@ -1,7 +1,12 @@
+import {
+  AttachmentDownloadBudget,
+  readAttachmentJson,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
 import type { JiraGetAttachmentsParams, JiraGetAttachmentsResponse } from '@/tools/jira/types'
 import { ATTACHMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { downloadJiraAttachments, getJiraCloudId, transformUser } from '@/tools/jira/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
  * Transforms a raw Jira attachment object into typed output.
@@ -85,11 +90,18 @@ export const jiraGetAttachmentsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response, params?: JiraGetAttachmentsParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: JiraGetAttachmentsParams,
+    context?: ToolResponseContext
+  ) => {
+    const budget = new AttachmentDownloadBudget(context)
+    context?.signal?.throwIfAborted()
     const fetchAttachments = async (cloudId: string) => {
       const attachmentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}?fields=attachment`
       const attachmentsResponse = await fetch(attachmentsUrl, {
         method: 'GET',
+        signal: context?.signal,
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${params!.accessToken}`,
@@ -99,19 +111,31 @@ export const jiraGetAttachmentsTool: ToolConfig<
       if (!attachmentsResponse.ok) {
         let message = `Failed to get attachments from Jira issue (${attachmentsResponse.status})`
         try {
-          const err = await attachmentsResponse.json()
+          const err = await readAttachmentJson<{ message?: string; errorMessages?: string[] }>(
+            attachmentsResponse,
+            'Jira error response',
+            context?.signal
+          )
           message = err?.errorMessages?.join(', ') || err?.message || message
-        } catch (_e) {}
+        } catch (_e) {
+          rethrowAttachmentDownloadError(_e, context?.signal)
+        }
         throw new Error(message)
       }
 
-      return attachmentsResponse.json()
+      return readAttachmentJson<Record<string, unknown>>(
+        attachmentsResponse,
+        'Jira attachment metadata',
+        context?.signal
+      )
     }
 
     let data: any
 
     if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken, {
+        signal: context?.signal,
+      })
       data = await fetchAttachments(cloudId)
     } else {
       if (!response.ok) {
@@ -119,7 +143,9 @@ export const jiraGetAttachmentsTool: ToolConfig<
         try {
           const err = await response.json()
           message = err?.errorMessages?.join(', ') || err?.message || message
-        } catch (_e) {}
+        } catch (_e) {
+          rethrowAttachmentDownloadError(_e, context?.signal)
+        }
         throw new Error(message)
       }
       data = await response.json()
@@ -127,9 +153,9 @@ export const jiraGetAttachmentsTool: ToolConfig<
 
     const attachments = (data?.fields?.attachment ?? []).map(transformAttachment)
 
-    let files: Array<{ name: string; mimeType: string; data: string; size: number }> | undefined
+    let files: Array<{ name: string; mimeType: string; data: Buffer; size: number }> | undefined
     if (params?.includeAttachments && attachments.length > 0) {
-      files = await downloadJiraAttachments(attachments, params.accessToken)
+      files = await downloadJiraAttachments(attachments, params.accessToken, budget)
     }
 
     return {

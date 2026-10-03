@@ -4,6 +4,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  organizationSearchIntegration,
   slackApp,
   slackSearchInstallation,
 } from '@sim/db/schema'
@@ -11,7 +12,8 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { isRecordLike } from '@sim/utils/object'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -24,15 +26,25 @@ import {
 } from '@/lib/credential-groups/provider-configuration'
 import {
   resolveSlackManagedUserScopes,
+  SLACK_CHANNEL_READ_SCOPES,
+  SLACK_DM_READ_SCOPES,
   SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
+import {
+  listOrganizationSearchApprovals,
+  lockOrganizationSearchApproval,
+} from '@/lib/knowledge/search/integration-policy'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
+import { resolveSlackAppCredentials } from '@/lib/slack-search/app-configuration'
+import { requireSlackSearchAppAvailable } from '@/lib/slack-search/shared-app'
+import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 const logger = createLogger('SlackManagedUsers')
 const SLACK_MANAGED_USERS_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const SLACK_MANAGED_USERS_ATTEMPT_VERSION = 4 as const
+const SLACK_MANAGED_USERS_ATTEMPT_VERSION = 6 as const
 const MAX_SLACK_RESPONSE_BYTES = 64 * 1024
 const CONSUME_SCRIPT = `
 local value = redis.call('GET', KEYS[1])
@@ -53,8 +65,14 @@ interface SlackCustomBotSecret {
   metadata?: Record<string, string>
 }
 
-interface StoredSlackManagedUsersAttempt {
+interface SlackSearchApprovalSnapshot {
+  approved: boolean
+  updatedAt: number | null
+}
+
+type StoredSlackManagedUsersAttempt = {
   appRevision?: string
+  searchApproval?: SlackSearchApprovalSnapshot
   version: typeof SLACK_MANAGED_USERS_ATTEMPT_VERSION
   workspaceId?: string
   organizationId?: string
@@ -66,14 +84,17 @@ interface StoredSlackManagedUsersAttempt {
   expectedAppId: string
   expectedTeamId: string
   clientId: string
-  encryptedClientSecret: string
   redirectUri: string
   requiredScopes: string[]
   createdAt: number
-}
+} & (
+  | { credentialSource: 'environment'; organizationId: string; encryptedClientSecret?: never }
+  | { credentialSource?: undefined; encryptedClientSecret: string }
+)
 
 export interface SlackManagedUsersAttempt {
   appRevision?: string
+  searchApproval?: SlackSearchApprovalSnapshot
   workspaceId?: string
   organizationId?: string
   userId: string
@@ -141,6 +162,7 @@ function attemptKey(state: string): string {
 function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttempt {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
+  const approval = candidate.searchApproval
   return (
     candidate.version === SLACK_MANAGED_USERS_ATTEMPT_VERSION &&
     ((typeof candidate.workspaceId === 'string' &&
@@ -154,6 +176,12 @@ function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttemp
     typeof candidate.credentialGroupUpdatedAt === 'number' &&
     (candidate.appRevision === undefined || typeof candidate.appRevision === 'string') &&
     (candidate.organizationId !== undefined
+      ? isRecordLike(approval) &&
+        typeof approval.approved === 'boolean' &&
+        (approval.updatedAt === null ||
+          (typeof approval.updatedAt === 'number' && Number.isFinite(approval.updatedAt)))
+      : approval === undefined) &&
+    (candidate.organizationId !== undefined
       ? candidate.slackBotCredentialId === undefined &&
         candidate.slackBotCredentialUpdatedAt === undefined
       : typeof candidate.slackBotCredentialId === 'string' &&
@@ -161,7 +189,11 @@ function isStoredAttempt(value: unknown): value is StoredSlackManagedUsersAttemp
     typeof candidate.expectedAppId === 'string' &&
     typeof candidate.expectedTeamId === 'string' &&
     typeof candidate.clientId === 'string' &&
-    typeof candidate.encryptedClientSecret === 'string' &&
+    (candidate.credentialSource === 'environment'
+      ? typeof candidate.organizationId === 'string' &&
+        candidate.encryptedClientSecret === undefined
+      : candidate.credentialSource === undefined &&
+        typeof candidate.encryptedClientSecret === 'string') &&
     typeof candidate.redirectUri === 'string' &&
     Array.isArray(candidate.requiredScopes) &&
     candidate.requiredScopes.length > 0 &&
@@ -485,6 +517,7 @@ export async function createSlackManagedUsersAttempt(params: {
   let clientId = params.clientId
   let clientSecret = params.clientSecret
   let appRevision: string | undefined
+  let searchApproval: SlackSearchApprovalSnapshot | undefined
   if (scope.kind === 'organization') {
     if (params.slackBotCredentialId || !params.appId || params.clientId || params.clientSecret)
       throw new SlackManagedUsersError(
@@ -504,8 +537,10 @@ export async function createSlackManagedUsersAttempt(params: {
       .where(
         and(
           eq(slackApp.id, params.appId),
-          eq(slackApp.organizationId, scope.organizationId),
-          eq(slackApp.kind, 'custom')
+          or(
+            and(eq(slackApp.organizationId, scope.organizationId), eq(slackApp.kind, 'custom')),
+            and(eq(slackApp.kind, 'shared'), isNull(slackApp.organizationId))
+          )
         )
       )
       .limit(1)
@@ -514,11 +549,48 @@ export async function createSlackManagedUsersAttempt(params: {
         'Set up this organization’s Slack app first.',
         'invalid_response'
       )
+    await requireSlackSearchAppAvailable(configured.app.id, scope.organizationId)
+    const app = await resolveSlackAppCredentials(configured.app)
     identity = { appId: configured.app.id, teamId: configured.teamId }
-    clientId = configured.app.clientId
-    clientSecret = (await decryptSecret(configured.app.encryptedClientSecret)).decrypted
-    appRevision = configured.app.revision
-    requiredScopes = [...SLACK_SEARCH_USER_SCOPES]
+    clientId = app.clientId
+    clientSecret = app.clientSecret
+    appRevision = app.revision
+    const retiredSearchScopes = new Set([
+      ...SLACK_CHANNEL_READ_SCOPES,
+      ...SLACK_DM_READ_SCOPES,
+      'users:read',
+      'users:read.email',
+    ])
+    const upgradesSearchPolicy =
+      existingOption?.requiredScopes?.length === retiredSearchScopes.size &&
+      existingOption.requiredScopes.every((scope) => retiredSearchScopes.has(scope))
+    requiredScopes = resolveSlackManagedUserScopes(
+      !existingOption || upgradesSearchPolicy
+        ? SLACK_SEARCH_USER_SCOPES
+        : existingOption.requiredScopes
+    )
+    const [approval] = await db
+      .select({
+        approved: organizationSearchIntegration.approved,
+        updatedAt: organizationSearchIntegration.updatedAt,
+      })
+      .from(organizationSearchIntegration)
+      .where(
+        and(
+          eq(organizationSearchIntegration.organizationId, scope.organizationId),
+          eq(organizationSearchIntegration.connectorType, 'slack')
+        )
+      )
+      .limit(1)
+    searchApproval = {
+      approved:
+        approval?.approved ??
+        (await listOrganizationSearchApprovals(scope.organizationId)).get('slack') ??
+        false,
+      updatedAt: approval?.updatedAt.getTime() ?? null,
+    }
+    if (searchApproval.approved)
+      requiredScopes = [...new Set([...requiredScopes, ...SLACK_SEARCH_USER_SCOPES])]
   } else {
     if (!params.slackBotCredentialId)
       throw new SlackManagedUsersError('Select a custom Slack bot.', 'invalid_response')
@@ -536,10 +608,16 @@ export async function createSlackManagedUsersAttempt(params: {
   }
   if (!clientId || !clientSecret)
     throw new SlackManagedUsersError('Slack client credentials are required.', 'invalid_client')
+  if (requiredScopes.length > 100)
+    throw new SlackManagedUsersError(
+      'The combined Slack request has too many permissions.',
+      'invalid_response'
+    )
   const redis = requireRedis()
   const state = generateId()
   const redirectUri = getSlackManagedUsersRedirectUri()
-  const encryptedClientSecret = await encryptSecret(clientSecret)
+  const sharedApp =
+    scope.kind === 'organization' ? getSharedSlackSearchAppConfiguration(identity.appId) : null
   const attempt: StoredSlackManagedUsersAttempt = {
     version: SLACK_MANAGED_USERS_ATTEMPT_VERSION,
     ...resourceScopeFields(scope),
@@ -553,7 +631,10 @@ export async function createSlackManagedUsersAttempt(params: {
     expectedTeamId: identity.teamId,
     clientId,
     ...(appRevision ? { appRevision } : {}),
-    encryptedClientSecret: encryptedClientSecret.encrypted,
+    ...(searchApproval ? { searchApproval } : {}),
+    ...(sharedApp && scope.kind === 'organization'
+      ? { credentialSource: 'environment' as const, organizationId: scope.organizationId }
+      : { encryptedClientSecret: (await encryptSecret(clientSecret)).encrypted }),
     requiredScopes,
     redirectUri,
     createdAt: Date.now(),
@@ -600,7 +681,19 @@ async function parseSlackManagedUsersAttempt(
   const parsed: unknown = JSON.parse(raw)
   if (!isStoredAttempt(parsed)) throw new Error('Slack managed-user state is malformed')
   if (Date.now() - parsed.createdAt > SLACK_MANAGED_USERS_ATTEMPT_TTL_MS) return null
-  const clientSecret = await decryptSecret(parsed.encryptedClientSecret)
+  let clientSecret: string
+  if (parsed.credentialSource === 'environment') {
+    const app = getSharedSlackSearchAppConfiguration(parsed.expectedAppId)
+    if (!app || app.revision !== parsed.appRevision || app.clientId !== parsed.clientId)
+      throw new SlackManagedUsersError(
+        'The shared Slack app changed. Start again.',
+        'invalid_state'
+      )
+    await requireSlackSearchAppAvailable(app.id, parsed.organizationId)
+    clientSecret = app.clientSecret
+  } else {
+    clientSecret = (await decryptSecret(parsed.encryptedClientSecret)).decrypted
+  }
   return {
     ...resourceScopeFields(resourceScopeFromOwner(parsed)),
     userId: parsed.userId,
@@ -616,7 +709,8 @@ async function parseSlackManagedUsersAttempt(
     expectedTeamId: parsed.expectedTeamId,
     clientId: parsed.clientId,
     ...(parsed.appRevision ? { appRevision: parsed.appRevision } : {}),
-    clientSecret: clientSecret.decrypted,
+    ...(parsed.searchApproval ? { searchApproval: parsed.searchApproval } : {}),
+    clientSecret,
     redirectUri: parsed.redirectUri,
     requiredScopes: parsed.requiredScopes,
     createdAt: parsed.createdAt,
@@ -682,31 +776,42 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
 
   return db.transaction(async (tx) => {
     if (params.attempt.organizationId) {
+      await lockOrganizationSearchApproval(tx, params.attempt.organizationId)
       const [app] = await tx
         .select()
         .from(slackApp)
         .where(
           and(
             eq(slackApp.id, params.attempt.expectedAppId),
-            eq(slackApp.organizationId, params.attempt.organizationId),
-            eq(slackApp.kind, 'custom')
+            or(
+              and(
+                eq(slackApp.organizationId, params.attempt.organizationId),
+                eq(slackApp.kind, 'custom')
+              ),
+              and(eq(slackApp.kind, 'shared'), isNull(slackApp.organizationId))
+            )
           )
         )
         .limit(1)
         .for('update')
+      if (app?.kind === 'shared')
+        await requireSlackSearchAppAvailable(app.id, params.attempt.organizationId)
+      const resolved = app ? await resolveSlackAppCredentials(app) : null
       if (
-        !app ||
+        !resolved ||
         !params.attempt.appRevision ||
-        app.revision !== params.attempt.appRevision ||
-        app.clientId !== params.attempt.clientId
+        resolved.revision !== params.attempt.appRevision ||
+        resolved.clientId !== params.attempt.clientId
       )
         throw new SlackManagedUsersError(
           'The Slack app changed during authorization. Start again.',
           'invalid_state'
         )
     }
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-managed-users:${params.attempt.credentialGroupId}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'slack_managed_users',
+      `slack-managed-users:${params.attempt.credentialGroupId}`
     )
     const [group] = await tx
       .select()
@@ -724,6 +829,35 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         'The Credential Group changed while Slack authorization was in progress. Start again.',
         'invalid_state'
       )
+    }
+    if (params.attempt.organizationId) {
+      const [approval] = await tx
+        .select({
+          approved: organizationSearchIntegration.approved,
+          updatedAt: organizationSearchIntegration.updatedAt,
+        })
+        .from(organizationSearchIntegration)
+        .where(
+          and(
+            eq(organizationSearchIntegration.organizationId, params.attempt.organizationId),
+            eq(organizationSearchIntegration.connectorType, 'slack')
+          )
+        )
+        .limit(1)
+        .for('share')
+      const approved =
+        approval?.approved ??
+        (await listOrganizationSearchApprovals(params.attempt.organizationId, tx)).get('slack') ??
+        false
+      if (
+        !params.attempt.searchApproval ||
+        approved !== params.attempt.searchApproval.approved ||
+        (approval?.updatedAt.getTime() ?? null) !== params.attempt.searchApproval.updatedAt
+      )
+        throw new SlackManagedUsersError(
+          'Search approval changed during authorization. Start again.',
+          'invalid_state'
+        )
     }
     if (params.attempt.workspaceId) {
       if (!params.attempt.slackBotCredentialId)

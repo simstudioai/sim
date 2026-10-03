@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { LogoPage, SimWordmark } from '@sim/emcn'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
-import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { LogoMark } from '@/app/(landing)/components/navbar/components/logo-mark'
-import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 
 /**
  * Logo-only page frame shared by status pages and public interfaces. Interfaces
@@ -27,28 +25,21 @@ interface LogoShellProps {
 
 export function LogoShell({ children, center = false, footer, theme = 'light' }: LogoShellProps) {
   return (
-    <div
-      className={cn(
-        'desktop-title-bar-page relative flex flex-col bg-[var(--bg)] text-[var(--text-primary)]',
-        theme === 'light' && 'light'
-      )}
+    <LogoPage
+      className='desktop-title-bar-page'
+      titleBar={<DesktopTitleBarLane />}
+      center={center}
+      theme={theme}
+      footer={footer}
+      logo={
+        <a href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
+          <LogoMark>
+            <SimWordmark />
+          </LogoMark>
+        </a>
+      }
     >
-      <DesktopTitleBarLane />
-      <header>
-        <nav className={cn('flex items-center py-4', LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
-          <a href='/' aria-label='Sim home' className='flex h-[30px] items-center'>
-            <LogoMark>
-              <SimWordmark />
-            </LogoMark>
-          </a>
-        </nav>
-      </header>
-      <main
-        className={cn('flex flex-1 flex-col', center && 'items-center justify-center px-4 pb-16')}
-      >
-        {children}
-      </main>
-      {footer}
-    </div>
+      {children}
+    </LogoPage>
   )
 }

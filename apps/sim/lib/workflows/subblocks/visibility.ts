@@ -1,3 +1,5 @@
+import { isRecordLike, omit } from '@sim/utils/object'
+import { isEqual } from 'es-toolkit'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -373,11 +375,11 @@ const INDEX_SCOPED_KEY = /^(\d+):(.+)$/
 /**
  * Canonical-mode overrides are keyed by a tool's position in its `tool-input` array
  * (`${toolIndex}:${canonicalId}`), so anything that reorders or removes tools - the editor
- * (drag-reorder, remove, delete), fork/promote copy (dropping an unresolved custom-tool/MCP
- * entry) - must carry each surviving tool's overrides to its new position and DROP the
- * vacated index. Otherwise a saved basic/advanced choice can attach to whichever DIFFERENT
- * tool later lands on that old index (e.g. a newly-added tool, always appended at the end,
- * can refill a slot a removal just freed).
+ * (drag-reorder, remove, delete), the workflow edit engine (a rewritten tool list), fork/promote
+ * copy (dropping an unresolved custom-tool/MCP entry) - must carry each surviving tool's
+ * overrides to its new position and DROP the vacated index. Otherwise a saved basic/advanced
+ * choice can attach to whichever DIFFERENT tool later lands on that old index (e.g. a newly-added
+ * tool, always appended at the end, can refill a slot a removal just freed).
  *
  * Returns the full replacement `canonicalModes` object (for an atomic whole-map write - a
  * per-key merge can't drop a key, and sequential per-key writes can clobber each other when
@@ -432,6 +434,62 @@ export function reindexToolCanonicalModes<T>(
     const newIndex = newIndexByRef.get(tool)
     if (newIndex !== undefined) newIndexByOldIndex.set(oldIndex, newIndex)
   })
+  return reindexCanonicalModesByPosition(newIndexByOldIndex, overrides)
+}
+
+type ToolMatcher = (oldTool: unknown, newTool: unknown) => boolean
+
+const isSameToolType: ToolMatcher = (oldTool, newTool) =>
+  isRecordLike(oldTool) &&
+  isRecordLike(newTool) &&
+  typeof oldTool.type === 'string' &&
+  oldTool.type === newTool.type
+
+/** Drops `isExpanded`, editor UI state that serialized input may omit or default. */
+function withoutExpandedState(tool: unknown): unknown {
+  return isRecordLike(tool) ? omit(tool, ['isExpanded']) : tool
+}
+
+/**
+ * {@link reindexCanonicalModesByPosition} for a tool array rewritten from serialized input (the
+ * workflow edit API and Chat), where object identity is gone. Each rewritten tool claims an
+ * unclaimed old tool with the same content, then any tool still unmatched claims an unclaimed
+ * old tool of the same `type`, so a tool whose params were edited in place keeps its modes. Each
+ * pass tries the same position before any other, so unmoved tools and identical duplicates keep
+ * their own overrides. A tool left unmatched is new, and an old tool left unmatched was removed.
+ */
+export function reindexRewrittenToolCanonicalModes(
+  oldTools: readonly unknown[],
+  newTools: readonly unknown[],
+  overrides: CanonicalModeOverrides | undefined
+): Record<string, 'basic' | 'advanced'> | undefined {
+  if (!overrides) return undefined
+
+  const oldContents = oldTools.map(withoutExpandedState)
+  const newContents = newTools.map(withoutExpandedState)
+  const newIndexByOldIndex = new Map<number, number>()
+  const matchedNewIndices = new Set<number>()
+
+  for (const matches of [isEqual, isSameToolType] as ToolMatcher[]) {
+    const isUnclaimedMatch = (oldIndex: number, newIndex: number) =>
+      oldIndex < oldContents.length &&
+      !newIndexByOldIndex.has(oldIndex) &&
+      matches(oldContents[oldIndex], newContents[newIndex])
+    const findSamePosition = (newIndex: number) =>
+      isUnclaimedMatch(newIndex, newIndex) ? newIndex : -1
+    const findAnyPosition = (newIndex: number) =>
+      oldContents.findIndex((_, oldIndex) => isUnclaimedMatch(oldIndex, newIndex))
+
+    for (const findOldIndex of [findSamePosition, findAnyPosition]) {
+      newContents.forEach((_, newIndex) => {
+        if (matchedNewIndices.has(newIndex)) return
+        const oldIndex = findOldIndex(newIndex)
+        if (oldIndex === -1) return
+        newIndexByOldIndex.set(oldIndex, newIndex)
+        matchedNewIndices.add(newIndex)
+      })
+    }
+  }
   return reindexCanonicalModesByPosition(newIndexByOldIndex, overrides)
 }
 
