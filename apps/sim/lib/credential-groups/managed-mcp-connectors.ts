@@ -5,29 +5,31 @@ export const MANAGED_MCP_CONNECTOR_IDS = [
   'coda',
   'notion',
   'hubspot',
+  'lucid',
+  'zoom',
 ] as const
 
 export type ManagedMcpConnectorId = (typeof MANAGED_MCP_CONNECTOR_IDS)[number]
 
-interface FixedManagedMcpConnector {
-  id: Exclude<ManagedMcpConnectorId, 'databricks' | 'hubspot'>
+interface ManagedMcpConnectorMetadata {
   name: string
   description: string
+  bgColor?: string
+}
+
+interface FixedManagedMcpConnector extends ManagedMcpConnectorMetadata {
+  id: Exclude<ManagedMcpConnectorId, 'databricks' | 'hubspot' | 'zoom'>
   url: string
   oauthClientRegistration: 'dynamic'
 }
 
-interface DatabricksManagedMcpConnector {
+interface DatabricksManagedMcpConnector extends ManagedMcpConnectorMetadata {
   id: 'databricks'
-  name: string
-  description: string
   oauthClientRegistration: 'preregistered'
 }
 
-interface HubSpotManagedMcpConnector {
-  id: 'hubspot'
-  name: string
-  description: string
+interface FixedPreregisteredManagedMcpConnector extends ManagedMcpConnectorMetadata {
+  id: 'hubspot' | 'zoom'
   url: string
   oauthClientRegistration: 'preregistered'
 }
@@ -35,9 +37,24 @@ interface HubSpotManagedMcpConnector {
 export type ManagedMcpConnector =
   | FixedManagedMcpConnector
   | DatabricksManagedMcpConnector
-  | HubSpotManagedMcpConnector
+  | FixedPreregisteredManagedMcpConnector
 
 export const MANAGED_MCP_CONNECTORS = {
+  zoom: {
+    id: 'zoom',
+    name: 'Zoom',
+    description: 'Search past meetings, transcripts and notes using your Zoom account',
+    url: 'https://mcp.zoom.us/mcp/meeting/streamable',
+    oauthClientRegistration: 'preregistered',
+  },
+  lucid: {
+    id: 'lucid',
+    name: 'Lucid',
+    bgColor: '#282C33',
+    description: 'Search Lucidchart diagrams and Lucidspark boards using your Lucid account',
+    url: 'https://mcp.lucid.app/mcp/readonly',
+    oauthClientRegistration: 'dynamic',
+  },
   hubspot: {
     id: 'hubspot',
     name: 'HubSpot',
@@ -105,6 +122,14 @@ export function getManagedMcpConnector(connectorId: string): ManagedMcpConnector
     throw new Error(`Unsupported managed MCP connector: ${connectorId}`)
   }
   return MANAGED_MCP_CONNECTORS[connectorId]
+}
+
+export function getManagedMcpConnectorBgColor(
+  connectorId: string | null | undefined
+): string | undefined {
+  return connectorId && isManagedMcpConnectorId(connectorId)
+    ? getManagedMcpConnector(connectorId).bgColor
+    : undefined
 }
 
 function hostnameHasSuffix(hostname: string, suffixes: readonly string[]): boolean {

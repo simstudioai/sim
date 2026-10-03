@@ -26,3 +26,30 @@ export function getSharedHubSpotMcpClient() {
     ),
   }
 }
+
+/** A separate registration keeps Search authorization from replacing workflow Zoom grants. */
+export function getSharedZoomMcpClient() {
+  if (inspectConfiguredOAuthClient('zoom-mcp').state !== 'ready') return undefined
+  const configuration = requireConfiguredOAuthClient('zoom-mcp')
+  const clientId = configuration.values.ZOOM_MCP_CLIENT_ID
+  const clientSecret = configuration.values.ZOOM_MCP_CLIENT_SECRET
+  const scope = 'meeting:read:search meeting:read:assets'
+  const tokenEndpointAuthMethod = 'client_secret_basic' as const
+  return {
+    clientId,
+    clientSecret,
+    scope,
+    tokenEndpointAuthMethod,
+    configurationFingerprint: sha256Hex(
+      JSON.stringify([
+        'shared-zoom-mcp',
+        MANAGED_MCP_CONNECTORS.zoom.url,
+        `${getBaseUrl().replace(/\/$/, '')}/api/mcp/oauth/callback`,
+        clientId,
+        clientSecret,
+        scope,
+        tokenEndpointAuthMethod,
+      ])
+    ),
+  }
+}

@@ -5,7 +5,8 @@ import {
   collectArchivedSubtreeIds,
   collectCascadeSubtreeIds,
   type DbOrTx,
-  restoreFolderCascade,
+  restoreFolderChildren,
+  restoreFolderRows,
 } from '@/lib/folders/cascade'
 import { FOLDER_RESOURCES, type FolderResourceConfig } from '@/lib/folders/config'
 import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
@@ -187,7 +188,7 @@ describe('archiveFolderCascade', () => {
   })
 })
 
-describe('restoreFolderCascade', () => {
+describe('folder restore cascade', () => {
   const dependents = [
     {
       table: DEPENDENT_TABLE as never,
@@ -202,16 +203,18 @@ describe('restoreFolderCascade', () => {
       updates: [[{ id: 'root' }, { id: 'sub' }], [{ id: 'child-1' }, { id: 'child-2' }], []],
     })
 
-    const counts = await restoreFolderCascade(
+    const config = makeConfig({ restoreDependents: dependents })
+    const folders = await restoreFolderRows(tx, config, 'ws-1', ['root', 'sub'], TIMESTAMP, NOW)
+    const children = await restoreFolderChildren(
       tx,
-      makeConfig({ restoreDependents: dependents }),
+      config,
       'ws-1',
       ['root', 'sub'],
       TIMESTAMP,
       NOW
     )
 
-    expect(counts).toEqual({ folders: 2, children: 2 })
+    expect({ folders, children }).toEqual({ folders: 2, children: 2 })
     expect(updateCalls).toHaveLength(3)
     expect(updateCalls[1].set).toEqual({ archivedAt: null, updatedAt: NOW })
     expect(updateCalls[2].table).toBe(DEPENDENT_TABLE)
@@ -225,14 +228,9 @@ describe('restoreFolderCascade', () => {
   it('restores only rows carrying the folder’s own soft-delete timestamp', async () => {
     const { tx, updateCalls } = makeTx({ updates: [[{ id: 'root' }], [{ id: 'child-1' }], []] })
 
-    await restoreFolderCascade(
-      tx,
-      makeConfig({ restoreDependents: dependents }),
-      'ws-1',
-      ['root'],
-      TIMESTAMP,
-      NOW
-    )
+    const config = makeConfig({ restoreDependents: dependents })
+    await restoreFolderRows(tx, config, 'ws-1', ['root'], TIMESTAMP, NOW)
+    await restoreFolderChildren(tx, config, 'ws-1', ['root'], TIMESTAMP, NOW)
 
     for (const call of updateCalls) {
       expect(hasMockCondition(call.where, (node) => node.right === TIMESTAMP)).toBe(true)

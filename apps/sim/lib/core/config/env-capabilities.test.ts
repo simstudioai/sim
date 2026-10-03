@@ -1,6 +1,3 @@
-import integrationsJson from '@sim/deployment-config/integrations.json'
-import { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS } from '@sim/deployment-config/service-account-metadata'
-import { describe, expect, it, vi } from 'vitest'
 import {
   ASYNC_JOBS_CAPABILITY,
   CACHE_CAPABILITY,
@@ -17,7 +14,10 @@ import {
   SANDBOX_CAPABILITY,
   STORAGE_CAPABILITY,
   wireFallback,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import integrationsJson from '@sim/deployment-config/integrations.json'
+import { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS } from '@sim/deployment-config/service-account-metadata'
+import { describe, expect, it, vi } from 'vitest'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 

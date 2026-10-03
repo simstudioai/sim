@@ -33,7 +33,7 @@ import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import { knowledgeAccessCondition, textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -42,6 +42,7 @@ import {
   toActiveKnowledgeBaseReference,
 } from '@/lib/knowledge/knowledge-base-reference'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
+import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -187,8 +188,8 @@ async function readKnowledgeBaseRows(
 }
 
 /**
- * {@link readKnowledgeBaseRows} plus the live totals of the documents `access` admits. Only the
- * surfaces that display totals pay for the document join, and they always count as a reader.
+ * Pages bases before counting the documents `access` admits. Explicit document base IDs keep
+ * the count selective instead of scanning a shared ACL token across tenants before the join.
  */
 async function readCountedKnowledgeBaseRows(
   where: SQL | undefined,
@@ -199,31 +200,18 @@ async function readCountedKnowledgeBaseRows(
   Array<ActiveKnowledgeBaseReference & Pick<KnowledgeBaseWithCounts, 'docCount' | 'tokenCount'>>
 > {
   const scope = 'get' in access ? await access.get() : access
-  const query = db
-    .select({
-      ...ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      docCount: count(document.knowledgeBaseId),
-    })
-    .from(knowledgeBase)
-    .leftJoin(
-      document,
-      and(
-        eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        knowledgeAccessCondition(scope)
-      )
-    )
-    .where(where)
-    .groupBy(knowledgeBase.id)
-    .orderBy(...orderBy)
-
-  const rows = limit === undefined ? await query : await query.limit(limit)
+  const rows = await readKnowledgeBaseRows(where, orderBy, limit)
+  const totals =
+    rows.length > 0
+      ? await countDocumentsByKnowledgeBase(
+          sql`${document.knowledgeBaseId} = ANY(${textArrayLiteral(rows.map((kb) => kb.id))})`,
+          knowledgeAccessCondition(scope)
+        )
+      : []
+  const counts = new Map(totals.map((total) => [total.knowledgeBaseId, total]))
 
   /**
-   * The join above already counted everything the reader's stored ACL admits. Only a
+   * The counts above already include everything the reader's stored ACL admits. Only a
    * provider can add documents a live source (GitHub, Confluence) authorizes beyond that,
    * and that supplement is resolved once for the whole list: an unpaged list is bounded by
    * its own filter, a page by its row IDs, so a workspace with tens of thousands of bases
@@ -242,9 +230,9 @@ async function readCountedKnowledgeBaseRows(
         )
       : undefined
   return rows.map((kb) => ({
-    ...toActiveKnowledgeBaseReference(kb),
-    docCount: Number(kb.docCount) + (liveCounts?.get(kb.id)?.docCount ?? 0),
-    tokenCount: kb.tokenCount + (liveCounts?.get(kb.id)?.tokenCount ?? 0),
+    ...kb,
+    docCount: (counts.get(kb.id)?.docCount ?? 0) + (liveCounts?.get(kb.id)?.docCount ?? 0),
+    tokenCount: (counts.get(kb.id)?.tokenCount ?? 0) + (liveCounts?.get(kb.id)?.tokenCount ?? 0),
   }))
 }
 
@@ -421,22 +409,6 @@ export async function getWorkspaceKnowledgeBases(
     data: await attachConnectorTypes(page.data),
     nextCursorKeys: page.nextCursorKeys,
   }
-}
-
-/** Loads at most two active exact-name matches so a caller can fail on corrupt ambiguity. */
-export async function findActiveKnowledgeBasesByExactName(
-  workspaceId: string,
-  name: string
-): Promise<ActiveKnowledgeBaseReference[]> {
-  return readKnowledgeBaseRows(
-    and(
-      eq(knowledgeBase.workspaceId, workspaceId),
-      eq(knowledgeBase.name, name),
-      isNull(knowledgeBase.deletedAt)
-    ),
-    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc'),
-    2
-  )
 }
 
 /**
@@ -1011,6 +983,12 @@ export async function deleteKnowledgeBase(
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
+    const [owner] = await tx
+      .select({ organizationId: knowledgeBase.organizationId })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .limit(1)
+    if (owner?.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
     /**
      * Soft deletion leaves the referenced key intact. Allow embedding inserts to
      * take their foreign-key KEY SHARE lock while holding a document row lock,
@@ -1156,6 +1134,7 @@ export async function restoreKnowledgeBase(
     attemptedRestoreName = ''
     try {
       await db.transaction(async (tx) => {
+        if (kb.organizationId) await lockOrganizationSearchApproval(tx, kb.organizationId)
         await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
         attemptedRestoreName = await generateRestoreName(kb.name, async (candidate) => {

@@ -64,8 +64,8 @@ describe('PlanetScale server selectors', () => {
     }
     const picker = PlanetScaleBlock.subBlocks.find(
       (field) => field.id === 'triggerDatabaseSelector'
-    )!
-    expect(picker).toBeTruthy()
+    )
+    if (!picker) throw new Error('PlanetScale trigger database selector is missing')
     const buildContext = (current: Record<string, unknown>) =>
       buildSelectorContextFromValues({
         selectorKey: 'planetscale.databases',

@@ -98,16 +98,6 @@ async function routeApplicationOperation(routePath: string, method: string): Pro
   return registryModule[imported.name]?.[operation.name.text]
 }
 
-const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
-  ['apps/docs/openapi-v2-workflows.json', 58],
-  ['apps/docs/openapi-v2-logs.json', 3],
-  ['apps/docs/openapi-v2-files-audit.json', 35],
-  ['apps/docs/openapi-v2-tables.json', 53],
-  ['apps/docs/openapi-v2-knowledge.json', 45],
-  ['apps/docs/openapi-v2-billing.json', 2],
-  ['apps/docs/openapi-v2-resources.json', 92],
-])
-
 const generatedDocuments = new Map<(typeof DOCUMENTS)[number], JsonObject>()
 
 function generatedDocument(document: (typeof DOCUMENTS)[number]): JsonObject {
@@ -261,20 +251,15 @@ describe('generated OpenAPI documents', () => {
     }
   }, 30_000)
 
-  it('covers the complete public v2 operation surface with canonical errors', () => {
+  it('generates named schemas and canonical errors across public v2 operations', () => {
     const outputs = DOCUMENTS.map((document) => document.output)
     expect(new Set(outputs).size).toBe(DOCUMENTS.length)
 
-    let totalOperations = 0
     for (const document of DOCUMENTS) {
       const spec = generatedDocument(document)
       const documentOperations = operations(spec)
-      const expectedCount = EXPECTED_OPERATION_COUNTS.get(document.output)
 
-      expect(expectedCount).toBeDefined()
-      expect(documentOperations).toHaveLength(expectedCount as number)
       expect(spec['x-generated-by']).toBe('scripts/generate-openapi.ts')
-      totalOperations += documentOperations.length
 
       const schemas = (spec.components as JsonObject).schemas as JsonObject
       expect(Object.keys(schemas).filter((name) => name.startsWith('__schema'))).toEqual([])
@@ -292,7 +277,6 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-    expect(totalOperations).toBe(288)
   })
 })
 

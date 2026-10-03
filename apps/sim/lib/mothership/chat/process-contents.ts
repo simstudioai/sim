@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { EnvCapabilityConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
@@ -7,9 +8,10 @@ import {
 import { escapeRegExp } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import {
@@ -81,6 +83,7 @@ type AgentContextType =
   | 'table'
   | 'table_selection'
   | 'file'
+  | 'dashboard'
   | 'file_selection'
   | 'workflow_block'
   | 'docs'
@@ -301,6 +304,10 @@ export async function processContextsServer(
         content: result.content,
         path: result.path,
       }
+    }
+    if (ctx.kind === 'dashboard' && ctx.dashboardId && workspaceId) {
+      const result = await resolveDashboardResource(ctx.dashboardId, workspaceId, userId, chatId)
+      return { ...result, type: 'dashboard', tag: ctx.label ? `@${ctx.label}` : '@' }
     }
     if (ctx.kind === 'file' && ctx.fileId && workspaceId) {
       const result = await resolveFileResource(ctx.fileId, workspaceId, userId, chatId)
@@ -905,6 +912,9 @@ export async function resolveActiveResourceContext(
           currentView
         )
       }
+      case 'dashboard': {
+        return await resolveDashboardResource(resourceId, workspaceId, userId, chatId)
+      }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
       }
@@ -966,7 +976,7 @@ async function resolveTableResource(
         input: { tableId, workspaceId, viewId: selectedViewId },
       })
     : undefined
-  const { table } = await readTableUseCase.execute({
+  await readTableUseCase.execute({
     principal,
     input: { tableId, workspaceId },
   })
@@ -994,6 +1004,26 @@ async function resolveTableResource(
             }
           : {}),
     }),
+  }
+}
+
+async function resolveDashboardResource(
+  dashboardId: string,
+  workspaceId: string,
+  userId: string,
+  chatId?: string
+): Promise<AgentContext> {
+  const principal = createCopilotChatPrincipal({ userId, workspaceId, chatId }, 'sim:workspaces')
+  const { dashboard } = await readWorkspaceDashboard.execute({
+    principal,
+    input: { workspaceId },
+  })
+  if (dashboard?.id !== dashboardId)
+    throw new OrchestrationError('not_found', 'Dashboard not found')
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: JSON.stringify({ type: 'dashboard', dashboardId, workspaceId, name: dashboard.name }),
   }
 }
 

@@ -10,6 +10,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#111111"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[PlanetScale](https://planetscale.com/) is a managed database platform for MySQL (built on Vitess) and PostgreSQL. It uses Git-style branches for schema changes and deploy requests to review and ship those changes safely.
+
+With the PlanetScale block, you can:
+
+- **Inspect databases and branches**: List the databases in an organization, read database details, and list or read branches
+- **Manage branches**: Create development branches from a parent, restore a backup into a new branch, or delete branches you no longer need
+- **Work with backups**: Create on-demand backups, list backups for a branch, and check a backup's state, size, and expiration
+- **Ship schema changes (Vitess)**: Create deploy requests, review or approve them, queue them for deployment, and close them
+
+To connect, create a service token in your PlanetScale organization settings and grant it access to the databases and actions your workflow needs. Enter the service token ID, the service token, and your organization slug in the block.
+
+In Sim, the PlanetScale block lets your agents manage database operations as part of a workflow: spin up a branch when a pull request opens, take a backup before a release, report on backup health every day, or open and track a deploy request for a schema change. To run SQL queries against a database, use the MySQL or PostgreSQL block.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Manage PlanetScale databases and branches, create and inspect backups, and create, review, queue, and close Vitess deploy requests. Authenticate with an organization service token. Deploy-request actions require a Vitess database; SQL queries are available through the MySQL and PostgreSQL integrations.

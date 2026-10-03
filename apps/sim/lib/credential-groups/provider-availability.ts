@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { and, eq, isNotNull, isNull, ne } from 'drizzle-orm'
 import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import {
   MANAGED_MCP_CONNECTOR_IDS,
   MANAGED_MCP_CONNECTORS,
@@ -12,6 +13,7 @@ import {
   getCredentialGroupProviderId,
   isCredentialGroupStandardOAuthProvider,
 } from '@/lib/credential-groups/providers'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 /**
  * The providers this deployment can actually enroll.
@@ -34,7 +36,10 @@ export function listConfiguredCredentialGroupProviders(): CredentialGroupProvide
 }
 
 /** Existing group registrations remain usable when the deployment has no shared HubSpot client. */
-export async function listConfiguredManagedMcpConnectors(credentialGroupId?: string) {
+export async function listConfiguredManagedMcpConnectors(
+  credentialGroupId: string | undefined,
+  scope: ResourceScope
+) {
   let hubspotReady = inspectConfiguredOAuthClient('hubspot-mcp').state === 'ready'
   if (!hubspotReady && credentialGroupId) {
     const [registration] = await db
@@ -57,5 +62,10 @@ export async function listConfiguredManagedMcpConnectors(credentialGroupId?: str
       .limit(1)
     hubspotReady = Boolean(registration)
   }
-  return MANAGED_MCP_CONNECTOR_IDS.filter((id) => id !== 'hubspot' || hubspotReady)
+  const zoomReady =
+    inspectConfiguredOAuthClient('zoom-mcp').state === 'ready' &&
+    (await isSearchProviderEnabled('zoom', scope))
+  return MANAGED_MCP_CONNECTOR_IDS.filter(
+    (id) => (id !== 'hubspot' || hubspotReady) && (id !== 'zoom' || zoomReady)
+  )
 }

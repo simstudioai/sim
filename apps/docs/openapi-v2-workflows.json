@@ -1200,6 +1200,101 @@
         }
       }
     },
+    "/api/v2/workflows/{workflowId}/versions/compare": {
+      "get": {
+        "operationId": "compareWorkflowVersionsV2",
+        "summary": "Compare Workflow Versions",
+        "description": "Compare two deployment versions of the same workflow. Reports semantic changes, excluding canvas layout; credential-bearing values are withheld while their changes remain visible. Connections include stable block and port identifiers. The combined snapshots and the comparison result must each fit within 16 MiB.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.versions.compare",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "base",
+            "in": "query",
+            "required": true,
+            "description": "Deployment version to compare from.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Deployment version to compare from."
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "description": "Deployment version to compare to, in the same workflow.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147483647,
+              "description": "Deployment version to compare to, in the same workflow."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes from the base deployment to the target deployment.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowVersionComparisonResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workflows/{workflowId}/versions/{version}": {
       "get": {
         "operationId": "getWorkflowVersionV2",
@@ -9171,6 +9266,620 @@
           }
         ]
       },
+      "WorkflowVersionComparison": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow compared."
+          },
+          "base": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Base deployment version."
+          },
+          "target": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Target deployment version."
+          },
+          "diff": {
+            "type": "object",
+            "properties": {
+              "addedBlocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Stable block identifier."
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Block type."
+                    },
+                    "name": {
+                      "description": "Block name.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "type"],
+                  "additionalProperties": false
+                },
+                "description": "Blocks present only in the target."
+              },
+              "removedBlocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Stable block identifier."
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Block type."
+                    },
+                    "name": {
+                      "description": "Block name.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "type"],
+                  "additionalProperties": false
+                },
+                "description": "Blocks present only in the base."
+              },
+              "modifiedBlocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Stable block identifier."
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Block type."
+                    },
+                    "name": {
+                      "description": "Block name.",
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "description": "Changed field identifier."
+                          },
+                          "oldValue": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "unset",
+                                    "description": "The field has no configured value."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "redacted",
+                                    "description": "The value is withheld by the credential policy."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "value",
+                                    "description": "The field value is included."
+                                  },
+                                  "value": {
+                                    "description": "The complete user-authored field value."
+                                  }
+                                },
+                                "required": ["kind", "value"],
+                                "additionalProperties": false
+                              }
+                            ],
+                            "description": "Base version value."
+                          },
+                          "newValue": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "unset",
+                                    "description": "The field has no configured value."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "redacted",
+                                    "description": "The value is withheld by the credential policy."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "value",
+                                    "description": "The field value is included."
+                                  },
+                                  "value": {
+                                    "description": "The complete user-authored field value."
+                                  }
+                                },
+                                "required": ["kind", "value"],
+                                "additionalProperties": false
+                              }
+                            ],
+                            "description": "Target version value."
+                          },
+                          "scope": {
+                            "type": "string",
+                            "enum": ["block", "subblock"],
+                            "description": "Whether the field is a block setting or a subblock input."
+                          }
+                        },
+                        "required": ["field", "oldValue", "newValue", "scope"],
+                        "additionalProperties": false
+                      },
+                      "description": "Changed field values."
+                    }
+                  },
+                  "required": ["id", "type", "changes"],
+                  "additionalProperties": false
+                },
+                "description": "Blocks with changed fields."
+              },
+              "edgeChanges": {
+                "type": "object",
+                "properties": {
+                  "added": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number added."
+                  },
+                  "removed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number removed."
+                  },
+                  "addedDetails": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "description": "Stable source block identifier."
+                        },
+                        "target": {
+                          "type": "string",
+                          "description": "Stable target block identifier."
+                        },
+                        "sourceHandle": {
+                          "description": "Source port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
+                        "targetHandle": {
+                          "description": "Target port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
+                        "sourceName": {
+                          "type": "string",
+                          "description": "Source block name."
+                        },
+                        "targetName": {
+                          "type": "string",
+                          "description": "Target block name."
+                        }
+                      },
+                      "required": ["source", "target", "sourceName", "targetName"],
+                      "additionalProperties": false
+                    },
+                    "description": "Added connections."
+                  },
+                  "removedDetails": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "description": "Stable source block identifier."
+                        },
+                        "target": {
+                          "type": "string",
+                          "description": "Stable target block identifier."
+                        },
+                        "sourceHandle": {
+                          "description": "Source port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
+                        "targetHandle": {
+                          "description": "Target port identifier; omitted for the default port.",
+                          "type": "string"
+                        },
+                        "sourceName": {
+                          "type": "string",
+                          "description": "Source block name."
+                        },
+                        "targetName": {
+                          "type": "string",
+                          "description": "Target block name."
+                        }
+                      },
+                      "required": ["source", "target", "sourceName", "targetName"],
+                      "additionalProperties": false
+                    },
+                    "description": "Removed connections."
+                  }
+                },
+                "required": ["added", "removed", "addedDetails", "removedDetails"],
+                "additionalProperties": false,
+                "description": "Connection changes."
+              },
+              "loopChanges": {
+                "type": "object",
+                "properties": {
+                  "added": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number added."
+                  },
+                  "removed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number removed."
+                  },
+                  "modified": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number modified."
+                  }
+                },
+                "required": ["added", "removed", "modified"],
+                "additionalProperties": false,
+                "description": "Loop change counts."
+              },
+              "parallelChanges": {
+                "type": "object",
+                "properties": {
+                  "added": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number added."
+                  },
+                  "removed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number removed."
+                  },
+                  "modified": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number modified."
+                  }
+                },
+                "required": ["added", "removed", "modified"],
+                "additionalProperties": false,
+                "description": "Parallel change counts."
+              },
+              "containerChanges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Container block ID."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["loop", "parallel"],
+                      "description": "Container type."
+                    },
+                    "name": {
+                      "description": "Container name.",
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "description": "Changed field identifier."
+                          },
+                          "oldValue": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "unset",
+                                    "description": "The field has no configured value."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "redacted",
+                                    "description": "The value is withheld by the credential policy."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "value",
+                                    "description": "The field value is included."
+                                  },
+                                  "value": {
+                                    "description": "The complete user-authored field value."
+                                  }
+                                },
+                                "required": ["kind", "value"],
+                                "additionalProperties": false
+                              }
+                            ],
+                            "description": "Base version value."
+                          },
+                          "newValue": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "unset",
+                                    "description": "The field has no configured value."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "redacted",
+                                    "description": "The value is withheld by the credential policy."
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "value",
+                                    "description": "The field value is included."
+                                  },
+                                  "value": {
+                                    "description": "The complete user-authored field value."
+                                  }
+                                },
+                                "required": ["kind", "value"],
+                                "additionalProperties": false
+                              }
+                            ],
+                            "description": "Target version value."
+                          }
+                        },
+                        "required": ["field", "oldValue", "newValue"],
+                        "additionalProperties": false
+                      },
+                      "description": "Changed field values."
+                    },
+                    "nodesAdded": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Added member block IDs."
+                    },
+                    "nodesRemoved": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Removed member block IDs."
+                    }
+                  },
+                  "required": ["id", "kind", "changes", "nodesAdded", "nodesRemoved"],
+                  "additionalProperties": false
+                },
+                "description": "Container configuration and membership changes."
+              },
+              "variableChanges": {
+                "type": "object",
+                "properties": {
+                  "added": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number added."
+                  },
+                  "removed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number removed."
+                  },
+                  "modified": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Number modified."
+                  },
+                  "addedNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Names of added variables."
+                  },
+                  "removedNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Names of removed variables."
+                  },
+                  "modifiedNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Names of modified variables."
+                  }
+                },
+                "required": [
+                  "added",
+                  "removed",
+                  "modified",
+                  "addedNames",
+                  "removedNames",
+                  "modifiedNames"
+                ],
+                "additionalProperties": false,
+                "description": "Variable change counts and names."
+              },
+              "hasChanges": {
+                "type": "boolean",
+                "description": "Whether any semantic change was found."
+              }
+            },
+            "required": [
+              "addedBlocks",
+              "removedBlocks",
+              "modifiedBlocks",
+              "edgeChanges",
+              "loopChanges",
+              "parallelChanges",
+              "containerChanges",
+              "variableChanges",
+              "hasChanges"
+            ],
+            "additionalProperties": false,
+            "description": "Changes from base to target."
+          }
+        },
+        "required": ["workflowId", "base", "target", "diff"],
+        "additionalProperties": false,
+        "title": "Workflow version comparison",
+        "description": "Semantic changes from base to target within one workflow. Credential-bearing fields are redacted; changes to them are still reported. Canvas layout is excluded."
+      },
+      "WorkflowVersionComparisonResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowVersionComparison"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow version comparison response",
+        "description": "Changes from base to target, with credential values withheld.",
+        "examples": [
+          {
+            "data": {
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "base": 1,
+              "target": 2,
+              "diff": {
+                "addedBlocks": [],
+                "removedBlocks": [],
+                "modifiedBlocks": [],
+                "edgeChanges": {
+                  "added": 0,
+                  "removed": 0,
+                  "addedDetails": [],
+                  "removedDetails": []
+                },
+                "loopChanges": {
+                  "added": 0,
+                  "removed": 0,
+                  "modified": 0
+                },
+                "parallelChanges": {
+                  "added": 0,
+                  "removed": 0,
+                  "modified": 0
+                },
+                "containerChanges": [],
+                "variableChanges": {
+                  "added": 0,
+                  "removed": 0,
+                  "modified": 0,
+                  "addedNames": [],
+                  "removedNames": [],
+                  "modifiedNames": []
+                },
+                "hasChanges": false
+              }
+            }
+          }
+        ]
+      },
       "DeployedWorkflowState": {
         "title": "Deployed workflow state",
         "description": "Workflow graph snapshot pinned by a deployment version.",
@@ -13467,6 +14176,97 @@
                   "type": "string",
                   "maxLength": 1024,
                   "description": "Display name of the workflow or workspace."
+                },
+                "comparison": {
+                  "description": "Last successfully synced source deployment compared with the source deployment pinned by this preview. Absent for archive actions.",
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "available",
+                          "description": "Both exact source snapshots are available."
+                        },
+                        "base": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Exact source deployment snapshot identifier."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 2147483647,
+                              "description": "Saved version number in the source workflow."
+                            }
+                          },
+                          "required": ["id", "version"],
+                          "additionalProperties": false,
+                          "description": "Source deployment last successfully synced to this destination."
+                        },
+                        "target": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Exact source deployment snapshot identifier."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 2147483647,
+                              "description": "Saved version number in the source workflow."
+                            }
+                          },
+                          "required": ["id", "version"],
+                          "additionalProperties": false,
+                          "description": "Pinned source deployment that this sync would copy."
+                        }
+                      },
+                      "required": ["status", "base", "target"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "unavailable",
+                          "description": "The source baseline cannot be compared."
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": ["new_workflow", "no_baseline", "missing_baseline"],
+                          "description": "New destination workflow, no recorded successful sync, or deleted baseline snapshot."
+                        },
+                        "target": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "Exact source deployment snapshot identifier."
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 2147483647,
+                              "description": "Saved version number in the source workflow."
+                            }
+                          },
+                          "required": ["id", "version"],
+                          "additionalProperties": false,
+                          "description": "Pinned source deployment that this sync would copy."
+                        }
+                      },
+                      "required": ["status", "reason", "target"],
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               },
               "required": ["action", "name"],
@@ -16153,6 +16953,9 @@
               "webflow.collections",
               "webflow.items",
               "planetscale.databases",
+              "powerbi.workspaces",
+              "powerbi.datasets",
+              "powerbi.reports",
               "planetscale.branches",
               "planetscale.backups",
               "planetscale.deployRequests",
@@ -16332,6 +17135,9 @@
               "webflow.collections",
               "webflow.items",
               "planetscale.databases",
+              "powerbi.workspaces",
+              "powerbi.datasets",
+              "powerbi.reports",
               "planetscale.branches",
               "planetscale.backups",
               "planetscale.deployRequests",

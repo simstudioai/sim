@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
@@ -679,7 +680,7 @@ export async function getCustomBlockUsageCounts(
   )
   // Escape LIKE wildcards — the `_`s in `custom_block_<id>` would otherwise match
   // any character and let unrelated states through to the jsonb parse.
-  const likePattern = `%${blockType.replace(/[\\%_]/g, '\\$&')}%`
+  const likePattern = `%${escapeLikePattern(blockType)}%`
 
   const [liveRows, deployedRows] = await Promise.all([
     db

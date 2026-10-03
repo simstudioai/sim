@@ -3,7 +3,6 @@ import type { OperationUseCase, WorkspaceOperation } from '@/lib/core/applicatio
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
-  fetchWorkspaceFileBuffer,
   getWorkspaceFileByName,
   loadActiveWorkspaceFileContext,
   resolveWorkspaceFileReference as resolveStoredWorkspaceFileReference,
@@ -34,10 +33,6 @@ interface WorkspaceFileReferenceInput {
 
 interface WorkspaceFileReferenceResult {
   file: WorkspaceFileRecord
-}
-
-interface WorkspaceFileReferenceReadInput extends WorkspaceFileReferenceInput {
-  maxBytes: number
 }
 
 /** Canonical file context plus the record the reference resolved to. */
@@ -153,47 +148,4 @@ export async function resolveWorkspaceFileReference({
     },
   })
   return result.file
-}
-
-export interface ReadWorkspaceFileReferenceInput
-  extends Omit<ResolveWorkspaceFileReferenceInput, 'operation'> {
-  maxBytes: number
-}
-
-const readWorkspaceFileReferenceUseCase = defineAuthorizedWorkspaceFileUseCase({
-  operation: fileOperations.readContent,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: WorkspaceFileReferenceReadInput
-  }) => resolveReferencedWorkspaceFileContext(principal, input, CHAT_UPLOAD_LOOKUP),
-  async execute({ input, context }): Promise<{ file: WorkspaceFileRecord; content: Buffer }> {
-    return {
-      file: context.file,
-      content: await fetchWorkspaceFileBuffer(context.file, { maxBytes: input.maxBytes }),
-    }
-  },
-})
-
-/** Resolve one trusted workspace-file reference and read it under the shared file policy. */
-export async function readWorkspaceFileReference({
-  principal,
-  workspaceId,
-  reference,
-  folderId,
-  maxBytes,
-  chatId,
-}: ReadWorkspaceFileReferenceInput): Promise<{ file: WorkspaceFileRecord; content: Buffer }> {
-  return readWorkspaceFileReferenceUseCase.execute({
-    principal,
-    input: {
-      workspaceId,
-      reference,
-      maxBytes,
-      ...(chatId === undefined ? {} : { chatId }),
-      ...(folderId === undefined ? {} : { folderId }),
-    },
-  })
 }

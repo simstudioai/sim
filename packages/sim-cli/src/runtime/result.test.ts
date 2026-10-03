@@ -206,6 +206,25 @@ describe('a truncation the response states inside its payload', () => {
     return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
   }
 
+  it.each(['readFileText', 'readFileVersionText'] as const)(
+    'preserves complete %s content in table output',
+    (operation) => {
+      const read = captureStderr()
+      const payload = {
+        fileId: 'file_probe',
+        name: 'probe.txt',
+        text: `${'Long line '.repeat(30)}\nsecond\tline\n\u001b[2Jlast line`,
+        truncated: false,
+      }
+
+      renderResult(operation, 'table', payload, CLI_CONTRACT[operation]!, {}, { data: payload })
+
+      expect(JSON.parse(logged.join('\n'))).toEqual(payload)
+      expect(logged.join('\n')).not.toContain('\u001b')
+      expect(read()).toBe('')
+    }
+  )
+
   it('reports a clipped file body, which the envelope says nothing about', () => {
     const read = captureStderr()
     const payload = { fileId: 'wf_probe', name: 'a.txt', text: 'abc', truncated: true }

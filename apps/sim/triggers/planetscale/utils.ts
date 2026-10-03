@@ -2,7 +2,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /** Documented production events; webhook.test is an authenticated reachability probe. */
-export const PLANETSCALE_EVENTS = [
+const PLANETSCALE_EVENTS = [
   { id: 'branch.anomaly', label: 'Branch Anomaly (Vitess, Neki, Postgres)' },
   { id: 'branch.out_of_memory', label: 'Branch Out of Memory (Postgres)' },
   { id: 'branch.primary_promoted', label: 'Branch Primary Promoted (Postgres)' },

@@ -45,12 +45,10 @@ export {
   asyncJobsRegionMock,
   asyncJobsRegionMockFns,
 } from './async-jobs-region.mock'
-// Audit mocks
 export {
   auditMock,
   auditMockFns,
 } from './audit.mock'
-// Auth mocks
 export {
   authMock,
   authMockFns,
@@ -145,6 +143,7 @@ export {
   billingUsageLogMock,
   billingUsageLogMockFns,
   MockCumulativeUsageContextMismatchError,
+  MockCumulativeUsagePeriodClosedError,
   MockUnknownUsageCursorError,
 } from './billing-usage-log.mock'
 export {
@@ -165,7 +164,6 @@ export {
   blockVisibilityMockFns,
   type MockBlockVisibilityState,
 } from './block-visibility.mock'
-// Blocks mocks
 export {
   blocksMock,
   createMockGetBlock,
@@ -227,7 +225,6 @@ export {
   customBlockOperationsMockFns,
   MockCustomBlockValidationError,
 } from './custom-block-operations.mock'
-// Database mocks
 export {
   createMockSql,
   databaseMock,
@@ -272,12 +269,10 @@ export {
   emcnIconsMock,
   getEmcnIconStub,
 } from './emcn-icons.mock'
-// Encryption mocks
 export {
   encryptionMock,
   encryptionMockFns,
 } from './encryption.mock'
-// Env mocks
 export {
   createEnvMock,
   defaultMockEnv,
@@ -286,7 +281,6 @@ export {
   resetEnvMock,
   setEnv,
 } from './env.mock'
-// Env flag mocks
 export {
   envFlagsMock,
   envFlagsMockFns,
@@ -327,7 +321,7 @@ export {
   featureFlagsMockFns,
 } from './feature-flags.mock'
 // Executor mocks - use side-effect import: import '@sim/testing/mocks/executor'
-// Fetch mocks
+
 export {
   createMockFetch,
   createMockResponse,
@@ -368,7 +362,6 @@ export {
   humanInTheLoopManagerMock,
   humanInTheLoopManagerMockFns,
 } from './human-in-the-loop-manager.mock'
-// Hybrid auth mocks
 export {
   hybridAuthMock,
   hybridAuthMockFns,
@@ -378,7 +371,6 @@ export {
   idMockFns,
   resetIdMock,
 } from './id.mock'
-// Input validation mocks
 export {
   inputValidationMock,
   inputValidationMockFns,
@@ -481,7 +473,6 @@ export {
   libDesktopMock,
   libDesktopMockFns,
 } from './lib-desktop.mock'
-// Logger mocks
 export {
   createMockLogger,
   getAllMockLoggers,
@@ -623,7 +614,6 @@ export {
   permissionGroupLocksMock,
   permissionGroupLocksMockFns,
 } from './permission-group-locks.mock'
-// Permission mocks
 export {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
@@ -708,7 +698,6 @@ export {
   remoteSandboxProviderMock,
   remoteSandboxProviderMockFns,
 } from './remote-sandbox-provider.mock'
-// Request mocks
 export {
   createMockRequest,
   type MockRequestOptions,
@@ -721,7 +710,6 @@ export {
   resourcePolicyRepositoryMock,
   resourcePolicyRepositoryMockFns,
 } from './resource-policy-repository.mock'
-// Schema mocks
 export { type MockSchemaTable, schemaMock } from './schema.mock'
 export {
   searchReplaceIndexerMock,
@@ -753,7 +741,6 @@ export {
   storageServiceMock,
   storageServiceMockFns,
 } from './storage-service.mock'
-// Stripe mocks
 export {
   createMockStripeEvent,
   stripeClientMock,
@@ -841,7 +828,6 @@ export {
   tableWorkflowColumnsMock,
   tableWorkflowColumnsMockFns,
 } from './table-workflow-columns.mock'
-// Telemetry mocks
 export { getMockPlatformEvent, telemetryMock, telemetryMockFns } from './telemetry.mock'
 // Terminal console mocks (for @/stores/terminal and @/stores/terminal/console/store)
 export {
@@ -910,7 +896,6 @@ export {
   setUploadDirServer,
   uploadsSetupMock,
 } from './uploads-setup.mock'
-// URL mocks
 export {
   resetUrlsMock,
   urlsMock,
@@ -989,7 +974,6 @@ export {
   workflowsQueriesMock,
   workflowsQueriesMockFns,
 } from './workflows-queries.mock'
-// Workflows-utils mocks
 export {
   workflowsUtilsMock,
   workflowsUtilsMockFns,

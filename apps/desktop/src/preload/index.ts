@@ -127,6 +127,12 @@ const api: SimDesktopApi = {
     : {}),
   beginOAuthConnect: (providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean> =>
     ipcRenderer.invoke('desktop:oauth-connect', providerId, scope),
+  prepareSourceConnect: (): Promise<string | null> =>
+    ipcRenderer.invoke('desktop:source-connect-prepare'),
+  beginSourceConnect: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:source-connect', requestId),
+  cancelSourceConnect: (requestId: string): Promise<boolean> =>
+    ipcRenderer.invoke('desktop:source-connect-cancel', requestId),
   onOAuthConnectComplete: (callback: (result: DesktopOAuthConnectResult) => void): (() => void) => {
     const listener = (_event: unknown, result: DesktopOAuthConnectResult) => callback(result)
     ipcRenderer.on('desktop:oauth-connect-complete', listener)

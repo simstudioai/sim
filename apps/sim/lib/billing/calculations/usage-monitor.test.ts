@@ -130,6 +130,21 @@ describe('checkUsageStatus', () => {
     })
   })
 
+  it('refuses on a ledger read failure but marks the answer unavailable', async () => {
+    mockGetBillingPeriodUsageCost.mockRejectedValueOnce(new Error('canceling statement'))
+
+    await expect(
+      checkUsageStatus('user-1', {
+        referenceId: 'user-1',
+        plan: 'free',
+        status: 'active',
+        seats: 1,
+        periodStart: new Date('2026-06-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-07-01T00:00:00.000Z'),
+      })
+    ).resolves.toMatchObject({ isExceeded: true, unavailable: true })
+  })
+
   it('preserves negative ledger-only personal usage', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')
@@ -196,6 +211,23 @@ describe('checkServerSideUsageLimits', () => {
     resetDbChainMock()
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockGetBillingPeriodUsageCost.mockResolvedValue(125)
+  })
+
+  it('does not describe an unreadable ledger as a spent limit', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ blocked: false }])
+    mockGetBillingPeriodUsageCost.mockRejectedValueOnce(new Error('canceling statement'))
+
+    const result = await checkServerSideUsageLimits('user-1', {
+      referenceId: 'user-1',
+      plan: 'free',
+      status: 'active',
+      seats: 1,
+      periodStart: new Date('2026-06-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-07-01T00:00:00.000Z'),
+    })
+
+    expect(result.isExceeded).toBe(true)
+    expect(result.message ?? '').not.toMatch(/\$/)
   })
 
   it('keeps blocked accounts blocked while reporting their real ledger usage', async () => {

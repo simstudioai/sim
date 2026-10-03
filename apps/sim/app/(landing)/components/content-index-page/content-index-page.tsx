@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { paginateContentPosts } from '@/lib/content/index-list'
 import type { ContentMeta } from '@/lib/content/schema'
+import { formatPostDate } from '@/app/(landing)/components/content-utils'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 interface ContentIndexPageProps {
@@ -81,12 +82,7 @@ export function ContentIndexPage({
                       </div>
                       <div className='flex flex-col gap-2'>
                         <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'>
-                          {new Date(p.date).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            timeZone: 'UTC',
-                          })}
+                          {formatPostDate(p.date)}
                         </span>
                         <h2 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
                           {p.title}
@@ -110,22 +106,12 @@ export function ContentIndexPage({
                   className='group flex items-start gap-6 p-6 transition-colors hover:bg-[var(--surface-hover)] md:items-center'
                 >
                   <span className='hidden w-[120px] shrink-0 pt-1 text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:block'>
-                    {new Date(p.date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      timeZone: 'UTC',
-                    })}
+                    {formatPostDate(p.date)}
                   </span>
 
                   <div className='flex min-w-0 flex-1 flex-col gap-1'>
                     <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:hidden'>
-                      {new Date(p.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        timeZone: 'UTC',
-                      })}
+                      {formatPostDate(p.date)}
                     </span>
                     <h2 className='text-[var(--text-primary)] text-base leading-tight tracking-[-0.01em] lg:text-lg lg:leading-7'>
                       {p.title}

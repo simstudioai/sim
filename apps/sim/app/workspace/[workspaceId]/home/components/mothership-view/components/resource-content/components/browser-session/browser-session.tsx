@@ -193,15 +193,15 @@ const MAX_HANDLED_PERMISSION_REQUESTS = 256
 
 /** Claims the one renderer response allowed for a native browser permission request. */
 export function claimPermissionResponse(
-  handledRequestIds: { current: Set<string> },
+  handledRequestIds: Set<string>,
   requestId: string
 ): boolean {
-  if (handledRequestIds.current.has(requestId)) return false
-  handledRequestIds.current.add(requestId)
-  while (handledRequestIds.current.size > MAX_HANDLED_PERMISSION_REQUESTS) {
-    const oldest = handledRequestIds.current.values().next().value
+  if (handledRequestIds.has(requestId)) return false
+  handledRequestIds.add(requestId)
+  while (handledRequestIds.size > MAX_HANDLED_PERMISSION_REQUESTS) {
+    const oldest = handledRequestIds.values().next().value
     if (typeof oldest !== 'string') break
-    handledRequestIds.current.delete(oldest)
+    handledRequestIds.delete(oldest)
   }
   return true
 }
@@ -449,7 +449,8 @@ export function BrowserSession({
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
-  const handledPermissionRequestIdsRef = useRef<Set<string>>(new Set())
+  const handledPermissionRequestIdsRef = useRef<Set<string> | null>(null)
+  const handledPermissionRequestIds = (handledPermissionRequestIdsRef.current ??= new Set())
   const [answeredPermissionRequestId, setAnsweredPermissionRequestId] = useState<string | null>(
     null
   )
@@ -505,7 +506,7 @@ export function BrowserSession({
       action: ReturnType<typeof browserPermissionResponseAction>,
       allowed: boolean
     ) => {
-      if (!claimPermissionResponse(handledPermissionRequestIdsRef, requestId)) {
+      if (!claimPermissionResponse(handledPermissionRequestIds, requestId)) {
         return
       }
       setAnsweredPermissionRequestId(requestId)

@@ -12,7 +12,6 @@ import {
   ActiveFileMetadataKeyConflictError,
   deleteFileMetadataByIdentity,
   insertFileMetadata,
-  insertFileMetadataMany,
   insertImmutableFileMetadata,
   recordKnowledgeBaseFileOwnership,
   resolveStoredFileContext,
@@ -178,55 +177,6 @@ describe('insertFileMetadata content versions', () => {
         size: active.sizeBytes,
       })
     ).resolves.toEqual(active)
-
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-})
-
-describe('insertFileMetadataMany active-key idempotence', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-  })
-
-  const row = {
-    key: 'knowledge-base/workspace-1/document.pdf',
-    userId: 'user-1',
-    workspaceId: 'workspace-1',
-    folderId: null,
-    context: 'knowledge-base' as const,
-    originalName: 'document.pdf',
-    contentType: 'application/pdf',
-    size: 12,
-  }
-
-  it('accepts an exact retry after a concurrent insert', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    queueTableRows(workspaceFiles, [{ id: 'file-1', ...row, sizeBytes: row.size, deletedAt: null }])
-
-    await expect(insertFileMetadataMany([row])).resolves.toBeUndefined()
-  })
-
-  it('rejects a conflicting active row instead of silently adopting it', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    queueTableRows(workspaceFiles, [
-      {
-        id: 'file-1',
-        ...row,
-        sizeBytes: row.size,
-        userId: 'different-user',
-        deletedAt: null,
-      },
-    ])
-
-    await expect(insertFileMetadataMany([row])).rejects.toBeInstanceOf(
-      ActiveFileMetadataKeyConflictError
-    )
-  })
-
-  it('rejects mismatched same-batch rows before writing either identity', async () => {
-    await expect(
-      insertFileMetadataMany([row, { ...row, userId: 'different-user' }])
-    ).rejects.toBeInstanceOf(ActiveFileMetadataKeyConflictError)
 
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })

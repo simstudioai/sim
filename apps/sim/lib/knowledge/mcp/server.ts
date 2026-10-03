@@ -25,8 +25,6 @@ import {
 } from '@/lib/knowledge/mcp/tool-runner'
 import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { toolError } from '@/lib/mcp/tool-result'
-import { registerIndexedKnowledgeMcpTools } from '@/lib/sim-search/indexed'
-import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -36,12 +34,11 @@ interface KnowledgeMcpContext {
   organizationId: string
   request: NextRequest
   auth: V2ApiKeyAuthContext
-  searchIndexId: string | null
 }
 
 /** A request owns its server; no credential or principal survives into another HTTP request. */
 export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServer {
-  const { request, auth, searchIndexId, organizationId } = context
+  const { request, auth, organizationId } = context
   const principal = auth.principal
   const server = new McpServer({ name: 'Sim Search', version: '1.0.0' })
 
@@ -107,103 +104,92 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     }
   }
 
-  if (isIndexedOrgSearchEnabled()) {
-    registerIndexedKnowledgeMcpTools({
-      server,
-      principal,
-      request,
-      organizationId,
-      searchIndexId,
-      execute,
-    })
-  } else {
-    server.registerTool(
-      'search',
-      {
-        title: 'Search',
-        description:
-          'Search this organization’s sources through their live APIs, within your access and the admin’s source settings. Use source and date filters to narrow results, or nativeQueries for provider queries and pagination. Inspect live.accounts for provider status and continuation cursors, and live.guidance for query syntax. Results are candidates, not proof of complete coverage. Use read_document with the exact returned documentId for context and cite citationUrl when available.',
-        inputSchema: liveSearchMcpSchema,
-        annotations: KNOWLEDGE_MCP_READ_ONLY,
-      },
-      async (input: unknown, extra: { signal: AbortSignal }) =>
-        execute('search', knowledgeOperations.search, extra.signal, async (registry, signal) => {
-          const { query, topK, nativeQueries, ...filters } = liveSearchMcpSchema.parse(input)
-          const result = await searchLiveKnowledge.execute({
+  server.registerTool(
+    'search',
+    {
+      title: 'Search',
+      description:
+        'Search this organization’s sources through their live APIs, within your access and the admin’s source settings. Use source and date filters to narrow results, or nativeQueries for provider queries and pagination. Inspect live.accounts for provider status and continuation cursors, and live.guidance for query syntax. Results are candidates, not proof of complete coverage. Use read_document with the exact returned documentId for context and cite citationUrl when available.',
+      inputSchema: liveSearchMcpSchema,
+      annotations: KNOWLEDGE_MCP_READ_ONLY,
+    },
+    async (input: unknown, extra: { signal: AbortSignal }) =>
+      execute('search', knowledgeOperations.search, extra.signal, async (registry, signal) => {
+        const { query, topK, nativeQueries, ...filters } = liveSearchMcpSchema.parse(input)
+        const result = await searchLiveKnowledge.execute({
+          principal,
+          input: {
+            organizationId,
+            query,
+            topK,
+            nativeQueries,
+            filters,
+            resultSecretRegistry: registry,
+            signal,
+          },
+          request,
+        })
+        return projectResult(
+          {
+            results: result.results.map((row) => ({
+              documentId: row.documentId,
+              title: row.documentName,
+              sourceUrl: row.sourceUrl,
+              citationId: liveCitationId(row.documentId),
+              citationUrl: row.sourceUrl,
+              sourceModifiedAt: row.sourceModifiedAt ?? null,
+              sourceDate: row.sourceDate,
+              sourceContainerName: row.sourceContainerName,
+              sourceContainerUrl: row.sourceContainerUrl,
+              connectorType: row.connectorType,
+              content: row.content,
+              chunkIndex: row.chunkIndex,
+            })),
+            retrieval: result.retrieval,
+            live: result.live,
+          },
+          registry
+        )
+      })
+  )
+  server.registerTool(
+    'read_document',
+    {
+      title: 'Read document',
+      description:
+        'Read a live document using the exact documentId returned by search. Access and the admin’s source settings are checked again on every read. When hasMore is true, pass next.startChunkIndex and next.startOffset with the same documentId to continue. Cite citationUrl when available.',
+      inputSchema: readLiveDocumentMcpSchema,
+      annotations: KNOWLEDGE_MCP_READ_ONLY,
+    },
+    async (raw: unknown, extra: { signal: AbortSignal }) =>
+      execute(
+        'read_document',
+        knowledgeOperations.readDocument,
+        extra.signal,
+        async (registry, signal) => {
+          const input = readLiveDocumentMcpSchema.parse(raw)
+          const result = await readLiveDocument.execute({
             principal,
-            input: {
-              organizationId,
-              query,
-              topK,
-              nativeQueries,
-              filters,
-              resultSecretRegistry: registry,
-              signal,
-            },
+            input: { ...input, organizationId, resultSecretRegistry: registry, signal },
             request,
           })
+          const {
+            knowledgeBaseId: _knowledgeBaseId,
+            knowledgeBaseName: _name,
+            ...document
+          } = result
           return projectResult(
             {
-              results: result.results.map((row) => ({
-                documentId: row.documentId,
-                title: row.documentName,
-                sourceUrl: row.sourceUrl,
-                citationId: liveCitationId(row.documentId),
-                citationUrl: row.sourceUrl,
-                sourceModifiedAt: row.sourceModifiedAt ?? null,
-                sourceDate: row.sourceDate,
-                sourceContainerName: row.sourceContainerName,
-                sourceContainerUrl: row.sourceContainerUrl,
-                connectorType: row.connectorType,
-                content: row.content,
-                chunkIndex: row.chunkIndex,
-              })),
-              retrieval: result.retrieval,
-              live: result.live,
+              ...document,
+              title: result.documentName,
+              citationId: liveCitationId(result.documentId),
+              citationUrl: result.sourceUrl,
             },
             registry
           )
-        })
-    )
-    server.registerTool(
-      'read_document',
-      {
-        title: 'Read document',
-        description:
-          'Read a live document using the exact documentId returned by search. Access and the admin’s source settings are checked again on every read. When hasMore is true, pass next.startChunkIndex and next.startOffset with the same documentId to continue. Cite citationUrl when available.',
-        inputSchema: readLiveDocumentMcpSchema,
-        annotations: KNOWLEDGE_MCP_READ_ONLY,
-      },
-      async (raw: unknown, extra: { signal: AbortSignal }) =>
-        execute(
-          'read_document',
-          knowledgeOperations.readDocument,
-          extra.signal,
-          async (registry, signal) => {
-            const input = readLiveDocumentMcpSchema.parse(raw)
-            const result = await readLiveDocument.execute({
-              principal,
-              input: { ...input, organizationId, resultSecretRegistry: registry, signal },
-              request,
-            })
-            const {
-              knowledgeBaseId: _knowledgeBaseId,
-              knowledgeBaseName: _name,
-              ...document
-            } = result
-            return projectResult(
-              {
-                ...document,
-                title: result.documentName,
-                citationId: liveCitationId(result.documentId),
-                citationUrl: result.sourceUrl,
-              },
-              registry
-            )
-          }
-        )
-    )
-  }
+        }
+      )
+  )
 
   server.registerTool(
     'chat',

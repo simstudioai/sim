@@ -1,10 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
-import {
-  knowledgeSearchUseCaseMock,
-  knowledgeSearchUseCaseMockFns,
-} from '@sim/testing/mocks/knowledge-search-use-case.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest } from 'next/server'
@@ -19,7 +14,6 @@ const hoisted = vi.hoisted(() => ({
     string,
     { description: string; inputSchema: { parse: (input: unknown) => unknown } }
   >(),
-  read: vi.fn(),
   liveSearch: vi.fn(),
   liveRead: vi.fn(),
   chat: vi.fn(),
@@ -49,14 +43,6 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
 vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
   v2RateLimits: { publicApi: { enforce: hoisted.rateLimit } },
 }))
-vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
-vi.mock('@/lib/sim-search/indexed/documents/read-indexed-document', () => ({
-  readIndexedKnowledgeDocument: { execute: hoisted.read },
-}))
-vi.mock('@/lib/sim-search/indexed', async () => ({
-  registerIndexedKnowledgeMcpTools: (await import('@/lib/sim-search/indexed/mcp/register-tools'))
-    .registerIndexedKnowledgeMcpTools,
-}))
 vi.mock('@/lib/sim-search/live/application', () => ({
   searchLiveKnowledge: { execute: hoisted.liveSearch },
   readLiveDocument: { execute: hoisted.liveRead },
@@ -69,10 +55,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const mocks = {
-  ...hoisted,
-  search: knowledgeSearchUseCaseMockFns.mockSearchKnowledgeExecute,
-}
+const mocks = hoisted
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
 
@@ -85,8 +68,8 @@ const auth = {
   rateLimitSubscription: null,
 }
 const request = new NextRequest('http://localhost/api/mcp/search/organizations/org-1')
-function create(searchIndexId: string | null = 'index-1') {
-  createKnowledgeMcpServer({ organizationId: 'org-1', searchIndexId, request, auth })
+function create() {
+  createKnowledgeMcpServer({ organizationId: 'org-1', request, auth })
 }
 function call(tool: string, input: Record<string, unknown>, signal = new AbortController().signal) {
   const run = mocks.tools.get(tool)
@@ -94,28 +77,11 @@ function call(tool: string, input: Record<string, unknown>, signal = new AbortCo
   return run(input, { signal })
 }
 
-function _payload(result: CallToolResult): unknown {
-  const first = result.content[0]
-  if (first.type !== 'text') throw new Error('Expected a text result')
-  return JSON.parse(first.text)
-}
-
 beforeEach(() => {
-  resetEnvFlagsMock()
-  setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
   mocks.tools.clear()
   mocks.configs.clear()
   mocks.rateLimit.mockReset().mockResolvedValue(null)
-  mocks.search.mockResolvedValue({ results: [] })
-  mocks.read.mockResolvedValue({
-    knowledgeBaseId: 'index-1',
-    documentId: 'doc-1',
-    title: 'A source',
-    sourceUrl: 'https://example.com/source',
-    processingStatus: 'completed',
-    chunks: [{ id: 'chunk-1', chunkIndex: 0, content: 'Indexed text' }],
-    pagination: { total: 1, offset: 0, limit: 20, hasMore: false },
-  })
+  mocks.liveSearch.mockResolvedValue({ results: [] })
   mocks.chat.mockResolvedValue({ content: 'An answer', citations: [] })
 })
 
@@ -139,7 +105,6 @@ describe('live organization Search MCP', () => {
     guidance: 'Use nativeQueries to continue.',
   }
   beforeEach(() => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     mocks.liveSearch.mockResolvedValue({
       results: [document],
       live: coverage,
@@ -163,15 +128,13 @@ describe('live organization Search MCP', () => {
   })
 
   it.each(['search', 'read_document'])(
-    'does not fall back to indexed data after a live %s denial',
+    'does not return live %s content after an authorization denial',
     async (tool) => {
       create()
       const backend = tool === 'search' ? mocks.liveSearch : mocks.liveRead
       backend.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
       const result = await call(tool, tool === 'search' ? { query: 'release' } : { documentId })
       expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'Access denied' }] })
-      expect(mocks.search).not.toHaveBeenCalled()
-      expect(mocks.read).not.toHaveBeenCalled()
     }
   )
 
@@ -198,40 +161,10 @@ describe('live organization Search MCP', () => {
   )
 })
 
-describe('search', () => {
-  const tool = 'search'
-  it('searches only the canonical index using the actual personal key principal', async () => {
-    create()
-    expect((await call(tool, { query: 'find it', topK: 10 })).isError).toBeUndefined()
-    expect(mocks.search).toHaveBeenCalledWith({
-      principal,
-      request,
-      input: expect.objectContaining({
-        organizationId: 'org-1',
-        knowledgeBaseIds: ['index-1'],
-        query: 'find it',
-        surface: 'mcp',
-      }),
-    })
-  })
-})
-
 describe('organization Search MCP tools', () => {
-  it('delegates URL resolution without fetching the URL in the adapter', async () => {
-    create()
-    await call('read_document', { url: 'https://example.com/source', limit: 20 })
-    expect(mocks.read).toHaveBeenCalledWith({
-      principal,
-      request,
-      input: expect.objectContaining({
-        organizationId: 'org-1',
-        target: { kind: 'url', url: 'https://example.com/source' },
-      }),
-    })
-  })
   it('does not return content denied by the canonical document ACL operation', async () => {
     create()
-    mocks.read.mockRejectedValueOnce(new OrchestrationError('not_found', 'Document not found'))
+    mocks.liveRead.mockRejectedValueOnce(new OrchestrationError('not_found', 'Document not found'))
     const result = await call('read_document', {
       documentId: 'foreign-document',
     })
@@ -243,16 +176,16 @@ describe('organization Search MCP tools', () => {
   it('does not expose cached success after a later membership or policy denial', async () => {
     create()
     await call('search', { query: 'first', topK: 10 })
-    mocks.search.mockRejectedValueOnce(
+    mocks.liveSearch.mockRejectedValueOnce(
       new OrchestrationError('forbidden', 'Knowledge access is disabled')
     )
     expect((await call('search', { query: 'second', topK: 10 })).isError).toBe(true)
-    expect(mocks.search).toHaveBeenCalledTimes(2)
+    expect(mocks.liveSearch).toHaveBeenCalledTimes(2)
   })
 
   it('does not return partial metadata when the chunk read is denied', async () => {
     create()
-    mocks.read.mockRejectedValueOnce(new OrchestrationError('not_found', 'Document not found'))
+    mocks.liveRead.mockRejectedValueOnce(new OrchestrationError('not_found', 'Document not found'))
     expect(await call('read_document', { documentId: 'doc-1' })).toEqual({
       isError: true,
       content: [{ type: 'text', text: 'Document not found' }],
@@ -295,7 +228,9 @@ describe('MCP tool completion records', () => {
 
   it('records an authorization failure without including the query or error message', async () => {
     create()
-    mocks.search.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Private denial reason'))
+    mocks.liveSearch.mockRejectedValueOnce(
+      new OrchestrationError('forbidden', 'Private denial reason')
+    )
     await call('search', { query: 'private query' })
     expect(getMockLogger('KnowledgeMcp').info).toHaveBeenCalledExactlyOnceWith(
       'Knowledge MCP tool completed',

@@ -62,7 +62,7 @@ export const planetScaleCloseDeployRequestTool: ToolConfig<
       ),
     method: 'PATCH',
     headers: planetScaleHeaders,
-    body: (params) => planetScaleBody({ state: 'closed' }),
+    body: () => planetScaleBody({ state: 'closed' }),
   },
   transformResponse: async (response) => ({
     success: true,

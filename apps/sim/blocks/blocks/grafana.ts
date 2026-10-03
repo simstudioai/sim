@@ -1,9 +1,8 @@
 import { GrafanaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GrafanaResponse } from '@/tools/grafana/types'
 
-export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
+export const GrafanaBlock: BlockConfig = {
   type: 'grafana',
   name: 'Grafana',
   description: 'Interact with Grafana dashboards, alerts, and annotations',

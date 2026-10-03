@@ -63,7 +63,6 @@ import { useChatStore } from '@/stores/chat/store'
 import { getChatPosition } from '@/stores/chat/utils'
 import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
-import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -278,10 +277,6 @@ export function Chat() {
     )
   )
 
-  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const entries = useWorkflowConsoleEntries(
-    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
-  )
   const isExecuting = useIsCurrentWorkflowExecuting()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
@@ -408,10 +403,6 @@ export function Chat() {
     onPositionChange: setChatPosition,
     onDimensionsChange: setChatDimensions,
   })
-
-  const outputEntries = useMemo(() => {
-    return entries.filter((entry) => entry.output)
-  }, [entries])
 
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []
@@ -1103,7 +1094,7 @@ export function Chat() {
                     onClick={handleStopStreaming}
                     size='sm'
                   >
-                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
+                    <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </ComposerActionButton>
                 ) : (
                   <ComposerActionButton

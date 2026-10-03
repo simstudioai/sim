@@ -93,7 +93,7 @@ describe('groqProvider reasoning payload', () => {
     }))
     mockExecuteTool.mockResolvedValue({ success: true, output: {} })
     let generated = 0
-    mockCreate.mockImplementation((payload) => {
+    mockCreate.mockImplementation(() => {
       const final = false
       return Promise.resolve({
         choices: [

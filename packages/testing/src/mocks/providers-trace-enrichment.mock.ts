@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { vi } from 'vitest'
 
 /**
@@ -22,8 +23,8 @@ export const providersTraceEnrichmentMockFns = {
     if (typeof rawArguments !== 'string') return ''
     try {
       const parsed: unknown = JSON.parse(rawArguments)
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>
+      if (isRecordLike(parsed)) {
+        return parsed
       }
       return rawArguments
     } catch {

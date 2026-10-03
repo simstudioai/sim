@@ -7,15 +7,7 @@ import {
   isWorkflowToolExecutionClaimable,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
-
-const WORKFLOW_TOOL_NAMES = [
-  'run_workflow',
-  'run_workflow_until_block',
-  'run_block',
-  'run_from_block',
-] as const
-
-const WORKFLOW_TOOL_NAME_SET = new Set<string>(WORKFLOW_TOOL_NAMES)
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 
 export const ASYNC_WORKFLOW_DEPLOYMENT_ERRORS = {
   missing: {
@@ -140,10 +132,6 @@ export function classifyWorkflowToolBinding(params: {
     return reject(COPILOT_WORKFLOW_TOOL_BINDING_ERRORS.workflowMismatch)
   }
   return { ok: true }
-}
-
-export function isWorkflowToolName(name: string): boolean {
-  return WORKFLOW_TOOL_NAME_SET.has(name)
 }
 
 /** Resolves the workflow target from immutable tool arguments, then the owning Copilot run. */

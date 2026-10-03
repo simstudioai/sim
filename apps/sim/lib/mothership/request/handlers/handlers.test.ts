@@ -73,12 +73,17 @@ import {
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/mothership/request/handlers'
+import { createEvent } from '@/lib/mothership/request/session/event'
 import { shouldSkipToolCallEvent } from '@/lib/mothership/request/sse-utils'
 import type {
   ExecutionContext,
   StreamEvent,
   StreamingContext,
 } from '@/lib/mothership/request/types'
+import {
+  createTurnModel,
+  reduceEvent,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
@@ -115,6 +120,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
       activeFileIntents: new Map(),
+      filePreviewBudget: { contentBytes: 0 },
       seenToolCalls: new Set(),
       seenToolResults: new Set(),
       currentThinkingBlock: null,
@@ -207,6 +213,29 @@ describe('sse-handlers tool lifecycle', () => {
     expect(start).toHaveBeenCalledTimes(2)
     expect(end).toHaveBeenCalledTimes(2)
     expect(context.subAgentTraceSpans?.size).toBe(0)
+  })
+
+  it('counts the preview content already in the replay toward the restored turn budget', async () => {
+    const preview = (content: string): StreamEvent => ({
+      type: 'tool',
+      payload: {
+        toolCallId: 'file-edit',
+        toolName: 'prepare_file_edit',
+        previewPhase: 'file_preview_content',
+        content,
+        contentMode: 'delta',
+        previewVersion: 1,
+        fileName: 'notes.md',
+      },
+    })
+
+    await restoreStreamingContext(
+      [preview('é'.repeat(1_000)), preview('x'.repeat(500))],
+      context,
+      execContext
+    )
+
+    expect(context.filePreviewBudget.contentBytes).toBe(2_500)
   })
 
   it('restores a delivered prefix without executing its tools or consuming the next handoff', async () => {
@@ -401,6 +430,79 @@ describe('sse-handlers tool lifecycle', () => {
     expect((event.payload as { status?: string }).status).toBeUndefined()
     expect(upsertAsyncToolCall).not.toHaveBeenCalled()
   })
+
+  it('clears a Go-stamped approval frame on a partial call, which is never held', async () => {
+    toolRequiresApproval.mockReturnValue(true)
+    context.runId = 'run-1'
+    context.toolPermissions = {
+      enabled: true,
+      autoAllowed: new Set(),
+      autoAllowPermitted: true,
+    }
+
+    const event = {
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'gmail-3',
+        toolName: 'gmail_read_v2',
+        arguments: {},
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+        status: 'awaiting_approval',
+        partial: true,
+      },
+    } as unknown as StreamEvent
+
+    await prePersistClientExecutableToolCall(event, context, {})
+
+    expect((event.payload as { status?: string }).status).toBeUndefined()
+  })
+
+  it.each([
+    ['a live', {}],
+    ['a replayed', { replay: true }],
+    ['a partial', { partial: true }],
+  ])(
+    'renders %s stamped call as an ordinary row when approvals are off',
+    async (_label, variant) => {
+      toolRequiresApproval.mockReturnValue(false)
+      context.runId = 'run-1'
+      context.toolPermissions = {
+        enabled: false,
+        autoAllowed: new Set(),
+        autoAllowPermitted: true,
+      }
+      const event = {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gmail-4',
+          toolName: 'gmail_read_v2',
+          arguments: {},
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'awaiting_approval',
+          ...variant,
+        },
+      } as unknown as StreamEvent
+
+      await prePersistClientExecutableToolCall(event, context, {})
+      const model = reduceEvent(
+        createTurnModel(),
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '1',
+          seq: 1,
+          requestId: 'request-1',
+          type: event.type,
+          payload: event.payload,
+        } as Parameters<typeof createEvent>[0])
+      )
+
+      expect(model.nodes.get('gmail-4')?.status).toBe('running')
+    }
+  )
 
   it('clears a Go-stamped approval frame on an internal tool', async () => {
     toolRequiresApproval.mockReturnValue(true)

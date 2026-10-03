@@ -88,7 +88,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveM
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: (_state: unknown, run: () => unknown) => run(),
 }))
-vi.mock('@/stores/workflows/workflow/utils', () => ({
+vi.mock('@sim/workflow-persistence/subflow-helpers', () => ({
   generateLoopBlocks: () => ({}),
   generateParallelBlocks: () => ({}),
 }))

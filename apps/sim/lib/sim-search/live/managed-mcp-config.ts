@@ -4,7 +4,24 @@ export const MANAGED_SEARCH_MCP_READ_TOOLS = {
   fireflies: ['fireflies_get_transcripts', 'fireflies_get_transcript', 'fireflies_get_summary'],
   granola: ['query_granola_meetings', 'list_meetings', 'get_meetings', 'get_meeting_transcript'],
   hubspot: ['get_user_details', 'search_crm_objects', 'get_crm_objects'],
-  notion: ['notion-get-tool-access', 'notion-search', 'notion-ai-search', 'notion-fetch'],
+  lucid: [
+    'search',
+    'fetch',
+    'lucid_search_document',
+    'lucid_get_document_metadata',
+    'lucid_list_folder_contents',
+  ],
+  notion: [
+    'notion-get-tool-access',
+    'notion-search',
+    'notion-ai-search',
+    'notion-fetch',
+    'notion-list-private-pages',
+    'notion-list-shared-pages',
+    'notion-list-favorite-pages',
+    'notion-list-recent-pages',
+  ],
+  zoom: ['search_meetings', 'get_meeting_assets'],
 } as const
 
 export type ManagedSearchMcpProvider = keyof typeof MANAGED_SEARCH_MCP_READ_TOOLS

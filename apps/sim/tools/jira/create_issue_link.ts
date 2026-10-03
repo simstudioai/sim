@@ -78,7 +78,7 @@ export const jiraCreateIssueLinkTool: ToolConfig<
     body: () => undefined as any,
   },
 
-  transformResponse: async (response: Response, params?: JiraCreateIssueLinkParams) => {
+  transformResponse: async (_response: Response, params?: JiraCreateIssueLinkParams) => {
     const cloudId = params?.cloudId || (await getJiraCloudId(params!.domain, params!.accessToken))
 
     const typesResp = await fetch(

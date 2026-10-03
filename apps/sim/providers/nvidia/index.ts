@@ -22,6 +22,7 @@ import {
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -125,14 +126,7 @@ export const nvidiaProvider: ProviderConfig = {
       const responseFormatPayload = request.responseFormat
         ? useJsonMode
           ? { type: 'json_object' as const }
-          : {
-              type: 'json_schema' as const,
-              json_schema: {
-                name: request.responseFormat.name || 'response_schema',
-                schema: request.responseFormat.schema || request.responseFormat,
-                strict: request.responseFormat.strict !== false,
-              },
-            }
+          : buildJsonSchemaResponseFormat(request.responseFormat)
         : undefined
 
       if (useJsonMode) payload.chat_template_kwargs = { enable_thinking: false }

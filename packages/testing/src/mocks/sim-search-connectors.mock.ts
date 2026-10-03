@@ -36,14 +36,12 @@ function personalSetupFields(meta: MockConnectorMeta): MockConnectorConfigField[
  * Defaults (faithful ports of the real pure logic, reading only the `meta` passed in):
  * - `mockCanConnectPersonally`: `search === true`, OAuth auth, and a `permissionScopedListing`.
  * - `mockPersonalSetupFields`: required, non-selector config fields that are not listing caps.
- * - `mockCanConnectWithDefaults`: connects personally, is not `slack`, and has no setup fields.
  * - `mockPersonalSourceConfigFieldIds`: setup-field ids plus `searchDefaultSourceConfig` keys.
  * - `mockWithSearchSourceDefaults`: defaults overlaid by supplied values; a blank value keeps its default.
  * - `mockMissingSetupFields`: setup fields whose `sourceConfig` value is missing or blank.
  *
  * Registry-backed defaults mirror the mock's EMPTY connector registry:
  * - `mockConnectorDisplayName` returns the connector type unchanged.
- * - `mockSearchMemberAccountProvider` returns `null`.
  *
  * `mockGetConnectorAccessAvailability` and `mockIsSearchConnectorAvailable` are bare.
  *
@@ -58,13 +56,8 @@ function personalSetupFields(meta: MockConnectorMeta): MockConnectorConfigField[
  * ```
  */
 export const simSearchConnectorsMockFns = {
-  mockSearchMemberAccountProvider: vi.fn((_connectorType: string): unknown => null),
   mockCanConnectPersonally: vi.fn(canConnectPersonally),
   mockPersonalSetupFields: vi.fn(personalSetupFields),
-  mockCanConnectWithDefaults: vi.fn(
-    (meta: MockConnectorMeta): boolean =>
-      canConnectPersonally(meta) && meta.id !== 'slack' && personalSetupFields(meta).length === 0
-  ),
   mockPersonalSourceConfigFieldIds: vi.fn(
     (meta: MockConnectorMeta): Set<string> =>
       new Set([
@@ -112,10 +105,8 @@ export const simSearchConnectorsMock = {
   SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
   SEARCH_CONNECTORS: [] as readonly unknown[],
   SEARCH_SOURCE_TYPES: [] as readonly (readonly [string, unknown])[],
-  searchMemberAccountProvider: simSearchConnectorsMockFns.mockSearchMemberAccountProvider,
   canConnectPersonally: simSearchConnectorsMockFns.mockCanConnectPersonally,
   personalSetupFields: simSearchConnectorsMockFns.mockPersonalSetupFields,
-  canConnectWithDefaults: simSearchConnectorsMockFns.mockCanConnectWithDefaults,
   personalSourceConfigFieldIds: simSearchConnectorsMockFns.mockPersonalSourceConfigFieldIds,
   withSearchSourceDefaults: simSearchConnectorsMockFns.mockWithSearchSourceDefaults,
   missingSetupFields: simSearchConnectorsMockFns.mockMissingSetupFields,

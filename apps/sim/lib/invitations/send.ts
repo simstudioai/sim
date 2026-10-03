@@ -7,7 +7,6 @@ import {
   organization,
   workspace,
 } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -30,8 +29,6 @@ import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
-
-const logger = createLogger('InvitationSend')
 
 interface WorkspaceGrantInput {
   workspaceId: string

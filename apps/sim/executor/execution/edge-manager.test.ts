@@ -6,11 +6,11 @@ import { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import {
   buildBranchNodeId,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 function createMockBlock(id: string): SerializedBlock {
@@ -106,11 +106,11 @@ describe('EdgeManager', () => {
         const edgeManager = new EdgeManager(dag)
         const sentinelStartId =
           subflowType === 'loop'
-            ? buildSentinelStartId('subflow')
+            ? buildLoopSentinelStartId('subflow')
             : buildParallelSentinelStartId('subflow')
         const sentinelEndId =
           subflowType === 'loop'
-            ? buildSentinelEndId('subflow')
+            ? buildLoopSentinelEndId('subflow')
             : buildParallelSentinelEndId('subflow')
         const conditionId = subflowType === 'loop' ? 'condition' : buildBranchNodeId('condition', 0)
 

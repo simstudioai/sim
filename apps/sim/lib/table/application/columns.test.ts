@@ -1,6 +1,6 @@
 import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
-import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import { tableMock } from '@sim/testing/mocks/table.mock'
 import {
   tableApplicationContextMock,
   tableApplicationContextMockFns,
@@ -17,10 +17,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/table', () => ({
-  ...tableMock,
-  TABLE_LIMITS: { ...tableMock.TABLE_LIMITS, MAX_COLUMNS_PER_TABLE: 3 },
-}))
+vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 vi.mock('@/lib/table/columns/workflow-references', () => ({
   findUnmigratedTableBlockReferences: hoisted.findUnmigrated,
@@ -28,14 +25,10 @@ vi.mock('@/lib/table/columns/workflow-references', () => ({
 vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: hoisted.performUpdate }))
 
-import {
-  deleteTableColumnsUseCase,
-  updateTableColumnUseCase,
-} from '@/lib/table/application/columns'
+import { updateTableColumnUseCase } from '@/lib/table/application/columns'
 
 const mocks = {
   ...hoisted,
-  deleteColumns: tableMockFns.mockDeleteColumns,
   resolveContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
   audit: auditMockFns.mockRecordAudit,
   resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
@@ -66,89 +59,6 @@ const principal = createDelegatedPrincipal({
   delegationId: 'copilot-tool:tool-1',
   audience: 'sim:tables',
   resourceScope: { tableId: 'table-1' },
-})
-
-const tableAfterDelete: TableDefinition = {
-  ...table,
-  schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' }] },
-  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
-}
-
-describe('multi-column delete application use case', () => {
-  beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveContext.mockResolvedValue({
-      tableId: table.id,
-      table,
-      workspaceId: table.workspaceId,
-      workspaceOrganizationId: null,
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
-    mocks.deleteColumns.mockResolvedValue(tableAfterDelete)
-  })
-
-  it('derives aliases and duplicate references from the authoritative schema delta', async () => {
-    mocks.deleteColumns.mockResolvedValue({
-      ...table,
-      schema: {
-        columns: [
-          { id: 'column-name', name: 'name', type: 'string' },
-          { id: 'column-last', name: 'last', type: 'string' },
-        ],
-      },
-    })
-
-    const result = await deleteTableColumnsUseCase.execute({
-      principal,
-      input: {
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        columnNames: ['first', 'column-first', 'FIRST'],
-      },
-    })
-
-    expect(result.deletedColumns).toEqual([{ id: 'column-first', name: 'first' }])
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'Deleted 1 column from table "People"',
-        metadata: expect.objectContaining({ columnNames: ['first'] }),
-      })
-    )
-  })
-
-  it('rejects an oversized request before mutation', async () => {
-    await expect(
-      deleteTableColumnsUseCase.execute({
-        principal,
-        input: {
-          tableId: 'table-1',
-          workspaceId: 'workspace-1',
-          columnNames: ['first', 'last', 'name', 'extra'],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-
-    expect(mocks.deleteColumns).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.signal).not.toHaveBeenCalled()
-  })
-
-  it('rejects admission before mutation when delegated scope is stale', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce('read')
-
-    await expect(
-      deleteTableColumnsUseCase.execute({
-        principal,
-        input: {
-          tableId: 'table-1',
-          workspaceId: 'workspace-1',
-          columnNames: ['first', 'last'],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.deleteColumns).not.toHaveBeenCalled()
-  })
 })
 
 /**

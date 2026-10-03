@@ -28,6 +28,7 @@ import {
   sandboxCliToolRecipes,
   sandboxCliVerificationCommand,
 } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import { processCodeFailure } from '@/lib/execution/remote-sandbox/code-failure'
 import {
   recordSandboxProcess,
   reportUnsettledSandboxProcess,
@@ -174,28 +175,6 @@ function reachedE2BProviderLimit(
     Date.now() >= providerLimitAtMs - E2B_PROVIDER_LIMIT_CLASSIFICATION_WINDOW_MS &&
     isE2BExecutionTimeout(error)
   )
-}
-
-function processCodeFailure(result: SandboxCommandResult): SandboxCodeResult {
-  const traceback = result.stderr || result.stdout
-  const errorLine = traceback
-    .split('\n')
-    .reverse()
-    .find((line) => /^[A-Za-z_$][\w.$]*(?:Error|Exception|Interrupt|Exit)?:\s*/.test(line.trim()))
-    ?.trim()
-  const separator = errorLine?.indexOf(':') ?? -1
-  const parsedErrorLine = errorLine ?? ''
-  const name = separator > 0 ? parsedErrorLine.slice(0, separator) : 'Error'
-  const value =
-    separator > 0
-      ? parsedErrorLine.slice(separator + 1).trim()
-      : parsedErrorLine || 'Execution failed'
-  return {
-    text: '',
-    stdout: result.stdout,
-    stderr: result.stderr,
-    error: { name, value, traceback },
-  }
 }
 
 function functionTemplateRef(): string {

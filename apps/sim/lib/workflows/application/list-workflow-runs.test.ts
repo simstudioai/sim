@@ -15,7 +15,7 @@ import {
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
 import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
-import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
 import {
   workflowContextMock,
   workflowContextMockFns,
@@ -50,7 +50,6 @@ import { listWorkflowRuns } from '@/lib/workflows/application/list-workflow-runs
 
 const mockLoadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
 const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
-const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'

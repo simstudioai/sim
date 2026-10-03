@@ -77,8 +77,8 @@ async function activeHook() {
     .where(
       and(eq(webhook.workflowId, fixture.workflowId), eq(webhook.registrationStatus, 'active'))
     )
-  expect(row).toBeTruthy()
-  return row
+  if (!row?.path) throw new Error('Active PlanetScale webhook has no delivery path')
+  return { ...row, path: row.path }
 }
 async function runs() {
   return db
@@ -163,16 +163,16 @@ describe('PlanetScale triggers through the running authenticated Sim application
   it('authenticates probes and deliveries, deduplicates spoofed IDs, and stores real typed workflow output', async () => {
     const row = await activeHook()
     expect(
-      (await fixture.deliver(row.path!, { ...payload, event: 'webhook.test' }, {}, false)).status
+      (await fixture.deliver(row.path, { ...payload, event: 'webhook.test' }, {}, false)).status
     ).toBe(401)
-    expect((await fixture.deliver(row.path!, { ...payload, event: 'webhook.test' })).status).toBe(
+    expect((await fixture.deliver(row.path, { ...payload, event: 'webhook.test' })).status).toBe(
       200
     )
     expect(
-      (await fixture.deliver(row.path!, { ...payload, event: 'backup.succeeded' })).status
+      (await fixture.deliver(row.path, { ...payload, event: 'backup.succeeded' })).status
     ).toBe(200)
     expect(await runs()).toHaveLength(0)
-    expect((await fixture.deliver(row.path!, payload)).status).toBe(200)
+    expect((await fixture.deliver(row.path, payload)).status).toBe(200)
     const first = await waitForRuns(1)
     expect(await storedOutput(first[0])).toEqual({
       event: payload.event,
@@ -195,7 +195,7 @@ describe('PlanetScale triggers through the running authenticated Sim application
     })
     expect(
       (
-        await fixture.deliver(row.path!, payload, {
+        await fixture.deliver(row.path, payload, {
           'X-Request-Id': 'spoofed-second-id',
           'X-Sim-Idempotency-Key': 'spoofed-key',
         })
@@ -204,7 +204,7 @@ describe('PlanetScale triggers through the running authenticated Sim application
     await sleep(300)
     expect(await runs()).toHaveLength(1)
     expect(
-      (await fixture.deliver(row.path!, { ...payload, timestamp: payload.timestamp + 1 })).status
+      (await fixture.deliver(row.path, { ...payload, timestamp: payload.timestamp + 1 })).status
     ).toBe(200)
     const repeated = await waitForRuns(2)
     evidence.executionIds = repeated.map((run) => run.executionId)
@@ -254,13 +254,13 @@ describe('PlanetScale triggers through the running authenticated Sim application
         database_branch: { id: 'fixture-branch-id', name: 'main' },
       },
     }
-    expect((await fixture.deliver(current.path!, backup)).status).toBe(200)
+    expect((await fixture.deliver(current.path, backup)).status).toBe(200)
     const genericRuns = await waitForRuns(3)
     const outputs = await Promise.all(genericRuns.map(storedOutput))
     expect(outputs).toContainEqual({ ...backup, payload: backup })
     evidence.genericOutput = outputs.find((output) => toRecord(output).event === backup.event)
     expect(
-      (await fixture.deliver(current.path!, { ...payload, event: 'branch.sleeping' })).status
+      (await fixture.deliver(current.path, { ...payload, event: 'branch.sleeping' })).status
     ).toBe(200)
     await sleep(300)
     expect(await runs()).toHaveLength(3)
@@ -270,7 +270,7 @@ describe('PlanetScale triggers through the running authenticated Sim application
     )
     expect(undeployed.status, await undeployed.clone().text()).toBe(200)
     expect(fixture.remoteHooks.size).toBe(0)
-    expect((await fixture.deliver(current.path!, payload)).status).toBe(404)
+    expect((await fixture.deliver(current.path, payload)).status).toBe(404)
     evidence.cleanup = { replaced: true, remainingRemoteSubscriptions: fixture.remoteHooks.size }
   }, 120_000)
 })

@@ -9,7 +9,7 @@ import {
   knowledgeConnectorMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
@@ -67,7 +67,7 @@ import {
   type KnowledgeOperationContext,
   type KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
-import { dropSourceVectorIndex } from '@/lib/knowledge/search/source-vector-indexes'
+import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
@@ -470,6 +470,7 @@ export async function performCreateKnowledgeConnector(
   let reused = false
   try {
     created = await db.transaction(async (tx) => {
+      if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
       await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR UPDATE`)
 
       const activeKb = await tx
@@ -1221,6 +1222,7 @@ export async function performDeleteKnowledgeConnector(
     docCount = await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
       await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
+      if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
       /** Match source writes and document deletion: parent KB, connector, then storage ledgers. */
       const [lockedOwner] = await tx
         .select({
@@ -1413,14 +1415,6 @@ export async function performDeleteKnowledgeConnector(
       ...(request ? { request } : {}),
     })
   }
-
-  /** The source is gone, so its vector index is too; ranking falls back to the exact path. */
-  await dropSourceVectorIndex(connectorId).catch((error: unknown) => {
-    logger.warn('Could not drop the source vector index', {
-      connectorId,
-      error: getErrorMessage(error),
-    })
-  })
 
   return {
     success: true,

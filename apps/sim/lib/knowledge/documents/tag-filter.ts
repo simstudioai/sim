@@ -1,10 +1,7 @@
 import { document } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, gt, gte, lt, lte, ne, type SQL, sql } from 'drizzle-orm'
-import {
-  buildDateTagCondition,
-  coerceTagFilterValue,
-  escapeLikePattern,
-} from '@/lib/knowledge/tags/utils'
+import { buildDateTagCondition, coerceTagFilterValue } from '@/lib/knowledge/tags/utils'
 
 /**
  * A single tag filter applied to a document list query.

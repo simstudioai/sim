@@ -32,6 +32,7 @@ import {
   processWorkflowDeploymentOutboxEvent,
 } from '@/lib/workflows/deployment-outbox'
 import {
+  getDeploymentOperation,
   getWorkflowDeploymentStatus,
   prepareWorkflowDeployment,
   prepareWorkflowVersionActivation,
@@ -261,11 +262,22 @@ async function performStableFullDeploy(params: {
 
   const prepared = await prepareWorkflowSnapshotDeployment({ ...params, workflowState })
   if (!prepared.success) return prepared
-  const outboxEventId = prepared.outboxEventId
+  return finishPreparedWorkflowDeployment(prepared, params.requestId)
+}
 
-  const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
-  const deploymentStatus = await getWorkflowDeploymentStatus(params.params.workflowId)
-  const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, deploymentStatus)
+/** Processes the exact admitted deployment without reading a newer editor draft. */
+export async function finishPreparedWorkflowDeployment(
+  prepared: { operation: WorkflowDeploymentOperation; outboxEventId?: string },
+  requestId: string
+): Promise<PerformFullDeployResult> {
+  const processResult = await processStableDeploymentPreparationNow(
+    prepared.outboxEventId,
+    requestId
+  )
+  const [deploymentStatus, inlineFailure] = await Promise.all([
+    getWorkflowDeploymentStatus(prepared.operation.workflowId),
+    getInlinePreparationFailure(prepared.operation),
+  ])
   if (inlineFailure) return inlineFailure
   const result = buildStableDeploymentResult(deploymentStatus, processResult)
   /**
@@ -282,23 +294,35 @@ async function performStableFullDeploy(params: {
 }
 
 /**
- * Surfaces a synchronous failure when the attempt created by this request
- * already failed terminally, so callers get an error response instead of a
- * success payload with a buried failed status.
+ * Reports terminal failure for the admitted attempt, even after a newer
+ * operation has become the workflow's latest attempt.
  */
-function buildInlinePreparationFailure(
-  operationId: string,
-  status: WorkflowDeploymentStatus
-): { success: false; error: string; errorCode: OrchestrationErrorCode } | null {
-  const latest = status.latestOperation
-  if (!latest || latest.id !== operationId || latest.status !== 'failed') return null
+async function getInlinePreparationFailure(
+  admitted: WorkflowDeploymentOperation
+): Promise<{ success: false; error: string; errorCode: OrchestrationErrorCode } | null> {
+  const operation = await getDeploymentOperation({
+    workflowId: admitted.workflowId,
+    operationId: admitted.id,
+    generation: admitted.generation,
+  })
+  if (!operation) {
+    return { success: false, error: 'Deployment operation not found', errorCode: 'not_found' }
+  }
+  if (operation.status === 'superseded') {
+    return {
+      success: false,
+      error: 'Deployment was superseded by a newer operation',
+      errorCode: 'conflict',
+    }
+  }
+  if (operation.status !== 'failed') return null
   return {
     success: false,
-    error: latest.errorMessage || 'Deployment preparation failed',
+    error: operation.errorMessage || 'Deployment preparation failed',
     errorCode:
-      latest.errorCode === DEPLOYMENT_ERROR_CODES.webhookPathConflict
+      operation.errorCode === DEPLOYMENT_ERROR_CODES.webhookPathConflict
         ? 'conflict'
-        : latest.errorCode === DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration
+        : operation.errorCode === DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration
           ? 'validation'
           : 'internal',
   }
@@ -866,8 +890,10 @@ async function performStableVersionActivation(params: {
   }
 
   const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
-  const status = await getWorkflowDeploymentStatus(params.workflowId)
-  const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, status)
+  const [status, inlineFailure] = await Promise.all([
+    getWorkflowDeploymentStatus(params.workflowId),
+    getInlinePreparationFailure(prepared.operation),
+  ])
   if (inlineFailure) return { ...inlineFailure, ...metadata }
   const result = buildStableDeploymentResult(status, processResult)
   return {

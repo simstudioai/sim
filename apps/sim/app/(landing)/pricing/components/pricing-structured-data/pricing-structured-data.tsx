@@ -1,5 +1,6 @@
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { COMPARISON_SECTIONS } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 
@@ -37,8 +38,7 @@ const PRICING_JSON_LD = {
       '@type': 'WebApplication',
       '@id': `${PAGE_URL}#application`,
       name: 'Sim',
-      description:
-        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting hundreds of integrations and every major LLM.',
+      description: `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting ${INTEGRATION_COUNT_LABEL} integrations and every major LLM.`,
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       url: SITE_URL,

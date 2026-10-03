@@ -432,43 +432,6 @@ export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): stri
   return canonicalJson(columnValueForEquality(value, column))
 }
 
-/** Validates unique constraints against existing rows (in-memory version for batch validation within a batch). */
-export function validateUniqueConstraints(
-  data: RowData,
-  schema: TableSchema,
-  existingRows: { id: string; data: RowData; position?: number }[],
-  excludeRowId?: string
-): ValidationResult {
-  const errors: string[] = []
-  const uniqueColumns = getUniqueColumns(schema)
-
-  for (const column of uniqueColumns) {
-    const key = getColumnId(column)
-    const value = cellOf(data, key)
-    if (value === null || value === undefined) continue
-
-    const duplicate = existingRows.find((row) => {
-      if (excludeRowId && row.id === excludeRowId) return false
-      // Case-sensitive, matching the DB unique-check leaf (`fieldPredicate` eq).
-      const existing = cellOf(row.data, key)
-      return (
-        existing !== undefined &&
-        columnValueForEquality(value, column) === columnValueForEquality(existing, column)
-      )
-    })
-
-    if (duplicate) {
-      const rowLabel =
-        typeof duplicate.position === 'number' ? `row ${duplicate.position + 1}` : duplicate.id
-      errors.push(
-        `Column "${column.name}" must be unique. Value "${value}" already exists in ${rowLabel}`
-      )
-    }
-  }
-
-  return { valid: errors.length === 0, errors }
-}
-
 /**
  * Checks unique constraints using targeted database queries.
  * Only queries for specific conflicting values instead of loading all rows.

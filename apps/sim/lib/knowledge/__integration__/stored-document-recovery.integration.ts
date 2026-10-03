@@ -9,7 +9,6 @@ import {
   embedding,
   knowledgeBase,
   knowledgeConnector,
-  member,
   organization,
   outboxEvent,
   user,
@@ -26,12 +25,6 @@ const fixture = vi.hoisted(() => ({
   listRuns: vi.fn(),
   batchTrigger: vi.fn(),
 }))
-/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) =>
-  (await import('@sim/testing/mocks/indexed-org-search.mock')).indexedOrgSearchEnvFlags(
-    importOriginal
-  )
-)
 vi.mock('@/lib/core/config/trigger-runtime', () => ({
   isInsideTriggerRun: () => fixture.useTrigger,
 }))
@@ -105,7 +98,6 @@ import {
   retryDocumentProcessing,
 } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
-import { searchScopedKnowledge } from '@/lib/sim-search/indexed/search/scoped-search'
 import type { SyncResult } from '@/connectors/types'
 
 interface QueryPlan {
@@ -132,10 +124,7 @@ async function eventsFor(ids: ReturnType<typeof createKnowledgeAclFixtureIds>) {
       )
     )
 }
-async function failedFile(
-  ids: ReturnType<typeof createKnowledgeAclFixtureIds>,
-  organizationOwned = false
-) {
+async function failedFile(ids: ReturnType<typeof createKnowledgeAclFixtureIds>) {
   const file = await addDocument(
     ids.knowledgeBaseId,
     ids.connectorId,
@@ -147,9 +136,7 @@ async function failedFile(
       mimeType: 'text/plain',
       contentHash: 'fixture-retained-v1',
     },
-    organizationOwned
-      ? { userId: ids.aliceId, workspaceId: null, organizationId: ids.organizationId }
-      : { userId: ids.aliceId, workspaceId: ids.workspaceId },
+    { userId: ids.aliceId, workspaceId: ids.workspaceId },
     undefined,
     'admin',
     createContentSyncLease(ids.connectorId, ids.lockId)
@@ -628,45 +615,34 @@ describe('independent recovery of retained connector documents', () => {
       .where(eq(knowledgeConnector.id, ids.connectorId))
   })
 
-  it('uses the organization owner and preserves Search visibility during source backoff', async () => {
+  it('does not restart retired Search indexing when a source leaves provider backoff', async () => {
     const ids = await seed()
-    await db.insert(member).values({
-      id: generateId(),
-      organizationId: ids.organizationId,
-      userId: ids.aliceId,
-      role: 'owner',
-    })
+    const file = await failedFile(ids)
     await db
       .update(knowledgeBase)
       .set({ workspaceId: null, organizationId: ids.organizationId, isSearchIndex: true })
       .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    const file = await failedFile(ids, true)
-    await db
-      .update(knowledgeConnector)
-      .set({ status: 'error', nextSyncAt: new Date(Date.now() + 3_600_000) })
-      .where(eq(knowledgeConnector.id, ids.connectorId))
-    expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
-    const [event] = await eventsFor(ids)
-    expect(event.payload).toMatchObject({
-      billingScope: 'organization',
-      workspaceId: null,
-      organizationId: ids.organizationId,
+    const before = fixture.embeddingCalls
+    for (const nextSyncAt of [new Date(Date.now() + 3_600_000), old()]) {
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'error', nextSyncAt })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      await recoverKnowledgeDocumentProcessing()
+      expect(await eventsFor(ids)).toEqual([])
+    }
+    const [retained] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(retained).toMatchObject({
+      processingStatus: 'failed',
+      processingAttempts: 1,
+      processingQueueToken: 'old-fixture-generation',
     })
+    expect(fixture.embeddingCalls).toBe(before)
     expect(
-      await outbox.processOutboxEventById(event.id, knowledgeDocumentProcessingOutboxHandlers)
-    ).toBe('completed')
-    const [indexed] = await db.select().from(document).where(eq(document.id, file.documentId))
-    expect(indexed.processingStatus, indexed.processingError ?? undefined).toBe('completed')
-    const result = await searchScopedKnowledge.execute({
-      principal: { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-session' },
-      input: {
-        organizationId: ids.organizationId,
-        query: 'Orion',
-        topK: 3,
-      },
-    })
-    expect(result.results.some((row) => row.documentId === file.documentId)).toBe(true)
+      await db.select().from(embedding).where(eq(embedding.documentId, file.documentId))
+    ).toEqual([])
   })
+
   it('recovers while the source is deferred, fences its old worker, and indexes exactly once', async () => {
     const ids = await seed()
     const file = await failedFile(ids)

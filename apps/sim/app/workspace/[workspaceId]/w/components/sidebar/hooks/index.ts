@@ -1,4 +1,3 @@
-export { useAutoScroll } from './use-auto-scroll'
 export { useChatSelection } from './use-chat-selection'
 export { type DropIndicator, useDragDrop } from './use-drag-drop'
 export { useFlyoutInlineRename } from './use-flyout-inline-rename'

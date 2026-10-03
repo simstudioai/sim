@@ -2,11 +2,6 @@
 
 import { act } from 'react'
 import {
-  createMockDeploymentShape,
-  deploymentShapeMock,
-  deploymentShapeMockFns,
-} from '@sim/testing/mocks/deployment-shape.mock'
-import {
   kbConnectorsQueriesMock,
   kbConnectorsQueriesMockFns,
 } from '@sim/testing/mocks/kb-connectors-queries.mock'
@@ -15,7 +10,6 @@ import {
   organizationProviderMock,
   organizationProviderMockFns,
 } from '@sim/testing/mocks/organization-provider.mock'
-import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -23,19 +17,14 @@ import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ConnectorActionsOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 
 const mocks = vi.hoisted(() => ({
-  live: false,
   admin: true,
   integrations: vi.fn(),
-  documents: vi.fn(),
   actions: vi.fn(),
-  recovery: vi.fn(),
-  history: vi.fn(),
   form: vi.fn(),
   dirty: false,
   saving: false,
   save: vi.fn(),
 }))
-vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: vi.fn() }))
@@ -50,25 +39,6 @@ vi.mock('@/connectors/registry', () => ({
       configFields: [],
       searchDocsUrl: 'https://example.com/guide',
     },
-  },
-}))
-vi.mock(
-  '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-documents/connector-documents',
-  () => ({
-    ConnectorDocuments: (props: unknown) => {
-      mocks.documents(props)
-      return <p>Source documents</p>
-    },
-  })
-)
-vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section', () => ({
-  ConnectorRecovery: (props: { onEdit?: () => void }) => {
-    mocks.recovery(props)
-    return props.onEdit ? <button onClick={props.onEdit}>Review source settings</button> : null
-  },
-  ConnectorSyncHistory: () => {
-    mocks.history()
-    return <p>Source sync history</p>
   },
 }))
 vi.mock(
@@ -101,9 +71,6 @@ nextNavigationMockFns.mockUsePathname.mockReturnValue(
 )
 const mockIndex = kbConnectorsQueriesMockFns.mockUseSearchIndex
 const mockDetail = kbConnectorsQueriesMockFns.mockUseConnectorDetail
-deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(() =>
-  createMockDeploymentShape({ features: { liveEnterpriseSearch: mocks.live } })
-)
 organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => ({
   organization: { id: 'org-one' },
   viewer: { isAdmin: mocks.admin },
@@ -143,7 +110,6 @@ describe('organization source detail navigation', () => {
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.admin = true
-    mocks.live = false
     mocks.dirty = false
     mocks.saving = false
     mockIndex.mockReturnValue({ data: { knowledgeBaseId: 'index-one' }, isPending: false })
@@ -180,16 +146,14 @@ describe('organization source detail navigation', () => {
     await act(async () => root.unmount())
     container.remove()
   })
-  async function render(searchParams = '') {
+  async function render() {
     await act(async () =>
       root.render(
-        <NuqsTestingAdapter hasMemory searchParams={searchParams}>
-          <SettingsHeaderProvider>
-            <SettingsHeaderShell>
-              <OrganizationSourceDetail connectorId='source-one' />
-            </SettingsHeaderShell>
-          </SettingsHeaderProvider>
-        </NuqsTestingAdapter>
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell>
+            <OrganizationSourceDetail connectorId='source-one' />
+          </SettingsHeaderShell>
+        </SettingsHeaderProvider>
       )
     )
   }
@@ -214,7 +178,7 @@ describe('organization source detail navigation', () => {
   })
 
   it('hides cached source data after access is revoked, even if the index also failed', async () => {
-    await render('?view=settings')
+    await render()
     mockIndex.mockReturnValue({
       data: { knowledgeBaseId: 'index-one' },
       isError: true,
@@ -227,36 +191,36 @@ describe('organization source detail navigation', () => {
       error: new ApiClientError({ status: 403, message: 'Access denied', body: null }),
       refetch: vi.fn(),
     })
-    await render('?view=settings')
+    await render()
     expect(container.textContent).toContain('Access denied')
     expect(container.textContent).not.toContain('Source configuration')
   })
 
   it('hides cached source settings when integration status reports revoked access', async () => {
-    await render('?view=settings')
+    await render()
     mocks.integrations.mockReturnValue({
       data: [{ connectorType: 'google_drive', approved: true }],
       isError: true,
       error: new ApiClientError({ status: 403, message: 'Access denied', body: null }),
       refetch: vi.fn(),
     })
-    await render('?view=settings')
+    await render()
     expect(container.textContent).toContain('Access denied')
     expect(container.textContent).not.toContain('Source configuration')
   })
 
   it('preserves the editable baseline across background connector updates', async () => {
-    await render('?view=settings')
+    await render()
     mockDetail.mockReturnValue({
       data: { ...connector, status: 'syncing', sourceConfig: { folderId: 'changed-remotely' } },
     })
-    await render('?view=settings')
+    await render()
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector }))
   })
 
   it('uses the canonical saved row as the new settings baseline without leaving the source', async () => {
     mocks.dirty = true
-    await render('?view=settings')
+    await render()
     await click('Save')
     expect(mocks.save).toHaveBeenCalledOnce()
 
@@ -267,16 +231,16 @@ describe('organization source detail navigation', () => {
     expect(container.textContent).toContain('Source configuration')
 
     mockDetail.mockReturnValue({ data: { ...connector, status: 'syncing' } })
-    await render('?view=settings')
+    await render()
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector: saved }))
   })
 
   it('discards to the latest server settings only when explicitly requested', async () => {
     mocks.dirty = true
-    await render('?view=settings')
+    await render()
     const refreshed = { ...connector, sourceConfig: { folderId: 'latest-server-folder' } }
     mockDetail.mockReturnValue({ data: refreshed })
-    await render('?view=settings')
+    await render()
     expect(mocks.form).toHaveBeenLastCalledWith(expect.objectContaining({ connector }))
 
     await click('Discard')

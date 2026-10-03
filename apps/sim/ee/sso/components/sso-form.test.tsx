@@ -3,7 +3,7 @@
  */
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
-import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { envMockFns, resetEnvMock } from '@sim/testing/mocks/env.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToString } from 'react-dom/server'
@@ -52,8 +52,6 @@ vi.mock('@/app/(auth)/components', () => ({
 }))
 
 import SSOForm from '@/ee/sso/components/sso-form'
-
-const mockSsoSignIn = authClientMockFns.mockClient.signIn.sso
 
 const mockUseSearchParams = nextNavigationMockFns.mockUseSearchParams
 envMockFns.getEnv.mockReturnValue('true')

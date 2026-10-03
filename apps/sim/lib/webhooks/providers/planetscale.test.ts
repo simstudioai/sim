@@ -12,6 +12,29 @@ import type {
   SubscriptionContext,
 } from '@/lib/webhooks/providers/types'
 
+const {
+  verifyAuth,
+  handleReachabilityTest,
+  matchEvent,
+  formatInput,
+  extractIdempotencyId,
+  enrichHeaders,
+  createSubscription,
+  deleteSubscription,
+} = planetscaleHandler
+if (
+  !verifyAuth ||
+  !handleReachabilityTest ||
+  !matchEvent ||
+  !formatInput ||
+  !extractIdempotencyId ||
+  !enrichHeaders ||
+  !createSubscription ||
+  !deleteSubscription
+) {
+  throw new Error('PlanetScale signed delivery and subscription operations are missing')
+}
+
 const credentials = {
   triggerServiceTokenId: 'fixture-id',
   triggerServiceToken: 'fixture-token',
@@ -93,16 +116,14 @@ describe('PlanetScale signed delivery contracts', () => {
 
   it('authenticates encrypted secrets over the exact bytes and rejects parsed-body substitutions', async () => {
     const { encrypted } = await encryptSecret(secret)
-    expect(await planetscaleHandler.verifyAuth!(authContext(encrypted))).toBeNull()
-    expect(
-      (await planetscaleHandler.verifyAuth!(authContext(encrypted, JSON.stringify(body))))?.status
-    ).toBe(401)
+    expect(await verifyAuth(authContext(encrypted))).toBeNull()
+    expect((await verifyAuth(authContext(encrypted, JSON.stringify(body))))?.status).toBe(401)
   })
 
   it.each([undefined, '', secret, '00:corrupt:00'])(
     'fails closed for missing, plaintext or corrupt secret: %s',
     async (value) => {
-      expect((await planetscaleHandler.verifyAuth!(authContext(value)))?.status).toBe(401)
+      expect((await verifyAuth(authContext(value)))?.status).toBe(401)
     }
   )
 
@@ -110,37 +131,25 @@ describe('PlanetScale signed delivery contracts', () => {
     'rejects invalid signature bytes: %s',
     async (signature) => {
       const { encrypted } = await encryptSecret(secret)
-      expect(
-        (await planetscaleHandler.verifyAuth!(authContext(encrypted, rawBody, signature)))?.status
-      ).toBe(401)
+      expect((await verifyAuth(authContext(encrypted, rawBody, signature)))?.status).toBe(401)
     }
   )
 
   it('filters dedicated and selected generic production events without accepting probes or unknowns', async () => {
-    expect(await planetscaleHandler.matchEvent!(eventContext(credentials))).toBe(true)
+    expect(await matchEvent(eventContext(credentials))).toBe(true)
     expect(
-      await planetscaleHandler.matchEvent!(
-        eventContext(credentials, { ...body, event: 'backup.succeeded' })
-      )
+      await matchEvent(eventContext(credentials, { ...body, event: 'backup.succeeded' }))
     ).toBe(false)
     const config = { triggerId: 'planetscale_webhook', events: ['cluster.storage'] }
-    expect(
-      await planetscaleHandler.matchEvent!(
-        eventContext(config, { ...body, event: 'cluster.storage' })
-      )
-    ).toBe(true)
+    expect(await matchEvent(eventContext(config, { ...body, event: 'cluster.storage' }))).toBe(true)
     for (const event of ['branch.ready', 'webhook.test', 'unknown.event']) {
-      expect(await planetscaleHandler.matchEvent!(eventContext(config, { ...body, event }))).toBe(
-        false
-      )
+      expect(await matchEvent(eventContext(config, { ...body, event }))).toBe(false)
     }
-    expect(
-      planetscaleHandler.handleReachabilityTest!({ ...body, event: 'webhook.test' }, 'test')?.status
-    ).toBe(200)
+    expect(handleReachabilityTest({ ...body, event: 'webhook.test' }, 'test')?.status).toBe(200)
   })
 
   it('projects documented branch, backup and deploy fields while preserving false, zero, null and original payload', async () => {
-    const branch = await planetscaleHandler.formatInput!(formatContext(body, credentials.triggerId))
+    const branch = await formatInput(formatContext(body, credentials.triggerId))
     expect(branch.input).toMatchObject({
       ...body,
       resource: {
@@ -166,8 +175,7 @@ describe('PlanetScale signed delivery contracts', () => {
       },
     }
     expect(
-      (await planetscaleHandler.formatInput!(formatContext(backup, 'planetscale_backup_succeeded')))
-        .input
+      (await formatInput(formatContext(backup, 'planetscale_backup_succeeded'))).input
     ).toMatchObject({
       resource: {
         size: 0,
@@ -190,11 +198,7 @@ describe('PlanetScale signed delivery contracts', () => {
       },
     }
     expect(
-      (
-        await planetscaleHandler.formatInput!(
-          formatContext(deploy, 'planetscale_deploy_request_opened')
-        )
-      ).input
+      (await formatInput(formatContext(deploy, 'planetscale_deploy_request_opened'))).input
     ).toMatchObject({
       resource: {
         number: 5,
@@ -206,9 +210,10 @@ describe('PlanetScale signed delivery contracts', () => {
       },
       payload: deploy,
     })
-    expect(
-      (await planetscaleHandler.formatInput!(formatContext(deploy, 'planetscale_webhook'))).input
-    ).toEqual({ ...deploy, payload: deploy })
+    expect((await formatInput(formatContext(deploy, 'planetscale_webhook'))).input).toEqual({
+      ...deploy,
+      payload: deploy,
+    })
   })
 
   it('rejects malformed envelopes before formatting executable input', async () => {
@@ -218,16 +223,14 @@ describe('PlanetScale signed delivery contracts', () => {
       { ...body, resource: [] },
       { ...body, organization: null },
     ]) {
-      await expect(
-        planetscaleHandler.formatInput!(formatContext(invalid, credentials.triggerId))
-      ).rejects.toThrow()
+      await expect(formatInput(formatContext(invalid, credentials.triggerId))).rejects.toThrow()
     }
   })
 
   it('deduplicates identical authenticated payloads, preserves repeat events and overrides unsigned IDs', () => {
-    const key = planetscaleHandler.extractIdempotencyId!(body)
+    const key = extractIdempotencyId(body)
     expect(key).toBe(
-      planetscaleHandler.extractIdempotencyId!({
+      extractIdempotencyId({
         resource: body.resource,
         database: body.database,
         organization: body.organization,
@@ -235,14 +238,9 @@ describe('PlanetScale signed delivery contracts', () => {
         event: body.event,
       })
     )
-    expect(key).not.toBe(
-      planetscaleHandler.extractIdempotencyId!({ ...body, timestamp: body.timestamp + 1 })
-    )
+    expect(key).not.toBe(extractIdempotencyId({ ...body, timestamp: body.timestamp + 1 }))
     const headers = { 'x-sim-idempotency-key': 'attacker', 'x-request-id': 'attacker' }
-    planetscaleHandler.enrichHeaders!(
-      { webhook: {}, body, requestId: 'test', providerConfig: credentials },
-      headers
-    )
+    enrichHeaders({ webhook: {}, body, requestId: 'test', providerConfig: credentials }, headers)
     expect(headers['x-sim-idempotency-key']).toBe(key)
   })
 })
@@ -258,7 +256,7 @@ describe('PlanetScale subscription resource integrity', () => {
 
   it('creates one subscription and stores only an encrypted signing secret', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ id: 'remote-id', secret }))
-    const result = await planetscaleHandler.createSubscription!(subscription())
+    const result = await createSubscription(subscription())
     expect(result?.providerConfigUpdates?.externalId).toBe('remote-id')
     const stored = result?.providerConfigUpdates?.webhookSecret
     expect(stored).not.toBe(secret)
@@ -277,7 +275,7 @@ describe('PlanetScale subscription resource integrity', () => {
         secret,
       })
     )
-    const result = await planetscaleHandler.createSubscription!(
+    const result = await createSubscription(
       subscription({ externalId: 'remote-id', webhookSecret: 'corrupt' })
     )
     expect(result?.providerConfigUpdates?.externalId).toBe('remote-id')
@@ -295,9 +293,7 @@ describe('PlanetScale subscription resource integrity', () => {
       fetchMock.mockResolvedValueOnce(
         Response.json({ error: credentials.triggerServiceToken }, { status })
       )
-      await expect(
-        planetscaleHandler.createSubscription!(subscription({ externalId: 'remote-id' }))
-      ).rejects.toThrow()
+      await expect(createSubscription(subscription({ externalId: 'remote-id' }))).rejects.toThrow()
       expect(fetchMock.mock.calls).toHaveLength(1)
     }
   )
@@ -306,8 +302,8 @@ describe('PlanetScale subscription resource integrity', () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
     fetchMock.mockResolvedValueOnce(Response.json({ id: 'replacement', secret }))
     expect(
-      (await planetscaleHandler.createSubscription!(subscription({ externalId: 'removed-id' })))
-        ?.providerConfigUpdates?.externalId
+      (await createSubscription(subscription({ externalId: 'removed-id' })))?.providerConfigUpdates
+        ?.externalId
     ).toBe('replacement')
     expect(fetchMock.mock.calls.map(([, init]) => init?.method)).toEqual(['GET', 'POST'])
   })
@@ -315,7 +311,7 @@ describe('PlanetScale subscription resource integrity', () => {
   it('cleans up only the returned ID when creation cannot produce usable signing state', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ id: 'created-id', secret: '' }))
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
-    await expect(planetscaleHandler.createSubscription!(subscription())).rejects.toThrow()
+    await expect(createSubscription(subscription())).rejects.toThrow()
     expect(
       fetchMock.mock.calls.map(([url, init]) => [new URL(String(url)).pathname, init?.method])
     ).toEqual([
@@ -327,7 +323,7 @@ describe('PlanetScale subscription resource integrity', () => {
   it.each([204, 404])('treats deletion HTTP %s as completed', async (status) => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status }))
     await expect(
-      planetscaleHandler.deleteSubscription!({
+      deleteSubscription({
         ...subscription({ externalId: 'remote-id' }),
         strict: true,
       })
@@ -338,7 +334,7 @@ describe('PlanetScale subscription resource integrity', () => {
     'rejects malformed returned IDs without deleting a collection or parent: %s',
     async (id) => {
       fetchMock.mockResolvedValueOnce(Response.json({ id, secret }))
-      await expect(planetscaleHandler.createSubscription!(subscription())).rejects.toThrow()
+      await expect(createSubscription(subscription())).rejects.toThrow()
       expect(fetchMock.mock.calls).toHaveLength(1)
     }
   )
@@ -346,7 +342,7 @@ describe('PlanetScale subscription resource integrity', () => {
   it('retains strict cleanup failures for retry without leaking transport or provider secrets', async () => {
     fetchMock.mockRejectedValueOnce(new Error(`Authorization ${credentials.triggerServiceToken}`))
     await expect(
-      planetscaleHandler.deleteSubscription!({
+      deleteSubscription({
         ...subscription({ externalId: 'remote-id' }),
         strict: true,
       })
@@ -355,7 +351,7 @@ describe('PlanetScale subscription resource integrity', () => {
       Response.json({ token: credentials.triggerServiceToken }, { status: 403 })
     )
     try {
-      await planetscaleHandler.deleteSubscription!({
+      await deleteSubscription({
         ...subscription({ externalId: 'remote-id' }),
         strict: true,
       })
@@ -363,18 +359,14 @@ describe('PlanetScale subscription resource integrity', () => {
     } catch (error) {
       expect(String(error)).not.toContain(credentials.triggerServiceToken)
     }
-    await expect(
-      planetscaleHandler.deleteSubscription!({ ...subscription(), strict: true })
-    ).rejects.toThrow()
-    await expect(planetscaleHandler.deleteSubscription!(subscription())).resolves.toBeUndefined()
+    await expect(deleteSubscription({ ...subscription(), strict: true })).rejects.toThrow()
+    await expect(deleteSubscription(subscription())).resolves.toBeUndefined()
   })
 
   it('rejects empty or unknown generic selections without creating a subscription', async () => {
     for (const events of [[], ['unknown.event'], ['webhook.test']]) {
       await expect(
-        planetscaleHandler.createSubscription!(
-          subscription({ triggerId: 'planetscale_webhook', events })
-        )
+        createSubscription(subscription({ triggerId: 'planetscale_webhook', events }))
       ).rejects.toThrow()
     }
     expect(fetchMock).not.toHaveBeenCalled()

@@ -14,21 +14,6 @@ export interface InboxConfig {
   providerId: string | null
 }
 
-interface InboxTaskStats {
-  total: number
-  completed: number
-  processing: number
-  failed: number
-}
-
-interface AllowedSender {
-  id: string
-  email: string
-  label: string | null
-  addedBy: string
-  createdAt: Date
-}
-
 export interface AgentMailInbox {
   organization_id?: string
   pod_id: string

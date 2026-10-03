@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
@@ -64,9 +63,7 @@ export async function resolveExecutorCredentialToken(
       throw new Error('Assistant credential use requires the authenticated person for this turn.')
     }
     const original = toolId ? getToolMetadata(toolId) : undefined
-    const tool = original
-      ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
-      : undefined
+    const tool = original ? projectAssistantConnectedAccountTool(original) : undefined
     if (
       !tool?.oauth?.required ||
       (!copilotExecutionContext.workspaceId && !copilotExecutionContext.organizationId) ||

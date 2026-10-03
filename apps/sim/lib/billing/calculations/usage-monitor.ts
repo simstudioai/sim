@@ -3,6 +3,7 @@ import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
+import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
@@ -43,6 +44,11 @@ interface UsageData {
   scope: 'user' | 'organization'
   /** Present only when `scope === 'organization'`. */
   organizationId: string | null
+  /**
+   * The ledger could not be read, so `isExceeded` is a fail-closed refusal rather than a
+   * measured one. Admission refuses on it; a run already under way treats it as unknown.
+   */
+  unavailable?: true
 }
 
 /**
@@ -183,6 +189,7 @@ export async function checkUsageStatus(
       limit: 0,
       scope: 'user',
       organizationId: null,
+      unavailable: true,
     }
   }
 }
@@ -352,7 +359,11 @@ export async function checkServerSideUsageLimits(
       isExceeded: usageData.isExceeded,
       currentUsage: usageData.currentUsage,
       limit: usageData.limit,
-      message: usageData.isExceeded ? exceededMessage : undefined,
+      message: usageData.unavailable
+        ? USAGE_UNAVAILABLE_MESSAGE
+        : usageData.isExceeded
+          ? exceededMessage
+          : undefined,
     }
   } catch (error) {
     logger.error('Error in server-side usage limit check', {

@@ -66,6 +66,10 @@
       "types": "./src/paste.ts",
       "default": "./src/paste.ts"
     },
+    "./site": {
+      "types": "./src/site.ts",
+      "default": "./src/site.ts"
+    },
     "./sso-domain": {
       "types": "./src/sso-domain.ts",
       "default": "./src/sso-domain.ts"

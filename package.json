@@ -70,15 +70,22 @@
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "check:native-typecheck": "bun run scripts/check-native-typecheck.ts",
     "check:source-text": "bun run scripts/check-source-text.ts",
+    "check:comment-hygiene": "bun run scripts/check-comment-hygiene.ts",
+    "check:site-urls": "bun run scripts/check-site-urls.ts",
+    "check:library-content": "bun run scripts/check-library-content.ts",
     "check:spec-example-ids": "bun run scripts/check-spec-example-ids.ts",
     "check:script-tests": "bun run scripts/check-script-test-coverage.ts",
     "check:test-patterns": "bun run scripts/check-test-patterns.ts",
     "check:schema-mock": "bun run scripts/generate-schema-mock.ts --check",
     "check:audits": "bun run scripts/run-audits.ts",
     "check:skills": "bun run scripts/sync-skills.ts --check",
+    "check:guidance-refs": "bun run scripts/check-guidance-refs.ts",
     "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",
     "check:desktop-ipc": "bun run scripts/check-desktop-ipc-contract.ts",
     "check:route-verbs": "bun run scripts/check-route-verbs.ts",
+    "check:unused-exports": "bun run scripts/check-unused-exports.ts",
+    "check:explicit-any": "bun run scripts/check-explicit-any.ts",
+    "check:file-names": "bun run scripts/check-file-names.ts",
     "desktop-bridge-contract:update": "bun run scripts/check-desktop-bridge-contract.ts --update",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
@@ -129,8 +136,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "next": "16.3.4",
-    "@next/env": "16.3.4",
+    "next": "16.3.6",
+    "@next/env": "16.3.6",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
@@ -153,14 +160,15 @@
     "ws": "8.21.3"
   },
   "optionalDependencies": {
-    "@next/swc-darwin-arm64": "16.3.4",
-    "@next/swc-darwin-x64": "16.3.4",
-    "@next/swc-linux-arm64-gnu": "16.3.4",
-    "@next/swc-linux-x64-gnu": "16.3.4"
+    "@next/swc-darwin-arm64": "16.3.6",
+    "@next/swc-darwin-x64": "16.3.6",
+    "@next/swc-linux-arm64-gnu": "16.3.6",
+    "@next/swc-linux-x64-gnu": "16.3.6"
   },
   "devDependencies": {
     "@babel/parser": "7.29.2",
     "@biomejs/biome": "2.0.6",
+    "@mdx-js/mdx": "3.1.1",
     "@octokit/rest": "^21.0.0",
     "@sim/utils": "workspace:*",
     "@types/opentype.js": "1.3.10",
@@ -201,6 +209,7 @@
   "patchedDependencies": {
     "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch",
     "drizzle-kit@0.31.10": "patches/drizzle-kit@0.31.10.patch",
-    "postgres@3.4.9": "patches/postgres@3.4.9.patch"
+    "postgres@3.4.9": "patches/postgres@3.4.9.patch",
+    "echarts@6.1.0": "patches/echarts@6.1.0.patch"
   }
 }

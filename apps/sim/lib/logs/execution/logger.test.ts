@@ -22,7 +22,6 @@ import {
   billingUsageMonitorMock,
   billingUsageMonitorMockFns,
 } from '@sim/testing/mocks/billing-usage-monitor.mock'
-import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -83,8 +82,6 @@ billingSubscriptionMockFns.mockGetHighestPrioritySubscription.mockImplementation
 )
 
 afterAll(resetDbChainMock)
-
-const mockLogger = getMockLogger('ExecutionLogger')
 
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
@@ -219,7 +216,10 @@ describe('ExecutionLogger', () => {
       vi.spyOn(logger as any, 'applyPiiRedaction').mockImplementation(
         async (_workspaceId: unknown, payload: unknown) => payload
       )
-      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue(0)
+      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue({
+        recordedIncrement: 0,
+        costTotalRefined: false,
+      })
 
       const result = await logger.completeWorkflowExecution({
         executionId: 'execution-1',
@@ -293,7 +293,10 @@ describe('ExecutionLogger', () => {
       ])
       const internals = logger as unknown as {
         applyPiiRedaction: (workspaceId: string, payload: Record<string, unknown>) => unknown
-        recordExecutionUsage: () => Promise<number>
+        recordExecutionUsage: () => Promise<{
+          recordedIncrement: number
+          costTotalRefined: boolean
+        }>
       }
       vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
         async (_workspaceId: string, payload: Record<string, unknown>) =>
@@ -301,7 +304,10 @@ describe('ExecutionLogger', () => {
             ? { ...payload, executionState: params.redactedState }
             : payload
       )
-      vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue(0)
+      vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue({
+        recordedIncrement: 0,
+        costTotalRefined: false,
+      })
 
       await logger.completeWorkflowExecution({
         executionId: 'execution-1',
@@ -827,7 +833,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       }),
     ])
     // Returns the amount recorded at this boundary (drives threshold-email math).
-    expect(recorded).toBeCloseTo(1.005, 8)
+    expect(recorded.recordedIncrement).toBeCloseTo(1.005, 8)
     // cost_total is refined to the exact ledger sum inside the locked tx.
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
   })
@@ -872,7 +878,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(lastEntries()).not.toContainEqual(
       expect.objectContaining({ category: 'model', description: 'mothership' })
     )
-    expect(recorded).toBeCloseTo(1.005, 8)
+    expect(recorded.recordedIncrement).toBeCloseTo(1.005, 8)
     expect(setCostTotalMock).toHaveBeenCalledWith({ costTotal: '1.505' })
   })
 
@@ -913,14 +919,9 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       'user-1'
     )
 
-    expect(recorded).toBe(0)
+    expect(recorded.recordedIncrement).toBe(0)
     expect(recordUsage).not.toHaveBeenCalled()
   })
-
-  const unbilledErrorCalls = () =>
-    mockLogger.error.mock.calls.filter((call) =>
-      String(call[0]).includes('Failed to record execution usage to usage_log ledger')
-    )
 
   test('retry with everything already billed records nothing (idempotent)', async () => {
     await run(

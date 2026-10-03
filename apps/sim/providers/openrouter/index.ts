@@ -13,6 +13,7 @@ import {
   getOpenRouterModelCapabilities,
   supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { openAICompatTransport } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 import { generateSchemaInstructions } from '@/providers/utils'
@@ -33,14 +34,7 @@ async function applyResponseFormat(
 
   if (useNative) {
     logger.info('Using native structured outputs for OpenRouter model', { model })
-    targetPayload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: responseFormat.name || 'response_schema',
-        schema: responseFormat.schema || responseFormat,
-        strict: responseFormat.strict !== false,
-      },
-    }
+    targetPayload.response_format = buildJsonSchemaResponseFormat(responseFormat)
     targetPayload.provider = { ...targetPayload.provider, require_parameters: true }
     return messages
   }

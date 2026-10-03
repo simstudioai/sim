@@ -7,7 +7,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockSend,
-  mockS3Client,
   mockS3ClientConstructor,
   mockPutObjectCommand,
   mockGetObjectCommand,
@@ -74,7 +73,6 @@ import {
   deleteFromS3,
   deleteS3ObjectVersion,
   downloadFromS3,
-  getS3PresignedUploadUrl,
   headS3Object,
   listS3MultipartParts,
   resetS3ClientForTesting,
@@ -225,35 +223,6 @@ describe('S3 Client', () => {
   })
 
   describe('direct upload primitives', () => {
-    it('signs metadata and a create-only condition without duplicate x-amz-meta headers', async () => {
-      mockGetSignedUrl.mockResolvedValueOnce('https://example.com/signed-put')
-
-      const result = await getS3PresignedUploadUrl({
-        key: 'workspace/workspace-1/file.bin',
-        contentType: 'application/octet-stream',
-        fileSize: 3,
-        metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
-        customConfig: mockS3Config,
-        expiresIn: 600,
-      })
-
-      expect(mockPutObjectCommand).toHaveBeenCalledWith({
-        Bucket: 'test-bucket',
-        Key: 'workspace/workspace-1/file.bin',
-        ContentType: 'application/octet-stream',
-        ContentLength: 3,
-        IfNoneMatch: '*',
-        Metadata: { uploadId: 'upload-1', purpose: 'workspace_file' },
-      })
-      expect(result).toEqual({
-        url: 'https://example.com/signed-put',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'If-None-Match': '*',
-        },
-      })
-    })
-
     it('lists every provider part across pagination', async () => {
       mockSend
         .mockResolvedValueOnce({

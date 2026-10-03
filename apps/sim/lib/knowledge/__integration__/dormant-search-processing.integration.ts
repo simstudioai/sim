@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -13,11 +13,6 @@ import {
   processDocumentAsync,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
-
-vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  isLiveEnterpriseSearchEnabled: true,
-}))
 
 /** Queued work cannot revive dormant Search before retirement reaches its documents. */
 describe('dormant Search document processing', () => {
@@ -94,5 +89,69 @@ describe('dormant Search document processing', () => {
       .from(document)
       .where(eq(document.id, documentId))
     expect(stored.status).toBe('pending')
+  })
+
+  it('withdraws its own queued generation and refunds the charged attempt once', async () => {
+    const queuedAt = new Date('2026-09-29T00:00:00.000Z')
+    const token = generateId()
+    await db
+      .update(document)
+      .set({ processingQueueToken: token, processingQueuedAt: queuedAt, processingAttempts: 2 })
+      .where(eq(document.id, documentId))
+    const attempt = {
+      chargedAtDispatch: true,
+      processingQueueToken: token,
+      processingQueuedAt: queuedAt,
+    }
+    for (const _ of [1, 2]) {
+      expect(
+        await processDocumentAsync(
+          ids.knowledgeBaseId,
+          documentId,
+          source,
+          {},
+          undefined,
+          'pass',
+          attempt
+        )
+      ).toEqual({ outcome: 'skipped', reason: 'unavailable' })
+    }
+    const [stored] = await db
+      .select({
+        status: document.processingStatus,
+        token: document.processingQueueToken,
+        queuedAt: document.processingQueuedAt,
+        attempts: document.processingAttempts,
+      })
+      .from(document)
+      .where(eq(document.id, documentId))
+    expect(stored).toEqual({ status: 'pending', token, queuedAt: null, attempts: 1 })
+  })
+
+  it('leaves a newer queued generation untouched, even under a reused token', async () => {
+    const queuedAt = new Date('2026-09-29T01:00:00.000Z')
+    const newer = generateId()
+    await db
+      .update(document)
+      .set({ processingQueueToken: newer, processingQueuedAt: queuedAt, processingAttempts: 1 })
+      .where(eq(document.id, documentId))
+    await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
+      chargedAtDispatch: true,
+      processingQueueToken: generateId(),
+    })
+    await processDocumentAsync(ids.knowledgeBaseId, documentId, source, {}, undefined, 'pass', {
+      chargedAtDispatch: true,
+      processingQueueToken: newer,
+      processingQueuedAt: new Date('2026-09-29T00:30:00.000Z'),
+    })
+    const [stored] = await db
+      .select({
+        token: document.processingQueueToken,
+        queuedAt: document.processingQueuedAt,
+        attempts: document.processingAttempts,
+      })
+      .from(document)
+      .where(eq(document.id, documentId))
+    expect(stored).toEqual({ token: newer, queuedAt, attempts: 1 })
   })
 })

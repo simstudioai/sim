@@ -312,7 +312,3 @@ export interface SESSendCustomVerificationEmailResponse extends ToolResponse {
     messageId: string
   }
 }
-
-interface SESBaseResponse extends ToolResponse {
-  output: { message: string }
-}

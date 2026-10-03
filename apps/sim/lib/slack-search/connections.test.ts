@@ -16,7 +16,8 @@ const target = {
   type: 'link',
   provider: 'google-email',
   connectorType: 'gmail',
-  connectorId: 'source',
+  connectionMode: 'live',
+  optionId: 'gmail-option',
 } as const
 const input = {
   targets: [target],

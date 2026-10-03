@@ -48,7 +48,7 @@ export async function fetchThreadingHeaders(
         subject: headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value,
       }
     }
-  } catch (error) {
+  } catch {
     // Continue without threading headers rather than failing
   }
 

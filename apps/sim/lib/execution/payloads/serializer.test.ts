@@ -24,7 +24,7 @@ import {
 import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockLog, UserFile } from '@/executor/types'
 
-const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
+const { mockUploadFile } = storageServiceMockFns
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)

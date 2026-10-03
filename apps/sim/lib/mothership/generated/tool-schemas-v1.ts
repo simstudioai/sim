@@ -5989,7 +5989,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         startDate: {
           description:
-            'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
+            'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Google Meet, Zoom, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.',
           type: 'string',
           format: 'date-time',
           pattern:
@@ -6043,7 +6043,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         nativeQueries: {
           description:
-            "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot terms, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion always requires search terms. Up to 4 per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; ownership filters are unsupported. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
+            "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound, sortBy newest/oldest, or explicit browse mode. Lucid browse folder lists root or a numeric folder project; Notion browse private/shared/favorites/recent lists sidebar pages. Recent means viewed, not modified. Up to 4 per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple content queries on one account, each need a kind, which may repeat; explicit browse queries may select distinct folders or sidebar sections without a kind. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid title search has no continuation; folder browsing is paginated and returns child folders in account coverage; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
           minItems: 1,
           maxItems: 9,
           type: 'array',
@@ -6055,6 +6055,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 enum: [
                   'google_drive',
                   'gmail',
+                  'google_meet',
+                  'zoom',
                   'google_calendar',
                   'slack',
                   'jira',
@@ -6062,6 +6064,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'github',
                   'gitlab',
                   'linear',
+                  'lucid',
                   'hubspot',
                   'fireflies',
                   'granola',
@@ -6091,12 +6094,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   'companies',
                   'deals',
                   'tickets',
+                  'lucidchart',
+                  'lucidspark',
+                  'transcript',
+                  'smart_notes',
+                  'meeting',
                 ],
               },
               project: {
                 type: 'string',
                 minLength: 1,
                 maxLength: 300,
+              },
+              browse: {
+                description:
+                  'Queryless discovery: Lucid folder lists one folder page (omit project for root; otherwise use a returned numeric folder ID). Notion private/shared list sidebar pages, favorites lists pinned pages, recent lists recently viewed pages, not recently modified pages. These lists are not an exhaustive workspace inventory. Follow the returned cursor with the same account, browse mode, project, filters and topK.',
+                type: 'string',
+                enum: ['folder', 'private', 'shared', 'favorites', 'recent'],
               },
               cursor: {
                 type: 'string',
@@ -6125,7 +6139,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         query: {
           default: '',
           description:
-            'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported; Notion requires search terms.',
+            'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.',
           type: 'string',
           maxLength: 2000,
         },
@@ -7842,6 +7856,48 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  dashboards: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 100,
+        },
+        action: {
+          anyOf: [
+            {
+              type: 'string',
+              const: 'get',
+            },
+            {
+              type: 'string',
+              const: 'set',
+            },
+          ],
+        },
+        content: {
+          description:
+            'Required for action: set. Only used for action: set. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 131072,
+        },
+        expectedRevision: {
+          description:
+            'The revision from `dashboards get`; required once the dashboard exists. Only used for action: set. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 256,
+        },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    resultSchema: undefined,
+  },
   workspaces: {
     parameters: {
       $schema: 'http://json-schema.org/draft-07/schema#',
@@ -8013,10 +8069,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Only used for action: list. Omit for other actions.',
           type: 'string',
           maxLength: 200,
-        },
-        mine: {
-          description: 'Only used for action: list. Omit for other actions.',
-          type: 'boolean',
         },
         connectorId: {
           description:

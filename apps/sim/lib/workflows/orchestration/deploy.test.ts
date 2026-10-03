@@ -7,7 +7,7 @@ import {
   workflowAuthzMockFns,
 } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -21,6 +21,7 @@ const {
   mockPrepareWorkflowDeployment,
   mockPrepareWorkflowVersionActivation,
   mockGetWorkflowDeploymentStatus,
+  mockGetDeploymentOperation,
   mockEnqueueWorkflowDeploymentPreparation,
   mockProcessWorkflowDeploymentOutboxEvent,
   mockNotifySocketDeploymentChanged,
@@ -32,6 +33,7 @@ const {
   mockPrepareWorkflowDeployment: vi.fn(),
   mockPrepareWorkflowVersionActivation: vi.fn(),
   mockGetWorkflowDeploymentStatus: vi.fn(),
+  mockGetDeploymentOperation: vi.fn(),
   mockEnqueueWorkflowDeploymentPreparation: vi.fn(),
   mockProcessWorkflowDeploymentOutboxEvent: vi.fn(),
   mockNotifySocketDeploymentChanged: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock('@/lib/workflows/deployment-outbox', () => ({
 
 vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   getWorkflowDeploymentStatus: mockGetWorkflowDeploymentStatus,
+  getDeploymentOperation: mockGetDeploymentOperation,
   prepareWorkflowDeployment: mockPrepareWorkflowDeployment,
   prepareWorkflowVersionActivation: mockPrepareWorkflowVersionActivation,
 }))
@@ -88,7 +91,6 @@ import {
 
 const mockRecordAudit = auditMockFns.mockRecordAudit
 
-const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 const mockLoadWorkflowDeploymentSnapshot =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentSnapshot
 const mockSaveWorkflowToNormalizedTables =
@@ -242,14 +244,16 @@ describe('performFullDeploy workspace event emission', () => {
       await input.onPrepareTransaction?.(mockTx, operation)
       return { success: true, operation, reused: false }
     })
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-1',
         version: 4,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
   })
 
   it('marks the latest active operation historical when no matching version is live', async () => {
@@ -403,10 +407,12 @@ describe('performFullDeploy workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('pending')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: null,
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performFullDeploy({
       workflowId: 'workflow-1',
@@ -469,14 +475,16 @@ describe('performFullDeploy workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('pending')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-live',
         version: 4,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performFullDeploy({
       workflowId: 'workflow-1',
@@ -553,7 +561,7 @@ describe('performFullDeploy workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('completed')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: null,
       latestOperation: {
         ...operation,
@@ -562,7 +570,9 @@ describe('performFullDeploy workspace event emission', () => {
         errorMessage: 'Webhook path "/leads" is already in use. Choose a different path.',
         completedAt: now,
       },
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performFullDeploy({
       workflowId: 'workflow-1',
@@ -619,14 +629,16 @@ describe('performActivateVersion workspace event emission', () => {
       await input.onPrepareTransaction?.(mockTx, operation)
       return { success: true, operation, reused: false }
     })
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-2',
         version: 2,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
   })
 
   it('commits optional metadata inside activation admission before enqueueing work', async () => {
@@ -680,7 +692,7 @@ describe('performActivateVersion workspace event emission', () => {
       name: 'Release 2',
       description: null,
     })
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: null,
       latestOperation: {
         id: 'operation-activate-default',
@@ -702,7 +714,9 @@ describe('performActivateVersion workspace event emission', () => {
         createdAt: failedAt,
         updatedAt: failedAt,
       },
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performActivateVersion({
       workflowId: 'workflow-1',
@@ -755,14 +769,16 @@ describe('performActivateVersion workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('pending')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-1',
         version: 1,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performActivateVersion({
       workflowId: 'workflow-1',

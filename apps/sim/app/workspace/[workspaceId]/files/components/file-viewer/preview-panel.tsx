@@ -456,7 +456,7 @@ const HtmlPreview = memo(function HtmlPreview({
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
           title='HTML Preview'
-          className='h-full w-full border-0 bg-[var(--surface-2)]'
+          className='size-full border-0 bg-[var(--surface-2)]'
         />
       )}
     </div>
@@ -473,7 +473,7 @@ function SvgPreview({ content }: { content: string }) {
   }, [content])
 
   return (
-    <ZoomablePreview className='min-h-0 flex-1' contentClassName='h-full w-full'>
+    <ZoomablePreview className='min-h-0 flex-1' contentClassName='size-full'>
       {blobUrl && (
         <img
           src={blobUrl}

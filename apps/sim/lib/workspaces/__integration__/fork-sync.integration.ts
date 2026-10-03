@@ -1,8 +1,12 @@
+import assert from 'node:assert/strict'
 import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   auditLog,
+  document,
+  embedding,
   folder,
+  knowledgeBase,
   outboxEvent,
   permissions,
   user,
@@ -13,6 +17,7 @@ import {
   workflowDeploymentVersion,
   workspace,
   workspaceForkResourceMap,
+  workspaceForkWorkflowSync,
   workspaceOperationReceipt,
   workspaceSandbox,
 } from '@sim/db/schema'
@@ -21,8 +26,15 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
+import * as workflowMcpSync from '@/lib/mcp/workflow-mcp-sync'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
+import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
+import {
+  finishPreparedWorkflowDeployment,
+  performActivateVersion,
+  performFullDeploy,
+} from '@/lib/workflows/orchestration/deploy'
 import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { admitWorkflowState, saveAdmittedWorkflowState } from '@/lib/workflows/persistence/utils'
@@ -35,9 +47,20 @@ import {
   previewWorkspaceSync,
   syncWorkspace,
 } from '@/ee/workspace-forking/application/create-and-sync'
+import {
+  rollbackWorkspaceFork,
+  unlinkWorkspaceFork,
+} from '@/ee/workspace-forking/application/recovery-and-mappings'
 import { assertForkSourceVersions } from '@/ee/workspace-forking/application/revision'
 import { setForkSyncDefault } from '@/ee/workspace-forking/application/sync-default'
+import { getWorkspaceSyncDetails } from '@/ee/workspace-forking/application/sync-details'
+import {
+  copyForkResourceContainers,
+  copyForkResourceContent,
+  planForkMappedKbDocumentCopies,
+} from '@/ee/workspace-forking/lib/copy/copy-resources'
 import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import type { ForkCopyProgress } from '@/ee/workspace-forking/lib/copy/progress'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const userId = generateId()
@@ -208,6 +231,9 @@ describe('authorized fork and sync against PostgreSQL', () => {
     }
     const preview = await previewWorkspaceSync.execute({ principal, input })
     expect(preview.ready).toBe(true)
+    expect(preview.workflows[0]).toMatchObject({
+      comparison: { status: 'unavailable', reason: 'no_baseline' },
+    })
     const apply = {
       ...input,
       requestId: generateId(),
@@ -220,6 +246,10 @@ describe('authorized fork and sync against PostgreSQL', () => {
     const report = results[0].operation!
     expect(report.applied).toBe(true)
     expect(report.deploymentOperationIds).toHaveLength(1)
+    const pending = await previewWorkspaceSync.execute({ principal, input })
+    expect(pending.workflows[0]).toMatchObject({
+      comparison: { status: 'unavailable', reason: 'no_baseline' },
+    })
     const [attempt] = await db
       .select()
       .from(workflowDeploymentOperation)
@@ -250,6 +280,20 @@ describe('authorized fork and sync against PostgreSQL', () => {
       .where(eq(workflowDeploymentVersion.id, attempt.deploymentVersionId))
     expect(active.isActive).toBe(true)
     expect(active.state).toEqual(version.state)
+    const synced = await previewWorkspaceSync.execute({ principal, input })
+    const [sourceVersion] = await db
+      .select({ id: workflowDeploymentVersion.id, version: workflowDeploymentVersion.version })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, sourceWorkflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+    expect(synced.workflows[0]).toMatchObject({
+      sourceWorkflowId,
+      comparison: { status: 'available', base: sourceVersion, target: sourceVersion },
+    })
 
     const [identity] = await db
       .select()
@@ -284,6 +328,230 @@ describe('authorized fork and sync against PostgreSQL', () => {
         .where(eq(workflowDeploymentVersion.workflowId, attempt.workflowId))
     ).toEqual([{ id: attempt.deploymentVersionId }])
   })
+  it('keeps exact directed baselines through activation, supersession, undo, retention, and source rollback', async () => {
+    const childId = await createChild()
+    const siblingId = await createChild()
+    const input = {
+      workspaceId: sourceWorkspaceId,
+      otherWorkspaceId: childId,
+      direction: 'push' as const,
+    }
+    const preview = () => previewWorkspaceSync.execute({ principal, input })
+    const comparison = async () => {
+      const [item] = (await preview()).workflows
+      if (item.action === 'archive') throw new Error('Fixture source must remain deployed')
+      return item.comparison
+    }
+    const admit = async () => {
+      const current = await preview()
+      const result = await syncWorkspace.execute({
+        principal,
+        input: {
+          ...input,
+          requestId: generateId(),
+          previewFingerprint: current.previewFingerprint,
+        },
+      })
+      assert(result.operation)
+      return result.operation
+    }
+    const [initial] = await db
+      .select()
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, sourceWorkflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+    const first = { id: initial.id, version: initial.version }
+    const seeded = await admit()
+    await finishDeployments(seeded)
+    const targetId = seeded.resourceIds[0]
+    const sibling = await previewWorkspaceSync.execute({
+      principal,
+      input: { ...input, otherWorkspaceId: siblingId },
+    })
+    expect(sibling.workflows[0]).toMatchObject({
+      comparison: { status: 'unavailable', reason: 'no_baseline' },
+    })
+    const reverse = await previewWorkspaceSync.execute({
+      principal,
+      input: { workspaceId: childId, otherWorkspaceId: sourceWorkspaceId, direction: 'push' },
+    })
+    expect(reverse.workflows[0]).toMatchObject({
+      comparison: { status: 'unavailable', reason: 'no_baseline' },
+    })
+
+    const sourceDeploy = await performFullDeploy({ workflowId: sourceWorkflowId, userId })
+    expect(sourceDeploy.success).toBe(true)
+    assert(sourceDeploy.deploymentVersionId && typeof sourceDeploy.version === 'number')
+    const second = { id: sourceDeploy.deploymentVersionId, version: sourceDeploy.version }
+    expect(second.id).not.toBe(first.id)
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: first,
+      target: second,
+    })
+    const pending = await admit()
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: first,
+      target: second,
+    })
+    expect((await performFullDeploy({ workflowId: targetId, userId })).success).toBe(true)
+    await finishDeployments(pending)
+    const pendingOperationId = pending.deploymentOperationIds?.[0]
+    assert(pendingOperationId)
+    const [superseded] = await db
+      .select()
+      .from(workflowDeploymentOperation)
+      .where(eq(workflowDeploymentOperation.id, pendingOperationId))
+    expect(superseded.status).toBe('superseded')
+    expect(
+      await finishPreparedWorkflowDeployment({ operation: superseded }, generateId())
+    ).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: first,
+      target: second,
+    })
+
+    const details = await getWorkspaceSyncDetails.execute({ principal, input })
+    const synced = await syncWorkspace.execute({
+      principal,
+      input: { ...input, expectedSourceVersions: details.sourceVersions },
+    })
+    expect(synced.redeployed).toBe(1)
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: second,
+      target: second,
+    })
+    const blockedCutover = vi
+      .spyOn(workflowMcpSync, 'syncMcpToolsForWorkflow')
+      .mockRejectedValue(new Error('Rollback cutover temporarily unavailable'))
+    try {
+      const pendingUndo = await rollbackWorkspaceFork.execute({
+        principal,
+        input: { workspaceId: childId, otherWorkspaceId: sourceWorkspaceId },
+      })
+      expect(pendingUndo.pendingActivations).toEqual([targetId])
+      expect(await comparison()).toEqual({
+        status: 'available',
+        base: second,
+        target: second,
+      })
+    } finally {
+      blockedCutover.mockRestore()
+    }
+    const undone = await rollbackWorkspaceFork.execute({
+      principal,
+      input: { workspaceId: childId, otherWorkspaceId: sourceWorkspaceId },
+    })
+    expect(undone.pendingActivations).toEqual([])
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: first,
+      target: second,
+    })
+    expect((await syncWorkspace.execute({ principal, input })).redeployed).toBe(1)
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: second,
+      target: second,
+    })
+
+    expect((await performFullDeploy({ workflowId: targetId, userId })).success).toBe(true)
+    await db
+      .delete(workflowDeploymentOperation)
+      .where(
+        and(
+          eq(workflowDeploymentOperation.workflowId, targetId),
+          sql`${workflowDeploymentOperation.generation} < (SELECT max(generation) FROM workflow_deployment_operation WHERE workflow_id = ${targetId})`
+        )
+      )
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: second,
+      target: second,
+    })
+    expect(
+      (
+        await performActivateVersion({
+          workflowId: sourceWorkflowId,
+          version: first.version,
+          userId,
+        })
+      ).success
+    ).toBe(true)
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: second,
+      target: first,
+    })
+
+    await db.delete(workflowDeploymentVersion).where(eq(workflowDeploymentVersion.id, second.id))
+    expect(await comparison()).toEqual({
+      status: 'unavailable',
+      reason: 'missing_baseline',
+      target: first,
+    })
+    const replacement = await performFullDeploy({ workflowId: sourceWorkflowId, userId })
+    expect(replacement.success).toBe(true)
+    expect(replacement.version).toBe(second.version)
+    expect(replacement.deploymentVersionId).not.toBe(second.id)
+    await expect(
+      readWorkflowVersion.execute({
+        principal,
+        input: {
+          workflowId: sourceWorkflowId,
+          version: second.version,
+          expectedDeploymentVersionId: second.id,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(await comparison()).toMatchObject({
+      status: 'unavailable',
+      reason: 'missing_baseline',
+    })
+    expect((await syncWorkspace.execute({ principal, input })).redeployed).toBe(1)
+    await db
+      .delete(workflowDeploymentOperation)
+      .where(eq(workflowDeploymentOperation.workflowId, targetId))
+    const latest = await performFullDeploy({ workflowId: sourceWorkflowId, userId })
+    expect(latest.success).toBe(true)
+    expect((await syncWorkspace.execute({ principal, input })).redeployed).toBe(1)
+    assert(latest.deploymentVersionId && typeof latest.version === 'number')
+    const newest = { id: latest.deploymentVersionId, version: latest.version }
+    expect(await comparison()).toEqual({
+      status: 'available',
+      base: newest,
+      target: newest,
+    })
+
+    const syncHistory = () =>
+      db
+        .select({ id: workspaceForkWorkflowSync.deploymentOperationId })
+        .from(workspaceForkWorkflowSync)
+        .where(eq(workspaceForkWorkflowSync.childWorkspaceId, childId))
+    expect((await syncHistory()).length).toBeGreaterThan(0)
+    await unlinkWorkspaceFork.execute({
+      principal,
+      input: { workspaceId: childId, otherWorkspaceId: sourceWorkspaceId },
+    })
+    expect(await syncHistory()).toEqual([])
+    expect(
+      await db
+        .select({ parent: workspace.forkedFromWorkspaceId })
+        .from(workspace)
+        .where(eq(workspace.id, childId))
+    ).toEqual([{ parent: null }])
+    expect(
+      await db.select({ id: workflow.id }).from(workflow).where(eq(workflow.id, targetId))
+    ).toEqual([{ id: targetId }])
+  })
+
   it.each([
     { acting: 'child', direction: 'pull' as const },
     { acting: 'child', direction: 'push' as const },
@@ -479,6 +747,25 @@ describe('authorized fork and sync against PostgreSQL', () => {
       expect(fresh.ready).toBe(true)
       expect(fresh.previewFingerprint).not.toBe(preview.previewFingerprint)
       expect(await readSandboxMappings()).toHaveLength(0)
+      await expect(
+        syncWorkspace.execute({
+          principal,
+          input: {
+            ...input,
+            expectedSourceVersions: [
+              { workflowId: sourceWorkflowId, deploymentVersionId: generateId() },
+            ],
+          },
+        })
+      ).rejects.toMatchObject({
+        details: expect.objectContaining({ applied: false, reason: 'stale_preview' }),
+      })
+      expect(await readSandboxMappings()).toHaveLength(0)
+      const [stillUnchanged] = await db
+        .select()
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.workflowId, target.id), eq(workflowBlocks.type, 'function')))
+      expect(stillUnchanged.name).toBe('Concurrent sandbox draft edit')
       const result = await syncWorkspace.execute({
         principal,
         input: { ...input, requestId, previewFingerprint: fresh.previewFingerprint },
@@ -917,4 +1204,198 @@ describe('authorized fork and sync against PostgreSQL', () => {
       await setDefault(sourceWorkspaceId, false)
     }
   })
+  async function seedKnowledgeCopy() {
+    const childWorkspaceId = generateId()
+    const sourceWorkspaceId = generateId()
+    createdWorkspaceIds.push(sourceWorkspaceId, childWorkspaceId)
+    await db.insert(workspace).values(
+      [sourceWorkspaceId, childWorkspaceId].map((id) => ({
+        id,
+        name: 'Knowledge copy fixture',
+        ownerId: userId,
+        billedAccountUserId: userId,
+      }))
+    )
+    const sourceId = generateId()
+    const childId = generateId()
+    await db.insert(knowledgeBase).values([
+      { id: sourceId, workspaceId: sourceWorkspaceId, userId, name: `Source ${sourceId}` },
+      { id: childId, workspaceId: childWorkspaceId, userId, name: 'Target fixture' },
+    ])
+    const [source] = await db
+      .insert(document)
+      .values({
+        id: generateId(),
+        knowledgeBaseId: sourceId,
+        filename: 'Copy fixture',
+        fileUrl: '',
+        fileSize: 0,
+        mimeType: 'text/plain',
+        processingStatus: 'completed',
+      })
+      .returning()
+    return { sourceWorkspaceId, childWorkspaceId, sourceId, childId, source }
+  }
+
+  it('copies ordinary knowledge containers but excludes retired Search containers', async () => {
+    const fixture = await seedKnowledgeCopy()
+    const retiredId = generateId()
+    await db.insert(knowledgeBase).values({
+      id: retiredId,
+      workspaceId: fixture.sourceWorkspaceId,
+      userId,
+      name: 'Retired Search fixture',
+      isSearchIndex: true,
+    })
+    const copied = await db.transaction((tx) =>
+      copyForkResourceContainers({
+        tx,
+        sourceWorkspaceId: fixture.sourceWorkspaceId,
+        childWorkspaceId: fixture.childWorkspaceId,
+        userId,
+        now: new Date(),
+        selection: {
+          customTools: [],
+          skills: [],
+          mcpServers: [],
+          workflowMcpServers: [],
+          tables: [],
+          knowledgeBases: [fixture.sourceId, retiredId],
+        },
+        workflowIdMap: new Map(),
+        documentMappingContext: {
+          edgeChildWorkspaceId: fixture.childWorkspaceId,
+          sourceIsParent: true,
+        },
+      })
+    )
+    expect(copied.contentPlan.knowledgeBases.map((entry) => entry.sourceId)).toEqual([
+      fixture.sourceId,
+    ])
+    expect(
+      await db
+        .select()
+        .from(knowledgeBase)
+        .where(
+          and(
+            eq(knowledgeBase.workspaceId, fixture.childWorkspaceId),
+            eq(knowledgeBase.isSearchIndex, true)
+          )
+        )
+    ).toEqual([])
+  })
+
+  it.each(['source', 'target'] as const)(
+    'does not plan document copies for a retired Search %s',
+    async (retiredSide) => {
+      const fixture = await seedKnowledgeCopy()
+      const retiredId = retiredSide === 'source' ? fixture.sourceId : fixture.childId
+      await db
+        .update(knowledgeBase)
+        .set({ isSearchIndex: true })
+        .where(eq(knowledgeBase.id, retiredId))
+      const plan = () =>
+        db.transaction((tx) =>
+          planForkMappedKbDocumentCopies({
+            tx,
+            resolver: (kind, id) =>
+              kind === 'knowledge-base' && id === fixture.sourceId ? fixture.childId : null,
+            referencedDocumentIds: [fixture.source.id],
+            alreadyCopiedSourceDocIds: new Set(),
+            now: new Date(),
+          })
+        )
+      const refused = await plan()
+      expect(refused.documents).toEqual([])
+      expect(refused.mappingEntries).toEqual([])
+      expect(
+        await db.select().from(document).where(eq(document.knowledgeBaseId, fixture.childId))
+      ).toEqual([])
+
+      await db
+        .update(knowledgeBase)
+        .set({ isSearchIndex: false })
+        .where(eq(knowledgeBase.id, retiredId))
+      const allowed = await plan()
+      expect(allowed.documents).toHaveLength(1)
+      const [placeholder] = await db
+        .select()
+        .from(document)
+        .where(eq(document.knowledgeBaseId, fixture.childId))
+      expect(placeholder.archivedAt).not.toBeNull()
+      expect(allowed.docIdMap.get(fixture.source.id)).toBe(placeholder.id)
+    }
+  )
+
+  it.each(['source', 'target', 'target during copy', 'ordinary'] as const)(
+    'checks retired Search admission for queued content with %s',
+    async (retiredSide) => {
+      const fixture = await seedKnowledgeCopy()
+      const childDocId = generateId()
+      await db.insert(document).values({
+        ...fixture.source,
+        id: childDocId,
+        knowledgeBaseId: fixture.childId,
+        archivedAt: new Date(),
+      })
+      if (retiredSide === 'source' || retiredSide === 'target') {
+        await db
+          .update(knowledgeBase)
+          .set({ isSearchIndex: true })
+          .where(
+            eq(knowledgeBase.id, retiredSide === 'source' ? fixture.sourceId : fixture.childId)
+          )
+      }
+      const progress: ForkCopyProgress = { completed: [], tables: {}, embeddings: {} }
+      const result = await copyForkResourceContent({
+        contentPlan: {
+          sourceWorkspaceId: fixture.sourceWorkspaceId,
+          childWorkspaceId: fixture.childWorkspaceId,
+          userId,
+          tables: [],
+          knowledgeBases: [],
+          skills: [],
+          documents: [
+            {
+              sourceDocId: fixture.source.id,
+              childDocId,
+              childKnowledgeBaseId: fixture.childId,
+              storageKey: null,
+              fileUrl: '',
+              fileSize: 0,
+              filename: fixture.source.filename,
+              mimeType: fixture.source.mimeType,
+            },
+          ],
+        },
+        control: {
+          progress,
+          checkpoint: async () => {
+            if (retiredSide === 'target during copy')
+              await db
+                .update(knowledgeBase)
+                .set({ isSearchIndex: true })
+                .where(eq(knowledgeBase.id, fixture.childId))
+          },
+        },
+      })
+      const [copied] = await db.select().from(document).where(eq(document.id, childDocId))
+      if (retiredSide === 'ordinary') {
+        expect(result).toMatchObject({ copied: 1, failed: 0 })
+        expect(copied.archivedAt).toBeNull()
+      } else {
+        expect(result).toMatchObject({ copied: 0, failed: 1 })
+        expect(copied.archivedAt).not.toBeNull()
+        expect(
+          await db.select().from(embedding).where(eq(embedding.documentId, childDocId))
+        ).toEqual([])
+        if (retiredSide !== 'target during copy') expect(progress.embeddings).toEqual({})
+      }
+      const [targetWorkspace] = await db
+        .select()
+        .from(workspace)
+        .where(eq(workspace.id, fixture.childWorkspaceId))
+      expect(targetWorkspace.storageUsedBytes).toBe(0)
+    }
+  )
 })

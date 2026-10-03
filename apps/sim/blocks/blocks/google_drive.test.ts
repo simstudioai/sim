@@ -4,24 +4,19 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/triggers', () => triggersMock)
 
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
-import { listTool } from '@/tools/google_drive/list'
-import { listCommentsTool } from '@/tools/google_drive/list_comments'
-import { listPermissionsTool } from '@/tools/google_drive/list_permissions'
-import { listRevisionsTool } from '@/tools/google_drive/list_revisions'
-import { searchTool } from '@/tools/google_drive/search'
 
 const paginationCases = [
-  { operation: 'list', subBlockId: 'pageToken', tool: listTool },
-  { operation: 'search', subBlockId: 'searchPageToken', tool: searchTool },
-  { operation: 'list_permissions', subBlockId: 'permissionsPageToken', tool: listPermissionsTool },
-  { operation: 'list_revisions', subBlockId: 'revisionsPageToken', tool: listRevisionsTool },
-  { operation: 'list_comments', subBlockId: 'commentsPageToken', tool: listCommentsTool },
+  { operation: 'list', subBlockId: 'pageToken' },
+  { operation: 'search', subBlockId: 'searchPageToken' },
+  { operation: 'list_permissions', subBlockId: 'permissionsPageToken' },
+  { operation: 'list_revisions', subBlockId: 'revisionsPageToken' },
+  { operation: 'list_comments', subBlockId: 'commentsPageToken' },
 ] as const
 
 describe('GoogleDriveBlock pagination', () => {
   const buildParams = GoogleDriveBlock.tools.config.params!
 
-  describe.each(paginationCases)('$operation', ({ operation, subBlockId, tool }) => {
+  describe.each(paginationCases)('$operation', ({ operation, subBlockId }) => {
     /**
      * `pageToken` is the canonical tool param, so the `list` case would forward
      * through `...rest` even without the mapper. The per-operation ids are the

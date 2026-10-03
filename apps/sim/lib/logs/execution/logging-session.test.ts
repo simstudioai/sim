@@ -5,10 +5,7 @@ import {
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
-import {
-  executionPayloadStoreMock,
-  executionPayloadStoreMockFns,
-} from '@sim/testing/mocks/execution-payload-store.mock'
+import { executionPayloadStoreMock } from '@sim/testing/mocks/execution-payload-store.mock'
 import {
   getMockPlatformEvent,
   telemetryMock,
@@ -98,9 +95,6 @@ import {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { LoggingSession } from './logging-session'
-
-const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
-const storeLargeValueMock = executionPayloadStoreMockFns.mockStoreLargeValue
 
 const releaseExecutionSlotMock = billingUsageReservationMockFns.mockReleaseExecutionSlot
 

@@ -67,5 +67,4 @@ export const useSubscription = () => {
   }
 }
 
-const { signIn, signUp, signOut } = client
-export { signOut }
+export const { signOut } = client

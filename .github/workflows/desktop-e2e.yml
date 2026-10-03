@@ -11,9 +11,25 @@ on:
       - '.github/workflows/desktop-release.yml'
       - 'apps/desktop/**'
       - 'apps/sim/app/_shell/desktop-update-*.tsx'
+      - 'apps/sim/app/workspace/**/home/hooks/use-mothership-resize.ts'
+      - 'apps/sim/app/workspace/**/home/hooks/use-resource-panel.ts'
+      - 'apps/sim/app/workspace/**/home/components/chat-panel-layout.tsx'
+      - 'apps/sim/stores/chat-panel/**'
+      - 'apps/sim/stores/constants.ts'
+      - 'apps/sim/lib/browser-agent/transport.ts'
+      - 'apps/sim/lib/core/utils/separator-keys.ts'
+      - 'apps/sim/scripts/fixtures/chat-panel.tsx'
       - 'apps/sim/app/layout.tsx'
       - 'apps/sim/hooks/use-desktop-update-state.ts'
       - 'apps/sim/lib/desktop/**'
+      - 'apps/sim/app/desktop/connect/**'
+      - 'apps/sim/app/credential-groups/**'
+      - 'apps/sim/hooks/queries/slack-search.ts'
+      - 'apps/sim/hooks/queries/personal-search-integrations.ts'
+      - 'apps/sim/hooks/use-search-integration-connection.ts'
+      - 'apps/sim/hooks/use-github-installation-setup.ts'
+      - 'apps/sim/lib/api/contracts/desktop-source-connect.ts'
+      - 'apps/sim/scripts/fixtures/desktop-source-connect.tsx'
       - 'apps/sim/app/workspace/**/browser-session/**'
       - 'apps/sim/app/_styles/**'
       - 'apps/sim/lib/postcss/**'
@@ -61,6 +77,10 @@ jobs:
         working-directory: apps/desktop
         run: bun run build
 
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
+
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bunx playwright test
@@ -97,6 +117,10 @@ jobs:
       - name: Bundle main and preload
         working-directory: apps/desktop
         run: bun run build
+
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop

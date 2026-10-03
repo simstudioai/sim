@@ -1,7 +1,7 @@
 'use client'
 
 import { Chip, toast } from '@sim/emcn'
-import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
+import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
 import { liveSearchProviderForCredential } from '@/lib/sim-search/live/provider-catalog'
 import {
@@ -36,8 +36,6 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   const secrets = useOrganizationSecretSource(organizationId)
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
-  const navigate = (result: OrganizationAccountConnectionResponse) =>
-    window.location.assign(result.authorizationUrl ?? result.invitationLink)
   const onError = (error: Error) => toast.error(error.message)
   const error = inventory.error ?? policies.error ?? secrets.error
   if (error)
@@ -74,9 +72,10 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
         )
   const available = LIVE_SEARCH_SOURCE_TYPES.filter(
     ([provider]) =>
+      (approvals.get(provider)?.available !== false || accountsForProvider(provider).length > 0) &&
       LIVE_SEARCH_SCOPE_FIELDS[provider] &&
-      (provider !== 'hubspot' ||
-        data.availableMcpConnectors.includes('hubspot') ||
+      ((provider !== 'hubspot' && provider !== 'zoom') ||
+        data.availableMcpConnectors.includes(provider) ||
         mcpAccounts(provider).length > 0) &&
       (approvals.get(provider)?.approved ||
         data.viewerAccounts?.some(
@@ -130,24 +129,31 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
           : undefined
         const accounts = accountsForProvider(provider)
         const ready =
+          approval?.available !== false &&
           group?.status === 'active' &&
           Boolean(option || server) &&
           approved &&
           (!option || option.configurationStatus === 'ready') &&
-          (provider !== 'hubspot' || data.availableMcpConnectors.includes('hubspot'))
+          (provider !== 'slack' ||
+            (option?.provider === 'slack' && hasSlackSearchUserScopes(option.requiredScopes))) &&
+          ((provider !== 'hubspot' && provider !== 'zoom') ||
+            data.availableMcpConnectors.includes(provider))
         const scope =
           approval?.policy?.accessMode === 'service_account'
             ? 'Selected resources you can access'
             : 'All accessible content'
-        const state = !approved
-          ? 'Disabled by your organization'
-          : group && group.status !== 'active'
-            ? 'Connections are paused by your organization'
-            : !ready
-              ? 'Not configured'
-              : accounts.length
-                ? scope
-                : undefined
+        const state =
+          approval?.available === false
+            ? 'Currently unavailable'
+            : !approved
+              ? 'Disabled by your organization'
+              : group && group.status !== 'active'
+                ? 'Connections are paused by your organization'
+                : !ready
+                  ? 'Not configured'
+                  : accounts.length
+                    ? scope
+                    : undefined
         const description = [
           accounts
             .map(
@@ -179,9 +185,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                     <Chip
                       key={account.credentialId}
                       disabled={pending || !ready}
-                      onClick={() =>
-                        reconnect.mutate(account.credentialId, { onSuccess: navigate, onError })
-                      }
+                      onClick={() => reconnect.mutate(account.credentialId, { onError })}
                     >
                       Reconnect{accounts.length > 1 ? ` ${account.displayName}` : ''}
                     </Chip>
@@ -196,7 +200,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                           organizationId,
                           ...(server ? { mcpServerId: server.id } : { optionId: option!.id }),
                         },
-                        { onSuccess: navigate, onError }
+                        { onError }
                       )
                     }
                   >

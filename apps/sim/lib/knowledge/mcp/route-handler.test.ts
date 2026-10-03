@@ -63,7 +63,6 @@ vi.mock('@/connectors/registry', () => ({ CONNECTOR_META_REGISTRY: {} }))
 vi.mock('@/lib/sim-search/connectors', () => ({
   SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
   canConnectPersonally: vi.fn(),
-  missingSetupFields: vi.fn(),
 }))
 
 import { V2ApiKeyUnauthenticatedError } from '@/lib/api/server/routes/v2-api-key-auth'
@@ -160,7 +159,7 @@ describe('organization MCP request admission', () => {
     expect(mocks.index).not.toHaveBeenCalled()
   })
 
-  it('admits a current personal-key member and binds the canonical organization index', async () => {
+  it('admits a current personal-key member for the canonical organization', async () => {
     const result = await post()
     expect(result.status).toBe(200)
     expect(result.headers.get('Cache-Control')).toBe('private, no-store')
@@ -169,7 +168,7 @@ describe('organization MCP request admission', () => {
       knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
     ).toHaveBeenCalledExactlyOnceWith('org-1')
     expect(mocks.createServer).toHaveBeenCalledWith(
-      expect.objectContaining({ auth, organizationId: 'org-1', searchIndexId: 'index-1' })
+      expect.objectContaining({ auth, organizationId: 'org-1' })
     )
     expect(mocks.close).toHaveBeenCalledOnce()
     expect(v2RouteMocks.authenticate).toHaveBeenCalledWith(

@@ -23,7 +23,6 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import { EnvResolver } from '@/executor/variables/resolvers/env'
 
 const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
-const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 
 describe('runWorkflowTool execution context', () => {
   beforeEach(() => {

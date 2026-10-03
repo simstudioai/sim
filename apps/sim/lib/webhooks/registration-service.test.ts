@@ -267,11 +267,12 @@ describe('stable webhook registration service', () => {
       const handler = providerHandler as WebhookProviderHandler
       if (phase === 'polling') {
         handler.configurePolling = async ({ webhook: row, persistProviderConfig }) => {
+          if (!persistProviderConfig) throw new Error('Polling provider checkpoint is missing')
           const config = row.providerConfig as Record<string, unknown>
           subscriptions.delete(String(config.externalId))
           const externalId = `${config.externalId}-polling`
           subscriptions.add(externalId)
-          await persistProviderConfig!({ ...config, externalId })
+          await persistProviderConfig({ ...config, externalId })
           return true
         }
       }

@@ -4,7 +4,6 @@ import { IntegrationType } from '@/blocks/types'
 import { ALL_ENRICHMENTS, getEnrichment } from '@/enrichments'
 import { mapFieldType } from '@/enrichments/providers'
 import type { EnrichmentOutputField } from '@/enrichments/types'
-import type { EnrichmentRunResponse } from '@/tools/enrichment/types'
 
 /** Stable subBlock id for an enrichment input (unique across enrichments). */
 const inputFieldId = (enrichmentId: string, inputId: string) => `${enrichmentId}__${inputId}`
@@ -70,7 +69,7 @@ blockOutputs.provider = {
  * from the enrichment registry, so new enrichments appear automatically. Runs
  * on the workspace's hosted / BYOK key (injected server-side); no credential.
  */
-export const EnrichmentBlock: BlockConfig<EnrichmentRunResponse> = {
+export const EnrichmentBlock: BlockConfig = {
   type: 'enrichment',
   name: 'Data Enrichment',
   description: 'Enrich data with a Sim enrichment',

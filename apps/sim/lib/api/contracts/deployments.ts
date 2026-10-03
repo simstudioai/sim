@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { versionNumberPathSchema } from '@/lib/api/contracts/primitives'
+import { nonEmptyIdSchema, versionNumberPathSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -352,10 +352,16 @@ export const listDeploymentVersionsContract = defineRouteContract({
   },
 })
 
+const deploymentVersionStateQuerySchema = z.object({
+  expectedDeploymentVersionId: nonEmptyIdSchema.optional(),
+})
+export type DeploymentVersionStateQuery = z.input<typeof deploymentVersionStateQuerySchema>
+
 export const getDeploymentVersionStateContract = defineRouteContract({
   method: 'GET',
   path: '/api/workflows/[id]/deployments/[version]',
   params: deploymentVersionParamsSchema,
+  query: deploymentVersionStateQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({

@@ -1,6 +1,6 @@
 import { jobExecutionLogs, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, gte, inArray, lte, or, type SQL, sql } from 'drizzle-orm'
-import { escapeLikePattern } from '@/lib/api/list-query'
 import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
 import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 

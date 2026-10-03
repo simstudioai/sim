@@ -1,3 +1,5 @@
+import { isPlainRecord } from '@sim/utils/object'
+import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { rewriteForkContentRefs } from '@/ee/workspace-forking/lib/remap/remap-content-refs'
@@ -10,6 +12,33 @@ import { rewriteForkContentRefs } from '@/ee/workspace-forking/lib/remap/remap-c
 export interface ChatFileRefMaps {
   fileIds: ReadonlyMap<string, string>
   fileKeys: ReadonlyMap<string, string>
+  /**
+   * The workspace both chats live in. A fork stays in its source's workspace, so in-app
+   * `/workspace/<id>/files/<fileId>` links keep their workspace and only the file id moves.
+   */
+  workspaceId?: string | null
+}
+
+/**
+ * The copy plan's id/key maps restricted to copies whose bytes were prepared. A failed copy
+ * is never published, so the fork's messages, resources and worker history keep naming the
+ * source file (alive while the source chat is) instead of an id or key that never exists.
+ */
+export function publishedFileRefMaps(
+  plan: {
+    idMap: ReadonlyMap<string, string>
+    keyMap: ReadonlyMap<string, string>
+    blobTasks: readonly { copyId: string; targetKey: string }[]
+  },
+  failedCopyIds: ReadonlySet<string>
+): { fileIds: Map<string, string>; fileKeys: Map<string, string> } {
+  const failedKeys = new Set(
+    plan.blobTasks.filter((task) => failedCopyIds.has(task.copyId)).map((task) => task.targetKey)
+  )
+  return {
+    fileIds: new Map([...plan.idMap].filter(([, copyId]) => !failedCopyIds.has(copyId))),
+    fileKeys: new Map([...plan.keyMap].filter(([, copyKey]) => !failedKeys.has(copyKey))),
+  }
 }
 
 function hasMappings(maps: ChatFileRefMaps): boolean {
@@ -17,15 +46,64 @@ function hasMappings(maps: ChatFileRefMaps): boolean {
 }
 
 function rewriteText(text: string, maps: ChatFileRefMaps): string {
-  return rewriteForkContentRefs(text, { fileIds: maps.fileIds, fileKeys: maps.fileKeys })
+  return rewriteForkContentRefs(text, {
+    fileIds: maps.fileIds,
+    fileKeys: maps.fileKeys,
+    ...(maps.workspaceId ? { workspaceId: { from: maps.workspaceId, to: maps.workspaceId } } : {}),
+  })
+}
+
+/**
+ * Tool arguments name a file by its bare id or storage key (`{ fileId }`, `["files", "read", id]`),
+ * so a string that IS a mapped id or key is replaced whole; any other string gets the URL grammar.
+ */
+function rewriteToolValue(value: unknown, maps: ChatFileRefMaps): unknown {
+  if (typeof value === 'string')
+    return maps.fileIds.get(value) ?? maps.fileKeys.get(value) ?? rewriteText(value, maps)
+  if (Array.isArray(value)) return value.map((entry) => rewriteToolValue(entry, maps))
+  if (isPlainRecord(value))
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, rewriteToolValue(entry, maps)])
+    )
+  return value
+}
+
+function rewriteBlock(block: PersistedContentBlock, maps: ChatFileRefMaps): PersistedContentBlock {
+  const toolCall = block.toolCall
+  return {
+    ...block,
+    ...(block.content ? { content: rewriteText(block.content, maps) } : {}),
+    ...(toolCall
+      ? {
+          toolCall: {
+            ...toolCall,
+            ...(toolCall.params
+              ? { params: rewriteToolValue(toolCall.params, maps) as Record<string, unknown> }
+              : {}),
+            ...(toolCall.activityDescription
+              ? { activityDescription: rewriteText(toolCall.activityDescription, maps) }
+              : {}),
+            ...(toolCall.display?.title
+              ? {
+                  display: {
+                    ...toolCall.display,
+                    title: rewriteText(toolCall.display.title, maps),
+                  },
+                }
+              : {}),
+          },
+        }
+      : {}),
+  }
 }
 
 /**
  * Re-point every file reference in a copied transcript at the copied files, so
  * the fork is self-contained (it survives the original chat's deletion).
  * Rewrites: free-text URLs in `content` and text content blocks (serve/view/
- * in-app/`sim:file` forms, via the shared fork grammar), attachment chip
- * ids+keys, and `@`-mention context chip file ids. References to anything not
+ * in-app/`sim:file` forms, via the shared fork grammar), tool-call arguments
+ * and display text, attachment chip ids+keys, and `@`-mention context chip
+ * file ids. References to anything not
  * in the maps (shared workspace files, workflows, other chats) pass through
  * unchanged. Pure; returns the input array untouched when there is nothing to
  * rewrite.
@@ -50,9 +128,7 @@ export function rewriteMessageFileRefs(
       content: rewriteText(message.content, maps),
     }
     if (message.contentBlocks?.length) {
-      rewritten.contentBlocks = message.contentBlocks.map((block) =>
-        block.content ? { ...block, content: rewriteText(block.content, maps) } : block
-      )
+      rewritten.contentBlocks = message.contentBlocks.map((block) => rewriteBlock(block, maps))
     }
     if (message.fileAttachments?.length) {
       rewritten.fileAttachments = message.fileAttachments.map((att) => ({

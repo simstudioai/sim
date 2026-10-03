@@ -473,7 +473,6 @@ async function handleLocalFile(
       userId,
       undefined, // customConfig
       context,
-      true, // isLocal
       { knowledgeAccess }
     )
 
@@ -547,8 +546,7 @@ async function handleCloudProxy(
       cloudKey,
       userId,
       undefined, // customConfig
-      context, // context
-      false, // isLocal
+      context,
       { knowledgeAccess }
     )
 

@@ -10,10 +10,7 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
-import {
-  workspaceFileSecretProvenanceMock,
-  workspaceFileSecretProvenanceMockFns,
-} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { workspaceFileSecretProvenanceMock } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -96,8 +93,6 @@ const {
 const mockAllocateUniqueWorkspaceFileName =
   workspaceFileManagerMockFns.mockAllocateUniqueWorkspaceFileName
 mockAllocateUniqueWorkspaceFileName.mockImplementation(allocateFromFileRows)
-const mockCopyWorkspaceFileSecretProvenanceInTx =
-  workspaceFileSecretProvenanceMockFns.mockCopyWorkspaceFileSecretProvenanceInTx
 
 function makeTask(overrides: Partial<BlobCopyTask> = {}): BlobCopyTask {
   return {

@@ -8,7 +8,6 @@ import {
   getSerializedModelProviderId,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
-import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('EvaluatorBlock')
 
@@ -18,24 +17,6 @@ interface Metric {
   range: {
     min: number
     max: number
-  }
-}
-
-interface EvaluatorResponse extends ToolResponse {
-  output: {
-    content: string
-    model: string
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
-    }
-    cost?: {
-      input: number
-      output: number
-      total: number
-    }
-    [metricName: string]: any // Allow dynamic metric fields
   }
 }
 
@@ -147,7 +128,7 @@ const generateResponseFormat = (metrics: Metric[]) => {
   }
 }
 
-export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
+export const EvaluatorBlock: BlockConfig = {
   type: 'evaluator',
   name: 'Evaluator',
   description: 'Evaluate content',

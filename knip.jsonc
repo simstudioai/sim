@@ -1,8 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  // Gate reachability and dependency ownership. Export/type pruning needs review
-  // of public package contracts and test-only consumers, not a blanket threshold.
+  // Plain `knip` (check:dead-code) gates reachability and dependency ownership.
+  // Unused exports, types, and duplicates are ratcheted by check:unused-exports,
+  // which reuses this config in the same knip pass.
   "include": ["files", "dependencies", "unlisted", "unresolved"],
+  // knip's default, stated so it is a decision: no entry file's exports are reported.
+  // That keeps package `exports`/`main`/`bin` contracts (ts-sdk, emcn, cli, …) and framework
+  // entries (Next routes, Trigger tasks) public, and also exempts the other configured entries
+  // (scripts, `*.integration.ts`, `background/**`, desktop and SDK examples).
+  "includeEntryExports": false,
   "workspaces": {
     ".": {
       "entry": ["scripts/**/*.{ts,tsx}", "vitest.shared.ts"],
@@ -33,6 +39,9 @@
       // Required/discoverable barrels whose children have direct live imports.
       // Ignore only the barrel file finding, so it cannot keep dead children alive.
       "ignoreIssues": {
+        // Generated contracts mirror their source of truth; regenerating them must not
+        // trip the unused-export ratchet, and hand edits would be overwritten.
+        "lib/mothership/generated/**": ["exports", "types", "duplicates"],
         "sandbox-tasks/index.ts": ["files"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],
@@ -87,7 +96,11 @@
     },
     "packages/ts-sdk": { "entry": ["examples/*.ts"] },
     // The contract audit reads this snapshot by filename.
-    "packages/desktop-bridge": { "entry": ["contract-snapshot.ts"] },
+    // Generated, so its export surface is not ratcheted either.
+    "packages/desktop-bridge": {
+      "entry": ["contract-snapshot.ts"],
+      "ignoreIssues": { "contract-snapshot.ts": ["exports", "types", "duplicates"] }
+    },
     // This shared config is consumed by apps that own the Next dependency.
     "packages/tsconfig": { "ignoreUnresolved": ["next"] }
   }

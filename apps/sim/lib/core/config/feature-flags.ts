@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  dashboards: {
+    description:
+      'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
+    fallback: 'DASHBOARDS',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +
@@ -62,6 +67,11 @@ const FEATURE_FLAGS = {
     description:
       'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',
     fallback: 'AGENT_MEMORY_HISTORY',
+  },
+  'zoom-search': {
+    description:
+      'Enable Zoom Search setup, personal authorization and retrieval. Organization targeting only; disabled by default. Standard workflow Zoom OAuth is unchanged.',
+    fallback: 'ZOOM_SEARCH',
   },
   'slack-search-shared-app': {
     description:

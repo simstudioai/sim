@@ -124,6 +124,7 @@ describe('the CLI owns workbench file semantics', () => {
       return {
         outcome: 'read',
         content: Buffer.from(JSON.stringify({ session })).toString('base64'),
+        secretProvenance: { status: 'exact', entries: [] },
       }
     })
     const transport = async (input: string | URL | Request, init?: RequestInit) => {
@@ -153,6 +154,7 @@ describe('the CLI owns workbench file semantics', () => {
     read.mockResolvedValue({
       outcome: 'read',
       content: Buffer.from('wf-one\nwf-two\n').toString('base64'),
+      secretProvenance: { status: 'exact', entries: [] },
     })
     const transport = async (input: string | URL | Request) => {
       requests.push(new URL(input instanceof Request ? input.url : input))

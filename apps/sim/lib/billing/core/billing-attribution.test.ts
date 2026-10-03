@@ -17,8 +17,10 @@ import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   billingAttributionsEqual,
+  checkAccountBillingBlocks,
   checkAttributedBillingBlocks,
   checkAttributedUsageLimits,
+  requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
   requireBillingCallbackAttribution,
   requireBillingRequestIdHeader,
@@ -195,6 +197,38 @@ describe('resolveBillingAttribution', () => {
   })
 })
 
+describe('account billing decision header', () => {
+  const decision = {
+    userId: 'actor',
+    billingEntity: { type: 'user', id: 'actor' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+      source: 'stripe',
+    },
+  }
+  const header = (value: unknown) =>
+    new Headers({ 'x-sim-billing-account-decision': encodeURIComponent(JSON.stringify(value)) })
+
+  it('restores the admitted payer subscription', () => {
+    expect(
+      requireAccountBillingDecisionHeader(header({ ...decision, payerSubscriptionId: 'sub-1' }))
+    ).toMatchObject({ payerSubscriptionId: 'sub-1' })
+    expect(requireAccountBillingDecisionHeader(header(decision))).not.toHaveProperty(
+      'payerSubscriptionId'
+    )
+  })
+
+  it.each([42, '', ' ', null, { id: 'sub-1' }])(
+    'refuses a payer subscription of %j',
+    (payerSubscriptionId) => {
+      expect(() =>
+        requireAccountBillingDecisionHeader(header({ ...decision, payerSubscriptionId }))
+      ).toThrow('Account billing decision header is malformed')
+    }
+  )
+})
+
 describe('serialized attribution boundaries', () => {
   const attribution = {
     actorUserId: 'actor-a',
@@ -333,6 +367,55 @@ describe('serialized attribution boundaries', () => {
   })
 })
 
+describe('checkAccountBillingBlocks', () => {
+  const decision = {
+    userId: 'actor',
+    billingEntity: { type: 'organization' as const, id: 'original-payer' },
+    billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+  }
+
+  beforeEach(() => {
+    mockCheckBillingBlocked.mockReset().mockResolvedValue({ blocked: false })
+    mockCheckBillingEntityBlocked.mockReset().mockResolvedValue({ blocked: false })
+  })
+
+  it('refuses the exact actor and original payer when either is blocked', async () => {
+    mockCheckBillingBlocked.mockImplementation(async (userId: string) => ({
+      blocked: userId === 'actor',
+    }))
+    await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({
+      blocked: true,
+      scope: 'actor',
+    })
+
+    mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
+    mockCheckBillingEntityBlocked.mockImplementation(async (entity: { id: string }) => ({
+      blocked: entity.id === 'original-payer',
+    }))
+    await expect(checkAccountBillingBlocks(decision)).resolves.toMatchObject({
+      blocked: true,
+      scope: 'payer',
+    })
+  })
+
+  it('reports an actor block ahead of a payer block', async () => {
+    mockCheckBillingBlocked.mockResolvedValue({ blocked: true, message: 'Actor frozen.' })
+    mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: true, message: 'Payer frozen.' })
+    await expect(checkAccountBillingBlocks(decision)).resolves.toEqual({
+      blocked: true,
+      message: 'Actor frozen.',
+      scope: 'actor',
+    })
+  })
+
+  it('answers a personal payer from the actor standing alone', async () => {
+    mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: true })
+    await expect(
+      checkAccountBillingBlocks({ ...decision, billingEntity: { type: 'user', id: 'actor' } })
+    ).resolves.toMatchObject({ blocked: false })
+  })
+})
+
 describe('checkAttributedUsageLimits', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -430,6 +513,28 @@ describe('checkAttributedUsageLimits', () => {
     })
     expect(mockCheckUsageStatus).not.toHaveBeenCalled()
     expect(mockCheckOrganizationMemberUsageLimit).not.toHaveBeenCalled()
+  })
+
+  it('names a billing block and an unreadable ledger apart from a spent limit', async () => {
+    mockCheckBillingBlocked.mockResolvedValueOnce({ blocked: true, message: 'Frozen.' })
+    await expect(checkAttributedUsageLimits(attribution)).resolves.toMatchObject({
+      isExceeded: true,
+      reason: 'billing_blocked',
+    })
+
+    mockCheckUsageStatus.mockResolvedValueOnce({
+      currentUsage: 0,
+      isExceeded: true,
+      limit: 0,
+      organizationId: null,
+      percentUsed: 100,
+      isWarning: false,
+      scope: 'user',
+      unavailable: true,
+    })
+    const unavailable = await checkAttributedUsageLimits(attribution)
+    expect(unavailable).toMatchObject({ isExceeded: true, reason: 'usage_unavailable' })
+    expect(unavailable.message ?? '').not.toMatch(/\$/)
   })
 
   it('returns payer exhaustion before checking the actor member cap', async () => {

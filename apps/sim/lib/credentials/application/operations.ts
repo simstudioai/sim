@@ -183,14 +183,6 @@ export const credentialOperations = {
     }),
     'admin'
   ),
-  deleteMany: defineWorkspaceOperation({
-    id: 'credentials.delete_many',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'integrations.manage',
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
-  }),
   saveDraft: defineWorkspaceOperation({
     id: 'credentials.drafts.save',
     minimumRole: 'write',

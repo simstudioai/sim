@@ -946,30 +946,6 @@ export interface JiraWriteResponse extends ToolResponse {
   }
 }
 
-interface JiraIssue {
-  key: string
-  summary: string
-  status: string
-  priority?: string
-  assignee?: string
-  updated: string
-}
-
-interface JiraProject {
-  id: string
-  key: string
-  name: string
-  url: string
-}
-
-interface JiraCloudResource {
-  id: string
-  url: string
-  name: string
-  scopes: string[]
-  avatarUrl: string
-}
-
 export interface JiraDeleteIssueParams {
   accessToken: string
   domain: string

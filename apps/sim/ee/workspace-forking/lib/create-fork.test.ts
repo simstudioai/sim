@@ -10,6 +10,10 @@ import {
   workspaceForkingMappingStoreMock,
   workspaceForkingMappingStoreMockFns,
 } from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import {
+  workspaceForkingRevisionMock,
+  workspaceForkingRevisionMockFns,
+} from '@sim/testing/mocks/workspace-forking-revision.mock'
 import { workspacesPolicyMock } from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +27,6 @@ const {
   mockFinishBackgroundWork,
   mockScheduleForkContentCopy,
   mockCollectReferencedFileFolderPaths,
-  mockLockForkRevision,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
@@ -34,7 +37,6 @@ const {
   mockFinishBackgroundWork: vi.fn(),
   mockScheduleForkContentCopy: vi.fn(),
   mockCollectReferencedFileFolderPaths: vi.fn(() => new Set<string>()),
-  mockLockForkRevision: vi.fn(async () => {}),
 }))
 
 vi.mock('@/lib/workflows/defaults', () => ({
@@ -78,11 +80,7 @@ vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
 }))
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
-vi.mock('@/ee/workspace-forking/application/revision', () => ({
-  lockForkRevision: mockLockForkRevision,
-  assertForkPreviewFresh: vi.fn(async () => {}),
-  assertForkSourceVersions: vi.fn(async () => {}),
-}))
+vi.mock('@/ee/workspace-forking/application/revision', () => workspaceForkingRevisionMock)
 vi.mock('@/lib/workspaces/operations/receipts', () => ({
   findWorkspaceOperationReceipt: vi.fn(async () => null),
   insertWorkspaceOperationReceipt: vi.fn(async () => {}),
@@ -105,6 +103,8 @@ vi.mock('@/lib/workflows/references/reference-scan', () => ({
 vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
+
+const { mockLockForkRevision } = workspaceForkingRevisionMockFns
 
 const { mockSeedEdgeMappings } = workspaceForkingMappingStoreMockFns
 

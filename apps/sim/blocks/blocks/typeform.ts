@@ -1,10 +1,9 @@
 import { TypeformIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TypeformResponse } from '@/tools/typeform/types'
 import { getTrigger } from '@/triggers'
 
-export const TypeformBlock: BlockConfig<TypeformResponse> = {
+export const TypeformBlock: BlockConfig = {
   type: 'typeform',
   name: 'Typeform',
   description: 'Interact with Typeform',

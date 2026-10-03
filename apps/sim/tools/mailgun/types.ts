@@ -38,13 +38,6 @@ interface MailgunBaseParams {
   region?: MailgunRegion
 }
 
-interface MailgunMailingListMember {
-  address: string
-  name?: string
-  subscribed: boolean
-  vars?: Record<string, string | number | boolean | null>
-}
-
 // Send Message
 export interface SendMessageParams extends MailgunBaseParams {
   domain: string

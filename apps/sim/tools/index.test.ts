@@ -4662,7 +4662,7 @@ describe('Internal Route Trust', () => {
 
     // The actual external fetch uses secureFetchWithPinnedIP which uses Node's http/https
     // This will fail with a network error in tests, which is expected
-    const result = await executeTool('test_external_tool', {})
+    await executeTool('test_external_tool', {})
 
     // We expect it to attempt direct fetch (which will fail in test env due to network)
     // The key point is it should NOT try to call /api/proxy
@@ -4847,7 +4847,7 @@ describe('Internal Route Trust', () => {
 
     // External URLs are now called directly with SSRF protection
     // The test verifies proxy is NOT called
-    const result = await executeTool('test_dynamic_external', { endpoint: 'users' })
+    await executeTool('test_dynamic_external', { endpoint: 'users' })
 
     // Verify proxy was not called
     expect(global.fetch).not.toHaveBeenCalledWith(
@@ -5668,7 +5668,7 @@ describe('Centralized Error Handling', () => {
     cleanupEnvVars()
   })
 
-  const testErrorFormat = async (name: string, errorResponse: any, expectedError: string) => {
+  const testErrorFormat = async (errorResponse: any, expectedError: string) => {
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mockSecureFetchWithPinnedIP.mockResolvedValue(
       toSecureFetchResponse(
@@ -5695,7 +5695,7 @@ describe('Centralized Error Handling', () => {
     tools.http_request.errorExtractor = ErrorExtractorId.PROSPEO_ERRORS
 
     try {
-      await testErrorFormat('Prospeo', { error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
+      await testErrorFormat({ error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
     } finally {
       tools.http_request.errorExtractor = originalExtractor
     }
@@ -7163,7 +7163,6 @@ describe('organization scratch internal entrance', () => {
 
 describe('Live Search Assistant GitHub OAuth binding', () => {
   beforeEach(async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const metadata = await import('@/tools/metadata')
     const actual = await vi.importActual<typeof import('@/tools/metadata')>('@/tools/metadata')
     vi.mocked(metadata.getToolMetadata).mockImplementation(actual.getToolMetadata)
@@ -7199,8 +7198,6 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
     const { getToolMetadata } = await import('@/tools/metadata')
-    const { isLiveEnterpriseSearchEnabled } = await import('@/lib/core/config/env-flags')
-    expect(isLiveEnterpriseSearchEnabled).toBe(true)
     expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
       id: 'github_search_issues_v2',
       params: { apiKey: { required: true } },

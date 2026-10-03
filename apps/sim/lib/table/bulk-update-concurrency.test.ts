@@ -29,7 +29,6 @@ vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildPredicateClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
-  escapeLikePattern: vi.fn((value: string) => value),
   uniqueValuePredicate: vi.fn(() => sql`true`),
 }))
 

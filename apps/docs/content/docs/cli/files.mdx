@@ -247,7 +247,7 @@ sim files versions list <fileId> [options]
 
 </CommandTable>
 
-## Read the text content of one version of a file
+## Read the text content of one version of a file as JSON or YAML
 
 ```bash
 sim files versions read <fileId> <version> [options]
@@ -271,7 +271,7 @@ sim files versions read <fileId> <version> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
-| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
 | `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
 
 </CommandTable>
@@ -474,7 +474,7 @@ Also available as `sim files mv`.
 
 </CommandTable>
 
-## Read a file’s text content
+## Read a file’s text content as JSON or YAML
 
 ```bash
 sim files read <fileId> [options]
@@ -497,7 +497,7 @@ sim files read <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
-| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
 | `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
 
 </CommandTable>

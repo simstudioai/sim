@@ -10,7 +10,6 @@ import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/00
 import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/0024_knowledge_projection_async'
 import { scopeKeywordProjectionsMigration } from '@sim/db/script-migrations/0025_scope_keyword_projections'
 import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
-import { retireAllSearchEmbeddingsMigration } from '@sim/db/script-migrations/0029_retire_all_search_embeddings'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -59,8 +58,10 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   scopeKeywordProjectionsMigration,
   /** 0026 installs the schema guard every table row write takes before it validates. */
   userTableSchemaForWriteMigration,
-  /** 0029 expands single-KB retirement to every saved Search target and completes maintenance. */
-  retireAllSearchEmbeddingsMigration,
+  /**
+   * Search retirement (0027–0029) is an operator-run maintenance command, not a deploy step:
+   * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.
+   */
 ]
 
 /**

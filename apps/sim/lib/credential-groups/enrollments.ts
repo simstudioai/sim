@@ -48,6 +48,7 @@ import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const DELIVERY_CONCURRENCY = 5
@@ -967,26 +968,6 @@ export async function createCredentialGroupSelfEnrollmentLink(
   }
 }
 
-export async function createCredentialGroupInvitationLink(
-  scopeInput: string | ResourceScope,
-  groupId: string,
-  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
-  userId: string | undefined,
-  email: string,
-  /** See {@link inviteCredentialGroupEnrollment}. */
-  revokedEnrollment: RevokedEnrollmentPolicy = 'reactivate'
-): Promise<CredentialGroupInvitationLink> {
-  const scope = credentialGroupScope(scopeInput)
-  const context = await getInvitationContext(scope, groupId)
-  const issued = await issueInvitation(context, userId, normalizeEmail(email), {
-    revokedEnrollment,
-  })
-  return {
-    enrollment: toCredentialGroupEnrollment(issued.enrollment),
-    invitationLink: issued.invitationLink,
-  }
-}
-
 export async function resendCredentialGroupEnrollment(
   scopeInput: string | ResourceScope,
   groupId: string,
@@ -1474,6 +1455,11 @@ async function credentialGroupMcpOAuthContextFromRow(
     throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
   }
   getManagedMcpConnector(server.managedConnectorId)
+  if (
+    server.managedConnectorId === 'zoom' &&
+    !(await isSearchProviderEnabled('zoom', resourceScopeFromOwner(row)))
+  )
+    return null
   return {
     enrollmentId: row.enrollment.id,
     userId: row.enrollment.userId,

@@ -9,7 +9,6 @@ import {
   validateRowSize,
   validateTableName,
   validateTableSchema,
-  validateUniqueConstraints,
 } from '@/lib/table/validation'
 
 const selectColumn: ColumnDefinition = {
@@ -554,70 +553,6 @@ describe('Validation', () => {
         expect(patch.cost).toBe('ask sales')
         expect(validateRowAgainstSchema(patch as never, currencySchema).valid).toBe(false)
       })
-    })
-  })
-
-  describe('validateUniqueConstraints', () => {
-    const schema: TableSchema = {
-      columns: [
-        { name: 'id', type: 'string', unique: true },
-        { name: 'email', type: 'string', unique: true },
-        { name: 'name', type: 'string' },
-      ],
-    }
-
-    const existingRows = [
-      { id: 'row1', data: { id: 'abc123', email: 'john@example.com', name: 'John' } },
-      { id: 'row2', data: { id: 'def456', email: 'jane@example.com', name: 'Jane' } },
-    ]
-
-    it('should reject duplicate unique value', () => {
-      const data = { id: 'abc123', email: 'new@example.com', name: 'New User' }
-      const result = validateUniqueConstraints(data, schema, existingRows)
-      expect(result.valid).toBe(false)
-      expect(result.errors[0]).toContain('must be unique')
-      expect(result.errors[0]).toContain('abc123')
-    })
-
-    it('should be case-sensitive for string comparisons', () => {
-      // U333 vs u333: differing case is a DISTINCT value (matches the DB
-      // containment leaf). This is the v2 contract that fixes the upsert wedge.
-      const data = { id: 'ABC123', email: 'new@example.com', name: 'New User' }
-      const result = validateUniqueConstraints(data, schema, existingRows)
-      expect(result.valid).toBe(true)
-    })
-
-    it('compares expiration uniqueness by instant while retaining microseconds', () => {
-      const expirationSchema: TableSchema = {
-        columns: [{ name: 'expires', type: 'ttl', unique: true }],
-      }
-      const rows = [{ id: 'existing', data: { expires: '2026-09-07T07:30:00.000001-07:00' } }]
-      for (const value of [
-        '2026-09-07T14:30:00.000001Z',
-        '2026-09-07T20:15:00.000001+05:45',
-        '2026-09-07T14:30:00.000001-00:00',
-      ]) {
-        expect(validateUniqueConstraints({ expires: value }, expirationSchema, rows).valid).toBe(
-          false
-        )
-        expect(
-          validateUniqueConstraints({ expires: value }, expirationSchema, rows, 'existing').valid
-        ).toBe(true)
-      }
-      expect(
-        validateUniqueConstraints(
-          { expires: '2026-09-07T14:30:00.000002-00:00' },
-          expirationSchema,
-          rows
-        ).valid
-      ).toBe(true)
-    })
-
-    it('should report multiple violations', () => {
-      const data = { id: 'abc123', email: 'john@example.com', name: 'New User' }
-      const result = validateUniqueConstraints(data, schema, existingRows)
-      expect(result.valid).toBe(false)
-      expect(result.errors).toHaveLength(2)
     })
   })
 })

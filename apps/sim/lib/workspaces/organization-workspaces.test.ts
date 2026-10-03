@@ -7,7 +7,7 @@ import {
   organizationMembershipMock,
   organizationMembershipMockFns,
 } from '@sim/testing/mocks/organization-membership.mock'
-import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAcquireInvitationMutationLocks, mockChangeWorkspaceStoragePayersInTx } = vi.hoisted(
@@ -47,7 +47,6 @@ const {
   mockAcquireOrganizationMutationLock,
 } = organizationMembershipMockFns
 const { mockSyncUsageLimitsFromSubscription } = billingUsageMockFns
-const { mockInvalidateWorkspaceTableLimitsCache } = tableBillingMockFns
 
 idMockFns.mockGenerateId.mockReturnValue('generated-id')
 idMockFns.mockGenerateShortId.mockReturnValue('short-id')

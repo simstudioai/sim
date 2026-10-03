@@ -25,6 +25,7 @@ import {
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { popSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import {
@@ -134,7 +135,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
               fullWidth
               leftIcon={ChevronLeft}
               className={SIDEBAR_RAIL_CHIP_CLASS}
-              onClick={() => requestLeave(() => router.push(backHref))}
+              onClick={() => requestLeave(() => router.push(popSettingsReturnUrl(backHref)))}
             >
               <span className='sidebar-collapse-hide'>Back</span>
             </Chip>

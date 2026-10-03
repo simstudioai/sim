@@ -8,15 +8,6 @@ import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 
-const WORKFLOW_STATE = {
-  blocks: {
-    'block-1': { type: 'starter', name: 'Start', enabled: true },
-    'block-2': { type: 'agent', name: 'Summarize emails', enabled: true },
-  },
-  edges: [{ source: 'block-1', target: 'block-2', sourceHandle: 'source', id: 'edge-1' }],
-  variables: { apiBase: 'https://api.example.com' },
-}
-
 function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
   return {
     workspaceId: 'ws-1',
@@ -32,7 +23,6 @@ function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
 }
 
 const STATE_PATH = '/api/v2/workflows/wf-1/state'
-const stateResponse = { data: WORKFLOW_STATE }
 
 const RUNS_PATH = '/api/v2/workflows/wf-1/runs'
 const COUNT_ROWS_RUNS = {

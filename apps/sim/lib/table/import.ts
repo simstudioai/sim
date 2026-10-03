@@ -4,9 +4,8 @@
  * Used by:
  * - `POST /api/table/import-csv` (create new table from CSV — streams via {@link createCsvParser})
  * - `POST /api/table/[tableId]/import` (append/replace into existing table)
- * - Copilot `user-table` tool (`create_from_file`, `import_file` — buffers via {@link parseCsvBuffer})
  *
- * Keeping a single implementation avoids drift between HTTP and agent code paths.
+ * Keeping a single implementation avoids drift between import paths.
  * Both the buffered ({@link parseCsvBuffer}) and streaming ({@link createCsvParser})
  * parsers share {@link csvParseOptions} so their behavior can't drift.
  */
@@ -704,105 +703,4 @@ export function coerceRowsForTable(
     }
     return coerced
   })
-}
-
-/**
- * Sanitizes raw JSON keys so they conform to the same column-name rules as CSV
- * headers, letting `inferSchemaFromCsv` and `coerceRowsForTable` be reused for
- * JSON imports. Collisions after sanitization are disambiguated with a trailing
- * underscore. Returns the headers and rows untouched when no key needs renaming.
- */
-export function sanitizeJsonHeaders(
-  headers: string[],
-  rows: Record<string, unknown>[]
-): { headers: string[]; rows: Record<string, unknown>[] } {
-  const renamed = new Map<string, string>()
-  const seen = new Set<string>()
-
-  for (const raw of headers) {
-    let safe = sanitizeName(raw)
-    while (seen.has(safe)) safe = `${safe}_`
-    seen.add(safe)
-    renamed.set(raw, safe)
-  }
-
-  const noChange = headers.every((h) => renamed.get(h) === h)
-  if (noChange) return { headers, rows }
-
-  return {
-    headers: headers.map((h) => renamed.get(h)!),
-    rows: rows.map((row) => {
-      const out: Record<string, unknown> = {}
-      for (const [raw, safe] of renamed) {
-        if (raw in row) out[safe] = row[raw]
-      }
-      return out
-    }),
-  }
-}
-
-/**
- * Parses a JSON payload that must be an array of plain objects into the same
- * `{ headers, rows }` shape produced by `parseCsvBuffer`. The header set is the
- * union of all object keys, sanitized via {@link sanitizeJsonHeaders}.
- */
-export function parseJsonRows(buffer: Buffer | string): {
-  headers: string[]
-  rows: Record<string, unknown>[]
-} {
-  const text = typeof buffer === 'string' ? buffer : buffer.toString('utf-8')
-  const parsed = JSON.parse(text)
-  if (!Array.isArray(parsed)) {
-    throw new OrchestrationError('validation', 'JSON file must contain an array of objects')
-  }
-  if (parsed.length === 0) {
-    throw new OrchestrationError('validation', 'JSON file contains an empty array')
-  }
-  const headerSet = new Set<string>()
-  for (const row of parsed) {
-    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
-      throw new OrchestrationError(
-        'validation',
-        'Each element in the JSON array must be a plain object'
-      )
-    }
-    for (const key of Object.keys(row)) headerSet.add(key)
-  }
-  return sanitizeJsonHeaders([...headerSet], parsed)
-}
-
-/**
- * Parses a tabular upload (CSV, TSV, or JSON array-of-objects) into a uniform
- * `{ headers, rows, rejections }` shape, dispatching on file extension and falling
- * back to the MIME content type. Throws on unsupported formats so callers fail fast.
- *
- * `rejections` is what a caller publishes so a partially imported file is not
- * reported as a clean import. The JSON path never drops records — a malformed
- * element throws — so it always reports none.
- */
-export async function parseFileRows(
-  buffer: Buffer,
-  fileName: string,
-  contentType?: string
-): Promise<{
-  headers: string[]
-  rows: Record<string, unknown>[]
-  rejections: CsvRejectionSummary
-}> {
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext === 'json' || contentType === 'application/json') {
-    return { ...parseJsonRows(buffer), rejections: { rowsRejected: 0, rejectedSamples: [] } }
-  }
-  if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
-    const delimiter = await detectCsvDelimiter(
-      buffer.subarray(0, CSV_DELIMITER_SNIFF_BYTES),
-      ext === 'tsv' ? '\t' : ',',
-      { complete: buffer.length <= CSV_DELIMITER_SNIFF_BYTES }
-    )
-    return parseCsvBuffer(buffer, delimiter)
-  }
-  throw new OrchestrationError(
-    'validation',
-    `Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`
-  )
 }
