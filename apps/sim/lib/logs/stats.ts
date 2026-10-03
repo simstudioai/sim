@@ -79,10 +79,26 @@ export function resolveLogStatsWindow(
 
 export interface BuildDashboardStatsOptions {
   /**
+   * Whether `handledErrorRuns` is published. Only meaningful when the rows were
+   * read with the count; otherwise it would publish a zero that means "not
+   * counted", which reads as "none".
+   */
+  includeHandledErrors?: boolean
+  /**
    * Largest number of per-workflow series to return. Omitted means every
    * workflow, which is what the first-party dashboard reads.
    */
   maxWorkflows?: number
+  /**
+   * Whether buckets with no runs are materialized. Defaults to `true`, the
+   * dense series the first-party dashboard charts. `false` publishes only the
+   * buckets that hold at least one run — never more than `segmentCount` of
+   * them — so a handful of runs on a wide window is a handful of entries rather
+   * than `segmentCount` near-identical zero rows. The totals, `segmentMs`, and
+   * each bucket's `timestamp` are unaffected: an omitted bucket contributed
+   * nothing to any of them.
+   */
+  includeEmpty?: boolean
 }
 
 export interface DashboardStatsResult {
@@ -115,6 +131,7 @@ export function buildDashboardStats(
   options: BuildDashboardStatsOptions = {}
 ): DashboardStatsResult {
   const { startTime, endTime, segmentMs } = window
+  const includeEmpty = options.includeEmpty !== false
   const segmentTimestamp = (index: number) =>
     new Date(startTime.getTime() + index * segmentMs).toISOString()
 
@@ -191,6 +208,8 @@ export function buildDashboardStats(
   let totalErrors = 0
   let weightedLatencySum = 0
   let latencyCount = 0
+  /** Summed straight from the rows: it is a total, not a series. */
+  const handledErrorRuns = rows.reduce((sum, row) => sum + Number(row.handledErrorRuns || 0), 0)
 
   for (let i = 0; i < segmentCount; i++) {
     let segTotal = 0
@@ -220,6 +239,7 @@ export function buildDashboardStats(
     weightedLatencySum += segWeightedLatency
     latencyCount += segLatencyCount
 
+    if (segTotal === 0 && !includeEmpty) continue
     aggregateSegments.push({
       timestamp: segmentTimestamp(i),
       totalExecutions: segTotal,
@@ -241,14 +261,18 @@ export function buildDashboardStats(
   const workflows: WorkflowStats[] = retained.map((wf) => {
     const segments: SegmentStats[] = []
     for (let i = 0; i < segmentCount; i++) {
-      segments.push(
-        wf.segments.get(i) ?? {
-          timestamp: segmentTimestamp(i),
-          totalExecutions: 0,
-          successfulExecutions: 0,
-          avgDurationMs: 0,
-        }
-      )
+      const segment = wf.segments.get(i)
+      if (segment) {
+        segments.push(segment)
+        continue
+      }
+      if (!includeEmpty) continue
+      segments.push({
+        timestamp: segmentTimestamp(i),
+        totalExecutions: 0,
+        successfulExecutions: 0,
+        avgDurationMs: 0,
+      })
     }
     return {
       workflowId: wf.workflowId,
@@ -267,6 +291,7 @@ export function buildDashboardStats(
       aggregateSegments,
       totalRuns,
       totalErrors,
+      ...(options.includeHandledErrors ? { handledErrorRuns } : {}),
       avgLatency: latencyCount > 0 ? weightedLatencySum / latencyCount : 0,
       timeBounds: { start: startTime.toISOString(), end: endTime.toISOString() },
       segmentMs,

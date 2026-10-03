@@ -8,7 +8,7 @@ import { SOLUTIONS_VISUAL } from '@/app/(landing)/components/solutions-page/cons
  * hero-visual family: `--surface-2` fill, `--border-1` hairline, `rounded-lg`,
  * `overflow-hidden`) and, crucially, its dimensions: it reserves a full-width
  * 16:9 aspect ratio for the solutions hero visual. Because the size is reserved
- * before paint and the node fills `h-full w-full` inside, a dropped-in node can
+ * before paint and the node fills `size-full` inside, a dropped-in node can
  * neither shift surrounding layout (CLS = 0) nor change the frame's own padding.
  *
  * The frame is decorative chrome around product visuals, so it is `aria-hidden`;
@@ -29,7 +29,7 @@ export function SolutionsVisualFrame({ children }: SolutionsVisualFrameProps) {
         SOLUTIONS_VISUAL.heroAspect
       )}
     >
-      <div className='h-full w-full'>{children}</div>
+      <div className='size-full'>{children}</div>
     </div>
   )
 }

@@ -1,0 +1,169 @@
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({ register: vi.fn(), markPublic: vi.fn() }))
+vi.mock('@/lib/auth/oauth-client-registration', () => ({
+  markPubliclyRegisteredOAuthClient: mocks.markPublic,
+}))
+vi.mock('better-auth/next-js', () => ({ toNextJsHandler: () => ({ POST: mocks.register }) }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+
+import { POST } from '@/app/api/auth/oauth2/register/route'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+
+const client = {
+  client_name: 'Test MCP client',
+  redirect_uris: ['http://127.0.0.1:43123/callback'],
+}
+function request(body: object = client, headers: Record<string, string> = {}) {
+  return createMockRequest({
+    method: 'POST',
+    url: 'https://sim.test/api/auth/oauth2/register',
+    headers: { ...headers },
+    body,
+  })
+}
+
+afterAll(resetEnvFlagsMock)
+beforeEach(() => {
+  setEnvFlags({ isAuthDisabled: false })
+  rateLimiterMockFns.mockEnforceIpRateLimit.mockResolvedValue(null)
+  mocks.markPublic.mockResolvedValue(undefined)
+  mocks.register.mockImplementation(async (req: Request) =>
+    Response.json(
+      {
+        ...(await req.clone().json()),
+        client_id: 'client-1',
+        client_id_issued_at: 1788000000,
+        token_endpoint_auth_method: 'none',
+      },
+      { status: 201 }
+    )
+  )
+})
+
+describe('MCP public client registration', () => {
+  it('registers a bounded public MCP client without ambient credentials or privileged metadata', async () => {
+    const response = await POST(
+      request(
+        { ...client, skip_consent: true, require_pkce: false, metadata: { elevated: true } },
+        {
+          Cookie: 'session=private',
+          Authorization: 'Bearer private',
+          'x-forwarded-for': '203.0.113.10',
+        }
+      )
+    )
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({
+      ...client,
+      client_id: 'client-1',
+      token_endpoint_auth_method: 'none',
+      scope: 'api:read api:write offline_access search:read',
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+    })
+    const forwarded: Request = mocks.register.mock.calls[0][0]
+    expect(mocks.markPublic).toHaveBeenCalledWith('client-1')
+    expect(forwarded.headers.has('cookie')).toBe(false)
+    expect(forwarded.headers.has('authorization')).toBe(false)
+    expect(forwarded.headers.get('x-forwarded-for')).toBe('203.0.113.10')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it.each([
+    [
+      'offline_access api:read api:write search:read',
+      'api:read api:write offline_access search:read',
+    ],
+    ['api:read offline_access', 'api:read offline_access'],
+    ['search:read offline_access', 'search:read offline_access'],
+  ])('registers the registrable scope families a client requests: %s', async (scope, granted) => {
+    const response = await POST(request({ ...client, scope }))
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({ scope: granted })
+    const forwarded: Request = mocks.register.mock.calls[0][0]
+    expect(await forwarded.json()).toMatchObject({ scope: granted, require_pkce: true })
+  })
+
+  it.each(['client_secret_post', 'client_secret_basic'])(
+    'lets the provider negotiate Claude-style %s registration to a public client',
+    async (authMethod) => {
+      const response = await POST(
+        request({
+          client_name: 'Claude',
+          redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+          token_endpoint_auth_method: authMethod,
+          scope: 'search:read offline_access',
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+          application_type: 'web',
+          client_secret: 'must-not-be-forwarded',
+        })
+      )
+      expect(response.status).toBe(201)
+      const body = await response.json()
+      expect(body.token_endpoint_auth_method).toBe('none')
+      expect(body).not.toHaveProperty('client_secret')
+      const forwarded: Request = mocks.register.mock.calls[0][0]
+      expect(await forwarded.json()).toEqual({
+        client_name: 'Claude',
+        redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+        token_endpoint_auth_method: authMethod,
+        scope: 'search:read offline_access',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        require_pkce: true,
+      })
+    }
+  )
+
+  it.each([
+    { ...client, scope: 'offline_access' },
+    { ...client, scope: 'openid api:read' },
+    { ...client, token_endpoint_auth_method: 'private_key_jwt' },
+    { ...client, token_endpoint_auth_method: 'unsupported' },
+    { ...client, grant_types: ['client_credentials'] },
+    { ...client, redirect_uris: ['http://evil.example/callback'] },
+    { ...client, redirect_uris: ['https://*.example/callback'] },
+    { ...client, redirect_uris: ['https://example.com/callback#fragment'] },
+    { ...client, redirect_uris: ['https://user:password@example.com/callback'] },
+    { ...client, redirect_uris: ['cursor://anysphere.cursor-mcp/other'] },
+    { ...client, redirect_uris: ['cursor://anysphere.cursor-mcp/oauth/callback?target=other'] },
+    { ...client, redirect_uris: ['cursor://other/oauth/callback'] },
+    { ...client, redirect_uris: ['javascript:alert(1)'] },
+    { ...client, redirect_uris: ['file:///oauth/callback'] },
+    { ...client, redirect_uris: ['data:text/html,callback'] },
+    { ...client, redirect_uris: ['unknown-app://oauth/callback'] },
+    { ...client, redirect_uris: Array(11).fill('https://example.com/callback') },
+    { ...client, client_name: 'a'.repeat(129) },
+  ])('rejects unsupported or unsafe client metadata: %o', async (body) => {
+    expect((await POST(request(body))).status).toBe(400)
+    expect(mocks.register).not.toHaveBeenCalled()
+  })
+
+  it('discloses no client ID when the client cannot be marked as publicly registered', async () => {
+    mocks.markPublic.mockRejectedValue(new Error('write failed'))
+    const response = await POST(request())
+    expect(response.status).toBe(500)
+    expect(await response.text()).not.toContain('client-1')
+  })
+
+  it('admits before reading metadata or creating a client', async () => {
+    rateLimiterMockFns.mockEnforceIpRateLimit.mockResolvedValue(
+      Response.json({ error: 'Rate limited' }, { status: 429 })
+    )
+    expect((await POST(request())).status).toBe(429)
+    expect(mocks.register).not.toHaveBeenCalled()
+  })
+
+  it('does not enable OAuth in auth-disabled deployments', async () => {
+    setEnvFlags({ isAuthDisabled: true })
+    expect((await POST(request())).status).toBe(404)
+    expect(mocks.register).not.toHaveBeenCalled()
+  })
+})

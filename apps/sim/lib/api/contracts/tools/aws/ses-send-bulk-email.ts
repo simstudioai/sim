@@ -7,11 +7,6 @@ import type {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
-const DestinationSchema = z.object({
-  toAddresses: z.array(z.string().email()),
-  templateData: z.string().optional(),
-})
-
 const SendBulkEmailSchema = z.object({
   region: z
     .string()

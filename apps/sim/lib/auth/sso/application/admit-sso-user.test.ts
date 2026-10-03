@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   dbChainMock,
@@ -10,51 +7,54 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAcquireOrganizationUserMutationLocks,
-  mockApplySessionPolicyToNewMember,
-  mockCaptureServerEvent,
-  mockEnsureUserInOrganizationTx,
-  mockReconcileOrganizationSeats,
-  mockSyncUsageLimitsFromSubscription,
-} = vi.hoisted(() => ({
-  mockAcquireOrganizationUserMutationLocks: vi.fn(),
+const { mockApplySessionPolicyToNewMember } = vi.hoisted(() => ({
   mockApplySessionPolicyToNewMember: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockEnsureUserInOrganizationTx: vi.fn(),
-  mockReconcileOrganizationSeats: vi.fn(),
-  mockSyncUsageLimitsFromSubscription: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
-  ensureUserInOrganizationTx: mockEnsureUserInOrganizationTx,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/auth/session-policy', () => ({
   applySessionPolicyToNewMember: mockApplySessionPolicyToNewMember,
 }))
 
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mockReconcileOrganizationSeats,
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
+
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
+
+const { mockIsScimEntitledForOrganization } = vi.hoisted(() => ({
+  mockIsScimEntitledForOrganization: vi.fn(),
+}))
+vi.mock('@/ee/scim/lib/entitlement', () => ({
+  isScimEntitledForOrganization: mockIsScimEntitledForOrganization,
 }))
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
-}))
-
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const { mockReconcileOrganizationSeats } = organizationSeatsMockFns
+
+const { mockSyncUsageLimitsFromSubscription } = billingUsageMockFns
+
+const { mockAcquireOrganizationUserMutationLocks, mockEnsureUserInOrganizationTx } =
+  organizationMembershipMockFns
+
+const principal = createSessionPrincipal()
 
 function queueIdentity({
   organizationId = 'org-1',
@@ -84,13 +84,17 @@ function queueIdentity({
   queueTableRows(schemaMock.account, accountLinked ? [{ id: 'account-1' }] : [])
 }
 
+/** The directory-only read runs after the identity reads and before the membership lookup. */
+function queueDirectoryOnly(directoryOnly: boolean) {
+  queueTableRows(schemaMock.scimConnection, directoryOnly ? [{ id: 'scim-1' }] : [])
+}
+
 async function execute() {
   return admitSsoUser.execute({ principal, input: { providerId: 'acme-sso' } })
 }
 
 describe('SSO JIT admission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockEnsureUserInOrganizationTx.mockResolvedValue({
       success: true,
@@ -176,6 +180,45 @@ describe('SSO JIT admission', () => {
       userId: 'user-1',
       organizationIds: ['org-1'],
     })
+    expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
+  })
+
+  it('leaves admission to the directory when a connection has disabled JIT', async () => {
+    queueIdentity()
+    queueDirectoryOnly(true)
+    mockIsScimEntitledForOrganization.mockResolvedValue(true)
+
+    await expect(execute()).resolves.toEqual({
+      kind: 'provisioning-disabled',
+      organizationId: 'org-1',
+    })
+    expect(mockIsScimEntitledForOrganization).toHaveBeenCalledWith('org-1', dbChainMock.db)
+    expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
+  })
+
+  it('admits by JIT again once the directory can no longer sync', async () => {
+    queueIdentity()
+    queueDirectoryOnly(true)
+    mockIsScimEntitledForOrganization.mockResolvedValue(false)
+
+    const outcome = await execute()
+
+    expect(outcome.kind).toBe('provisioned')
+    expect(mockEnsureUserInOrganizationTx).toHaveBeenCalled()
+  })
+
+  it('retains existing membership when the directory has disabled JIT', async () => {
+    queueIdentity()
+    queueDirectoryOnly(true)
+    mockIsScimEntitledForOrganization.mockResolvedValue(true)
+    queueTableRows(schemaMock.member, [{ id: 'member-existing' }])
+
+    await expect(execute()).resolves.toEqual({
+      kind: 'already-member',
+      organizationId: 'org-1',
+      memberId: 'member-existing',
+    })
+    expect(mockIsScimEntitledForOrganization).toHaveBeenCalledWith('org-1', dbChainMock.db)
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
   })
 

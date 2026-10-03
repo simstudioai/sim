@@ -1,9 +1,9 @@
 import type { BlockTokens } from '@/executor/types'
-import { LIST_PRICE_POLICY, type ModelUsage, priceModelUsage } from '@/providers/cost-policy'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import {
-  OPENAI_CACHE_WRITE_MULTIPLIER,
   type ResponsesUsageTokens,
   splitOpenAIUsage,
+  toOpenAIModelUsage,
 } from '@/providers/openai/utils'
 import type { ModelPricing } from '@/providers/types'
 
@@ -19,6 +19,8 @@ export interface OpenAIUsageAccumulator {
   total: number
   cacheRead: number
   cacheWrite: number
+  /** Per-request usage retained so input-size pricing tiers apply to each provider request. */
+  turns: ResponsesUsageTokens[]
 }
 
 interface OpenAIUsageCost {
@@ -43,6 +45,7 @@ export function createOpenAIUsageAccumulator(): OpenAIUsageAccumulator {
     total: 0,
     cacheRead: 0,
     cacheWrite: 0,
+    turns: [],
   }
 }
 
@@ -61,6 +64,7 @@ export function addOpenAIUsage(
   if (!usage) return
 
   const split = splitOpenAIUsage(usage)
+  accumulator.turns.push(usage)
 
   accumulator.input += split.input
   accumulator.output += split.output
@@ -86,26 +90,8 @@ export function buildOpenAIUsageTokens(
 }
 
 /**
- * Builds the normalized usage for one OpenAI request.
- *
- * `input` is already the uncached remainder because {@link addOpenAIUsage}
- * subtracted the cache buckets per turn — unlike Anthropic, whose
- * `input_tokens` arrives exclusive of them.
- */
-export function buildOpenAIModelUsage(accumulator: OpenAIUsageAccumulator): ModelUsage {
-  return {
-    input: accumulator.input,
-    output: accumulator.output,
-    cacheRead: accumulator.cacheRead,
-    cacheWrites: [
-      { tokens: accumulator.cacheWrite, inputRateMultiplier: OPENAI_CACHE_WRITE_MULTIPLIER },
-    ],
-  }
-}
-
-/**
- * Prices one OpenAI request, cache reads and writes included, through the
- * shared pricing function.
+ * Prices every OpenAI request in an execution, cache reads and writes included,
+ * through the shared pricing function.
  *
  * Always at list price. Billability and the margin are applied once, centrally,
  * by `executeProviderRequest` — a provider applying them here would double-count
@@ -116,13 +102,24 @@ export function buildOpenAIUsageCost(
   accumulator: OpenAIUsageAccumulator,
   toolCost = 0
 ): OpenAIUsageCost {
-  const cost = priceModelUsage(model, buildOpenAIModelUsage(accumulator), LIST_PRICE_POLICY)
+  const emptyCost = priceModelUsage(model, { input: 0, output: 0 }, LIST_PRICE_POLICY)
+  let input = 0
+  let output = 0
+
+  for (const turn of accumulator.turns) {
+    const turnCost = priceModelUsage(model, toOpenAIModelUsage(turn), LIST_PRICE_POLICY)
+    input += turnCost.input
+    output += turnCost.output
+  }
+
+  input = roundedCost(input)
+  output = roundedCost(output)
 
   return {
-    input: cost.input,
-    output: cost.output,
-    total: roundedCost(cost.total + toolCost),
+    input,
+    output,
+    total: roundedCost(input + output + toolCost),
     ...(toolCost > 0 ? { toolCost } : {}),
-    pricing: cost.pricing,
+    pricing: emptyCost.pricing,
   }
 }

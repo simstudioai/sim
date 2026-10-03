@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { verifyTwilioAuth } from '@/lib/webhooks/providers/twilio-signature'
 import type {
   AuthContext,
@@ -37,7 +37,7 @@ export const twilioHandler: WebhookProviderHandler = {
   matchEvent({ body, providerConfig }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId) return true
-    const b = isRecordLike(body) ? body : {}
+    const b = toRecord(body)
     const messageStatus = ((b.MessageStatus as string) ?? '').toLowerCase()
     const smsStatus = ((b.SmsStatus as string) ?? '').toLowerCase()
     const isInbound = smsStatus === 'received' || messageStatus === 'received'
@@ -67,7 +67,7 @@ export const twilioHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = isRecordLike(body) ? body : {}
+    const b = toRecord(body)
     return {
       input: {
         messageSid: b.MessageSid,

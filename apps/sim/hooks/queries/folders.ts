@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
@@ -29,8 +28,6 @@ import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { WorkflowFolder } from '@/stores/folders/types'
-
-const logger = createLogger('FolderQueries')
 
 async function fetchFolders(
   workspaceId: string,
@@ -171,7 +168,7 @@ function createFolderMutationHandlers<
       )
       return createOptimisticFolder(variables, tempId, previousFolders)
     },
-    applyOptimisticUpdate: (tempId, item) => {
+    applyOptimisticUpdate: (_tempId, item) => {
       queryClient.setQueryData<WorkflowFolder[]>(
         folderKeys.list(item.workspaceId, 'active', item.resourceType),
         (old) => [...(old ?? []), item]

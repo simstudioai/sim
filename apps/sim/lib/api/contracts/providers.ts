@@ -143,6 +143,23 @@ export const ollamaUpstreamResponseSchema = z.object({
     .default([]),
 })
 
+/**
+ * Ollama `/api/show`. `capabilities` is what separates an embedding model from a
+ * chat one — `/api/tags` lists both and says nothing about either. `model_info`
+ * is keyed by architecture (`nomic-bert.embedding_length`, `bert.embedding_length`,
+ * …), so the width is found by suffix rather than by a fixed key.
+ *
+ * Both fields are optional: an Ollama older than 0.5 reports no `capabilities`,
+ * and a model whose architecture publishes no embedding length simply has none
+ * to show.
+ */
+export const ollamaShowUpstreamResponseSchema = z
+  .object({
+    capabilities: z.array(z.string()).optional(),
+    model_info: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough()
+
 export const getBaseProviderModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/base/models',

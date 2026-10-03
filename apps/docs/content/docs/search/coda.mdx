@@ -1,0 +1,50 @@
+---
+title: Coda
+description: Search pages and table rows through your personal Coda MCP connection
+---
+
+Coda supports **Member accounts** and **Service account**. The preferred personal connection uses Coda MCP OAuth. Every reader connects their own Coda account, including when an administrator configures a service source.
+
+## Connect member accounts
+
+1. An admin adds **Coda** under **Settings → Sources** and chooses **Member accounts**.
+2. Each teammate opens **Integrations → Coda → Connect** and completes Coda authorization.
+3. Search for text in a page or table row the connected account can access.
+
+Coda may send you to Superhuman sign-in: [Coda now uses Superhuman's identity service](https://help.coda.io/en/articles/5473507-reset-your-password).
+
+Coda's managed MCP provider must be configured before Connect is available. The member authorizes that provider; they do not choose an arbitrary MCP server URL during Search.
+
+## Add a service boundary
+
+Choose **Service account** in Sources, then **Add connection** or an existing Coda source.
+
+1. Add a Coda REST API token owned by an account that can read the allowed documents. Use the source form's **Service account → Add API token** action. The source token is distinct from each reader's MCP OAuth connection.
+2. Select **Documents**, or use the paired document-ID field for documents absent from the picker. The picker lists documents the token owner has opened. Leaving the selection empty does not bypass the token's access checks.
+3. Optionally set an **Enterprise organization ID**. This requires an Enterprise organization administrator token; ordinary workspace-admin access is insufficient.
+4. Save and select the source connection. Members still connect personally in Integrations.
+
+A standard REST token is needed for the service boundary. Do not substitute an MCP-restricted token in that field. To rotate it, add the replacement credential and update the source.
+
+## How search and reads work
+
+Sim proxies Coda's advertised MCP `search` tool using the member's current managed grant. Text search covers pages and table rows. A query can target a document URI such as `superhuman://docs/DOC_ID` (or an older `coda://docs/DOC_ID` URI); date-bounded requests without terms can use Coda's recency listing. Coda does not accept these date bounds directly, so Sim checks returned timestamps and reports limited coverage.
+
+Reads use a fixed read-only tool allowlist: `url_convert`, `content_read`, `document_outline`, and `table_rows_read`, alongside `search`. Sim discovers and validates the server's tool schemas and reloads the member's current grant before calls. Search cannot invoke Coda write tools or choose a different server URL.
+
+In service mode, each result's parent document must be in the selected document scope and currently readable by the service token. With an Enterprise organization ID, Sim also verifies that exact document against the configured organization's Admin API. The member's MCP access remains necessary. There is no background document ACL or directory build for live Coda Search.
+
+An existing personal REST-token connection can search document titles as a compatibility path. This legacy personal-token path requires Coda’s reported account email to match the reader’s verified Sim email. It does not provide MCP's page and table-row full-content search. Provider results and reads are bounded and support continuation where advertised.
+
+## Troubleshooting
+
+| Problem | Next step |
+| --- | --- |
+| Coda shows Not configured | Ask an admin to configure the managed Coda MCP provider. |
+| Only document titles match | Check that your connection uses personal Coda MCP OAuth rather than a legacy REST token. |
+| Service picker omits a document | Open it with the token owner or use its document ID. |
+| Member search finds nothing | Confirm the member's Coda access and, in service mode, the selected document scope and service token's access. |
+| Enterprise source fails | Check the exact organization ID, Enterprise org-admin role, and token validity. |
+| MCP schema or authorization changed | Reconnect or update the managed provider; Search reports the failure instead of invoking unknown tools. |
+
+See the [Coda public API](https://coda.io/developers/apis/v1) and [Enterprise Admin API](https://coda.io/developers/apis/admin/v1). Ordinary [knowledge-base connectors](/knowledgebase/connectors) still use their separate REST ingestion path.

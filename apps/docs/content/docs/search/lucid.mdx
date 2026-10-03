@@ -1,0 +1,30 @@
+---
+title: Lucid
+description: Search Lucidchart diagrams and Lucidspark boards with your own Lucid account
+---
+
+## Connect
+
+An administrator enables **Lucid → Member accounts** in **Settings → Sources**. Each person then connects Lucid in **Integrations** and approves access with their own Lucid account.
+
+Sim uses [Lucid’s official read-only MCP server](https://help.lucid.co/hc/en-us/articles/51290793390740-View-and-search-Lucid-content-with-AI-tools-using-the-Lucid-read-only-MCP-server), available on Free, Individual, Team and Enterprise plans; FedRAMP accounts are not supported. No developer app, API key or additional Sim environment variables are needed. Team and Enterprise administrators may need to enable MCP access in Lucid. Lucid excludes documents owned outside the connected account, even when shared with you.
+
+## Search
+
+Title search requires terms, even when filtering by date. Results are ranked for relevance and may not match the title literally. Start with a short document-title query, such as `deployment architecture`. Select `lucidchart` or `lucidspark` to narrow the product, or search both. Read a result to inspect its diagram or board structure.
+
+To find text inside a known document, use its UUID or Lucid URL as the native query’s `project` and enter a literal phrase such as `API Gateway`. This matches shape labels and sticky-note text, case-insensitively. It does not search notes, tags, links or comments.
+
+Title queries allow up to 400 characters; document-scoped text queries allow 200. Boolean and field operators are unsupported. Document search has no continuation and verifies at most 10 candidates. Dates use modification time; filtering and sorting the returned candidates cannot establish the newest or oldest document across the entire account.
+
+## Browse documents
+
+Ask to browse your Lucid folders when you do not have a title or topic. The assistant can list the root folder or a selected child folder without guessing search terms. Each request returns one page of direct children; child folders are navigation references, not document content. Follow the continuation for more items in the same folder, or select a child folder to explore it.
+
+Browsing uses the same personal readonly connection. It does not recursively scan the account, follow shortcuts, or guarantee the newest or oldest document across folders. Date filters and sorting apply to the current page’s document metadata.
+
+## Diagram content
+
+Reads preserve Lucid’s structured pages, nodes, connections and properties, with links back to the source. Large responses can be read in successive windows of the same document version. Sim rejects incomplete or changed documents rather than treating a partial graph as complete.
+
+A complete read is limited to 8 page regions and 512 KiB. Images and external links remain references; rendered diagrams, OCR, comments and Lucidscale are not included. See [Lucid’s MCP access rules](https://help.lucid.co/hc/en-us/articles/53780064823188-For-admins-Lucid-MCP-server-security-and-authorization) for account restrictions.

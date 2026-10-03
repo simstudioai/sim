@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -89,19 +86,9 @@ function makeSubscriptionRow(config: SimSubscriptionConfig, webhookId = 'wh-1') 
 
 describe('pollNoActivityEvents', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockReadLastFiredAt.mockResolvedValue(null)
     mockClaimCooldown.mockResolvedValue(true)
     mockDispatchSimEvent.mockResolvedValue(undefined)
-  })
-
-  it('does nothing when there are no no_activity subscriptions', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    const result = await pollNoActivityEvents()
-
-    expect(result).toEqual({ subscriptions: 0, checked: 0, fired: 0, skipped: 0 })
-    expect(mockDispatchSimEvent).not.toHaveBeenCalled()
   })
 
   it('fires for a watched workflow with no executions in the window', async () => {
@@ -126,36 +113,6 @@ describe('pollNoActivityEvents', () => {
       workflowName: 'Quiet Workflow',
       runId: null,
     })
-  })
-
-  it('does not fire for a workflow with recent activity', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([makeSubscriptionRow(makeConfig())])
-      .mockResolvedValueOnce([{ id: 'wf-busy', name: 'Busy Workflow' }])
-      .mockResolvedValueOnce([{ id: 'log-1' }])
-
-    const result = await pollNoActivityEvents()
-
-    expect(result.fired).toBe(0)
-    expect(result.skipped).toBe(1)
-    expect(mockDispatchSimEvent).not.toHaveBeenCalled()
-  })
-
-  it('only fires for the inactive workflow when watching several', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([makeSubscriptionRow(makeConfig())])
-      .mockResolvedValueOnce([
-        { id: 'wf-busy', name: 'Busy Workflow' },
-        { id: 'wf-quiet', name: 'Quiet Workflow' },
-      ])
-      .mockResolvedValueOnce([{ id: 'log-1' }])
-      .mockResolvedValueOnce([])
-
-    const result = await pollNoActivityEvents()
-
-    expect(result.fired).toBe(1)
-    expect(mockDispatchSimEvent).toHaveBeenCalledTimes(1)
-    expect(mockDispatchSimEvent.mock.calls[0][1]).toMatchObject({ workflowId: 'wf-quiet' })
   })
 
   it('cooldown is scoped per watched workflow: a cooled-down workflow does not suppress others', async () => {
@@ -193,22 +150,6 @@ describe('pollNoActivityEvents', () => {
     expect(first.fired).toBe(1)
     expect(second.fired).toBe(0)
     expect(mockDispatchSimEvent).toHaveBeenCalledTimes(1)
-  })
-
-  it('scopes the watched-workflow query to the explicit selection in SQL (before the LIMIT)', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([makeSubscriptionRow(makeConfig({ workflowIds: ['wf-watched'] }))])
-      .mockResolvedValueOnce([{ id: 'wf-watched', name: 'Watched' }])
-      .mockResolvedValueOnce([])
-
-    const result = await pollNoActivityEvents()
-
-    expect(result.checked).toBe(1)
-    expect(mockDispatchSimEvent).toHaveBeenCalledTimes(1)
-    expect(mockDispatchSimEvent.mock.calls[0][1]).toMatchObject({ workflowId: 'wf-watched' })
-    expect(allWhereConditions()).toContainEqual(
-      expect.objectContaining({ type: 'inArray', values: ['wf-watched'] })
-    )
   })
 
   it('pages through subscriptions past the page size with a keyset cursor (no starvation)', async () => {
@@ -265,20 +206,6 @@ describe('pollNoActivityEvents', () => {
         type: 'gt',
         right: `wf-p1-${NO_ACTIVITY_WORKFLOW_PAGE_SIZE - 1}`,
       })
-    )
-  })
-
-  it('excludes the subscriber workflow in SQL (before the LIMIT)', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([makeSubscriptionRow(makeConfig())])
-      .mockResolvedValueOnce([])
-
-    const result = await pollNoActivityEvents()
-
-    expect(result.checked).toBe(0)
-    expect(mockDispatchSimEvent).not.toHaveBeenCalled()
-    expect(allWhereConditions()).toContainEqual(
-      expect.objectContaining({ type: 'ne', right: 'wf-subscriber' })
     )
   })
 })

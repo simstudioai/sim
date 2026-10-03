@@ -1,22 +1,13 @@
-import type { CSSProperties } from 'react'
 import { ChipTag, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn'
 import { CircleCheck, Lock } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
+import {
+  INVERSE_LOADER_INK_CLASS,
+  INVERSE_LOADER_INK_STYLE,
+} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/deploy-graphic.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
-
-/**
- * The ThinkingLoader's light-grey material (its dark-surface theme from
- * `thinking-loader.module.css`), asserted inline because the always-light
- * landing would otherwise ink the loader dark — invisible on the dark
- * Deploy button.
- */
-const DEPLOY_LOADER_INK = {
-  '--tl-grad-inner': '#a7a7a7',
-  '--tl-grad-outer': '#d6d6d6',
-  '--tl-glow': 'rgba(255, 255, 255, 0.9)',
-} as CSSProperties
 
 /**
  * The moment of a one-click deploy, told top to bottom: the agent being
@@ -55,10 +46,8 @@ const DEPLOY_LOADER_INK = {
  * but not left, so this centered vignette adds matching right padding to land
  * on the tile's visible center instead of the bled slot's center.
  *
- * The browser window is pinned to `h-24` (96px) so its top edge lands on the
- * same line as the neighboring build-methods tile's composer (76px tall +
- * `bottom-5`), keeping the tile row horizontally aligned; both connector
- * lines are `flex-1` with mirrored margins, so the Deploy button stays
+ * The browser window is pinned to `h-24` (96px). Both connector lines are
+ * `flex-1` with mirrored margins, so the Deploy button stays
  * equidistant between the agent pill and the browser at any tile height.
  *
  * Every label is parametrizable so other landing pages (engineering,
@@ -116,7 +105,12 @@ export function DeployGraphic({
             'mx-0 mt-2.5 inline-flex h-9 rounded-[10px] bg-[var(--text-muted)] px-3 text-[var(--text-inverse)]'
           )}
         >
-          <ThinkingLoader variant='relay' size={18} style={DEPLOY_LOADER_INK} />
+          <ThinkingLoader
+            variant='relay'
+            size={18}
+            className={INVERSE_LOADER_INK_CLASS}
+            style={INVERSE_LOADER_INK_STYLE}
+          />
           <span className={cn(chipContentLabelClass, 'text-[15px] text-current')}>
             {buttonLabel}
           </span>

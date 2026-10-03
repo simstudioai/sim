@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
+import { getBetterAuthClientErrorStatus } from '@/lib/auth/better-auth-error'
 import {
   enforceIpRateLimitWithIndependentBackstop,
   enforceRecipientRateLimit,
@@ -92,18 +93,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    /**
+     * A refusal Better Auth raises is not a server fault, but it must not become a distinguishable
+     * answer either: this route replies identically whether or not an account exists, and a status
+     * the success path never produces would tell a caller which addresses are registered. So it is
+     * logged and answered like a success — only the reset half, where the caller already holds the
+     * token and has nothing left to enumerate, surfaces the refusal.
+     */
+    const clientStatus = getBetterAuthClientErrorStatus(error)
+    if (clientStatus !== undefined) {
+      logger.warn('Rejected a password reset request', { status: clientStatus })
+      return NextResponse.json({ success: true })
+    }
+
     logger.error('Error requesting password reset:', { error })
 
     return NextResponse.json(
-      {
-        message:
-          // utils-lint-allow: returned to an unauthenticated caller, so a non-Error throw
-          // must surface the fixed copy rather than its own text — getErrorMessage would
-          // pass a thrown string straight through.
-          error instanceof Error
-            ? error.message
-            : 'Failed to send password reset email. Please try again later.',
-      },
+      { message: 'Failed to send password reset email. Please try again later.' },
       { status: 500 }
     )
   }

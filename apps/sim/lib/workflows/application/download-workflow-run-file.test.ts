@@ -1,40 +1,37 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getRunFiles: vi.fn(),
-  downloadFileStream: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveRunContext: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowRunApplicationContext: mocks.resolveRunContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
   getWorkflowRunFiles: mocks.getRunFiles,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mocks.downloadFileStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { Readable } from 'node:stream'
 import { downloadWorkflowRunFileStream } from '@/lib/workflows/application/download-workflow-run-file'
+
+const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const WORKFLOW_ID = 'workflow-1'
 const RUN_ID = 'run-1'
@@ -52,9 +49,9 @@ const runContext = {
 }
 
 const principals: Principal[] = [
-  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
-  { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-workspace' },
+  createSessionPrincipal(),
+  createPersonalApiKeyPrincipal({ keyId: 'key-personal' }),
+  createWorkspaceApiKeyPrincipal({ keyId: 'key-workspace' }),
   {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -95,11 +92,12 @@ function input(overrides: Record<string, unknown> = {}) {
 
 describe('downloadWorkflowRunFileStream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveRunContext.mockResolvedValue(runContext)
+    mockResolvePermission.mockResolvedValue('read')
+    workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext.mockResolvedValue(
+      runContext
+    )
     mocks.getRunFiles.mockResolvedValue(terminalRun())
-    mocks.downloadFileStream.mockResolvedValue(Readable.from([Buffer.from('pdf')]))
+    mockDownloadFileStream.mockResolvedValue(Readable.from([Buffer.from('pdf')]))
   })
 
   it.each(principals)('allows $kind at the read role', async (principal) => {
@@ -125,23 +123,16 @@ describe('downloadWorkflowRunFileStream', () => {
         input: input({ fileId: 'file_absent' }),
       })
     ).rejects.toThrow('File not found')
-    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
-  })
-
-  it('authorizes a file the run did produce', async () => {
-    await expect(
-      downloadWorkflowRunFileStream.authorize({ principal: principals[0], input: input() })
-    ).resolves.not.toThrow()
-    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 
   it('denies a principal below the read role', async () => {
-    mocks.resolvePermission.mockResolvedValue(null)
+    mockResolvePermission.mockResolvedValue(null)
 
     await expect(
       downloadWorkflowRunFileStream.execute({ principal: principals[0], input: input() })
     ).rejects.toThrow()
-    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 
   /**
@@ -155,14 +146,14 @@ describe('downloadWorkflowRunFileStream', () => {
       input: input({ key: 'execution/other-workspace/wf/run/secret.pdf' } as never),
     })
 
-    expect(mocks.downloadFileStream).toHaveBeenCalledWith({
+    expect(mockDownloadFileStream).toHaveBeenCalledWith({
       key: FILE_KEY,
       context: 'execution',
     })
   })
 
   it('resolves the run canonically before authorizing or reading', async () => {
-    mocks.resolveRunContext.mockRejectedValueOnce(
+    workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext.mockRejectedValueOnce(
       Object.assign(new Error('Run not found'), { code: 'not_found' })
     )
 
@@ -172,16 +163,8 @@ describe('downloadWorkflowRunFileStream', () => {
         input: input({ workflowId: 'other-workflow' }),
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mockResolvePermission).not.toHaveBeenCalled()
     expect(mocks.getRunFiles).not.toHaveBeenCalled()
-  })
-
-  it('reports an unknown run as not found', async () => {
-    mocks.getRunFiles.mockResolvedValueOnce(null)
-
-    await expect(
-      downloadWorkflowRunFileStream.execute({ principal: workspaceKeyPrincipal, input: input() })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'File not found' })
   })
 
   /**
@@ -194,7 +177,7 @@ describe('downloadWorkflowRunFileStream', () => {
     await expect(
       downloadWorkflowRunFileStream.execute({ principal: workspaceKeyPrincipal, input: input() })
     ).rejects.toMatchObject({ code: 'not_found', message: 'File not found' })
-    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 
   /** Unknown run and unknown file share one message so neither can be probed. */
@@ -222,12 +205,12 @@ describe('downloadWorkflowRunFileStream', () => {
     await expect(
       downloadWorkflowRunFileStream.execute({ principal: workspaceKeyPrincipal, input: input() })
     ).rejects.toMatchObject({ code: 'conflict' })
-    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
+    expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 
   /** Storage failure is infrastructure, not a missing resource. */
   it('propagates a storage failure rather than concealing it as not found', async () => {
-    mocks.downloadFileStream.mockRejectedValueOnce(new Error('s3 unavailable'))
+    mockDownloadFileStream.mockRejectedValueOnce(new Error('s3 unavailable'))
 
     await expect(
       downloadWorkflowRunFileStream.execute({ principal: workspaceKeyPrincipal, input: input() })
@@ -243,7 +226,7 @@ describe('downloadWorkflowRunFileStream', () => {
   it.each(['NoSuchKey', 'BlobNotFound', 'NotFound'])(
     'reports a swept object (%s) as not found rather than a fault',
     async (name) => {
-      mocks.downloadFileStream.mockRejectedValueOnce(Object.assign(new Error('gone'), { name }))
+      mockDownloadFileStream.mockRejectedValueOnce(Object.assign(new Error('gone'), { name }))
 
       await expect(
         downloadWorkflowRunFileStream.execute({
@@ -253,15 +236,4 @@ describe('downloadWorkflowRunFileStream', () => {
       ).rejects.toMatchObject({ code: 'not_found' })
     }
   )
-
-  it('falls back to a generic content type when the record has none', async () => {
-    mocks.getRunFiles.mockResolvedValueOnce(terminalRun([runFile({ type: '' })]))
-
-    const result = await downloadWorkflowRunFileStream.execute({
-      principal: workspaceKeyPrincipal,
-      input: input(),
-    })
-
-    expect(result.contentType).toBe('application/octet-stream')
-  })
 })

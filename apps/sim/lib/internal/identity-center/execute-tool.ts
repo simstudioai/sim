@@ -3,10 +3,14 @@ import { awsIdentityCenterCheckAssignmentStatusContract } from '@/lib/api/contra
 import { awsIdentityCenterCreateAccountAssignmentContract } from '@/lib/api/contracts/tools/aws/identity-center-create-account-assignment'
 import { awsIdentityCenterDeleteAccountAssignmentContract } from '@/lib/api/contracts/tools/aws/identity-center-delete-account-assignment'
 import { awsIdentityCenterDescribeAccountContract } from '@/lib/api/contracts/tools/aws/identity-center-describe-account'
+import { awsIdentityCenterDescribeGroupContract } from '@/lib/api/contracts/tools/aws/identity-center-describe-group'
+import { awsIdentityCenterDescribeUserContract } from '@/lib/api/contracts/tools/aws/identity-center-describe-user'
 import { awsIdentityCenterGetGroupContract } from '@/lib/api/contracts/tools/aws/identity-center-get-group'
 import { awsIdentityCenterGetUserContract } from '@/lib/api/contracts/tools/aws/identity-center-get-user'
 import { awsIdentityCenterListAccountAssignmentsContract } from '@/lib/api/contracts/tools/aws/identity-center-list-account-assignments'
 import { awsIdentityCenterListAccountsContract } from '@/lib/api/contracts/tools/aws/identity-center-list-accounts'
+import { awsIdentityCenterListAssignmentsForAccountContract } from '@/lib/api/contracts/tools/aws/identity-center-list-assignments-for-account'
+import { awsIdentityCenterListGroupMembershipsContract } from '@/lib/api/contracts/tools/aws/identity-center-list-group-memberships'
 import { awsIdentityCenterListGroupsContract } from '@/lib/api/contracts/tools/aws/identity-center-list-groups'
 import { awsIdentityCenterListInstancesContract } from '@/lib/api/contracts/tools/aws/identity-center-list-instances'
 import { awsIdentityCenterListPermissionSetsContract } from '@/lib/api/contracts/tools/aws/identity-center-list-permission-sets'
@@ -16,10 +20,14 @@ import {
   executeIdentityCenterCreateAccountAssignment,
   executeIdentityCenterDeleteAccountAssignment,
   executeIdentityCenterDescribeAccount,
+  executeIdentityCenterDescribeGroup,
+  executeIdentityCenterDescribeUser,
   executeIdentityCenterGetGroup,
   executeIdentityCenterGetUser,
   executeIdentityCenterListAccountAssignments,
   executeIdentityCenterListAccounts,
+  executeIdentityCenterListAssignmentsForAccount,
+  executeIdentityCenterListGroupMemberships,
   executeIdentityCenterListGroups,
   executeIdentityCenterListInstances,
   executeIdentityCenterListPermissionSets,
@@ -129,6 +137,38 @@ export const executeIdentityCenterTool: InternalToolOperationHandler = async ({
         input,
         executeIdentityCenterListAccountAssignments,
         'Failed to list account assignments',
+        signal
+      )
+    case 'identity_center_list_assignments_for_account':
+      return executeInternalJsonToolOperation(
+        awsIdentityCenterListAssignmentsForAccountContract,
+        input,
+        executeIdentityCenterListAssignmentsForAccount,
+        'Failed to list assignments for account',
+        signal
+      )
+    case 'identity_center_describe_user':
+      return executeInternalJsonToolOperation(
+        awsIdentityCenterDescribeUserContract,
+        input,
+        executeIdentityCenterDescribeUser,
+        'Failed to describe user',
+        signal
+      )
+    case 'identity_center_describe_group':
+      return executeInternalJsonToolOperation(
+        awsIdentityCenterDescribeGroupContract,
+        input,
+        executeIdentityCenterDescribeGroup,
+        'Failed to describe group',
+        signal
+      )
+    case 'identity_center_list_group_memberships':
+      return executeInternalJsonToolOperation(
+        awsIdentityCenterListGroupMembershipsContract,
+        input,
+        executeIdentityCenterListGroupMemberships,
+        'Failed to list group memberships',
         signal
       )
     default:

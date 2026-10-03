@@ -31,7 +31,7 @@ export interface SkillsMenuHandle {
 
 interface SkillsMenuDropdownProps {
   /** Skills available in the current workspace. */
-  skills: SkillDefinition[]
+  skills: (SkillDefinition & { workspaceName?: string })[]
   /** Connected MCP servers available in the current workspace. */
   mcpServers: McpServer[]
   /** Called when a skill row is chosen (click / keyboard). */
@@ -80,7 +80,13 @@ export const SkillsMenuDropdown = React.memo(
         ...mcpServers.map((server) => ({ kind: 'mcp' as const, item: server })),
       ]
       if (!q) return items
-      return items.filter(({ item }) => item.name.toLowerCase().includes(q))
+      return items.filter(
+        ({ item }) =>
+          item.name.toLowerCase().includes(q) ||
+          ('workspaceName' in item &&
+            typeof item.workspaceName === 'string' &&
+            item.workspaceName.toLowerCase().includes(q))
+      )
     }, [skills, mcpServers, slashQuery])
 
     const filteredItemsRef = useRef(filteredItems)
@@ -166,11 +172,11 @@ export const SkillsMenuDropdown = React.memo(
       e.preventDefault()
       const textarea = textareaRef.current
       if (!textarea) return
+      textarea.focus()
       if (pendingCursorRef.current !== null) {
         textarea.setSelectionRange(pendingCursorRef.current, pendingCursorRef.current)
         pendingCursorRef.current = null
       }
-      textarea.focus()
     }
 
     // Preventing the mount auto-focus keeps the textarea focused and leaves the
@@ -208,7 +214,7 @@ export const SkillsMenuDropdown = React.memo(
                     : McpIcon
                 return (
                   <button
-                    key={`${target.kind}:${target.item.id}`}
+                    key={`${target.kind}:${target.kind === 'skill' ? target.item.workspaceId : ''}:${target.item.id}`}
                     type='button'
                     role='menuitem'
                     data-filtered-idx={index}
@@ -223,6 +229,11 @@ export const SkillsMenuDropdown = React.memo(
                   >
                     {target.kind === 'skill' ? <AgentSkillsIcon /> : <McpServerIcon />}
                     <span>{target.item.name}</span>
+                    {target.kind === 'skill' && target.item.workspaceName && (
+                      <span className='ml-auto text-[var(--text-muted)] text-xs'>
+                        {target.item.workspaceName}
+                      </span>
+                    )}
                   </button>
                 )
               })

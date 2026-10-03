@@ -1,5 +1,16 @@
 /** @vitest-environment node */
 import { Readable } from 'node:stream'
+import { flushMicrotasks } from '@sim/testing/helpers/async'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_WORKSPACE_FILE_SIZE,
@@ -9,32 +20,19 @@ import {
 const mocks = vi.hoisted(() => ({
   abort: vi.fn(),
   complete: vi.fn(),
-  createMultipartUpload: vi.fn(),
-  deleteFile: vi.fn(),
-  downloadFileStream: vi.fn(),
-  generateFileId: vi.fn(),
-  generatePresignedDownloadUrl: vi.fn(),
-  generateUniqueExecutionFileKey: vi.fn(),
-  verifyFileAccess: vi.fn(),
   write: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({ verifyFileAccess: mocks.verifyFileAccess }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  createMultipartUpload: mocks.createMultipartUpload,
-  deleteFile: mocks.deleteFile,
-  downloadFileStream: mocks.downloadFileStream,
-  generatePresignedDownloadUrl: mocks.generatePresignedDownloadUrl,
-}))
-vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
-  generateFileId: mocks.generateFileId,
-  generateUniqueExecutionFileKey: mocks.generateUniqueExecutionFileKey,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/contexts/execution/utils', () => uploadsExecutionMock)
 
 import {
+  type OracleEpmSourceFile,
   openOracleEpmSourceFile,
   storeOracleEpmDownload,
-} from '@/lib/internal/oracle-epm/files.server'
+} from '@/lib/internal/oracle-epm'
 
 const context = {
   workspaceId: '00000000-0000-4000-8000-000000000001',
@@ -44,10 +42,11 @@ const context = {
 
 describe('Oracle EPM file primitives', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.verifyFileAccess.mockResolvedValue(true)
-    mocks.downloadFileStream.mockResolvedValue(Readable.from([Buffer.from('abc')]))
-    mocks.createMultipartUpload.mockResolvedValue({
+    filesAuthorizationMockFns.mockVerifyFileAccess.mockResolvedValue(true)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(
+      Readable.from([Buffer.from('abc')])
+    )
+    storageServiceMockFns.mockCreateMultipartUpload.mockResolvedValue({
       write: mocks.write,
       complete: mocks.complete,
       abort: mocks.abort,
@@ -55,14 +54,18 @@ describe('Oracle EPM file primitives', () => {
     mocks.write.mockResolvedValue(undefined)
     mocks.complete.mockResolvedValue({ key: 'execution/key/report.csv', size: 3 })
     mocks.abort.mockResolvedValue(undefined)
-    mocks.deleteFile.mockResolvedValue(undefined)
-    mocks.generateUniqueExecutionFileKey.mockReturnValue('execution/key/report.csv')
-    mocks.generateFileId.mockReturnValue('file-1')
-    mocks.generatePresignedDownloadUrl.mockResolvedValue('https://storage.example/signed')
+    storageServiceMockFns.mockDeleteFile.mockResolvedValue(undefined)
+    uploadsExecutionMockFns.mockGenerateUniqueExecutionFileKey.mockReturnValue(
+      'execution/key/report.csv'
+    )
+    uploadsExecutionMockFns.mockGenerateFileId.mockReturnValue('file-1')
+    storageServiceMockFns.mockGeneratePresignedDownloadUrl.mockResolvedValue(
+      'https://storage.example/signed'
+    )
   })
 
   it('authorizes before opening and counts source bytes while streaming', async () => {
-    const source = await openOracleEpmSourceFile({
+    const source: OracleEpmSourceFile = await openOracleEpmSourceFile({
       file: {
         id: 'f',
         name: 'report final.csv',
@@ -77,8 +80,8 @@ describe('Oracle EPM file primitives', () => {
     })
     const chunks: Buffer[] = []
     for await (const chunk of source.chunks) chunks.push(chunk)
-    expect(mocks.verifyFileAccess.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.downloadFileStream.mock.invocationCallOrder[0]
+    expect(filesAuthorizationMockFns.mockVerifyFileAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      storageServiceMockFns.mockDownloadFileStream.mock.invocationCallOrder[0]
     )
     expect(Buffer.concat(chunks).toString()).toBe('abc')
     expect(source.fileName).toBe('report-final.csv')
@@ -100,9 +103,9 @@ describe('Oracle EPM file primitives', () => {
         maxBytes: 3,
       })
     ).rejects.toThrow('maximum size')
-    expect(mocks.verifyFileAccess).not.toHaveBeenCalled()
+    expect(filesAuthorizationMockFns.mockVerifyFileAccess).not.toHaveBeenCalled()
 
-    mocks.verifyFileAccess.mockResolvedValue(false)
+    filesAuthorizationMockFns.mockVerifyFileAccess.mockResolvedValue(false)
     await expect(
       openOracleEpmSourceFile({
         file: {
@@ -118,7 +121,7 @@ describe('Oracle EPM file primitives', () => {
         maxBytes: 3,
       })
     ).rejects.toThrow('not found')
-    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFileStream).not.toHaveBeenCalled()
   })
 
   it('clamps caller limits to existing workspace and execution-attachment limits', async () => {
@@ -146,7 +149,7 @@ describe('Oracle EPM file primitives', () => {
         contentLength: MAX_WORKSPACE_FORMDATA_FILE_SIZE + 1,
       })
     ).rejects.toThrow('maximum size')
-    expect(mocks.createMultipartUpload).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockCreateMultipartUpload).not.toHaveBeenCalled()
   })
 
   it('rejects an untrusted execution storage context before creating a key', async () => {
@@ -158,14 +161,14 @@ describe('Oracle EPM file primitives', () => {
         maxBytes: 3,
       })
     ).rejects.toThrow('context is invalid')
-    expect(mocks.generateUniqueExecutionFileKey).not.toHaveBeenCalled()
-    expect(mocks.createMultipartUpload).not.toHaveBeenCalled()
+    expect(uploadsExecutionMockFns.mockGenerateUniqueExecutionFileKey).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockCreateMultipartUpload).not.toHaveBeenCalled()
   })
 
   it('destroys an over-limit source stream during in-flight counting', async () => {
     const stream = Readable.from([Buffer.from('abcd')])
     const destroy = vi.spyOn(stream, 'destroy')
-    mocks.downloadFileStream.mockResolvedValue(stream)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(stream)
     const source = await openOracleEpmSourceFile({
       file: {
         id: 'f',
@@ -189,7 +192,7 @@ describe('Oracle EPM file primitives', () => {
 
   it('destroys a source canceled while its storage stream is opening', async () => {
     let finishOpen: ((stream: Readable) => void) | undefined
-    mocks.downloadFileStream.mockReturnValue(
+    storageServiceMockFns.mockDownloadFileStream.mockReturnValue(
       new Promise((resolve) => {
         finishOpen = resolve
       })
@@ -214,7 +217,8 @@ describe('Oracle EPM file primitives', () => {
         // Consume the guarded stream.
       }
     })()
-    await vi.waitFor(() => expect(mocks.downloadFileStream).toHaveBeenCalled())
+    await flushMicrotasks()
+    expect(storageServiceMockFns.mockDownloadFileStream).toHaveBeenCalled()
     controller.abort(new DOMException('user', 'AbortError'))
     const stream = Readable.from([])
     const destroy = vi.spyOn(stream, 'destroy')
@@ -232,7 +236,7 @@ describe('Oracle EPM file primitives', () => {
         controller.abort(new DOMException('user', 'AbortError'))
       },
     })
-    mocks.downloadFileStream.mockResolvedValue(stream)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(stream)
     const source = await openOracleEpmSourceFile({
       file: {
         id: 'f',
@@ -279,14 +283,14 @@ describe('Oracle EPM file primitives', () => {
       key: 'execution/key/report.csv',
       context: 'execution',
     })
-    expect(mocks.createMultipartUpload).toHaveBeenCalledWith(
+    expect(storageServiceMockFns.mockCreateMultipartUpload).toHaveBeenCalledWith(
       expect.objectContaining({
         context: 'execution',
         completionPolicy: 'create-only',
       })
     )
     expect(mocks.write).toHaveBeenCalledWith(Buffer.from([1, 2, 3]))
-    expect(mocks.generatePresignedDownloadUrl).toHaveBeenCalledWith(
+    expect(storageServiceMockFns.mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
       'execution/key/report.csv',
       'execution',
       300
@@ -309,7 +313,9 @@ describe('Oracle EPM file primitives', () => {
 
   it('removes a completed object if link generation fails', async () => {
     mocks.complete.mockResolvedValue({ key: 'execution/key/report.csv', size: 0 })
-    mocks.generatePresignedDownloadUrl.mockRejectedValue(new Error('presign failed'))
+    storageServiceMockFns.mockGeneratePresignedDownloadUrl.mockRejectedValue(
+      new Error('presign failed')
+    )
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.close()
@@ -318,7 +324,7 @@ describe('Oracle EPM file primitives', () => {
     await expect(
       storeOracleEpmDownload({ body, fileName: 'x', context, maxBytes: 3 })
     ).rejects.toThrow('presign failed')
-    expect(mocks.deleteFile).toHaveBeenCalledWith({
+    expect(storageServiceMockFns.mockDeleteFile).toHaveBeenCalledWith({
       key: 'execution/key/report.csv',
       context: 'execution',
     })
@@ -343,23 +349,24 @@ describe('Oracle EPM file primitives', () => {
       maxBytes: 3,
       signal: controller.signal,
     })
-    await vi.waitFor(() => expect(mocks.complete).toHaveBeenCalled())
+    await flushMicrotasks(3)
+    expect(mocks.complete).toHaveBeenCalled()
 
     controller.abort(new DOMException('user', 'AbortError'))
     expect(mocks.abort).not.toHaveBeenCalled()
-    expect(mocks.deleteFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
     finishCompletion?.({ key: 'execution/key/report.csv', size: 0 })
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
     expect(mocks.abort).not.toHaveBeenCalled()
-    expect(mocks.deleteFile).toHaveBeenCalledTimes(1)
-    expect(mocks.generatePresignedDownloadUrl).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).toHaveBeenCalledTimes(1)
+    expect(storageServiceMockFns.mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
   })
 
   it('deletes completed storage when cancellation overlaps presigning', async () => {
     mocks.complete.mockResolvedValue({ key: 'execution/key/report.csv', size: 0 })
     let finishPresign: ((value: string) => void) | undefined
-    mocks.generatePresignedDownloadUrl.mockReturnValue(
+    storageServiceMockFns.mockGeneratePresignedDownloadUrl.mockReturnValue(
       new Promise((resolve) => {
         finishPresign = resolve
       })
@@ -376,13 +383,14 @@ describe('Oracle EPM file primitives', () => {
       maxBytes: 3,
       signal: controller.signal,
     })
-    await vi.waitFor(() => expect(mocks.generatePresignedDownloadUrl).toHaveBeenCalled())
+    await flushMicrotasks(3)
+    expect(storageServiceMockFns.mockGeneratePresignedDownloadUrl).toHaveBeenCalled()
 
     controller.abort(new DOMException('user', 'AbortError'))
-    expect(mocks.deleteFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
     finishPresign?.('https://storage.example/signed')
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.deleteFile).toHaveBeenCalledTimes(1)
+    expect(storageServiceMockFns.mockDeleteFile).toHaveBeenCalledTimes(1)
   })
 })

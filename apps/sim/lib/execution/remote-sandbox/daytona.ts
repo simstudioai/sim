@@ -16,6 +16,7 @@ import {
   isNonRetryableExecutionError,
   SandboxLaunchIndeterminateError,
 } from '@/lib/execution/non-retryable-error'
+import { processCodeFailure } from '@/lib/execution/remote-sandbox/code-failure'
 import {
   appendStreamedSandboxOutput,
   assertSandboxProcessOutputWithinLimit,
@@ -70,28 +71,6 @@ function assertSafeProcessEnvironment(envs: Record<string, string> | undefined):
     if (value.includes('\0')) {
       throw new Error('Sandbox environment variable values may not contain null bytes')
     }
-  }
-}
-
-function processCodeFailure(result: SandboxCommandResult): SandboxCodeResult {
-  const traceback = result.stderr || result.stdout
-  const errorLine = traceback
-    .split('\n')
-    .reverse()
-    .find((line) => /^[A-Za-z_$][\w.$]*(?:Error|Exception|Interrupt|Exit)?:\s*/.test(line.trim()))
-    ?.trim()
-  const separator = errorLine?.indexOf(':') ?? -1
-  const parsedErrorLine = errorLine ?? ''
-  const name = separator > 0 ? parsedErrorLine.slice(0, separator) : 'Error'
-  const value =
-    separator > 0
-      ? parsedErrorLine.slice(separator + 1).trim()
-      : parsedErrorLine || 'Execution failed'
-  return {
-    text: '',
-    stdout: result.stdout,
-    stderr: result.stderr,
-    error: { name, value, traceback },
   }
 }
 
@@ -762,6 +741,10 @@ class DaytonaSandboxHandle implements SandboxHandle {
     const buffer =
       typeof content === 'string' ? Buffer.from(content, 'utf-8') : Buffer.from(content)
     await this.sandbox.fs.uploadFile(buffer, path)
+  }
+
+  async removeFile(path: string): Promise<void> {
+    await this.sandbox.fs.deleteFile(path, false)
   }
 
   async listFiles(path: string, options?: { depth?: number }): Promise<SandboxDirectoryEntry[]> {

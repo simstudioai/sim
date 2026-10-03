@@ -3,11 +3,14 @@ import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/d
 import { useCopyToClipboard } from '@sim/emcn'
 import { Check, Duplicate, Pencil, Unlink } from '@sim/emcn/icons'
 import { getMarkRange } from '@tiptap/core'
-import type { Editor } from '@tiptap/react'
+import { type Editor, useEditorState } from '@tiptap/react'
 import { createPortal } from 'react-dom'
-import { normalizeLinkHref } from '../markdown-fidelity'
-import { applyLink, LinkUrlInput } from './link-editing'
-import { ToolbarButton } from './toolbar-button'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import {
+  applyLink,
+  LinkUrlInput,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-editing'
+import { ToolbarButton } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/toolbar-button'
 
 interface LinkHoverCardProps {
   editor: Editor
@@ -16,11 +19,11 @@ interface LinkHoverCardProps {
 interface LinkRange {
   from: number
   to: number
-  href: string
 }
 
-/** Resolves the document range and href of the link rendered by `el`, or null if it isn't a link. */
+/** Resolves a still-mounted link's current document range, including changes since it was hovered. */
 function resolveLinkRange(editor: Editor, el: HTMLElement): LinkRange | null {
+  if (!editor.view.dom.contains(el)) return null
   const { state } = editor.view
   const linkType = state.schema.marks.link
   if (!linkType) return null
@@ -30,8 +33,7 @@ function resolveLinkRange(editor: Editor, el: HTMLElement): LinkRange | null {
     getMarkRange(state.doc.resolve(pos), linkType) ??
     getMarkRange(state.doc.resolve(pos + 1), linkType)
   if (!range) return null
-  const href = el.getAttribute('href') ?? ''
-  return { from: range.from, to: range.to, href }
+  return { from: range.from, to: range.to }
 }
 
 /**
@@ -41,30 +43,38 @@ function resolveLinkRange(editor: Editor, el: HTMLElement): LinkRange | null {
  * close delay plus the card's own hover bridge let the pointer travel from the link into the card.
  */
 export function LinkHoverCard({ editor }: LinkHoverCardProps) {
+  const canEdit = useEditorState({ editor, selector: ({ editor: e }) => e.isEditable })
   const [activeLink, setActiveLink] = useState<HTMLElement | null>(null)
   const [draftHref, setDraftHref] = useState<string | null>(null)
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
+  const [measurement, setMeasurement] = useState<{
+    anchor: HTMLElement
+    x: number
+    y: number
+  } | null>(null)
+  const position = measurement?.anchor === activeLink ? measurement : null
   const isEditing = draftHref !== null
   const editInputRef = useRef<HTMLInputElement>(null)
   const floatingRef = useRef<HTMLDivElement>(null)
   const { copied, copy } = useCopyToClipboard()
   const hideTimerRef = useRef<number | undefined>(undefined)
 
-  // Keep the card anchored to the hovered link with Floating UI's DOM core (the same primitive the
-  // bubble menu positions through) — no React wrapper, so the harness/app share one React instance.
   useEffect(() => {
     const floating = floatingRef.current
-    if (!activeLink || !floating) {
-      setPosition(null)
-      return
-    }
-    return autoUpdate(activeLink, floating, () => {
+    if (!activeLink || !floating) return
+    let active = true
+    const cleanup = autoUpdate(activeLink, floating, () => {
       computePosition(activeLink, floating, {
         strategy: 'fixed',
         placement: 'top',
         middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 })],
-      }).then(({ x, y }) => setPosition({ x, y }))
+      }).then(({ x, y }) => {
+        if (active) setMeasurement({ anchor: activeLink, x, y })
+      })
     })
+    return () => {
+      active = false
+      cleanup()
+    }
   }, [activeLink])
 
   const cancelHide = useCallback(() => window.clearTimeout(hideTimerRef.current), [])
@@ -75,17 +85,23 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
   }, [cancelHide])
   const scheduleHide = useCallback(() => {
     cancelHide()
+    if (isEditing) return
     hideTimerRef.current = window.setTimeout(() => {
+      if (floatingRef.current?.contains(document.activeElement)) return
       setActiveLink(null)
       setDraftHref(null)
     }, 120)
-  }, [cancelHide])
+  }, [cancelHide, isEditing])
 
   useEffect(() => {
     const dom = editor.view.dom
     const onOver = (event: Event) => {
-      // Don't compete with the selection toolbar while text is selected.
-      if (!editor.state.selection.empty) return
+      if (
+        isEditing ||
+        floatingRef.current?.contains(document.activeElement) ||
+        !editor.state.selection.empty
+      )
+        return
       const link = (event.target as HTMLElement | null)?.closest('a')
       if (link && dom.contains(link)) {
         cancelHide()
@@ -95,7 +111,6 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
     const onOut = (event: MouseEvent) => {
       const link = (event.target as HTMLElement | null)?.closest('a')
       if (!link) return
-      // Ignore moves that stay within the same link.
       if (link.contains(event.relatedTarget as Node | null)) return
       scheduleHide()
     }
@@ -106,7 +121,23 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
       dom.removeEventListener('mouseout', onOut)
       window.clearTimeout(hideTimerRef.current)
     }
-  }, [editor, cancelHide, scheduleHide])
+  }, [editor, cancelHide, scheduleHide, isEditing])
+
+  useEffect(() => {
+    if (!activeLink) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (
+        !(target instanceof Node) ||
+        activeLink.contains(target) ||
+        floatingRef.current?.contains(target)
+      )
+        return
+      dismiss()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [activeLink, dismiss])
 
   useEffect(() => {
     if (isEditing) editInputRef.current?.focus()
@@ -116,17 +147,21 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
 
   const rawHref = activeLink.getAttribute('href') ?? ''
   const safeHref = normalizeLinkHref(rawHref)
-  const canEdit = editor.isEditable
-
-  const startEdit = () => setDraftHref(rawHref)
+  const startEdit = () => {
+    if (editor.isDestroyed || !editor.isEditable) return
+    cancelHide()
+    setDraftHref(rawHref)
+  }
 
   const commitEdit = () => {
+    if (editor.isDestroyed || !editor.isEditable) return
     const range = resolveLinkRange(editor, activeLink)
     if (range) applyLink(editor.chain().focus().setTextSelection(range), draftHref ?? '')
     dismiss()
   }
 
   const removeLink = () => {
+    if (editor.isDestroyed || !editor.isEditable) return
     const range = resolveLinkRange(editor, activeLink)
     if (range) applyLink(editor.chain().focus().setTextSelection(range), '')
     dismiss()
@@ -147,6 +182,10 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
       aria-label='Link'
       onMouseEnter={cancelHide}
       onMouseLeave={scheduleHide}
+      onFocus={cancelHide}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) dismiss()
+      }}
       className='z-[var(--z-popover)] flex items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-xs transition-opacity duration-150 ease-out'
     >
       {isEditing ? (
@@ -154,11 +193,15 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
           <LinkUrlInput
             inputRef={editInputRef}
             value={draftHref ?? ''}
+            readOnly={!canEdit}
             onChange={setDraftHref}
             onCommit={commitEdit}
-            onCancel={() => setDraftHref(null)}
+            onCancel={() => {
+              dismiss()
+              editor.commands.focus()
+            }}
           />
-          <ToolbarButton icon={Check} label='Apply link' onClick={commitEdit} />
+          <ToolbarButton icon={Check} label='Apply link' disabled={!canEdit} onClick={commitEdit} />
         </>
       ) : (
         <>

@@ -46,6 +46,8 @@ const DRAIN_HORIZON_MS = 400
 const MIN_CPS = 45
 /** Cap so a huge backlog (resume, giant paste) sweeps in over ~a second. */
 const MAX_CPS = 2400
+/** Keep React/Markdown work at 60 updates/sec even on high-refresh displays. */
+const PUBLISH_INTERVAL_MS = 1000 / 60
 
 /** Chars/second that drains `remaining` over the horizon, clamped. */
 function drainRate(remaining: number): number {
@@ -97,8 +99,8 @@ interface SmoothTextOptions {
  *
  * Content that is already complete at mount (history, or a resume past
  * {@link RESUME_SKIP_THRESHOLD}) is returned in full and never animates. When a
- * live stream ends mid-reveal the remaining tail keeps draining at the paced
- * cadence rather than snapping — so the reveal stays smooth right to the end and
+ * live stream ends mid-reveal the remaining tail drains over one fixed horizon
+ * rather than an exponentially slowing tail — so the reveal stays smooth and
  * the caller can hold its streaming render until `useSmoothText` reports the
  * full string, avoiding a flash on the streaming→static handoff.
  *
@@ -133,6 +135,8 @@ export function useSmoothText(
   /** Fractional character budget carried between frames (see the frame loop). */
   const budgetRef = useRef(0)
   const lastFrameAtRef = useRef(0)
+  const publishBudgetMsRef = useRef(0)
+  const completionRemainingMsRef = useRef<number | null>(null)
   const prevContentRef = useRef(content)
   const prevIsStreamingRef = useRef(isStreaming)
 
@@ -184,6 +188,11 @@ export function useSmoothText(
   // `prev` and skip the snap. Updating them in a committed effect keeps `prev` in lockstep with the
   // render that actually committed, so the snap decision is identical across discarded attempts.
   useEffect(() => {
+    if (isStreaming) {
+      completionRemainingMsRef.current = null
+    } else if (content !== prevContentRef.current || prevIsStreamingRef.current) {
+      completionRemainingMsRef.current = DRAIN_HORIZON_MS
+    }
     prevContentRef.current = content
     prevIsStreamingRef.current = isStreaming
   }, [content, isStreaming])
@@ -212,11 +221,33 @@ export function useSmoothText(
       // Clamp dt so a background tab's paused rAF doesn't bank a giant budget.
       const dt = Math.min(now - lastFrameAtRef.current, 100)
       lastFrameAtRef.current = now
-      budgetRef.current += (drainRate(target - current) * dt) / 1000
+      const completionRemaining = completionRemainingMsRef.current
+      const rate =
+        completionRemaining === null
+          ? drainRate(target - current)
+          : Math.max(
+              MIN_CPS,
+              ((target - current - budgetRef.current) * 1000) / Math.max(1, completionRemaining)
+            )
+      budgetRef.current += (rate * dt) / 1000
+      publishBudgetMsRef.current += dt
+      if (completionRemaining !== null) {
+        completionRemainingMsRef.current = Math.max(0, completionRemaining - dt)
+      }
 
-      const next = nextIndex(text, current, budgetRef.current)
+      const finishing = completionRemainingMsRef.current === 0
+      const canPublish = finishing || publishBudgetMsRef.current >= PUBLISH_INTERVAL_MS - 0.5
+      const next = finishing
+        ? target
+        : canPublish
+          ? nextIndex(text, current, budgetRef.current)
+          : current
       if (next > current) {
-        budgetRef.current -= next - current
+        budgetRef.current = Math.max(0, budgetRef.current - (next - current))
+        publishBudgetMsRef.current =
+          publishBudgetMsRef.current < PUBLISH_INTERVAL_MS
+            ? 0
+            : publishBudgetMsRef.current % PUBLISH_INTERVAL_MS
         revealedRef.current = next
         setRevealed(next)
       }
@@ -227,6 +258,7 @@ export function useSmoothText(
 
     if (hasBacklog && rafRef.current === null) {
       lastFrameAtRef.current = performance.now()
+      publishBudgetMsRef.current = 0
       rafRef.current = requestAnimationFrame(run)
     }
   })

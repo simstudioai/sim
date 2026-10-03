@@ -30,75 +30,7 @@ export interface BlockData {
   [key: string]: any
 }
 
-export interface SubBlockState {
-  id: string
-  type: string
-  value: any
-}
-
 export type BlockOutput = any
-
-export interface BlockState {
-  id: string
-  type: string
-  name: string
-  position: Position
-  subBlocks: Record<string, SubBlockState>
-  outputs: Record<string, BlockOutput>
-  enabled: boolean
-  horizontalHandles?: boolean
-  height?: number
-  advancedMode?: boolean
-  triggerMode?: boolean
-  data?: BlockData
-  layout?: Record<string, any>
-  [key: string]: any
-}
-
-export interface Edge {
-  id: string
-  source: string
-  target: string
-  sourceHandle?: string | null
-  targetHandle?: string | null
-  type?: string
-  data?: Record<string, any>
-  [key: string]: any
-}
-
-export interface Loop {
-  id: string
-  nodes: string[]
-  iterations: number
-  loopType: string
-  forEachItems?: any
-  whileCondition?: string
-  doWhileCondition?: string
-  [key: string]: any
-}
-
-export interface Parallel {
-  id: string
-  nodes: string[]
-  distribution?: any
-  count?: number
-  parallelType?: string
-  [key: string]: any
-}
-
-export interface WorkflowState {
-  blocks: Record<string, BlockState>
-  edges: Edge[]
-  loops: Record<string, Loop>
-  parallels: Record<string, Parallel>
-  lastSaved?: number
-  lastUpdate?: number
-  isDeployed?: boolean
-  deployedAt?: Date
-  needsRedeployment?: boolean
-  variables?: any[]
-  [key: string]: any
-}
 
 export interface ExecutionContext {
   workflowId: string
@@ -121,33 +53,5 @@ export interface ExecutionContext {
   completedLoops: Set<string>
   activeExecutionPath: Set<string>
   abortSignal?: AbortSignal
-  [key: string]: any
-}
-
-export interface User {
-  id: string
-  email: string
-  name?: string
-  image?: string
-  [key: string]: any
-}
-
-export interface Workspace {
-  id: string
-  name: string
-  ownerId: string
-  createdAt: Date
-  updatedAt: Date
-  [key: string]: any
-}
-
-export interface Workflow {
-  id: string
-  name: string
-  workspaceId: string
-  state: WorkflowState
-  createdAt: Date
-  updatedAt: Date
-  isDeployed?: boolean
   [key: string]: any
 }
