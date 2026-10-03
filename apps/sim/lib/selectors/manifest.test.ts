@@ -73,7 +73,7 @@ describe('selector manifest', () => {
       (attachment) => attachment.destination !== 'fixed'
     )
 
-    expect(preparedDestinations).toHaveLength(14)
+    expect(preparedDestinations).toHaveLength(17)
     for (const attachment of preparedDestinations) {
       expect(attachment.destination).toEqual(
         expect.objectContaining({
@@ -98,6 +98,9 @@ describe('selector manifest', () => {
       'managedAgent.environments',
       'managedAgent.memoryStores',
       'managedAgent.vaults',
+      'oci_logging.customLogs',
+      'oci_logging.logGroups',
+      'oci_logging.logs',
     ])
   })
 })
