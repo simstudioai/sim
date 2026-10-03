@@ -10,6 +10,7 @@ vi.mock('@/lib/internal/oci-vision/operations', () => ({
 }))
 
 import { OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import { SelectorContextUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { ociVisionSelectorAttachments } from '@/lib/selectors/server/providers/oci-vision'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
@@ -201,6 +202,22 @@ describe('OCI Vision unified selectors', () => {
       execute(args({ signal: AbortSignal.abort(new Error('Stopped')) }))
     ).rejects.toThrow('Stopped')
   })
+
+  it.each([undefined, ''])(
+    'rejects a missing workspace with or without preparation (%s)',
+    async (workspaceId) => {
+      const input = args({ workspaceId })
+      await expect(execute(input)).rejects.toThrow(SelectorContextUnavailableError)
+      await expect(
+        ociVisionSelectorAttachments['oci_vision.classification_models'].execute(input, {
+          credentialId: 'resolved-credential',
+          prepared: destination,
+        })
+      ).rejects.toThrow(SelectorContextUnavailableError)
+      expect(mocks.prepare).not.toHaveBeenCalled()
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not forward raw provider errors into selector diagnostics', async () => {
     mocks.execute.mockRejectedValueOnce(new Error('private-canary'))

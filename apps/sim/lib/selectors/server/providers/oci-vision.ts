@@ -27,6 +27,8 @@ type VisionSelectorKey =
   | 'oci_vision.object_detection_models'
 
 async function prepareDestination(args: ExecuteServerSelectorArgs) {
+  const workspaceId = args.workspaceId
+  if (!workspaceId) throw new SelectorContextUnavailableError()
   const credential = args.credential
   const credentialId = credential?.access?.resolvedCredentialId
   if (
@@ -41,7 +43,7 @@ async function prepareDestination(args: ExecuteServerSelectorArgs) {
   try {
     const prepared = await prepareOciVisionClient(
       { credentialId, region: args.context.region || undefined },
-      args.workspaceId
+      workspaceId
     )
     args.signal?.throwIfAborted()
     return { credentialId, prepared }
@@ -55,6 +57,8 @@ async function executeVisionSelector(
   args: ExecuteServerSelectorArgs,
   destination: Awaited<ReturnType<typeof prepareDestination>>
 ) {
+  const workspaceId = args.workspaceId
+  if (!workspaceId) throw new SelectorContextUnavailableError()
   const projects = args.selectorKey === 'oci_vision.projects'
   const modelType =
     args.selectorKey === 'oci_vision.classification_models'
@@ -100,7 +104,7 @@ async function executeVisionSelector(
     const result = await executeOciVisionOperation(
       parsed.data,
       {
-        workspaceId: args.workspaceId,
+        workspaceId,
         workflowId: '',
         requestId: 'oci-vision-selector',
         headers: new Headers(),
