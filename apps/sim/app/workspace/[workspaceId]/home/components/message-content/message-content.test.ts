@@ -320,7 +320,12 @@ describe('async agent display names', () => {
       }
       expect(
         waitTitle(toDisplayMessage(stripToolResultOutput(saved)).contentBlocks ?? [])
-      ).toMatchObject(expected)
+      ).toMatchObject({
+        data: {
+          displayTitle: 'Stopped waiting for Review report validation + 1',
+          status: 'interrupted',
+        },
+      })
       expect(blocks).toEqual(original)
       expect(waitTitle([wait])).toMatchObject({
         data: { displayTitle: wait.toolCall?.displayTitle },
