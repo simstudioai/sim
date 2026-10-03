@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -20,7 +21,6 @@ import {
   v2InvalidBodyResponse,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import type { V2ApiKeyPrincipal } from '@/lib/api/server/routes/v2-api-key-auth'
 import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
@@ -124,6 +124,7 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     workflowId: result.workflowId,
     status: result.status,
     output: result.output ?? null,
+    blockOutputs: result.blockOutputs ?? null,
     error: result.error,
     startedAt: result.startedAt,
     endedAt: result.endedAt,
@@ -271,13 +272,14 @@ export const POST = withRouteHandler(
 
     let publicApiUserId: string | undefined
     let isPublicApiAccess = false
-    let apiKeyPrincipal: V2ApiKeyPrincipal | undefined
+    let apiKeyPrincipal: Principal | undefined
 
     const admission = await admitOptionalV2Request(
       req,
       workflowOperations.execute,
       v2ApiKeyAuth,
-      v2RateLimits.publicApi
+      v2RateLimits.publicApi,
+      executeWorkflowOperation
     )
     if (!admission.success) return admission.response
 
@@ -397,19 +399,6 @@ export const POST = withRouteHandler(
         return v2Error(
           'BAD_REQUEST',
           'Async execution does not support streaming or output-shaping options'
-        )
-      }
-      /**
-       * `selectedOutputs` shapes the streamed envelope only — the sync path
-       * returns the workflow's own final output and never reads it. Accepting
-       * it silently answered a full, unselected body to a caller who believed
-       * they had narrowed it, so the option is refused where it does nothing
-       * and the two paths that honour selection are named instead.
-       */
-      if (body.selectedOutputs?.length && !body.stream) {
-        return v2Error(
-          'BAD_REQUEST',
-          'selectedOutputs requires stream: true. For a completed run, request the run resource with ?selectedOutputs= instead.'
         )
       }
       const hasAgentStreamOptions = hasAgentStreamPolicy({

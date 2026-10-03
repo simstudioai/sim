@@ -20,13 +20,20 @@ import type { WorkspaceCredential } from '@/lib/api/contracts'
 import type { OrganizationCredential } from '@/lib/api/contracts/organization-credentials'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import {
+  hasSlackSearchUserScopes,
   resolveSlackManagedUserScopes,
   SLACK_MANAGED_USER_SCOPES,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import {
+  organizationAccountsKeys,
+  useOrganizationAccounts,
+} from '@/hooks/queries/organization-accounts'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useSlackSearchInstallations } from '@/hooks/queries/slack-search'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
@@ -101,6 +108,43 @@ export function SlackManagedUsersModal({
   const selectedApp =
     availableApps.find((app) => app.appId === appId) ??
     (availableApps.length === 1 && !appId ? availableApps[0] : undefined)
+  const sharedAppInstalled = organizationSetup && selectedApp?.appKind === 'shared'
+  const searchPolicies = useSearchIntegrations(organizationId ?? '', {
+    enabled: open && sharedAppInstalled,
+  })
+  const searchApproved = searchPolicies.data?.some(
+    (policy) => policy.connectorType === 'slack' && policy.approved
+  )
+  const accounts = useOrganizationAccounts(open && sharedAppInstalled ? organizationId : undefined)
+  const memberGroup = accounts.data?.credentialGroup
+  const memberOption = memberGroup?.options.find((option) => option.provider === 'slack')
+  const sharedAppCanAuthorize = Boolean(
+    sharedAppInstalled &&
+      apps.isSuccess &&
+      !apps.isFetching &&
+      !apps.error &&
+      apps.data?.sharedAppAvailable &&
+      selectedApp.enabled &&
+      !selectedApp.needsValidation &&
+      accounts.isSuccess &&
+      !accounts.isFetching &&
+      !accounts.error &&
+      searchPolicies.isSuccess &&
+      !searchPolicies.isFetching &&
+      !searchPolicies.error &&
+      memberGroup?.id === credentialGroupId &&
+      memberOption?.status === 'active'
+  )
+  const searchPermissionsMissing =
+    searchApproved && !hasSlackSearchUserScopes(memberOption?.requiredScopes)
+  const sharedAppReady =
+    sharedAppCanAuthorize &&
+    memberOption?.configurationStatus === 'ready' &&
+    !searchPermissionsMissing
+  const sharedAppNeedsUpdate =
+    sharedAppCanAuthorize &&
+    (memberOption?.configurationStatus === 'needs_update' ||
+      (memberOption?.configurationStatus === 'ready' && searchPermissionsMissing))
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [pending, setPending] = useState(false)
@@ -108,6 +152,7 @@ export function SlackManagedUsersModal({
   const expectedState = useRef<string | null>(null)
   const expectedCredentialId = useRef<string | null>(null)
   const popup = useRef<Window | null>(null)
+  const nativeAbort = useRef<AbortController | null>(null)
   const authorizationTimeout = useRef<number | null>(null)
 
   const defaultCredentialId = initialCredentialId
@@ -139,6 +184,8 @@ export function SlackManagedUsersModal({
         : [...(access === 'search' ? SLACK_SEARCH_USER_SCOPES : SLACK_MANAGED_USER_SCOPES)]
 
   const reset = () => {
+    nativeAbort.current?.abort()
+    nativeAbort.current = null
     popup.current?.close()
     popup.current = null
     if (authorizationTimeout.current !== null) window.clearTimeout(authorizationTimeout.current)
@@ -201,9 +248,8 @@ export function SlackManagedUsersModal({
   }
 
   /**
-   * The subscription's identity is `open` alone. Routing the handler through a
-   * ref keeps a `bots` refetch from closing and reopening the channel mid-flow,
-   * which would drop an already-queued authorization message from the popup.
+   * Routing the handler through a ref keeps a bots refetch from reopening the
+   * channel mid-flow and dropping an already-queued authorization message.
    */
   const messageHandler = useRef(handleAuthorizationMessage)
   useEffect(() => {
@@ -211,17 +257,22 @@ export function SlackManagedUsersModal({
   })
 
   useEffect(() => {
-    if (!open) return
+    if (!open || sharedAppReady) return
     const channel = new BroadcastChannel(CHANNEL_NAME)
     channel.onmessage = (event: MessageEvent<unknown>) => {
       if (!isSlackManagedUsersMessage(event.data)) return
       messageHandler.current(event.data)
     }
     return () => channel.close()
-  }, [open])
+  }, [open, sharedAppReady])
+
+  useEffect(() => {
+    if (open && sharedAppReady && !appSetupOpen) onOpenChange(false)
+  }, [open, sharedAppReady, appSetupOpen, onOpenChange])
 
   useEffect(
     () => () => {
+      nativeAbort.current?.abort()
       if (authorizationTimeout.current !== null) window.clearTimeout(authorizationTimeout.current)
       popup.current?.close()
       popup.current = null
@@ -246,7 +297,12 @@ export function SlackManagedUsersModal({
   }
 
   const handleSubmit = async () => {
-    if (pending || (!organizationSetup && !selectedBot)) return
+    if (
+      pending ||
+      (sharedAppInstalled && !sharedAppNeedsUpdate) ||
+      (!organizationSetup && !selectedBot)
+    )
+      return
     if (
       organizationSetup
         ? !selectedApp || !requiredScopes.length
@@ -254,6 +310,50 @@ export function SlackManagedUsersModal({
     )
       return
 
+    if (isDesktopApp()) {
+      const controller = new AbortController()
+      nativeAbort.current = controller
+      setPending(true)
+      try {
+        await connectDesktopSource(
+          {
+            kind: 'slack-managed-users',
+            owner: resourceScopeFields(scope),
+            credentialGroupId,
+            body: {
+              ...(organizationSetup
+                ? { appId: selectedApp?.appId, teamId: selectedApp?.teamId }
+                : {
+                    slackBotCredentialId: selectedBot?.id,
+                    clientId: clientId.trim(),
+                    clientSecret: clientSecret.trim(),
+                  }),
+              requiredScopes,
+            },
+          },
+          controller.signal
+        )
+        controller.signal.throwIfAborted()
+        if (scope.kind === 'organization')
+          await queryClient.invalidateQueries({
+            queryKey: organizationAccountsKeys.detail(scope.organizationId),
+          })
+        else await queryClient.invalidateQueries({ queryKey: credentialGroupKeys.all })
+        controller.signal.throwIfAborted()
+        toast.success('Slack configured')
+        onOpenChange(false)
+        reset()
+      } catch (failure) {
+        if (!controller.signal.aborted)
+          toast.error(getErrorMessage(failure, 'Could not connect Slack'))
+      } finally {
+        if (nativeAbort.current === controller) {
+          nativeAbort.current = null
+          setPending(false)
+        }
+      }
+      return
+    }
     const opened = window.open('about:blank', 'slack-managed-users', 'width=720,height=760')
     if (!opened) {
       toast.error('Allow popups to verify the Slack app')
@@ -300,21 +400,40 @@ export function SlackManagedUsersModal({
     }
   }
 
+  if (sharedAppReady && !appSetupOpen) return null
+
   const noBots = !organizationSetup && !isLoading && bots.length === 0
   const needsApp = organizationSetup && apps.isSuccess && availableApps.length === 0
-  const title = organizationSetup ? 'Connect Slack accounts' : 'Set up Slack'
+  const checkingSetup =
+    apps.isPending ||
+    (sharedAppInstalled &&
+      (apps.isFetching ||
+        accounts.isPending ||
+        accounts.isFetching ||
+        searchPolicies.isPending ||
+        searchPolicies.isFetching))
+  const failedSetup = apps.error
+    ? apps
+    : sharedAppInstalled && searchPolicies.error
+      ? searchPolicies
+      : sharedAppInstalled && accounts.error
+        ? accounts
+        : null
+  const title = organizationSetup ? 'Set up Slack app' : 'Set up Slack'
   const primaryLabel = isLoading
     ? 'Loading...'
     : pending
       ? 'Waiting for Slack...'
-      : 'Verify and add'
+      : sharedAppNeedsUpdate
+        ? 'Update member access'
+        : 'Verify and add'
   const primaryDisabled =
     isLoading ||
     noBots ||
     (!organizationSetup && !selectedBot) ||
     pending ||
     (organizationSetup
-      ? apps.isPending || Boolean(apps.error) || !selectedApp || !requiredScopes.length
+      ? checkingSetup || Boolean(failedSetup) || !selectedApp || !requiredScopes.length
       : !clientId.trim() || !clientSecret.trim())
 
   return (
@@ -330,15 +449,19 @@ export function SlackManagedUsersModal({
         </ChipModalHeader>
         <ChipModalBody>
           {organizationSetup ? (
-            apps.isPending ? (
+            checkingSetup ? (
               <ChipModalField type='custom' title='Sim Search app'>
                 <p role='status' className='text-[var(--text-secondary)] text-sm'>
                   Checking the installed Slack app…
                 </p>
               </ChipModalField>
-            ) : apps.error ? (
-              <ChipModalField type='custom' title='Sim Search app' error={apps.error.message}>
-                <Chip onClick={() => void apps.refetch()} disabled={apps.isFetching}>
+            ) : failedSetup ? (
+              <ChipModalField
+                type='custom'
+                title='Sim Search app'
+                error={failedSetup.error?.message}
+              >
+                <Chip onClick={() => void failedSetup.refetch()} disabled={failedSetup.isFetching}>
                   Retry
                 </Chip>
               </ChipModalField>
@@ -346,7 +469,7 @@ export function SlackManagedUsersModal({
               <ChipModalField type='custom' title='Install Sim Search first'>
                 <p className='text-[var(--text-secondary)] text-sm'>
                   Install the Sim Search app in your Slack workspace to use the bot and connect
-                  Slack sources. Members can then authorize their own accounts for indexing.
+                  Slack accounts.
                 </p>
               </ChipModalField>
             ) : (
@@ -375,8 +498,11 @@ export function SlackManagedUsersModal({
                 )}
                 <ChipModalField type='custom' title='Member accounts'>
                   <p className='text-[var(--text-secondary)] text-sm'>
-                    Verify member authorization for the installed app. Each member can then connect
-                    their Slack account to index channels and DMs they can access.
+                    {sharedAppInstalled
+                      ? sharedAppNeedsUpdate
+                        ? 'Verify member permissions. Members will need to reconnect if their app or permissions change.'
+                        : 'The Sim Search installation needs attention. Manage the app to finish setup.'
+                      : 'Verify member permissions. Members will need to reconnect if their app or permissions change.'}
                   </p>
                   {selectedApp && (
                     <Chip onClick={() => setAppSetupOpen(true)} disabled={pending}>
@@ -473,15 +599,17 @@ export function SlackManagedUsersModal({
                   onClick: () => setAppSetupOpen(true),
                 },
               }
-            : noBots
+            : sharedAppInstalled && !sharedAppNeedsUpdate
               ? { defaultAction: 'dismiss' as const }
-              : {
-                  primaryAction: {
-                    label: primaryLabel,
-                    onClick: () => void handleSubmit(),
-                    disabled: primaryDisabled,
-                  },
-                })}
+              : noBots
+                ? { defaultAction: 'dismiss' as const }
+                : {
+                    primaryAction: {
+                      label: primaryLabel,
+                      onClick: () => void handleSubmit(),
+                      disabled: primaryDisabled,
+                    },
+                  })}
         />
       </ChipModal>
       {open &&

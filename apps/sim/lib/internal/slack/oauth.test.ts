@@ -1,6 +1,9 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { exchangeSlackBotAuthorization } from '@/lib/internal/slack/oauth'
+import {
+  exchangeSlackBotAuthorization,
+  revokeSlackBotAuthorization,
+  validateSlackBotAuthorization,
+} from '@/lib/internal/slack/oauth'
 import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'
 
 const fetchMock = vi.fn()
@@ -11,9 +14,9 @@ const input = {
   redirectUri: 'https://sim.test/api/knowledge/slack/oauth/callback',
 }
 const grant = {
-  ok: true,
+  ok: true as const,
   app_id: 'A1',
-  token_type: 'bot',
+  token_type: 'bot' as const,
   access_token: 'test-bot-token',
   bot_user_id: 'UBOT',
   scope: SLACK_SEARCH_SCOPES.join(','),
@@ -24,6 +27,19 @@ beforeEach(() => {
   fetchMock.mockReset().mockResolvedValue(Response.json(grant))
 })
 describe('Slack bot OAuth exchange', () => {
+  it('uses the registered default callback for Slack-initiated installs and discards personal grants', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ...grant, authed_user: { access_token: 'personal-token' } })
+    )
+    expect(
+      await exchangeSlackBotAuthorization({
+        clientId: 'client',
+        clientSecret: 'secret',
+        code: 'code',
+      })
+    ).toEqual(grant)
+    expect(fetchMock.mock.calls[0][1].body.has('redirect_uri')).toBe(false)
+  })
   it('exchanges a code with the same callback and client authentication', async () => {
     expect(await exchangeSlackBotAuthorization(input)).toEqual(grant)
     const [url, request] = fetchMock.mock.calls[0]
@@ -34,19 +50,56 @@ describe('Slack bot OAuth exchange', () => {
     expect(request.body.get('redirect_uri')).toBe(input.redirectUri)
     expect(request.body.get('code')).toBe('code')
   })
+  it.each([{ token_type: 'user' }, { ok: false, error: 'invalid_client_id' }])(
+    'rejects incompatible or unsuccessful grants: %j',
+    async (change) => {
+      fetchMock.mockResolvedValueOnce(Response.json({ ...grant, ...change }))
+      await expect(exchangeSlackBotAuthorization(input)).rejects.toThrow()
+    }
+  )
+  it('does not expose provider credentials in error messages', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ ok: false, error: 'SECRET-DO-NOT-LOG' }))
+    await expect(exchangeSlackBotAuthorization(input)).rejects.toThrow('Slack authorization failed')
+  })
+})
+
+describe('Slack bot grant policy and cleanup', () => {
   it.each([
-    { token_type: 'user' },
     { is_enterprise_install: true },
     { refresh_token: 'refresh' },
     { expires_in: 3600 },
     { scope: 'chat:write' },
-    { ok: false, error: 'invalid_client_id' },
-  ])('rejects incompatible or unsuccessful grants: %j', async (change) => {
-    fetchMock.mockResolvedValueOnce(Response.json({ ...grant, ...change }))
-    await expect(exchangeSlackBotAuthorization(input)).rejects.toThrow()
+  ])('rejects unsupported grants after the caller takes ownership: %j', (change) => {
+    expect(() => validateSlackBotAuthorization({ ...grant, ...change })).toThrow()
   })
-  it('does not expose provider credentials in error messages', async () => {
+  it.each(['channels:read', 'groups:read'] as const)(
+    'rejects a bot grant missing channel picker scope %s',
+    (missingScope) => {
+      expect(() =>
+        validateSlackBotAuthorization({
+          ...grant,
+          scope: SLACK_SEARCH_SCOPES.filter((scope) => scope !== missingScope).join(','),
+        })
+      ).toThrow(`Reinstall the app with these scopes: ${missingScope}`)
+    }
+  )
+  it('requires the additional command scope for shared installs', () => {
+    expect(() =>
+      validateSlackBotAuthorization(grant, [...SLACK_SEARCH_SCOPES, 'commands'])
+    ).toThrow('commands')
+  })
+  it('revokes an unused token through Slack with a bounded request', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ ok: true, revoked: true }))
+    await revokeSlackBotAuthorization('unused-token')
+    const [url, request] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/api/auth.revoke')
+    expect(request.headers.Authorization).toBe('Bearer unused-token')
+    expect(request.signal).toBeDefined()
+  })
+  it('fails visibly when Slack does not confirm revocation', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ ok: false, error: 'SECRET-DO-NOT-LOG' }))
-    await expect(exchangeSlackBotAuthorization(input)).rejects.toThrow('Slack authorization failed')
+    await expect(revokeSlackBotAuthorization('unused-token')).rejects.toThrow(
+      'Slack could not revoke'
+    )
   })
 })

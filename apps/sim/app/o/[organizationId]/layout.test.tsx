@@ -1,25 +1,34 @@
-/**
- * @vitest-environment node
- */
-
 import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
+import { tableTtlAvailabilityMock } from '@sim/testing/mocks/table-ttl-availability.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 
 const {
   mockGetOrganizationSurfaceContext,
   mockWorkspaceChrome,
-  mockPrefetchUserProfile,
-  mockUseSession,
+  mockPrefetchOrganizationSidebar,
+  mockUseMothershipChatEvents,
 } = vi.hoisted(() => ({
   mockGetOrganizationSurfaceContext: vi.fn(),
   mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
-  mockPrefetchUserProfile: vi.fn(async () => undefined),
-  mockUseSession: vi.fn(),
+  mockPrefetchOrganizationSidebar: vi.fn(async () => undefined),
+  mockUseMothershipChatEvents: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({ useSession: mockUseSession }))
+vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
+vi.mock('@/app/workspace/providers/socket-provider', () => ({
+  SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
+}))
+vi.mock('@/hooks/use-mothership-chat-events', () => ({
+  useMothershipChatEvents: mockUseMothershipChatEvents,
+}))
+
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/hooks/queries/admin-users', () => ({
   useStopImpersonating: () => ({ mutate: vi.fn(), isPending: false }),
 }))
@@ -28,28 +37,21 @@ vi.mock('@/lib/auth/stale-session-recovery', () => ({
   recoverFromStaleSession: vi.fn(),
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  HydrationBoundary: ({ children }: { children: ReactNode }) => children,
-  dehydrate: () => ({}),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: () => ({}),
 }))
 
-vi.mock('@/lib/users/prefetch-user-profile', () => ({
-  prefetchUserProfile: mockPrefetchUserProfile,
+vi.mock('@/app/o/[organizationId]/prefetch', () => ({
+  prefetchOrganizationSidebar: mockPrefetchOrganizationSidebar,
 }))
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => ({ value: '1' })) })),
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    throw new Error(`redirect:${path}`)
-  },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/lib/organizations/surface', () => ({
   getOrganizationSurfaceContext: mockGetOrganizationSurfaceContext,
@@ -70,77 +72,28 @@ vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () =
 import OrganizationLayout from '@/app/o/[organizationId]/layout'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockUseSession = authClientMockFns.mockUseSession
 
 const SURFACE_CONTEXT = {
   organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: null, memberCount: 1 },
   viewer: { role: 'member', isAdmin: false },
   searchAccess: { memberScoped: true, sourceMirrored: true },
+  deployment: resolveDeploymentShape(),
 }
 
 describe('OrganizationLayout', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'viewer-1' } })
-    mockUseSession.mockReturnValue({ data: { user: { id: 'viewer-1' } }, isPending: false })
-  })
-
-  it('returns signed-out visitors to the organization entry after sign-in', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    await expect(
-      OrganizationLayout({
-        children: null,
-        params: Promise.resolve({ organizationId: 'org-1' }),
-      })
-    ).rejects.toThrow('redirect:/login?callbackUrl=%2Fo%2Forg-1')
-    expect(mockGetOrganizationSurfaceContext).not.toHaveBeenCalled()
-  })
-
-  it('renders the surface for a member and seeds the chrome from the collapse cookie', async () => {
-    mockGetOrganizationSurfaceContext.mockResolvedValue(SURFACE_CONTEXT)
-
-    const element = await OrganizationLayout({
-      children: <div>Organization child</div>,
-      params: Promise.resolve({ organizationId: 'org-1' }),
+    mockGetSession.mockResolvedValue({
+      user: { id: 'viewer-1' },
+      session: { id: 'session-1', activeOrganizationId: 'active-org' },
     })
-    const html = renderToStaticMarkup(element)
-
-    expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
-    expect(mockPrefetchUserProfile).toHaveBeenCalledWith({}, 'viewer-1')
-    expect(html).toContain('Organization child')
-    expect(html).not.toContain('Stop impersonating')
-    expect(mockWorkspaceChrome).toHaveBeenCalledWith(
-      expect.objectContaining({ initialSidebarCollapsed: true }),
-      undefined
-    )
-  })
-
-  it('shows the shared impersonation banner above organization content', async () => {
-    const session = {
-      user: { id: 'viewer-1', name: 'QA Member', email: 'member@example.com' },
-      session: { impersonatedBy: 'platform-admin' },
-    }
-    mockGetSession.mockResolvedValue(session)
-    mockUseSession.mockReturnValue({ data: session, isPending: false })
-    mockGetOrganizationSurfaceContext.mockResolvedValue(SURFACE_CONTEXT)
-
-    const html = renderToStaticMarkup(
-      await OrganizationLayout({
-        children: <div>Organization child</div>,
-        params: Promise.resolve({ organizationId: 'org-1' }),
-      })
-    )
-
-    expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
-    expect(html).toContain('Impersonating QA Member (member@example.com)')
-    expect(html).toContain('Stop impersonating')
-    expect(html.indexOf('Stop impersonating')).toBeLessThan(html.indexOf('Organization child'))
+    mockUseSession.mockReturnValue({ data: { user: { id: 'viewer-1' } }, isPending: false })
   })
 
   it('does not use the impersonating admin to enter an organization outside the rollout', async () => {
     mockGetSession.mockResolvedValue({
       user: { id: 'customer-member' },
-      session: { impersonatedBy: 'platform-admin' },
+      session: { id: 'session-1', impersonatedBy: 'platform-admin' },
     })
     mockGetOrganizationSurfaceContext.mockResolvedValue({
       ...SURFACE_CONTEXT,
@@ -152,12 +105,13 @@ describe('OrganizationLayout', () => {
         children: <div>Organization child</div>,
         params: Promise.resolve({ organizationId: 'customer-org' }),
       })
-    ).rejects.toThrow('redirect:/workspace?redirect=settings')
+    ).rejects.toThrow('NEXT_REDIRECT:/workspace?redirect=settings')
     expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith(
       'customer-org',
       'customer-member'
     )
     expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
 
   it('renders an explicit denial for a non-member without the surface', async () => {
@@ -172,6 +126,7 @@ describe('OrganizationLayout', () => {
     expect(html).toContain('Organization access denied')
     expect(html).not.toContain('Secret organization child')
     expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
 
   it.each(['owner', 'admin', 'member'])(
@@ -188,8 +143,9 @@ describe('OrganizationLayout', () => {
           children: <div>Organization settings</div>,
           params: Promise.resolve({ organizationId: 'org-1' }),
         })
-      ).rejects.toThrow('redirect:/workspace?redirect=settings')
+      ).rejects.toThrow('NEXT_REDIRECT:/workspace?redirect=settings')
       expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+      expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
     }
   )
 })

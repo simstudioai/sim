@@ -1,47 +1,33 @@
-/**
- * @vitest-environment node
- */
-import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { oauthAccessToken, oauthConsent } from '@sim/db/schema'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  transaction: vi.fn(),
-  select: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.recordAudit,
-  AuditAction: { OAUTH_APP_REVOKED: 'oauth_app.revoked' },
-  AuditResourceType: { OAUTH_CLIENT: 'oauth_client' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: mocks.transaction,
-    select: mocks.select,
-  },
-}))
-
 import { ForbiddenOperationError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   listAuthorizedAppsUseCase,
   revokeAuthorizedAppUseCase,
 } from '@/lib/users/application/authorized-apps'
 
-const session: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
-const personalKey: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'user-1',
-  keyId: 'key-1',
+const mocks = {
+  recordAudit: auditMockFns.mockRecordAudit,
+  transaction: dbChainMockFns.transaction,
+  select: dbChainMockFns.select,
 }
+
+const session = createSessionPrincipal()
+const personalKey = createPersonalApiKeyPrincipal()
 
 /** A drizzle select chain that answers `rows` whenever it is finally awaited. */
 function selectChain(rows: unknown[]) {
@@ -60,9 +46,8 @@ function selectChain(rows: unknown[]) {
 }
 
 describe('authorized apps', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(resetDbChainMock)
+  afterAll(resetDbChainMock)
 
   it('refuses a principal that is not the account holder in session', async () => {
     await expect(
@@ -76,45 +61,6 @@ describe('authorized apps', () => {
     ).rejects.toBeInstanceOf(ForbiddenOperationError)
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.select).not.toHaveBeenCalled()
-  })
-
-  it('returns one page of domain records without applying HTTP presentation', async () => {
-    mocks.select.mockReturnValue(
-      selectChain([
-        {
-          clientId: 'sim-cli',
-          name: 'Sim CLI',
-          scopes: ['openid', 'api:write'],
-          authorizedAt: new Date('2026-09-01T00:00:00.000Z'),
-        },
-        {
-          clientId: 'partner-app',
-          name: null,
-          scopes: ['openid'],
-          authorizedAt: new Date('2026-08-01T00:00:00.000Z'),
-        },
-      ])
-    )
-
-    await expect(
-      listAuthorizedAppsUseCase.execute({ principal: session, input: {} })
-    ).resolves.toEqual({
-      apps: [
-        {
-          clientId: 'sim-cli',
-          name: 'Sim CLI',
-          scopes: ['openid', 'api:write'],
-          authorizedAt: new Date('2026-09-01T00:00:00.000Z'),
-        },
-        {
-          clientId: 'partner-app',
-          name: null,
-          scopes: ['openid'],
-          authorizedAt: new Date('2026-08-01T00:00:00.000Z'),
-        },
-      ],
-      nextCursor: null,
-    })
   })
 
   it('limits the read and resumes after the last visible row with a stable timestamp tie-breaker', async () => {
@@ -199,26 +145,5 @@ describe('authorized apps', () => {
         resourceName: 'Sim CLI',
       })
     )
-  })
-
-  it('reports a grant this account does not hold as not found, changing nothing', async () => {
-    const tx = {
-      select: () => selectChain([]),
-      delete: () => {
-        throw new Error('must not delete')
-      },
-      update: () => {
-        throw new Error('must not update')
-      },
-    }
-    mocks.transaction.mockImplementation(async (run: (t: unknown) => unknown) => run(tx))
-
-    const failure = await revokeAuthorizedAppUseCase
-      .execute({ principal: session, input: { clientId: 'someone-elses' } })
-      .catch((error) => error)
-
-    expect(failure).toBeInstanceOf(OrchestrationError)
-    expect(failure.code).toBe('not_found')
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 })

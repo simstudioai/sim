@@ -63,7 +63,7 @@ export function BlockPreview({ type }: BlockPreviewProps) {
             panOnDrag={false}
             panOnScroll={false}
             preventScrolling={false}
-            className='h-full w-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
+            className='size-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
           />
         </ReactFlowProvider>
       </LazyMotion>

@@ -3,10 +3,18 @@ import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import Redis, { type RedisOptions } from 'ioredis'
 import { getConfiguredRedisUrl, getRedisConnectionDefaults } from '@/lib/core/config/redis'
+import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 
 const logger = createLogger('ExecutionSignalHub')
 const EXECUTION_SIGNAL_PREFIX = 'execution:signal:'
-const SUBSCRIBER_TIMEOUT_MS = 5000
+/**
+ * Bounds the live `SUBSCRIBE` as well as the handshake commands — ioredis has
+ * one deadline for both — and an initial subscribe that rejects fails the run,
+ * so this stays at the tolerance a ready-but-slow server has always been
+ * given rather than being tightened to diagnose dead handshakes faster.
+ */
+const SUBSCRIBER_COMMAND_TIMEOUT_MS = 5_000
+const subscriberRetryDelayMs = (attempt: number): number => Math.min(attempt * 500, 5000)
 export const LEGACY_EXECUTION_CANCEL_CHANNEL = 'execution:cancel'
 
 export type ExecutionSignalReason = 'event' | 'cancelled' | 'reconnected' | 'unavailable'
@@ -15,6 +23,17 @@ export type ExecutionSignalHandler = (reason: ExecutionSignalReason) => void
 interface ChannelSubscription {
   ready: Promise<void>
   acknowledged: boolean
+}
+
+/**
+ * Settles on the subscriber's next `ready` or `end`. Shared by every waiter so
+ * the client carries a single listener pair; `waiters` counts them so the last
+ * one to leave can `detach` the listeners.
+ */
+interface ReadySignal {
+  promise: Promise<void>
+  detach: () => void
+  waiters: number
 }
 
 export interface ExecutionSignalHub {
@@ -27,19 +46,36 @@ export function getExecutionSignalChannel(executionId: string): string {
 
 class RedisExecutionSignalHub implements ExecutionSignalHub {
   private readonly subscriber: Redis
+  /**
+   * How long any one subscribe waits for readiness: room for one dead attempt
+   * and then a healthy one, so ioredis's own reconnect can be what rescues a
+   * stalled connection instead of the wait expiring while the first attempt is
+   * still being diagnosed. Derived from the exact options the client is built
+   * with. It is paid against a Redis that is simply unreachable as well, where
+   * the connect deadline is what runs out and nothing is being diagnosed; that
+   * is the cost of the recovery, and it widens the window in which a short
+   * execution timeout can pre-empt the wait and report itself instead.
+   */
+  private readonly readyTimeoutMs: number
   private readonly handlers = new Map<string, Set<ExecutionSignalHandler>>()
   private readonly subscriptions = new Map<string, ChannelSubscription>()
-  private connectionReady: Promise<void> | undefined
+  private readySignal: ReadySignal | undefined
   private connectedOnce = false
 
   constructor(redisUrl: string) {
     const options = {
       ...getRedisConnectionDefaults(redisUrl),
-      commandTimeout: SUBSCRIBER_TIMEOUT_MS,
+      commandTimeout: SUBSCRIBER_COMMAND_TIMEOUT_MS,
       connectionName: 'execution-signal-hub',
       maxRetriesPerRequest: null,
-      retryStrategy: (attempt: number) => Math.min(attempt * 500, 5000),
+      retryStrategy: subscriberRetryDelayMs,
     } satisfies RedisOptions
+    this.readyTimeoutMs = coldConnectionBudgetMs({
+      connectTimeoutMs: options.connectTimeout,
+      commandTimeoutMs: options.commandTimeout,
+      disconnectTimeoutMs: options.disconnectTimeout,
+      reconnectDelayMs: subscriberRetryDelayMs(1),
+    })
     this.subscriber = new Redis(redisUrl, options)
     this.subscriber.on('message', (channel: string, message: string) => {
       if (channel === LEGACY_EXECUTION_CANCEL_CHANNEL) {
@@ -131,37 +167,65 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
     await this.subscriber.subscribe(...channels)
   }
 
+  /**
+   * Each waiter runs its own deadline over the shared readiness signal. One
+   * shared timer — which is what the memoized promise had — hands a waiter that
+   * joins late only the remainder of the first waiter's budget, down to
+   * nothing. The last waiter to leave detaches the signal, so a timeout leaves
+   * nothing attached; a signal that settles clears itself, so a later waiter
+   * observes the connection afresh rather than a readiness that has passed.
+   */
   private waitForConnectionReady(): Promise<void> {
-    if (this.connectionReady) return this.connectionReady
     if (this.subscriber.status === 'end') {
       return Promise.reject(new Error('Redis subscriber connection ended'))
     }
+    const signal = (this.readySignal ??= this.createReadySignal())
+    signal.waiters++
+    let timer: NodeJS.Timeout | undefined
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('Timed out waiting for Redis subscriber readiness')),
+        this.readyTimeoutMs
+      )
+    })
+    return Promise.race([signal.promise, deadline]).finally(() => {
+      clearTimeout(timer)
+      if (--signal.waiters === 0) {
+        signal.detach()
+        if (this.readySignal === signal) this.readySignal = undefined
+      }
+    })
+  }
 
-    this.connectionReady = new Promise<void>((resolve, reject) => {
-      const cleanup = () => {
-        clearTimeout(timeout)
+  /**
+   * The promise is deliberately marked handled: a waiter that gives up stops
+   * observing it, and an `end` that arrives after the last one has left must
+   * not surface as an unhandled rejection.
+   */
+  private createReadySignal(): ReadySignal {
+    const signal: ReadySignal = { promise: Promise.resolve(), detach: () => undefined, waiters: 0 }
+    signal.promise = new Promise<void>((resolve, reject) => {
+      const settle = () => {
+        signal.detach()
+        if (this.readySignal === signal) this.readySignal = undefined
+      }
+      const onReady = () => {
+        settle()
+        resolve()
+      }
+      const onEnd = () => {
+        settle()
+        reject(new Error('Redis subscriber connection ended'))
+      }
+      signal.detach = () => {
         this.subscriber.removeListener('ready', onReady)
         this.subscriber.removeListener('end', onEnd)
       }
-      const onReady = () => {
-        cleanup()
-        resolve()
-      }
-      const fail = (error: Error) => {
-        cleanup()
-        reject(error)
-      }
-      const onEnd = () => fail(new Error('Redis subscriber connection ended'))
-      const timeout = setTimeout(
-        () => fail(new Error('Timed out waiting for Redis subscriber readiness')),
-        SUBSCRIBER_TIMEOUT_MS
-      )
       this.subscriber.once('ready', onReady)
       this.subscriber.once('end', onEnd)
-    }).finally(() => {
-      this.connectionReady = undefined
     })
-    return this.connectionReady
+    signal.promise.catch(() => undefined)
+    return signal
   }
 
   private async handleReady(): Promise<void> {
@@ -259,6 +323,24 @@ export function getExecutionSignalHub(): ExecutionSignalHub {
   }
   executionSignalGlobal._executionSignalHub = new RedisExecutionSignalHub(redisUrl)
   return executionSignalGlobal._executionSignalHub
+}
+
+/**
+ * Begins the hub's subscriber connection ahead of a cancellation subscription,
+ * so that subscribe does not pay the handshake inside its own readiness
+ * budget. Constructing the hub is what connects — ioredis dials in its
+ * constructor — so there is nothing to await. Called at the execution entry
+ * point, the one path every execution shares, early enough to overlap the work
+ * ahead of the subscribe. Never throws: a misconfigured URL belongs to the
+ * first real subscriber, which reports it against the execution that needed
+ * signals, and a cold hub is only slower, not wrong.
+ */
+export function connectExecutionSignalHub(): void {
+  try {
+    getExecutionSignalHub()
+  } catch {
+    return
+  }
 }
 
 export function publishLocalExecutionSignal(

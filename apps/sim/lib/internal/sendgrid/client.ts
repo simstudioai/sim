@@ -1,11 +1,11 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { SendGridOperationError } from '@/lib/internal/sendgrid/errors'
 
 const MAX_SENDGRID_ERROR_BYTES = 64 * 1024
 
 function record(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
+  return toRecord(value)
 }
 
 function errorMessage(value: unknown): string {

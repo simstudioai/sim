@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { setRequestAuth } from '@sim/logger'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +15,7 @@ function row(overrides: Record<string, unknown> = {}) {
     id: 'token-1',
     userId: 'user-1',
     clientId: 'sim-cli',
+    clientName: 'Sim CLI',
     scopes: ['offline_access', 'api:read'],
     resource: null,
     expiresAt: new Date(Date.now() + 60_000),
@@ -66,7 +65,6 @@ describe('parseBearerToken', () => {
 
 describe('verifyOAuthAccessToken', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -79,18 +77,31 @@ describe('verifyOAuthAccessToken', () => {
       kind: 'oauth_access_token',
       userId: 'user-1',
       clientId: 'sim-cli',
+      clientName: 'Sim CLI',
       tokenId: 'token-1',
       scopes: ['offline_access', 'api:read'],
       expiresAt: expect.any(Date),
     })
     expect(dbChainMockFns.where).toHaveBeenCalledOnce()
     expect(JSON.stringify(dbChainMockFns.where.mock.calls[0])).toContain('hash:secret')
+    expect(vi.mocked(setRequestAuth)).toHaveBeenCalledWith(
+      { kind: 'oauth_access_token', clientId: 'sim-cli' },
+      { preserveExisting: true }
+    )
+  })
+
+  it('does not invent a display name for an unnamed OAuth client', async () => {
+    queueTableRows(schemaMock.oauthAccessToken, [row({ clientName: null })])
+    const principal = await verifyOAuthAccessToken('sim_oat_secret')
+    expect(principal).not.toHaveProperty('clientName')
+    expect(principal.clientId).toBe('sim-cli')
   })
 
   it('refuses a credential that is not one of ours without a database read', async () => {
     expect(await reason('sim_abc')).toBe('malformed')
     expect(await reason('sim_oat_')).toBe('malformed')
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    expect(vi.mocked(setRequestAuth)).not.toHaveBeenCalled()
   })
 
   it('refuses an unknown, expired, disabled-client, orphaned, or banned token', async () => {

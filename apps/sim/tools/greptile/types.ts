@@ -9,15 +9,6 @@ interface GreptileBaseParams {
 }
 
 /**
- * Repository identifier format
- */
-interface GreptileRepository {
-  remote: 'github' | 'gitlab'
-  branch: string
-  repository: string
-}
-
-/**
  * Query tool parameters
  */
 export interface GreptileQueryParams extends GreptileBaseParams {

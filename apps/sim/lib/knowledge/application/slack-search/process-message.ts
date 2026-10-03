@@ -5,6 +5,7 @@ import { postSlackMessage } from '@/lib/internal/slack/client'
 import { runSlackSearchAssistant } from '@/lib/knowledge/application/slack-search/assistant'
 import {
   authorizeSlackSearchInstallation,
+  authorizeSlackSearchRedirect,
   requireSlackInstallationPrincipal,
 } from '@/lib/knowledge/application/slack-search/authorization'
 import { routeSlackSearchMentionToDm } from '@/lib/knowledge/application/slack-search/mention'
@@ -14,8 +15,9 @@ import {
   requireSlackSearchTurnLease,
 } from '@/lib/knowledge/application/slack-search/turns'
 import { SLACK_SEARCH_QUERY_TOO_LONG } from '@/lib/slack-search/constants'
-import { slackSearchReply } from '@/lib/slack-search/messages'
+import { renderSlackSearchRedirect, slackSearchReply } from '@/lib/slack-search/messages'
 import type { SlackSearchJob, SlackSearchMessage } from '@/lib/slack-search/types'
+import { slackSearchThreadTimestamp } from '@/lib/slack-search/types'
 
 const receiveOperation = Object.freeze({
   id: 'knowledge.slack.receive',
@@ -43,14 +45,30 @@ function requireMessageBinding(principal: SlackInstallationPrincipal, message: S
 export const receiveSlackSearchMessage: OperationUseCase<
   typeof receiveOperation,
   SlackSearchMessage,
-  void
+  string | undefined
 > = {
   operation: receiveOperation,
   async execute({ principal, input }) {
     requireSlackInstallationPrincipal(principal)
     requireMessageBinding(principal, input)
     const context = await authorizeSlackSearchInstallation(principal)
-    if (!context || input.userId === context.installation.botUserId) return
+    if (!context) {
+      if (!input.channelId.startsWith('D') || input.command || input.origin) return
+      const redirect = await authorizeSlackSearchRedirect(principal)
+      if (!redirect || input.userId === redirect.installation.botUserId) return
+      const turnId = await persistSlackSearchTurn({
+        installationId: redirect.installation.id,
+        revision: redirect.installation.revision,
+        credentialId: principal.credentialId,
+        credentialVersion: principal.credentialVersion,
+        receivedAt: principal.receivedAt.getTime(),
+        redirectAppId: redirect.replacement.appId,
+        message: { ...input, query: '', queryTooLong: false },
+      })
+      await dispatchSlackSearchTurn(turnId)
+      return turnId
+    }
+    if (input.userId === context.installation.botUserId) return
     const mention = !input.channelId.startsWith('D')
     const query = mention
       ? input.query.replaceAll(`<@${context.installation.botUserId}>`, '').trim()
@@ -64,7 +82,8 @@ export const receiveSlackSearchMessage: OperationUseCase<
       receivedAt: principal.receivedAt.getTime(),
       message: { ...input, query },
     })
-    await dispatchSlackSearchTurn(turnId)
+    if (!input.command) await dispatchSlackSearchTurn(turnId)
+    return turnId
   },
 }
 
@@ -84,6 +103,24 @@ export const respondToSlackSearchMessage: OperationUseCase<
   async execute({ principal, input }) {
     requireSlackInstallationPrincipal(principal)
     requireMessageBinding(principal, input.job.message)
+    if (input.job.redirectAppId) {
+      const { job, controller } = input
+      if (!job.message.channelId.startsWith('D') || job.message.command || job.message.origin)
+        throw new OrchestrationError('forbidden', 'Slack app redirects require a direct message')
+      await requireSlackSearchTurnLease(input.turnId, input.leaseId)
+      const context = await authorizeSlackSearchRedirect(principal, job)
+      if (!context || context.replacement.appId !== job.redirectAppId)
+        throw new OrchestrationError('forbidden', 'Slack Search replacement changed')
+      controller.signal.throwIfAborted()
+      const response = await postSlackMessage(
+        context.secret.botToken,
+        renderSlackSearchRedirect(job.message, context.replacement.appId),
+        AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)])
+      )
+      if (response.status !== 200 || response.data.ok !== true)
+        throw new Error('Could not deliver the Slack app handoff')
+      return
+    }
     if (!input.job.message.queryTooLong && !input.job.message.query)
       throw new OrchestrationError(
         'validation',
@@ -103,7 +140,7 @@ export const respondToSlackSearchMessage: OperationUseCase<
       const response = await postSlackMessage(
         context.secret.botToken,
         slackSearchReply(
-          { ...job.message, threadTs: job.message.threadTs ?? job.message.messageTs },
+          { ...job.message, threadTs: slackSearchThreadTimestamp(job.message) },
           SLACK_SEARCH_QUERY_TOO_LONG
         ),
         AbortSignal.any([input.controller.signal, AbortSignal.timeout(10_000)])

@@ -22,7 +22,8 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ query }) => query,
   useCase: listSlackSearchInstallations,
-  present: ({ installations, bots }) => ({
+  present: ({ installations, bots, sharedAppAvailable }) => ({
+    sharedAppAvailable,
     bots,
     installations: installations.map((row) => ({
       ...row,

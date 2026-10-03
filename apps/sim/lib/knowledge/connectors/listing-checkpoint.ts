@@ -6,6 +6,7 @@ import {
   addSourcePagePayloadBytes,
   ConnectorSyncCapacityError,
 } from '@/lib/knowledge/connectors/sync-primitives'
+import { listingFailuresSchema } from '@/connectors/listing-failures'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const checkpointSchema = z.object({
@@ -21,6 +22,8 @@ const checkpointSchema = z.object({
   listedCount: z.number().int().nonnegative(),
   unsafe: z.boolean(),
   contentFailures: z.boolean().default(false),
+  permissionFailures: z.boolean().default(false),
+  listingFailures: listingFailuresSchema.nullable().default(null),
   changeCursor: z
     .string()
     .max(512 * 1024)
@@ -28,6 +31,7 @@ const checkpointSchema = z.object({
   incrementalSince: z.string().datetime().nullable(),
   forceRehydrate: z.boolean(),
   fullSync: z.boolean().default(false),
+  resumeAt: z.string().datetime().nullable().default(null),
 })
 
 export type ListingCheckpoint = z.infer<typeof checkpointSchema>
@@ -66,10 +70,13 @@ export function beginListingCheckpoint(input: {
     listedCount: 0,
     unsafe: false,
     contentFailures: false,
+    permissionFailures: false,
+    listingFailures: null,
     changeCursor: input.changeCursor ?? null,
     incrementalSince: input.incrementalSince?.toISOString() ?? null,
     forceRehydrate: input.forceRehydrate ?? false,
     fullSync: input.fullSync ?? false,
+    resumeAt: null,
   }
 }
 
@@ -89,10 +96,13 @@ export async function runResumableListing(input: {
   maxPages?: number
   beforePage: () => Promise<void>
   getAccessToken: (page: number) => Promise<string>
+  /** Uses the persistence clock when generation timestamps gate stored permission evidence. */
+  getGenerationStartedAt?: () => Promise<Date>
   /** False retains this page's cursor after a bounded amount of durable work. */
   processPage: (
     documents: ExternalDocument[],
-    checkpoint: ListingCheckpoint
+    checkpoint: ListingCheckpoint,
+    response: ExternalDocumentList
   ) => Promise<undefined | boolean>
   saveCheckpoint: (checkpoint: ListingCheckpoint) => Promise<void>
 }): Promise<ListingCheckpoint> {
@@ -105,6 +115,7 @@ export async function runResumableListing(input: {
     if (Date.now() >= input.deadlineAt) break
     input.syncContext.syncRunId = checkpoint.generationId
     input.syncContext.totalDocsFetched = checkpoint.listedCount
+    input.syncContext.fullSync = checkpoint.fullSync
     let response: ExternalDocumentList
     try {
       response = await input.connectorConfig.listDocuments(
@@ -124,12 +135,14 @@ export async function runResumableListing(input: {
       checkpoint = {
         ...checkpoint,
         generationId: generateId(),
-        startedAt: new Date().toISOString(),
+        startedAt: ((await input.getGenerationStartedAt?.()) ?? new Date()).toISOString(),
         cursor: null,
         complete: false,
         listedCount: 0,
         unsafe: false,
         contentFailures: false,
+        permissionFailures: false,
+        listingFailures: null,
       }
       await input.saveCheckpoint(checkpoint)
       cursors.clear()
@@ -147,11 +160,18 @@ export async function runResumableListing(input: {
     }
     checkpoint.unsafe ||=
       response.reconciliationSafe === false ||
+      response.listingFailures != null ||
       Boolean(
         input.syncContext.listingCapped ||
           input.syncContext.listingTruncated ||
           input.syncContext.reconciliationUnsafe
       )
+    if (response.listingFailures !== undefined) {
+      checkpoint.listingFailures =
+        response.listingFailures === null
+          ? null
+          : listingFailuresSchema.parse(response.listingFailures)
+    }
     if (response.currentCursor !== undefined && response.currentCursor !== checkpoint.cursor) {
       if (response.currentCursor.length > 512 * 1024)
         throw new ConnectorSyncCapacityError('Connector returned an oversized listing cursor')
@@ -159,7 +179,7 @@ export async function runResumableListing(input: {
       await input.saveCheckpoint(checkpoint)
       cursors.add(response.currentCursor)
     }
-    if ((await input.processPage(response.documents, checkpoint)) === false) {
+    if ((await input.processPage(response.documents, checkpoint, response)) === false) {
       await input.saveCheckpoint(checkpoint)
       break
     }
@@ -167,11 +187,14 @@ export async function runResumableListing(input: {
       ...checkpoint,
       cursor: response.nextCursor ?? null,
       complete: !response.hasMore,
-      listedCount: checkpoint.listedCount + response.documents.length,
+      listedCount:
+        checkpoint.listedCount + (response.permissionsOnly ? 0 : response.documents.length),
+      resumeAt: response.resumeAt ?? null,
     }
     await input.saveCheckpoint(next)
     checkpoint = next
     if (checkpoint.cursor) cursors.add(checkpoint.cursor)
+    if (checkpoint.resumeAt) break
   }
   return checkpoint
 }

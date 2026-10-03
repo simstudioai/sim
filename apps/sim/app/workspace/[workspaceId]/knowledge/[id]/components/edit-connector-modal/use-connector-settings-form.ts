@@ -3,9 +3,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isEqual } from 'es-toolkit'
+import type { UpdateConnectorBody } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { readSourceSelectionLabels, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
 import {
   derivedAclCapFieldIds,
@@ -19,9 +21,11 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
   type ConnectorData,
+  isConnectorSyncingOrPending,
   useUpdateConnector,
   useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
@@ -120,6 +124,7 @@ interface UseConnectorSettingsFormOptions {
   isSearchIndex?: boolean
   connector: ConnectorData
   onSaved: (connector: ConnectorData) => void
+  syncing?: boolean
 }
 
 /** Editable connector settings shared by the source page and knowledge-base modal. */
@@ -129,8 +134,18 @@ export function useConnectorSettingsForm({
   isSearchIndex = false,
   connector,
   onSaved,
+  syncing = isConnectorSyncingOrPending(connector),
 }: UseConnectorSettingsFormOptions) {
-  const connectorConfig = CONNECTOR_META_REGISTRY[connector.connectorType] ?? null
+  const liveSearch = isSearchIndex
+  const connectorConfig = liveSearchSourceMeta(
+    CONNECTOR_META_REGISTRY[connector.connectorType] ?? null,
+    Boolean(liveSearch),
+    {
+      githubInstallation:
+        connector.connectorType === 'github' &&
+        typeof connector.sourceConfig.githubRepositoryId === 'string',
+    }
+  )
 
   const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => currentAccess(connector))
@@ -139,6 +154,17 @@ export function useConnectorSettingsForm({
     connector.accessMode === 'members' ? connector.credentialId : null
   )
   const [error, setError] = useState<string | null>(null)
+  const gitlabPermissions = useGitLabPermissionForm(
+    connector.permissionConfig ?? {
+      provider: 'gitlab',
+      mode: 'administrator',
+      revision: 0,
+      userMapping: null,
+      projectPermissions: null,
+    }
+  )
+  const showGitLabPermissions =
+    connector.connectorType === 'gitlab' && connector.accessMode === 'admin'
 
   /**
    * Seeds from the stored canonical config. For canonical-pair fields (selector +
@@ -250,6 +276,8 @@ export function useConnectorSettingsForm({
       workspaceCredentialId !== connector.credentialId) ||
     (access.accessMode === 'members' &&
       contentCredentialId !== (connector.accessMode === 'members' ? connector.credentialId : null))
+  const accountChanged =
+    accessDirty && !accessModeChanged && isContentEngineAccessMode(access.accessMode)
   /** Exposes credential selection for mode changes and administrator credential recovery. */
   const needsWorkspaceCredential =
     connectorConfig?.auth.mode === 'oauth' &&
@@ -259,7 +287,8 @@ export function useConnectorSettingsForm({
   const missingAdminField =
     accessDirty && access.accessMode === 'admin'
       ? connectorConfig?.configFields.find((field) => {
-          const value = connector.sourceConfig[field.id]
+          const config = accessModeChanged ? connector.sourceConfig : resolveSourceConfig()
+          const value = config[field.canonicalParamId ?? field.id]
           return (
             !field.required &&
             isConnectorFieldRequired(field, connectorConfig, 'admin') &&
@@ -279,7 +308,10 @@ export function useConnectorSettingsForm({
     (!accessDirty || !needsWorkspaceCredential || Boolean(workspaceCredentialId))
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
-    !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
+    !liveSearch &&
+    !accessDirty &&
+    connector.accessMode === 'members' &&
+    connector.memberSyncStatus === 'disabled'
   const hiddenCapFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
   const settingsComplete = connectorConfig?.configFields.every(
     (field) =>
@@ -295,6 +327,7 @@ export function useConnectorSettingsForm({
   )
 
   const hasChanges =
+    (showGitLabPermissions && gitlabPermissions.dirty) ||
     syncInterval !== connector.syncIntervalMinutes ||
     didCanonicalModesChange(canonicalModes, persistedCanonicalModes) ||
     Object.entries(resolveSourceConfig()).some(
@@ -302,11 +335,32 @@ export function useConnectorSettingsForm({
         !hiddenCapFieldIds.has(key) && !valuesEqual(connector.sourceConfig[key], value)
     )
 
+  const {
+    apiKey: permissionApiKey,
+    complete: permissionsComplete,
+    dirty: permissionsDirty,
+    input: permissionInput,
+    reset: resetPermissions,
+  } = gitlabPermissions
+
   const handleSave = useCallback(() => {
-    if (!searchSettingsAllowed || !settingsComplete || accessDirty) return
+    if (
+      !searchSettingsAllowed ||
+      !settingsComplete ||
+      (accessDirty && !accountChanged) ||
+      (accountChanged && !accessComplete) ||
+      syncing ||
+      isSaving ||
+      (showGitLabPermissions && !permissionsComplete)
+    )
+      return
     setError(null)
 
-    const updates: { sourceConfig?: Record<string, unknown>; syncIntervalMinutes?: number } = {}
+    const updates: UpdateConnectorBody = {}
+    if (showGitLabPermissions && permissionsDirty) {
+      updates.permissionConfig = permissionInput
+      if (permissionApiKey.trim()) updates.apiKey = permissionApiKey
+    }
 
     if (syncInterval !== connector.syncIntervalMinutes) {
       updates.syncIntervalMinutes = syncInterval
@@ -314,8 +368,9 @@ export function useConnectorSettingsForm({
 
     const resolved = resolveSourceConfig()
     const changedEntries: Record<string, unknown> = {}
+    const saveHiddenFieldIds = derivedAclCapFieldIds(connectorConfig, access.accessMode)
     for (const [key, value] of Object.entries(resolved)) {
-      if (hiddenCapFieldIds.has(key)) continue
+      if (saveHiddenFieldIds.has(key)) continue
       if (!valuesEqual(connector.sourceConfig[key], value)) changedEntries[key] = value
     }
 
@@ -332,6 +387,26 @@ export function useConnectorSettingsForm({
       updates.sourceConfig = next
     }
 
+    if (accountChanged) {
+      updateAccess(
+        {
+          knowledgeBaseId,
+          connectorId: connector.id,
+          access: {
+            accessMode: access.accessMode,
+            credentialId: workspaceCredentialId ?? connector.credentialId,
+            sourceConfig: updates.sourceConfig,
+            syncIntervalMinutes: updates.syncIntervalMinutes,
+          },
+        },
+        {
+          onSuccess: onSaved,
+          onError: (err) => setError(err.message),
+        }
+      )
+      return
+    }
+
     if (Object.keys(updates).length === 0) {
       onSaved(connector)
       return
@@ -340,7 +415,10 @@ export function useConnectorSettingsForm({
     updateConnector(
       { knowledgeBaseId, connectorId: connector.id, updates },
       {
-        onSuccess: onSaved,
+        onSuccess: (updated) => {
+          resetPermissions(updated.permissionConfig)
+          onSaved(updated)
+        },
         onError: (err) => {
           logger.error('Failed to update connector', { error: err.message })
           setError(err.message)
@@ -348,18 +426,31 @@ export function useConnectorSettingsForm({
       }
     )
   }, [
+    access.accessMode,
+    accessDirty,
+    accountChanged,
+    accessComplete,
+    syncing,
+    isSaving,
+    updateAccess,
+    workspaceCredentialId,
+    canonicalModes,
+    connector,
+    connectorConfig,
+    knowledgeBaseId,
+    onSaved,
+    permissionApiKey,
+    permissionInput,
+    permissionsComplete,
+    permissionsDirty,
+    persistedCanonicalModes,
+    resetPermissions,
+    resolveSourceConfig,
     searchSettingsAllowed,
     settingsComplete,
-    accessDirty,
+    showGitLabPermissions,
     syncInterval,
-    connector,
-    resolveSourceConfig,
-    canonicalModes,
-    persistedCanonicalModes,
-    hiddenCapFieldIds,
-    onSaved,
     updateConnector,
-    knowledgeBaseId,
   ])
 
   /**
@@ -410,13 +501,23 @@ export function useConnectorSettingsForm({
     setContentCredentialId(connector.accessMode === 'members' ? connector.credentialId : null)
   }, [connector])
 
+  const saveBlockedReason =
+    syncing && (hasChanges || accountChanged)
+      ? 'Wait for the current sync to finish before saving.'
+      : undefined
+
   const fieldsProps: ConnectorSettingsFieldsProps = {
+    gitlabPermissions: showGitLabPermissions ? gitlabPermissions : undefined,
     availability: {
       error: integrationAvailabilityError,
       isFetching: isIntegrationAvailabilityFetching,
+      isReady: isIntegrationAvailabilityReady,
       refetch: refetchIntegrationAvailability,
     },
     isSearchIndex,
+    usesGitHubInstallation:
+      connector.connectorType === 'github' &&
+      typeof connector.sourceConfig.githubRepositoryId === 'string',
     connectorConfig,
     sourceConfig,
     selectionLabels,
@@ -431,6 +532,7 @@ export function useConnectorSettingsForm({
     hasMaxAccess,
     isSaving,
     error: error ?? searchSetupError,
+    saveBlockedReason,
     access,
     onAccessChange: setAccess,
     canAdmin,
@@ -460,8 +562,15 @@ export function useConnectorSettingsForm({
     docsUrl,
     dirty: hasChanges || accessDirty,
     saving: isSaving,
+    saveBlockedReason,
     canSave:
-      hasChanges && !accessDirty && !isSaving && searchSettingsAllowed && Boolean(settingsComplete),
+      (hasChanges || accountChanged) &&
+      (!accessDirty || (accountChanged && accessComplete)) &&
+      !syncing &&
+      !isSaving &&
+      searchSettingsAllowed &&
+      Boolean(settingsComplete) &&
+      (!showGitLabPermissions || gitlabPermissions.complete),
     save: handleSave,
     fieldsProps,
   }

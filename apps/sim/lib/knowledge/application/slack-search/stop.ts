@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { copilotChats, slackSearchInstallation, slackSearchTurn } from '@sim/db/schema'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { abortActiveStream } from '@/lib/copilot/request/session/abort'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -19,11 +18,12 @@ import {
   resolveSlackSearchMember,
   SlackSearchIdentityError,
 } from '@/lib/knowledge/application/slack-search/identity'
+import { abortActiveStream } from '@/lib/mothership/request/session/abort'
 import {
   slackSearchConversation,
   slackSearchConversationKey,
 } from '@/lib/slack-search/conversation'
-import { slackSearchJobSchema } from '@/lib/slack-search/types'
+import { slackSearchJobSchema, slackSearchThreadTimestamp } from '@/lib/slack-search/types'
 import { setSlackAgentSessionStatus } from '@/lib/webhooks/slack-agent-api'
 
 const timestamp = z.string().regex(/^\d{1,12}\.\d{1,9}$/)
@@ -81,7 +81,7 @@ export const stopSlackSearchThread: OperationUseCase<
       slackSearchConversationKey(
         job.installationId,
         job.message.channelId,
-        job.message.threadTs ?? job.message.messageTs
+        slackSearchThreadTimestamp(job.message)
       ) !== conversationKey
     )
       throw new Error('Persisted Slack event has an inconsistent conversation identity')

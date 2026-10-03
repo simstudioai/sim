@@ -1,6 +1,7 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import { setRecordValue } from '@/lib/core/utils/records'
+import { EXACT_ENVIRONMENT_REFERENCE } from '@/lib/environment/reference'
 import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
 import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
@@ -141,6 +142,26 @@ export function flattenFieldErrors<TFields extends string>(
 
 export const noInputSchema = z.object({}).strict()
 export type NoInput = z.output<typeof noInputSchema>
+
+/**
+ * `literal`, or a whole-value `{{NAME}}` environment-variable reference that
+ * `literal` would refuse. A refused non-reference reports `literal`'s own
+ * messages. Built as one refined string rather than a union so the field keeps a
+ * plain `string` shape in the generated OpenAPI and CLI, where a union becomes a
+ * JSON-only flag. `literal`'s length cap bounds references too.
+ */
+export function orExactEnvironmentReference(literal: z.ZodString) {
+  const capped =
+    literal.maxLength === null
+      ? z.string()
+      : z.string().max(literal.maxLength, { error: 'Password is too long', abort: true })
+  return capped.superRefine((value, ctx) => {
+    if (EXACT_ENVIRONMENT_REFERENCE.test(value)) return
+    for (const issue of literal.safeParse(value).error?.issues ?? []) {
+      ctx.addIssue({ code: 'custom', message: issue.message })
+    }
+  })
+}
 
 /**
  * Accepts canonical RFC 4648 base64, including the empty encoding used for a
@@ -336,6 +357,32 @@ export const workspaceFileIdSchema = requiredFieldSchema('File ID is required')
   .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
 
 /**
+ * Upper bound of a Postgres `integer` column, the type every version number is stored as. A larger
+ * value has no row to address and overflows the comparison instead of missing, so every schema
+ * carrying a version — path param, request body, or cursor payload — must be bounded by this.
+ */
+export const INT4_MAX = 2147483647
+
+/** A version number in a body or cursor, bounded to the range its column can hold. */
+export const versionNumberSchema = z
+  .number()
+  .int('version must be an integer')
+  .min(1, 'version must be a positive integer')
+  .max(INT4_MAX, 'version is out of range')
+
+/**
+ * A version number arriving as a path segment. Coerced and bounded here rather than piped through
+ * a body schema, because a `ZodPipe` publishes none of its constraints to the generated OpenAPI
+ * document, which would leave the documented parameter unbounded even though the runtime check
+ * holds.
+ */
+export const versionNumberPathSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(INT4_MAX, 'version is out of range')
+
+/**
  * Reference to an image embedded in a document: either a workspace storage `key`
  * (serve-URL embeds) or a workspace file `id` (view-URL embeds) — exactly one. Shared
  * by the in-app and public inline-image routes, which resolve it within a workspace.
@@ -382,6 +429,8 @@ export const userFileSchema = z
     key: z.string().min(1),
     context: z.string().optional(),
     base64: z.string().optional(),
+    /** Workspace file version these bytes came from; absent on files with no version history. */
+    version: versionNumberSchema.optional(),
   })
   .passthrough()
 
@@ -533,6 +582,7 @@ export const retentionOverrideSchema = z.object({
   logRetentionHours: retentionOverrideHoursSchema,
   softDeleteRetentionHours: retentionOverrideHoursSchema,
   taskCleanupHours: retentionOverrideHoursSchema,
+  fileVersionRetentionHours: retentionOverrideHoursSchema,
 })
 
 export type RetentionOverride = z.output<typeof retentionOverrideSchema>

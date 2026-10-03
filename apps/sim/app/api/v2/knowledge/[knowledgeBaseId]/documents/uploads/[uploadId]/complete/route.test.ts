@@ -1,16 +1,20 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticateV2ApiKey: vi.fn(),
-  captureServerEvent: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   completeUpload: vi.fn(),
-  platformEvent: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
@@ -24,52 +28,16 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDocumentsUploaded: mocks.platformEvent },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
-vi.mock('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/utils', () => ({
-  toV2KnowledgeDocumentUpload: (_session: unknown, document: { id: string } | null) => ({
-    id: 'upload-1',
-    knowledgeBaseId: 'kb-1',
-    status: 'completed',
-    name: 'guide.pdf',
-    contentType: 'application/pdf',
-    size: 1024,
-    expiresAt: '2026-08-04T21:00:00.000Z',
-    error: null,
-    document: document
-      ? {
-          id: document.id,
-          knowledgeBaseId: 'kb-1',
-          filename: 'guide.pdf',
-          fileSize: 1024,
-          mimeType: 'application/pdf',
-          processingStatus: 'pending',
-          chunkCount: 0,
-          tokenCount: 0,
-          characterCount: 0,
-          enabled: true,
-          createdAt: '2026-08-03T21:01:00.000Z',
-        }
-      : null,
-  }),
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route'
+
+const mockDocumentsUploaded = getMockPlatformEvent('knowledgeBaseDocumentsUploaded')
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const DOCUMENT = {
@@ -84,8 +52,19 @@ const DOCUMENT = {
   enabled: true,
   uploadedAt: new Date('2026-08-03T21:01:00.000Z'),
 }
+/** The session as the completion use case hands it back, in storage shape. */
+const SESSION = {
+  id: 'upload-1',
+  knowledgeBaseId: 'kb-1',
+  status: 'completed',
+  fileName: 'guide.pdf',
+  contentType: 'application/pdf',
+  fileSize: 1024,
+  expiresAt: new Date('2026-08-04T21:00:00.000Z'),
+  error: null,
+}
 const RESULT = {
-  session: { id: 'upload-1' },
+  session: SESSION,
   value: { document: DOCUMENT, created: true, knowledgeBaseName: 'Docs' },
   alreadyCompleted: false,
   workspaceId: WORKSPACE_ID,
@@ -103,30 +82,26 @@ function auth(principal: Record<string, unknown>) {
 }
 
 function request() {
-  const request = new NextRequest(
-    `http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads/upload-1/complete?workspaceId=${WORKSPACE_ID}`,
-    { method: 'POST', headers: { 'upload-token': 'token', 'x-api-key': 'secret' } }
-  )
+  const request = createMockRequest({
+    method: 'POST',
+    url: `http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads/upload-1/complete?workspaceId=${WORKSPACE_ID}`,
+    headers: { 'upload-token': 'token', 'x-api-key': 'secret' },
+  })
   return {
     request,
-    response: POST(request, {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1', uploadId: 'upload-1' }),
-    }),
+    response: POST(request, createRouteContext({ knowledgeBaseId: 'kb-1', uploadId: 'upload-1' })),
   }
 }
 
 describe('POST knowledge-document upload completion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(
-      auth({ kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' })
-    )
-    mocks.checkRateLimitDirect.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue(auth(createPersonalApiKeyPrincipal()))
+    v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
       remaining: 599,
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
     })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
+    v2RouteMocks.operationRate.mockResolvedValue({
       allowed: true,
       remaining: 99,
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
@@ -134,30 +109,30 @@ describe('POST knowledge-document upload completion', () => {
     mocks.completeUpload.mockResolvedValue(RESULT)
   })
 
-  it('delegates completion and emits v2 analytics only for a newly created document', async () => {
-    const call = request()
-    const response = await call.response
+  /**
+   * `knowledge documents upload` answered `filename: null, processingStatus: null`:
+   * the created row must come back under its own names, freshly `pending`
+   * with no chunks yet, not only as a session receipt.
+   */
+  it('publishes the created row with its filename, pending status, and zero chunks', async () => {
+    mocks.completeUpload.mockResolvedValue(RESULT)
+
+    const response = await request().response
+    const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mocks.completeUpload).toHaveBeenCalledWith({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: {
-        knowledgeBaseId: 'kb-1',
-        assertedWorkspaceId: WORKSPACE_ID,
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
+    expect(body.data).toMatchObject({
+      id: 'upload-1',
+      status: 'completed',
+      name: 'guide.pdf',
+      document: {
+        id: 'upload-1',
+        filename: 'guide.pdf',
+        processingStatus: 'pending',
+        chunkCount: 0,
+        createdAt: '2026-08-03T21:01:00.000Z',
       },
-      request: call.request,
     })
-    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
-      'user-1',
-      'knowledge_base_document_uploaded',
-      expect.objectContaining({ knowledge_base_id: 'kb-1', workspace_id: WORKSPACE_ID }),
-      expect.any(Object)
-    )
-    expect(mocks.platformEvent).toHaveBeenCalledTimes(1)
-    expect(await response.json()).toMatchObject({ data: { document: { id: 'upload-1' } } })
   })
 
   it('does not duplicate analytics for an idempotent completion retry', async () => {
@@ -170,18 +145,18 @@ describe('POST knowledge-document upload completion', () => {
     const response = await request().response
 
     expect(response.status).toBe(200)
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
-    expect(mocks.platformEvent).not.toHaveBeenCalled()
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
+    expect(mockDocumentsUploaded).not.toHaveBeenCalled()
   })
 
   it('does not attribute a workspace-key event to the billing owner', async () => {
-    mocks.authenticateV2ApiKey.mockResolvedValue(
-      auth({ kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' })
+    v2RouteMocks.authenticate.mockResolvedValue(
+      auth(createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }))
     )
 
     await request().response
 
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
-    expect(mocks.platformEvent).toHaveBeenCalledTimes(1)
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
+    expect(mockDocumentsUploaded).toHaveBeenCalledTimes(1)
   })
 })

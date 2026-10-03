@@ -8,8 +8,14 @@ import {
 import {
   listOrganizationAccountWorkspaceIds,
   organizationAccountAccessPolicyCodec,
+  organizationAccountPolicyAllowsWorkspace,
 } from '@/lib/credential-groups/application/workspace-access-policy'
+import {
+  type OrganizationCredentialType,
+  organizationOAuthCredentialType,
+} from '@/lib/credential-groups/credential-types'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
   CREDENTIAL_GROUP_EVENT_TRIGGER_ID,
@@ -121,7 +127,15 @@ export async function fireCredentialGroupTrigger(
     resourceId: event.credentialGroupId,
     codec: organizationAccountAccessPolicyCodec,
   })
-  const allowedWorkspaceIds = listOrganizationAccountWorkspaceIds(policy.document)
+  const credentialType: OrganizationCredentialType | undefined =
+    event.event === 'form_submitted'
+      ? undefined
+      : event.credential.mcpServerId
+        ? `mcp:${getManagedMcpConnector(event.credential.provider).id}`
+        : organizationOAuthCredentialType(event.credential.providerId)
+  const allowedWorkspaceIds = listOrganizationAccountWorkspaceIds(policy.document).filter((id) =>
+    organizationAccountPolicyAllowsWorkspace(policy.document, id, credentialType)
+  )
   if (allowedWorkspaceIds.length === 0) return
   const subscriptions = await fetchCredentialGroupTriggerSubscriptions(
     event.organizationId,
@@ -141,7 +155,7 @@ export async function fireCredentialGroupTrigger(
       const context = await resolveOrganizationAccountsWorkspaceContext(workflow.workspaceId)
       if (context.credentialGroupId !== event.credentialGroupId || context.status !== 'active')
         continue
-      await requireOrganizationAccountsWorkspaceAccess(context)
+      await requireOrganizationAccountsWorkspaceAccess(context, credentialType)
     } catch (error) {
       /** Revocations and workspace moves remove subscribers between discovery and delivery. */
       if (

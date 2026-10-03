@@ -18,7 +18,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
 import { resolveKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
-import { executeKnowledgeSearch } from '@/lib/knowledge/search/queries'
+import { retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 
 afterAll(async () => {
@@ -39,7 +39,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
       keyId: 'fixture-key',
     }
     const restrictedAcl = confluencePageAcl({
-      providerId: 'confluence',
+      providerId: 'google-drive',
       tenantId: 'fixture-tenant',
       spacePrincipals: [{ kind: 'group', id: 'space' }],
       restrictionChain: [[{ kind: 'group', id: 'parent' }], [{ kind: 'group', id: 'page' }]],
@@ -62,7 +62,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
     ].map((fixture) => ({ ...fixture, documentId: generateId(), embeddingId: generateId() }))
 
     beforeAll(async () => {
-      await seedKnowledgeAclFixture(ids)
+      await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
       await db
         .update(knowledgeBase)
         .set({ embeddingModel, embeddingDimension: dimensions })
@@ -91,7 +91,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
             'workspace' in fixture
               ? ['ws']
               : 'denied' in fixture
-                ? ['g:confluence:fixture-tenant:missing']
+                ? ['g:google-drive:fixture-tenant:missing']
                 : [...restrictedAcl.acl],
           aclRequirements:
             'workspace' in fixture ? [] : restrictedAcl.requirements.map((clause) => [...clause]),
@@ -130,7 +130,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
 
     async function search(principal: Principal, mode: 'vector' | 'hybrid' = 'vector') {
       const access = await resolveKnowledgeAccessScope(principal, { workspaceId: ids.workspaceId })
-      const rows = await executeKnowledgeSearch({
+      const { rows, retrieval } = await retrieveKnowledgeSearch({
         knowledgeBaseIds: [ids.knowledgeBaseId, secondBaseId],
         topK: 3,
         access,
@@ -139,11 +139,13 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
         queryVector: {
           vector: JSON.stringify([1, ...Array<number>(dimensions - 1).fill(0)]),
           dimensions,
+          model: embeddingModel,
         },
         structuredFilters: [
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' },
         ],
       })
+      expect(retrieval.status).toBe('complete')
       return rows.map((row) => fixtures.find((fixture) => fixture.embeddingId === row.id)!.name)
     }
 

@@ -3,9 +3,15 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
+import { gitLabPermissionConfig } from '@/connectors/gitlab/permission-config/capability'
+import {
+  getGitLabCsvContext,
+  setGitLabCsvContext,
+} from '@/connectors/gitlab/permission-config/types'
 import {
   getGitLabDocumentAcls,
   openGitLabDirectory,
@@ -435,7 +441,7 @@ function fileToDocument(
     return skipped(sizeLimitSkipReason(MAX_FILE_SIZE), buffer.byteLength)
   }
 
-  const content = buffer.toString('utf8')
+  const content = decodeTextBuffer(buffer).text
   const body = composeBody(title, content)
   if (!body.trim()) return null
 
@@ -610,6 +616,9 @@ function workItemToStub(
   kind: WorkItemKind,
   syncContext?: Record<string, unknown>
 ): ExternalDocument {
+  if (kind === 'issue' && getGitLabCsvContext(syncContext) && item.confidential !== false) {
+    return excludedCsvIssue(item.iid)
+  }
   const title =
     item.title?.trim() || `${kind === 'issue' ? 'Issue #' : 'Merge Request !'}${item.iid}`
   const resource = kind === 'issue' ? 'issues' : 'merge_requests'
@@ -639,6 +648,25 @@ function workItemToStub(
       createdAt: item.created_at ?? '',
       updatedAt: item.updated_at ?? item.created_at ?? '',
     },
+  }
+}
+
+/** An authoritative exclusion revokes any older indexed version without retaining private metadata. */
+function excludedCsvIssue(iid: number): ExternalDocument {
+  return {
+    ...markSkipped(
+      {
+        externalId: `${ISSUE_PREFIX}${iid}`,
+        title: 'Excluded GitLab issue',
+        content: '',
+        contentHash: `gitlab:excluded-issue:${iid}`,
+        mimeType: 'text/plain',
+        metadata: { contentType: 'issue' },
+        acl: [],
+      },
+      'Non-admin token connections exclude issues unless GitLab explicitly marks them non-confidential.'
+    ),
+    skippedExistingDisposition: 'replace',
   }
 }
 
@@ -763,6 +791,10 @@ async function resolveProjectPath(
   }
 
   const project = (await response.json()) as GitLabProject
+  const csv = getGitLabCsvContext(syncContext)
+  if (csv && (project.id !== csv.projectId || new URL(apiBase).host !== csv.host)) {
+    throw new Error('GitLab project identity changed. Reconfigure the connection before syncing.')
+  }
   const path = project.path_with_namespace ?? ''
   if (syncContext) {
     if (path) syncContext.projectPath = path
@@ -862,12 +894,13 @@ async function resolveRef(
 
 /**
  * Applies the optional maxItems cap to a batch, tracking the running total in
- * syncContext and flagging `listingCapped` when the cap is hit.
+ * syncContext. Only an unread page, phase, or trimmed tail makes the listing incomplete.
  */
 function applyMaxItemsCap(
   documents: ExternalDocument[],
   maxItems: number,
-  syncContext: Record<string, unknown> | undefined
+  syncContext: Record<string, unknown> | undefined,
+  hasMoreDocuments: boolean
 ): { documents: ExternalDocument[]; capped: boolean } {
   if (maxItems <= 0) return { documents, capped: false }
   const prevTotal = (syncContext?.totalDocsFetched as number) ?? 0
@@ -876,12 +909,15 @@ function applyMaxItemsCap(
   const newTotal = prevTotal + sliced.length
   if (syncContext) syncContext.totalDocsFetched = newTotal
   const capped = newTotal >= maxItems
-  if (capped && syncContext) syncContext.listingCapped = true
+  if (capped && (sliced.length < documents.length || hasMoreDocuments) && syncContext) {
+    syncContext.listingCapped = true
+  }
   return { documents: sliced, capped }
 }
 
 export const gitlabConnector: ConnectorConfig = {
   ...gitlabConnectorMeta,
+  permissionConfig: gitLabPermissionConfig,
   openDirectory: openGitLabDirectory,
   getDocumentAcls: getGitLabDocumentAcls,
 
@@ -978,14 +1014,16 @@ export const gitlabConnector: ConnectorConfig = {
         documents.push(treeEntryToStub(apiBase, encodedProject, host, projectPath, ref, entry))
       }
 
+      const nextLink = checkedNextLink(response, url)
+      const adv = advance('repo')
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
         documents,
         maxItems,
-        syncContext
+        syncContext,
+        Boolean(nextLink) || adv.hasMore
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -993,7 +1031,6 @@ export const gitlabConnector: ConnectorConfig = {
           hasMore: true,
         }
       }
-      const adv = advance('repo')
       return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
     }
 
@@ -1055,17 +1092,19 @@ export const gitlabConnector: ConnectorConfig = {
         })
       }
 
+      const nextLink = checkedNextLink(response, url)
+      const adv = advance('wiki')
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
         documents,
         maxItems,
-        syncContext
+        syncContext,
+        Boolean(nextLink) || adv.hasMore
       )
 
       if (hitLimit) {
         return { documents: capped, hasMore: false }
       }
 
-      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -1073,7 +1112,6 @@ export const gitlabConnector: ConnectorConfig = {
           hasMore: true,
         }
       }
-      const adv = advance('wiki')
       return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
     }
 
@@ -1124,14 +1162,16 @@ export const gitlabConnector: ConnectorConfig = {
         )
       }
 
+      const nextLink = checkedNextLink(response, url)
+      const adv = advance('issues')
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
         documents,
         maxItems,
-        syncContext
+        syncContext,
+        Boolean(nextLink) || adv.hasMore
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextLink = checkedNextLink(response, url)
       if (nextLink) {
         return {
           documents: capped,
@@ -1140,7 +1180,6 @@ export const gitlabConnector: ConnectorConfig = {
         }
       }
 
-      const adv = advance('issues')
       return { documents: capped, nextCursor: adv.nextCursor, hasMore: adv.hasMore }
     }
 
@@ -1153,9 +1192,9 @@ export const gitlabConnector: ConnectorConfig = {
       const documents = items.map((item) =>
         workItemToStub(encodedProject, host, projectPath, item, 'merge_request', syncContext)
       )
-      const capped = applyMaxItemsCap(documents, maxItems, syncContext)
-      if (capped.capped) return { documents: capped.documents, hasMore: false }
       const nextLink = checkedNextLink(response, url)
+      const capped = applyMaxItemsCap(documents, maxItems, syncContext, Boolean(nextLink))
+      if (capped.capped) return { documents: capped.documents, hasMore: false }
       return {
         documents: capped.documents,
         nextCursor: nextLink
@@ -1223,11 +1262,24 @@ export const gitlabConnector: ConnectorConfig = {
           maxResponseBytes: MAX_METADATA_RESPONSE_BYTES,
         })
         if (!response.ok) {
-          if (response.status === 404) return null
+          if (response.status === 404) {
+            const csv = getGitLabCsvContext(syncContext)
+            if (kind === 'issue' && csv) {
+              /** A fresh project check distinguishes item exclusion from lost project access. */
+              const currentContext = {}
+              setGitLabCsvContext(currentContext, csv)
+              await resolveProjectPath(currentContext, apiBase, encodedProject, accessToken)
+              return excludedCsvIssue(iid)
+            }
+            return null
+          }
           throw new Error(`Failed to fetch GitLab ${kind}: ${response.status}`)
         }
         const item = readWorkItem(await response.json())
         if (item.iid !== iid) throw new Error('GitLab returned a different issue or merge request')
+        if (kind === 'issue' && getGitLabCsvContext(syncContext) && item.confidential !== false) {
+          return excludedCsvIssue(iid)
+        }
         return hydrateWorkItem(accessToken, apiBase, encodedProject, host, projectPath, item, kind)
       }
 
@@ -1285,8 +1337,8 @@ export const gitlabConnector: ConnectorConfig = {
     }
 
     const maxItems = sourceConfig.maxItems as string | undefined
-    if (maxItems && (Number.isNaN(Number(maxItems)) || Number(maxItems) <= 0)) {
-      return { valid: false, error: 'Max items must be a positive number' }
+    if (maxItems && (!Number.isSafeInteger(Number(maxItems)) || Number(maxItems) <= 0)) {
+      return { valid: false, error: 'Max items must be a positive whole number' }
     }
 
     let host: string
@@ -1306,7 +1358,7 @@ export const gitlabConnector: ConnectorConfig = {
     const choice = getContentTypeChoice(sourceConfig)
 
     try {
-      if (syncContext?.mirrorsSourceAcls === true) {
+      if (syncContext?.mirrorsSourceAcls === true && !getGitLabCsvContext(syncContext)) {
         await validateGitLabPermissionToken(accessToken, sourceConfig)
       }
       const response = await fetchProject(
@@ -1327,6 +1379,13 @@ export const gitlabConnector: ConnectorConfig = {
       }
 
       const projectRecord = (await response.json()) as GitLabProject
+      const csv = getGitLabCsvContext(syncContext)
+      if (csv && (projectRecord.id !== csv.projectId || host !== csv.host)) {
+        return {
+          valid: false,
+          error: 'GitLab returned a different project. Reload the connection settings.',
+        }
+      }
 
       if (activePhases(choice).includes('wiki')) {
         const accessLevel = projectRecord.wiki_access_level

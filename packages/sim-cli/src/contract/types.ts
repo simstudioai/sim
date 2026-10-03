@@ -189,6 +189,10 @@ export interface ColumnSpec {
    * `score` fixes a similarity to four decimals. The raw double arrives as
    * `0.2818957269585687`, a nineteen-character column whose last dozen digits
    * cannot separate one result from another.
+   *
+   * `people` shows a list of `{ id, email }` users by email. A user whose
+   * account is gone has a null email, so the id stands in rather than the
+   * person vanishing from the list.
    */
   format?:
     | 'auto'
@@ -201,6 +205,7 @@ export interface ColumnSpec {
     | 'trace-count'
     | 'folder-path'
     | 'score'
+    | 'people'
 }
 
 export interface BodyVariantSpec {
@@ -311,6 +316,8 @@ export interface CommandSpec {
    * when the profile says so) whatever the profile's display format is.
    */
   document?: boolean
+  /** Mutation returns a durable workspace operation and supports --wait. */
+  workspaceOperation?: boolean
   /** Keep the operation out of the CLI surface entirely. */
   hidden?: boolean
 }

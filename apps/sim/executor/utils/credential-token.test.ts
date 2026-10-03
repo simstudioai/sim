@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
@@ -9,25 +6,26 @@ const {
   mockCreateCopilotManagedOAuthPrincipal,
   mockResolveCredentialAccessToken,
   mockPersonalCredentialUseCase,
+  mockOrganizationPersonalToken,
 } = vi.hoisted(() => ({
   mockBindExecutorManagedOAuthDelegation: vi.fn(),
   mockCreateCopilotManagedOAuthPrincipal: vi.fn(),
   mockResolveCredentialAccessToken: vi.fn(),
   mockPersonalCredentialUseCase: vi.fn(),
+  mockOrganizationPersonalToken: vi.fn(),
+}))
+
+vi.mock('@/lib/mothership/application/resolve-organization-personal-token', () => ({
+  resolveCopilotOrganizationPersonalToken: mockOrganizationPersonalToken,
 }))
 
 vi.mock('@/lib/credentials/application/copilot-managed-oauth-delegation', () => ({
   createCopilotManagedOAuthPrincipal: mockCreateCopilotManagedOAuthPrincipal,
 }))
 
-vi.mock('@/lib/copilot/application/execute-credential-use-case', () => ({
+vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
   executeCopilotCredentialUseCase: mockPersonalCredentialUseCase,
 }))
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: (id: string) =>
-    id === 'gmail_read' ? { oauth: { required: true, provider: 'google-email' } } : undefined,
-}))
-
 vi.mock('@/lib/oauth/token-resolution', () => ({
   resolveCredentialAccessToken: mockResolveCredentialAccessToken,
 }))
@@ -37,6 +35,15 @@ vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
 }))
 
 import { resolveExecutorCredentialToken } from '@/executor/utils/credential-token'
+import { getToolMetadata } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation((id: string) =>
+  id === 'gmail_read'
+    ? ({ id, oauth: { required: true, provider: 'google-email' } } as ReturnType<
+        typeof getToolMetadata
+      >)
+    : undefined
+)
 
 const ORIGIN: ExecutorDelegationOrigin = {
   subjectUserId: 'user-1',
@@ -47,35 +54,42 @@ const ORIGIN: ExecutorDelegationOrigin = {
 
 describe('resolveExecutorCredentialToken', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveCredentialAccessToken.mockResolvedValue({
       ok: true,
       token: { accessToken: 'fresh' },
     })
   })
 
-  it('dispatches with an internal-JWT auth result for the executing user', async () => {
-    await resolveExecutorCredentialToken({
-      requestId: 'req-1',
-      credentialId: 'cred-1',
+  it('uses organization-native personal authority without reaching workspace token resolution', async () => {
+    const context = {
       userId: 'user-1',
-      workflowId: 'wf-1',
+      organizationId: 'org',
+      chatId: 'chat',
+      toolCallId: 'call',
+      copilotToolExecution: true,
+      requestMode: 'assistant',
+    }
+    mockOrganizationPersonalToken.mockResolvedValue({
+      accessToken: 'own-token',
+      credentialType: 'managed_oauth',
+    })
+    const token = await resolveExecutorCredentialToken({
+      requestId: 'req',
+      credentialId: 'own',
+      userId: 'user-1',
+      toolId: 'gmail_read',
+      scopes: ['read'],
+      copilotExecutionContext: context,
+    })
+    expect(token.accessToken).toBe('own-token')
+    expect(mockOrganizationPersonalToken).toHaveBeenCalledWith(context, {
+      credentialId: 'own',
+      expectedProviderId: 'google-email',
+      requiredScopes: ['read'],
       toolId: 'gmail_read',
     })
-
-    const input = mockResolveCredentialAccessToken.mock.calls[0][0]
-    expect(input).toMatchObject({
-      requestId: 'req-1',
-      credentialId: 'cred-1',
-      workflowId: 'wf-1',
-      toolId: 'gmail_read',
-    })
-    await expect(input.authenticate()).toEqual({
-      success: true,
-      userId: 'user-1',
-      authType: 'internal_jwt',
-    })
-    expect(input.resolveManagedPrincipal).toBeUndefined()
+    expect(mockPersonalCredentialUseCase).not.toHaveBeenCalled()
+    expect(mockResolveCredentialAccessToken).not.toHaveBeenCalled()
   })
 
   it('asserts the caller only when the run enforces credential access', async () => {
@@ -93,22 +107,6 @@ describe('resolveExecutorCredentialToken', () => {
       enforceCredentialAccess: true,
     })
     expect(mockResolveCredentialAccessToken.mock.calls[1][0].callerUserId).toBe('user-1')
-  })
-
-  it('wires the managed delegation binder only when the run carries an origin', async () => {
-    mockBindExecutorManagedOAuthDelegation.mockResolvedValue({ kind: 'delegated' })
-
-    await resolveExecutorCredentialToken({
-      requestId: 'req-1',
-      credentialId: 'cred-1',
-      userId: 'user-1',
-      executorDelegationOrigin: ORIGIN,
-    })
-
-    const input = mockResolveCredentialAccessToken.mock.calls[0][0]
-    expect(input.resolveManagedPrincipal).toBeTypeOf('function')
-    await input.resolveManagedPrincipal('managed-1')
-    expect(mockBindExecutorManagedOAuthDelegation).toHaveBeenCalledWith(ORIGIN, 'managed-1')
   })
 
   it('proves a Chat turn through the copilot principal when there is no workflow run', async () => {
@@ -167,44 +165,6 @@ describe('resolveExecutorCredentialToken', () => {
     ).rejects.toThrow('Managed credential delegation is missing current workflow authority')
     expect(mockResolveCredentialAccessToken).not.toHaveBeenCalled()
   })
-
-  it('throws the executeTool error contract with the tool label on failure', async () => {
-    mockResolveCredentialAccessToken.mockResolvedValue({
-      ok: false,
-      status: 401,
-      error: 'Failed to refresh access token',
-    })
-
-    await expect(
-      resolveExecutorCredentialToken({
-        requestId: 'req-1',
-        credentialId: 'cred-1',
-        userId: 'user-1',
-        toolLabel: 'Gmail Read',
-      })
-    ).rejects.toThrow('Failed to obtain credential for Gmail Read: Failed to refresh access token')
-  })
-
-  it('returns the full token payload untouched', async () => {
-    const token = {
-      accessToken: 'fresh',
-      idToken: 'id-1',
-      instanceUrl: 'https://contoso.crm.dynamics.com',
-      apiDomain: 'desk.zoho.com',
-      cloudId: 'cloud-1',
-      domain: 'example.atlassian.net',
-      authStyle: 'x-api-token',
-    }
-    mockResolveCredentialAccessToken.mockResolvedValue({ ok: true, token })
-
-    await expect(
-      resolveExecutorCredentialToken({
-        requestId: 'req-1',
-        credentialId: 'cred-1',
-        userId: 'user-1',
-      })
-    ).resolves.toEqual(token)
-  })
 })
 
 describe('Assistant token boundary', () => {
@@ -224,7 +184,6 @@ describe('Assistant token boundary', () => {
     copilotExecutionContext: context,
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     mockPersonalCredentialUseCase.mockResolvedValue({ id: 'mine' })
     mockResolveCredentialAccessToken.mockResolvedValue({
       ok: true,

@@ -7,7 +7,7 @@
  * floating control (the command palette's search field) start the band below it.
  */
 .root {
-  --scroll-fade-band: 12px;
+  --scroll-fade-band: var(--overflow-fade-size, 12px);
   --scroll-fade-top-start: 0px;
   --scroll-fade-top-end: 0px;
   --scroll-fade-bottom-start: 100%;
@@ -43,7 +43,7 @@
  * Same band, same rest state; the stops run left to right instead.
  */
 .rootX {
-  --scroll-fade-band: 12px;
+  --scroll-fade-band: var(--overflow-fade-size, 12px);
   --scroll-fade-left-start: 0px;
   --scroll-fade-left-end: 0px;
   --scroll-fade-right-start: 100%;

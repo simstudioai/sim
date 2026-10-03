@@ -1,8 +1,7 @@
 import { LinkupIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { LinkupSearchToolResponse } from '@/tools/linkup/types'
 
-export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
+export const LinkupBlock: BlockConfig = {
   type: 'linkup',
   name: 'Linkup',
   description: 'Search the web with Linkup',

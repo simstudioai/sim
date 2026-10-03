@@ -10,6 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Bitbucket](https://bitbucket.org/) is Atlassian's Git hosting service for code, pull requests, and CI/CD with Bitbucket Pipelines.
+
+With the Bitbucket block, you can:
+
+- **Browse workspaces and repositories**: List workspaces and repositories, and read repository details
+- **Read source code**: List branches, commits, and directory contents, and read files and file metadata
+- **Manage branches**: Create and delete branches
+- **Work on pull requests**: List, read, create, approve, merge, and decline pull requests, read their diffs, and list or add comments
+- **Run pipelines**: List pipelines and their steps, trigger or stop a pipeline, and read step logs
+
+Connect your Bitbucket account with OAuth. The Bitbucket triggers can also start a workflow on pushes, repository changes, build status updates, and pull request events, with the webhook managed for you.
+
+In Sim, the Bitbucket block lets your agents take part in your development process: review a pull request when it opens, summarize a failed pipeline from its step logs, or cut a release branch and open the pull request for it.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, diagnose or control pipelines, and start workflows from repository and pull request events. OAuth is used for actions and automatic webhook management.
@@ -1545,8 +1562,6 @@ Read a bounded UTF-8 tail of a pipeline step log
 | `truncated` | boolean | Whether earlier log output was omitted |
 | `totalBytes` | number | Full log byte size when reported |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2214,4 +2229,26 @@ Trigger workflow when a Bitbucket repository is updated
 | `repository` | json | Repository where the event occurred |
 | `payload` | json | Full parsed Bitbucket webhook payload |
 | `changes` | json | Repository fields changed by the update |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Bitbucket account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/bitbucket` |
+| Environment variables | `BITBUCKET_CLIENT_ID`, `BITBUCKET_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `account` | View your Bitbucket account and workspace memberships |
+| `repository` | View repositories and source code |
+| `repository:write` | Push to repositories and create or delete branches |
+| `pullrequest` | View and comment on pull requests |
+| `pullrequest:write` | Create, update, approve, decline, and merge pull requests |
+| `pipeline` | View pipelines, steps, and logs |
+| `pipeline:write` | Run and stop pipelines |
+| `webhook` | Manage repository webhooks |
+
 

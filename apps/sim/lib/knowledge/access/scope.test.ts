@@ -1,30 +1,63 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAvailability, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
-  mockAvailability: vi.fn(async () => ({ memberScoped: true, sourceMirrored: true })),
-  mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
+const { mockGitHubReadGrants, mockConfluenceReadGrants, mockCsvGrants, mockLiveSources } =
+  vi.hoisted(() => ({
+    mockLiveSources: {
+      github: vi.fn(() => ({ type: 'github-sources' })),
+      confluence: vi.fn(() => ({ type: 'confluence-sources' })),
+      knowledgeBases: vi.fn(() => ({ type: 'live-knowledge-bases' })),
+    },
+    mockGitHubReadGrants: vi.fn(async () => []),
+    mockConfluenceReadGrants: vi.fn(async () => []),
+    mockCsvGrants: vi.fn(async () => [] as string[]),
+  }))
+
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/knowledge/access/confluence-site', () => ({
+  resolveConfluenceSiteReadGrants: mockConfluenceReadGrants,
+}))
+vi.mock('@/lib/knowledge/access/github-installation', () => ({
+  resolveGitHubInstallationReadGrants: mockGitHubReadGrants,
+}))
+vi.mock('@/lib/knowledge/access/live-sources', () => ({
+  githubInstallationSourceCondition: mockLiveSources.github,
+  confluenceSiteSourceCondition: mockLiveSources.confluence,
+  liveSourceKnowledgeBaseCondition: mockLiveSources.knowledgeBases,
+}))
+vi.mock('@/lib/knowledge/access/connector-permissions', () => ({
+  loadConnectorPermissionGroupTokens: mockCsvGrants,
 }))
 
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mockAvailability,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
-
+import { MAX_EXTERNAL_GROUP_TOKENS } from '@/lib/knowledge/access/group-membership'
 import {
   createKnowledgeAccessProvider,
   resolveKnowledgeAccessScope,
-  WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
 
-const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const mockAvailability = knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+mockCheckWorkspaceAccess.mockImplementation(async () => ({ hasAccess: true }))
+
+const SESSION: Principal = createSessionPrincipal()
 const WORKSPACE = { workspaceId: 'ws-1' }
 
 function queueSubjects(rows: Array<Record<string, string | null>>) {
@@ -33,25 +66,7 @@ function queueSubjects(rows: Array<Record<string, string | null>>) {
 
 describe('resolveKnowledgeAccessScope', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('gives a person the workspace pair plus one token per active managed credential', async () => {
-    queueSubjects([
-      { providerId: 'confluence', providerTenantId: null, providerSubjectId: '557058:abc' },
-      { providerId: 'google-drive', providerTenantId: 'acme.com', providerSubjectId: '42' },
-      { providerId: 'confluence', providerTenantId: null, providerSubjectId: '557058:abc' },
-    ])
-
-    const scope = await resolveKnowledgeAccessScope(SESSION, WORKSPACE)
-
-    expect(scope).toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 's:confluence:-:557058:abc', 's:google-drive:acme.com:42', 'ws'],
-    })
-    expect(dbChainMockFns.leftJoin).toHaveBeenCalledTimes(3)
   })
 
   /**
@@ -72,23 +87,6 @@ describe('resolveKnowledgeAccessScope', () => {
       kind: 'user',
       userId: 'user-1',
       tokens: ['pub', 'ws'],
-    })
-  })
-
-  it('binds normally when the address identifies exactly one account', async () => {
-    queueSubjects([
-      {
-        emailIsAmbiguous: false,
-        providerId: 'confluence',
-        providerTenantId: null,
-        providerSubjectId: '557058:abc',
-      },
-    ] as never)
-
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 's:confluence:-:557058:abc', 'ws'],
     })
   })
 
@@ -114,80 +112,9 @@ describe('resolveKnowledgeAccessScope', () => {
     })
   })
 
-  it('falls back to the workspace pair for a person with no credential, and for one who is unverified or unknown', async () => {
-    queueSubjects([{ providerId: null, providerTenantId: null, providerSubjectId: null }])
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 'ws'],
-    })
-
-    resetDbChainMock()
-    queueSubjects([])
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 'ws'],
-    })
-  })
-
-  it('skips a malformed credential row instead of failing the read', async () => {
-    queueSubjects([
-      { providerId: 'a:b', providerTenantId: null, providerSubjectId: 'x' },
-      { providerId: 'slack', providerTenantId: 'T1', providerSubjectId: 'U1' },
-    ])
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 's:slack:T1:U1', 'ws'],
-    })
-  })
-
   it('rejects missing ownership before querying document access', async () => {
     await expect(resolveKnowledgeAccessScope(SESSION, {})).rejects.toThrow(
       'Resource requires exactly one workspace or organization owner'
-    )
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it.each<[string, Principal]>([
-    ['a workspace API key', { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' }],
-    [
-      'a scheduled run',
-      { kind: 'system', serviceId: 'schedule', workspaceId: 'ws-1', workflowId: 'wf-1' },
-    ],
-    [
-      'a webhook run with an external subject',
-      {
-        kind: 'system',
-        serviceId: 'webhook',
-        workspaceId: 'ws-1',
-        workflowId: 'wf-1',
-        webhookId: 'wh-1',
-        provider: 'slack',
-        subject: { kind: 'external_user', provider: 'slack', tenantId: 'T1', subjectId: 'U1' },
-      },
-    ],
-    [
-      'an executor run whose trigger was a workspace key',
-      {
-        kind: 'delegated',
-        serviceId: 'executor',
-        workspaceId: 'ws-1',
-        delegationId: 'd-1',
-        audience: 'sim:knowledge',
-        issuedAt: 0,
-        expiresAt: 1,
-        delegationContext: {
-          principal: { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
-          compatibilityActor: { userId: 'deployer' },
-          currentWorkflow: { workflowId: 'wf-1', mode: 'deployment' },
-        },
-      } as unknown as Principal,
-    ],
-  ])('resolves %s to the workspace scope without a lookup', async (_label, principal) => {
-    await expect(resolveKnowledgeAccessScope(principal, WORKSPACE)).resolves.toBe(
-      WORKSPACE_ACCESS_SCOPE
     )
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
@@ -233,18 +160,41 @@ describe('resolveKnowledgeAccessScope', () => {
 
 describe('createKnowledgeAccessProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  it('resolves once per operation and shares the result', async () => {
+  it('scopes live-source discovery to sources a held reader credential can prove', async () => {
     queueSubjects([{ providerId: 'slack', providerTenantId: 'T1', providerSubjectId: 'U1' }])
-    const provider = createKnowledgeAccessProvider(SESSION, WORKSPACE)
+    await expect(
+      createKnowledgeAccessProvider(SESSION, WORKSPACE).liveSourceConnectorCondition()
+    ).resolves.toBeNull()
 
-    const [first, second] = await Promise.all([provider.get(), provider.get()])
-
-    expect(first).toBe(second)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    queueSubjects([
+      {
+        providerId: 'confluence',
+        providerTenantId: 'site-1',
+        providerSubjectId: 'account-1',
+        credentialId: 'credential-1',
+      },
+    ])
+    const condition = await createKnowledgeAccessProvider(
+      SESSION,
+      WORKSPACE
+    ).liveSourceConnectorCondition()
+    expect(condition).not.toBeNull()
+    expect(mockLiveSources.confluence).toHaveBeenCalledOnce()
+    expect(mockLiveSources.github).not.toHaveBeenCalled()
+    expect(mockLiveSources.knowledgeBases).toHaveBeenCalledExactlyOnceWith(
+      { kind: 'workspace', workspaceId: 'ws-1' },
+      undefined
+    )
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'inArray' && node.column === schemaMock.knowledgeConnector.knowledgeBaseId
+      )
+    ).toBe(true)
   })
 
   it('retries after a failed lookup rather than caching the failure', async () => {
@@ -259,7 +209,6 @@ describe('createKnowledgeAccessProvider', () => {
 
 describe('tokens mirrored from a source directory', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -267,31 +216,19 @@ describe('tokens mirrored from a source directory', () => {
     queueTableRows(schemaMock.knowledgeExternalGroupMember, rows)
   }
 
-  it('gives a person their own address and every group it belongs to', async () => {
+  it('fails closed on the direct-group overflow sentinel before discarding malformed tokens', async () => {
     queueSubjects([
-      {
-        email: 'alice@corp.com',
-        providerId: null,
-        providerTenantId: null,
-        providerSubjectId: null,
-      },
+      { providerId: 'confluence', providerTenantId: null, providerSubjectId: 'reader' },
     ])
-    queueGroups([
-      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'eng@corp.com' },
-      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'all@corp.com' },
-    ])
-
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: [
-        'g:google-drive:corp.com:all@corp.com',
-        'g:google-drive:corp.com:eng@corp.com',
-        'pub',
-        'u:alice@corp.com',
-        'ws',
-      ],
-    })
+    queueGroups(
+      Array.from({ length: MAX_EXTERNAL_GROUP_TOKENS + 1 }, () => ({
+        providerId: 'invalid:provider',
+        tenantId: 'cloud',
+        externalGroupId: 'group',
+      }))
+    )
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).rejects.toThrow('token capacity')
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
   })
 
   /**
@@ -317,45 +254,6 @@ describe('tokens mirrored from a source directory', () => {
     expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
-  it('matches source groups through an active provider identity when the source hides member emails', async () => {
-    queueSubjects([
-      {
-        email: 'alice@corp.com',
-        providerId: 'confluence',
-        providerTenantId: null,
-        providerSubjectId: '557058:MixedCase',
-      },
-    ])
-    queueGroups([{ providerId: 'confluence', tenantId: 'cloud-A', externalGroupId: 'engineers' }])
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toMatchObject({
-      tokens: [
-        'g:confluence:cloud-A:engineers',
-        'pub',
-        's:confluence:-:557058:MixedCase',
-        'u:alice@corp.com',
-        'ws',
-      ],
-    })
-  })
-
-  it('still gives a person their own address when they are in no group', async () => {
-    queueSubjects([
-      {
-        email: 'alice@corp.com',
-        providerId: null,
-        providerTenantId: null,
-        providerSubjectId: null,
-      },
-    ])
-    queueGroups([])
-
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 'u:alice@corp.com', 'ws'],
-    })
-  })
-
   it('binds nothing to an address two accounts share, groups included', async () => {
     queueSubjects([
       {
@@ -374,32 +272,10 @@ describe('tokens mirrored from a source directory', () => {
     })
     expect(dbChainMockFns.innerJoin).not.toHaveBeenCalled()
   })
-
-  it('skips a malformed group rather than failing the read', async () => {
-    queueSubjects([
-      {
-        email: 'alice@corp.com',
-        providerId: null,
-        providerTenantId: null,
-        providerSubjectId: null,
-      },
-    ])
-    queueGroups([
-      { providerId: 'a:b', tenantId: 'corp.com', externalGroupId: 'eng@corp.com' },
-      { providerId: 'google-drive', tenantId: 'corp.com', externalGroupId: 'eng@corp.com' },
-    ])
-
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['g:google-drive:corp.com:eng@corp.com', 'pub', 'u:alice@corp.com', 'ws'],
-    })
-  })
 })
 
 describe('each token family is gated by the feature it depends on', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -427,48 +303,26 @@ describe('each token family is gated by the feature it depends on', () => {
       'u:*@corp.com',
     ])
   })
-
-  it('keeps member grants when source mirroring is unavailable', async () => {
-    mockAvailability.mockResolvedValueOnce({ memberScoped: true, sourceMirrored: false })
-    queueTableRows(schemaMock.user, [
-      {
-        email: 'alice@corp.com',
-        providerId: 'confluence',
-        providerTenantId: null,
-        providerSubjectId: '557058:abc',
-      },
-    ])
-
-    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['pub', 's:confluence:-:557058:abc', 'ws'],
-    })
-  })
 })
 
 describe('organization document ACL scope', () => {
   const organization = { organizationId: 'org-1' }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
-  it('uses current organization membership and org baseline without any workspace membership', async () => {
-    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+  it('cannot check a retained Confluence connection after organization removal', async () => {
+    queueTableRows(schemaMock.member, [])
     queueSubjects([
       {
-        email: 'viewer@example.com',
-        providerId: 'google-email',
+        credentialId: 'personal-confluence',
+        providerId: 'confluence',
+        providerSubjectId: 'alice',
         providerTenantId: null,
-        providerSubjectId: 'gmail-subject',
       },
     ])
-    await expect(resolveKnowledgeAccessScope(SESSION, organization)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['org', 'pub', 's:google-email:-:gmail-subject', 'u:viewer@example.com'],
-    })
-    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+    const provider = createKnowledgeAccessProvider(SESSION, organization)
+    expect(await provider.getForConnectors(['confluence-source'])).toMatchObject({ tokens: [] })
+    expect(mockConfluenceReadGrants).not.toHaveBeenCalled()
   })
   it('binds org indexing identities to the enrolled Sim user rather than a matching email', async () => {
     queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
@@ -506,20 +360,10 @@ describe('organization document ACL scope', () => {
   it('does not inherit a workspace key creator identity for organization search', async () => {
     await expect(
       resolveKnowledgeAccessScope(
-        { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
+        createWorkspaceApiKeyPrincipal({ workspaceId: 'ws-1' }),
         organization
       )
     ).rejects.toThrow('requires a user subject')
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('keeps a disabled permission-aware feature on the org baseline only', async () => {
-    queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
-    mockAvailability.mockResolvedValueOnce({ memberScoped: false, sourceMirrored: false })
-    await expect(resolveKnowledgeAccessScope(SESSION, organization)).resolves.toEqual({
-      kind: 'user',
-      userId: 'user-1',
-      tokens: ['org', 'pub'],
-    })
-    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
   })
 })

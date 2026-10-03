@@ -101,6 +101,7 @@ export async function persistFileDoc(
         markdown,
         undefined,
         {
+          version: { source: 'collab', authorUserId: userId },
           syncLiveDoc: false,
           expectedUpdatedAt: new Date(version),
           secretProvenancePolicy: { mode: 'preserve' },

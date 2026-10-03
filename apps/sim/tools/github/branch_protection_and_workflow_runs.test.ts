@@ -1,13 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { GitHubBlock } from '@/blocks/blocks/github'
-import { listWorkflowRunsTool, listWorkflowRunsV2Tool } from '@/tools/github/list_workflow_runs'
-import {
-  updateBranchProtectionTool,
-  updateBranchProtectionV2Tool,
-} from '@/tools/github/update_branch_protection'
+import { listWorkflowRunsTool } from '@/tools/github/list_workflow_runs'
+import { updateBranchProtectionTool } from '@/tools/github/update_branch_protection'
 import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 /**
@@ -43,14 +37,6 @@ const buildRunsUrl = (params: Record<string, unknown>) => {
 }
 
 describe('github_update_branch_protection required modelling', () => {
-  it.each(NULLABLE_BODY_FIELDS)('declares %s optional so the call can be made', (field) => {
-    expect(updateBranchProtectionTool.params[field].required).toBe(false)
-  })
-
-  it('exposes restrictions as a declared param', () => {
-    expect(updateBranchProtectionTool.params.restrictions).toBeDefined()
-  })
-
   it('passes merge-time required validation with only owner/repo/branch supplied', () => {
     expect(() =>
       validateRequiredParametersAfterMerge(
@@ -59,11 +45,6 @@ describe('github_update_branch_protection required modelling', () => {
         BASE_PROTECTION_PARAMS
       )
     ).not.toThrow()
-  })
-
-  it('shares the fixed params and request with the v2 tool', () => {
-    expect(updateBranchProtectionV2Tool.params).toBe(updateBranchProtectionTool.params)
-    expect(updateBranchProtectionV2Tool.request).toBe(updateBranchProtectionTool.request)
   })
 })
 
@@ -143,11 +124,6 @@ describe('github_update_branch_protection body builder', () => {
 })
 
 describe('github_list_workflow_runs workflow_id', () => {
-  it('declares an optional workflow_id param', () => {
-    expect(listWorkflowRunsTool.params.workflow_id).toBeDefined()
-    expect(listWorkflowRunsTool.params.workflow_id.required).toBe(false)
-  })
-
   it('targets the per-workflow endpoint when a workflow id is supplied', () => {
     expect(buildRunsUrl({ owner: 'sim', repo: 'sim', workflow_id: 'ci.yml' })).toBe(
       'https://api.github.com/repos/sim/sim/actions/workflows/ci.yml/runs'
@@ -189,45 +165,9 @@ describe('github_list_workflow_runs workflow_id', () => {
       '/actions/workflows/a%2F..%2Fb/runs'
     )
   })
-
-  it('shares the wired request with the v2 tool', () => {
-    expect(listWorkflowRunsV2Tool.request).toBe(listWorkflowRunsTool.request)
-    expect(listWorkflowRunsV2Tool.params).toBe(listWorkflowRunsTool.params)
-  })
 })
 
 describe('github block wiring', () => {
-  const subBlocks = GitHubBlock.subBlocks
-
-  it('renders a restrictions subBlock scoped to update branch protection', () => {
-    const restrictions = subBlocks.filter((sub) => sub.id === 'restrictions')
-    expect(restrictions).toHaveLength(1)
-    expect(restrictions[0].condition).toEqual({
-      field: 'operation',
-      value: 'github_update_branch_protection',
-    })
-  })
-
-  it('declares the JSON protection fields as json inputs so they are parsed', () => {
-    for (const field of [
-      'required_status_checks',
-      'required_pull_request_reviews',
-      'restrictions',
-    ]) {
-      expect(GitHubBlock.inputs[field]).toEqual(expect.objectContaining({ type: 'json' }))
-    }
-  })
-
-  it('renders workflow_id for the operation whose tool now reads it', () => {
-    const listRunsWorkflowId = subBlocks.find(
-      (sub) =>
-        sub.id === 'workflow_id' &&
-        JSON.stringify(sub.condition).includes('github_list_workflow_runs')
-    )
-    expect(listRunsWorkflowId).toBeDefined()
-    expect(listWorkflowRunsTool.params.workflow_id).toBeDefined()
-  })
-
   /**
    * `shouldSerializeSubBlock` (serializer/index.ts:91-93) serializes a non-empty
    * `mode: 'advanced'` field without evaluating its condition, so values entered

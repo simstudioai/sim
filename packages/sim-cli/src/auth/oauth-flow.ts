@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { oauthIssuerForEndpoint, redact } from '../config/profile'
 import { buildUrl, REDIRECT_STATUSES, SimApiError } from '../http/client'
-import { USER_AGENT } from '../version'
+import { identityHeaders } from '../telemetry/client-info'
 
 /**
  * The OAuth half of `sim login`: authorization code + PKCE with a loopback
@@ -183,7 +183,7 @@ export async function discoverOAuthProvider(endpoint: string): Promise<OAuthProv
   let response: Response
   try {
     response = await fetch(buildUrl(endpoint, DISCOVERY_PATH), {
-      headers: { accept: 'application/json', 'user-agent': USER_AGENT },
+      headers: { accept: 'application/json', ...identityHeaders() },
       redirect: 'manual',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
@@ -236,7 +236,7 @@ async function postToken(
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
         accept: 'application/json',
-        'user-agent': USER_AGENT,
+        ...identityHeaders(),
       },
       body: new URLSearchParams(form).toString(),
       signal,

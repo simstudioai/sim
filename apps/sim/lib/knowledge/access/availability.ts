@@ -1,3 +1,4 @@
+import { LRUCache } from 'lru-cache'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import {
   getWorkspaceOwnerSubscriptionAccess,
@@ -39,11 +40,47 @@ export interface KnowledgeAccessAvailability {
   memberScoped: boolean
 }
 
+/**
+ * How long a resolved availability holds. A search resolves it three times over — the gate, the
+ * defaults, the reader's scope — each a subscription and a billing read; one read per owner per
+ * minute answers all of them, and a plan or flag change lands within the minute.
+ */
+const AVAILABILITY_TTL_MS = 60 * 1000
+
+const availabilityCache = new LRUCache<
+  string,
+  KnowledgeAccessAvailability,
+  KnowledgeMemberAccessContext
+>({
+  max: 10_000,
+  ttl: AVAILABILITY_TTL_MS,
+  fetchMethod: (_key, _stale, { context }) => readKnowledgeAccessAvailability(context),
+})
+
 export async function resolveKnowledgeAccessAvailability(
   context: KnowledgeMemberAccessContext
 ): Promise<KnowledgeAccessAvailability> {
   if (context.organizationId && context.workspaceId)
     throw new Error('Knowledge access requires one resource owner')
+  /** A caller that brings its own billing snapshot is answered from that snapshot, uncached. */
+  if (context.ownerBilling) return readKnowledgeAccessAvailability(context)
+  /** An organization's answer depends on the organization alone; a workspace's on its viewer too. */
+  const key = context.organizationId
+    ? `${context.organizationId}||`
+    : `|${context.workspaceId ?? ''}|${context.userId ?? ''}`
+  const availability = await availabilityCache.fetch(key, { context })
+  if (!availability) throw new Error('Knowledge access availability could not be resolved')
+  return availability
+}
+
+/** Forgets every resolved availability, for tests and for a settings change that must land now. */
+export function forgetKnowledgeAccessAvailability(): void {
+  availabilityCache.clear()
+}
+
+async function readKnowledgeAccessAvailability(
+  context: KnowledgeMemberAccessContext
+): Promise<KnowledgeAccessAvailability> {
   if (
     !(await isFeatureEnabled(
       'knowledge-member-access',
@@ -55,14 +92,14 @@ export async function resolveKnowledgeAccessAvailability(
     return { sourceMirrored: false, memberScoped: false }
   }
   if (context.organizationId) {
-    return {
-      sourceMirrored:
-        !isHosted || (await isOrganizationOnEnterprisePlan(context.organizationId, 'throw')),
-      memberScoped: await isScopedCredentialGroupsAvailable({
+    const [enterprise, memberScoped] = await Promise.all([
+      isHosted ? isOrganizationOnEnterprisePlan(context.organizationId, 'throw') : true,
+      isScopedCredentialGroupsAvailable({
         kind: 'organization',
         organizationId: context.organizationId,
       }),
-    }
+    ])
+    return { sourceMirrored: enterprise, memberScoped }
   }
   if (!context.workspaceId) throw new Error('Knowledge access requires a resource owner')
   const ownerBilling =

@@ -1,7 +1,6 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { StatusPageContent } from '@/components/status-page'
+import { Chip, StatusPageContent } from '@sim/emcn'
 import { season } from '@/app/_styles/fonts/season/season'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 import '@/app/_styles/globals.css'

@@ -135,7 +135,6 @@ const OFFICE_REPAIR_EXTENSIONS = new Set([
   'xlsm',
   'xlsb',
   'xltx',
-  'ppt',
   'pptx',
   'pptm',
   'potx',

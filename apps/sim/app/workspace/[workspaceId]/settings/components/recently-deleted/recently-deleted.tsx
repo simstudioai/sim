@@ -10,8 +10,11 @@ import { useQueryStates } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { folderedResourceListHref } from '@/app/workspace/[workspaceId]/components/folders'
+import {
+  type ColumnOption,
+  SortDropdown,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'

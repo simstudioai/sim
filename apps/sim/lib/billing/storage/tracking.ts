@@ -591,6 +591,29 @@ export async function incrementStorageUsageForBillingContextInTx(
 }
 
 /**
+ * Increments one workspace and its current payer for bytes whose admission was
+ * already decided, such as documents a connector removal accepted and a
+ * background job now releases page by page. Never refuses: a page that could
+ * cross the limit after admission would otherwise leave the release half done.
+ */
+export async function incrementAdmittedStorageUsageForBillingContextInTx(
+  tx: DbOrTx,
+  context: StorageBillingContext,
+  bytes: number
+): Promise<number | undefined> {
+  if (bytes <= 0) return undefined
+  const result = await mutateWorkspaceStorageUsage(
+    tx,
+    context.workspaceId,
+    bytes,
+    'increment',
+    undefined,
+    context
+  )
+  return result.updatedUsage
+}
+
+/**
  * Atomically check quota and increment a user's (or their org's) storage
  * counter inside an existing transaction, using a pre-resolved subscription.
  * The check and the increment are a single conditional `UPDATE`, so two

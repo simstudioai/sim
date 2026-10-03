@@ -1503,11 +1503,13 @@ export const OAUTH_CLIENT_CAPABILITIES = {
   asana: ['ASANA_CLIENT_ID', 'ASANA_CLIENT_SECRET'],
   pipedrive: ['PIPEDRIVE_CLIENT_ID', 'PIPEDRIVE_CLIENT_SECRET'],
   hubspot: ['HUBSPOT_CLIENT_ID', 'HUBSPOT_CLIENT_SECRET'],
+  'hubspot-mcp': ['HUBSPOT_MCP_CLIENT_ID', 'HUBSPOT_MCP_CLIENT_SECRET'],
   linkedin: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
   instagram: ['INSTAGRAM_CLIENT_ID', 'INSTAGRAM_CLIENT_SECRET'],
   salesforce: ['SALESFORCE_CLIENT_ID', 'SALESFORCE_CLIENT_SECRET'],
   shopify: ['SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET'],
   zoom: ['ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET'],
+  'zoom-mcp': ['ZOOM_MCP_CLIENT_ID', 'ZOOM_MCP_CLIENT_SECRET'],
   wordpress: ['WORDPRESS_CLIENT_ID', 'WORDPRESS_CLIENT_SECRET'],
   spotify: ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'],
   monday: ['MONDAY_CLIENT_ID', 'MONDAY_CLIENT_SECRET'],
@@ -1545,6 +1547,7 @@ export const LLM_KEY_POOLS = {
   zai: { keys: ['ZAI_API_KEY_1', 'ZAI_API_KEY_2', 'ZAI_API_KEY_3'] },
   xai: { keys: ['XAI_API_KEY_1', 'XAI_API_KEY_2', 'XAI_API_KEY_3'] },
   kimi: { keys: ['KIMI_API_KEY_1', 'KIMI_API_KEY_2', 'KIMI_API_KEY_3'] },
+  typesafe: { keys: ['TYPESAFE_API_KEY_1', 'TYPESAFE_API_KEY_2', 'TYPESAFE_API_KEY_3'] },
   fireworks: {
     keys: ['FIREWORKS_API_KEY_1', 'FIREWORKS_API_KEY_2', 'FIREWORKS_API_KEY_3'],
     fallbackKey: 'FIREWORKS_API_KEY',
@@ -1614,6 +1617,7 @@ const MICROSOFT_OAUTH_SERVICES = new Set([
   'microsoft-excel',
   'microsoft-teams',
   'microsoft-planner',
+  'microsoft-powerbi',
   'microsoft-word',
 ])
 

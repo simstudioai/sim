@@ -1,31 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipModalError, ChipSwitch } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
-import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
-import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { getServiceConfigByProviderId, getServiceConfigByServiceId } from '@/lib/oauth'
-import { canConnectPersonally, getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
+import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
+import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/search-params'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { organizationSearchStatusLabel } from '@/app/o/[organizationId]/settings/components/integrations/organization-search-status'
-import {
-  connectedAccountsParam,
-  organizationProviderTabParam,
-} from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
+import { SearchSourcePagination } from '@/app/o/[organizationId]/settings/components/integrations/search-source-pagination'
+import { SearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/search-source-setup'
+import { OrganizationSlackAccountRemoval } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-removal'
 import { OrganizationSlackAccountSetup } from '@/app/o/[organizationId]/settings/components/integrations/slack-account-setup'
-import { SearchSourcePagination } from '@/app/workspace/[workspaceId]/search/components/search-source-pagination'
-import { SearchSourceSetup } from '@/app/workspace/[workspaceId]/search/components/search-source-setup'
-import {
-  searchSetupAccessParam,
-  searchSetupParam,
-} from '@/app/workspace/[workspaceId]/search/search-params'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -36,12 +27,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
-import { useOrganizationSearchOverview, useSearchSources } from '@/hooks/queries/kb/connectors'
+import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
-import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useOrganizationAccountPeopleSearch } from '@/hooks/use-organization-account-people-search'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 interface OrganizationProviderDetailProps {
@@ -51,30 +40,20 @@ interface OrganizationProviderDetailProps {
 export function OrganizationProviderDetail({ connectorType }: OrganizationProviderDetailProps) {
   const { organization, viewer, searchAccess } = useOrganizationContext()
   const router = useRouter()
-  const [view, setView] = useQueryState(
-    organizationProviderTabParam.key,
-    organizationProviderTabParam.parser
-  )
-  const [search, setSearch] = useSettingsSearch()
-  const [peopleSearch, setPeopleSearch] = useOrganizationAccountPeopleSearch()
-  const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
-  const [deactivating, setDeactivating] = useState(false)
-  const scope = { kind: 'organization', organizationId: organization.id } as const
   const meta = CONNECTOR_META_REGISTRY[connectorType]
-  const personal = Boolean(meta && canConnectPersonally(meta) && searchAccess.memberScoped)
-  const showAccounts = view === 'accounts' && personal
-  const overview = useOrganizationSearchOverview(organization.id, { enabled: viewer.isAdmin })
+  const [search, setSearch] = useSettingsSearch()
+  const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const [removingSlackAccounts, setRemovingSlackAccounts] = useState(false)
+  const scope = { kind: 'organization', organizationId: organization.id } as const
+  const overview = useSearchIntegrations(organization.id)
   const sources = useSearchSources(scope, {
     connectorType,
     search: sourceSearch,
-    enabled: viewer.isAdmin && !showAccounts,
+    enabled: viewer.isAdmin,
   })
   const availability = usePermissionConfig()
-  const approval = useUpdateSearchIntegration()
   const accounts = useOrganizationAccounts(
-    viewer.isAdmin && personal && (showAccounts || connectorType === 'slack')
-      ? organization.id
-      : undefined
+    viewer.isAdmin && connectorType === 'slack' ? organization.id : undefined
   )
   const [, setSetup] = useQueryStates(
     {
@@ -87,7 +66,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
     connectedAccountsParam.key,
     connectedAccountsParam.parser
   )
-  const provider = overview.data?.providers.find((item) => item.connectorType === connectorType)
+  const provider = overview.data?.find((item) => item.connectorType === connectorType)
   const approved = provider?.approved === true
   const back = {
     text: 'Sources',
@@ -96,15 +75,11 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
       router.push(organizationRoutes(organization.id).settingsSection('integrations')),
   }
   if (!viewer.isAdmin || !meta) return null
-  const searchField = showAccounts
-    ? { value: peopleSearch, onChange: setPeopleSearch, placeholder: 'Search people...' }
-    : { value: search, onChange: setSearch, placeholder: 'Search sources...' }
-  const panel = {
-    back,
-    title: meta.name,
-    description: provider ? organizationSearchStatusLabel(provider) : undefined,
-    docsLink: meta.searchDocsUrl,
-    search: searchField,
+  const labels = getSearchConnectionLabels(connectorType)
+  const searchField = {
+    value: search,
+    onChange: setSearch,
+    placeholder: labels.searchPlaceholder,
   }
   const access = getConnectorAccessAvailability(meta, availability.integrationAvailability, {
     memberAccessAvailable: searchAccess.memberScoped,
@@ -112,38 +87,64 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
     oauthServiceAvailability: availability.oauthServiceAvailability,
     isIntegrationAvailabilityReady: availability.isIntegrationAvailabilityReady,
   })
-  const service =
-    meta.auth.mode === 'oauth'
-      ? (getServiceConfigByServiceId(meta.auth.provider) ??
-        getServiceConfigByProviderId(meta.auth.provider))
-      : undefined
-  const credentialProvider = service
-    ? findCredentialGroupProviderFromProviderId(service.providerId)
-    : undefined
+  const unavailable =
+    availability.isIntegrationAvailabilityReady && !access.admin && !access.members
+  const panel = {
+    back,
+    title: meta.name,
+    description:
+      approved && unavailable
+        ? 'Unavailable in this deployment'
+        : provider
+          ? connectorType === 'gitlab'
+            ? 'Projects and permissions'
+            : connectorType === 'github'
+              ? 'GitHub App repositories'
+              : 'Service account connections'
+          : undefined,
+    docsLink: meta.searchDocsUrl,
+    search: searchField,
+  }
   const option = accounts.data?.credentialGroup?.options.find(
-    (item) => item.provider === credentialProvider && item.status === 'active'
+    (item) => item.provider === 'slack' && item.status === 'active'
   )
+  const group = accounts.data?.credentialGroup
+  const removalActions: SettingsAction[] =
+    connectorType === 'slack' &&
+    !accounts.isError &&
+    group?.options.some((item) => item.provider === 'slack')
+      ? [
+          {
+            id: 'delete',
+            text: 'Remove app setup',
+            disabled: accounts.isFetching,
+            onSelect: () => setRemovingSlackAccounts(true),
+          },
+        ]
+      : []
   const needsSlackSetup =
     connectorType === 'slack' &&
     (option?.provider !== 'slack' || option.configurationStatus !== 'ready')
   const pending =
-    overview.isPending ||
-    overview.isError ||
-    approval.isPending ||
-    !availability.isIntegrationAvailabilityReady
+    overview.isPending || overview.isError || !availability.isIntegrationAvailabilityReady
   const startSource = () =>
     void setSetup({
       addConnector: searchSetupParam.parser.parse(connectorType),
       'source-access': access.admin ? null : 'members',
     })
-  const activate = () =>
-    approval.mutate({ organizationId: organization.id, connectorType, approved: true })
   const actions: SettingsAction[] = approved
     ? [
-        ...(access.admin || access.members
+        ...(needsSlackSetup || access.admin || (connectorType === 'github' && access.members)
           ? [
               {
-                text: needsSlackSetup ? 'Set up Slack app' : 'Add source',
+                text: needsSlackSetup
+                  ? 'Set up Slack app'
+                  : connectorType === 'github'
+                    ? 'Add repository'
+                    : connectorType !== 'gitlab'
+                      ? 'Add service account'
+                      : getSearchConnectionLabels(connectorType, access.admin ? 'admin' : 'members')
+                          .add,
                 icon: Plus,
                 variant: 'primary' as const,
                 disabled:
@@ -153,23 +154,18 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
               },
             ]
           : []),
-        {
-          text: 'Deactivate',
-          disabled: approval.isPending,
-          onSelect: () => {
-            approval.reset()
-            setDeactivating(true)
-          },
-        },
       ]
     : [
         {
-          text: provider ? 'Activate' : 'Add integration',
+          text: 'View sources',
           variant: 'primary',
           disabled: pending || (!access.admin && !access.members),
-          onSelect: activate,
+          tooltip: unavailable ? 'This integration is unavailable in this deployment.' : undefined,
+          onSelect: () =>
+            router.push(organizationRoutes(organization.id).settingsSection('integrations')),
         },
       ]
+  actions.push(...removalActions)
   if (overview.isError)
     return (
       <SettingsPanel {...panel}>
@@ -185,17 +181,12 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   if (overview.isPending)
     return (
       <SettingsPanel {...panel}>
-        <SettingsEmptyState variant='inline'>Loading integration…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading integration</SettingsEmptyState>
       </SettingsPanel>
     )
 
   const renderSources = () => (
     <SettingsPanel {...panel} actions={actions}>
-      {approval.error && (
-        <SettingsEmptyState variant='inline' tone='error'>
-          {approval.error.message}
-        </SettingsEmptyState>
-      )}
       {availability.integrationAvailabilityError && (
         <SettingsQueryErrorState
           error={availability.integrationAvailabilityError}
@@ -217,46 +208,47 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
       {sources.isError && !sources.isFetchNextPageError ? (
         <SettingsQueryErrorState
           error={sources.error}
-          fallback='Could not load sources'
+          fallback='Could not load connections'
           isRetrying={sources.isFetching}
           onRetry={() => void sources.refetch()}
           variant='inline'
         />
       ) : sources.isPending ? (
-        <SettingsEmptyState variant='inline'>Loading sources…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading connections</SettingsEmptyState>
       ) : (
         <div className={RESOURCE_LIST_STACK}>
-          {sources.data?.map((source) => (
-            <SettingsResourceRow
-              key={source.connectorId}
-              title={source.sourceDescription || meta.name}
-              description={
-                !approved
-                  ? 'Deactivated'
-                  : !source.enabled
-                    ? 'Paused'
-                    : source.hasSyncError
-                      ? 'Needs attention'
-                      : source.isSyncing
-                        ? 'Indexing'
-                        : source.lastSyncAt
-                          ? `Last synced ${format(new Date(source.lastSyncAt), 'MMM d, h:mm a')}`
-                          : 'Waiting for the first sync'
-              }
-              href={organizationRoutes(organization.id).searchSource(source.connectorId)}
-              clickLabel={`Open ${source.sourceDescription || meta.name}`}
-              navigable
-            />
-          ))}
-          {!sources.data?.length && !sources.hasNextPage && (
-            <SettingsEmptyState variant='inline'>
-              {sourceSearch
-                ? 'No matching sources'
-                : !approved
-                  ? 'Activate this integration to set up sources.'
-                  : 'No sources yet.'}
-            </SettingsEmptyState>
-          )}
+          {sources.data
+            ?.filter(
+              (source) =>
+                source.accessMode === 'admin' ||
+                (connectorType === 'github' && source.isGitHubInstallation)
+            )
+            .map((source) => (
+              <SettingsResourceRow
+                key={source.connectorId}
+                title={source.sourceDescription || meta.name}
+                description={!approved ? 'Unavailable' : !source.enabled ? 'Paused' : undefined}
+                href={organizationRoutes(organization.id).searchSource(source.connectorId)}
+                clickLabel={`Open ${source.sourceDescription || meta.name}`}
+                navigable
+              />
+            ))}
+          {!sources.data?.some(
+            (source) =>
+              source.accessMode === 'admin' ||
+              (connectorType === 'github' && source.isGitHubInstallation)
+          ) &&
+            !sources.hasNextPage && (
+              <SettingsEmptyState variant='inline'>
+                {sourceSearch
+                  ? 'No matching connections'
+                  : unavailable
+                    ? `${meta.name} must be configured for this deployment before you can add a connection.`
+                    : !approved
+                      ? 'Activate this integration to add a connection.'
+                      : labels.empty}
+              </SettingsEmptyState>
+            )}
           <SearchSourcePagination {...sources} />
         </div>
       )}
@@ -264,70 +256,7 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
   )
   return (
     <>
-      <div className='flex flex-col gap-6'>
-        {personal && (
-          <div>
-            <ChipSwitch
-              aria-label={`${meta.name} settings`}
-              value={view}
-              onChange={(value) => void setView(value)}
-              options={[
-                { value: 'sources', label: 'Sources' },
-                { value: 'accounts', label: 'Accounts' },
-              ]}
-            />
-          </div>
-        )}
-        {showAccounts ? (
-          accounts.isError ? (
-            <SettingsPanel {...panel}>
-              <SettingsQueryErrorState
-                error={accounts.error}
-                fallback='Could not load account connections'
-                isRetrying={accounts.isFetching}
-                onRetry={() => void accounts.refetch()}
-                variant='inline'
-              />
-            </SettingsPanel>
-          ) : accounts.isPending ? (
-            <SettingsPanel {...panel}>
-              <SettingsEmptyState variant='inline'>Loading accounts…</SettingsEmptyState>
-            </SettingsPanel>
-          ) : option && approved && !needsSlackSetup ? (
-            <OrganizationAccountPeople
-              organizationId={organization.id}
-              searchConnection={{ optionId: option.id, providerName: meta.name }}
-              panel={panel}
-            />
-          ) : (
-            <SettingsPanel {...panel} actions={actions}>
-              {approval.error && (
-                <SettingsEmptyState variant='inline' tone='error'>
-                  {approval.error.message}
-                </SettingsEmptyState>
-              )}
-              {availability.integrationAvailabilityError && (
-                <SettingsQueryErrorState
-                  error={availability.integrationAvailabilityError}
-                  fallback='Could not load connection availability'
-                  isRetrying={availability.isIntegrationAvailabilityFetching}
-                  onRetry={() => void availability.refetchIntegrationAvailability()}
-                  variant='inline'
-                />
-              )}
-              <SettingsEmptyState variant='inline'>
-                {approved
-                  ? needsSlackSetup
-                    ? 'Set up the Slack app to connect accounts.'
-                    : 'Add a source to set up account connections.'
-                  : 'Activate this integration to set up account connections.'}
-              </SettingsEmptyState>
-            </SettingsPanel>
-          )
-        ) : (
-          renderSources()
-        )}
-      </div>
+      {renderSources()}
       <SearchSourceSetup
         scope={scope}
         canAdmin={viewer.isAdmin}
@@ -335,26 +264,14 @@ export function OrganizationProviderDetail({ connectorType }: OrganizationProvid
         mirroredAccessAvailable={searchAccess.sourceMirrored}
       />
       <OrganizationSlackAccountSetup />
-      <ChipConfirmModal
-        open={deactivating}
-        onOpenChange={(open) => {
-          if (!approval.isPending) setDeactivating(open)
-        }}
-        title={`Deactivate ${meta.name}?`}
-        text='Its content will be unavailable in Search, Assistant, and MCP. Sources and connected accounts are preserved.'
-        confirm={{
-          label: 'Deactivate',
-          variant: 'destructive',
-          pending: approval.isPending,
-          onClick: () =>
-            approval.mutate(
-              { organizationId: organization.id, connectorType, approved: false },
-              { onSuccess: () => setDeactivating(false) }
-            ),
-        }}
-      >
-        <ChipModalError>{approval.error?.message}</ChipModalError>
-      </ChipConfirmModal>
+      {removingSlackAccounts && group && (
+        <OrganizationSlackAccountRemoval
+          organizationId={organization.id}
+          group={group}
+          onClose={() => setRemovingSlackAccounts(false)}
+          onRemoved={() => setRemovingSlackAccounts(false)}
+        />
+      )}
     </>
   )
 }

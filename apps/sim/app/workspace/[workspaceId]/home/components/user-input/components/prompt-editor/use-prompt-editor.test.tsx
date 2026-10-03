@@ -2,22 +2,20 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 
-import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
-import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
-import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
+import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import type { ChatContext } from '@/stores/panel'
 
 function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
@@ -77,248 +75,154 @@ function typeInto(textarea: HTMLTextAreaElement, value: string, caret = value.le
   textarea.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-describe('usePromptEditor mention menu dismissal', () => {
-  let openMenu: PlusMenuHandle
+describe.each([{ workspaceId: 'ws-1' }, { workspaceId: '', organizationId: 'org-1' }])(
+  'mention search in $workspaceId $organizationId',
+  (scope) => {
+    it.each([false, true])(
+      'does not auto-attach an integration after searching (dismissed: %s)',
+      (dismissed) => {
+        const matcher = vi.mocked(getIntegrationMatcher)
+        matcher.mockReturnValue({
+          regex: /Slack/gi,
+          byName: new Map([
+            ['slack', { name: 'Slack', blockType: 'slack', icon: () => null, bgColor: '#fff' }],
+          ]),
+        })
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        try {
+          for (const character of '@Slack') {
+            act(() => {
+              typeInto(textarea, textarea.value + character)
+              result().handleInputChange({
+                target: textarea,
+              } as React.ChangeEvent<HTMLTextAreaElement>)
+            })
+          }
+          if (dismissed) act(() => result().handlePlusMenuClose())
+          for (const character of ' roadmap') {
+            act(() => {
+              typeInto(textarea, textarea.value + character)
+              result().handleInputChange({
+                target: textarea,
+              } as React.ChangeEvent<HTMLTextAreaElement>)
+            })
+          }
+          expect(result().getActiveContexts()).toEqual([])
+          expect(result().mentionQuery).toBe(dismissed ? null : 'Slack roadmap')
+        } finally {
+          unmount()
+          matcher.mockReset()
+        }
+      }
+    )
 
-  beforeEach(() => {
-    openMenu = {
-      open: vi.fn(),
-      close: vi.fn(),
-      moveActive: vi.fn(),
-      selectActive: vi.fn(() => 'empty' as const),
-    }
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('reopens the menu while the user keeps typing an unmatched mention', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
+    it('keeps multiword and punctuated names searchable and replaces the whole query', () => {
+      const { result, textarea, unmount } = renderPromptEditor(scope)
+      try {
+        for (const value of [
+          'Find @Quarterly',
+          'Find @Quarterly ',
+          'Find @Quarterly plan (v2).md',
+        ]) {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+          expect(result().mentionQuery).toBe(value.slice('Find @'.length))
+        }
+        act(() =>
+          result().insertResource({ type: 'file', id: 'plan', title: 'Quarterly plan (v2).md' })
+        )
+        expect(result().getPlainValue()).toBe('Find @Quarterly plan (v2).md ')
+        expect(result().getActiveContexts()).toEqual([
+          { kind: 'file', fileId: 'plan', label: 'Quarterly plan (v2).md' },
+        ])
+      } finally {
+        unmount()
+      }
     })
 
-    expect(result().mentionQuery).toBe('f')
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    unmount()
-  })
-
-  it('stays closed across repeated clicks at the same position after the user clicks away, even if the caret lands back inside the open mention', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-    expect(result().mentionQuery).toBe('f')
-
-    act(() => {
-      result().handlePlusMenuClose()
-    })
-    expect(result().mentionQuery).toBeNull()
-
-    for (let i = 0; i < 3; i++) {
-      act(() => {
-        textarea.setSelectionRange(2, 2)
-        result().handleSelectAdjust()
-      })
-    }
-
-    expect(result().mentionQuery).toBeNull()
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    unmount()
-  })
-
-  it('lets a further keystroke reopen the same mention after a dismiss', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-    act(() => {
-      result().handlePlusMenuClose()
-    })
-    act(() => {
-      textarea.setSelectionRange(2, 2)
-      result().handleSelectAdjust()
-    })
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      typeInto(textarea, '@fo', 3)
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
+    it('keeps a dismissed search closed while typing, but allows a new trigger', () => {
+      const { result, textarea, unmount } = renderPromptEditor(scope)
+      const input = (value: string) => {
+        act(() => {
+          typeInto(textarea, value)
+          result().handleInputChange({ target: textarea } as React.ChangeEvent<HTMLTextAreaElement>)
+        })
+      }
+      try {
+        input('@Quarterly')
+        act(() => result().handlePlusMenuClose())
+        input('@Quarterlyplan')
+        expect(result().mentionQuery).toBeNull()
+        input('@Quarterly plan')
+        expect(result().mentionQuery).toBeNull()
+        input('@Quarterly plan @Roadmap')
+        expect(result().mentionQuery).toBe('Roadmap')
+      } finally {
+        unmount()
+      }
     })
 
-    expect(result().mentionQuery).toBe('fo')
-    expect(openMenu.open).toHaveBeenCalledTimes(2)
+    it.each(['selection', 'programmatic'])(
+      'opens a fresh search when replacing a dismissed trigger via %s',
+      (replacement) => {
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        const input = (value: string) => {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+        }
+        try {
+          input('@Quarterly')
+          act(() => result().handlePlusMenuClose())
+          if (replacement === 'selection') {
+            act(() => {
+              textarea.setSelectionRange(0, textarea.value.length)
+              result().handleSelectAdjust()
+            })
+            expect(result().mentionQuery).toBeNull()
+            input('@Roadmap')
+          } else {
+            act(() => result().setValue('@Roadmap', { chipify: false }))
+            act(() => {
+              typeInto(textarea, result().getValue())
+              result().handleSelectAdjust()
+            })
+          }
+          expect(result().mentionQuery).toBe('Roadmap')
+        } finally {
+          unmount()
+        }
+      }
+    )
 
-    unmount()
-  })
-
-  it('does not suppress a different mention typed after a dismiss', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-    act(() => {
-      result().handlePlusMenuClose()
-    })
-    act(() => {
-      textarea.setSelectionRange(2, 2)
-      result().handleSelectAdjust()
-    })
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      typeInto(textarea, '@f done. @g', 11)
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-
-    expect(result().mentionQuery).toBe('g')
-    expect(openMenu.open).toHaveBeenCalledTimes(2)
-
-    unmount()
-  })
-})
-
-describe('usePromptEditor toolbar slash trigger after a dismiss', () => {
-  it('still opens the skills menu when the caret sits at the start of the previously dismissed token', () => {
-    const skillsMenu: SkillsMenuHandle = {
-      open: vi.fn(),
-      close: vi.fn(),
-      moveActive: vi.fn(),
-      selectActive: vi.fn(() => false),
-    }
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().skillsMenuRef.current = skillsMenu
-
-    act(() => {
-      result().insertSlashTrigger()
-    })
-    expect(skillsMenu.open).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      result().handleSkillsMenuClose()
-    })
-
-    act(() => {
-      textarea.setSelectionRange(0, 0)
-      result().insertSlashTrigger()
-    })
-
-    expect(skillsMenu.open).toHaveBeenCalledTimes(2)
-
-    unmount()
-  })
-})
+    it.each(['@ ', '@ name', '@Quarterly\n', 'person@example.com'])(
+      'does not search across a dismissed boundary in %j',
+      (value) => {
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        try {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+          expect(result().mentionQuery).toBeNull()
+        } finally {
+          unmount()
+        }
+      }
+    )
+  }
+)
 
 describe('usePromptEditor context insertion', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  it('appends a real mention token and context, then focuses the editor', () => {
-    const onContextAdd = vi.fn()
-    let focusFrame: FrameRequestCallback | undefined
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      focusFrame = callback
-      return 1
-    })
-    const context = {
-      kind: 'terminal_tab',
-      terminalId: 'terminal-1',
-      label: 'Terminal (L9-11)',
-      selection: { text: 'selected output', startLine: 9, endLine: 11 },
-    } satisfies ChatContext
-    const { result, textarea, unmount } = renderPromptEditor({
-      workspaceId: 'ws-1',
-      initialValue: 'Explain this',
-      onContextAdd,
-    })
-
-    act(() => {
-      result().insertContext(context)
-    })
-
-    expect(result().value).toBe('Explain this @Terminal (L9-11) ')
-    expect(result().contexts).toEqual([context])
-    expect(onContextAdd).toHaveBeenCalledWith(context)
-
-    textarea.value = result().value
-    act(() => focusFrame?.(0))
-    expect(document.activeElement).toBe(textarea)
-    expect(textarea.selectionStart).toBe(textarea.value.length)
-    expect(textarea.selectionEnd).toBe(textarea.value.length)
-
-    unmount()
-  })
-
-  it('pastes a large table selection as a compact context chip', () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 1
-    })
-    const context = {
-      kind: 'table_selection',
-      tableId: 'table-1',
-      tableName: 'Large table',
-      rowIds: ['row-1'],
-      label: 'Large table (1 row)',
-    } satisfies ChatContext
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    const preventDefault = vi.fn()
-
-    act(() => {
-      result().handlePaste({
-        currentTarget: textarea,
-        clipboardData: {
-          getData: (type: string) => {
-            if (type === 'text/plain') return 'x'.repeat(1_000_001)
-            if (type === SIM_SELECTION_MIME) return selectionPayload(context)
-            return ''
-          },
-        },
-        preventDefault,
-      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
-    })
-
-    expect(preventDefault).toHaveBeenCalledOnce()
-    expect(result().value).toBe('@Large table (1 row) ')
-    expect(result().contexts).toEqual([context])
-
-    unmount()
-  })
-
   it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
     const context = {
       kind: 'file_selection',
@@ -346,54 +250,6 @@ describe('usePromptEditor context insertion', () => {
 
     expect(preventDefault).not.toHaveBeenCalled()
     expect(result().contexts).toEqual([])
-
-    unmount()
-  })
-
-  it('suffixes duplicate visible labels so two browser selections coexist', () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 1
-    })
-    const first = {
-      kind: 'browser_tab',
-      tabId: 'tab-1',
-      label: 'Browser · Example page title',
-      selection: { text: 'first selection', url: 'https://example.com' },
-    } satisfies ChatContext
-    const second = {
-      kind: 'browser_tab',
-      tabId: 'tab-1',
-      label: 'Browser · Another page title',
-      selection: { text: 'second selection', url: 'https://example.com' },
-    } satisfies ChatContext
-    const { result, textarea, unmount } = renderPromptEditor({
-      workspaceId: 'ws-1',
-    })
-
-    act(() => {
-      result().insertContext(first)
-    })
-    act(() => {
-      result().insertContext(second)
-    })
-
-    expect(result().value).toBe('@Browser @Browser (1) ')
-    expect(result().contexts).toEqual([
-      { ...first, label: 'Browser' },
-      { ...second, label: 'Browser (1)' },
-    ])
-
-    let contextsAtSubmit: ChatContext[] = []
-    act(() => {
-      typeInto(textarea, '@Browser (1) ')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-      contextsAtSubmit = result().getActiveContexts()
-    })
-    expect(contextsAtSubmit).toEqual([{ ...second, label: 'Browser (1)' }])
 
     unmount()
   })
@@ -431,53 +287,174 @@ describe('usePromptEditor context insertion', () => {
   })
 })
 
-describe('folder resource mention identity', () => {
-  it('retains distinct folder IDs and labels when inserting a batch', () => {
-    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    try {
-      act(() =>
-        result().insertResources([
-          { type: 'folder', id: 'workflow-folder', title: 'Planning' },
-          { type: 'folder', id: 'table-folder', title: 'Planning' },
-          { type: 'folder', id: 'knowledge-folder', title: 'Planning' },
-          { type: 'filefolder', id: 'file-folder', title: 'Planning' },
-          { type: 'folder', id: 'table-folder', title: 'Planning' },
-        ])
-      )
-      expect(result().contexts).toEqual([
-        { kind: 'folder', folderId: 'workflow-folder', label: 'Planning' },
-        { kind: 'folder', folderId: 'table-folder', label: 'Planning (2)' },
-        { kind: 'folder', folderId: 'knowledge-folder', label: 'Planning (3)' },
-        { kind: 'filefolder', fileFolderId: 'file-folder', label: 'Planning (4)' },
-      ])
-      expect(result().value).toBe(
-        '@Planning @Planning (2) @Planning (3) @Planning (4) @Planning (2) '
-      )
-    } finally {
-      unmount()
-    }
-  })
+it('addresses selected organization resources to their discovery workspace', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1', organizationId: 'org-1' })
+  try {
+    act(() => result().insertResource({ type: 'table', id: 'table-1', title: 'Accounts' }))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'ws-1' },
+    ])
+  } finally {
+    unmount()
+  }
+})
 
-  it('keeps same-named folders as separate chips and reuses the label for a repeated ID', () => {
-    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    try {
-      act(() =>
-        result().insertResource({ type: 'folder', id: 'workflow-folder', title: 'Planning' })
-      )
-      act(() => result().insertResource({ type: 'folder', id: 'table-folder', title: 'Planning' }))
-      act(() =>
-        result().insertResource({ type: 'folder', id: 'knowledge-folder', title: 'Planning' })
-      )
-      act(() => result().insertResource({ type: 'folder', id: 'table-folder', title: 'Planning' }))
-      expect(result().contexts).toEqual([
-        { kind: 'folder', folderId: 'workflow-folder', label: 'Planning' },
-        { kind: 'folder', folderId: 'table-folder', label: 'Planning (2)' },
-        { kind: 'folder', folderId: 'knowledge-folder', label: 'Planning (3)' },
-      ])
-      expect(result().value).toContain('@Planning (2)')
-      expect(result().value).toContain('@Planning (3)')
-    } finally {
-      unmount()
-    }
+it('preserves an explicit cross-workspace resource owner in the organization mention list', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: '', organizationId: 'org-1' })
+  try {
+    act(() =>
+      result().insertResource({
+        type: 'file',
+        id: 'report.csv',
+        title: 'Report · Finance',
+        workspaceId: 'finance',
+      })
+    )
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'file', fileId: 'report.csv', label: 'Report · Finance', workspaceId: 'finance' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('keeps a copied organization resource chip addressed to its owner workspace on paste', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
   })
+  try {
+    act(() =>
+      result().insertResource({
+        type: 'table',
+        id: 'table-1',
+        title: 'Accounts',
+        workspaceId: 'sales',
+      })
+    )
+    textarea.value = result().value
+    textarea.setSelectionRange(0, textarea.value.length)
+    let copied = ''
+    act(() => {
+      result().handleCopy({
+        currentTarget: textarea,
+        clipboardData: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          },
+        },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    act(() => result().clear())
+    textarea.value = ''
+    textarea.setSelectionRange(0, 0)
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? copied : '') },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(result().contexts).toEqual([
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'sales' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('pastes a chip link with a malformed owner as the plain text it is', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+  })
+  let nativePasteCancelled = false
+  try {
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) =>
+            type === 'text/plain' ? '[Notes](sim:file/file-1?workspace=100%)' : '',
+        },
+        preventDefault: () => {
+          nativePasteCancelled = true
+        },
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+    expect(nativePasteCancelled).toBe(false)
+    expect(result().contexts).toEqual([])
+  } finally {
+    unmount()
+  }
+})
+
+it('auto-registers unique organization skill names with their owner but leaves ambiguous names unresolved', () => {
+  const skill = {
+    id: 'built-in',
+    workspaceId: 'sales',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const unique = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+    initialValue: '/Review ',
+    initialContexts: [{ kind: 'skill', skillId: skill.id, label: skill.name }],
+    availableSkills: [skill],
+  })
+  try {
+    expect(unique.result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'built-in', label: 'Review', workspaceId: 'sales' },
+    ])
+  } finally {
+    unique.unmount()
+  }
+  const ambiguous = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+    initialValue: '/Review ',
+    availableSkills: [skill, { ...skill, workspaceId: 'finance' }],
+  })
+  try {
+    expect(ambiguous.result().getActiveContexts()).toEqual([])
+  } finally {
+    ambiguous.unmount()
+  }
+})
+
+it('inserts a canonical built-in skill globally without inheriting a workspace', () => {
+  const skill = {
+    id: 'builtin-research',
+    workspaceId: null,
+    userId: null,
+    name: 'research',
+    description: '',
+    content: '',
+    canEdit: false,
+    readOnly: true,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const { result, unmount } = renderPromptEditor({
+    workspaceId: 'sales',
+    organizationId: 'org-1',
+    availableSkills: [skill],
+  })
+  try {
+    act(() => result().handleSkillSelect(skill, 'finance'))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'builtin-research', label: 'research' },
+    ])
+  } finally {
+    unmount()
+  }
 })

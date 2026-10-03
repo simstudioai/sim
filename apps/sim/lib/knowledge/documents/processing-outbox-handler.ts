@@ -1,5 +1,7 @@
+import { isRecordLike } from '@sim/utils/object'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { env, envNumber } from '@/lib/core/config/env'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {
   type OutboxHandler,
   type OutboxHandlerRegistry,
@@ -7,6 +9,15 @@ import {
 } from '@/lib/core/outbox/service'
 import { isBYOKEmbeddingCredentialRejection, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
+import {
+  cleanupKnowledgeConnector,
+  KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
+} from '@/lib/knowledge/connectors/deletion'
+import {
+  detachKnowledgeConnector,
+  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+} from '@/lib/knowledge/connectors/detachment'
+import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
 import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
@@ -26,11 +37,13 @@ import {
   KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
 } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import {
+  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
   type KnowledgeDocumentProcessingOutboxPayload,
 } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingPayload,
+  resolveDocumentProcessingLane,
   shouldRefundDocumentProcessingPredecessor,
 } from '@/lib/knowledge/documents/processing-payload'
 import { scheduleDocumentProcessingProviderContinuation } from '@/lib/knowledge/documents/processing-provider-continuation'
@@ -45,7 +58,6 @@ import {
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
 import {
   getKnowledgeDocument,
-  isTriggerAvailable,
   type ProcessingOptions,
   processDocumentAsync,
   processDocumentsWithQueue,
@@ -56,7 +68,7 @@ import {
 } from '@/lib/knowledge/documents/storage-cleanup'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     throw new Error('Knowledge document processing outbox payload must be an object')
   }
   return payload as Record<string, unknown>
@@ -96,6 +108,7 @@ function parsePayload(payload: unknown): KnowledgeDocumentProcessingOutboxPayloa
     documentId: requireNonEmptyString(record.documentId, 'documentId'),
     processingOptions: parseProcessingOptions(record.processingOptions),
     billingAttribution: assertBillingAttributionSnapshot(record.billingAttribution),
+    processingLane: resolveDocumentProcessingLane(record.processingLane),
   }
 }
 
@@ -108,7 +121,12 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
     payload.documentId,
     SYSTEM_ACCESS_SCOPE
   )
-  if (!document || document.processingStatus === 'completed') return
+  if (
+    !document ||
+    document.processingStatus === 'completed' ||
+    document.processingOutcome === 'skipped'
+  )
+    return
   if (document.processingStatus === 'processing') {
     const reclaimed = await reclaimStaleDocumentProcessingClaim({
       knowledgeBaseId: payload.knowledgeBaseId,
@@ -135,6 +153,7 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
     payload.processingOptions,
     context.eventId,
     payload.billingAttribution,
+    payload.processingLane,
     undefined,
     { signal: context.signal, deadlineAt: context.deadlineAt }
   )
@@ -223,8 +242,11 @@ const KNOWLEDGE_HANDLER_TIMEOUT_MS = Math.min(
 )
 
 export const knowledgeDocumentProcessingOutboxHandlers = {
+  [KNOWLEDGE_CONNECTOR_CLEANUP_EVENT]: cleanupKnowledgeConnector,
+  [KNOWLEDGE_CONNECTOR_DETACH_EVENT]: detachKnowledgeConnector,
   [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanupKnowledgeStorage,
   [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
+  [KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT]: checkDeferredDocumentRetry,
   [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,
   [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: withOutboxHandlerTimeout(
     processKnowledgeDocument,

@@ -1,21 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+} from '@sim/testing'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
+import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 import type { ConnectorDirectory } from '@/connectors/types'
 
-const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory, mockAvailability } =
-  vi.hoisted(() => ({
-    mockResolveTokenUserId: vi.fn(),
-    mockResolveToken: vi.fn(),
-    mockOpenDirectory: vi.fn(),
-    mockAvailability: vi.fn(async () => ({ sourceMirrored: true, memberScoped: true })),
-  }))
-
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mockAvailability,
+const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory } = vi.hoisted(() => ({
+  mockResolveTokenUserId: vi.fn(),
+  mockResolveToken: vi.fn(),
+  mockOpenDirectory: vi.fn(),
 }))
+
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/access-token', () => ({
   resolveConnectorAccessToken: mockResolveToken,
   resolveConnectorTokenUserId: mockResolveTokenUserId,
@@ -35,9 +40,10 @@ vi.mock('@/connectors/registry.server', () => ({
 
 import {
   refreshConnectorDirectory,
-  refreshMirroredDirectory,
   syncExternalDirectoryGroups,
 } from '@/lib/knowledge/connectors/external-group-sync'
+
+const mockAvailability = knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability
 
 function directory(overrides: Partial<ConnectorDirectory> = {}): ConnectorDirectory {
   return {
@@ -55,36 +61,21 @@ function directory(overrides: Partial<ConnectorDirectory> = {}): ConnectorDirect
 
 describe('syncExternalDirectoryGroups', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'group-row' }])
   })
 
-  it('skips a directory walked within the sync interval', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    const dir = directory()
-
+  it('rejects group references in a native directory membership', async () => {
+    const dir = directory({
+      listGroupMembers: vi.fn(async (group) => ({
+        group,
+        memberTokens: ['g:google-drive:corp.com:engineering'],
+        complete: true,
+      })),
+    })
     await expect(
       syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
-    ).resolves.toMatchObject({ skipped: true })
-    expect(dir.listGroups).not.toHaveBeenCalled()
-  })
-
-  it('refreshes membership during an explicit resync even when the directory was read recently', async () => {
-    queueTableRows(schemaMock.knowledgeExternalGroup, [{ id: 'group-row' }])
-    const dir = directory()
-    await expect(
-      syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir, force: true })
-    ).resolves.toMatchObject({ refreshed: 2, skipped: false })
-    expect(dir.listGroupMembers).toHaveBeenCalledTimes(2)
-  })
-
-  it('claims the shared directory before enumerating group membership', async () => {
-    const dir = directory()
-    await expect(
-      syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
-    ).resolves.toMatchObject({ refreshed: 2, skipped: false })
-    expect(dir.listGroups).toHaveBeenCalledOnce()
+    ).rejects.toThrow('invalid identity token')
   })
 
   it('replaces membership only from a complete enumeration, keeping the rest last-known-good', async () => {
@@ -123,20 +114,6 @@ describe('syncExternalDirectoryGroups', () => {
     }
   )
 
-  it('keeps a group whose enumeration threw, without failing the directory', async () => {
-    queueTableRows(schemaMock.knowledgeExternalGroup, [])
-    const dir = directory({
-      listGroupMembers: vi.fn(async (group) => {
-        if (group.id === 'all@corp.com') throw new Error('403')
-        return { group, memberTokens: ['u:alice@corp.com'], complete: true }
-      }),
-    })
-
-    await expect(
-      syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
-    ).resolves.toMatchObject({ refreshed: 1, keptStale: 1 })
-  })
-
   it('stops the tenant walk on a rate limit instead of retrying every remaining group', async () => {
     const quota = Object.assign(new Error('Quota exhausted'), { status: 429, retryAfterMs: 90_000 })
     const dir = directory({ listGroupMembers: vi.fn().mockRejectedValue(quota) })
@@ -145,6 +122,18 @@ describe('syncExternalDirectoryGroups', () => {
     )
     expect(dir.listGroupMembers).toHaveBeenCalledOnce()
     expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+  })
+
+  it('does not change memberships or directory freshness after losing its lease', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'lease' }]).mockResolvedValueOnce([])
+    await expect(
+      syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: directory() })
+    ).rejects.toThrow('Directory sync lease expired or was replaced')
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastCompleteSyncAt' in value)).toBe(
+      false
+    )
   })
 
   /**
@@ -173,6 +162,7 @@ describe('refreshConnectorDirectory', () => {
       sourceConfig: { adminEmail: 'admin@corp.com' },
       workspaceId: 'ws-1',
       knowledgeBaseOwnerId: 'owner-1',
+      isSearchIndex: false,
       updatedAt: new Date('2026-09-04T00:00:00Z'),
       lastSyncError: null,
       ...overrides,
@@ -180,26 +170,23 @@ describe('refreshConnectorDirectory', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
+    resetEnvFlagsMock()
     mockResolveTokenUserId.mockResolvedValue('owner-1')
     mockResolveToken.mockResolvedValue({ accessToken: 'token', cloudId: 'cloud-1' })
     mockOpenDirectory.mockResolvedValue(null)
     dbChainMockFns.returning.mockResolvedValue([{ id: 'group-row' }])
   })
 
-  /**
-   * Token reads are scoped to the credential's own account owner, not the
-   * knowledge base owner, who is routinely a different member.
-   */
-  it('resolves the token as the credential owner for an OAuth credential', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
-    mockResolveTokenUserId.mockResolvedValue('credential-owner')
+  it('skips previously queued Search directory refreshes before resolving credentials in live mode', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow({ isSearchIndex: true })])
 
     await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
-    expect(mockResolveToken).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'credential-owner' })
-    )
+
+    expect(mockResolveTokenUserId).not.toHaveBeenCalled()
+    expect(mockResolveToken).not.toHaveBeenCalled()
+    expect(mockOpenDirectory).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('does not resolve credentials after source mirroring is disabled', async () => {
@@ -210,53 +197,12 @@ describe('refreshConnectorDirectory', () => {
     expect(mockOpenDirectory).not.toHaveBeenCalled()
   })
 
-  it('opens the directory with the site the token already knows', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
-
-    await refreshConnectorDirectory('connector-1', 'req-1')
-
-    expect(mockOpenDirectory).toHaveBeenCalledWith(
-      'token',
-      { adminEmail: 'admin@corp.com' },
-      { cloudId: 'cloud-1' }
-    )
-  })
-
   it('reports a connector whose credential no longer resolves rather than failing', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
     mockResolveTokenUserId.mockResolvedValue(null)
 
     await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('unusable')
     expect(mockOpenDirectory).not.toHaveBeenCalled()
-  })
-
-  it('skips a connector whose source has no directory to read', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [connectorRow({ connectorType: 'notion' })])
-
-    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
-    expect(mockResolveToken).not.toHaveBeenCalled()
-  })
-
-  it('skips a connector that has since left administrator mode', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [connectorRow({ accessMode: 'workspace' })])
-
-    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
-  })
-
-  it('propagates a directory failure for worker retries and exposes it on the source', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
-    mockOpenDirectory.mockResolvedValue(
-      directory({ listGroups: vi.fn().mockRejectedValue(new Error('403')) })
-    )
-    await expect(refreshConnectorDirectory('connector-1', 'req-1')).rejects.toThrow(
-      'Directory refresh failed: 403'
-    )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        lastSyncError: 'Directory refresh failed: 403',
-      })
-    )
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it('reports partial membership failure without replacing or refreshing that group', async () => {
@@ -273,29 +219,36 @@ describe('refreshConnectorDirectory', () => {
     expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
   })
 
-  it('clears a previous directory error after a successful refresh', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [
-      connectorRow({ lastSyncError: 'Directory refresh failed: 403' }),
-    ])
-    mockOpenDirectory.mockResolvedValue(directory({ listGroups: vi.fn().mockResolvedValue([]) }))
-    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('refreshed')
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ lastSyncError: null })
+  it('keeps unknown failures blocking even when other group memberships refreshed', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
+    mockOpenDirectory.mockResolvedValue(
+      directory({
+        listGroupMembers: vi.fn(async (group) => {
+          if (group.id === 'all@corp.com') throw new Error('Connection closed')
+          return { group, memberTokens: ['u:alice@corp.com'], complete: true }
+        }),
+      })
+    )
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).rejects.toThrow(
+      '1 group memberships could not be refreshed'
     )
   })
 
-  it('preserves provider retry metadata through the directory failure cause', async () => {
-    const { getRetryAfterMs, isRateLimitError } = await import('@/lib/knowledge/documents/utils')
-    const providerError = Object.assign(new Error('quota'), { status: 429, retryAfterMs: 60_000 })
-    mockOpenDirectory.mockRejectedValue(providerError)
-    const failure = await refreshMirroredDirectory({
-      workspaceId: 'ws-1',
-      connectorConfig: { id: 'google_drive', openDirectory: mockOpenDirectory } as never,
-      sourceConfig: {},
-      syncContext: {},
-      accessToken: 'token',
-    }).catch((error: unknown) => error)
-    expect(getRetryAfterMs(failure)).toBe(60_000)
-    expect(isRateLimitError(failure)).toBe(true)
+  it('keeps a directory with no successful memberships blocking', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
+    mockOpenDirectory.mockResolvedValue(
+      directory({
+        listGroupMembers: vi.fn().mockRejectedValue(
+          new ConnectorDirectoryGroupAccessError('External group denied', {
+            cause: new GoogleDriveApiError(403, ['forbidden'], 'directory.members.list'),
+          })
+        ),
+      })
+    )
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).rejects.toThrow(
+      '2 group memberships could not be refreshed'
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
   })
 })

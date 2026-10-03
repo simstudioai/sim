@@ -37,15 +37,11 @@ export function SlackSearchActions({ organizationId, token, userId }: SlackSearc
             disabled={retry.isPending}
             onClick={() => retry.mutate({ token })}
           >
-            {retry.isPending ? 'Queuing…' : 'Retry question in Slack'}
+            {retry.isPending ? 'Queuing' : 'Retry question in Slack'}
           </Chip>
         ) : (
-          <Chip
-            disabled={status.isFetching}
-            onClick={() => void status.refetch()}
-            title='Check whether your sources have finished indexing'
-          >
-            {status.isFetching ? 'Checking…' : 'Check indexing'}
+          <Chip disabled={status.isFetching} onClick={() => void status.refetch()}>
+            {status.isFetching ? 'Checking' : 'Check connection'}
           </Chip>
         ))}
       <ChipLink

@@ -1,9 +1,8 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Loader } from '@sim/emcn'
+import { LineChart, Loader } from '@sim/emcn'
 import { useParams } from 'next/navigation'
-import { LineChart } from '@/components/charts'
 import {
   DashboardSegmentsContext,
   type SegmentSelectionMode,

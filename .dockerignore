@@ -25,7 +25,6 @@ docs/
 
 # CI/CD and DevOps
 .github
-.devcontainer
 .husky
 docker-compose*.yml
 Dockerfile*

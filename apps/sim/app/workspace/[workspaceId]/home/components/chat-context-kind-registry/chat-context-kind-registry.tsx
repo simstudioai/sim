@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import {
+  Dashboard,
   Database,
   Folder as FolderIcon,
   Globe,
@@ -8,6 +9,7 @@ import {
   Task,
   TerminalWindow,
   Workflow,
+  Workspaces,
 } from '@sim/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -78,6 +80,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'Table selection',
     renderIcon: ({ className }) => <TableIcon className={className} />,
   },
+  dashboard: {
+    label: 'Dashboard',
+    renderIcon: ({ className }) => <Dashboard className={className} />,
+  },
   file: {
     label: 'File',
     renderIcon: ({ context, className }) => {
@@ -101,6 +107,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   filefolder: {
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
+  },
+  workspace: {
+    label: 'Workspace',
+    renderIcon: ({ className }) => <Workspaces className={className} />,
   },
   past_chat: {
     label: 'Past chat',

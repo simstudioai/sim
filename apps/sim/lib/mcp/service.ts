@@ -492,6 +492,18 @@ class McpService {
     return client
   }
 
+  /** An operation owns this unpooled client and must disconnect it in its finalizer. */
+  async openManagedMcpSession(
+    serverId: string,
+    scope: ResourceScope,
+    auth: McpOauthCredentials,
+    signal: AbortSignal
+  ): Promise<Pick<McpClient, 'listTools' | 'callTool' | 'disconnect'>> {
+    const config = await this.getServerConfig(serverId, scope)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.createManagedOauthClient(config, auth, signal)
+  }
+
   async discoverManagedMcpTools(
     serverId: string,
     scope: string | ResourceScope,
@@ -1095,12 +1107,12 @@ class McpService {
           // survives a transport loss and would block that fresh reconnect.
           void (async () => {
             try {
-              const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+              const { config: resolvedConfig } = await resolveMcpConfigEnvVars(
                 config,
                 userId,
                 workspaceId
               )
-              await manager.connect(resolvedConfig, userId, workspaceId, resolvedIP)
+              await manager.connect(resolvedConfig, userId, workspaceId)
             } catch (err) {
               logger.warn(`[${requestId}] Persistent connection failed for ${config.name}:`, err)
             }

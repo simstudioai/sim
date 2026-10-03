@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   permissionsMock,
@@ -35,7 +32,6 @@ function createUpdateChain() {
 
 describe('workspace lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

@@ -2,12 +2,20 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { successResponseSchema } from '@/lib/api/contracts/knowledge/shared'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { liveSearchPolicySchema } from '@/lib/sim-search/live/policy-schema'
 
 export const searchIntegrationApprovalSchema = z.object({
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
   approved: z.boolean(),
+  policy: liveSearchPolicySchema.optional(),
 })
 export type SearchIntegrationApproval = z.output<typeof searchIntegrationApprovalSchema>
+
+export const searchIntegrationStatusSchema = searchIntegrationApprovalSchema.extend({
+  available: z.boolean().optional(),
+  configuredServiceSource: z.boolean().optional(),
+})
+export type SearchIntegrationStatus = z.output<typeof searchIntegrationStatusSchema>
 
 export const listSearchIntegrationsQuerySchema = z.object({ organizationId: organizationIdSchema })
 export type ListSearchIntegrationsQuery = z.input<typeof listSearchIntegrationsQuerySchema>
@@ -17,7 +25,7 @@ export const listSearchIntegrationsContract = defineRouteContract({
   query: listSearchIntegrationsQuerySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.array(searchIntegrationApprovalSchema).max(100)),
+    schema: successResponseSchema(z.array(searchIntegrationStatusSchema).max(100)),
   },
 })
 

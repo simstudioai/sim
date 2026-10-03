@@ -87,7 +87,7 @@ export function BuildAgentsLoop() {
     <HeroLoopShell chats={PREVIEW_SIDEBAR_CHATS} workflows={PREVIEW_SIDEBAR_WORKFLOWS}>
       <div
         className={cn(
-          'relative flex h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)] transition-opacity duration-300 ease-out',
+          'relative flex size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)] transition-opacity duration-300 ease-out',
           fading ? 'opacity-0' : 'opacity-100'
         )}
       >
@@ -112,7 +112,7 @@ export function BuildAgentsLoop() {
             stageOpen ? 'w-1/2 border-l' : 'w-0 border-l-0'
           )}
         >
-          <div className='h-full w-full'>
+          <div className='size-full'>
             <HeroResourcePanel
               activeId='workflow'
               builtCount={builtCount}

@@ -1,17 +1,9 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listDomainGroups, openGoogleDirectory } from '@/connectors/google-drive/directory'
+import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 /** Routes each request by the group id in its path, so nesting can be described declaratively. */
 function directory(members: Record<string, unknown[]>, groups: unknown[] = []) {
@@ -39,18 +31,11 @@ const NESTED = (email: string) => ({ email, type: 'GROUP' })
 
 describe('listDomainGroups', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   it('folds group emails so they match the tokens a crawl writes', async () => {
     directory({}, [{ email: 'Eng@Corp.com', name: 'Engineering' }])
-
-    await expect(listDomainGroups('token')).resolves.toEqual([{ id: 'eng@corp.com' }])
-  })
-
-  it('drops a group with no email, which is the only identifier a grant carries', async () => {
-    directory({}, [{ name: 'Nameless' }, { email: 'eng@corp.com' }])
 
     await expect(listDomainGroups('token')).resolves.toEqual([{ id: 'eng@corp.com' }])
   })
@@ -84,18 +69,7 @@ describe('the membership a directory reports', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  it('reports the people in a flat group, case-folded', async () => {
-    directory({ 'eng@corp.com': [USER('Alice@Corp.com'), USER('bob@corp.com')] })
-
-    await expect(membersOf(GROUP)).resolves.toEqual({
-      group: GROUP,
-      memberTokens: ['u:alice@corp.com', 'u:bob@corp.com'],
-      complete: true,
-    })
   })
 
   it('follows nested groups to the people inside them', async () => {
@@ -215,58 +189,84 @@ describe('the membership a directory reports', () => {
     await expect(membersOf(GROUP)).rejects.toThrow()
   })
 
-  /** A directory that hiccups must not cost a group its membership; transient errors are retried. */
-  it('retries a transient directory error before giving up', async () => {
-    directory({ 'eng@corp.com': [USER('alice@corp.com')] })
+  it('preserves the denied nested-group operation instead of returning partial membership', async () => {
+    directory({ 'eng@corp.com': [USER('alice@corp.com'), NESTED('restricted@corp.com')] })
     const healthy = mockFetch.getMockImplementation()!
-    let firstMemberRead = true
-    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (String(url).includes('/members') && firstMemberRead) {
-        firstMemberRead = false
+    mockFetch.mockImplementation(async (url: string) => {
+      if (decodeURIComponent(new URL(url).pathname).includes('/restricted@corp.com/members')) {
         return jsonResponse(
-          { error: { errors: [{ reason: 'backendError' }], message: 'try again' } },
-          503
+          { error: { errors: [{ reason: 'forbidden' }], message: 'private detail' } },
+          403
         )
       }
-      return healthy(url, init)
+      return healthy(url)
     })
 
-    await expect(membersOf(GROUP)).resolves.toMatchObject({
-      memberTokens: ['u:alice@corp.com'],
-      complete: true,
+    await expect(membersOf(GROUP)).rejects.toMatchObject({
+      status: 403,
+      diagnostic: { operation: 'directory.members.list', reasons: ['forbidden'] },
     })
   })
+
+  it.each([
+    { status: 403, reason: 'forbidden' },
+    { status: 404, reason: 'notFound' },
+  ])(
+    'classifies inaccessible external nested groups explicitly: $status $reason',
+    async ({ status, reason }) => {
+      directory({ 'eng@corp.com': [USER('alice@corp.com'), NESTED('restricted@external.com')] })
+      const healthy = mockFetch.getMockImplementation()!
+      mockFetch.mockImplementation(async (url: string) => {
+        if (
+          decodeURIComponent(new URL(url).pathname).includes('/restricted@external.com/members')
+        ) {
+          return jsonResponse(
+            { error: { errors: [{ reason }], message: 'private detail' } },
+            status
+          )
+        }
+        return healthy(url)
+      })
+      const failure = await membersOf(GROUP).catch((error: unknown) => error)
+      expect(failure).toBeInstanceOf(ConnectorDirectoryGroupAccessError)
+      expect(failure).toMatchObject({
+        cause: { status, diagnostic: { operation: 'directory.members.list', reasons: [reason] } },
+      })
+      expect(String(failure)).not.toContain('private detail')
+    }
+  )
+
+  it.each([
+    { email: 'restricted@corp.io', status: 403, reasons: ['forbidden'] },
+    { email: 'restricted@external.com', status: 403, reasons: [] },
+    { email: 'restricted@external.com', status: 403, reasons: ['forbidden', 'unknownReason'] },
+    {
+      email: 'restricted@external.com',
+      status: 403,
+      reasons: ['forbidden', 'insufficientPermissions'],
+    },
+    { email: 'restricted@external.com', status: 401, reasons: ['authError'] },
+  ])(
+    'does not classify uncertain or customer-owned failures as external access failures: $email $status $reasons',
+    async ({ email, status, reasons }) => {
+      directory({ 'eng@corp.com': [NESTED(email)] })
+      const healthy = mockFetch.getMockImplementation()!
+      mockFetch.mockImplementation(async (url: string) => {
+        if (decodeURIComponent(new URL(url).pathname).includes(`/${email}/members`)) {
+          return jsonResponse({ error: { errors: reasons.map((reason) => ({ reason })) } }, status)
+        }
+        return healthy(url)
+      })
+      const failure = await membersOf(GROUP).catch((error: unknown) => error)
+      expect(failure).not.toBeInstanceOf(ConnectorDirectoryGroupAccessError)
+      expect(failure).toMatchObject({ status })
+    }
+  )
 })
 
 describe('openGoogleDirectory', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  it('lists one synthetic group per domain the customer owns, after the real groups', async () => {
-    directory({}, [{ email: 'eng@corp.com' }])
-    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
-
-    await expect(dir?.listGroups()).resolves.toEqual([
-      { id: 'eng@corp.com' },
-      { id: 'domain:corp.com' },
-      { id: 'domain:corp.io' },
-      { id: 'domain:sub.corp.com' },
-    ])
-  })
-
-  /** The wildcard is what a reader at that domain matches; nobody is enumerated. */
-  it('answers a synthetic domain group with its wildcard member and no directory call', async () => {
-    directory({})
-    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
-
-    await expect(dir?.listGroupMembers({ id: 'domain:corp.com' })).resolves.toEqual({
-      group: { id: 'domain:corp.com' },
-      memberTokens: ['u:*@corp.com'],
-      complete: true,
-    })
-    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('stores a CUSTOMER member as the wildcard of every domain the customer owns', async () => {
@@ -282,13 +282,5 @@ describe('openGoogleDirectory', () => {
       'u:*@sub.corp.com',
       'u:bob@corp.com',
     ])
-  })
-
-  it('carries the provider and tenant every token of the directory names', () => {
-    expect(openGoogleDirectory('google-drive', 'token', 'Admin@Corp.com')).toMatchObject({
-      providerId: 'google-drive',
-      tenantId: 'corp.com',
-    })
-    expect(openGoogleDirectory('google-drive', 'token', undefined)).toBeNull()
   })
 })

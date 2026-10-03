@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { runTaskTool } from '@/tools/browser_use/run_task'
 import { managedAgentCreateSessionTool } from '@/tools/managed_agent/create_session'

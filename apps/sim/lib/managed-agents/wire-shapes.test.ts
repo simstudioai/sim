@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Pins the exact HTTP shape of every Managed Agents call: method, URL, and the
  * beta header each endpoint family requires. These are the details that cannot
  * be caught by types or by the payload-builder tests, and that silently break

@@ -9,18 +9,16 @@ import { OfficeEmbedInit } from '@/app/(interfaces)/chat/[identifier]/office-emb
 
 const logger = createLogger('ChatMetadata')
 
+const NOINDEX: Metadata['robots'] = { index: false, follow: false }
+
 /**
- * Only fully public, active deployments are indexable. Auth-gated (password,
- * email, SSO) and inactive/nonexistent chats are noindexed at the page level
- * so Google never indexes an auth wall — narrower than blocking `/chat/`
- * entirely in robots.ts, which would also hide genuinely public deployments.
+ * Deployed chats are never indexed: they are thin, client-rendered pages built
+ * by users, not Sim content. A public, active chat gets its own title and
+ * description for link previews; auth-gated, inactive, and unknown chats get a
+ * generic title so nothing behind the gate leaks.
  *
- * Errors from the lookup fail toward noindex rather than throwing: unlike
- * the identical query in app/api/chat/[identifier]/route.ts (which must
- * surface failures to the caller), a metadata resolution error has no
- * error.tsx boundary in this route to catch it — throwing here would take
- * the whole page down instead of just skipping indexability, and "can't
- * confirm this is safe to index" should default to not indexing it anyway.
+ * A lookup error falls back to the generic title rather than throwing: this
+ * route has no error.tsx boundary, so a throw would take the whole page down.
  */
 export async function generateMetadata({
   params,
@@ -29,15 +27,29 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { identifier } = await params
 
-  let isIndexable = false
   try {
     const [deployment] = await db
-      .select({ authType: chat.authType, isActive: chat.isActive })
+      .select({
+        title: chat.title,
+        description: chat.description,
+        authType: chat.authType,
+        isActive: chat.isActive,
+      })
       .from(chat)
       .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
       .limit(1)
 
-    isIndexable = Boolean(deployment?.isActive && deployment.authType === 'public')
+    if (deployment?.isActive && deployment.authType === 'public') {
+      const { title } = deployment
+      const description = deployment.description || undefined
+      return {
+        title,
+        description,
+        openGraph: { title, description, type: 'website' },
+        twitter: { card: 'summary', title, description },
+        robots: NOINDEX,
+      }
+    }
   } catch (error) {
     logger.error('Failed to resolve chat deployment for metadata', {
       identifier,
@@ -45,10 +57,7 @@ export async function generateMetadata({
     })
   }
 
-  return {
-    title: 'Chat',
-    ...(!isIndexable && { robots: { index: false, follow: false } }),
-  }
+  return { title: 'Chat', robots: NOINDEX }
 }
 
 export const dynamic = 'force-dynamic'

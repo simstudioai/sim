@@ -38,6 +38,7 @@ export const slackConnectorMeta: ConnectorMeta = {
       id: 'includeChannels',
       title: 'Channel Messages',
       type: 'dropdown',
+      placeholder: 'Include (default)',
       required: false,
       options: [
         { label: 'Include (default)', id: 'true' },
@@ -48,6 +49,7 @@ export const slackConnectorMeta: ConnectorMeta = {
       id: 'includeDirectMessages',
       title: 'Direct Messages',
       type: 'dropdown',
+      placeholder: 'Exclude (default)',
       required: false,
       description:
         'Includes one-to-one and group DMs accessible to the connected account. Requires im:read, im:history, mpim:read, and mpim:history on the member’s grant.',
@@ -96,6 +98,7 @@ export const slackConnectorMeta: ConnectorMeta = {
       setupGroup: 'options',
       title: 'Archived Channels',
       type: 'dropdown',
+      placeholder: 'Include (default)',
       required: false,
       options: [
         { label: 'Include (default)', id: 'true' },

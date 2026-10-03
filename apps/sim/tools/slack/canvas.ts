@@ -1,3 +1,5 @@
+import { z } from 'zod'
+import { readSlackResponse } from '@/tools/slack/api'
 import type { SlackCanvasParams, SlackCanvasResponse } from '@/tools/slack/types'
 import { CANVAS_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
@@ -89,22 +91,12 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
   },
 
   transformResponse: async (response: Response): Promise<SlackCanvasResponse> => {
-    const data = await response.json()
-
-    if (!data.ok) {
-      return {
-        success: false,
-        output: {
-          canvas_id: '',
-        },
-        error: data.error || 'Unknown error',
-      }
-    }
+    const data = z.object({ canvas_id: z.string().min(1) }).parse(await readSlackResponse(response))
 
     return {
       success: true,
       output: {
-        canvas_id: data.canvas_id ?? data.id ?? '',
+        canvas_id: data.canvas_id,
       },
     }
   },

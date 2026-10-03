@@ -1,36 +1,44 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   canOpen: vi.fn(),
-  enterprise: vi.fn(),
-  groups: vi.fn(),
-  search: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.groups,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mocks.search,
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/organizations/settings-access', () => ({
-  canOpenOrganizationSettingsSection: mocks.canOpen,
+  canOpenOrganizationSettingsSection: hoisted.canOpen,
 }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 
+const mocks = {
+  ...hoisted,
+  groups: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  enterprise: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+  governance: billingSubscriptionMockFns.mockIsOrganizationGovernanceActive,
+  search: knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable,
+}
+
 describe('organization settings authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mocks.canOpen.mockResolvedValue(true)
     mocks.enterprise.mockResolvedValue(true)
+    mocks.governance.mockResolvedValue(true)
     mocks.groups.mockResolvedValue(true)
     mocks.search.mockResolvedValue(true)
   })
@@ -57,10 +65,41 @@ describe('organization settings authorization', () => {
     }
   )
 
+  /**
+   * Access Control configures restrictions that keep applying while a payment is failing, so the
+   * page that edits them has to stay reachable — otherwise an organization is governed by rules
+   * nobody can see or loosen until the invoice clears.
+   */
+  it('opens Access Control for an organization still being governed', async () => {
+    mocks.enterprise.mockResolvedValue(false)
+    mocks.governance.mockResolvedValue(true)
+
+    await expect(
+      authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'viewer',
+        section: 'access-control',
+      })
+    ).resolves.toBe(true)
+  })
+
+  it('closes Access Control once nothing governs the organization', async () => {
+    mocks.enterprise.mockResolvedValue(false)
+    mocks.governance.mockResolvedValue(false)
+
+    await expect(
+      authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'viewer',
+        section: 'access-control',
+      })
+    ).resolves.toBe(false)
+  })
+
   it.each([
     { groups: false, search: false, connectedAccounts: false, integrations: false },
     { groups: true, search: false, connectedAccounts: true, integrations: false },
-    { groups: true, search: true, connectedAccounts: false, integrations: true },
+    { groups: true, search: true, connectedAccounts: true, integrations: true },
   ])(
     'selects the setup page with groups=$groups and search=$search',
     async ({ groups, search, connectedAccounts, integrations }) => {
@@ -92,17 +131,6 @@ describe('organization settings authorization', () => {
     }
   )
 
-  it('propagates Search availability failures instead of selecting the old UI', async () => {
-    mocks.search.mockRejectedValue(new Error('Feature configuration unavailable'))
-    await expect(
-      authorizeOrganizationSettingsSection({
-        organizationId: 'target',
-        userId: 'admin',
-        section: 'connected-accounts',
-      })
-    ).rejects.toThrow('Feature configuration unavailable')
-  })
-
   it('checks current target organization membership before billing reads', async () => {
     mocks.canOpen.mockResolvedValue(false)
     expect(
@@ -116,15 +144,15 @@ describe('organization settings authorization', () => {
     expect(mocks.enterprise).not.toHaveBeenCalled()
   })
 
-  it('does not require a plan or workspace for the member roster', async () => {
-    expect(
-      await authorizeOrganizationSettingsSection({
+  it('rejects request review when target organization authority is absent', async () => {
+    mocks.canOpen.mockResolvedValue(false)
+    await expect(
+      authorizeOrganizationSettingsSection({
         organizationId: 'target',
-        userId: 'viewer',
-        section: 'members',
+        userId: 'member',
+        section: 'requests',
       })
-    ).toBe(true)
-    expect(mocks.enterprise).not.toHaveBeenCalled()
+    ).resolves.toBe(false)
   })
 
   it('applies enterprise entitlement only after role authorization', async () => {

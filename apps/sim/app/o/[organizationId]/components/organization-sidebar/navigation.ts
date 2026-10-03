@@ -23,10 +23,13 @@ const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
 
 export function buildOrganizationNavItems(
   organizationId: string,
-  searchAvailable: boolean
+  searchAvailable: boolean,
+  mothershipAvailable: boolean
 ): SidebarNavItemData[] {
   const routes = organizationRoutes(organizationId)
-  return ORGANIZATION_NAV_ENTRIES.filter(() => searchAvailable).map(({ route, ...entry }) => ({
+  return ORGANIZATION_NAV_ENTRIES.filter(({ route }) =>
+    route === 'home' ? mothershipAvailable : searchAvailable
+  ).map(({ route, ...entry }) => ({
     ...entry,
     href: routes[route],
   }))

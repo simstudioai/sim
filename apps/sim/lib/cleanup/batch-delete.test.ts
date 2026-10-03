@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
-
 import { schemaMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
-import { batchDeleteByWorkspaceAndTimestamp, chunkedBatchDelete } from '@/lib/cleanup/batch-delete'
+import { chunkedBatchDelete, selectRowsByIdChunks } from '@/lib/cleanup/batch-delete'
 
 /**
  * Minimal stand-in for the drizzle client `chunkedBatchDelete` calls. Only the DELETE path is
@@ -52,29 +48,58 @@ describe('chunkedBatchDelete onBatch contract', () => {
     // Ordering is the load-bearing half: renaming children after the DELETE would be useless.
     expect(order).toEqual(['onBatch:row-1', 'delete'])
   })
+})
 
-  it('forwards onBatch through batchDeleteByWorkspaceAndTimestamp', async () => {
-    const order: string[] = []
-    const onBatch = vi.fn(async () => {
-      order.push('onBatch')
-    })
+describe('shared cleanup row budgets', () => {
+  it('caps selection across ID chunks and subsequent owner scopes', async () => {
+    const budget = { remaining: 3 }
+    const select = vi.fn(async (_ids: string[], limit: number) =>
+      [{ id: 'one' }, { id: 'two' }].slice(0, limit)
+    )
+    expect(await selectRowsByIdChunks(['a', 'b'], select, { chunkSize: 1, budget })).toHaveLength(3)
+    expect(select.mock.calls.map(([, limit]) => limit)).toEqual([3, 1])
+    expect(await selectRowsByIdChunks(['c'], select, { budget })).toEqual([])
+    expect(select).toHaveBeenCalledTimes(2)
+  })
 
-    await batchDeleteByWorkspaceAndTimestamp({
+  it('charges restored rows as attempts and uses the remaining limit for each delete batch', async () => {
+    const budget = { remaining: 3 }
+    const select = vi.fn(async (_ids: string[], limit: number) =>
+      [{ id: 'one' }, { id: 'two' }].slice(0, limit)
+    )
+    const options = {
       tableDef: schemaMock.folder as never,
-      workspaceIdCol: schemaMock.folder.workspaceId as never,
-      timestampCol: schemaMock.folder.deletedAt as never,
-      workspaceIds: ['ws-1'],
-      retentionDate: new Date(0),
-      tableName: 'test/folder',
-      requireTimestampNotNull: true,
-      dbClient: createDbClient(() => order.push('delete'), [{ id: 'row-1' }]) as never,
-      onBatch,
-      batchSize: 1,
-      maxBatches: 1,
-    })
+      workspaceIds: ['a'],
+      tableName: 'folder',
+      dbClient: createDbClient(() => {}),
+      selectChunk: select,
+      budget,
+      batchSize: 2,
+    }
+    const result = await chunkedBatchDelete(options)
+    expect(result).toMatchObject({ deleted: 2, failed: 1 })
+    expect(select.mock.calls.map(([, limit]) => limit)).toEqual([2, 1])
+    await chunkedBatchDelete({ ...options, workspaceIds: ['b'] })
+    expect(select).toHaveBeenCalledTimes(2)
+  })
 
-    // The wrapper spreads `...rest` into chunkedBatchDelete; `onBatch` must survive that hop.
-    expect(onBatch).toHaveBeenCalled()
-    expect(order[0]).toBe('onBatch')
+  it('stops on an error after charging selected rows', async () => {
+    const budget = { remaining: 2 }
+    const onDelete = vi.fn()
+    await expect(
+      chunkedBatchDelete({
+        tableDef: schemaMock.folder as never,
+        workspaceIds: ['a', 'b'],
+        tableName: 'folder',
+        budget,
+        dbClient: createDbClient(onDelete),
+        selectChunk: async () => [{ id: 'one' }],
+        onBatch: async () => {
+          throw new Error('storage failed')
+        },
+      })
+    ).rejects.toThrow('storage failed')
+    expect(budget.remaining).toBe(1)
+    expect(onDelete).not.toHaveBeenCalled()
   })
 })

@@ -44,7 +44,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
   title: 'Cookie Policy',
   description:
     'What cookies Sim sets, why, how long they last, and how to change your choice at any time.',
-  lastUpdated: 'September 3, 2026',
+  lastUpdated: 'September 17, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -165,7 +165,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           [
             '__cf_bm',
             'Cloudflare',
-            'Bot-management check on requests to providers we load, such as HubSpot and X.',
+            'Bot-management check on requests to providers we load, such as X.',
             '30 minutes',
           ],
         ]),
@@ -177,10 +177,6 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             'Holds the session state for a specific Analytics property.',
             '13 months',
           ],
-          ['__hstc', 'HubSpot', 'Tracks visits across sessions for the main tracker.', '6 months'],
-          ['hubspotutk', 'HubSpot', 'Identifies a visitor across form submissions.', '6 months'],
-          ['__hssc', 'HubSpot', 'Tracks the current session.', '30 minutes'],
-          ['__hssrc', 'HubSpot', 'Detects whether the visitor restarted their browser.', 'Session'],
           [
             'ph_*_posthog',
             'PostHog',
@@ -269,9 +265,8 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
                 Google Analytics
               </ProseLink>
               , <ProseLink href='https://adssettings.google.com'>Google Ads</ProseLink>,{' '}
-              <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,{' '}
-              <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>, and{' '}
-              <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>.
+              <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,
+              and <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>.
             </>
           ),
         },
@@ -292,7 +287,6 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               The providers currently in use are{' '}
               <ProseLink href='https://policies.google.com/technologies/cookies'>Google</ProseLink>{' '}
               (Analytics and Ads),{' '}
-              <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>,{' '}
               <ProseLink href='https://x.com/en/privacy'>X (Twitter)</ProseLink>,{' '}
               <ProseLink href='https://ahrefs.com/legal/privacy-policy'>Ahrefs</ProseLink>,{' '}
               <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>, and{' '}

@@ -8,7 +8,7 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 
 /**
@@ -206,7 +206,7 @@ export type AddPermissionGroupMemberResult = 'added' | 'already-member'
  * further advisory lock may follow it. The membership has no human author.
  */
 export async function addPermissionGroupMemberTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { organizationId: string; groupId: string; userId: string }
 ): Promise<AddPermissionGroupMemberResult> {
   await acquirePermissionGroupOrgLock(tx, params.organizationId, {
@@ -252,7 +252,7 @@ export type RemovePermissionGroupMemberResult = 'removed' | 'not-a-member'
 
 /** Removes a user from a permission group; the caller holds the organization lock. */
 export async function removePermissionGroupMemberTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { organizationId: string; groupId: string; userId: string }
 ): Promise<RemovePermissionGroupMemberResult> {
   await acquirePermissionGroupOrgLock(tx, params.organizationId, {

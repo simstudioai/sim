@@ -2,6 +2,7 @@ import type { CredentialGroupEnrollmentPrincipal, Principal } from '@sim/auth/pr
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import type { OperationUseCase } from '@/lib/core/application'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   resourceScopeFields,
@@ -91,7 +92,7 @@ function defineAuthorizedCredentialGroupEnrollmentUseCase<
     },
     async execute({ principal, input }) {
       const authorized = await authorize(principal, input)
-      return definition.execute(authorized)
+      return withResourceOutboundScope(authorized.context, () => definition.execute(authorized))
     },
   }
 }
@@ -356,7 +357,8 @@ export const completePublicCredentialGroupMcpOAuth =
         context.oauth,
         input.attempt.codeVerifier,
         input.code,
-        input.attempt.invitationToken
+        input.attempt.invitationToken,
+        input.attempt.configurationFingerprint
       )
       if (context.organizationId)
         await fireCredentialGroupTrigger({

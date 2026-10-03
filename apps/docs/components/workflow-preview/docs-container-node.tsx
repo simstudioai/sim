@@ -39,7 +39,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
   }
 
   return (
-    <div className={cn('h-full w-full', data.isDimmed && DIMMED_PREVIEW_CLASS)}>
+    <div className={cn('size-full', data.isDimmed && DIMMED_PREVIEW_CLASS)}>
       <SubflowNodeView
         id={id}
         data={subflowData}

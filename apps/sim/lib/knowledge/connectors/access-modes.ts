@@ -93,3 +93,20 @@ export function effectiveConnectorSyncIntervalMinutes(
     ? Math.min(configuredMinutes, MAX_PERMISSION_REFRESH_INTERVAL_MINUTES)
     : configuredMinutes
 }
+
+/** Provider restrictions apply consistently to setup and explicit access changes. */
+export function supportsConnectorAccessMode(
+  connector: { supportedAccessModes?: readonly ConnectorAccessMode[] },
+  mode: ConnectorAccessMode
+): boolean {
+  return !connector.supportedAccessModes || connector.supportedAccessModes.includes(mode)
+}
+
+export function initialConnectorAccessMode(
+  connector: { supportedAccessModes?: readonly ConnectorAccessMode[] } | undefined,
+  preferred: ConnectorAccessMode
+): ConnectorAccessMode {
+  return connector && !supportsConnectorAccessMode(connector, preferred)
+    ? (connector.supportedAccessModes?.[0] ?? preferred)
+    : preferred
+}

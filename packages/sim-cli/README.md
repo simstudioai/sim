@@ -25,6 +25,32 @@ You can also run a command without installing the package globally:
 npx sim --help
 ```
 
+## Updates
+
+The CLI checks for a newer stable release on eligible interactive invocations,
+at most once per day. It prints an optional update notice and continues your
+command. Updates install only when you run `sim update`.
+
+Update immediately, including in CI or with automatic checks disabled:
+
+```bash
+sim update
+```
+
+The updater uses the package manager that installed the running copy and verifies
+its global installation before making changes. Supported managers are npm, pnpm,
+Bun, and Yarn Classic. Use `sim update --package-manager bun` if detection does
+not match a custom installation. Manual updates preserve staging and dev channels.
+Installation failures exit with an error; concurrent update attempts are refused.
+The updater resolves the channel through that package manager, refuses older
+releases, and installs the exact version it checked.
+
+Set `SIM_NO_UPDATE_CHECK=1` to disable update notices. Project-local installs and
+temporary package-runner copies must be updated through their package manager.
+
+Older releases without `sim update` need one upgrade using the package manager
+that installed them before this mechanism becomes available.
+
 ## Get started
 
 Sign in to the default profile:
@@ -140,7 +166,7 @@ is saved with the profile.
 sim profiles
 sim configure --profile work
 sim configure --profile work --set-workspace <workspaceId>
-sim configure --profile work --set-output json
+sim configure --profile work --set-output table
 sim configure --profile local --set-endpoint http://localhost:3000
 sim whoami --profile work
 ```
@@ -161,6 +187,16 @@ For each setting, the CLI uses the first available value in this order:
 4. built-in default
 
 `sim whoami` shows both the resolved values and where each one came from.
+Its JSON and YAML `authenticated` field is `true` after the server accepts the
+credential, `false` when it is missing or rejected, and `null` when authentication
+could not be checked (including `--no-verify`). `verification.status` separately
+reports whether the configured workspace is accessible; a valid credential can
+still have `no-workspace` or `rejected` workspace verification.
+
+`sim files read` and `sim files versions read` print the complete text response as
+JSON, or YAML with `--output yaml`, including in table and text display modes.
+The `truncated` field describes server extraction limits, not display clipping.
+For the original file bytes, use `sim files get`.
 
 ## Useful commands
 
@@ -171,6 +207,17 @@ sim --help
 sim workflows --help
 sim tables rows query --help
 ```
+
+Or describe the task and let the CLI find the command. Search ranks the commands
+this version ships, locally; your query is never sent anywhere:
+
+```bash
+sim cli search "cancel a running workflow"
+sim --output table cli search list table rows
+```
+
+It returns the five best matches. When a coding agent runs the CLI, root and
+group `--help` open with a note pointing it to `sim cli search`.
 
 The commands you will use most often are:
 
@@ -216,15 +263,19 @@ argument, and flag.
 
 ## JSON input and output
 
-Human-readable tables are the default. Use JSON or YAML when another program
-will consume the result, and `text` for tab-separated shell output:
+JSON is the default, so agents and scripts can parse every result directly.
+Use `table` for aligned human-readable output, YAML if you prefer it, and `text`
+for tab-separated shell output:
 
 ```bash
-sim workflows list --output json
-sim logs list --output json | jq -r '.data[].runId'
+sim workflows list --output table
+sim logs list | jq -r '.data[].runId'
 SIM_OUTPUT=yaml sim tables get <tableId>
-sim configure --set-output json
+sim configure --set-output table
 ```
+
+Scripts that must not depend on a profile's saved format can still pass
+`--output json` explicitly.
 
 Paginated lists return `{ "data": [...], "nextCursor": "..." }` in JSON and YAML.
 `nextCursor` is `null` when no pages remain. Resource lists and directory `ls`
@@ -290,12 +341,13 @@ The main environment variables are:
 | `SIM_CONFIG_DIR` | Base directory for CLI config, credentials, and the update cache |
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely |
 | `SIM_DEBUG` | Print request diagnostics to stderr |
-| `SIM_NO_UPDATE_CHECK` | Turn off the update notice |
+| `SIM_NO_UPDATE_CHECK` | Turn off update notices |
+| `SIM_TELEMETRY_DISABLED` | Turn off anonymous usage reporting (`DO_NOT_TRACK=1` also works) |
 
 On eligible interactive invocations, `sim` uses a daily cache before asking
-`registry.npmjs.org` what is published under the `latest` tag and prints one
-line on stderr when a newer version exists. Prerelease installs are skipped
-entirely. The cache lives in `~/.sim` by default and follows `SIM_CONFIG_DIR`;
+`registry.npmjs.org` what is published under the `latest` tag and prints an
+optional notice on stderr when a newer version exists. Prerelease installs are
+skipped entirely. The cache lives in `~/.sim` by default and follows `SIM_CONFIG_DIR`;
 without a writable cache, each eligible invocation checks again. Concurrent
 invocations can also perform duplicate checks. The registry request has a
 one-second deadline; the short-lived request process is terminated on expiry.
@@ -308,6 +360,22 @@ use the public default; non-empty malformed or non-HTTP(S) values fail closed.
 The full list of cases where it stays quiet is in the
 [configuration guide](https://docs.sim.ai/cli/configuration).
 
+## Usage data
+
+The CLI reports anonymous usage data — which commands run, whether they
+succeed, and how long they take — so the team can see how it is used. Nothing
+you type is sent: no argument or flag values, paths, ids, error messages, or
+credentials. The first interactive run prints a notice and is not reported.
+
+```bash
+sim telemetry status
+sim telemetry disable
+```
+
+`DO_NOT_TRACK=1` or `SIM_TELEMETRY_DISABLED=1` in the environment also turns it
+off. The full description of what is sent is in the
+[usage data guide](https://docs.sim.ai/cli/usage-data).
+
 ## Documentation
 
 - [CLI documentation](https://docs.sim.ai/cli)
@@ -316,6 +384,7 @@ The full list of cases where it stays quiet is in the
 - [Profiles and configuration](https://docs.sim.ai/cli/configuration)
 - [Scripting](https://docs.sim.ai/cli/scripting)
 - [Troubleshooting](https://docs.sim.ai/cli/troubleshooting)
+- [Usage data](https://docs.sim.ai/cli/usage-data)
 
 ## License
 

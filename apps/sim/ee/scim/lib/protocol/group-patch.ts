@@ -1,7 +1,8 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { readMemberValue } from '@/ee/scim/lib/protocol/canonical'
 import { invalidPath, invalidValue, mutability, noTarget } from '@/ee/scim/lib/protocol/errors'
-import { isRecord, normalizeAttributePath } from '@/ee/scim/lib/protocol/normalize'
+import { normalizeAttributePath } from '@/ee/scim/lib/protocol/normalize'
 
 /**
  * A parsed Group PATCH.
@@ -86,7 +87,7 @@ export function parseGroupPatch(operations: readonly ScimPatchOperation[]): Grou
 
     if (!operation.path) {
       const value = operation.value
-      if (!isRecord(value)) {
+      if (!isRecordLike(value)) {
         throw invalidValue('A PATCH operation without a path requires an object value')
       }
       incremental = false

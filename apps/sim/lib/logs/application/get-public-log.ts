@@ -30,6 +30,7 @@ interface PublicLogContext extends ActiveWorkspaceApplicationContext {
 
 export interface GetPublicLogInput {
   runId: string
+  includeWorkflowState?: boolean
 }
 
 export interface GetPublicLogResult {
@@ -94,7 +95,7 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     return { ...workspace, executionId: scope.executionId, workflowId: scope.workflowId }
   },
   authorizationOptions: logDelegationAuthorization<PublicLogContext>(),
-  execute: async ({ principal, context }): Promise<GetPublicLogResult> => {
+  execute: async ({ principal, input, context }): Promise<GetPublicLogResult> => {
     /**
      * Attribution and the projection subject in one value; a workspace API key
      * represents no user and therefore reads the run whole. See
@@ -118,7 +119,8 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
 
     const log = await getPublicWorkflowLog(
       { column: 'executionId', value: context.executionId },
-      context.workspaceId
+      context.workspaceId,
+      { includeWorkflowState: input.includeWorkflowState }
     )
     if (!log || log.workflowId !== context.workflowId) {
       throw new OrchestrationError('not_found', 'Log not found')

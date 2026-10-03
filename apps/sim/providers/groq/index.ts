@@ -10,9 +10,20 @@ import type {
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
-import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+  recordProviderConversationUsage,
+} from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -79,7 +90,7 @@ export const groqProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model.replace('groq/', ''),
+      model: request.model.replace(/^groq\//i, ''),
       messages: formattedMessages,
     }
 
@@ -101,6 +112,9 @@ export const groqProvider: ProviderConfig = {
     if (isGptOss && (hasExplicitEffort || hasThinkingLevel)) {
       payload.include_reasoning = true
       payload.reasoning_effort = hasExplicitEffort ? request.reasoningEffort : 'medium'
+    } else if (isQwenReasoning && hasExplicitEffort) {
+      payload.reasoning_effort = request.reasoningEffort
+      if (request.reasoningEffort !== 'none') payload.reasoning_format = 'parsed'
     } else if (isQwenReasoning && hasThinkingLevel) {
       payload.reasoning_format = 'parsed'
     } else if (isQwenReasoning && request.thinkingLevel === 'none') {
@@ -108,14 +122,7 @@ export const groqProvider: ProviderConfig = {
     }
 
     if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
+      payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
     }
 
     let originalToolChoice: any
@@ -210,10 +217,10 @@ export const groqProvider: ProviderConfig = {
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
       const streamResponse = await groq.chat.completions.create(
-        {
+        await prepareConversationGeneration(request, 'chat-completions', {
           ...payload,
           stream: true,
-        },
+        }),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -227,35 +234,39 @@ export const groqProvider: ProviderConfig = {
         isStreaming: true,
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromGroqStream(
+          createOpenAICompatibleAgentEventStream(
             // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; groq-sdk stream chunks are wire-compatible with the OpenAI ChatCompletionChunk shape the adapter consumes
             streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-            (content, usage, thinking) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
-
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
-
-              if (thinking) {
-                const segment = output.providerTiming?.timeSegments?.[0]
-                if (segment) {
-                  segment.thinkingContent = thinking
+            {
+              providerName: 'Groq',
+              request,
+              onComplete: ({ content, usage, thinking }) => {
+                output.content = content
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
                 }
-              }
-              finalizeTiming()
+
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
+
+                if (thinking) {
+                  const segment = output.providerTiming?.timeSegments?.[0]
+                  if (segment) {
+                    segment.thinkingContent = thinking
+                  }
+                }
+                finalizeTiming()
+              },
             }
           ),
       })
@@ -270,9 +281,17 @@ export const groqProvider: ProviderConfig = {
       const initialCallTime = Date.now()
 
       let currentResponse = await groq.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -320,6 +339,12 @@ export const groqProvider: ProviderConfig = {
 
           const toolsStartTime = Date.now()
 
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
           const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
             const toolCallStartTime = Date.now()
             const toolName = toolCall.function.name
@@ -329,6 +354,12 @@ export const groqProvider: ProviderConfig = {
               const tool = request.tools?.find((t) => t.id === toolName)
 
               if (!tool) {
+                await recordProviderConversationToolError(
+                  request,
+                  toolCall.id,
+                  toolName,
+                  `Tool "${toolName}" is not available`
+                )
                 const toolCallEndTime = Date.now()
                 return {
                   toolCall,
@@ -374,6 +405,12 @@ export const groqProvider: ProviderConfig = {
               if (isAbortError(error) || request.abortSignal?.aborted) {
                 throw error
               }
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                getErrorMessage(error, 'Tool execution failed')
+              )
               const toolCallEndTime = Date.now()
               logger.error('Error processing tool call:', { error, toolName })
 
@@ -496,9 +533,17 @@ export const groqProvider: ProviderConfig = {
 
           const nextModelStartTime = Date.now()
           currentResponse = await groq.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+            await captureProviderConversationStep(
+              request,
+              'chat-completions',
+              currentResponse.choices[0]?.message,
+              getChatCompletionConversationUsage(currentResponse.usage)
+            )
+          }
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -527,6 +572,12 @@ export const groqProvider: ProviderConfig = {
         }
 
         if (iterationCount === MAX_TOOL_ITERATIONS) {
+          if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+            await recordProviderConversationUsage(
+              request,
+              getChatCompletionConversationUsage(currentResponse.usage)
+            )
+          }
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
@@ -570,7 +621,11 @@ export const groqProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
       throw new ProviderError(toError(error).message, {
