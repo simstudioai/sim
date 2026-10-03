@@ -1,4 +1,11 @@
-import { createLogger } from '@sim/logger'
+import {
+  parsePrincipal,
+  resolvePrincipalSubject,
+  serializePrincipal,
+  type WorkflowExecutionAuthority,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { type JWTPayload, jwtVerify, SignJWT } from 'jose'
@@ -16,16 +23,22 @@ export interface InternalTokenClaims {
 }
 
 export interface GenerateInternalDelegationTokenInput {
-  subjectUserId: string
+  subjectUserId?: string
   workflowId: string
   executionId?: string
+  principal?: WorkflowExecutionPrincipal
+  currentWorkflow?: WorkflowExecutionAuthority
+  mcpBlockId?: string
 }
 
 export interface VerifiedInternalDelegation {
   serviceId: 'executor'
-  subjectUserId: string
+  subjectUserId?: string
   workflowId: string
   executionId?: string
+  principal?: WorkflowExecutionPrincipal
+  currentWorkflow?: WorkflowExecutionAuthority
+  mcpBlockId?: string
   delegationId: string
   issuedAt: Date
   expiresAt: Date
@@ -91,38 +104,98 @@ function requireNonEmptyDelegationClaim(value: string, name: string): string {
   return value
 }
 
-/** Generates a subject-bearing executor token bound to a workflow and optional execution origin. */
+function parseWorkflowExecutionAuthority(value: unknown): WorkflowExecutionAuthority {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new InvalidInternalDelegationTokenError()
+  }
+  const authority = value as Record<string, unknown>
+  const workflowId = readVerifiedDelegationClaim(authority.workflowId)
+  if (!workflowId) throw new InvalidInternalDelegationTokenError()
+  if (authority.mode === 'draft') {
+    if (Object.keys(authority).some((key) => !['workflowId', 'mode'].includes(key))) {
+      throw new InvalidInternalDelegationTokenError()
+    }
+    return { workflowId, mode: 'draft' }
+  }
+  if (authority.mode === 'deployment') {
+    const deploymentVersionId = readVerifiedDelegationClaim(authority.deploymentVersionId)
+    if (
+      !deploymentVersionId ||
+      Object.keys(authority).some(
+        (key) => !['workflowId', 'mode', 'deploymentVersionId'].includes(key)
+      )
+    ) {
+      throw new InvalidInternalDelegationTokenError()
+    }
+    return { workflowId, mode: 'deployment', deploymentVersionId }
+  }
+  throw new InvalidInternalDelegationTokenError()
+}
+
+/** Generates an executor token bound to its workflow origin and authenticated caller. */
 export async function generateInternalDelegationToken(
   input: GenerateInternalDelegationTokenInput
 ): Promise<string> {
-  const subjectUserId = requireNonEmptyDelegationClaim(input.subjectUserId, 'subjectUserId')
+  const suppliedSubjectUserId = input.subjectUserId
+    ? requireNonEmptyDelegationClaim(input.subjectUserId, 'subjectUserId')
+    : undefined
+  const principalSubject = input.principal ? resolvePrincipalSubject(input.principal) : null
+  if (principalSubject && principalSubject.kind !== 'sim_user' && suppliedSubjectUserId) {
+    throw new Error('Non-Sim workflow subjects cannot be represented as Sim users')
+  }
+  if (!principalSubject && input.principal && suppliedSubjectUserId) {
+    throw new Error('Actorless workflow principals cannot be represented as Sim users')
+  }
+  if (
+    principalSubject?.kind === 'sim_user' &&
+    suppliedSubjectUserId &&
+    suppliedSubjectUserId !== principalSubject.userId
+  ) {
+    throw new Error('Internal delegation subject does not match its workflow principal')
+  }
+  const subjectUserId =
+    principalSubject?.kind === 'sim_user' ? principalSubject.userId : suppliedSubjectUserId
+  if (!subjectUserId && !input.principal) {
+    throw new Error('Internal delegation requires a workflow principal or Sim user subject')
+  }
   const workflowId = requireNonEmptyDelegationClaim(input.workflowId, 'workflowId')
+  const currentWorkflow = input.currentWorkflow
+    ? parseWorkflowExecutionAuthority(input.currentWorkflow)
+    : undefined
   const issuedAtSeconds = Math.floor(Date.now() / 1000)
   const executionId = input.executionId
     ? requireNonEmptyDelegationClaim(input.executionId, 'executionId')
     : undefined
+  if (currentWorkflow && !executionId) {
+    throw new Error('Internal delegation currentWorkflow requires executionId')
+  }
 
-  return new SignJWT({
+  let token = new SignJWT({
     type: 'internal_delegation',
+    ...(input.mcpBlockId
+      ? { mcpBlockId: requireNonEmptyDelegationClaim(input.mcpBlockId, 'mcpBlockId') }
+      : {}),
     serviceId: 'executor',
     workflowId,
+    ...(input.principal ? { principal: serializePrincipal(input.principal) } : {}),
+    ...(currentWorkflow ? { currentWorkflow } : {}),
     ...(executionId ? { executionId } : {}),
   })
     .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(subjectUserId)
     .setJti(generateId())
     .setIssuedAt(issuedAtSeconds)
     .setExpirationTime(issuedAtSeconds + INTERNAL_DELEGATION_TTL_SECONDS)
     .setIssuer(INTERNAL_DELEGATION_ISSUER)
     .setAudience(INTERNAL_DELEGATION_AUDIENCE)
-    .sign(getJwtSecret())
+  if (subjectUserId) token = token.setSubject(subjectUserId)
+  return token.sign(getJwtSecret())
 }
 
 function readVerifiedDelegationClaim(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null
 }
 
-/** Verifies a scoped executor delegation without accepting legacy or actorless tokens. */
+/** Verifies a scoped executor delegation without accepting unbound legacy tokens. */
 export async function verifyInternalDelegationToken(
   token: string
 ): Promise<VerifiedInternalDelegation> {
@@ -144,15 +217,30 @@ export async function verifyInternalDelegationToken(
   const workflowId = readVerifiedDelegationClaim(payload.workflowId)
   const executionId =
     payload.executionId === undefined ? undefined : readVerifiedDelegationClaim(payload.executionId)
+  const mcpBlockId =
+    payload.mcpBlockId === undefined ? undefined : readVerifiedDelegationClaim(payload.mcpBlockId)
   const delegationId = readVerifiedDelegationClaim(payload.jti)
   const nowSeconds = Math.floor(Date.now() / 1000)
+  let principal: WorkflowExecutionPrincipal | undefined
+  let currentWorkflow: WorkflowExecutionAuthority | undefined
+  if (payload.principal !== undefined) {
+    try {
+      principal = parsePrincipal(payload.principal)
+    } catch {
+      throw new InvalidInternalDelegationTokenError()
+    }
+  }
+  if (payload.currentWorkflow !== undefined) {
+    currentWorkflow = parseWorkflowExecutionAuthority(payload.currentWorkflow)
+  }
 
   if (
     payload.type !== 'internal_delegation' ||
     payload.serviceId !== 'executor' ||
-    !subjectUserId ||
     !workflowId ||
     executionId === null ||
+    mcpBlockId === null ||
+    (currentWorkflow !== undefined && executionId === undefined) ||
     !delegationId ||
     typeof payload.iat !== 'number' ||
     typeof payload.exp !== 'number' ||
@@ -163,10 +251,23 @@ export async function verifyInternalDelegationToken(
     throw new InvalidInternalDelegationTokenError()
   }
 
+  const principalSubject = principal ? resolvePrincipalSubject(principal) : null
+  if (
+    (!principal && !subjectUserId) ||
+    (principalSubject?.kind === 'sim_user' && principalSubject.userId !== subjectUserId) ||
+    (principalSubject && principalSubject.kind !== 'sim_user' && subjectUserId) ||
+    (principal && !principalSubject && subjectUserId)
+  ) {
+    throw new InvalidInternalDelegationTokenError()
+  }
+
   return {
+    ...(mcpBlockId ? { mcpBlockId } : {}),
     serviceId: 'executor',
-    subjectUserId,
+    ...(subjectUserId ? { subjectUserId } : {}),
     workflowId,
+    ...(principal ? { principal } : {}),
+    ...(currentWorkflow ? { currentWorkflow } : {}),
     ...(executionId ? { executionId } : {}),
     delegationId,
     issuedAt: new Date(payload.iat * 1000),
@@ -194,6 +295,7 @@ export async function verifyInternalToken(
       if (payload.sandboxProfile !== undefined && payload.sandboxProfile !== 'mothership') {
         return { valid: false }
       }
+      setRequestAuth({ kind: 'internal_jwt' }, { preserveExisting: true })
       return {
         valid: true,
         userId: typeof payload.userId === 'string' ? payload.userId : undefined,
@@ -204,7 +306,7 @@ export async function verifyInternalToken(
     }
 
     return { valid: false }
-  } catch (error) {
+  } catch {
     // Token verification failed
     return { valid: false }
   }

@@ -1,5 +1,7 @@
 import type { Chunk } from '@/lib/chunkers/types'
 
+const MAX_TOKEN_CHUNK_SIZE = Math.floor(Number.MAX_SAFE_INTEGER / 4)
+
 /** 1 token ≈ 4 characters for English text */
 export function estimateTokens(text: string): number {
   if (!text?.trim()) return 0
@@ -8,6 +10,19 @@ export function estimateTokens(text: string): number {
 
 export function tokensToChars(tokens: number): number {
   return tokens * 4
+}
+
+export function assertPositiveSafeInteger(value: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive safe integer`)
+  }
+}
+
+export function normalizeTokenChunkSize(value: number, name: string): number {
+  if (!Number.isFinite(value) || value < 1 || value > MAX_TOKEN_CHUNK_SIZE) {
+    throw new Error(`${name} must be a finite number between 1 and ${MAX_TOKEN_CHUNK_SIZE}`)
+  }
+  return Math.floor(value)
 }
 
 export function cleanText(text: string): string {
@@ -60,7 +75,42 @@ export function splitAtWordBoundaries(
   chunkSizeChars: number,
   stepChars?: number
 ): string[] {
-  const parts: string[] = []
+  return Array.from(iterateWordBoundaryChunks(text, chunkSizeChars, stepChars))
+}
+
+export interface WordBoundaryChunkSpan {
+  text: string
+  startIndex: number
+  endIndex: number
+}
+
+/** Iterates bounded word-aware source slices without trimming or skipping characters. */
+export function* iterateLosslessWordBoundaryChunkSpans(
+  text: string,
+  chunkSizeChars: number
+): Generator<WordBoundaryChunkSpan> {
+  assertPositiveSafeInteger(chunkSizeChars, 'Lossless word-boundary chunk size')
+
+  let startIndex = 0
+  while (startIndex < text.length) {
+    let endIndex = Math.min(startIndex + chunkSizeChars, text.length)
+    if (endIndex < text.length) {
+      const lastSpace = text.lastIndexOf(' ', endIndex - 1)
+      if (lastSpace > startIndex) endIndex = lastSpace + 1
+    }
+    yield { text: text.slice(startIndex, endIndex), startIndex, endIndex }
+    startIndex = endIndex
+  }
+}
+
+/** Iterates trimmed word-boundary chunks while preserving their source offsets. */
+export function* iterateWordBoundaryChunkSpans(
+  text: string,
+  chunkSizeChars: number,
+  stepChars?: number
+): Generator<WordBoundaryChunkSpan> {
+  assertPositiveSafeInteger(chunkSizeChars, 'Word-boundary chunk size')
+
   let pos = 0
 
   while (pos < text.length) {
@@ -68,30 +118,79 @@ export function splitAtWordBoundaries(
 
     if (end < text.length) {
       const lastSpace = text.lastIndexOf(' ', end)
-      if (lastSpace > pos) {
-        end = lastSpace
-      }
+      if (lastSpace > pos) end = lastSpace
     }
 
-    const part = text.slice(pos, end).trim()
-    if (part) {
-      parts.push(part)
+    const rawPart = text.slice(pos, end)
+    const startIndex = pos + (rawPart.length - rawPart.trimStart().length)
+    const endIndex = end - (rawPart.length - rawPart.trimEnd().length)
+    if (endIndex > startIndex) {
+      yield { text: text.slice(startIndex, endIndex), startIndex, endIndex }
     }
 
     if (stepChars !== undefined) {
-      // Sliding window: advance by step for predictable overlap
       const nextPos = pos + Math.max(1, stepChars)
       if (nextPos >= text.length) break
       pos = nextPos
     } else {
-      // Non-overlapping: advance from end of extracted content
       if (end >= text.length) break
       pos = end
     }
     while (pos < text.length && text[pos] === ' ') pos++
   }
+}
 
-  return parts
+export function* iterateWordBoundaryChunks(
+  text: string,
+  chunkSizeChars: number,
+  stepChars?: number
+): Generator<string> {
+  for (const span of iterateWordBoundaryChunkSpans(text, chunkSizeChars, stepChars)) {
+    yield span.text
+  }
+}
+
+/** Iterates literal-separated parts while preserving String.split's raw part values. */
+export function* iterateLiteralParts(text: string, separator: string): Generator<string> {
+  if (!separator) {
+    yield text
+    return
+  }
+
+  let cursor = 0
+  while (cursor <= text.length) {
+    const next = text.indexOf(separator, cursor)
+    if (next === -1) {
+      yield text.slice(cursor)
+      return
+    }
+    yield text.slice(cursor, next)
+    cursor = next + separator.length
+  }
+}
+
+export function hasMultipleNonEmptyLiteralParts(text: string, separator: string): boolean {
+  let nonEmptyParts = 0
+  for (const part of iterateLiteralParts(text, separator)) {
+    if (!part.trim()) continue
+    nonEmptyParts++
+    if (nonEmptyParts === 2) return true
+  }
+  return false
+}
+
+/** Iterates lines without allocating an array proportional to line count. */
+export function* iterateLines(text: string): Generator<string> {
+  let cursor = 0
+  while (cursor <= text.length) {
+    const next = text.indexOf('\n', cursor)
+    if (next === -1) {
+      yield text.slice(cursor)
+      return
+    }
+    yield text.slice(cursor, next)
+    cursor = next + 1
+  }
 }
 
 export function buildChunks(texts: string[], overlapTokens: number): Chunk[] {
@@ -133,7 +232,7 @@ export function resolveChunkerOptions(options: {
   chunkOverlap?: number
   minCharactersPerChunk?: number
 }): { chunkSize: number; chunkOverlap: number; minCharactersPerChunk: number } {
-  const chunkSize = options.chunkSize ?? 1024
+  const chunkSize = normalizeTokenChunkSize(options.chunkSize ?? 1024, 'Chunk size')
   const maxOverlap = Math.floor(chunkSize * 0.5)
   return {
     chunkSize,

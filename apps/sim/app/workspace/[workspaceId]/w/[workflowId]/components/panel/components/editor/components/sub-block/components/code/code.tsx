@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import {
+  Chip,
   CODE_LINE_HEIGHT_PX,
   Code as CodeEditor,
   calculateGutterWidth,
@@ -10,11 +11,10 @@ import {
   highlight,
   languages,
 } from '@sim/emcn'
-import { Check, Wand } from '@sim/emcn/icons'
+import { Check } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
-import { Button } from '@/components/ui/button'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   isLikelyReferenceSegment,
@@ -31,6 +31,10 @@ import {
   type WorkflowSearchTextHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
+import {
   checkTagTrigger,
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -39,6 +43,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
+import { WandButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-button'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -138,6 +143,21 @@ const escapeHtml = (value: string): string =>
     .replaceAll("'", '&#39;')
 
 /**
+ * Highlighter that conceals the editor's contents.
+ *
+ * @remarks
+ * `react-simple-code-editor` paints its textarea with a transparent text fill
+ * and shows the markup returned by its `highlight` prop instead, so swapping the
+ * highlighter is what actually hides a secret — the textarea's own value is
+ * never visible.
+ *
+ * @param codeToHighlight - The plaintext editor contents
+ * @returns Escaped markup with every character replaced by a mask glyph
+ */
+export const highlightMaskedCode = (codeToHighlight: string): string =>
+  escapeHtml(maskSecretText(codeToHighlight))
+
+/**
  * Type definition for code placeholders during syntax highlighting.
  */
 interface CodePlaceholder {
@@ -234,6 +254,8 @@ interface CodeProps {
   blockId: string
   subBlockId: string
   placeholder?: string
+  /** Whether to conceal the value except while the editor is focused */
+  password?: boolean
   language?: 'javascript' | 'json' | 'python' | 'shell'
   generationType?: GenerationType
   value?: string
@@ -263,6 +285,7 @@ export const Code = memo(function Code({
   blockId,
   subBlockId,
   placeholder = 'Write JavaScript...',
+  password = false,
   language = 'javascript',
   generationType = 'javascript-function-body',
   value: propValue,
@@ -290,6 +313,7 @@ export const Code = memo(function Code({
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
   const [activeLineNumber, setActiveLineNumber] = useState(1)
   const [copied, setCopied] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
 
   const editorRef = useRef<HTMLDivElement>(null)
   const handleStreamStartRef = useRef<() => void>(() => {})
@@ -540,19 +564,19 @@ export const Code = memo(function Code({
       const newVisualLineHeights: number[] = []
 
       const tempContainer = document.createElement('div')
-      tempContainer.style.cssText = `
-        position: absolute;
-        visibility: hidden;
-        height: auto;
-        width: ${preElement.clientWidth}px;
-        font-family: ${window.getComputedStyle(preElement).fontFamily};
-        font-size: ${window.getComputedStyle(preElement).fontSize};
-        line-height: ${LINE_HEIGHT_PX}px;
-        padding: 8px;
-        white-space: pre-wrap;
-        word-break: break-word;
-        box-sizing: border-box;
-      `
+      Object.assign(tempContainer.style, {
+        position: 'absolute',
+        visibility: 'hidden',
+        height: 'auto',
+        width: `${preElement.clientWidth}px`,
+        fontFamily: window.getComputedStyle(preElement).fontFamily,
+        fontSize: window.getComputedStyle(preElement).fontSize,
+        lineHeight: `${LINE_HEIGHT_PX}px`,
+        padding: '8px',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        boxSizing: 'border-box',
+      })
       document.body.appendChild(tempContainer)
 
       lines.forEach((line: string) => {
@@ -743,6 +767,8 @@ export const Code = memo(function Code({
     valuePath: [],
   })
 
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+
   const highlightCode = useMemo(
     () =>
       createHighlightFunction(
@@ -812,6 +838,7 @@ export const Code = memo(function Code({
   )
 
   const handleEditorFocus = useCallback(() => {
+    setIsFocused(true)
     startSession(codeRef.current)
     if (!isPreview && !disabled && !readOnly && codeRef.current.trim() === '') {
       setShowTags(true)
@@ -820,6 +847,7 @@ export const Code = memo(function Code({
   }, [disabled, isPreview, readOnly, startSession])
 
   const handleEditorBlur = useCallback(() => {
+    setIsFocused(false)
     flushPending()
   }, [flushPending])
 
@@ -879,22 +907,12 @@ export const Code = memo(function Code({
   return (
     <>
       {showCopyButton && code && (
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
+        <Chip
           onClick={handleCopy}
           disabled={!code}
-          className={cn(
-            'size-8 p-0',
-            'text-muted-foreground/60 transition-all duration-200',
-            'hover-hover:scale-105 hover-hover:bg-muted/50 hover-hover:text-foreground',
-            'active:scale-95'
-          )}
+          leftIcon={copied ? Check : Duplicate}
           aria-label='Copy code'
-        >
-          {copied ? <Check className='h-3.5 w-3.5' /> : <Duplicate className='h-3.5 w-3.5' />}
-        </Button>
+        />
       )}
       {!hideInternalWand && (
         <WandPromptBar
@@ -916,16 +934,11 @@ export const Code = memo(function Code({
             !isPreview &&
             !readOnly &&
             !hideInternalWand && (
-              <Button
-                variant='ghost'
-                size='icon'
+              <WandButton
                 onClick={isPromptVisible ? hidePromptInline : showPromptInline}
                 disabled={isAiLoading || isAiStreaming}
                 aria-label='Generate code with AI'
-                className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
-              >
-                <Wand className='size-4' />
-              </Button>
+              />
             )}
         </div>
 
@@ -942,7 +955,7 @@ export const Code = memo(function Code({
             onKeyDown={handleKeyDown}
             onFocus={handleEditorFocus}
             onBlur={handleEditorBlur}
-            highlight={highlightCode}
+            highlight={shouldMask ? highlightMaskedCode : highlightCode}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
           />
 

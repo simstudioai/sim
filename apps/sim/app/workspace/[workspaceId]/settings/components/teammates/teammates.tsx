@@ -9,12 +9,13 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   RoleLockTooltip,
   type WorkspaceRoleSource,
+  workspaceMemberRemovalLockReason,
   workspaceRoleLockReason,
 } from '@/components/permissions'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import {
   MemberRow,
@@ -56,6 +57,7 @@ interface Teammate {
   invitationId?: string
   token?: string
   roleSource?: WorkspaceRoleSource
+  isOrgAdmin?: boolean
   isBilledAccount?: boolean
 }
 
@@ -81,6 +83,7 @@ export function Teammates() {
   const workspaceId = (params?.workspaceId as string) || ''
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const { billingEnabled } = useDeploymentShape()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
   const { data: permissions, isPending: permissionsLoading } =
@@ -119,7 +122,7 @@ export function Teammates() {
 
   const handleInvite = () => {
     if (isInvitationsDisabled) {
-      if (isBillingEnabled) router.push(upgradeHref)
+      if (billingEnabled) router.push(upgradeHref)
       return
     }
     setIsInviteModalOpen(true)
@@ -139,6 +142,7 @@ export function Teammates() {
       isPending: false,
       userId: member.userId,
       roleSource: member.roleSource,
+      isOrgAdmin: member.isOrgAdmin,
       isBilledAccount: member.isBilledAccount,
     }))
 
@@ -206,20 +210,33 @@ export function Teammates() {
             searchTerm.trim() ? `No teammates found matching “${searchTerm}”` : 'No teammates yet'
           }
         >
-          {filteredTeammates.map((teammate) => (
-            <MemberRow
-              key={teammate.key}
-              name={teammate.name}
-              email={teammate.email}
-              image={teammate.image}
-              status={teammate.status}
-              roleControl={(() => {
-                const lockReason = teammate.isPending
-                  ? null
-                  : workspaceRoleLockReason(teammate.roleSource, {
-                      isBilledAccount: teammate.isBilledAccount,
-                    })
-                return (
+          {filteredTeammates.map((teammate) => {
+            const lockReason = teammate.isPending
+              ? null
+              : workspaceRoleLockReason(teammate.roleSource, {
+                  isBilledAccount: teammate.isBilledAccount,
+                })
+            /**
+             * Removal is refused for a different set than the role control locks,
+             * so it carries its own reason — and stays visible-but-disabled rather
+             * than hidden, so the row explains the derived access instead of
+             * leaving an Admin who cannot be acted on.
+             */
+            const removalLockReason = teammate.isPending
+              ? null
+              : workspaceMemberRemovalLockReason({
+                  isOrgAdmin: teammate.isOrgAdmin,
+                  isBilledAccount: teammate.isBilledAccount,
+                })
+
+            return (
+              <MemberRow
+                key={teammate.key}
+                name={teammate.name}
+                email={teammate.email}
+                image={teammate.image}
+                status={teammate.status}
+                roleControl={
                   <RoleLockTooltip reason={lockReason}>
                     <ChipDropdown
                       value={teammate.role}
@@ -234,83 +251,85 @@ export function Teammates() {
                       }
                     />
                   </RoleLockTooltip>
-                )
-              })()}
-              menu={
-                <RowActionsMenu
-                  label='Teammate actions'
-                  actions={[
-                    {
-                      label: 'Copy email',
-                      onSelect: () => copyToClipboard(teammate.email),
-                    },
-                    ...(canManage && teammate.isPending
-                      ? [
-                          {
-                            label: 'Resend invite',
-                            onSelect: () => {
-                              if (teammate.invitationId) {
-                                resendInvitation.mutate({
-                                  invitationId: teammate.invitationId,
-                                  workspaceId,
-                                })
-                              }
+                }
+                menu={
+                  <RowActionsMenu
+                    label='Teammate actions'
+                    actions={[
+                      {
+                        label: 'Copy email',
+                        onSelect: () => copyToClipboard(teammate.email),
+                      },
+                      ...(canManage && teammate.isPending
+                        ? [
+                            {
+                              label: 'Resend invite',
+                              onSelect: () => {
+                                if (teammate.invitationId) {
+                                  resendInvitation.mutate({
+                                    invitationId: teammate.invitationId,
+                                    workspaceId,
+                                  })
+                                }
+                              },
                             },
-                          },
-                          {
-                            label: 'Copy invite link',
-                            onSelect: () => {
-                              if (teammate.invitationId && teammate.token) {
-                                copyToClipboard(
-                                  buildInviteLink(teammate.invitationId, teammate.token)
-                                )
-                              }
+                            {
+                              label: 'Copy invite link',
+                              onSelect: () => {
+                                if (teammate.invitationId && teammate.token) {
+                                  copyToClipboard(
+                                    buildInviteLink(teammate.invitationId, teammate.token)
+                                  )
+                                }
+                              },
                             },
-                          },
-                          {
-                            label: 'Revoke invite',
-                            destructive: true,
-                            onSelect: () => {
-                              if (teammate.invitationId) {
-                                cancelInvitation.mutate({
-                                  invitationId: teammate.invitationId,
-                                  workspaceId,
-                                })
-                              }
+                            {
+                              label: 'Revoke invite',
+                              destructive: true,
+                              onSelect: () => {
+                                if (teammate.invitationId) {
+                                  cancelInvitation.mutate({
+                                    invitationId: teammate.invitationId,
+                                    workspaceId,
+                                  })
+                                }
+                              },
                             },
-                          },
-                        ]
-                      : []),
-                    ...(canManage && !teammate.isPending && teammate.userId !== viewer?.userId
-                      ? [
-                          {
-                            label: 'Remove',
-                            destructive: true,
-                            onSelect: () => {
-                              if (teammate.userId) {
-                                removeMember.mutate(
-                                  { userId: teammate.userId, workspaceId },
-                                  {
-                                    onError: (error) => {
-                                      toast.error("Couldn't remove teammate", {
-                                        description: getErrorMessage(
-                                          error,
-                                          'Please try again in a moment.'
-                                        ),
-                                      })
-                                    },
-                                  }
-                                )
-                              }
+                          ]
+                        : []),
+                      ...(canManage && !teammate.isPending && teammate.userId !== viewer?.userId
+                        ? [
+                            {
+                              label: 'Remove',
+                              destructive: true,
+                              disabled: removalLockReason !== null,
+                              tooltip: removalLockReason ?? undefined,
+                              onSelect: () => {
+                                if (teammate.userId) {
+                                  removeMember.mutate(
+                                    { userId: teammate.userId, workspaceId },
+                                    {
+                                      onError: (error) => {
+                                        toast.error("Couldn't remove teammate", {
+                                          description: getErrorMessage(
+                                            error,
+                                            'Please try again in a moment.'
+                                          ),
+                                        })
+                                      },
+                                    }
+                                  )
+                                }
+                              },
                             },
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-              }
-            />
-          ))}
+                          ]
+                        : []),
+                    ]}
+                  />
+                }
+              />
+            )
+          })}
         </MemberSection>
       </SettingsPanel>
 

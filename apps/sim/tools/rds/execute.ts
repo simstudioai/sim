@@ -1,7 +1,7 @@
 import type { RdsExecuteParams, RdsExecuteResponse } from '@/tools/rds/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeTool: ToolConfig<RdsExecuteParams, RdsExecuteResponse> = {
+export const executeTool: InternalToolConfig<RdsExecuteParams, RdsExecuteResponse> = {
   id: 'rds_execute',
   name: 'RDS Execute',
   description: 'Execute raw SQL on Amazon RDS using the Data API',
@@ -54,13 +54,8 @@ export const executeTool: ToolConfig<RdsExecuteParams, RdsExecuteResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/rds/execute',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -27,10 +27,15 @@ import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import {
   FILE_DOC_EVENTS,
+  FILE_DOC_LEGACY_SCHEMA_VERSION,
+  FILE_DOC_LIMITS,
   FILE_DOC_MESSAGE_TYPE,
+  FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
   FILE_DOC_TIMEOUTS,
   type FileDocPresenceUser,
+  type FileDocUpdateAck,
+  type FileDocUpdatePayload,
   type JoinFileDocPayload,
   type LeaveFileDocPayload,
   toFileDocBytes,
@@ -47,6 +52,7 @@ import * as Y from 'yjs'
 import { resolveAvatarUrl } from '@/handlers/avatar'
 import { fetchFileDocMerge, fetchFileDocPersist, fetchFileDocSeed } from '@/handlers/file-doc-app'
 import {
+  FileDocInvalidatedError,
   getFileDocStore,
   REDIS_AGENT_ORIGIN,
   REDIS_ORIGIN,
@@ -131,9 +137,13 @@ interface FileDocRoom {
   /** socketId → (clientId → its presence ownership). A socket owns one entry per collaborative provider
    * it mounted for this file (see {@link FileDocOwner}); an empty inner map is never kept. */
   owners: Map<string, Map<number, FileDocOwner>>
-  /** True once the server-side seed fetch has started, so concurrent joins don't each fetch.
-   * Reset on a fetch FAILURE so a later join can retry (a genuinely empty file stays empty). */
-  serverSeedStarted: boolean
+  /**
+   * The in-flight server seed for this room, or `null`. Concurrent joins await THIS promise rather
+   * than each starting a fetch — and, unlike a "started" boolean, awaiting it is what lets a second
+   * joiner be served a document that is already seeded instead of an empty one. Cleared when it
+   * settles, so a failed seed is re-attempted by a later join (a genuinely empty file stays empty).
+   */
+  seeding: Promise<void> | null
   /** The workspace this file belongs to, captured at join — needed to persist back to markdown. */
   workspaceId: string | null
   /** The last collaborator to edit here, for persist attribution (blob metadata) only. */
@@ -170,22 +180,41 @@ interface FileDocRoom {
    * {@link FileDocStore.isAgentStreaming} flag. `0` when no agent stream is active.
    */
   agentStreamingUntil: number
+  /**
+   * Resolves once this room's doc reflects the file's shared stream (see {@link FileDocStore.catchUp}).
+   * Rejects when replay cannot complete so the join fails closed rather than serving partial state.
+   */
+  hydrated: Promise<void>
+  /**
+   * How many joins are currently preparing this room. A room is created by the first join and has no
+   * owner until that join commits, so without this a concurrent last-leave would tear down the very
+   * document being assembled. A room with a join in flight is not idle.
+   */
+  pendingJoins: number
+  /** Acknowledged updates currently waiting for their durable stream append. */
+  pendingUpdates: number
 }
 
 /** Live documents keyed by Socket.IO room name. Module-global: one Y.Doc per file. */
 const fileDocRooms = new Map<string, FileDocRoom>()
+const pendingFileDocPersists = new Set<Promise<void>>()
+const pendingFileDocUpdates = new Set<Promise<void>>()
 /** socketId → its current file-doc room name (a socket edits at most one doc). */
 const socketToRoomName = new Map<string, string>()
 /**
- * socketId → a monotonic join generation. A JOIN bumps it on arrival and, after
- * the async authorization, proceeds only if the generation is still its own — so
- * a newer JOIN (a fast document switch) or a disconnect (which drops the entry in
- * cleanup) that occurred during authorization aborts the now-stale JOIN. Without
- * this, an out-of-order authorize completion could bind the socket to the wrong
- * document, or a disconnect-during-authorize could register a dead socket and
- * leak its room.
+ * socketId → a monotonic file-intent generation. Switching files or leaving the
+ * intended file advances it; co-mounted providers joining the same file share it.
+ * After async authorization, a join proceeds only while its generation is current,
+ * preventing an out-of-order completion from binding the socket to the wrong file.
  */
 const joinGeneration = new Map<string, number>()
+const MAX_YJS_CLIENT_ID = 0xffff_ffff
+
+function isYjsClientId(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_YJS_CLIENT_ID
+  )
+}
 
 interface AwarenessChange {
   added: number[]
@@ -198,26 +227,72 @@ const fileDocRoom = (fileId: string): RoomRef => ({
   id: fileId,
 })
 
+/** Pending admissions receive invalidations here, never document or presence frames. */
+export function fileDocAdmissionRoom(fileId: string): string {
+  return `file-doc-admission:${fileId}`
+}
+
 /**
  * A `y-protocols` transaction/awareness origin is the emitting socket id (a
  * string) when it came from a client, and something else (`null` / `'local'` /
  * `'timeout'`) for server-internal changes. Returns the socket id to exclude
  * from a relay, or `null` to broadcast to the whole room.
  */
+interface ClientUpdateOrigin {
+  kind: 'client-update'
+  socketId: string
+}
+
+const MAX_CLIENT_UPDATE_ID_LENGTH = 128
+
+function clientUpdateOrigin(socketId: string): ClientUpdateOrigin {
+  return { kind: 'client-update', socketId }
+}
+
+function isClientUpdateOrigin(origin: unknown): origin is ClientUpdateOrigin {
+  return (
+    typeof origin === 'object' &&
+    origin !== null &&
+    (origin as Partial<ClientUpdateOrigin>).kind === 'client-update' &&
+    typeof (origin as Partial<ClientUpdateOrigin>).socketId === 'string'
+  )
+}
+
 function originSocketId(origin: unknown): string | null {
-  return typeof origin === 'string' ? origin : null
+  if (typeof origin === 'string') return origin
+  return isClientUpdateOrigin(origin) ? origin.socketId : null
 }
 
 /**
  * The transaction origin stamped on an agent-streamed frame (a {@link FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST}
  * apply). A non-string sentinel, so `originSocketId` returns `null` for it and the update never triggers
  * `edited`/`schedulePersist` (the copilot's final `edit_content` write is the durable persist). Unlike a
- * client edit, an agent frame is broadcast to the WHOLE room (its originating socket is NOT excluded), so a
- * second {@link FileDocProvider} on the same socket — e.g. the chat preview alongside the Files editor —
- * also receives the mid-stream ops. The emitting provider no-ops on its own echo (the ops are already
- * applied locally), so broadcasting back to the sender is harmless.
+ * client edit, it is marked so peers do not treat it as a durable user edit. The emitting provider no-ops
+ * on its own echo because the operations are already applied locally.
  */
 const AGENT_SYNC_ORIGIN = Symbol('file-doc-agent-sync')
+/** Maximum legacy framed message size: raw update budget plus small Yjs framing headroom. */
+const MAX_LEGACY_FRAME_BYTES = FILE_DOC_LIMITS.updateBytes + 64
+
+/**
+ * Checks the inner update before readSyncMessage mutates the room: the legacy outer-frame limit
+ * includes framing headroom, which must not allow an update too large for the shared stream.
+ */
+function hasOversizedLegacyUpdate(bytes: Uint8Array): boolean {
+  const decoder = decoding.createDecoder(bytes)
+  const messageType = decoding.readVarUint(decoder)
+  if (
+    messageType !== FILE_DOC_MESSAGE_TYPE.SYNC &&
+    messageType !== FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST
+  ) {
+    return false
+  }
+  const syncType = decoding.readVarUint(decoder)
+  if (syncType !== syncProtocol.messageYjsSyncStep2 && syncType !== syncProtocol.messageYjsUpdate) {
+    return false
+  }
+  return decoding.readVarUint8Array(decoder).byteLength > FILE_DOC_LIMITS.updateBytes
+}
 
 /**
  * Broadcast an AWARENESS frame to the room ACROSS tasks via the Socket.IO Redis adapter. Awareness
@@ -278,10 +353,19 @@ function schedulePersist(name: string, room: FileDocRoom): void {
  * fallback before any await, so a `void flushPersist(name, room, true)` fired immediately before the
  * caller destroys `room.doc` never encodes a destroyed doc, and the disabled path stays authoritative.
  */
-async function flushPersist(name: string, room: FileDocRoom, final: boolean): Promise<void> {
+function flushPersist(name: string, room: FileDocRoom, final: boolean): Promise<void> {
+  const pending = persistRoom(name, room, final).finally(() =>
+    pendingFileDocPersists.delete(pending)
+  )
+  pendingFileDocPersists.add(pending)
+  return pending
+}
+
+async function persistRoom(name: string, room: FileDocRoom, final: boolean): Promise<void> {
   // Never project a doc no user actually edited back over the file (see {@link FileDocRoom.edited}).
   if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return
   const store = getFileDocStore()
+  const generation = docIdOf(room.doc)
   const workspaceId = room.workspaceId
   const userId = room.lastEditorUserId
   // Synchronous fallback capture — before any await, since the caller may destroy `room.doc` the moment
@@ -304,6 +388,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     try {
       return (await store.getStreamState(name)) ?? localState
     } catch (streamError) {
+      if (streamError instanceof FileDocInvalidatedError) throw streamError
       // A transient Redis read must NOT drop the write when we already hold a valid local snapshot —
       // else the last-disconnect flush loses the session's edits as the room is torn down. But once a
       // reconcile has run, `localState` is NULLED (it predates the merged-in out-of-band edit), so a
@@ -327,8 +412,11 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
   }
 
   try {
-    if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
+    if (!(await store.isDocumentGenerationCurrent(name, generation))) return
+    if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs))) {
+      if (fileDocRooms.get(name) === room) schedulePersist(name, room)
       return
+    }
 
     // The If-Match token: the durable content version the live doc is synced to.
     let ifMatch = await currentVersion()
@@ -350,6 +438,7 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     // out-of-band edit. A single attempt — on conflict we STOP rather than retry (see below).
     const docState = await captureState()
     if (!docState) return // nothing seeded/authoritative to persist yet
+    if (!(await store.isDocumentGenerationCurrent(name, generation))) return
     const result = await fetchFileDocPersist(workspaceId, room.fileId, userId, docState, ifMatch)
     if (result.status === 'missing') return // the file was deleted; nothing to write
     if (result.status === 'deferred') {
@@ -360,23 +449,26 @@ async function flushPersist(name: string, room: FileDocRoom, final: boolean): Pr
     }
     if (result.status === 'persisted') {
       room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
-      void store.setSyncedVersion(name, result.version)
+      // AWAITED, unlike every other version write: the room's own copy dies with the room, so this
+      // cluster key is the only record that survives a teardown or a process restart. Fire-and-forget
+      // here means a task that exits in the moments after a write comes back holding a version older
+      // than the file's, and — since a conflict neither writes nor advances the token — never persists
+      // that document again. One round trip after a blob write is not a cost worth that.
+      await store.setSyncedVersion(name, result.version, generation)
       return
     }
-    // status === 'conflict': the durable file advanced out-of-band since our If-Match token. We do NOT
-    // re-persist against the current stream: an external write commits durable BEFORE its chokepoint merge
-    // (`mergeEditIntoLiveFileDoc`) reaches the stream, so a re-persist landing in that window would CAS-pass
-    // with a stream that still lacks the external content and clobber the committed write. Instead leave the
-    // durable content authoritative — the chokepoint merges the change into the stream and, ONLY once it is
-    // actually there, advances the synced version (via the merge's own `recordVersion`); a later flush
-    // (a subsequent debounced persist, or the final flush) then projects the converged stream with a token
-    // that matches. The session's edits stay in the stream meanwhile. Deliberately do NOT advance the synced
-    // version here: before the stream reflects the durable content, that would let the next flush clobber it.
+    /**
+     * External writes commit before merging into the stream. Retrying or advancing the synced
+     * version here could overwrite content not yet merged; leave the durable file authoritative
+     * until the merge advances the version, then let a later flush persist the converged state.
+     */
     logger.warn(
       `Persist conflict for file ${room.fileId}; durable content advanced out-of-band, left authoritative`
     )
   } catch (error) {
-    logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
+    logger.warn(`Persist failed for file ${room.fileId}`, {
+      error: getErrorMessage(error),
+    })
   }
 }
 
@@ -412,6 +504,12 @@ function isDocSeeded(doc: Y.Doc): boolean {
   return doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag) === true
 }
 
+/** The identity of the document this doc holds ({@link FILE_DOC_SEED.docIdKey}), if it carries one. */
+function docIdOf(doc: Y.Doc): string | undefined {
+  const docId = doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+  return typeof docId === 'string' ? docId : undefined
+}
+
 /**
  * Decode the client IDs an awareness update carries, without applying it, to
  * check a frame only touches its sender's own presence. Mirrors the wire format
@@ -435,10 +533,13 @@ function awarenessUpdateClientIds(update: Uint8Array): number[] {
  * memory. Before dropping, flush the converged doc back to durable markdown (the last collaborator on
  * this task leaving) and detach from the shared stream. A later joiner re-creates it — catching up
  * from the stream if the doc is still live on another task, or re-seeding from markdown otherwise.
+ *
+ * A room being PREPARED for a join is not idle even though it has no owners yet: tearing it down there
+ * would drop the hydration/seed that join is waiting on, and the join would have to start over.
  */
 function destroyRoomIfIdle(name: string) {
   const room = fileDocRooms.get(name)
-  if (!room || room.owners.size > 0) return
+  if (!room || room.owners.size > 0 || room.pendingJoins > 0 || room.pendingUpdates > 0) return
   room.persistDeadline = null
   if (room.persistTimer) {
     clearTimeout(room.persistTimer)
@@ -454,6 +555,27 @@ function destroyRoomIfIdle(name: string) {
 }
 
 /**
+ * Drop a seeded in-memory generation after an out-of-band durable replacement. It must not flush: the
+ * durable replacement is newer, and persisting this superseded document would only create a conflict.
+ * Existing clients are removed from the room before the next join creates and seeds a fresh document.
+ */
+function discardInvalidatedRoom(name: string, io: Server): void {
+  const room = fileDocRooms.get(name)
+  if (!room) return
+  room.persistDeadline = null
+  if (room.persistTimer) clearTimeout(room.persistTimer)
+  room.persistTimer = null
+  for (const socketId of room.owners.keys()) {
+    if (socketToRoomName.get(socketId) === name) socketToRoomName.delete(socketId)
+    io.in(socketId).socketsLeave(name)
+  }
+  getFileDocStore().detachRoom(name)
+  room.awareness.destroy()
+  room.doc.destroy()
+  fileDocRooms.delete(name)
+}
+
+/**
  * Flush every open, edited room's converged doc to durable markdown, AWAITING the writes. Called on
  * graceful shutdown (rolling deploy / scale-in) so edits since the last debounce aren't left only in the
  * ephemeral stream — the per-socket disconnect flush is fire-and-forget and would race `process.exit`.
@@ -461,101 +583,119 @@ function destroyRoomIfIdle(name: string) {
  * process is exiting); only their durable state is secured.
  */
 export async function flushAllFileDocRooms(): Promise<void> {
+  await Promise.all([...pendingFileDocUpdates])
   const flushes: Promise<void>[] = []
   for (const [name, room] of fileDocRooms) {
     if (room.edited) flushes.push(flushPersist(name, room, true))
   }
-  await Promise.all(flushes)
+  await Promise.all([...pendingFileDocPersists, ...flushes])
 }
 
 /**
- * Seed a room's document server-side, once, on the first join: ask the app to build the seed (the
- * file's current markdown → Yjs, through the exact editor engine) and apply it, which relays the
- * content to every connected client via `doc.on('update')`. No client is elected to import content.
- *
- * `isDocSeeded` is the sufficient guard: content only ever reaches the doc alongside the seed flag
- * (this seed, or a client's offline fallback), so an unseeded doc is genuinely empty and safe to seed.
- * A genuinely empty/missing file returns `null` (a read error throws instead), so still set the flag —
- * an empty doc must reach readiness, not wait forever. After the fetch, re-check the room is still
- * live and unseeded (an owner may have left, or a client seeded it, while the fetch was in flight).
- *
- * Recovery on failure is deliberately simple — no in-room retry loop: a single attempt bounded by a
- * timeout shorter than the client's readiness deadline, then release the guard. A transient failure
- * is re-attempted by the next join/reconnect; a persistent one lets the connected client's readiness
- * deadline lapse into its read-only fallback. (An in-room backoff retry can outlast that client
- * deadline, so it would keep trying a doc the client has already given up on — worse, not better.)
+ * Waits for shared hydration and authoritative seeding before joining; failures must not expose
+ * an editable partial document.
  */
-async function ensureServerSeed(
+async function ensureRoomReady(
   name: string,
   room: FileDocRoom,
-  workspaceId: string
+  workspaceId: string | null
 ): Promise<void> {
-  if (room.serverSeedStarted || isDocSeeded(room.doc)) return
-  room.serverSeedStarted = true
-  const store = getFileDocStore()
-  // Exactly one task across the cluster builds the seed; the others receive it via the stream (the fix
-  // for split-brain seeding). Returns a lock token here (single-pod: a sentinel token).
-  const token = await store.shouldSeed(name)
-  if (!token) {
-    // A peer is seeding (or already did). Release our guard so a later join can retry if the seed never
-    // arrives (e.g. the seeder died); the stream / this doc being seeded makes a retry safe.
-    room.serverSeedStarted = false
-    return
-  }
-  // We hold the seed lock — release it on EVERY exit from here (one `finally`, impossible to leak).
-  try {
-    const seed = await fetchFileDocSeed(workspaceId, room.fileId)
-    if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-    // Build the seed (file content + seed flag, or just the flag for an empty/missing file) and write it
-    // to the shared stream ATOMICALLY, iff the stream is still empty. This — NOT the seed lock — is the
-    // split-brain guard: two tasks racing (even both past an expired lock) can never both seed, because
-    // the emptiness check and the append are one Redis-side step. Publish-before-apply: the doc is marked
-    // seeded (via the local apply) only once the seed is durably in the stream, so a failed write leaves
-    // the doc unseeded and the stream empty for a clean retry. SEED_ORIGIN keeps `doc.on('update')` from
-    // re-publishing it.
-    const seedUpdate = seed?.update ?? emptySeedUpdate()
-    const didSeed = await store.seedIfEmpty(name, seedUpdate)
-    // Record the durable version the moment THIS task's seed is in the stream — BEFORE the liveness/
-    // seeded guard below. Recording it only now that our seed WON (not from the fetch, before knowing who
-    // won) keeps it in step with the stream's actual content: a newer own-fetch version could otherwise
-    // shadow a peer's winning seed and let a later persist clobber an out-of-band edit. But it must not
-    // sit AFTER the guard: the tailer can integrate our just-appended seed during the await above, so
-    // `isDocSeeded` may already be true here — an early return would then leave the stream holding seed
-    // content with NO cluster If-Match token, and later persists would defer and strand session edits.
-    // Cluster-wide (Redis) so any task's persist reads it; the live room is the single-pod fallback / the
-    // read-through-cache seed. (No version for an empty/missing file — nothing durable to guard.)
-    if (didSeed && seed) {
-      const live = fileDocRooms.get(name)
-      if (live) live.syncedVersion = Math.max(live.syncedVersion ?? 0, seed.version)
-      void store.setSyncedVersion(name, seed.version)
-    }
-    if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
-    if (didSeed) {
-      Y.applyUpdate(room.doc, seedUpdate, SEED_ORIGIN)
-    } else {
-      // A peer seeded first: its seed arrives via the tailer, so we must NOT apply our own — a second,
-      // different-client-id seed IS the split-brain. Clear the guard so a later join can retry if that
-      // peer seed somehow never lands (e.g. a fail-closed `xLen` error made `shouldSeed` skip a genuinely
-      // empty stream); a real peer-seed makes the retry a no-op.
-      room.serverSeedStarted = false
-    }
-  } catch (error) {
-    logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
-    room.serverSeedStarted = false
-  } finally {
-    await store.releaseSeedLock(name, token)
+  await room.hydrated
+  // The room can be dropped and re-created while the catch-up is in flight (a fast open→close); the
+  // join re-checks identity after this and abandons a stale room rather than serving from it.
+  if (fileDocRooms.get(name) !== room) return
+  if (!workspaceId) throw new Error(`File document ${room.fileId} has no workspace context`)
+  await ensureServerSeed(name, room, workspaceId)
+  if (fileDocRooms.get(name) === room && !isDocSeeded(room.doc)) {
+    throw new Error(`File document ${room.fileId} could not be seeded`)
   }
 }
 
-/** The seed update for an empty/missing file: just the `initialContentLoaded` flag, so an empty doc
- * still reaches readiness (and its emptiness is durably shared like any seed). */
-function emptySeedUpdate(): Uint8Array {
-  const doc = new Y.Doc()
-  doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+/**
+ * Share one authoritative seed attempt across concurrent joins so none observes an unseeded doc.
+ * Clear settled attempts to allow retry after transient failures. Existing empty files have a named
+ * seed; a missing file must fail admission rather than create an editable blank room.
+ */
+function ensureServerSeed(name: string, room: FileDocRoom, workspaceId: string): Promise<void> {
+  if (isDocSeeded(room.doc)) return Promise.resolve()
+  room.seeding ??= runServerSeed(name, room, workspaceId).finally(() => {
+    room.seeding = null
+  })
+  return room.seeding
+}
+
+/**
+ * Whichever task wins the seed lock writes the seed; the others must end up holding the SAME seed
+ * before they serve anyone. They pull it, on this cadence, rather than waiting for the tailer to push
+ * it: a join's readiness may not depend on an asynchronous subscriber, because when that delivery is
+ * late or lost the client sits on an empty document until its readiness deadline lapses and the file
+ * opens read-only. Bounded by the longest a legitimate seed can take (the winner's own fetch bound),
+ * which stays inside the client's readiness deadline — see {@link FILE_DOC_TIMEOUTS}.
+ */
+const SEED_WAIT_RETRY_MS = 150
+
+class FileDocNotFoundError extends Error {}
+
+async function runServerSeed(name: string, room: FileDocRoom, workspaceId: string): Promise<void> {
+  const store = getFileDocStore()
+  const deadline = Date.now() + FILE_DOC_TIMEOUTS.seedRequestMs
+  while (fileDocRooms.get(name) === room && !isDocSeeded(room.doc)) {
+    // Exactly one task across the cluster builds the seed; the others receive it via the stream (the
+    // fix for split-brain seeding). Returns a lock token here (single-pod: a sentinel token).
+    const token = await store.shouldSeed(name)
+    if (token) {
+      await seedUnderLock(name, room, workspaceId, token)
+      return
+    }
+    // No token: a peer holds the lock with its fetch in flight, or the stream is already seeded (which
+    // includes a PRIOR room for this same file whose seed landed after we read the stream). Either way
+    // the seed can only appear in the stream, so read it rather than wait to be told.
+    await store.catchUp(name)
+    if (isDocSeeded(room.doc) || Date.now() >= deadline) return
+    await sleep(SEED_WAIT_RETRY_MS)
+  }
+}
+
+/** Fetch, publish, and apply the seed while holding the cluster's seed lock for this file. */
+async function seedUnderLock(
+  name: string,
+  room: FileDocRoom,
+  workspaceId: string,
+  token: string
+): Promise<void> {
+  const store = getFileDocStore()
+  // Release the lock on EVERY exit from here (one `finally`, impossible to leak).
   try {
-    return Y.encodeStateAsUpdate(doc)
+    const seed = await fetchFileDocSeed(workspaceId, room.fileId)
+    if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
+    if (!seed) throw new FileDocNotFoundError('File not found')
+    /**
+     * Publish before local apply: the atomic empty-stream append, not the expiring lock, prevents
+     * independent Yjs histories from entering the same room.
+     */
+    const didSeed = await store.seedIfEmpty(name, seed.update, seed.version)
+    /**
+     * Record only our winning seed's version before the readiness guard: the tailer may already have
+     * applied it during the append, but persistence still needs the matching local version.
+     */
+    if (didSeed) {
+      const live = fileDocRooms.get(name)
+      if (live) live.syncedVersion = Math.max(live.syncedVersion ?? 0, seed.version)
+    }
+    if (fileDocRooms.get(name) !== room || isDocSeeded(room.doc)) return
+    if (didSeed) {
+      Y.applyUpdate(room.doc, seed.update, SEED_ORIGIN)
+    } else {
+      // A peer won the atomic append: we must NOT apply our own — a second, different-client-id seed IS
+      // the split-brain. Read THEIRS out of the stream instead of waiting for the tailer to deliver it,
+      // so this room is seeded by the time the caller is told it is ready.
+      await store.catchUp(name)
+    }
+  } catch (error) {
+    if (error instanceof FileDocNotFoundError) throw error
+    logger.warn(`Server seed failed for file ${room.fileId} (workspace ${workspaceId})`, error)
   } finally {
-    doc.destroy()
+    await store.releaseSeedLock(name, token)
   }
 }
 
@@ -599,16 +739,48 @@ export function applyMarkdownToLiveFileDoc(
   order: MergeOrder = {}
 ): Promise<'applied' | 'no-live-room' | 'merge-unavailable' | 'stale'> {
   const name = roomName(fileDocRoom(fileId))
+  return serializeFileDocMutation(name, () => mergeMarkdownIntoRoom(name, fileId, markdown, order))
+}
+
+function serializeFileDocMutation<T>(name: string, operation: () => Promise<T>): Promise<T> {
   const prior = fileDocMergeChains.get(name) ?? Promise.resolve()
-  // `.catch` so a failed prior merge doesn't reject this one — each merge is independent.
-  const run = prior.catch(() => {}).then(() => mergeMarkdownIntoRoom(name, fileId, markdown, order))
-  fileDocMergeChains.set(
-    name,
-    run.finally(() => {
+  const run = prior
+    .catch(() => {})
+    .then(operation)
+    .finally(() => {
       if (fileDocMergeChains.get(name) === run) fileDocMergeChains.delete(name)
     })
-  )
+  fileDocMergeChains.set(name, run)
   return run
+}
+
+async function acquireFileDocMergeSlot(name: string): Promise<string | null> {
+  const store = getFileDocStore()
+  let token = await store.acquireMergeSlot(name, MERGE_LOCK_TTL_MS)
+  for (let i = 0; !token && i < MERGE_LOCK_RETRIES; i++) {
+    await sleep(MERGE_LOCK_RETRY_MS)
+    token = await store.acquireMergeSlot(name, MERGE_LOCK_TTL_MS)
+  }
+  return token
+}
+
+/** Serializes and version-orders an unsupported durable replacement with live Markdown merges. */
+export function invalidateLiveFileDocument(
+  fileId: string,
+  version: number
+): Promise<{ status: 'applied'; docId?: string } | { status: 'stale' }> {
+  const name = roomName(fileDocRoom(fileId))
+  return serializeFileDocMutation(name, async () => {
+    const store = getFileDocStore()
+    const token = await acquireFileDocMergeSlot(name)
+    if (!token) throw new Error('Live document invalidation slot is temporarily unavailable')
+    try {
+      if ((fileDocRooms.get(name)?.syncedVersion ?? 0) > version) return { status: 'stale' }
+      return await store.invalidateDocument(name, version)
+    } finally {
+      await store.releaseMergeSlot(name, token)
+    }
+  })
 }
 
 async function mergeMarkdownIntoRoom(
@@ -623,14 +795,16 @@ async function mergeMarkdownIntoRoom(
   // in Redis for multi-task, plus this task's room) so the persist If-Match guard treats this write as
   // synced rather than an out-of-band conflict. AWAITED so the version is durable before the merge lock
   // releases, so the next lock holder's staleness check (below) reads a consistent value.
-  const recordVersion = async () => {
+  const recordVersion = async (generation?: string) => {
     if (version === undefined) return
     const room = fileDocRooms.get(name)
     // Never regress the token: merges/seeds/persists all write it, so a lower value arriving out of
     // order must not shadow a higher one the doc already incorporates (the Redis side is guarded
     // identically by SET_VERSION_IF_NEWER_SCRIPT).
-    if (room) room.syncedVersion = Math.max(room.syncedVersion ?? 0, version)
-    await store.setSyncedVersion(name, version)
+    if (room && (generation === undefined || docIdOf(room.doc) === generation)) {
+      room.syncedVersion = Math.max(room.syncedVersion ?? 0, version)
+    }
+    await store.setSyncedVersion(name, version, generation)
   }
 
   // Order this merge on the file's version line, where `current` is the durable version the doc already
@@ -651,11 +825,7 @@ async function mergeMarkdownIntoRoom(
     // always releases (or its lock expires) first and we acquire — never merging against a shared base
     // while a peer holds the lock. If somehow still unavailable, skip the live merge (copilot's durable
     // file write stands) rather than race.
-    let token = await store.acquireMergeSlot(name, MERGE_LOCK_TTL_MS)
-    for (let i = 0; !token && i < MERGE_LOCK_RETRIES; i++) {
-      await sleep(MERGE_LOCK_RETRY_MS)
-      token = await store.acquireMergeSlot(name, MERGE_LOCK_TTL_MS)
-    }
+    const token = await acquireFileDocMergeSlot(name)
     if (!token) {
       logger.warn(`Merge lock unavailable for file ${fileId}; skipping live merge`)
       return 'merge-unavailable'
@@ -666,13 +836,14 @@ async function mergeMarkdownIntoRoom(
       const shared = await store.getSyncedVersion(name)
       const current = Math.max(shared ?? 0, fileDocRooms.get(name)?.syncedVersion ?? 0)
       if (isStale(current)) return 'stale'
+      const generation = await store.getDocumentGeneration(name)
       // Defer to an actively-streaming client: it is applying this SAME agent edit into the shared doc
       // frame-by-frame, so also publishing a whole-document merge here would double-write the content (the
       // client's private shadow never observes this merge, so it re-inserts what we added → duplication).
       // Still record the durable version so the persist If-Match stays correct; the client owns the bytes,
       // and once streaming stops the flag clears and the final durable merge lands as a near-noop.
       if (await store.isAgentStreaming(name)) {
-        await recordVersion()
+        await recordVersion(generation)
         return 'applied'
       }
       // Compute the diff against the committed SHARED state and PUBLISH it — every task with the doc
@@ -680,11 +851,11 @@ async function mergeMarkdownIntoRoom(
       // merge reaches the live doc no matter which task the apply-edit call landed on. An empty stream
       // means no doc is (or was recently) live → nothing to merge into. AWAIT the publish so the diff is
       // durably in the stream before we release the lock (else the next task would diff a stale base).
-      const base = await store.getStreamState(name)
+      const base = await store.getStreamState(name, generation)
       if (!base) return 'no-live-room'
       const diff = await fetchFileDocMerge(fileId, base, markdown)
-      await store.publishAndWait(name, diff)
-      await recordVersion()
+      await store.publishAndWait(name, diff, generation)
+      await recordVersion(generation)
       return 'applied'
     } finally {
       await store.releaseMergeSlot(name, token)
@@ -713,7 +884,7 @@ async function mergeMarkdownIntoRoom(
 /**
  * Get (or lazily create) the authoritative document for a room, wiring the two
  * relay handlers exactly once: document updates and awareness changes are
- * broadcast to the room, excluding the origin socket (it already applied them).
+ * broadcast to the room.
  */
 function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
   const name = roomName(ref)
@@ -725,12 +896,14 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
   // The server holds no cursor of its own; it only relays clients' awareness.
   awareness.setLocalState(null)
 
+  // Started BEFORE the room is registered so no join can observe a room without its hydration handle.
+  const hydrated = getFileDocStore().attachRoom(name, doc)
   const room: FileDocRoom = {
     fileId: ref.id,
     doc,
     awareness,
     owners: new Map(),
-    serverSeedStarted: false,
+    seeding: null,
     workspaceId: null,
     lastEditorUserId: null,
     edited: false,
@@ -739,6 +912,9 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     persistDeadline: null,
     syncedVersion: null,
     agentStreamingUntil: 0,
+    hydrated,
+    pendingJoins: 0,
+    pendingUpdates: 0,
   }
   // Register synchronously BEFORE the async catch-up so a concurrent join sees this room, not a second.
   fileDocRooms.set(name, room)
@@ -747,18 +923,12 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, FILE_DOC_MESSAGE_TYPE.SYNC)
     syncProtocol.writeUpdate(encoder, update)
-    // Fan out to THIS task's clients only (excluding the origin socket if local — a user edit OR an
-    // agent-streamed frame). Cross-task delivery rides the shared stream — every task's tailer applies +
-    // runs its own local fan-out.
-    // A client edit excludes its own sender socket (echo suppression). An agent frame broadcasts to the
-    // WHOLE room — no socket excluded — so a same-socket sibling provider (chat preview + Files editor)
-    // stays live mid-stream; the emitting provider no-ops on its own echo.
-    broadcastLocal(
-      io,
-      name,
-      encoding.toUint8Array(encoder),
-      origin === AGENT_SYNC_ORIGIN ? null : originSocketId(origin)
-    )
+    // Fan out to every client on THIS task, including the origin socket. One shared Socket.IO connection
+    // can host multiple providers for this file; excluding the whole socket would strand the sibling
+    // provider's distinct Y.Doc. Yjs updates are idempotent, and the originating provider applies its
+    // echo with the provider as transaction origin, so it does not send the update again. Cross-task
+    // delivery rides the shared stream, where every task's tailer runs its own local fan-out.
+    broadcastLocal(io, name, encoding.toUint8Array(encoder), null)
     // Share every locally-originated update to the stream so peers converge. Skip updates that already
     // came FROM the stream (REDIS_ORIGIN / REDIS_SNAPSHOT_ORIGIN / REDIS_AGENT_ORIGIN) and SEED_ORIGIN —
     // the seed is published EXPLICITLY and AWAITED under the seed lock (so it lands before the lock
@@ -769,7 +939,8 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
       origin !== REDIS_ORIGIN &&
       origin !== REDIS_SNAPSHOT_ORIGIN &&
       origin !== REDIS_AGENT_ORIGIN &&
-      origin !== SEED_ORIGIN
+      origin !== SEED_ORIGIN &&
+      !isClientUpdateOrigin(origin)
     )
       getFileDocStore().publish(name, update, origin === AGENT_SYNC_ORIGIN)
     // A locally-originated agent frame (this task's stream leader) means a client is applying this agent
@@ -818,22 +989,21 @@ function getOrCreateRoom(io: Server, ref: RoomRef): FileDocRoom {
     broadcast(io, name, encoding.toUint8Array(encoder), originSocketId(origin))
   })
 
-  // Load the shared state into the doc and start tailing the stream (fire-and-forget: content streams
-  // in via `doc.on('update')` as it lands, mirroring the fire-and-forget seed below). Disabled → no-op.
-  void getFileDocStore().attachRoom(name, doc)
-
   return room
 }
 
 function emitJoinError(
   socket: AuthenticatedSocket,
   fileId: unknown,
+  clientId: unknown,
   error: string,
   code: string,
   retryable: boolean
 ) {
+  const normalizedClientId = isYjsClientId(clientId) ? clientId : undefined
   socket.emit(FILE_DOC_EVENTS.JOIN_ERROR, {
     fileId: typeof fileId === 'string' ? fileId : '',
+    clientId: normalizedClientId,
     error,
     code,
     retryable,
@@ -910,10 +1080,24 @@ function handleMessage(socket: AuthenticatedSocket, io: Server, data: unknown) {
 
   const bytes = toFileDocBytes(data)
   if (!bytes) return
+  if (bytes.byteLength > MAX_LEGACY_FRAME_BYTES) {
+    logger.warn('Dropping an oversized legacy file-doc frame', {
+      socketId: socket.id,
+      bytes: bytes.byteLength,
+    })
+    return
+  }
 
   // A malformed frame from any client must never escape as a process-level
   // exception; drop it and keep the relay running.
   try {
+    if (hasOversizedLegacyUpdate(bytes)) {
+      logger.warn('Dropping a legacy file-doc update outside the durable stream budget', {
+        socketId: socket.id,
+        bytes: bytes.byteLength,
+      })
+      return
+    }
     const decoder = decoding.createDecoder(bytes)
     const messageType = decoding.readVarUint(decoder)
 
@@ -958,7 +1142,9 @@ function handleMessage(socket: AuthenticatedSocket, io: Server, data: unknown) {
         // owned by this socket.
         const owned = room.owners.get(socket.id)
         if (owned === undefined || awarenessUpdateClientIds(update).some((id) => !owned.has(id))) {
-          logger.warn('Dropping awareness frame for an unowned client id', { socketId: socket.id })
+          logger.warn('Dropping awareness frame for an unowned client id', {
+            socketId: socket.id,
+          })
           return
         }
         awarenessProtocol.applyAwarenessUpdate(room.awareness, update, socket.id)
@@ -968,7 +1154,114 @@ function handleMessage(socket: AuthenticatedSocket, io: Server, data: unknown) {
         logger.warn('Unknown file-doc message type', { messageType })
     }
   } catch (error) {
-    logger.warn('Dropping malformed file-doc frame', { socketId: socket.id, error })
+    logger.warn('Dropping malformed file-doc frame', {
+      socketId: socket.id,
+      error,
+    })
+  }
+}
+
+async function handleClientUpdate(
+  socket: AuthenticatedSocket,
+  io: Server,
+  data: unknown,
+  acknowledge: (result: FileDocUpdateAck) => void
+): Promise<void> {
+  const reject = (
+    code: Extract<FileDocUpdateAck, { status: 'rejected' }>['code'],
+    retryable: boolean,
+    updateId?: string
+  ) => acknowledge({ status: 'rejected', code, retryable, updateId })
+
+  if (typeof data !== 'object' || data === null) {
+    reject('INVALID_UPDATE', false)
+    return
+  }
+
+  const candidate = data as Partial<FileDocUpdatePayload>
+  const update = toFileDocBytes(candidate.update)
+  if (
+    typeof candidate.fileId !== 'string' ||
+    candidate.fileId.length === 0 ||
+    typeof candidate.docId !== 'string' ||
+    candidate.docId.length === 0 ||
+    typeof candidate.updateId !== 'string' ||
+    candidate.updateId.length === 0 ||
+    candidate.updateId.length > MAX_CLIENT_UPDATE_ID_LENGTH ||
+    !update ||
+    update.byteLength === 0 ||
+    update.byteLength > FILE_DOC_LIMITS.updateBytes
+  ) {
+    reject('INVALID_UPDATE', false, candidate.updateId)
+    return
+  }
+
+  const name = socketToRoomName.get(socket.id)
+  if (!name || name !== roomName(fileDocRoom(candidate.fileId))) {
+    reject('NOT_JOINED', true, candidate.updateId)
+    return
+  }
+  const room = fileDocRooms.get(name)
+  if (!room) {
+    reject('NOT_JOINED', true, candidate.updateId)
+    return
+  }
+  if (!isFileDocWriteAllowed(socket, io, name)) {
+    reject('ACCESS_REVOKED', false, candidate.updateId)
+    return
+  }
+  if (docIdOf(room.doc) !== candidate.docId) {
+    reject('DOCUMENT_REPLACED', false, candidate.updateId)
+    return
+  }
+
+  const validationDoc = new Y.Doc()
+  try {
+    Y.applyUpdate(validationDoc, update)
+  } catch (error) {
+    logger.warn('Dropping malformed acknowledged file-doc update', {
+      socketId: socket.id,
+      fileId: candidate.fileId,
+      updateId: candidate.updateId,
+      error,
+    })
+    reject('INVALID_UPDATE', false, candidate.updateId)
+    return
+  } finally {
+    validationDoc.destroy()
+  }
+
+  const editor = room.owners.get(socket.id)?.values().next().value?.userId
+  if (editor) room.lastEditorUserId = editor
+  room.pendingUpdates += 1
+  try {
+    const store = getFileDocStore()
+    await store.publishClientUpdateAndWait(name, candidate.updateId, update, candidate.docId)
+    if (
+      !(await store.isDocumentGenerationCurrent(name, candidate.docId)) ||
+      fileDocRooms.get(name) !== room
+    ) {
+      throw new FileDocInvalidatedError()
+    }
+    Y.applyUpdate(room.doc, update, clientUpdateOrigin(socket.id))
+    room.edited = true
+    schedulePersist(name, room)
+    acknowledge({ status: 'accepted', updateId: candidate.updateId })
+  } catch (error) {
+    if (error instanceof FileDocInvalidatedError) {
+      reject('DOCUMENT_REPLACED', false, candidate.updateId)
+      return
+    }
+    logger.error('Failed to accept acknowledged file-doc update', {
+      socketId: socket.id,
+      fileId: candidate.fileId,
+      updateId: candidate.updateId,
+      error,
+    })
+    reject('TEMPORARY_FAILURE', true, candidate.updateId)
+  } finally {
+    room.pendingUpdates -= 1
+    destroyRoomIfIdle(name)
   }
 }
 
@@ -1033,43 +1326,76 @@ export function setupWorkspaceFileDocHandlers(
   // awaiting authorization can't complete after the client left and register a ghost owner. A
   // leave for a DIFFERENT file must NOT cancel it (a document switch), mirroring workspace-files.
   let currentFileId: string | null = null
+  /** Co-mounted providers share invalidation membership until their last admission settles. */
+  const pendingMemberships = new Map<string, number>()
 
-  socket.on(FILE_DOC_EVENTS.JOIN, async ({ fileId, clientId }: JoinFileDocPayload) => {
+  socket.on(FILE_DOC_EVENTS.JOIN, async (payload: JoinFileDocPayload) => {
+    const { fileId, clientId } = payload
     // Hoisted so the catch can tell whether this join was superseded (a switch to another file)
     // before surfacing a retryable error for the abandoned one.
     let generation: number | undefined
+    let registered = false
     try {
       const userId = socket.userId
       const userName = socket.userName
 
       if (!userId || !userName) {
-        emitJoinError(socket, fileId, 'Authentication required', 'AUTHENTICATION_REQUIRED', false)
+        emitJoinError(
+          socket,
+          fileId,
+          clientId,
+          'Authentication required',
+          'AUTHENTICATION_REQUIRED',
+          false
+        )
         return
       }
       if (!roomManager.isReady()) {
-        emitJoinError(socket, fileId, 'Realtime unavailable', 'ROOM_MANAGER_UNAVAILABLE', true)
+        emitJoinError(
+          socket,
+          fileId,
+          clientId,
+          'Realtime unavailable',
+          'ROOM_MANAGER_UNAVAILABLE',
+          true
+        )
         return
       }
       if (
         typeof fileId !== 'string' ||
         fileId.length === 0 ||
-        // A Yjs clientID is a uint32; reject NaN/Infinity/negative/non-integer so a malformed id
-        // can't become a bogus ownership key.
-        !Number.isInteger(clientId) ||
-        clientId < 0
+        // A Yjs clientID is a uint32; reject malformed values before they can become ownership keys.
+        !isYjsClientId(clientId)
       ) {
-        emitJoinError(socket, fileId, 'Invalid join payload', 'INVALID_PAYLOAD', false)
+        emitJoinError(socket, fileId, clientId, 'Invalid join payload', 'INVALID_PAYLOAD', false)
+        return
+      }
+      if ((payload.schemaVersion ?? FILE_DOC_LEGACY_SCHEMA_VERSION) !== FILE_DOC_SCHEMA_VERSION) {
+        emitJoinError(
+          socket,
+          fileId,
+          clientId,
+          'This document version is not supported',
+          'SCHEMA_VERSION_MISMATCH',
+          false
+        )
         return
       }
 
-      // Claim this JOIN's generation before the async authorize below, and record the file the
-      // socket now intends to edit so a leave for it can cancel this join if it's still in-flight.
-      generation = (joinGeneration.get(socket.id) ?? 0) + 1
-      joinGeneration.set(socket.id, generation)
-      currentFileId = fileId
+      // A generation represents the socket's intended FILE, not an individual provider. Co-mounted
+      // providers for the same file must be allowed to join concurrently; switching files advances the
+      // generation so every in-flight join for the old file is cancelled together.
+      if (currentFileId !== fileId) {
+        generation = (joinGeneration.get(socket.id) ?? 0) + 1
+        joinGeneration.set(socket.id, generation)
+        currentFileId = fileId
+      } else {
+        generation = joinGeneration.get(socket.id) ?? 0
+      }
 
       const room = fileDocRoom(fileId)
       const name = roomName(room)
+      const admissionName = fileDocAdmissionRoom(fileId)
 
       const authorized = await resolveRoomJoinAuth({
         userId,
@@ -1083,7 +1409,7 @@ export function setupWorkspaceFileDocHandlers(
           accessDenied: 'Access denied to file',
         },
         emitError: ({ error, code, retryable }) =>
-          emitJoinError(socket, fileId, error, code, retryable),
+          emitJoinError(socket, fileId, clientId, error, code, retryable),
       })
       if (!authorized) return
 
@@ -1091,129 +1417,230 @@ export function setupWorkspaceFileDocHandlers(
       // awareness). Resolved here so the generation guard below also covers this await.
       const avatarUrl = await resolveAvatarUrl(socket, userId)
 
-      // Re-check access immediately before registering, mirroring the workflow join: the
-      // access re-validation sweep records a revocation BEFORE it evicts, so a join that
-      // authorized just before the revocation must not complete afterwards and re-bind
-      // the socket to the document. This RE-RESOLVES rather than peeking the cache — a
-      // peek treats an expired entry as unknown and fails open, which a join stalled
-      // longer than the cache TTL would slip straight through. Normally a cache hit (this
-      // join's own authorize just warmed it), so it costs no extra query.
-      const currentPermission = await resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION)
-      if (!satisfiesRoomMembership(currentPermission, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
-        logger.warn(`User ${userId} lost write access to file ${fileId} before the join completed`)
-        emitJoinError(socket, fileId, 'Access denied to file', 'ACCESS_DENIED', false)
-        return
+      const store = getFileDocStore()
+      const existing = fileDocRooms.get(name)
+      if (
+        existing &&
+        isDocSeeded(existing.doc) &&
+        !(await store.isDocumentGenerationCurrent(name, docIdOf(existing.doc))) &&
+        fileDocRooms.get(name) === existing
+      ) {
+        discardInvalidatedRoom(name, io)
       }
-
-      // Abort a JOIN superseded during authorization/identity resolution: the socket
-      // disconnected, or a newer JOIN (a document switch) bumped the generation. Registering
-      // here would leak a dead socket's room or bind the socket to the wrong document.
-      // Last await before the commit, so nothing can interleave between the access
-      // re-check above and the registration below.
-      if (socket.disconnected || joinGeneration.get(socket.id) !== generation) return
 
       const entry = getOrCreateRoom(io, room)
+      // The workspace the server-side persist writes back to — and what the seed is built from, so it
+      // must be captured BEFORE the room is prepared below.
+      if (authorized.workspaceId) entry.workspaceId = authorized.workspaceId
 
-      // A client id must be owned by at most one user, or a peer could bind an active
-      // collaborator's id and pass the per-frame ownership check to spoof/clear its caret.
-      // Distinguish a reconnect from a spoof by the owning user: the same user reclaiming its
-      // own client id (a dropped socket reconnecting reuses the Yjs client id, and its prior
-      // socket may not be cleaned up yet) takes over the stale binding; a DIFFERENT user is
-      // rejected. This runs BEFORE any teardown of the socket's current binding below, so a
-      // rejected rebind — even during a document switch — leaves the socket's existing document
-      // and caret untouched.
-      for (const [otherSid, clientMap] of entry.owners) {
-        if (otherSid === socket.id) continue
-        const owner = clientMap.get(clientId)
-        if (owner === undefined) continue
-        if (owner.userId !== userId) {
-          emitJoinError(socket, fileId, 'Client id already in use', 'CLIENT_ID_IN_USE', false)
+      // Hold the room open across the awaits below: it has no owner until this join commits, so a
+      // concurrent last-leave would otherwise tear down the very document being prepared.
+      entry.pendingJoins += 1
+      let subscribed = false
+      const isCurrentJoin = () =>
+        !socket.disconnected &&
+        joinGeneration.get(socket.id) === generation &&
+        fileDocRooms.get(name) === entry
+      const canRegisterJoin = () => {
+        if (!isCurrentJoin()) return false
+        const permission = peekRoomPermission(userId, room)
+        if (satisfiesRoomMembership(permission ?? null, ROOM_TYPES.WORKSPACE_FILE_DOC)) return true
+        emitJoinError(
+          socket,
+          fileId,
+          clientId,
+          'File access changed while joining',
+          permission === undefined ? 'JOIN_FAILED' : 'ACCESS_DENIED',
+          permission === undefined
+        )
+        return false
+      }
+      try {
+        // A client is attached to a WHOLE document or to nothing. A room assembles itself from the
+        // shared stream and the server seed, and both land in the same Y.Doc that fans every update out
+        // to its room — so a socket attached mid-assembly is not sent the document, it is sent the
+        // document's history, and it watches that replay on screen (reload right after moving a block
+        // and the block moves again in front of you). Waiting here is what makes the handshake below
+        // authoritative: the client's first sync IS the finished document, in one message.
+        await ensureRoomReady(name, entry, entry.workspaceId)
+
+        // Re-check access immediately before registering, mirroring the workflow join: the
+        // access re-validation sweep records a revocation BEFORE it evicts, so a join that
+        // authorized just before the revocation must not complete afterwards and re-bind
+        // the socket to the document. This RE-RESOLVES rather than peeking the cache — a
+        // peek treats an expired entry as unknown and fails open, which a join stalled
+        // longer than the cache TTL would slip straight through. Normally a cache hit (this
+        // join's own authorize just warmed it), so it costs no extra query.
+        const currentPermission = await resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION)
+        if (!satisfiesRoomMembership(currentPermission, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
+          logger.warn(
+            `User ${userId} lost write access to file ${fileId} before the join completed`
+          )
+          emitJoinError(socket, fileId, clientId, 'Access denied to file', 'ACCESS_DENIED', false)
           return
         }
-        // Same user reclaiming its client id on a stale prior socket: evict just THAT clientID's binding
-        // + caret from the old socket. If that leaves the old socket with no providers, also drop its
-        // room mapping + Socket.IO membership so it can no longer send document (sync) frames
-        // (handleMessage's SYNC path gates on socketToRoomName, not owners); an old socket that still
-        // hosts OTHER providers keeps them. Done inline rather than via cleanupFileDocForSocket, which
-        // could destroyRoomIfIdle the room we're joining.
-        clientMap.delete(clientId)
-        awarenessProtocol.removeAwarenessStates(entry.awareness, [clientId], null)
-        if (clientMap.size === 0) {
-          entry.owners.delete(otherSid)
-          socketToRoomName.delete(otherSid)
-          io.in(otherSid).socketsLeave(name)
+        if (!isCurrentJoin()) return
+
+        /**
+         * Watch invalidations before checking the generation, including broadcasts from another
+         * replica. Pending clients must not receive document or presence frames before authorization.
+         */
+        pendingMemberships.set(name, (pendingMemberships.get(name) ?? 0) + 1)
+        subscribed = true
+        await socket.join(admissionName)
+        const joinedVersion =
+          Math.max(entry.syncedVersion ?? 0, (await store.getSyncedVersion(name)) ?? 0) || undefined
+        /** Adapter membership can wait; resolve access again before checking the final generation. */
+        const finalPermission = await resolveCurrentRoomPermission(userId, room, FILE_DOC_ACTION)
+        if (!satisfiesRoomMembership(finalPermission, ROOM_TYPES.WORKSPACE_FILE_DOC)) {
+          emitJoinError(socket, fileId, clientId, 'Access denied to file', 'ACCESS_DENIED', false)
+          return
+        }
+        const currentDocument = await store.isDocumentGenerationCurrent(name, docIdOf(entry.doc))
+        if (!isCurrentJoin()) return
+        if (!currentDocument) {
+          emitJoinError(
+            socket,
+            fileId,
+            clientId,
+            'Document changed while joining',
+            'JOIN_FAILED',
+            true
+          )
+          return
+        }
+        if (!canRegisterJoin()) return
+        await socket.join(name)
+        /** Adapter joins can wait; recheck access and liveness before ownership or synchronization. */
+        if (!canRegisterJoin()) return
+
+        // A client id must be owned by at most one user, or a peer could bind an active
+        // collaborator's id and pass the per-frame ownership check to spoof/clear its caret.
+        // Distinguish a reconnect from a spoof by the owning user: the same user reclaiming its
+        // own client id (a dropped socket reconnecting reuses the Yjs client id, and its prior
+        // socket may not be cleaned up yet) takes over the stale binding; a DIFFERENT user is
+        // rejected. This runs BEFORE any teardown of the socket's current binding below, so a
+        // rejected rebind — even during a document switch — leaves the socket's existing document
+        // and caret untouched.
+        for (const [otherSid, clientMap] of entry.owners) {
+          if (otherSid === socket.id) continue
+          const owner = clientMap.get(clientId)
+          if (owner === undefined) continue
+          if (owner.userId !== userId) {
+            emitJoinError(
+              socket,
+              fileId,
+              clientId,
+              'Client id already in use',
+              'CLIENT_ID_IN_USE',
+              false
+            )
+            return
+          }
+          // Same user reclaiming its client id on a stale prior socket: evict just THAT clientID's
+          // binding + caret from the old socket. If that leaves the old socket with no providers, also
+          // drop its room mapping + Socket.IO membership so it can no longer send document (sync) frames
+          // (handleMessage's SYNC path gates on socketToRoomName, not owners); an old socket that still
+          // hosts OTHER providers keeps them. Done inline rather than via cleanupFileDocForSocket, which
+          // could destroyRoomIfIdle the room we're joining.
+          clientMap.delete(clientId)
+          awarenessProtocol.removeAwarenessStates(entry.awareness, [clientId], null)
+          if (clientMap.size === 0) {
+            entry.owners.delete(otherSid)
+            socketToRoomName.delete(otherSid)
+            io.in(otherSid).socketsLeave(name)
+          }
+        }
+
+        // Only now that the rebind is guaranteed to succeed, leave a previously-joined document if
+        // switching (a socket edits at most one). A duplicate join of the SAME room falls through
+        // and simply re-runs the sync handshake, idempotently.
+        const currentName = socketToRoomName.get(socket.id)
+        if (currentName && currentName !== name) {
+          socket.leave(currentName)
+          cleanupFileDocForSocket(socket.id, io)
+        }
+
+        // ADD this provider's clientID to the socket's ownership set (do NOT overwrite a sibling
+        // provider on the same socket — that lone-owner overwrite is exactly what dropped the chat
+        // preview's awareness when the Files editor co-mounted). A re-JOIN of the same clientID is
+        // idempotent. A single provider that later unmounts clears its own caret via its awareness
+        // removal; the whole set is dropped on the socket's LEAVE/disconnect (the client emits LEAVE
+        // only after its LAST provider for the file tears down).
+        let clientMap = entry.owners.get(socket.id)
+        if (clientMap === undefined) {
+          clientMap = new Map<number, FileDocOwner>()
+          entry.owners.set(socket.id, clientMap)
+        }
+        clientMap.set(clientId, { clientId, userId, userName, avatarUrl })
+        socketToRoomName.set(socket.id, name)
+        registered = true
+
+        // Attribution for the server-side persist, refreshed to the actual editor on each edit in
+        // `handleMessage`.
+        entry.lastEditorUserId = userId
+
+        // Name the document this room holds, so a client that still carries a DIFFERENT one (its room
+        // outlived by a document rebuilt in its place) can refuse to merge instead of unioning two
+        // documents into the file twice over. Read after readiness — before it, the room has no doc yet.
+        socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+          fileId,
+          clientId,
+          docId: docIdOf(entry.doc),
+          version: joinedVersion,
+          schemaVersion: FILE_DOC_SCHEMA_VERSION,
+          ...(store.enabled ? { acknowledgedUpdates: true as const } : {}),
+        })
+        // Server-authenticated roster → everyone in the room, including this joiner.
+        broadcastFileDocPresence(io, name, entry)
+
+        // Begin the sync handshake: send the server's state (sync step 1). The
+        // client replies with its updates and requests the server's in return.
+        const syncEncoder = encoding.createEncoder()
+        encoding.writeVarUint(syncEncoder, FILE_DOC_MESSAGE_TYPE.SYNC)
+        syncProtocol.writeSyncStep1(syncEncoder, entry.doc)
+        socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(syncEncoder))
+
+        // Send existing awareness so the new client immediately sees others' carets.
+        const states = entry.awareness.getStates()
+        if (states.size > 0) {
+          const awarenessEncoder = encoding.createEncoder()
+          encoding.writeVarUint(awarenessEncoder, FILE_DOC_MESSAGE_TYPE.AWARENESS)
+          encoding.writeVarUint8Array(
+            awarenessEncoder,
+            awarenessProtocol.encodeAwarenessUpdate(entry.awareness, Array.from(states.keys()))
+          )
+          socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(awarenessEncoder))
+        }
+
+        logger.info(`User ${userId} joined file-doc room ${fileId}`)
+      } finally {
+        entry.pendingJoins -= 1
+        // A join that returned without registering may have left behind the room it created; drop it
+        // if nothing else claimed it. A no-op once this join committed (the room then has an owner).
+        destroyRoomIfIdle(name)
+        if (subscribed) {
+          const remaining = (pendingMemberships.get(name) ?? 1) - 1
+          if (remaining > 0) pendingMemberships.set(name, remaining)
+          else {
+            pendingMemberships.delete(name)
+            await socket.leave(admissionName)
+            if (socketToRoomName.get(socket.id) !== name) await socket.leave(name)
+          }
         }
       }
-
-      // Only now that the rebind is guaranteed to succeed, leave a previously-joined document if
-      // switching (a socket edits at most one). A duplicate join of the SAME room falls through
-      // and simply re-runs the sync handshake, idempotently.
-      const currentName = socketToRoomName.get(socket.id)
-      if (currentName && currentName !== name) {
-        socket.leave(currentName)
-        cleanupFileDocForSocket(socket.id, io)
-      }
-
-      // ADD this provider's clientID to the socket's ownership set (do NOT overwrite a sibling provider
-      // on the same socket — that lone-owner overwrite is exactly what dropped the chat preview's
-      // awareness when the Files editor co-mounted). A re-JOIN of the same clientID is idempotent. A
-      // single provider that later unmounts clears its own caret via its awareness removal; the whole
-      // set is dropped on the socket's LEAVE/disconnect (client emits LEAVE only after its LAST provider
-      // for the file tears down).
-      let clientMap = entry.owners.get(socket.id)
-      if (clientMap === undefined) {
-        clientMap = new Map<number, FileDocOwner>()
-        entry.owners.set(socket.id, clientMap)
-      }
-      clientMap.set(clientId, { clientId, userId, userName, avatarUrl })
-      socketToRoomName.set(socket.id, name)
-      socket.join(name)
-
-      // Capture what the server-side persist needs: the workspace to write back to, and the current
-      // user for attribution (refreshed to the actual editor on each edit in `handleMessage`).
-      if (authorized.workspaceId) entry.workspaceId = authorized.workspaceId
-      entry.lastEditorUserId = userId
-
-      socket.emit(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId })
-      // Server-authenticated roster → everyone in the room, including this joiner.
-      broadcastFileDocPresence(io, name, entry)
-
-      // Begin the sync handshake: send the server's state (sync step 1). The
-      // client replies with its updates and requests the server's in return.
-      const syncEncoder = encoding.createEncoder()
-      encoding.writeVarUint(syncEncoder, FILE_DOC_MESSAGE_TYPE.SYNC)
-      syncProtocol.writeSyncStep1(syncEncoder, entry.doc)
-      socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(syncEncoder))
-
-      // Send existing awareness so the new client immediately sees others' carets.
-      const states = entry.awareness.getStates()
-      if (states.size > 0) {
-        const awarenessEncoder = encoding.createEncoder()
-        encoding.writeVarUint(awarenessEncoder, FILE_DOC_MESSAGE_TYPE.AWARENESS)
-        encoding.writeVarUint8Array(
-          awarenessEncoder,
-          awarenessProtocol.encodeAwarenessUpdate(entry.awareness, Array.from(states.keys()))
-        )
-        socket.emit(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(awarenessEncoder))
-      }
-
-      // Seed the document server-side (once). Fire-and-forget: the join completes immediately and
-      // the seed relays to this socket via `doc.on('update')` the moment it lands.
-      if (authorized.workspaceId) void ensureServerSeed(name, entry, authorized.workspaceId)
-
-      logger.info(`User ${userId} joined file-doc room ${fileId}`)
     } catch (error) {
       logger.error('Error joining file-doc room:', error)
       try {
         const name = roomName(fileDocRoom(fileId))
-        socket.leave(name)
-        // Roll back ONLY this join's target room. cleanupFileDocForSocket keys off socketToRoomName,
-        // which — if the join failed before rebinding to the target (e.g. a switch that threw during
-        // client-id reclaim) — still points at the socket's PRIOR, valid document. Running it then
-        // would tear down a document the socket is validly in. So only run it when the binding
-        // already points at the target; otherwise the socket never registered as an owner of this
-        // room and the only leftover is a freshly-created empty room, dropped below.
-        if (socketToRoomName.get(socket.id) === name) cleanupFileDocForSocket(socket.id, io)
+        /**
+         * Roll back ownership only if this attempt committed it. A failed provisional admission must
+         * preserve a previous file's binding and any co-mounted provider already in the target room.
+         */
+        if (registered && socketToRoomName.get(socket.id) === name) {
+          socket.leave(name)
+          cleanupFileDocForSocket(socket.id, io)
+        }
         destroyRoomIfIdle(name)
       } catch {}
       // Suppress the client-facing error when this join was already superseded (a switch to another
@@ -1225,11 +1652,26 @@ export function setupWorkspaceFileDocHandlers(
         (generation !== undefined && joinGeneration.get(socket.id) !== generation)
       )
         return
-      emitJoinError(socket, fileId, 'Failed to join file document', 'JOIN_FAILED', true)
+      if (error instanceof FileDocNotFoundError) {
+        emitJoinError(socket, fileId, clientId, 'File not found', 'NOT_FOUND', false)
+      } else {
+        emitJoinError(socket, fileId, clientId, 'Failed to join file document', 'JOIN_FAILED', true)
+      }
     }
   })
 
   socket.on(FILE_DOC_EVENTS.MESSAGE, (data: unknown) => handleMessage(socket, io, data))
+
+  socket.on(
+    FILE_DOC_EVENTS.UPDATE,
+    (data: unknown, acknowledge?: (result: FileDocUpdateAck) => void) => {
+      if (typeof acknowledge !== 'function') return
+      const pending = handleClientUpdate(socket, io, data, acknowledge)
+        .catch((error) => logger.error('Unhandled acknowledged file-doc update failure:', error))
+        .finally(() => pendingFileDocUpdates.delete(pending))
+      pendingFileDocUpdates.add(pending)
+    }
+  )
 
   socket.on(FILE_DOC_EVENTS.LEAVE, (payload?: LeaveFileDocPayload) => {
     try {

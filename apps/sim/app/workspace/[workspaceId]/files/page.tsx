@@ -23,9 +23,7 @@ export default async function FilesPage({ params }: { params: Promise<{ workspac
   const [{ workspaceId }, session] = await Promise.all([params, getSession()])
 
   const queryClient = getQueryClient()
-  if (session?.user?.id) {
-    await prefetchFilesBrowser(queryClient, workspaceId, session.user.id)
-  }
+  await prefetchFilesBrowser(queryClient, workspaceId, session?.user?.id)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

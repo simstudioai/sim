@@ -17,10 +17,17 @@ import { toApiView } from '@/app/api/v2/tables/utils'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-async function presentView(result: { view: Parameters<typeof toApiView>[0] }) {
-  const { view } = result
+async function presentView(result: {
+  view: Parameters<typeof toApiView>[0]
+  columns: Parameters<typeof toApiView>[2]
+}) {
+  const { view, columns } = result
   return {
-    data: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
+    data: toApiView(
+      view,
+      view.createdBy ? await getRequiredUserEmail(view.createdBy) : null,
+      columns
+    ),
   }
 }
 

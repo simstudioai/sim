@@ -1,7 +1,6 @@
 import { CalComIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
 const EVENT_TYPE_FIELD = ['eventTypeSelector', 'eventTypeId'] as const
@@ -10,7 +9,7 @@ const EVENT_TYPE_PARAM_FIELD = ['eventTypeParamSelector', 'eventTypeIdParam'] as
 const EVENT_TYPE_SCHEDULE_FIELD = ['eventTypeScheduleSelector', 'eventTypeScheduleId'] as const
 const SCHEDULE_FIELD = ['scheduleSelector', 'scheduleId'] as const
 
-export const CalComBlock: BlockConfig<ToolResponse> = {
+export const CalComBlock: BlockConfig = {
   type: 'calcom',
   name: 'Cal.com',
   description: 'Manage Cal.com bookings, event types, schedules, and availability',
@@ -138,7 +137,7 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
       required: true,
     },
 
-    // === Create Booking fields ===
+    // Create Booking fields
     {
       id: 'eventTypeSelector',
       title: 'Event Type',
@@ -291,7 +290,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       mode: 'advanced',
     },
 
-    // === Get/Cancel/Reschedule/Confirm/Decline Booking fields ===
+    // Get/Cancel/Reschedule/Confirm/Decline Booking fields
     {
       id: 'bookingUid',
       title: 'Booking UID',
@@ -336,7 +335,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       mode: 'advanced',
     },
 
-    // === List Bookings filters ===
+    // List Bookings filters
     {
       id: 'bookingStatus',
       title: 'Status',
@@ -352,7 +351,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       condition: { field: 'operation', value: 'calcom_list_bookings' },
     },
 
-    // === Event Type fields ===
+    // Event Type fields
     {
       id: 'eventTypeParamSelector',
       title: 'Event Type',
@@ -516,7 +515,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       mode: 'advanced',
     },
 
-    // === Schedule fields ===
+    // Schedule fields
     {
       id: 'scheduleSelector',
       title: 'Schedule',
@@ -639,7 +638,7 @@ Return ONLY valid JSON - no explanations.`,
       },
     },
 
-    // === Slots fields ===
+    // Slots fields
     {
       id: 'eventTypeSlug',
       title: 'Event Type Slug',
@@ -665,7 +664,7 @@ Return ONLY valid JSON - no explanations.`,
       mode: 'advanced',
     },
 
-    // === List Event Types sorting ===
+    // List Event Types sorting
     {
       id: 'sortCreatedAt',
       title: 'Sort by Created',

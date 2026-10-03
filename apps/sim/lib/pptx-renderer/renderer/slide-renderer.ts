@@ -20,9 +20,7 @@ import { createRenderContext, type RenderContext } from './render-context'
 import { renderShape } from './shape-renderer'
 import { renderTable } from './table-renderer'
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 export interface SlideRendererOptions {
   /** Called when a single node fails to render. */
@@ -53,9 +51,7 @@ export interface SlideHandle {
   [Symbol.dispose](): void
 }
 
-// ---------------------------------------------------------------------------
 // Node Dispatch
-// ---------------------------------------------------------------------------
 
 /**
  * Dispatch a typed node to its appropriate renderer.
@@ -86,9 +82,7 @@ function renderNode(node: BaseNodeData, ctx: RenderContext): HTMLElement {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Error Placeholder
-// ---------------------------------------------------------------------------
 
 /**
  * Create a visual error placeholder at the node's position.
@@ -116,9 +110,7 @@ function createErrorPlaceholder(node: BaseNodeData): HTMLElement {
   return el
 }
 
-// ---------------------------------------------------------------------------
 // Master/Layout Shape Parsing
-// ---------------------------------------------------------------------------
 
 /**
  * Check whether a shape node is a placeholder (has p:ph in nvPr).
@@ -183,9 +175,7 @@ function parseTemplateShapes(spTree: SafeXmlNode, _slideNodes: BaseNodeData[]): 
   return nodes
 }
 
-// ---------------------------------------------------------------------------
 // Main Slide Render Function
-// ---------------------------------------------------------------------------
 
 /**
  * Render a complete slide into an HTML element.
@@ -229,7 +219,7 @@ export function renderSlide(
     options?.onNodeError?.('__background__', e)
   }
 
-  // --- Render master template shapes (behind layout and slide) ---
+  // Render master template shapes (behind layout and slide)
   // Respect showMasterSp flags:
   //  - layout.showMasterSp === false  → skip master shapes
   //  - slide.showMasterSp === false   → skip both master AND layout shapes
@@ -249,7 +239,7 @@ export function renderSlide(
     }
   }
 
-  // --- Render layout template shapes ---
+  // Render layout template shapes
   if (slide.showMasterSp) {
     const layoutCtx: RenderContext = {
       ...ctx,
@@ -266,7 +256,7 @@ export function renderSlide(
     }
   }
 
-  // --- Render slide shapes (on top) ---
+  // Render slide shapes (on top)
   for (const node of slide.nodes) {
     try {
       const el = renderNode(node, ctx)

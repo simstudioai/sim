@@ -1,7 +1,7 @@
 import type { DeepgramTtsParams, TtsBlockResponse } from '@/tools/tts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deepgramTtsTool: ToolConfig<DeepgramTtsParams, TtsBlockResponse> = {
+export const deepgramTtsTool: InternalToolConfig<DeepgramTtsParams, TtsBlockResponse> = {
   id: 'tts_deepgram',
   name: 'Deepgram TTS',
   description: 'Convert text to speech using Deepgram Aura',
@@ -60,22 +60,12 @@ export const deepgramTtsTool: ToolConfig<DeepgramTtsParams, TtsBlockResponse> = 
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ text: params.text }),
     },
-    url: '/api/tools/tts/unified',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: DeepgramTtsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      provider: 'deepgram',
+    input: (params) => ({
       text: params.text,
       apiKey: params.apiKey,
       model: params.model || params.voice || 'aura-asteria-en',
@@ -83,9 +73,6 @@ export const deepgramTtsTool: ToolConfig<DeepgramTtsParams, TtsBlockResponse> = 
       sampleRate: params.sampleRate,
       bitRate: params.bitRate,
       container: params.container || 'none',
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

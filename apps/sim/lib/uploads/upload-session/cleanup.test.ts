@@ -1,16 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { mkdir, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { testUploadDirectory } = vi.hoisted(() => ({
-  testUploadDirectory: `/tmp/sim-upload-session-cleanup-${process.pid}`,
-}))
+const testUploadDirectory = `/tmp/sim-upload-session-cleanup-${process.pid}`
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  UPLOAD_DIR_SERVER: testUploadDirectory,
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import {
   LOCAL_UPLOAD_ARTIFACT_TTL_MS,
@@ -18,6 +12,8 @@ import {
   resetLocalUploadCleanupForTesting,
   sweepLocalUploadArtifacts,
 } from '@/lib/uploads/upload-session/cleanup'
+
+setUploadDirServer(testUploadDirectory)
 
 describe('local upload artifact cleanup', () => {
   beforeEach(async () => {
@@ -36,6 +32,21 @@ describe('local upload artifact cleanup', () => {
       code: 'ENOENT',
     })
     await expect(stat(`${testUploadDirectory}/.multipart/fresh`)).resolves.toBeDefined()
+  })
+
+  // A PUT or multipart assembly that dies mid-write leaves a staged object
+  // behind, so staging lives under a sweep root rather than beside its
+  // destination.
+  it('reclaims abandoned staged objects', async () => {
+    const now = Date.UTC(2026, 7, 4, 12)
+    await createStagedObject('abandoned.tmp', now - LOCAL_UPLOAD_ARTIFACT_TTL_MS - 1)
+    await createStagedObject('in-flight.tmp', now)
+
+    await expect(sweepLocalUploadArtifacts({ now })).resolves.toEqual({ scanned: 2, removed: 1 })
+    await expect(stat(`${testUploadDirectory}/.staging/abandoned.tmp`)).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+    await expect(stat(`${testUploadDirectory}/.staging/in-flight.tmp`)).resolves.toBeDefined()
   })
 
   it('bounds each sweep by the requested entry count', async () => {
@@ -82,6 +93,16 @@ describe('local upload artifact cleanup', () => {
     await expect(maybeCleanupLocalUploadArtifacts(now)).resolves.toEqual({ scanned: 0, removed: 0 })
   })
 })
+
+/** Staged objects are files, not the per-upload directories multipart leaves. */
+async function createStagedObject(name: string, modifiedAt: number): Promise<void> {
+  const directory = `${testUploadDirectory}/.staging`
+  await mkdir(directory, { recursive: true })
+  const path = `${directory}/${name}`
+  await writeFile(path, 'test')
+  const time = new Date(modifiedAt)
+  await utimes(path, time, time)
+}
 
 async function createArtifact(relativePath: string, modifiedAt: number): Promise<void> {
   const path = `${testUploadDirectory}/${relativePath}`

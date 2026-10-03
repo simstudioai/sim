@@ -47,16 +47,16 @@ Read these files completely before editing:
 - `apps/sim/lib/api/server/routes/internal-json-route.ts`
 - `apps/sim/lib/api/server/routes/v2-json-route.ts`
 - `apps/sim/lib/auth/internal-delegation.ts`
-- `apps/sim/lib/copilot/application/application-adapter.ts`
-- `apps/sim/lib/copilot/auth/application-delegation.ts`
+- `apps/sim/lib/mothership/application/application-adapter.ts`
+- `apps/sim/lib/mothership/auth/application-delegation.ts`
 
 Use the file domain only as a representative golden slice:
 
 - `apps/sim/lib/workspace-files/application/operations.ts`
 - `apps/sim/lib/workspace-files/application/authorized-workspace-file-use-case.ts`
 - `apps/sim/lib/workspace-files/application/rename-workspace-file.ts`
-- `apps/sim/lib/copilot/application/execute-file-use-case.ts`
-- `apps/sim/lib/copilot/auth/file-delegation.ts`
+- `apps/sim/lib/mothership/application/execute-file-use-case.ts`
+- `apps/sim/lib/mothership/auth/file-delegation.ts`
 
 Then read the target domain's operation registry, application code, repositories, contracts, adapters, aliases, resume paths, and focused tests. Fail immediately if the shared foundation is absent. Do not recreate it inside the domain.
 
@@ -77,6 +77,43 @@ Inventory every entry point for the behavior before editing:
 Classify each as `migrate`, `defer`, or `non-goal`. Do not migrate adjacent operations merely because they share a module. Do not modify v1 unless the request explicitly includes it.
 
 Preserve behavior unless the task explicitly changes it. Stop and report a decision when surfaces currently disagree on security or compatibility behavior; do not silently choose one.
+
+## Freeze observable behavior before editing
+
+Treat the legacy route or tool as an ordered program, not merely a bag of business logic. Before moving code, write a compact baseline for every in-scope entry point. Pin behavior no existing test covers with a characterization test only where it passes the `test-audit` gate; otherwise record it in the baseline and verify it by hand after the move.
+
+Capture all of these when they apply:
+
+- Accepted inputs, including trimming, blank omission, duplicate query keys, aliases, defaults, and bounds.
+- Authentication and authorization order, minimum roles, resource membership, concealment, and exact error/status mapping.
+- Exact success bodies, optional fields, status codes, redirects, cookies, headers, and binary or stream behavior.
+- Mutation ordering, transaction boundaries, idempotency, no-ops, and observable state after each possible partial failure.
+- Audit, notification, analytics, and billing timing plus exact semantic dimensions and attribution.
+- Browser or protocol state ownership, concurrency isolation, expiry, callback ordering, and cleanup behavior.
+- Every value newly crossing into HTML, JavaScript, SQL, URLs, logs, provider payloads, or another encoding context.
+
+Compare the old statement order with the proposed application lifecycle explicitly:
+
+```text
+legacy parse/normalize
+  -> legacy authorization checks
+  -> branch-specific canonical lookup
+  -> mutation(s)
+  -> per-step side effects
+  -> response or redirect catch
+```
+
+Moving those steps under a wrapper may change behavior even when each individual call is reused. In particular:
+
+- `projectAudit` and `afterSuccess` run only after `execute` returns. They cannot describe earlier committed mutations when a later step throws. Make the compound mutation atomic or define explicit partial-result/failure projection semantics before migrating it.
+- Operation metadata is executable policy. Adding a resource role to a workspace-only legacy read is an authorization change, not an architectural cleanup.
+- A shared error policy does not automatically preserve route-local concealment, subclass ordering, browser redirects, or branch-specific messages.
+- A shared contract does not automatically preserve manual `URLSearchParams` normalization or exact legacy response unions.
+- A shared use case may own domain behavior while separate surface presenters still preserve different wire shapes.
+- Per-flow identity is insufficient when another part of the flow remains in browser-global state such as one cookie.
+- Passing a newly supported parameter through old rendering code creates a new security boundary even when the renderer itself is unchanged.
+
+Fail fast if the baseline cannot be established from code, tests, or an explicit product decision. Do not infer that behavior is unimportant because it was previously implicit.
 
 ## Keep the layers distinct
 
@@ -119,6 +156,7 @@ rename: defineWorkspaceOperation({
   id: 'widgets.rename',
   minimumRole: 'write',
   workspaceApiKey: 'allow',
+  capability: 'widgets.use',
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 })
@@ -128,7 +166,25 @@ Do not create internal-, public-, or Copilot-specific versions of the same seman
 
 Choose principal kinds from actual behavior. Do not accept every principal merely because the use case is shared. Workspace API keys have a write ceiling and cannot satisfy admin operations. The operation definition must fail fast when its role, workspace-key policy, and principal kinds disagree.
 
+`capability` is required: a static, operation-declarable capability (not parameterized, not principal-wide), or `'none'` with a `// permission-group-exempt: <reason>` comment directly above it. If `principalKinds` includes `oauth_access_token`, `oauthScope` (`api:read` | `api:write` | `search:read`) is required. `defineWorkspaceOperation` throws at definition time on any violation. See `add-permission-group-item`.
+
 Route declarations, tool adapters, and use cases must use the same literal operation. Runtime operation selection is permitted only from a trusted, code-defined registry. Never accept an operation ID or permission tag from an HTTP body, model argument, or other untrusted input.
+
+### Unified selector execution is one operation
+
+Dynamic selector dispatch is the deliberate instance of trusted runtime selection. Define and
+authorize `selectors.execute` once: it means "enumerate options while configuring a workflow or
+workspace resource." The browser supplies only a selector key from the exhaustive browser-safe
+manifest, scope, allowlisted context, and list/detail request. After canonical scope authorization,
+the application use case selects the matching attachment from the exhaustive server-only registry.
+
+Provider and internal attachments are trusted implementation adapters under that semantic operation,
+not separate application operations. Do not create one operation per selector, provider, or listing
+endpoint. Attachments may choose only code-defined credential/service binding, destination policy,
+provider primitive, and projection behavior; they must not accept a module, provider, service,
+operation kind, origin, or permission tag from the request. The `selectors.execute` use case owns
+reference resolution, credential authorization, provider invocation, sanitization, and safe result
+projection end to end.
 
 ## Implement the application use case
 
@@ -184,7 +240,7 @@ Keep the route module declarative. If several internal routes repeat authenticat
 
 ## Adapt public or versioned APIs
 
-Use the appropriate public/versioned route builder, such as `defineV2JsonRoute`, with API-key authentication, explicit semantic operation and rate policy, external error projection, input mapping, application use case, and an external presenter. V2 rollout admission is centralized by the builder; do not invent a route-local rollout policy.
+Use the appropriate public/versioned route builder, such as `defineV2JsonRoute`, with API-key authentication, explicit semantic operation and rate policy, external error projection, input mapping, application use case, and an external presenter.
 
 Authentication and HTTP formatting may differ from internal APIs; authorization and business behavior must not. Rate-limit using the credential or principal subject, never a billed owner. Resolve billing attribution only for billing, quota, or legacy required-user fields.
 
@@ -194,7 +250,7 @@ Keep v1 middleware and routes unchanged unless explicitly included.
 
 ## Adapt Copilot
 
-Copilot is a surface adapter, not a separate application layer. If an HTTP or other surface already uses an application use case, Copilot must call that exact use case rather than reimplementing protected business behavior under `lib/copilot`.
+Copilot is a surface adapter, not a separate application layer. If an HTTP or other surface already uses an application use case, Copilot must call that exact use case rather than reimplementing protected business behavior under `lib/mothership`.
 
 Create one domain-level Copilot application adapter with `createCopilotApplicationAdapter` instead of constructing delegated principals in every tool:
 
@@ -259,25 +315,27 @@ Do not force these through an ordinary JSON migration:
 
 Stop and report a missing design rather than weakening identity, authorization, limits, or errors.
 
-## Test the complete matrix
+## Test each risk at one boundary
 
-Add focused tests for every migrated surface and principal kind allowed by the operation:
+Run the `test-audit` authoring gate before writing any test. Prefer one E2E/integration run over the real boundary; where a use-case unit test is justified, list its failure modes before writing code (CLAUDE.md → Testing). Own each risk at exactly one boundary:
 
-- Application: allowed and disallowed roles, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, and infrastructure propagation.
-- Operation registry: role/workspace-key/principal-kind/delegated-service consistency and fail-fast rejection of invalid definitions.
-- Repository: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
-- Internal API: authentication before parsing, exact contract, typed errors, and surface analytics only after success.
-- Public API: personal and workspace keys, rate and rollout behavior, concealment, exact external envelope, and rate headers.
-- Copilot or tools: trusted context, exact registered operation membership, rejected forged scope, aliases and resume paths, permission re-check, safe errors, and unchanged tool result shapes.
-- Side effects: audit derives from authoritative results; shared notifications follow audit; neither occurs for rejection or no-op.
+- Application use-case tests own authorization, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, audit derived from authoritative results, and infrastructure failures (storage, rate-limit, provider, or database errors raised by delegated services) propagating as 5xx-mapped errors — never converted to not-found or forbidden.
+- One `*.integration.ts` owns repository semantics: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
+- Add a surface test only for a surface-specific risk (for example, a v2 envelope or rate header, a Copilot forged-scope rejection, or a legacy redirect/cookie behavior the characterization baseline pinned). Do not restate the operation registry or the shared builders' auth-before-parse behavior per surface.
+
+Risks that usually earn a test when the change introduces them:
+
+- Failure sequencing: inject a failure after each independently committing step and assert persisted state plus audit, analytics, and notification effects.
+- Concurrency: overlap stateful browser or provider flows and prove each callback consumes only its own state and return destination.
+- Rendering boundaries: exercise hostile values for every newly connected input that reaches HTML, inline JavaScript, URLs, logs, or provider requests.
 
 Run at minimum:
 
 ```bash
-bunx vitest run <focused test files>
+bun run --cwd apps/sim test <focused test files>
 bunx biome check <changed source and test files>
-bunx turbo run type-check --filter=sim --filter=@sim/auth
-bun run check:api-validation:strict
+bunx turbo run type-check --filter=@sim/app --filter=@sim/auth
+bun run check:audits
 git diff --check
 ```
 

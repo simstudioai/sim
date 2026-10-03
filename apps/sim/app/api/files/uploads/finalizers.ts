@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import type { V2File } from '@/lib/api/contracts/v2/files'
@@ -9,13 +9,19 @@ import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types
 import { captureServerEvent } from '@/lib/posthog/server'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
+import { finalizeOrganizationAssistantAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
+import {
+  finalizeOrganizationLogoUpload,
+  organizationLogoUploadResult,
+} from '@/lib/uploads/contexts/organization-logo/application'
 import {
   getWorkspaceFile,
   registerUploadedWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import { type StorageContext, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { UploadSessionError, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
+import { readWorkspaceFileUploadProvenance } from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export interface UploadActor {
@@ -59,6 +65,14 @@ interface FinalizeUploadPurposeParams {
 
 interface FinalizedUploadPurpose {
   value: UploadPurposeResult
+  /**
+   * Recorded on the session so a replayed completion returns the original
+   * result instead of re-running a finalizer with one-time side effects.
+   *
+   * Set only for a purpose {@link loadCompletedUploadPurpose} can reload; an
+   * already-idempotent finalizer must leave it undefined so replays flow back
+   * through the finalizer itself.
+   */
   completedFileId?: string
 }
 
@@ -72,7 +86,7 @@ interface FinalizedMetadataInput {
   size: number
 }
 
-type FileMetadataRecord = typeof workspaceFiles.$inferSelect
+type FileMetadataRecord = WorkspaceFileRow
 
 /**
  * Finalizes the domain resource represented by a verified upload object.
@@ -96,9 +110,14 @@ export async function finalizeUploadPurpose({
       )
     case 'profile_picture':
       return { value: storedAssetResult(session, 'profile-pictures') }
+    case 'organization_logo':
+      return finalizeOrganizationLogoUpload(principal, session, request)
     case 'workspace_logo':
       return finalizeWorkspaceLogo(session, actor, request)
     case 'mothership_attachment':
+      if (session.workspaceId === null) {
+        return { value: await finalizeOrganizationAssistantAttachment(principal, session) }
+      }
       return finalizeMothershipAttachment(session)
     case 'execution_attachment':
       return finalizeExecutionAttachment(session)
@@ -111,13 +130,32 @@ export async function finalizeUploadPurpose({
   }
 }
 
+/**
+ * Reloads the durable result of an already-completed session, for the purposes
+ * that report a {@link FinalizedUploadPurpose.completedFileId}.
+ *
+ * The switch is exhaustive so that adding a purpose is a compile error until
+ * its replay behavior is decided here.
+ */
 export async function loadCompletedUploadPurpose(
   session: UploadSessionRecord
 ): Promise<UploadPurposeResult> {
-  if (session.purpose !== 'workspace_file') {
-    throw new Error(`Upload purpose ${session.purpose} has no durable file result`)
+  switch (session.purpose) {
+    case 'workspace_file':
+      return toV2File(await loadCompletedWorkspaceFileUpload(session))
+    case 'organization_logo':
+      return organizationLogoUploadResult(session)
+    case 'profile_picture':
+    case 'workspace_logo':
+    case 'mothership_attachment':
+    case 'execution_attachment':
+    case 'table_import':
+    case 'knowledge_document':
+      throw new UploadSessionError(
+        'internal',
+        `Upload purpose ${session.purpose} recorded a completed file but has no durable loader`
+      )
   }
-  return toV2File(await loadCompletedWorkspaceFileUpload(session))
 }
 
 async function finalizeInternalWorkspaceFile(
@@ -162,6 +200,7 @@ export async function finalizeWorkspaceFileUpload(params: {
   }
   await authorizeBeforeRegistration?.()
   const legacyAttributionUserId = principal.kind === 'workspace_api_key' ? actor.id : session.userId
+  const secretProvenance = readWorkspaceFileUploadProvenance(session)
   const registered = await registerUploadedWorkspaceFile({
     workspaceId,
     userId: legacyAttributionUserId,
@@ -170,6 +209,7 @@ export async function finalizeWorkspaceFileUpload(params: {
     originalName: session.fileName,
     contentType: session.contentType,
     folderId: metadata.folderId,
+    ...(secretProvenance ? { secretProvenance } : {}),
   })
   const file = await getWorkspaceFile(workspaceId, registered.file.id, {
     includeDeleted: true,
@@ -314,7 +354,6 @@ async function finalizeExecutionAttachment(
       key: session.storageKey,
       context: 'execution',
     },
-    completedFileId: finalized.file.id,
   }
 }
 
@@ -340,7 +379,6 @@ async function insertOrLoadFileMetadata(
       originalName: input.originalName,
       displayName: input.originalName,
       contentType: input.contentType,
-      size: toLegacyWorkspaceFileSize(input.size),
       sizeBytes: input.size,
       deletedAt: null,
       uploadedAt: now,
@@ -372,7 +410,7 @@ async function findFileMetadataByKey(key: string): Promise<FileMetadataRecord | 
 }
 
 function assertMatchingMetadata(existing: FileMetadataRecord, input: FinalizedMetadataInput): void {
-  const existingSize = existing.sizeBytes ?? existing.size
+  const existingSize = getWorkspaceFileSize(existing)
   if (
     existing.key !== input.key ||
     existing.userId !== input.userId ||

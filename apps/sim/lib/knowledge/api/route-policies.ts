@@ -1,22 +1,32 @@
 import {
+  createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
+  extendInternalErrorPolicy,
   type InternalErrorPolicy,
   internalErrorResponse,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { internalPersonalCredentialConnectionErrorPolicy } from '@/lib/credentials/api/route-policies'
+import {
+  isBYOKEmbeddingCredentialRejection,
+  isBYOKEmbeddingQuotaExhaustion,
+  isEmbeddingQuotaExhaustion,
+} from '@/lib/embeddings'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
+import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { KnowledgeSearchProvenanceUnavailableError } from '@/lib/knowledge/application/search'
 import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
+import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 function internalKnowledgeErrorPolicy(unhandledMessage: string): InternalErrorPolicy {
   return {
-    project: internalPlainOrchestrationErrorPolicy.project,
+    project: internalOrchestrationErrorPolicy.project,
     unhandled: () => internalErrorResponse(500, { error: unhandledMessage }),
   }
 }
@@ -29,12 +39,24 @@ const internalKnowledgeUploadErrorPolicy: InternalErrorPolicy = {
     if (error instanceof KnowledgeUsageLimitExceededError) {
       return internalErrorResponse(402, { error: error.message })
     }
-    return internalPlainOrchestrationErrorPolicy.project(error)
+    return internalOrchestrationErrorPolicy.project(error)
   },
   unhandled: () =>
     internalErrorResponse(500, { error: 'Failed to process knowledge upload request' }),
 }
 
+const BYOK_EMBEDDING_QUOTA_SEARCH_MESSAGE =
+  "Knowledge search could not run: this workspace's embedding API key (Settings > Provider API keys) has no remaining quota. Add credit with the provider or replace the key."
+const BYOK_EMBEDDING_REJECTED_SEARCH_MESSAGE =
+  "Knowledge search could not run: this workspace's embedding API key (Settings > Provider API keys) was rejected. Update the key and try again."
+const PLATFORM_EMBEDDING_QUOTA_SEARCH_MESSAGE =
+  'Knowledge search is temporarily unavailable because the embedding provider has no remaining quota. Try again later.'
+
+/**
+ * Names the failures a caller can act on instead of collapsing them into the generic
+ * vector-search `500`. Every status stays `5xx`, so retry and alerting behavior keyed
+ * on server errors is unchanged; only the message and the specific code differ.
+ */
 const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
   project(error) {
     if (error instanceof KnowledgeUsageLimitExceededError) {
@@ -43,7 +65,19 @@ const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
     if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
       return internalErrorResponse(422, { error: error.message })
     }
-    return internalPlainOrchestrationErrorPolicy.project(error)
+    if (isBYOKEmbeddingQuotaExhaustion(error)) {
+      return internalErrorResponse(503, { error: BYOK_EMBEDDING_QUOTA_SEARCH_MESSAGE })
+    }
+    if (isEmbeddingQuotaExhaustion(error)) {
+      return internalErrorResponse(503, { error: PLATFORM_EMBEDDING_QUOTA_SEARCH_MESSAGE })
+    }
+    if (isBYOKEmbeddingCredentialRejection(error)) {
+      return internalErrorResponse(502, { error: BYOK_EMBEDDING_REJECTED_SEARCH_MESSAGE })
+    }
+    if (error instanceof SearchDeadlineError) {
+      return internalErrorResponse(504, { error: error.message })
+    }
+    return internalOrchestrationErrorPolicy.project(error)
   },
   unhandled: () => internalErrorResponse(500, { error: 'Failed to perform vector search' }),
 }
@@ -52,27 +86,73 @@ export const internalKnowledgeSessionOrExecutorAuth = createInternalSessionOrExe
   audience: KNOWLEDGE_DELEGATION_AUDIENCE,
 })
 
+export const KNOWLEDGE_BASE_NOT_FOUND_MESSAGE = 'Knowledge base not found'
+
+/**
+ * Conceals a knowledge-base-scoped internal policy the way the v2 knowledge
+ * routes conceal theirs. The workspace-level `list` and `create` policies are
+ * deliberately left alone: neither names a knowledge base, so there is no
+ * resource whose existence a 403 could betray.
+ */
+function concealKnowledgeBase(base: InternalErrorPolicy): InternalErrorPolicy {
+  return createInternalResourceConcealmentPolicy({
+    base,
+    notFoundMessage: KNOWLEDGE_BASE_NOT_FOUND_MESSAGE,
+  })
+}
+
 export const internalKnowledgeErrorPolicies = {
   list: internalKnowledgeErrorPolicy('Failed to fetch knowledge bases'),
-  read: internalKnowledgeErrorPolicy('Failed to fetch knowledge base'),
+  read: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to fetch knowledge base')),
+  export: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to export knowledge base')),
   create: internalKnowledgeErrorPolicy('Failed to create knowledge base'),
-  update: internalKnowledgeErrorPolicy('Failed to update knowledge base'),
-  delete: internalKnowledgeErrorPolicy('Failed to delete knowledge base'),
-  restore: internalKnowledgeErrorPolicy('Internal server error'),
+  update: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to update knowledge base')),
+  delete: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to delete knowledge base')),
+  restore: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  /**
+   * Workspace-scoped bulk routes. Deliberately not concealed: the request names
+   * a workspace, not one knowledge base, and per-item authorization failures
+   * are already folded into the response's `notFound` list by the use case.
+   */
+  bulkMove: internalKnowledgeErrorPolicy('Failed to move knowledge bases'),
+  bulkDelete: internalKnowledgeErrorPolicy('Failed to delete knowledge bases'),
   default: internalKnowledgeErrorPolicy('Internal server error'),
-  documents: internalKnowledgeErrorPolicy('Failed to process knowledge document request'),
-  chunks: internalKnowledgeErrorPolicy('Failed to process knowledge chunk request'),
-  upsert: internalKnowledgeUploadErrorPolicy,
-  search: internalKnowledgeSearchErrorPolicy,
-  tags: internalKnowledgeErrorPolicy('Failed to process knowledge tag request'),
-  connectors: internalKnowledgeErrorPolicy('Internal server error'),
-  uploads: internalKnowledgeUploadErrorPolicy,
+  documents: concealKnowledgeBase(
+    internalKnowledgeErrorPolicy('Failed to process knowledge document request')
+  ),
+  chunks: concealKnowledgeBase(
+    internalKnowledgeErrorPolicy('Failed to process knowledge chunk request')
+  ),
+  chunkList: concealKnowledgeBase(
+    extendInternalErrorPolicy(
+      internalKnowledgeErrorPolicy('Failed to process knowledge chunk request'),
+      (error) =>
+        error instanceof KnowledgeDocumentNotReadyError
+          ? internalErrorResponse(400, {
+              error: 'Document is not ready for access',
+              details: `Document status: ${error.processingStatus}`,
+              retryAfter: error.processingStatus === 'processing' ? 5 : null,
+            })
+          : null
+    )
+  ),
+  upsert: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
+  search: concealKnowledgeBase(internalKnowledgeSearchErrorPolicy),
+  tags: concealKnowledgeBase(
+    internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
+  ),
+  connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  connectAccount: concealKnowledgeBase(internalPersonalCredentialConnectionErrorPolicy),
+  uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 
 const v2KnowledgeUsageErrorPolicy = {
   render(error) {
     if (error instanceof KnowledgeUsageLimitExceededError) {
       return v2Error('USAGE_LIMIT_EXCEEDED', error.message)
+    }
+    if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
+      return v2Error('CONFLICT', error.message)
     }
     return v2OrchestrationErrorPolicy.render(error)
   },
@@ -90,6 +170,25 @@ const v2KnowledgeDocumentUploadErrorPolicy = {
   },
 } satisfies V2ErrorPolicy
 
+/**
+ * A chunk read or write whose document has not finished processing.
+ *
+ * `409`, not the internal surface's `400`: the request is well-formed and the
+ * resource state is what refuses it. Per the v2 conventions a `409` carries no
+ * `Retry-After` — waiting is not what fixes a `failed` document — so the
+ * internal policy's `retryAfter` field is deliberately not carried over. The
+ * status the document is in rides in the message, which is what tells a caller
+ * whether to poll or to requeue.
+ */
+const v2KnowledgeChunkErrorPolicy = {
+  render(error) {
+    if (error instanceof KnowledgeDocumentNotReadyError) {
+      return v2Error('CONFLICT', error.message)
+    }
+    return v2OrchestrationErrorPolicy.render(error)
+  },
+} satisfies V2ErrorPolicy
+
 export const v2KnowledgeErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   usage: v2KnowledgeUsageErrorPolicy,
@@ -100,6 +199,10 @@ export const v2KnowledgeErrorPolicies = {
   concealKnowledgeBaseUsageAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Knowledge base not found',
     render: v2KnowledgeUsageErrorPolicy.render,
+  }),
+  concealKnowledgeChunkAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Knowledge base not found',
+    render: v2KnowledgeChunkErrorPolicy.render,
   }),
   concealKnowledgeBaseUploadAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Knowledge base not found',

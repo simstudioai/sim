@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { MethodInformation } from 'fumadocs-openapi'
+import type { InlineCodeUsageGenerator } from 'fumadocs-openapi/requests/generators'
 import { createOpenAPI } from 'fumadocs-openapi/server'
+import { buildAuthCodeSamples } from '@/lib/openapi-code-samples'
 import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
 
 export const openapi = createOpenAPI({
@@ -73,6 +76,109 @@ function getSpecs(): Record<string, unknown>[] {
     )
   }
   return cachedSpecs
+}
+
+type SecurityRequirement = Record<string, string[]>
+
+interface SecurityScheme {
+  type?: string
+  in?: string
+  name?: string
+  scheme?: string
+}
+
+interface SharedSecurity {
+  security: SecurityRequirement[]
+  schemes: Record<string, SecurityScheme>
+}
+
+const AUTH_SAMPLE_VALUE = 'YOUR_API_KEY'
+
+let cachedSharedSecurity: SharedSecurity | null = null
+
+/**
+ * Document-level security shared by every rendered spec. Code samples are
+ * generated from an operation alone, with no handle on the document that owns
+ * it, so the specs must agree on their default security — a spec that diverges
+ * would silently get another document's auth in its samples.
+ */
+function getSharedSecurity(): SharedSecurity {
+  if (cachedSharedSecurity) return cachedSharedSecurity
+
+  let shared: SharedSecurity | undefined
+  let sharedFile: string | undefined
+
+  getSpecs().forEach((spec, index) => {
+    const file = OPENAPI_SPEC_FILES[index]
+    const current: SharedSecurity = {
+      security: (spec.security as SecurityRequirement[] | undefined) ?? [],
+      schemes:
+        ((spec.components as Record<string, unknown> | undefined)?.securitySchemes as
+          | Record<string, SecurityScheme>
+          | undefined) ?? {},
+    }
+
+    if (!shared) {
+      shared = current
+      sharedFile = file
+      return
+    }
+
+    if (JSON.stringify(current) !== JSON.stringify(shared)) {
+      throw new Error(
+        `[docs] ${file} declares different default security than ${sharedFile}. Every OpenAPI spec must share one security scheme so generated code samples stay correct.`
+      )
+    }
+  })
+
+  cachedSharedSecurity = shared ?? { security: [], schemes: {} }
+  return cachedSharedSecurity
+}
+
+/**
+ * Resolve a security requirement to the request headers a sample must send.
+ * The first non-empty alternative wins — an empty one means the operation also
+ * accepts anonymous callers, which is not what a reference example should show.
+ */
+function resolveAuthHeaders(
+  security: SecurityRequirement[],
+  schemes: Record<string, SecurityScheme>
+): Record<string, string> {
+  const requirement = security.find((item) => Object.keys(item).length > 0)
+  if (!requirement) return {}
+
+  const headers: Record<string, string> = {}
+  for (const name of Object.keys(requirement)) {
+    const scheme = schemes[name]
+    if (!scheme) {
+      throw new Error(`[docs] Operation references undefined security scheme "${name}"`)
+    }
+    if (scheme.type === 'apiKey' && scheme.in === 'header' && scheme.name) {
+      headers[scheme.name] = AUTH_SAMPLE_VALUE
+      continue
+    }
+    if (scheme.type === 'http' && scheme.scheme === 'bearer') {
+      headers.Authorization = `Bearer ${AUTH_SAMPLE_VALUE}`
+      continue
+    }
+    throw new Error(
+      `[docs] Security scheme "${name}" (type ${scheme.type}) cannot be rendered as a request header in code samples`
+    )
+  }
+  return headers
+}
+
+/**
+ * Code samples for an operation, with its authentication header included.
+ * Fumadocs derives sample requests from declared parameters only, so without
+ * this every endpoint documents an unauthenticated call that returns `401`.
+ */
+export function getAuthenticatedCodeSamples(method: MethodInformation): InlineCodeUsageGenerator[] {
+  const shared = getSharedSecurity()
+  const security = (method.security as SecurityRequirement[] | undefined) ?? shared.security
+  const headers = resolveAuthHeaders(security, shared.schemes)
+  if (Object.keys(headers).length === 0) return []
+  return buildAuthCodeSamples(headers)
 }
 
 /**

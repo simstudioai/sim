@@ -12,6 +12,12 @@ export type ShareAuthType = z.output<typeof shareAuthTypeSchema>
 /** An allowed email address or `@domain` pattern for email/SSO shares. */
 const allowedEmailSchema = z.string().min(1).max(320)
 
+/** Password accepted when a file share is created or its password is changed. */
+export const sharePasswordSchema = z
+  .string()
+  .min(15, 'Password must be at least 15 characters')
+  .max(1024, 'Password is too long')
+
 /**
  * Public-safe representation of a `public_share` row. Never carries the
  * underlying storage key or the (encrypted) password — `hasPassword` is the
@@ -42,14 +48,9 @@ const fileShareParamsSchema = z.object({
 export const upsertFileShareBodySchema = z.object({
   isActive: z.boolean(),
   authType: shareAuthTypeSchema.optional(),
-  password: z
-    .string()
-    .min(1, 'Password cannot be empty')
-    .max(1024, 'Password is too long')
-    .optional(),
+  password: sharePasswordSchema.optional(),
   allowedEmails: z.array(allowedEmailSchema).max(200, 'Too many allowed emails').optional(),
-  // Client-reserved token shown as the link before saving; persisted on first
-  // enable so a copied link resolves. Ignored once the share row already exists.
+  /** Client-reserved token persisted on first share. Ignored once the share row exists. */
   token: z
     .string()
     .regex(/^[A-Za-z0-9_-]+$/, 'Invalid token')
@@ -150,7 +151,7 @@ export const getPublicInlineFileContract = defineRouteContract({
   },
 })
 
-const authenticatePublicFileBodySchema = z.object({
+export const authenticatePublicFileBodySchema = z.object({
   password: z.string().min(1, 'Password is required').max(1024, 'Password is too long'),
 })
 
@@ -163,8 +164,9 @@ const authenticatePublicFileResponseSchema = z.object({
 export type AuthenticatePublicFileResponse = z.output<typeof authenticatePublicFileResponseSchema>
 
 /**
- * Exchanges a share password for a `file_auth_{shareId}` cookie. IP rate-limited;
- * returns 401 (`Invalid password`) on mismatch and 429 when throttled.
+ * Exchanges a share password for a `file_auth_{shareId}` cookie. Client-IP and
+ * share-resource rate-limited; returns 401 (`Invalid password`) on mismatch and
+ * 429 when throttled.
  */
 export const authenticatePublicFileContract = defineRouteContract({
   method: 'POST',

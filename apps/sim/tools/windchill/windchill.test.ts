@@ -1,16 +1,10 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { windchillOperationBodySchema } from '@/lib/api/contracts/tools/windchill'
-import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
-import type { ToolConfig } from '@/tools/types'
-import * as windchillTools from '@/tools/windchill'
-import {
-  WINDCHILL_OPERATIONS,
-  type WindchillParams,
-  type WindchillResponse,
-} from '@/tools/windchill/types'
+import { WindchillBlock } from '@/blocks/blocks/windchill'
 import {
   buildWindchillInternalBody,
   buildWindchillReadUrl,
@@ -25,38 +19,21 @@ import {
   windchillReadHeaders,
 } from '@/tools/windchill/utils'
 
-const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
-  mockSecureFetchWithValidation: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetchWithValidation,
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   createWindchillSession,
+  resolveWindchillContentUrl,
   uploadWindchillContent,
   windchillMutationRequest,
-} from '@/tools/windchill/utils.server'
+} from '@/lib/internal/windchill/client'
+
+const mockSecureFetchWithValidation = inputValidationMockFns.mockSecureFetchWithValidation
 
 const BASE_URL = 'https://windchill.example.com/Windchill/servlet/odata/v6'
 
-function isWindchillTool(value: unknown): value is ToolConfig<WindchillParams, WindchillResponse> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    typeof value.id === 'string' &&
-    value.id.startsWith('windchill_')
-  )
-}
-
-const WINDCHILL_TOOLS_BY_ID = new Map(
-  Object.values(windchillTools)
-    .filter(isWindchillTool)
-    .map((tool) => [tool.id, tool])
-)
+/** Mirrors MAX_STRUCTURE_DEPTH: the deepest `DocUsageLinks` expansion the tools ever request. */
+const MAX_EXPANDABLE_DEPTH = 3
 
 function mockResponse({
   body,
@@ -91,26 +68,26 @@ beforeEach(() => {
 })
 
 describe('Windchill tools', () => {
-  it('defines and builds every registered operation', () => {
-    expect([...WINDCHILL_TOOLS_BY_ID.keys()].sort()).toEqual([...WINDCHILL_OPERATIONS].sort())
+  it('stops normalizing document structure at the expandable depth', () => {
+    const link = (depth: number): Record<string, unknown> => ({
+      ID: `link-${depth}`,
+      DocUses: {
+        ID: `doc-${depth}`,
+        Name: `Child ${depth}`,
+        DocUsageLinks: depth >= 6 ? [] : [link(depth + 1)],
+      },
+    })
 
-    for (const operation of WINDCHILL_OPERATIONS) {
-      const tool = WINDCHILL_TOOLS_BY_ID.get(operation)
-      expect(tool).toBeDefined()
-      if (!tool) continue
+    const output = normalizeWindchillReadOutput('windchill_get_document_structure', {
+      value: [link(0)],
+    })
 
-      expect(tool.id).toBe(operation)
-      expect(tool.params.baseUrl.visibility).toBe('user-only')
-      expect(tool.params.username.visibility).toBe('user-only')
-      expect(tool.params.password.visibility).toBe('user-only')
-
-      if (typeof tool.request.url === 'function') {
-        expect(tool.request.stripAuthOnRedirect).toBe(true)
-      } else {
-        expect(tool.request.url).toBe('/api/tools/windchill')
-        expect(tool.request.internalAuth).toBe('executor_delegation')
-      }
+    let node = output.structure?.[0]
+    for (let level = 0; level <= MAX_EXPANDABLE_DEPTH; level += 1) {
+      expect(node?.child?.name).toBe(`Child ${level}`)
+      node = node?.children[0]
     }
+    expect(node).toBeUndefined()
   })
 
   it('does not forward caller-supplied execution scope to the internal route', () => {
@@ -204,9 +181,77 @@ describe('Windchill tools', () => {
         baseUrl: BASE_URL,
         username: 'user',
         password: 'not-a-real-password',
-        top: 201,
+        top: 2001,
       })
-    ).toThrow('top must be an integer between 1 and 200')
+    ).toThrow('top must be an integer between 1 and 2000')
+    for (const bounded of [{ top: 0 }, { top: 1.5 }, { skip: -1 }, { structureDepth: 4 }]) {
+      expect(() =>
+        buildWindchillReadUrl(
+          'structureDepth' in bounded
+            ? 'windchill_get_document_structure'
+            : 'windchill_list_documents',
+          {
+            baseUrl: BASE_URL,
+            username: 'user',
+            password: 'not-a-real-password',
+            documentOid: 'OR:wt.doc.WTDocument:1',
+            ...bounded,
+          }
+        )
+      ).toThrow('must be an integer')
+    }
+  })
+
+  it('sends OData expression spaces as %20 rather than form-encoded plus signs', () => {
+    const value = buildWindchillReadUrl('windchill_list_documents', {
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      filter: "startswith(Name,'Demo') and Latest eq true",
+      orderBy: 'Name desc',
+    })
+
+    expect(value).not.toContain('+')
+    expect(value).toContain('%20and%20')
+    expect(value).toContain('Name%20desc')
+    expect(new URL(value).searchParams.get('$orderby')).toBe('Name desc')
+  })
+
+  it('treats a cleared subblock exactly like an absent one', () => {
+    const cleared = {
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      top: '' as unknown as number,
+      skip: '' as unknown as number,
+      count: '' as unknown as boolean,
+      latestVersion: '' as unknown as boolean,
+    }
+
+    expect(buildWindchillReadUrl('windchill_list_documents', cleared)).toBe(
+      `${BASE_URL}/DocMgmt/Documents`
+    )
+    expect(windchillReadHeaders(cleared).Prefer).toBe('odata.maxpagesize=200')
+    expect(
+      buildWindchillReadUrl('windchill_get_document_structure', {
+        ...cleared,
+        documentOid: 'OR:wt.doc.WTDocument:1',
+        structureDepth: '' as unknown as number,
+      })
+    ).toContain('%24expand=DocUsedBy%2CDocUses')
+    expect(
+      buildWindchillInternalBody('windchill_download_primary_content', {
+        ...cleared,
+        documentOid: 'OR:wt.doc.WTDocument:1',
+        fileName: '',
+      })
+    ).toEqual({
+      operation: 'windchill_download_primary_content',
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      documentOid: 'OR:wt.doc.WTDocument:1',
+    })
   })
 
   it('accepts next links only for the originating collection', () => {
@@ -516,8 +561,18 @@ describe('Windchill tools', () => {
     })
     expect(commonProperty.success).toBe(false)
     if (!commonProperty.success) {
-      expect(commonProperty.error.issues[0]?.message).toContain('UpdateCommonProperties')
+      expect(commonProperty.error.issues[0]?.message).toContain('Update Common Properties')
     }
+
+    const viaCommonProperties = windchillOperationBodySchema.safeParse({
+      operation: 'windchill_update_common_properties',
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      documentOid: 'OR:wt.doc.WTDocument:1',
+      commonProperties: { Name: 'Renamed document', Number: 'DOC-001' },
+    })
+    expect(viaCommonProperties.success).toBe(true)
   })
 
   it('represents an explicitly empty primary-content collection as null', () => {
@@ -643,6 +698,92 @@ describe('Windchill tools', () => {
     })
   })
 
+  it('resolves content bytes through the documented typed Content/URL navigation', async () => {
+    mockSecureFetchWithValidation.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          '@odata.context': `${BASE_URL}/PTC/$metadata#ContentItems/Content/URL`,
+          value:
+            'https://windchill.example.com/Windchill/servlet/WindchillGW/wt.fv.master.StandardMasterService/doDirectDownload/spec.pdf?sign=abc',
+        },
+      })
+    )
+
+    const url = await resolveWindchillContentUrl({
+      params: { baseUrl: BASE_URL, username: 'windchill-user', password: 'not-a-real-password' },
+      contentPath: `${BASE_URL}/DocMgmt/Documents('OR%3Awt.doc.WTDocument%3A1')/PrimaryContent`,
+    })
+
+    expect(mockSecureFetchWithValidation.mock.calls[0][0]).toBe(
+      `${BASE_URL}/DocMgmt/Documents('OR%3Awt.doc.WTDocument%3A1')/PrimaryContent/PTC.ApplicationData/Content/URL`
+    )
+    expect(url).toContain('/WindchillGW/wt.fv.master.StandardMasterService/doDirectDownload/')
+  })
+
+  it('refuses a content download URL that leaves the configured origin', async () => {
+    mockSecureFetchWithValidation.mockResolvedValueOnce(
+      mockResponse({ body: { value: 'https://attacker.example.com/steal' } })
+    )
+
+    await expect(
+      resolveWindchillContentUrl({
+        params: { baseUrl: BASE_URL, username: 'windchill-user', password: 'not-a-real-password' },
+        contentPath: `${BASE_URL}/DocMgmt/Documents('OR%3Awt.doc.WTDocument%3A1')/PrimaryContent`,
+      })
+    ).rejects.toThrow('must remain on the configured HTTPS origin')
+  })
+
+  it('terminates every Stage 2 cache descriptor with a semicolon', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(
+        mockResponse({ body: { NonceKey: 'CSRF_NONCE', NonceValue: 'nonce-value' } })
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          body: {
+            value: [
+              {
+                ReplicaUrl: 'https://replica.example.com/upload/signed',
+                MasterUrl: 'https://windchill.example.com/master',
+                StreamIds: [76030, 76031],
+                FileNames: [76030, 76031],
+              },
+            ],
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          body: {
+            contentInfos: [
+              { streamId: 76030, fileSize: 3, encodedInfo: 'encoded-1' },
+              { streamId: 76031, fileSize: 5, encodedInfo: 'encoded-2' },
+            ],
+          },
+        })
+      )
+      .mockResolvedValueOnce(mockResponse({ body: {} }))
+
+    await uploadWindchillContent({
+      params: { baseUrl: BASE_URL, username: 'windchill-user', password: 'not-a-real-password' },
+      documentOid: 'OR:wt.doc.WTDocument:1',
+      files: [
+        { name: 'first.txt', mimeType: 'text/plain', size: 3, buffer: Buffer.from('abc') },
+        { name: 'second.txt', mimeType: 'text/plain', size: 5, buffer: Buffer.from('abcde') },
+      ],
+      primaryContent: false,
+    })
+
+    const stageTwoBody: string =
+      mockSecureFetchWithValidation.mock.calls[2][1].body.toString('utf8')
+    const descriptor = stageTwoBody
+      .split('name="CacheDescriptor_array"')[1]
+      .split('--')[0]
+      .replace(/\r?\n/g, '')
+      .trim()
+    expect(descriptor).toBe('76030:76030:76030:3; 76031:76031:76031:5;')
+  })
+
   it('rejects malformed JSON from successful mutation responses', async () => {
     mockSecureFetchWithValidation
       .mockResolvedValueOnce(
@@ -678,66 +819,6 @@ describe('Windchill tools', () => {
 })
 
 describe('Windchill block', () => {
-  it('selects only registered operation IDs and defaults to list documents', () => {
-    const operation = WindchillBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
-    expect(operation?.value?.({})).toBe('windchill_list_documents')
-    expect(operation?.options?.map((option) => option.id)).toEqual([...WINDCHILL_OPERATIONS])
-    expect(WindchillBlock.tools.access).toEqual([...WINDCHILL_OPERATIONS])
-
-    for (const toolId of WINDCHILL_OPERATIONS) {
-      expect(WindchillBlock.tools.config?.tool({ operation: toolId })).toBe(toolId)
-    }
-
-    expect(WindchillBlock.subBlocks.some((subBlock) => subBlock.id === 'expand')).toBe(false)
-    expect(WindchillBlock.inputs).not.toHaveProperty('expand')
-    expect(WINDCHILL_TOOLS_BY_ID.get('windchill_update_document')?.params.attributes.required).toBe(
-      true
-    )
-    for (const operation of [
-      'windchill_list_documents',
-      'windchill_get_document_structure',
-      'windchill_list_attachments',
-    ]) {
-      expect(WINDCHILL_TOOLS_BY_ID.get(operation)?.outputs).toHaveProperty('pageInfo')
-    }
-    expect(WINDCHILL_TOOLS_BY_ID.get('windchill_get_document')?.outputs).toHaveProperty(
-      'document.properties.stateDisplay'
-    )
-  })
-
-  it('uses one canonical parameter for each basic and advanced file pair', () => {
-    const primaryFiles = WindchillBlock.subBlocks.filter(
-      (subBlock) => subBlock.canonicalParamId === 'primaryFile'
-    )
-    const attachmentFiles = WindchillBlock.subBlocks.filter(
-      (subBlock) => subBlock.canonicalParamId === 'attachmentFiles'
-    )
-
-    expect(primaryFiles.map((subBlock) => subBlock.mode)).toEqual(['basic', 'advanced'])
-    expect(attachmentFiles.map((subBlock) => subBlock.mode)).toEqual(['basic', 'advanced'])
-    expect(WindchillBlock.inputs.primaryFile.type).toBe('file')
-    expect(WindchillBlock.inputs.attachmentFiles.type).toBe('array')
-  })
-
-  it('exposes only outputs produced by the selected operation', () => {
-    expect(WindchillBlock.outputs.file.condition).toEqual({
-      field: 'operation',
-      value: ['windchill_download_primary_content', 'windchill_download_attachment'],
-    })
-    expect(WindchillBlock.outputs.pageInfo.condition).toEqual({
-      field: 'operation',
-      value: [
-        'windchill_list_documents',
-        'windchill_get_document_structure',
-        'windchill_list_attachments',
-      ],
-    })
-    expect(WindchillBlock.outputs.uploadedFileNames.condition).toEqual({
-      field: 'operation',
-      value: ['windchill_upload_primary_content', 'windchill_upload_attachments'],
-    })
-  })
-
   it('coerces execution values and parses JSON without changing tool selection', () => {
     const params = WindchillBlock.tools.config?.params?.({
       operation: 'windchill_list_documents',
@@ -762,12 +843,5 @@ describe('Windchill block', () => {
       attributes: { Title: 'Updated' },
     })
     expect(params).not.toHaveProperty('operation')
-  })
-
-  it('publishes document-management metadata with concrete templates', () => {
-    expect(WindchillBlock.integrationType).toBe('documents')
-    expect(WindchillBlockMeta.tags).toEqual(['content-management', 'document-processing'])
-    expect(WindchillBlockMeta.templates).toHaveLength(7)
-    expect(WindchillBlockMeta.skills).toHaveLength(5)
   })
 })

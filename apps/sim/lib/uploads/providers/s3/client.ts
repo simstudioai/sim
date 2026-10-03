@@ -78,6 +78,7 @@ export function getS3Client(): S3Client {
  * @param size File size in bytes (required if configOrSize is S3Config, optional otherwise)
  * @param skipTimestampPrefix Skip adding timestamp prefix to filename (default: false)
  * @param metadata Optional metadata to store with the file
+ * @param createOnly Reject an existing key instead of replacing its object
  * @returns Object with file information
  */
 export async function uploadToS3(
@@ -87,8 +88,11 @@ export async function uploadToS3(
   configOrSize?: S3Config | number,
   size?: number,
   skipTimestampPrefix?: boolean,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  createOnly = false,
+  signal?: AbortSignal
 ): Promise<FileInfo> {
+  signal?.throwIfAborted()
   let config: S3Config
   let fileSize: number
   let shouldSkipTimestamp: boolean
@@ -124,8 +128,11 @@ export async function uploadToS3(
       Body: file,
       ContentType: contentType,
       Metadata: s3Metadata,
-    })
+      ...(createOnly ? { IfNoneMatch: '*' } : {}),
+    }),
+    ...(signal ? [{ abortSignal: signal }] : [])
   )
+  signal?.throwIfAborted()
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -136,21 +143,6 @@ export async function uploadToS3(
     size: fileSize,
     type: contentType,
   }
-}
-
-/**
- * Generate a presigned URL for direct file access
- * @param key S3 object key
- * @param expiresIn Time in seconds until URL expires
- * @returns Presigned URL
- */
-export async function getPresignedUrl(key: string, expiresIn = 3600) {
-  const command = new GetObjectCommand({
-    Bucket: S3_CONFIG.bucket,
-    Key: key,
-  })
-
-  return getSignedUrl(getS3Client(), command, { expiresIn })
 }
 
 /**
@@ -175,9 +167,13 @@ export async function getPresignedUrlWithConfig(
 
 /**
  * Generates a create-only signed single-object PUT for a caller-selected final key.
- * The AWS presigner hoists `x-amz-meta-*` values into the signed query string,
- * so only ordinary transfer headers are returned. Repeating that metadata as
- * request headers makes S3 reject the otherwise-valid signature.
+ *
+ * By default the AWS presigner hoists `x-amz-meta-*` into the signed query string.
+ * AWS S3 stores that as object metadata, but many S3-compatible stores (e.g.
+ * OVHcloud) ignore it, so with a custom `S3_CONFIG.endpoint` the metadata is
+ * signed as headers instead and returned for the uploader to send verbatim. AWS
+ * keeps the query-string form so existing bucket CORS rules stay valid. A value
+ * must never be both hoisted and sent as a header: S3 rejects the unsigned copy.
  */
 export async function getS3PresignedUploadUrl(params: {
   key: string
@@ -196,12 +192,21 @@ export async function getS3PresignedUploadUrl(params: {
     IfNoneMatch: '*',
     Metadata: metadata,
   })
-  const url = await getSignedUrl(getS3Client(), command, { expiresIn: params.expiresIn })
+  const metadataHeaders: Record<string, string> = S3_CONFIG.endpoint
+    ? Object.fromEntries(
+        Object.entries(metadata).map(([key, value]) => [`x-amz-meta-${key.toLowerCase()}`, value])
+      )
+    : {}
+  const url = await getSignedUrl(getS3Client(), command, {
+    expiresIn: params.expiresIn,
+    unhoistableHeaders: new Set(Object.keys(metadataHeaders)),
+  })
   return {
     url,
     headers: {
       'Content-Type': params.contentType,
       'If-None-Match': '*',
+      ...metadataHeaders,
     },
   }
 }
@@ -229,8 +234,16 @@ export async function downloadFromS3(
 
 export async function downloadFromS3(
   key: string,
+  customConfig: S3Config,
+  maxBytes: number | undefined,
+  signal: AbortSignal | undefined
+): Promise<Buffer>
+
+export async function downloadFromS3(
+  key: string,
   customConfig?: S3Config,
-  maxBytes?: number
+  maxBytes?: number,
+  signal?: AbortSignal
 ): Promise<Buffer> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
@@ -239,7 +252,7 @@ export async function downloadFromS3(
     Key: key,
   })
 
-  const response = await getS3Client().send(command)
+  const response = await getS3Client().send(command, { abortSignal: signal })
   if (maxBytes !== undefined && response.ContentLength !== undefined) {
     try {
       assertKnownSizeWithinLimit(response.ContentLength, maxBytes, 'storage download')
@@ -254,6 +267,7 @@ export async function downloadFromS3(
   return readNodeStreamToBufferWithLimit(stream, {
     maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
     label: 'storage download',
+    signal,
   })
 }
 
@@ -332,17 +346,28 @@ export async function deleteFromS3(key: string): Promise<void>
  * @param key S3 object key
  * @param customConfig Custom S3 configuration
  */
-export async function deleteFromS3(key: string, customConfig: S3Config): Promise<void>
+export async function deleteFromS3(
+  key: string,
+  customConfig: S3Config | undefined,
+  signal?: AbortSignal
+): Promise<void>
 
-export async function deleteFromS3(key: string, customConfig?: S3Config): Promise<void> {
+export async function deleteFromS3(
+  key: string,
+  customConfig?: S3Config,
+  signal?: AbortSignal
+): Promise<void> {
+  signal?.throwIfAborted()
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   await getS3Client().send(
     new DeleteObjectCommand({
       Bucket: config.bucket,
       Key: key,
-    })
+    }),
+    ...(signal ? [{ abortSignal: signal }] : [])
   )
+  signal?.throwIfAborted()
 }
 
 /** S3 `DeleteObjects` hard cap. */
@@ -463,13 +488,19 @@ export async function uploadS3Part(
 }
 
 /**
- * Generate presigned URLs for uploading parts to S3
+ * Generate presigned URLs for uploading parts to S3.
+ *
+ * `expiresIn` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h URLs after the caller's window changed.
  */
 export async function getS3MultipartPartUrls(
   key: string,
   uploadId: string,
   partNumbers: number[],
-  customConfig?: S3Config
+  customConfig: S3Config | undefined,
+  /** Signature lifetime, in seconds. */
+  expiresIn: number
 ): Promise<S3PartUploadUrl[]> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -483,7 +514,7 @@ export async function getS3MultipartPartUrls(
         UploadId: uploadId,
       })
 
-      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
+      const url = await getSignedUrl(s3Client, command, { expiresIn })
       return { partNumber, url }
     })
   )

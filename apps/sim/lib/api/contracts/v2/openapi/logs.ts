@@ -1,20 +1,25 @@
 import { v2GetLogContract, v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
+import { v2GetLogStatsContract } from '@/lib/api/contracts/v2/logs-stats'
 import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FOLDER_TREE_TOO_LARGE,
   RATE_LIMIT_HEADERS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  RESOURCE_ERRORS,
+  RUN_RETENTION,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
 } from '@/lib/api/openapi/types'
+import { logOperations } from '@/lib/logs/application/operations'
 
 const RUN_ID = 'e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13'
 const WORKFLOW_ID = '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'
@@ -22,6 +27,7 @@ const WORKFLOW_ID = '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'
 const LOG_LIST_EXAMPLE = {
   data: [
     {
+      kind: 'workflow',
       runId: RUN_ID,
       workflowId: WORKFLOW_ID,
       deploymentVersionId: 'dep_2c4e6a8b0d1f',
@@ -32,7 +38,16 @@ const LOG_LIST_EXAMPLE = {
       endedAt: '2026-01-15T10:30:01.250Z',
       totalDurationMs: 1250,
       cost: { total: 0.0032 },
-      files: null,
+      hasHandledErrors: false,
+      files: [
+        {
+          id: 'f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04',
+          name: 'summary.pdf',
+          size: 18422,
+          type: 'application/pdf',
+          downloadPath: `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04`,
+        },
+      ],
     },
   ],
   nextCursor: 'eyJzdGFydGVkQXQiOiIyMDI2LTAxLTE1VDEwOjMwOjAwMFoifQ==',
@@ -50,6 +65,13 @@ const LOG_DETAIL_EXAMPLE = {
     endedAt: '2026-01-15T10:30:01.250Z',
     totalDurationMs: 1250,
     files: null,
+    /**
+     * Deliberately a different address from `workflow.ownerEmail` below. This is
+     * an `api` run, so it executed as the workspace billing account while the
+     * workflow still belongs to the person who built it — the distinction the
+     * deprecated field cannot express.
+     */
+    executedByEmail: 'billing@example.com',
     workflow: {
       id: WORKFLOW_ID,
       name: 'Customer Support Agent',
@@ -64,8 +86,57 @@ const LOG_DETAIL_EXAMPLE = {
     workflowState: { blocks: {}, edges: [] },
     traceSpans: [],
     finalOutput: { result: 'Hello, world!' },
-    cost: { total: 0.0032 },
+    cost: {
+      total: 0.0032,
+      items: [
+        { category: 'fixed', description: 'Base execution charge', cost: 0.001 },
+        {
+          category: 'model',
+          description: 'gpt-5',
+          cost: 0.0022,
+          inputTokens: 1840,
+          outputTokens: 260,
+        },
+      ],
+    },
+    workflowInput: { ticketId: 'T-4821' },
     createdAt: '2026-01-15T10:30:00.000Z',
+  },
+} as const
+
+const LOG_STATS_EXAMPLE = {
+  data: {
+    workflows: [
+      {
+        workflowId: WORKFLOW_ID,
+        workflowName: 'Customer Support Agent',
+        segments: [
+          {
+            timestamp: '2026-01-15T10:00:00.000Z',
+            totalExecutions: 40,
+            successfulExecutions: 38,
+            avgDurationMs: 1180,
+          },
+        ],
+        totalExecutions: 40,
+        totalSuccessful: 38,
+        overallSuccessRate: 95,
+      },
+    ],
+    workflowsTruncated: false,
+    aggregateSegments: [
+      {
+        timestamp: '2026-01-15T10:00:00.000Z',
+        totalExecutions: 40,
+        successfulExecutions: 38,
+        avgDurationMs: 1180,
+      },
+    ],
+    totalRuns: 40,
+    totalErrors: 2,
+    avgLatency: 1180,
+    timeBounds: { start: '2026-01-15T10:00:00.000Z', end: '2026-01-15T22:00:00.000Z' },
+    segmentMs: 600000,
   },
 } as const
 
@@ -88,15 +159,15 @@ function logsOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListLogsContract,
     logsOperation({
+      applicationOperation: logOperations.list,
       operationId: 'listLogs',
       summary: 'List Logs',
-      description:
-        'List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no `sortBy` (the sort column is fixed to execution start time) and spells the direction `order` rather than `sortOrder`. Trace spans are stored separately from the log row and are pruned on their own retention schedule: `includeTraceSpans=true` on a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      description: `List logs with filters, selectable detail, sorting, and cursor pagination. \`includeJobRuns=true\` includes chat and Sim-agent jobs only with \`sortBy=startedAt\`, because other orderings are unsupported. \`files\` contains only run-produced files; use the files API for input attachments. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of execution logs matching the filters.' },
     }),
     {
@@ -118,14 +189,15 @@ const routes = [
   defineOpenApiRoute(
     v2GetLogContract,
     logsOperation({
+      applicationOperation: logOperations.readDetail,
       operationId: 'getLog',
       summary: 'Get Log',
-      description:
-        'Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. The returned `workflowState` snapshot has credential values redacted: OAuth credential references and secret (`password`) sub-block values are null, while `{{VAR}}` environment-variable references are preserved so consecutive snapshots stay diffable. Trace spans are stored separately from the log row and are pruned on their own retention schedule: a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      description: `Get a run's workflow graph, trace spans, final output, and cost. Trace spans expire separately, so an empty \`traceSpans\` array does not prove none were recorded. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested diagnostic log representation.' },
     }),
     {
+      query: v2GetLogContract.query,
       params: documentedSchema(
         v2GetLogContract.params,
         'GetLogParams',
@@ -141,14 +213,43 @@ const routes = [
       ),
     }
   ),
+  defineOpenApiRoute(
+    v2GetLogStatsContract,
+    logsOperation({
+      applicationOperation: logOperations.readStats,
+      operationId: 'getLogStats',
+      summary: 'Get Log Statistics',
+      description: `Get bucketed run counts, success rate, errors, and mean latency for the workspace and individual workflows. Query fields describe window selection and bucketing. Folder filters cover subtrees. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'Bucketed execution statistics for the workspace.' },
+    }),
+    {
+      query: documentedSchema(
+        v2GetLogStatsContract.query,
+        'GetLogStatsQuery',
+        'Log statistics query',
+        'Workspace, workflow, folder, trigger, level, date, and bucketing filters.'
+      ),
+      response: documentedSchema(
+        v2GetLogStatsContract.response.schema,
+        'V2LogStatsResponse',
+        'Log statistics response',
+        'Bucketed success rate, error count, and latency for a workspace and its workflows.',
+        [LOG_STATS_EXAMPLE]
+      ),
+    }
+  ),
 ] as const
+
+/** A no-op on these bodyless reads; kept so a future body-taking log operation inherits its 413. */
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const logsOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-logs.json',
   info: {
     title: 'Sim API v2 — Logs',
     description:
-      'Version 2 of the Sim REST API for listing workflow execution logs and retrieving complete diagnostic run snapshots.',
+      'Version 2 of the Sim REST API for workflow execution logs: listing and sorting runs with filters, retrieving complete diagnostic run snapshots, and reading bucketed execution statistics.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -167,8 +268,8 @@ export const logsOpenApiDocument = defineOpenApiDocument({
       description: 'Query workflow execution logs and retrieve complete run diagnostics.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,

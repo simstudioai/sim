@@ -45,7 +45,7 @@ export const zendeskUpdateUserTool: ToolConfig<ZendeskUpdateUserParams, ZendeskU
       apiToken: {
         type: 'string',
         required: true,
-        visibility: 'hidden',
+        visibility: 'user-only',
         description: 'Zendesk API token',
       },
       subdomain: {

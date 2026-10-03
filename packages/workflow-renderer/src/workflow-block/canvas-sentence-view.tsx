@@ -55,7 +55,7 @@ export function CanvasSentenceView({ segments, renderChip }: CanvasSentenceViewP
         const value = renderChip(segment.subBlockId)
         const placeholder = segment.noun ? (
           <InlineChip muted>
-            <OverflowSpan value={segment.noun} className='min-w-0 truncate' />
+            <OverflowSpan value={segment.noun} className='min-w-0' />
           </InlineChip>
         ) : null
         const chip = value || placeholder

@@ -8,7 +8,7 @@ export const SimilarwebBlock: BlockConfig = {
   description: 'Website traffic and analytics data',
   longDescription:
     'Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.',
-  docsLink: 'https://developers.similarweb.com/docs/similarweb-web-traffic-api',
+  docsLink: 'https://docs.sim.ai/integrations/similarweb',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#000922',

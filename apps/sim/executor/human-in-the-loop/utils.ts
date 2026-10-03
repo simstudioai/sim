@@ -1,5 +1,5 @@
-import { PARALLEL } from '@/executor/constants'
 import type { ExecutionContext, LoopPauseScope, ParallelPauseScope } from '@/executor/types'
+import { buildBranchNodeId } from '@/executor/utils/subflow-node-id-codec'
 
 interface NodeMetadataLike {
   nodeId: string
@@ -17,7 +17,7 @@ export function generatePauseContextId(
   let contextId = baseBlockId
 
   if (typeof nodeMetadata.branchIndex === 'number') {
-    contextId = `${contextId}${PARALLEL.BRANCH.PREFIX}${nodeMetadata.branchIndex}${PARALLEL.BRANCH.SUFFIX}`
+    contextId = buildBranchNodeId(contextId, nodeMetadata.branchIndex)
   }
 
   if (loopScope) {
@@ -25,18 +25,6 @@ export function generatePauseContextId(
   }
 
   return contextId
-}
-
-export function buildTriggerBlockId(nodeId: string): string {
-  if (nodeId.includes('__response')) {
-    return nodeId.replace('__response', '__trigger')
-  }
-
-  if (nodeId.endsWith('_response')) {
-    return nodeId.replace(/_response$/, '_trigger')
-  }
-
-  return `${nodeId}__trigger`
 }
 
 export function mapNodeMetadataToPauseScopes(

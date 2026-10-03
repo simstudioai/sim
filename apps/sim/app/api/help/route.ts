@@ -6,6 +6,7 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFormDataWithLimit,
@@ -145,6 +146,9 @@ ${message}
       { status: 200 }
     )
   } catch (error) {
+    if (isMultipartFieldValidationError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     if (isPayloadSizeLimitError(error)) {
       logger.warn(`[${requestId}] Help request form data too large`, { message: error.message })
       return NextResponse.json(

@@ -14,6 +14,7 @@ import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export const dynamic = 'force-dynamic'
@@ -27,10 +28,14 @@ export const revalidate = 0
  * Lookups are workspace-scoped (IDOR-safe): a file in another workspace 404s.
  *
  * A generated doc whose artifact is still compiling renders `CONFLICT`; retry.
+ *
+ * `headSafe: false` because downloading records a `FILE_DOWNLOADED` audit event
+ * and pulls the bytes out of object storage.
  */
 export const GET = defineV2BinaryRoute({
   contract: v2DownloadFileContract,
   auth: v2ApiKeyAuth,
+  headSafe: false,
   operation: fileOperations.download,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
@@ -42,7 +47,7 @@ export const GET = defineV2BinaryRoute({
   present: ({ file, stream, contentType, contentLength }) => ({
     body: stream,
     contentType,
-    contentDisposition: `attachment; filename="${file.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    contentDisposition: `attachment; ${encodeFilenameForHeader(file.name)}`,
     contentLength,
   }),
 })

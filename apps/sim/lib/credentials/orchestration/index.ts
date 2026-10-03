@@ -1,44 +1,96 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { credential, environment, webhook, workspaceEnvironment } from '@sim/db/schema'
+import {
+  credential,
+  credentialGroup,
+  environment,
+  webhook,
+  workspaceEnvironment,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { listSlackCredentialGroupConfigurationsForBot } from '@/lib/credential-groups/provider-configuration'
+import {
+  SlackManagedUsersError,
+  verifySlackCustomBotAppIdentity,
+} from '@/lib/credential-groups/slack-managed-users'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
-import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
+  type CredentialDeleteReason,
+  deleteConnectionCredential,
+  deleteOrphanedOAuthAccount,
+} from '@/lib/credentials/deletion'
+import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
+import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
+import {
+  deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
-  syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import type {
+  AtlassianProduct,
+  ServiceAccountFieldId,
+} from '@/lib/credentials/service-account-fields'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
+import { findSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/repository'
 import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
-import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
+type CredentialRow = typeof credential.$inferSelect
 
+export { deleteConnectionCredential } from '@/lib/credentials/deletion'
 export {
+  type CreateServiceAccountCredentialParams,
+  createCredentialRecord,
+  createServiceAccountCredential,
   isProviderOutageCode,
   type PerformCreateCredentialParams,
   type PerformCreateCredentialResult,
   performCreateCredential,
   statusForCredentialOrchestrationError,
 } from './credential-create'
+
+/**
+ * Every secret field a reconnect can carry. Only a `service_account` credential
+ * has somewhere to store them, so this doubles as the set a non-service-account
+ * update must refuse rather than silently drop.
+ */
+const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
+  'serviceAccountJson',
+  'signingSecret',
+  'botToken',
+  'apiToken',
+  'domain',
+  'atlassianProduct',
+  'clientId',
+  'clientSecret',
+  'certificateId',
+  'orgId',
+  'dataCenter',
+  'authMethod',
+  'privateKey',
+  'username',
+]
 
 /**
  * Google's stored blob is the raw GCP JSON key, whose own `type` discriminator
@@ -54,6 +106,7 @@ const GOOGLE_SERVICE_ACCOUNT_KEY_TYPE = 'service_account'
  * (the original flow predates multi-provider support).
  */
 const IDENTITY_DERIVED_DISPLAY_NAME_PROVIDERS: ReadonlySet<string> = new Set([
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   '',
@@ -82,13 +135,12 @@ async function readStoredSecretBlob(credentialId: string): Promise<Record<string
 
 /**
  * A non-secret string field already stored in a service-account blob. Used on
- * reconnect so a selector the modal did not resubmit (the Zoho data center,
- * the Salesforce auth method and run-as username) survives a secret rotation;
+ * reconnect so a selector the modal did not resubmit survives a secret rotation;
  * undefined lets the provider's own default apply.
  */
 function readStoredField(
   blob: Record<string, unknown> | null,
-  field: 'dataCenter' | 'authMethod' | 'username'
+  field: 'dataCenter' | 'authMethod' | 'username' | 'atlassianProduct'
 ): string | undefined {
   const value = blob?.[field]
   return typeof value === 'string' && value ? value : undefined
@@ -132,6 +184,8 @@ interface CredentialActorParams {
 export interface PerformUpdateCredentialParams extends CredentialActorParams {
   displayName?: string
   description?: string | null
+  /** Workspace-secret redaction opt-out; rejected for every type but env_workspace. */
+  unredacted?: boolean
   serviceAccountJson?: string
   /** Slack custom-bot secret rotation (reconnect). */
   signingSecret?: string
@@ -139,9 +193,11 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Atlassian service-account secret rotation (reconnect). */
   apiToken?: string
   domain?: string
+  atlassianProduct?: AtlassianProduct
   /** Client-credential service-account secret rotation (reconnect). */
   clientId?: string
   clientSecret?: string
+  certificateId?: string
   orgId?: string
   dataCenter?: string
   authMethod?: string
@@ -158,27 +214,40 @@ export interface PerformCredentialResult {
   workspaceId?: string
   updatedFields?: string[]
   previousDisplayName?: string
+  auditMetadata?: Record<string, unknown>
 }
 
-export async function performUpdateCredential(
-  params: PerformUpdateCredentialParams
+export type UpdateCredentialRecordParams = Omit<
+  PerformUpdateCredentialParams,
+  'userId' | 'actorName' | 'actorEmail' | 'allowedTypes' | 'reason' | 'request'
+> & { credential: CredentialRow }
+
+/** Updates one already-authorized credential without surface authorization or audit. */
+export async function updateCredentialRecord(
+  params: UpdateCredentialRecordParams
 ): Promise<PerformCredentialResult> {
   try {
-    const access = await getCredentialActorContext(params.credentialId, params.userId)
-    if (!access.credential) {
-      return { success: false, error: 'Credential not found', errorCode: 'not_found' }
-    }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
+    // A description is teammate-facing, so it is meaningless on `env_personal`:
+    // those rows are per-workspace mirrors of one user-global secret, and every
+    // reader already hides or nulls the field for them. Rejected here rather than
+    // at one adapter, so no surface can write data every reader hides — and said
+    // plainly, since dropping the field would fall through to the generic
+    // "no updatable fields" error and explain nothing.
+    if (params.description !== undefined && params.credential.type === 'env_personal') {
       return {
         success: false,
-        error: 'Credential admin permission required',
-        errorCode: 'forbidden',
+        error: 'A personal secret cannot have a description; it is not shared with teammates.',
+        errorCode: 'validation',
       }
     }
-    if (params.allowedTypes && !params.allowedTypes.includes(access.credential.type)) {
+
+    // Redaction only guards a shared workspace value, so the opt-out is meaningless on any
+    // other credential type. Rejected here, at the same layer as the description rule, so no
+    // surface can write a flag every reader would then have to special-case away.
+    if (params.unredacted !== undefined && params.credential.type !== 'env_workspace') {
       return {
         success: false,
-        error: `Only ${params.allowedTypes.join(', ')} credentials can be managed with this tool.`,
+        error: 'Only workspace secrets can be marked visible (unredacted).',
         errorCode: 'validation',
       }
     }
@@ -187,9 +256,12 @@ export async function performUpdateCredential(
     if (params.description !== undefined) {
       updates.description = params.description ?? null
     }
+    if (params.unredacted !== undefined) {
+      updates.unredacted = params.unredacted
+    }
     if (
       params.displayName !== undefined &&
-      (access.credential.type === 'oauth' || access.credential.type === 'service_account')
+      (params.credential.type === 'oauth' || params.credential.type === 'service_account')
     ) {
       updates.displayName = params.displayName
     }
@@ -198,23 +270,29 @@ export async function performUpdateCredential(
     // secret is re-verified against the provider and re-encrypted through the
     // same builder the create path uses, so the rotation also yields the new
     // principal's derived display name and audit metadata.
-    const hasRotationSecret =
-      params.serviceAccountJson !== undefined ||
-      params.signingSecret !== undefined ||
-      params.botToken !== undefined ||
-      params.apiToken !== undefined ||
-      params.domain !== undefined ||
-      params.clientId !== undefined ||
-      params.clientSecret !== undefined ||
-      params.orgId !== undefined ||
-      params.dataCenter !== undefined ||
-      params.authMethod !== undefined ||
-      params.privateKey !== undefined ||
-      params.username !== undefined
+    const submittedSecretFields = ROTATABLE_SECRET_FIELDS.filter(
+      (field) => params[field] !== undefined
+    )
+    const hasRotationSecret = submittedSecretFields.length > 0
+
+    // Only a service account stores a rotatable secret blob. Every other type
+    // reaches the rotation branch below and falls straight through it, so an
+    // OAuth credential sent `{ displayName, apiToken }` used to answer 200 with
+    // the token silently discarded — the caller believing it had rotated a
+    // secret. Refused here rather than at one contract: the credential's type
+    // is only known once the row is loaded, so no request schema can decide it.
+    if (hasRotationSecret && params.credential.type !== 'service_account') {
+      return {
+        success: false,
+        error: `A ${params.credential.type} credential has no rotatable secret; ${submittedSecretFields.join(', ')} cannot be updated. Reconnect the credential instead.`,
+        errorCode: 'validation',
+      }
+    }
+
     let rotatedSlackBotUserId: string | undefined
     let rotatedAuditMetadata: Record<string, string> | undefined
-    if (hasRotationSecret && access.credential.type === 'service_account') {
-      const providerId = access.credential.providerId ?? ''
+    if (hasRotationSecret) {
+      const providerId = params.credential.providerId ?? ''
 
       // A reconnect rebuilds the secret blob from the submitted fields only, and
       // the modal never prefills (secrets are never echoed back). For an actual
@@ -230,6 +308,9 @@ export async function performUpdateCredential(
         getClientCredentialAccountDescriptor(providerId)?.defaultAuthMethod
       )
       const needsStoredAuthMethod = params.authMethod === undefined && isMultiGrantProvider
+      const needsStoredAtlassianProduct =
+        providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID &&
+        params.atlassianProduct === undefined
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
 
       // Rotating to a key that belongs to a different principal makes an
@@ -243,19 +324,74 @@ export async function performUpdateCredential(
 
       // One read + decrypt at most, and only for the providers that can use it.
       const storedBlob =
-        needsStoredDataCenter || needsStoredAuthMethod || needsStoredUsername || needsStoredIdentity
-          ? await readStoredSecretBlob(access.credential.id)
+        needsStoredDataCenter ||
+        needsStoredAuthMethod ||
+        needsStoredUsername ||
+        needsStoredIdentity ||
+        needsStoredAtlassianProduct
+          ? await readStoredSecretBlob(params.credential.id)
           : null
 
       try {
+        const slackConfigurations =
+          providerId === SLACK_CUSTOM_BOT_PROVIDER_ID
+            ? await listSlackCredentialGroupConfigurationsForBot({
+                workspaceId: params.credential.workspaceId,
+                ...(params.credential.organizationId
+                  ? { organizationId: params.credential.organizationId }
+                  : {}),
+                slackBotCredentialId: params.credential.id,
+              })
+            : []
+        const searchInstallation =
+          providerId === SLACK_CUSTOM_BOT_PROVIDER_ID
+            ? await findSlackSearchInstallation(params.credential.id)
+            : null
+        if (slackConfigurations.length > 0 || searchInstallation) {
+          if (!params.botToken) {
+            throw new ServiceAccountSecretError(
+              'Bot token is required to reconnect a managed-user Slack app'
+            )
+          }
+          try {
+            const identity = await verifySlackCustomBotAppIdentity(params.botToken)
+            if (
+              (searchInstallation &&
+                (identity.appId !== searchInstallation.appId ||
+                  identity.teamId !== searchInstallation.teamId)) ||
+              slackConfigurations.some(
+                (configuration) =>
+                  identity.appId !== configuration.appId || identity.teamId !== configuration.teamId
+              )
+            ) {
+              throw new ServiceAccountSecretError(
+                'This bot token belongs to a different Slack app or workspace. Create a new custom bot credential for a different Slack app.'
+              )
+            }
+          } catch (error) {
+            if (error instanceof ServiceAccountSecretError) throw error
+            if (error instanceof SlackManagedUsersError) {
+              throw new ServiceAccountSecretError(error.message)
+            }
+            throw new ServiceAccountSecretError(
+              'Could not verify that the replacement bot token belongs to the configured Slack app'
+            )
+          }
+        }
         const secret = await verifyAndBuildServiceAccountSecret(providerId, {
           signingSecret: params.signingSecret,
           botToken: params.botToken,
           apiToken: params.apiToken,
           domain: params.domain,
+          atlassianProduct: needsStoredAtlassianProduct
+            ? readStoredField(storedBlob, 'atlassianProduct') === 'confluence'
+              ? 'confluence'
+              : 'jira'
+            : params.atlassianProduct,
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,
+          certificateId: params.certificateId,
           orgId: params.orgId,
           dataCenter: needsStoredDataCenter
             ? readStoredField(storedBlob, 'dataCenter')
@@ -274,7 +410,7 @@ export async function performUpdateCredential(
           const previousIdentity = deriveStoredDisplayName(storedBlob)
           if (
             previousIdentity !== undefined &&
-            previousIdentity === access.credential.displayName &&
+            previousIdentity === params.credential.displayName &&
             secret.displayName &&
             secret.displayName !== previousIdentity
           ) {
@@ -308,7 +444,7 @@ export async function performUpdateCredential(
     }
 
     if (Object.keys(updates).length === 0) {
-      if (access.credential.type === 'oauth' || access.credential.type === 'service_account') {
+      if (params.credential.type === 'oauth' || params.credential.type === 'service_account') {
         return { success: false, error: 'No updatable fields provided.', errorCode: 'validation' }
       }
       return {
@@ -321,6 +457,13 @@ export async function performUpdateCredential(
 
     updates.updatedAt = new Date()
     await db.update(credential).set(updates).where(eq(credential.id, params.credentialId))
+
+    // The flag rides the environment snapshot into every run's redaction catalog, so a flip
+    // must not serve stale from the same-process snapshot cache. Cross-process readers are
+    // bounded by that cache's short TTL instead.
+    if (updates.unredacted !== undefined && params.credential.workspaceId) {
+      invalidateEffectiveDecryptedEnvCache({ workspaceId: params.credential.workspaceId })
+    }
 
     // Reconnecting to a recreated Slack app changes the bot user id, but each
     // deployed webhook cached the old one at deploy for reaction self-drop.
@@ -336,32 +479,17 @@ export async function performUpdateCredential(
         .where(and(eq(webhook.provider, 'slack'), eq(webhook.routingKey, params.credentialId)))
     }
 
-    const updatedFields = Object.keys(updates).filter((key) => key !== 'updatedAt')
-    recordAudit({
-      workspaceId: access.credential.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.CREDENTIAL_UPDATED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: params.credentialId,
-      resourceName: access.credential.displayName,
-      description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
-      // Provider metadata first: the orchestration's own keys stay authoritative
-      // and can never be shadowed by a builder's audit payload.
-      metadata: {
-        ...rotatedAuditMetadata,
-        credentialType: access.credential.type,
-        updatedFields,
-      },
-      request: params.request,
-    })
-
+    const updatedFields = auditUpdatedFields(updates)
+    const auditMetadata =
+      params.unredacted === undefined
+        ? rotatedAuditMetadata
+        : { ...(rotatedAuditMetadata ?? {}), unredacted: params.unredacted }
     return {
       success: true,
-      workspaceId: access.credential.workspaceId,
+      workspaceId: params.credential.workspaceId ?? undefined,
       updatedFields,
-      previousDisplayName: access.credential.displayName,
+      previousDisplayName: params.credential.displayName,
+      auditMetadata,
     }
   } catch (error) {
     if (error instanceof Error && error.message.includes('unique')) {
@@ -376,175 +504,201 @@ export async function performUpdateCredential(
   }
 }
 
-export async function performDeleteCredential(
-  params: CredentialActorParams
+/** Preserves the legacy callers while application adapters migrate to the manager above. */
+export async function performUpdateCredential(
+  params: PerformUpdateCredentialParams
 ): Promise<PerformCredentialResult> {
-  try {
-    const access = await getCredentialActorContext(params.credentialId, params.userId)
-    if (!access.credential) {
-      return { success: false, error: 'Credential not found', errorCode: 'not_found' }
+  const access = await getCredentialActorContext(params.credentialId, params.userId)
+  if (!access.credential) {
+    return { success: false, error: 'Credential not found', errorCode: 'not_found' }
+  }
+  if (access.credential.type === 'managed_oauth') {
+    return { success: false, error: 'Credential not found', errorCode: 'not_found' }
+  }
+  if (!access.hasWorkspaceAccess || !access.isAdmin) {
+    return {
+      success: false,
+      error: 'Credential admin permission required',
+      errorCode: 'forbidden',
     }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return {
-        success: false,
-        error: 'Credential admin permission required',
-        errorCode: 'forbidden',
-      }
+  }
+  if (params.allowedTypes && !params.allowedTypes.includes(access.credential.type)) {
+    return {
+      success: false,
+      error: `Only ${params.allowedTypes.join(', ')} credentials can be managed with this tool.`,
+      errorCode: 'validation',
     }
-    if (params.allowedTypes && !params.allowedTypes.includes(access.credential.type)) {
-      return {
-        success: false,
-        error: `Only ${params.allowedTypes.join(', ')} credentials can be managed with this tool.`,
-        errorCode: 'validation',
-      }
-    }
+  }
 
-    if (access.credential.type === 'env_personal' && access.credential.envKey) {
-      const ownerUserId = access.credential.envOwnerUserId
-      if (!ownerUserId) {
-        return { success: false, error: 'Invalid personal secret owner', errorCode: 'validation' }
-      }
+  const result = await updateCredentialRecord({ ...params, credential: access.credential })
+  if (!result.success) return result
 
-      const [personalRow] = await db
+  recordAudit({
+    workspaceId: access.credential.workspaceId,
+    actorId: params.userId,
+    actorName: params.actorName ?? undefined,
+    actorEmail: params.actorEmail ?? undefined,
+    action: AuditAction.CREDENTIAL_UPDATED,
+    resourceType: AuditResourceType.CREDENTIAL,
+    resourceId: params.credentialId,
+    resourceName: access.credential.displayName,
+    description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
+    metadata: {
+      ...result.auditMetadata,
+      credentialType: access.credential.type,
+      updatedFields: result.updatedFields,
+    },
+    request: params.request,
+  })
+
+  return result
+}
+
+export interface DeleteCredentialRecordParams {
+  credential: CredentialRow
+  reason: CredentialDeleteReason
+}
+
+/** Deletes one already-authorized credential and its backing secret source. */
+export async function deleteCredentialRecord(
+  params: DeleteCredentialRecordParams
+): Promise<boolean> {
+  const { credential: credentialRow } = params
+
+  if (credentialRow.type === 'managed_oauth') {
+    throw new OrchestrationError('not_found', 'Credential not found')
+  }
+
+  if (credentialRow.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
+    const [binding] = await db
+      .select({ id: credentialGroup.id })
+      .from(credentialGroup)
+      .where(
+        and(
+          resourceScopeCondition(credentialGroup, resourceScopeFromOwner(credentialRow)),
+          sql`EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(${credentialGroup.options}) AS option
+            WHERE option->>'slackBotCredentialId' = ${credentialRow.id}
+              AND option->>'status' = 'active'
+          )`
+        )
+      )
+      .limit(1)
+    if (binding) {
+      throw new OrchestrationError(
+        'conflict',
+        'Remove this custom Slack bot from its Credential Groups before deleting it.'
+      )
+    }
+  }
+
+  if (credentialRow.type === 'env_personal') {
+    if (!credentialRow.envKey || !credentialRow.envOwnerUserId) {
+      throw new Error('Personal environment credential is missing its source identity')
+    }
+    const { envKey, envOwnerUserId } = credentialRow
+    /**
+     * Same read-modify-write on the personal map, under the same lock its
+     * other writers take, with the mirrors removed in the same transaction.
+     *
+     * Delete only this key's mirrors across every workspace. The lock order
+     * — map, then user identity — matches `setPersonalSecret` and bulk sync.
+     */
+    await db.transaction(async (tx) => {
+      await lockPersonalEnvMap(tx, envOwnerUserId)
+
+      const [personalRow] = await tx
         .select({ variables: environment.variables })
         .from(environment)
-        .where(eq(environment.userId, ownerUserId))
+        .where(eq(environment.userId, envOwnerUserId))
         .limit(1)
-
-      const current = ((personalRow?.variables as Record<string, string> | null) ?? {}) as Record<
-        string,
-        string
-      >
-      if (access.credential.envKey in current) delete current[access.credential.envKey]
-
-      await db
+      const variables = { ...((personalRow?.variables as Record<string, string> | null) ?? {}) }
+      delete variables[envKey]
+      await tx
         .insert(environment)
-        .values({ id: ownerUserId, userId: ownerUserId, variables: current, updatedAt: new Date() })
+        .values({
+          id: envOwnerUserId,
+          userId: envOwnerUserId,
+          variables,
+          updatedAt: new Date(),
+        })
         .onConflictDoUpdate({
           target: [environment.userId],
-          set: { variables: current, updatedAt: new Date() },
+          set: { variables, updatedAt: new Date() },
         })
+      await deletePersonalEnvCredentialForUser({ userId: envOwnerUserId, envKey, executor: tx })
+    })
+    // The value is gone; without this it stays resolvable from the cache for
+    // its TTL, as the dedicated delete paths already recognise.
+    invalidateEffectiveDecryptedEnvCache({ userId: envOwnerUserId })
+    return true
+  }
 
-      await syncPersonalEnvCredentialsForUser({
-        userId: ownerUserId,
-        envKeys: Object.keys(current),
-      })
-
-      captureServerEvent(
-        params.userId,
-        'credential_deleted',
-        {
-          credential_type: 'env_personal',
-          provider_id: access.credential.envKey,
-          workspace_id: access.credential.workspaceId,
-        },
-        { groups: { workspace: access.credential.workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId: access.credential.workspaceId,
-        actorId: params.userId,
-        actorName: params.actorName ?? undefined,
-        actorEmail: params.actorEmail ?? undefined,
-        action: AuditAction.CREDENTIAL_DELETED,
-        resourceType: AuditResourceType.CREDENTIAL,
-        resourceId: params.credentialId,
-        resourceName: access.credential.displayName,
-        description: `Deleted personal env credential "${access.credential.envKey}"`,
-        metadata: { credentialType: 'env_personal', envKey: access.credential.envKey },
-        request: params.request,
-      })
-
-      return { success: true, workspaceId: access.credential.workspaceId }
+  if (credentialRow.type === 'env_workspace') {
+    if (!credentialRow.envKey || !credentialRow.workspaceId) {
+      throw new Error('Workspace environment credential is missing its source identity')
     }
+    const { envKey, workspaceId } = credentialRow
+    /**
+     * The whole variables map is read, edited and written back, so this has to
+     * hold the same lock every other writer of that map takes — without it a
+     * secret written concurrently is read before the write and dropped by this
+     * write-back. The credential row goes in the same transaction so the row
+     * and the value it describes cannot outlive each other.
+     */
+    await db.transaction(async (tx) => {
+      await lockWorkspaceEnvMap(tx, workspaceId)
 
-    if (access.credential.type === 'env_workspace' && access.credential.envKey) {
-      const [workspaceRow] = await db
+      const [workspaceRow] = await tx
         .select({
           id: workspaceEnvironment.id,
           createdAt: workspaceEnvironment.createdAt,
           variables: workspaceEnvironment.variables,
         })
         .from(workspaceEnvironment)
-        .where(eq(workspaceEnvironment.workspaceId, access.credential.workspaceId))
+        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
         .limit(1)
-
-      const current = ((workspaceRow?.variables as Record<string, string> | null) ?? {}) as Record<
-        string,
-        string
-      >
-      if (access.credential.envKey in current) delete current[access.credential.envKey]
-
-      await db
+      const current = { ...((workspaceRow?.variables as Record<string, string> | null) ?? {}) }
+      delete current[envKey]
+      await tx
         .insert(workspaceEnvironment)
         .values({
-          id: workspaceRow?.id || generateId(),
-          workspaceId: access.credential.workspaceId,
+          id: workspaceRow?.id ?? generateId(),
+          workspaceId,
           variables: current,
-          createdAt: workspaceRow?.createdAt || new Date(),
+          createdAt: workspaceRow?.createdAt ?? new Date(),
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: [workspaceEnvironment.workspaceId],
           set: { variables: current, updatedAt: new Date() },
         })
-
       await deleteWorkspaceEnvCredentials({
-        workspaceId: access.credential.workspaceId,
-        removedKeys: [access.credential.envKey],
+        workspaceId,
+        removedKeys: [envKey],
+        executor: tx,
       })
-
-      captureServerEvent(
-        params.userId,
-        'credential_deleted',
-        {
-          credential_type: 'env_workspace',
-          provider_id: access.credential.envKey,
-          workspace_id: access.credential.workspaceId,
-        },
-        { groups: { workspace: access.credential.workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId: access.credential.workspaceId,
-        actorId: params.userId,
-        actorName: params.actorName ?? undefined,
-        actorEmail: params.actorEmail ?? undefined,
-        action: AuditAction.CREDENTIAL_DELETED,
-        resourceType: AuditResourceType.CREDENTIAL,
-        resourceId: params.credentialId,
-        resourceName: access.credential.displayName,
-        description: `Deleted workspace env credential "${access.credential.envKey}"`,
-        metadata: { credentialType: 'env_workspace', envKey: access.credential.envKey },
-        request: params.request,
-      })
-
-      return { success: true, workspaceId: access.credential.workspaceId }
-    }
-
-    await deleteCredential({
-      credentialId: params.credentialId,
-      actorId: params.userId,
-      actorName: params.actorName,
-      actorEmail: params.actorEmail,
-      reason: params.reason ?? 'user_delete',
-      request: params.request,
     })
-
-    captureServerEvent(
-      params.userId,
-      'credential_deleted',
-      {
-        credential_type: access.credential.type as 'oauth' | 'service_account',
-        provider_id: access.credential.providerId ?? params.credentialId,
-        workspace_id: access.credential.workspaceId,
-      },
-      { groups: { workspace: access.credential.workspaceId } }
-    )
-
-    return { success: true, workspaceId: access.credential.workspaceId }
-  } catch (error) {
-    logger.error('Failed to delete credential', { error })
-    return { success: false, error: 'Internal server error', errorCode: 'internal' }
+    invalidateEffectiveDecryptedEnvCache({ workspaceId })
+    return true
   }
+
+  if (credentialRow.type === 'oauth') {
+    const deleted = await deleteConnectionCredential({
+      credentialId: credentialRow.id,
+      ...resourceScopeColumns(resourceScopeFromOwner(credentialRow)),
+      reason: params.reason,
+    })
+    if (deleted && credentialRow.accountId) {
+      await deleteOrphanedOAuthAccount(credentialRow.accountId)
+    }
+    return deleted
+  }
+
+  return deleteConnectionCredential({
+    credentialId: credentialRow.id,
+    ...resourceScopeColumns(resourceScopeFromOwner(credentialRow)),
+    reason: params.reason,
+  })
 }

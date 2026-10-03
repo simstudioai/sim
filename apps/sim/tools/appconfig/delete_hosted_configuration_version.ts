@@ -2,9 +2,9 @@ import type {
   AppConfigDeleteHostedConfigurationVersionParams,
   AppConfigDeleteHostedConfigurationVersionResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteHostedConfigurationVersionTool: ToolConfig<
+export const deleteHostedConfigurationVersionTool: InternalToolConfig<
   AppConfigDeleteHostedConfigurationVersionParams,
   AppConfigDeleteHostedConfigurationVersionResponse
 > = {
@@ -52,11 +52,8 @@ export const deleteHostedConfigurationVersionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/delete-hosted-configuration-version',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

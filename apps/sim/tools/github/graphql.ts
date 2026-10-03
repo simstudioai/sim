@@ -3,7 +3,8 @@
  * the two response shapes every query has to handle the same way.
  */
 
-import { isRecord, readGitHubErrorMessage } from '@/tools/github/response-parsers'
+import { isRecordLike } from '@sim/utils/object'
+import { readGitHubErrorMessage } from '@/tools/github/response-parsers'
 
 export const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql'
 
@@ -36,20 +37,20 @@ export async function readGraphQlData(
   }
 
   const payload: unknown = await response.json()
-  if (!isRecord(payload)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(payload)) throw new Error(`${context} must be an object`)
 
   const errors = payload.errors
   if (Array.isArray(errors) && errors.length > 0) {
     const first: unknown = errors[0]
     const message =
-      isRecord(first) && typeof first.message === 'string' && first.message.trim()
+      isRecordLike(first) && typeof first.message === 'string' && first.message.trim()
         ? first.message
         : 'unknown GraphQL error'
     throw new Error(`${context} returned an error: ${message}`)
   }
 
   const data = payload.data
-  if (!isRecord(data)) throw new Error(`${context}.data must be an object`)
+  if (!isRecordLike(data)) throw new Error(`${context}.data must be an object`)
   return data
 }
 
@@ -61,7 +62,7 @@ export function parsePageInfo(
   value: unknown,
   context: string
 ): { hasNextPage: boolean; endCursor: string | null } {
-  if (!isRecord(value)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object`)
   const hasNextPage = value.hasNextPage
   if (typeof hasNextPage !== 'boolean') {
     throw new Error(`${context}.hasNextPage must be a boolean`)

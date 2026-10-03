@@ -13,7 +13,7 @@ import {
 export const windchillListDocumentsTool: ToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_list_documents',
   name: 'Windchill List Documents',
-  description: 'List WT.Document objects with bounded OData query and pagination controls',
+  description: 'List documents with an OData query, sorting, and pagination',
   version: '1.0.0',
   params: {
     baseUrl: {
@@ -57,7 +57,7 @@ export const windchillListDocumentsTool: ToolConfig<WindchillParams, WindchillRe
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum documents in the OData result set ($top), from 1 to 200',
+      description: 'Maximum documents in the OData result set ($top), from 1 to 2000',
     },
     skip: {
       type: 'number',

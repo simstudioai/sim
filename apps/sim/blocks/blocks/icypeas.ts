@@ -1,14 +1,13 @@
 import { IcypeasIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { IcypeasResponse } from '@/tools/icypeas/types'
 
-export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
+export const IcypeasBlock: BlockConfig = {
   type: 'icypeas',
   name: 'Icypeas',
   description: 'Find and verify professional email addresses',
   longDescription:
     'Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.',
-  docsLink: 'https://docs.sim.ai/tools/icypeas',
+  docsLink: 'https://docs.sim.ai/integrations/icypeas',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#d4d4d4',
@@ -45,9 +44,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       value: () => 'icypeas_find_email',
     },
 
-    // -----------------------------------------------------------------------
     // Find Email
-    // -----------------------------------------------------------------------
     {
       id: 'fe_firstname',
       title: 'First Name',
@@ -71,9 +68,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       condition: { field: 'operation', value: 'icypeas_find_email' },
     },
 
-    // -----------------------------------------------------------------------
     // Verify Email
-    // -----------------------------------------------------------------------
     {
       id: 've_email',
       title: 'Email Address',
@@ -83,9 +78,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       condition: { field: 'operation', value: 'icypeas_verify_email' },
     },
 
-    // -----------------------------------------------------------------------
     // API Key — hidden on hosted Sim for all operations (hosted-key supported)
-    // -----------------------------------------------------------------------
     {
       id: 'apiKey',
       title: 'API Key',

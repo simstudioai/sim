@@ -33,6 +33,10 @@ export interface FormatInputContext {
   workflow: { id: string; userId: string }
   body: unknown
   headers: Record<string, string>
+  /** Request URL query parameters. Repeated keys collapse to the last value. */
+  query: Record<string, string>
+  /** HTTP method of the delivering request. Empty on legacy queued jobs. */
+  method: string
   requestId: string
 }
 
@@ -81,11 +85,31 @@ export interface DeleteSubscriptionContext {
 export interface PollingConfigContext {
   webhook: Record<string, unknown>
   requestId: string
+  /** Deployment actor used to validate reference-backed polling configuration. */
+  userId: string
+  workspaceId: string | null
+  deploymentVersionId?: string | null
   /**
    * Stable registration preparation supplies a generation-fenced persistence callback.
    * Legacy callers omit it and retain the existing provider-owned write behavior.
    */
   persistProviderConfig?(providerConfig: Record<string, unknown>): Promise<boolean>
+}
+
+/** Context for provider-owned routing/config resolution during deployment. */
+export interface DeploymentConfigContext {
+  credentialId?: string
+  providerConfig: Record<string, unknown>
+  requestId: string
+  triggerId: string
+}
+
+/** Provider-owned updates to the canonical webhook registration. */
+export interface DeploymentConfigResult {
+  provider?: string
+  providerConfigUpdates?: Record<string, unknown>
+  triggerPath?: string | null
+  routingKey?: string | null
 }
 
 /**
@@ -98,6 +122,35 @@ export interface WebhookProviderHandler {
    * path route. Use when the provider sends all app events to one callback before target lookup.
    */
   ingressMode?: 'path' | 'provider'
+
+  /**
+   * Methods this provider is *able* to accept in addition to `POST`, and the `providerConfig`
+   * flag each webhook must set to actually accept them. Declaring the capability is not enough:
+   * `acceptsWebhookDeliveryMethod` still requires the per-webhook flag, so a webhook deployed
+   * before the capability existed keeps answering `405` exactly as it did.
+   *
+   * Use for providers whose events can originate from a plain HTTP call (an email link, a
+   * REST-style client) rather than a signed callback. Such a delivery may carry no body at all,
+   * so the provider must be able to trigger on the query parameters alone, and with `GET` the
+   * caller must tolerate the request being replayed by link prefetchers and scanners — which is
+   * why it is the webhook owner's decision rather than a platform default.
+   */
+  extraDeliveryMethods?: {
+    methods: readonly string[]
+    /** `providerConfig` key whose truthy value opts this webhook into {@link methods}. */
+    enabledBy: string
+  }
+
+  /**
+   * Methods on which {@link handleChallenge} may answer. Defaults to `POST` only, because a
+   * challenge is a provider handshake and every provider that sends one sends it as a `POST`.
+   *
+   * The default matters for correctness, not just tidiness: challenge handlers run before the
+   * webhook lookup and match on shape alone, so an unrestricted handler will answer a delivery
+   * addressed to a different provider on the same path. Widen this only for a provider that
+   * genuinely handshakes on another method (Meta sends the WhatsApp verification as a `GET`).
+   */
+  challengeMethods?: readonly string[]
 
   /**
    * Queue workflow execution through the configured durable backend instead of the low-latency
@@ -140,6 +193,9 @@ export interface WebhookProviderHandler {
 
   /** Post-process input to handle file uploads before execution. */
   processInputFiles?(ctx: ProcessFilesContext): Promise<void>
+
+  /** Resolve provider-specific routing and persisted config after generic credential validation. */
+  prepareDeploymentConfig?(ctx: DeploymentConfigContext): Promise<DeploymentConfigResult>
 
   /** Create an external webhook subscription (e.g., register with Telegram, Airtable, etc.). */
   createSubscription?(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined>

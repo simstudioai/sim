@@ -1,8 +1,6 @@
 import type { SapBaseParams } from '@/tools/sap_s4hana/types'
 
-export const SAP_PROXY_URL = '/api/tools/sap_s4hana/proxy'
-
-export function baseProxyBody(params: SapBaseParams) {
+export function buildSapOperationBaseInput(params: SapBaseParams) {
   const body: Record<string, unknown> = {}
   if (params.deploymentType) body.deploymentType = params.deploymentType
   if (params.authType) body.authType = params.authType
@@ -62,29 +60,4 @@ export function parseJsonInput<T = unknown>(input: unknown, fieldName: string): 
 
 export function quoteOdataKey(value: string): string {
   return `'${String(value).trim().replace(/'/g, "''")}'`
-}
-
-export interface SapProxyToolOutput {
-  status: number
-  data: unknown
-}
-
-export async function transformSapProxyResponse(
-  response: Response
-): Promise<{ success: boolean; output: SapProxyToolOutput; error?: string }> {
-  const data = (await response.json().catch(() => ({}))) as {
-    success?: boolean
-    output?: SapProxyToolOutput
-    error?: string
-    status?: number
-  }
-
-  if (!response.ok || data.success === false) {
-    throw new Error(data.error || `SAP request failed: HTTP ${response.status}`)
-  }
-
-  return {
-    success: true,
-    output: data.output ?? { status: response.status, data: null },
-  }
 }

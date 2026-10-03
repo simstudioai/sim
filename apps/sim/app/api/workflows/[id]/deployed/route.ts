@@ -5,7 +5,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { internalWorkflowSessionOrExecutorAuth } from '@/lib/workflows/api'
@@ -23,20 +23,26 @@ export const GET = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal workflow read behavior',
   }),
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ workflowId: params.id, state: 'deployed' as const }),
   useCase: readWorkflowDefinition,
-  present: ({ state }) => ({
-    deployedState: state
-      ? deployedWorkflowStateSchema.parse({
-          blocks: state.blocks,
-          edges: state.edges,
-          loops: state.loops,
-          parallels: state.parallels,
-          variables: 'variables' in state ? (state.variables ?? {}) : {},
-        })
-      : null,
-  }),
+  present: ({ state }) => {
+    if (state && (!('deploymentVersionId' in state) || !state.deploymentVersionId)) {
+      throw new Error('Deployed workflow state is missing its deployment version')
+    }
+    return {
+      deployedState: state
+        ? deployedWorkflowStateSchema.parse({
+            blocks: state.blocks,
+            edges: state.edges,
+            loops: state.loops,
+            parallels: state.parallels,
+            variables: 'variables' in state ? (state.variables ?? {}) : {},
+            deploymentVersionId: state.deploymentVersionId,
+          })
+        : null,
+    }
+  },
   onSuccess: ({ input, result }) => {
     if (!result.state) logger.warn('Workflow has no active deployed state', input)
   },

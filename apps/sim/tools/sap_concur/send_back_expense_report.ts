@@ -1,15 +1,14 @@
-import type { SapConcurProxyResponse, SendBackExpenseReportParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, SendBackExpenseReportParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sendBackExpenseReportTool: ToolConfig<
+export const sendBackExpenseReportTool: InternalToolConfig<
   SendBackExpenseReportParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_send_back_expense_report',
   name: 'SAP Concur Send Back Expense Report',
@@ -73,21 +72,18 @@ export const sendBackExpenseReportTool: ToolConfig<
         'Request body — `comment` is required by Concur (e.g., { "comment": "Missing receipt" }). Optional fields: `expectedStepCode`, `expectedStepSequence`.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const reportId = trimRequired(params.reportId, 'reportId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/reports/${encodeURIComponent(reportId)}/sendBack`,
         method: 'PATCH',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: { type: 'json', description: 'Empty (204 No Content)' },

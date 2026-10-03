@@ -6,6 +6,7 @@ import { v1ListFilesContract, v1UploadFileFormFieldsSchema } from '@/lib/api/con
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
@@ -57,7 +58,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId } = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'files.use')
     if (accessError) return accessError
 
     const files = await listWorkspaceFiles(workspaceId)
@@ -106,6 +107,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (isPayloadSizeLimitError(error)) {
         return NextResponse.json({ error: error.message }, { status: 413 })
       }
+      if (isMultipartFieldValidationError(error)) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
       return NextResponse.json(
         { error: 'Request body must be valid multipart form data' },
         { status: 400 }
@@ -126,7 +130,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const { workspaceId } = formFieldsResult.data
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
     if (!file) {
@@ -142,7 +146,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'files.use',
+      'write'
+    )
     if (accessError) return accessError
 
     const buffer = await readFileToBufferWithLimit(file, {

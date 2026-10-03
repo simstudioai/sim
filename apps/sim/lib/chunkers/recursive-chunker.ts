@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
+import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
+import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
 import type { Chunk, RecursiveChunkerOptions } from '@/lib/chunkers/types'
 import {
   addOverlap,
   buildChunks,
   cleanText,
   estimateTokens,
+  hasMultipleNonEmptyLiteralParts,
+  iterateLiteralParts,
+  iterateWordBoundaryChunks,
   resolveChunkerOptions,
-  splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
 
@@ -56,62 +60,101 @@ export class RecursiveChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number
   private readonly separators: string[]
+  private readonly maxChunks?: number
 
   constructor(options: RecursiveChunkerOptions = {}) {
     const resolved = resolveChunkerOptions(options)
     this.chunkSize = resolved.chunkSize
     this.chunkOverlap = resolved.chunkOverlap
+    this.maxChunks = options.maxChunks
 
-    if (options.separators && options.separators.length > 0) {
-      this.separators = options.separators
+    /**
+     * Bounded here as well as at the API boundary: a config persisted before the
+     * boundary bound existed would otherwise still cost one full document scan
+     * per separator, synchronously, on every document it processes.
+     *
+     * An over-long separator is dropped rather than truncated — a truncated
+     * separator matches where the configured one never did, silently re-cutting
+     * the document, whereas dropping it behaves like a separator that finds no
+     * match, which the split already handles.
+     */
+    const requested = options.separators ?? []
+    const usable = requested
+      .filter((separator) => separator.length <= MAX_CHUNKING_SEPARATOR_LENGTH)
+      .slice(0, MAX_CHUNKING_SEPARATORS)
+
+    if (usable.length < requested.length) {
+      logger.warn(
+        `Chunking config carries ${requested.length} separators; using ${usable.length} within the ${MAX_CHUNKING_SEPARATORS} × ${MAX_CHUNKING_SEPARATOR_LENGTH}-character bound`
+      )
+    }
+
+    if (usable.length > 0) {
+      this.separators = usable
     } else {
       const recipe = options.recipe ?? 'plain'
       this.separators = [...RECIPES[recipe]]
     }
   }
 
-  private splitRecursively(text: string, separatorIndex = 0): string[] {
+  private splitRecursively(
+    text: string,
+    chunks: string[],
+    budget: ChunkBudget,
+    separatorIndex = 0
+  ): void {
     const tokenCount = estimateTokens(text)
 
     if (tokenCount <= this.chunkSize) {
-      return text.trim() ? [text] : []
+      if (text.trim()) budget.add(chunks, text)
+      return
     }
 
-    if (separatorIndex >= this.separators.length) {
+    /**
+     * Advance past separators that do not split this text. Iterating rather
+     * than recursing keeps stack depth independent of the separator count.
+     */
+    let index = separatorIndex
+    let separator = ''
+
+    while (index < this.separators.length) {
+      separator = this.separators[index]
+
+      if (separator === '') {
+        index = this.separators.length
+        break
+      }
+
+      if (hasMultipleNonEmptyLiteralParts(text, separator)) {
+        break
+      }
+
+      index++
+    }
+
+    if (index >= this.separators.length) {
       const chunkSizeChars = tokensToChars(this.chunkSize)
-      return splitAtWordBoundaries(text, chunkSizeChars)
+      for (const part of iterateWordBoundaryChunks(text, chunkSizeChars)) {
+        budget.add(chunks, part)
+      }
+      return
     }
 
-    const separator = this.separators[separatorIndex]
-
-    if (separator === '') {
-      return this.splitRecursively(text, this.separators.length)
-    }
-
-    const parts = text.split(separator).filter((part) => part.trim())
-
-    if (parts.length <= 1) {
-      return this.splitRecursively(text, separatorIndex + 1)
-    }
-
-    const chunks: string[] = []
     let currentChunk = ''
 
-    for (const part of parts) {
+    for (const part of iterateLiteralParts(text, separator)) {
+      if (!part.trim()) continue
       const testChunk = currentChunk + (currentChunk ? separator : '') + part
 
       if (estimateTokens(testChunk) <= this.chunkSize) {
         currentChunk = testChunk
       } else {
         if (currentChunk.trim()) {
-          chunks.push(currentChunk.trim())
+          budget.add(chunks, currentChunk.trim())
         }
 
         if (estimateTokens(part) > this.chunkSize) {
-          const subChunks = this.splitRecursively(part, separatorIndex + 1)
-          for (const subChunk of subChunks) {
-            chunks.push(subChunk)
-          }
+          this.splitRecursively(part, chunks, budget, index + 1)
           currentChunk = ''
         } else {
           currentChunk = part
@@ -120,10 +163,8 @@ export class RecursiveChunker {
     }
 
     if (currentChunk.trim()) {
-      chunks.push(currentChunk.trim())
+      budget.add(chunks, currentChunk.trim())
     }
-
-    return chunks
   }
 
   async chunk(content: string): Promise<Chunk[]> {
@@ -132,7 +173,8 @@ export class RecursiveChunker {
     }
 
     const cleaned = cleanText(content)
-    let chunks = this.splitRecursively(cleaned)
+    let chunks: string[] = []
+    this.splitRecursively(cleaned, chunks, new ChunkBudget(this.maxChunks))
 
     if (this.chunkOverlap > 0) {
       const overlapChars = tokensToChars(this.chunkOverlap)

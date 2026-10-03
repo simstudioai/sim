@@ -1,10 +1,16 @@
 import {
+  createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
+  extendInternalErrorPolicy,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
   type V2ErrorPolicy,
 } from '@/lib/api/server/routes'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
+import { TableRowTtlDisabledError } from '@/lib/table/errors'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
   v2CaughtOrchestrationError,
@@ -21,6 +27,12 @@ export const internalTableSessionOrExecutorAuth = createInternalSessionOrExecuto
 })
 
 function renderTableError(error: unknown) {
+  const classified = asOrchestrationError(error)
+  if (classified instanceof TableRowTtlDisabledError) {
+    return v2Error('BAD_REQUEST', classified.message, {
+      details: { code: classified.detailCode },
+    })
+  }
   if (error instanceof TableOperationError) {
     return v2ErrorForOrchestration(
       error.code,
@@ -51,5 +63,55 @@ export const v2TableErrorPolicies = {
   concealExportAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Table export not found',
     render: renderTableError,
+  }),
+  /**
+   * Workspace-scoped bulk routes. Deliberately NOT a concealment policy: these
+   * routes name a workspace, not one table, so there is no table whose
+   * existence a 403 could betray, and per-item authorization failures are
+   * already folded into the response's `notFound` list by the use case. The
+   * same reasoning {@link internalTableErrorPolicies.bulk} is built on.
+   */
+  bulk: {
+    render: renderTableError,
+  } satisfies V2ErrorPolicy,
+} as const
+
+const internalTableGroupErrorPolicy = extendInternalErrorPolicy(
+  internalOrchestrationErrorPolicy,
+  (error) =>
+    error instanceof TableLockedError
+      ? internalErrorResponse(423, { error: error.message, lock: error.lock })
+      : null
+)
+
+/**
+ * Internal-surface counterparts of {@link v2TableErrorPolicies}. The internal
+ * routes reach the same table use cases, so they conceal the same cross-tenant
+ * authorization failures behind the same not-found wording.
+ */
+export const internalTableErrorPolicies = {
+  /**
+   * Workspace-scoped bulk routes. They name a workspace, not one table, so
+   * there is no table whose existence a 403 could betray — per-item
+   * authorization failures are already folded into the response's `notFound`
+   * list by the use case. A lock that escapes the per-item classifier still
+   * renders as 423.
+   */
+  bulk: internalTableGroupErrorPolicy,
+  concealTableAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Table not found',
+  }),
+  concealTableGroupAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalTableGroupErrorPolicy,
+    notFoundMessage: 'Table not found',
+  }),
+  concealImportAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Table import not found',
+  }),
+  concealExportAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Table export not found',
   }),
 } as const

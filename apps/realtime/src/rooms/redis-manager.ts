@@ -123,6 +123,41 @@ return 1
 `
 
 /**
+ * Ceiling on a single presence field, measured in the UTF-8 bytes Redis actually stores
+ * rather than UTF-16 code units, so a multi-byte payload can't pass a character-based check
+ * and still land several times larger in the room hash.
+ *
+ * The largest legitimate payload is a table cell selection: four ids capped at 200
+ * characters each. Multi-byte characters and JSON escaping can expand those well past
+ * their character count, so the realistic worst case approaches 5 KB — this sits comfortably
+ * above that, and a backstop that could trim real presence would be worse than a loose one.
+ * It bounds what one socket can park in the shared room hash and fan out to every peer when
+ * a presence-bearing event's handler validation is missing or regresses.
+ */
+const MAX_PRESENCE_FIELD_BYTES = 16384
+
+/**
+ * Serialize one presence field for the activity script. Returns `''` when there is no
+ * update (the script skips the field) and, defensively, when the value exceeds
+ * {@link MAX_PRESENCE_FIELD_BYTES} — dropping just that field rather than the whole
+ * update, so a single oversized field can't suppress the others or the activity refresh.
+ */
+function serializePresenceField(
+  field: 'cursor' | 'selection' | 'cell',
+  value: unknown,
+  socketId: string
+): string {
+  if (value === undefined) return ''
+  const serialized = JSON.stringify(value)
+  const bytes = Buffer.byteLength(serialized, 'utf8')
+  if (bytes > MAX_PRESENCE_FIELD_BYTES) {
+    logger.warn('Dropping oversized presence field', { field, socketId, bytes })
+    return ''
+  }
+  return serialized
+}
+
+/**
  * Redis-backed room manager for multi-pod deployments. Domain-neutral: keyed by
  * {@link RoomRef}, supports a socket in multiple rooms (one per {@link RoomType}).
  * Uses Lua scripts for atomic multi-key operations.
@@ -370,14 +405,14 @@ export class RedisRoomManager implements IRoomManager {
         keys: [KEYS.roomUsers(room), KEYS.socketRooms(socketId), KEYS.socketSession(socketId)],
         arguments: [
           socketId,
-          updates.cursor !== undefined ? JSON.stringify(updates.cursor) : '',
-          updates.selection !== undefined ? JSON.stringify(updates.selection) : '',
+          serializePresenceField('cursor', updates.cursor, socketId),
+          serializePresenceField('selection', updates.selection, socketId),
           (updates.lastActivity ?? Date.now()).toString(),
           SOCKET_ROOMS_TTL.toString(),
           SESSION_TTL.toString(),
           // Trailing arg (ARGV[7]) so existing indices stay stable. `null` (cleared
           // selection) serializes to 'null'; `undefined` (no cell change) to '' (skip).
-          updates.cell !== undefined ? JSON.stringify(updates.cell) : '',
+          serializePresenceField('cell', updates.cell, socketId),
         ],
       })
     } catch (error) {

@@ -10,8 +10,8 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withTransactionRetry } from '@/lib/db/transaction'
-import { folderResourceConfig } from '@/lib/folders/config'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
+import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -141,7 +141,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
           }
         }
 
-        if (folderResourceConfig(resourceType).supportsLocking) {
+        if (folderResourceSupportsLocking(resourceType)) {
           for (const update of validUpdates) {
             await assertFolderMutable(update.id)
             if (update.parentId !== undefined) {

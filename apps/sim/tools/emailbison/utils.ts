@@ -1,4 +1,4 @@
-import { filterUndefined, isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import type {
   EmailBisonBaseParams,
   EmailBisonCampaign,
@@ -439,14 +439,6 @@ function mapReplyAttachment(value: unknown): EmailBisonReplyAttachment {
     created_at: toStringOrNull(record.created_at),
     updated_at: toStringOrNull(record.updated_at),
   }
-}
-
-function toRecord(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
-}
-
-function toArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
 }
 
 function toStringOrNull(value: unknown): string | null {

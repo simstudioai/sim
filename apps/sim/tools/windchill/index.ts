@@ -20,6 +20,7 @@ export { windchillSetLifecycleStateTool } from '@/tools/windchill/set_lifecycle_
 export * from '@/tools/windchill/types'
 export { windchillUndoCheckOutDocumentTool } from '@/tools/windchill/undo_check_out_document'
 export { windchillUndoCheckOutDocumentsTool } from '@/tools/windchill/undo_check_out_documents'
+export { windchillUpdateCommonPropertiesTool } from '@/tools/windchill/update_common_properties'
 export { windchillUpdateDocumentTool } from '@/tools/windchill/update_document'
 export { windchillUpdateDocumentSecurityLabelsTool } from '@/tools/windchill/update_document_security_labels'
 export { windchillUpdateDocumentsTool } from '@/tools/windchill/update_documents'

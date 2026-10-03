@@ -1,0 +1,172 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { describe, expect, it, vi } from 'vitest'
+
+const { mockRenderSimPageDocument } = vi.hoisted(() => ({
+  mockRenderSimPageDocument: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+
+vi.mock('@/lib/workspace-files/page-document', () => ({
+  renderSimPageDocument: mockRenderSimPageDocument,
+}))
+
+import {
+  renderSimPageDocumentWithAssets,
+  renderSimPageDocumentWithContributors,
+} from '@/lib/workspace-files/page-document.server'
+
+const mockGetFileMetadataById = uploadsMetadataMockFns.mockGetFileMetadataById
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
+const WORKSPACE_ID = 'ws-1'
+const MB = 1024 * 1024
+
+function imageRecord(id: string, size: number) {
+  return {
+    id,
+    key: `workspace/${WORKSPACE_ID}/${id}.png`,
+    context: 'workspace',
+    workspaceId: WORKSPACE_ID,
+    contentType: 'image/png',
+    size,
+    sizeBytes: size,
+    contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+  }
+}
+
+function documentReferencing(ids: string[]) {
+  return ids.map((id) => `<img src="/api/files/view/${id}">`).join('')
+}
+
+describe('renderSimPageDocumentWithAssets memory bounds', () => {
+  it('charges the budget by delivered bytes, not by what the metadata claimed', async () => {
+    // Every row claims to be tiny; the objects are 8MB each. The budget must still
+    // stop at 32MB — planning off the recorded size would admit all six.
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f']
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(ids))
+    mockGetFileMetadataById.mockImplementation(async (id: string) => imageRecord(id, 1024))
+    mockDownloadFile.mockImplementation(async () => Buffer.alloc(8 * MB))
+
+    const html = await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
+
+    expect(mockDownloadFile).toHaveBeenCalledTimes(4)
+    // The images past the budget keep their URL reference rather than failing the render.
+    expect(html).toContain('src="/api/files/view/e"')
+    expect(html).toContain('src="/api/files/view/f"')
+  })
+
+  it('offers each download only what the budget has left', async () => {
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['a', 'b']))
+    mockGetFileMetadataById.mockImplementation(async (id: string) => imageRecord(id, 1024))
+    mockDownloadFile.mockImplementation(async () => Buffer.alloc(30 * MB))
+
+    await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
+
+    expect(mockDownloadFile).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ maxBytes: 8 * MB })
+    )
+    // 30MB delivered leaves 2MB, which is below the per-image limit and becomes the cap.
+    expect(mockDownloadFile).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ maxBytes: 2 * MB })
+    )
+  })
+
+  it('never offers a download more than the per-image limit', async () => {
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['solo']))
+    mockGetFileMetadataById.mockResolvedValue(imageRecord('solo', 1024))
+    mockDownloadFile.mockResolvedValue(Buffer.from('png-bytes'))
+
+    await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
+
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ maxBytes: 8 * MB, context: 'workspace' })
+    )
+  })
+
+  it('keeps the URL reference when a capped download rejects', async () => {
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['big']))
+    mockGetFileMetadataById.mockResolvedValue(imageRecord('big', 1024))
+    mockDownloadFile.mockRejectedValue(new Error('storage download exceeds maximum size'))
+
+    const html = await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
+
+    expect(html).toContain('src="/api/files/view/big"')
+  })
+
+  it('inlines images that fit and leaves cross-workspace references alone', async () => {
+    mockRenderSimPageDocument.mockReturnValue(documentReferencing(['mine', 'theirs']))
+    mockGetFileMetadataById.mockImplementation(async (id: string) =>
+      id === 'mine'
+        ? imageRecord('mine', 1024)
+        : { ...imageRecord('theirs', 1024), workspaceId: 'ws-2' }
+    )
+    mockDownloadFile.mockResolvedValue(Buffer.from('png-bytes'))
+
+    const html = await renderSimPageDocumentWithAssets('source', { workspaceId: WORKSPACE_ID })
+
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+    expect(html).toContain(`data:image/png;base64,${Buffer.from('png-bytes').toString('base64')}`)
+    expect(html).toContain('src="/api/files/view/theirs"')
+  })
+})
+
+describe('rendered page contributors', () => {
+  it('reports only the canonical revisions whose bytes were embedded', async () => {
+    mockRenderSimPageDocument.mockReturnValue(
+      documentReferencing(['mine', 'failed', 'foreign', 'missing', 'mine'])
+    )
+    const record = imageRecord('mine', 5)
+    mockGetFileMetadataById.mockImplementation(async (id: string) => {
+      if (id === 'missing') return null
+      if (id === 'foreign') return { ...imageRecord(id, 5), workspaceId: 'other-workspace' }
+      return id === 'mine' ? record : imageRecord(id, 5)
+    })
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
+      if (key.includes('failed')) throw new Error('unavailable')
+      return Buffer.from('image')
+    })
+
+    const rendered = await renderSimPageDocumentWithContributors('source', {
+      workspaceId: WORKSPACE_ID,
+    })
+
+    expect(rendered.contributingFiles).toEqual([
+      {
+        fileId: record.id,
+        key: record.key,
+        context: 'workspace',
+        contentUpdatedAt: record.contentUpdatedAt,
+      },
+    ])
+    expect(rendered.html).toContain('data:image/png;base64,aW1hZ2U=')
+    expect(rendered.html).toContain('/api/files/view/failed')
+    expect(rendered.html).toContain('/api/files/view/foreign')
+    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(4)
+  })
+
+  it('charges repeated image occurrences against the rendered byte budget', async () => {
+    const source = documentReferencing(Array<string>(12).fill('image'))
+    mockRenderSimPageDocument.mockReturnValue(source)
+    mockGetFileMetadataById.mockResolvedValue(imageRecord('image', 8 * MB))
+    mockDownloadFile.mockResolvedValue(Buffer.alloc(8 * MB))
+
+    const rendered = await renderSimPageDocumentWithContributors('source', {
+      workspaceId: WORKSPACE_ID,
+    })
+
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+    expect(rendered.html.length).toBeLessThanOrEqual(source.length + Math.ceil((32 * MB * 4) / 3))
+    expect(rendered.html).toContain('/api/files/view/image')
+    expect(rendered.contributingFiles).toHaveLength(1)
+  })
+})

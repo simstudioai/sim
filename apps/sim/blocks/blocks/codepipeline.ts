@@ -6,35 +6,8 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type {
-  CodePipelineDisableStageTransitionResponse,
-  CodePipelineEnableStageTransitionResponse,
-  CodePipelineGetPipelineExecutionResponse,
-  CodePipelineGetPipelineResponse,
-  CodePipelineGetPipelineStateResponse,
-  CodePipelineListActionExecutionsResponse,
-  CodePipelineListPipelineExecutionsResponse,
-  CodePipelineListPipelinesResponse,
-  CodePipelinePutApprovalResultResponse,
-  CodePipelineRetryStageExecutionResponse,
-  CodePipelineStartExecutionResponse,
-  CodePipelineStopExecutionResponse,
-} from '@/tools/codepipeline/types'
 
-export const CodePipelineBlock: BlockConfig<
-  | CodePipelineListPipelinesResponse
-  | CodePipelineGetPipelineResponse
-  | CodePipelineGetPipelineStateResponse
-  | CodePipelineGetPipelineExecutionResponse
-  | CodePipelineListPipelineExecutionsResponse
-  | CodePipelineListActionExecutionsResponse
-  | CodePipelineStartExecutionResponse
-  | CodePipelineStopExecutionResponse
-  | CodePipelineRetryStageExecutionResponse
-  | CodePipelinePutApprovalResultResponse
-  | CodePipelineDisableStageTransitionResponse
-  | CodePipelineEnableStageTransitionResponse
-> = {
+export const CodePipelineBlock: BlockConfig = {
   type: 'codepipeline',
   name: 'CodePipeline',
   description: 'Run, monitor, and approve AWS CodePipeline pipelines',
@@ -289,6 +262,7 @@ export const CodePipelineBlock: BlockConfig<
       id: 'approvalToken',
       title: 'Approval Token',
       type: 'short-input',
+      password: true,
       placeholder: 'Token from Get Pipeline State',
       condition: { field: 'operation', value: 'put_approval_result' },
       required: { field: 'operation', value: 'put_approval_result' },

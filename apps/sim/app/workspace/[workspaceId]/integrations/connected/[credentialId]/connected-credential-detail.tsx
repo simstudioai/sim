@@ -18,7 +18,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { resolveCredentialDisplay } from '@/lib/integrations'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -32,6 +33,7 @@ import {
   RESOURCE_TILE_BASE,
   RESOURCE_TILE_PLAIN,
 } from '@/app/workspace/[workspaceId]/components/resource-tile'
+import { ConnectPersonalTokenModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-personal-token-modal'
 import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
@@ -45,10 +47,15 @@ import {
   type WorkspaceCredential,
 } from '@/hooks/queries/credentials'
 import {
+  assertMicrosoftDataverseReconnectAvailable,
+  useConnectMicrosoftDataverseOAuthService,
+  useMicrosoftDataverseCredentialBinding,
+} from '@/hooks/queries/oauth/microsoft-dataverse-connections'
+import {
   useConnectOAuthService,
-  useDisconnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
+import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')
@@ -74,22 +81,38 @@ export function ConnectedCredentialDetail({
 
   const { data: oauthConnections = [] } = useOAuthConnections()
   const connectOAuthService = useConnectOAuthService()
-  const disconnectOAuthService = useDisconnectOAuthService()
   const createDraft = useCreateCredentialDraft()
-  const deleteCredential = useDeleteWorkspaceCredential()
+  const deleteCredential = useDeleteWorkspaceCredential(workspaceId)
 
   const credential = useMemo<WorkspaceCredential | null>(
     () => credentials.find((c) => c.id === credentialId) ?? null,
     [credentials, credentialId]
   )
-
+  const isDataverseCredential =
+    credential?.type === 'oauth' && credential.providerId === 'microsoft-dataverse'
+  const dataverseCredentialQuery = useOAuthCredentialDetail(
+    isDataverseCredential ? credentialId : undefined,
+    undefined,
+    isDataverseCredential
+  )
+  const dataverseBinding = useMicrosoftDataverseCredentialBinding({
+    isPending: dataverseCredentialQuery.isPending,
+    providerId: credential?.type === 'oauth' ? (credential.providerId ?? undefined) : undefined,
+    scopes: dataverseCredentialQuery.data?.[0]?.scopes,
+  })
+  const connectMicrosoftDataverseOAuthService = useConnectMicrosoftDataverseOAuthService()
   const isAdmin = credential?.role === 'admin'
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [reconnectOpen, setReconnectOpen] = useState(false)
 
-  const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
+  const form = useCredentialDetailForm({
+    credential,
+    isAdmin,
+    backHref: integrationsHref,
+    workspaceId,
+  })
 
   const oauthServiceNameByProviderId = useMemo(
     () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),
@@ -113,7 +136,14 @@ export function ConnectedCredentialDetail({
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
-      await createDraft.mutateAsync({
+      if (isDataverseCredential) {
+        assertMicrosoftDataverseReconnectAvailable({
+          bindingState: dataverseBinding.state,
+          credentialQueryFailed: dataverseCredentialQuery.isError,
+        })
+      }
+
+      const draft = await createDraft.mutateAsync({
         workspaceId,
         providerId: credential.providerId,
         displayName: credential.displayName,
@@ -134,10 +164,19 @@ export function ConnectedCredentialDetail({
         requestedAt: Date.now(),
       })
 
-      await connectOAuthService.mutateAsync({
-        providerId: credential.providerId,
-        callbackURL: window.location.href,
-      })
+      if (dataverseBinding.state === 'bound' && dataverseBinding.environmentUrl) {
+        await connectMicrosoftDataverseOAuthService.mutateAsync({
+          callbackURL: window.location.href,
+          draftId: draft.draftId,
+          environmentUrl: dataverseBinding.environmentUrl,
+        })
+      } else {
+        await connectOAuthService.mutateAsync({
+          providerId: credential.providerId,
+          callbackURL: window.location.href,
+          draftId: draft.draftId,
+        })
+      }
     } catch (error: unknown) {
       toast.error("Couldn't start reconnect", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -146,30 +185,15 @@ export function ConnectedCredentialDetail({
     }
   }
 
+  /**
+   * Every credential type disconnects through the workspace-scoped credential
+   * delete, which authorizes against credential admin — explicit members and
+   * derived workspace admins alike.
+   */
   const handleConfirmDelete = async () => {
     if (!credential) return
     try {
-      if (credential.type === 'service_account') {
-        await deleteCredential.mutateAsync(credential.id)
-      } else {
-        if (!credential.accountId || !credential.providerId) {
-          toast.error("Can't disconnect", {
-            description: 'Missing account information. Try reconnecting this credential first.',
-          })
-          return
-        }
-        await disconnectOAuthService.mutateAsync({
-          provider: credential.providerId.split('-')[0] || credential.providerId,
-          providerId: credential.providerId,
-          serviceId: credential.providerId,
-          accountId: credential.accountId,
-        })
-        window.dispatchEvent(
-          new CustomEvent('oauth-credentials-updated', {
-            detail: { providerId: credential.providerId, workspaceId },
-          })
-        )
-      }
+      await deleteCredential.mutateAsync(credential.id)
       setShowDeleteConfirmDialog(false)
       router.push(integrationsHref)
     } catch (error) {
@@ -189,25 +213,35 @@ export function ConnectedCredentialDetail({
   const actions =
     credential && isAdmin ? (
       <>
-        {(credential.type === 'oauth' || credential.type === 'service_account') && (
+        {(credential.type === 'oauth' ||
+          credential.type === 'service_account' ||
+          credential.type === 'personal_token') && (
           <Chip
             onClick={
-              credential.type === 'service_account'
+              credential.type === 'service_account' || credential.type === 'personal_token'
                 ? () => setReconnectOpen(true)
-                : handleReconnectOAuth
+                : credential.providerId === 'quickbooks'
+                  ? () => setReconnectOpen(true)
+                  : handleReconnectOAuth
             }
-            disabled={connectOAuthService.isPending}
+            disabled={
+              connectOAuthService.isPending ||
+              connectMicrosoftDataverseOAuthService.isPending ||
+              dataverseBinding.isPending
+            }
             leftIcon={display?.icon ?? undefined}
           >
             Reconnect
           </Chip>
         )}
-        <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
-          Share
-        </Chip>
+        {credential.type !== 'personal_token' && (
+          <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
+            Share
+          </Chip>
+        )}
         <Chip
           onClick={() => setShowDeleteConfirmDialog(true)}
-          disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
+          disabled={deleteCredential.isPending}
         >
           Disconnect
         </Chip>
@@ -287,7 +321,14 @@ export function ConnectedCredentialDetail({
           />
         </DetailSection>
 
-        <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />
+        {credential.type !== 'personal_token' && (
+          <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />
+        )}
+        {credential.type === 'personal_token' && credential.instanceUrl && (
+          <DetailSection title='GitLab instance'>
+            <ChipCopyInput value={credential.instanceUrl} copyLabel='Copy GitLab instance' />
+          </DetailSection>
+        )}
       </CredentialDetailLayout>
 
       <ChipConfirmModal
@@ -303,16 +344,18 @@ export function ConnectedCredentialDetail({
         confirm={{
           label: 'Disconnect',
           onClick: handleConfirmDelete,
-          pending: disconnectOAuthService.isPending || deleteCredential.isPending,
+          pending: deleteCredential.isPending,
           pendingLabel: 'Disconnecting...',
         }}
       />
 
-      <AddPeopleModal
-        credentialId={credential.id}
-        open={isShareModalOpen}
-        onOpenChange={setIsShareModalOpen}
-      />
+      {credential.type !== 'personal_token' && (
+        <AddPeopleModal
+          credentialId={credential.id}
+          open={isShareModalOpen}
+          onOpenChange={setIsShareModalOpen}
+        />
+      )}
 
       <UnsavedChangesModal
         open={form.showUnsavedAlert}
@@ -320,6 +363,15 @@ export function ConnectedCredentialDetail({
         onDiscard={form.confirmDiscard}
       />
 
+      {credential.type === 'personal_token' && (
+        <ConnectPersonalTokenModal
+          open={reconnectOpen}
+          onOpenChange={setReconnectOpen}
+          workspaceId={workspaceId}
+          credentialId={credential.id}
+          instanceUrl={credential.instanceUrl}
+        />
+      )}
       {credential.type === 'service_account' && credential.providerId && (
         <ConnectServiceAccountModal
           open={reconnectOpen}
@@ -331,6 +383,24 @@ export function ConnectedCredentialDetail({
           credentialId={credential.id}
           credentialDisplayName={credential.displayName}
           credentialDescription={credential.description ?? undefined}
+        />
+      )}
+
+      {credential.type === 'oauth' && credential.providerId === 'quickbooks' && (
+        <ConnectOAuthModal
+          open={reconnectOpen}
+          onOpenChange={setReconnectOpen}
+          mode='reauthorize'
+          providerId={credential.providerId}
+          serviceName={display?.familyName || serviceConfig?.name || credential.displayName}
+          serviceIcon={display?.icon as ComponentType<{ className?: string }>}
+          toolName='QuickBooks'
+          requiredScopes={serviceConfig?.scopes ?? []}
+          reconnectTarget={{
+            workspaceId,
+            credentialId: credential.id,
+            displayName: credential.displayName,
+          }}
         />
       )}
     </>

@@ -1,4 +1,5 @@
 ---
+description: React Query patterns for the Sim application
 paths:
   - "apps/sim/hooks/queries/**/*.ts"
 ---
@@ -56,7 +57,7 @@ The `'use client'` hook module then imports these back for its hooks. **Never** 
 
 ```typescript
 import { requestJson } from '@/lib/api/client/request'
-import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
+import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/<domain>'
 
 export const ENTITY_LIST_STALE_TIME = 60 * 1000
 
@@ -139,14 +140,28 @@ const handler = useCallback(() => {
 // ✓ Good — omit from deps, mutate is stable
 const handler = useCallback(() => {
   createEntity.mutate(data)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [data])
 ```
 
+## Server prefetching
+
+A server prefetch fills the *same* cache key a client hook fills, so it must be indistinguishable from a client fetch. Five rules:
+
+1. **Read the data layer, never our own API over HTTP.** A server-to-server call to `/api/...` costs a round trip and a second authentication for data the process can already read. Where the route runs an application use case, call that same use case with a principal from the same auth policy the route declares — not a manager underneath it.
+2. **Match the wire shape the hook caches.** The hook's data is whatever `requestJson(contract, …)` produced, so the seed must equal it. Two traps: a contract field declared `z.coerce.date()` means the hook holds a `Date` where raw route JSON holds a string; a passthrough response schema (`z.custom`) means the hook caches route JSON *verbatim*, so seeding raw rows leaks `Date`s and server-only fields. When the route projects before responding, share that projection — have the route and the prefetch call one function.
+3. **Prove the viewer.** Data-layer reads carry no authorization; the route used to provide it. Resolve the viewer (`getWorkspaceHostContextForViewer`, already `cache`d by the layout so it costs nothing) and return early on failure, caching nothing — the client fetch then reaches the route for the real 403. Never widen what a viewer can see.
+4. **Always `await`.** Only a settled query is dehydrated, so an unawaited prefetch is silently dropped from the payload and the pane waterfalls anyway.
+5. **Don't repeat what the layout already seeded.** `getQueryClient()` builds a new client per server call, so a page re-seeding a layout key is a genuine second read — and `HydrationBoundary` defers an already-seen query to an effect, which SSR never runs, so it never reaches the server render either.
+
+Reuse the hook's exported `staleTime` constant and its key factory; `dehydrate` carries neither options nor `staleTime`, and freshness is per-observer.
+
+Seed with `setQueryData` only when the prefetch must be able to *decline* to create an entry (an empty list that has to fall through to a route's creation path). `prefetchQuery` and `ensureQueryData` always create one.
+
+Keep prefetch imports light. A page prefetch's imports land in that route's server graph, so pulling a barrel to reach one function can drag thousands of modules behind it — `bun run check:tool-registry-boundary` gates this per page.
+
 ## Boundary Types
 
-- Hooks import named type aliases from `@/lib/api/contracts/**` (e.g., `import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'`). Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code.
-- Raw `fetch` is allowed only for documented exceptions — multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins. Each such raw `fetch(` inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` — and any same-origin `/api/...` fetch elsewhere under `apps/sim/**` outside an API route handler — must be preceded by a `// boundary-raw-fetch: <reason>` annotation (reason non-empty; up to three preceding comment lines tolerated). Enforced by `scripts/check-api-validation-contracts.ts` (`bun run check:api-validation` / `:strict`).
+Hooks import named type aliases from `@/lib/api/contracts/**` and never import `zod`. The raw-`fetch` exceptions and the `// boundary-raw-fetch: <reason>` annotation are in `.claude/rules/sim-api-contracts.md`.
 
 ## Naming
 

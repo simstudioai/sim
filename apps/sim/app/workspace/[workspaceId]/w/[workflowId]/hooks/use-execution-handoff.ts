@@ -1,4 +1,4 @@
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

@@ -1,4 +1,5 @@
 import type { folder } from '@sim/db/schema'
+import { containsNulCharacter } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export const ROOT_FOLDER_PATH = '/'
@@ -54,9 +55,27 @@ function encodedByteLength(value: string): number {
   return new TextEncoder().encode(value).length
 }
 
-/** Encodes one stored folder name without normalizing its case or Unicode form. */
+/**
+ * Encodes one stored folder name without normalizing its case or Unicode form.
+ *
+ * This is the single chokepoint for what a folder name may contain: every path
+ * built from names passes through it, and {@link parseFolderPath} re-encodes
+ * each decoded segment through it to prove canonicality. So the NUL rejection
+ * belongs here rather than at either caller.
+ *
+ * The request-level scan in `@/lib/api/server/nul-bytes` cannot cover this. A
+ * folder path arrives percent-encoded, so the scan sees `%00` — three ordinary
+ * characters — and passes it, and the NUL only exists after this module decodes
+ * it. Reads happened to survive (an unmatched path is a 404); writers carried
+ * the decoded name into an `INSERT` and the driver threw a 500. Validating at
+ * the decode boundary covers every percent-encoded escape a caller can spell,
+ * not just the one that was reported.
+ */
 export function encodeFolderPathSegment(name: string): string {
   if (name.length === 0) throw new FolderPathError('Folder names cannot be empty')
+  if (containsNulCharacter(name)) {
+    throw new FolderPathError('Folder names cannot contain a NUL character (U+0000)')
+  }
 
   if (name === '.') return '%2E'
   if (name === '..') return '%2E%2E'
@@ -132,6 +151,32 @@ export function parentFolderPath(path: string): string {
 export function folderNameFromPath(path: string): string {
   const segments = requireNonRootFolderPath(path)
   return segments[segments.length - 1]
+}
+
+/**
+ * Where a folder move lands, with `mv` semantics.
+ *
+ * A destination that names an EXISTING folder receives the source as a child
+ * under its own name: moving `/xp-files` to `/fx-archive` yields
+ * `/fx-archive/xp-files`. The root is always an existing folder for this
+ * purpose, so `/` moves the source to the top level under its current name —
+ * the only way back out of a nested folder without retyping its name. Any other
+ * destination is the source's new full path — a rename, a relocation, or both.
+ * Before this, an existing destination was refused as a name collision, so
+ * moving a folder into another meant spelling out the target path in full. A
+ * destination equal to the source is returned as is, so the caller's collision
+ * check answers it the way it always has.
+ */
+export function resolveFolderMoveDestination(
+  index: Pick<FolderPathIndex, 'idByPath'>,
+  sourcePath: string,
+  destinationPath: string
+): string {
+  if (destinationPath === sourcePath) return destinationPath
+  if (destinationPath !== ROOT_FOLDER_PATH && !index.idByPath.has(destinationPath)) {
+    return destinationPath
+  }
+  return buildFolderPath([...parseFolderPath(destinationPath), folderNameFromPath(sourcePath)])
 }
 
 /**

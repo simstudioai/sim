@@ -2,9 +2,9 @@ import type {
   CodePipelineGetPipelineExecutionParams,
   CodePipelineGetPipelineExecutionResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getPipelineExecutionTool: ToolConfig<
+export const getPipelineExecutionTool: InternalToolConfig<
   CodePipelineGetPipelineExecutionParams,
   CodePipelineGetPipelineExecutionResponse
 > = {
@@ -47,13 +47,8 @@ export const getPipelineExecutionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/get-pipeline-execution',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

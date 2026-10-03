@@ -3,11 +3,11 @@ import type {
   ServiceNowUploadAttachmentParams,
   ServiceNowUploadAttachmentResponse,
 } from '@/tools/servicenow/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowUploadAttachmentTool')
 
-export const uploadAttachmentTool: ToolConfig<
+export const uploadAttachmentTool: InternalToolConfig<
   ServiceNowUploadAttachmentParams,
   ServiceNowUploadAttachmentResponse
 > = {
@@ -61,13 +61,8 @@ export const uploadAttachmentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/servicenow/upload-attachment',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       username: params.username,
       password: params.password,

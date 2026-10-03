@@ -1,10 +1,8 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { ChevronDown, handleKeyboardActivation } from '@sim/emcn'
-import { Repeat, Split } from '@sim/emcn/icons'
+import { ChevronDown, cn, handleKeyboardActivation } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import { useShallow } from 'zustand/react/shallow'
 import {
   FieldItem,
@@ -12,8 +10,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
-import { getTileIconColorClass } from '@/blocks/icon-color'
-import { getBlock } from '@/blocks/registry'
+import { BlockTile } from '@/blocks/block-tile'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -23,13 +20,11 @@ const logger = createLogger('ConnectionBlocks')
 
 interface ConnectionBlocksProps {
   connections: ConnectedBlock[]
-  currentBlockId: string
 }
 
 interface FieldTreeNodesProps {
   fields: SchemaField[]
   parentPath: string
-  level: number
   connection: ConnectedBlock
   isFieldExpanded: (connectionId: string, fieldPath: string) => boolean
   onToggleFieldExpansion: (connectionId: string, fieldPath: string) => void
@@ -38,7 +33,6 @@ interface FieldTreeNodesProps {
 function FieldTreeNodes({
   fields,
   parentPath,
-  level,
   connection,
   isFieldExpanded,
   onToggleFieldExpansion,
@@ -54,7 +48,6 @@ function FieldTreeNodes({
           connection={connection}
           field={field}
           path={fieldPath}
-          level={level}
           hasChildren={hasChildren}
           isExpanded={expanded}
           onToggleExpand={(p) => onToggleFieldExpansion(connection.id, p)}
@@ -65,7 +58,6 @@ function FieldTreeNodes({
             <FieldTreeNodes
               fields={field.children!}
               parentPath={fieldPath}
-              level={level + 1}
               connection={connection}
               isFieldExpanded={isFieldExpanded}
               onToggleFieldExpansion={onToggleFieldExpansion}
@@ -103,8 +95,6 @@ function ConnectionItem({
   mergedSubBlocks,
   sourceBlock,
 }: ConnectionItemProps) {
-  const blockConfig = getBlock(connection.type)
-
   const fields = useBlockOutputFields({
     blockId: connection.id,
     blockType: connection.type,
@@ -112,19 +102,6 @@ function ConnectionItem({
     triggerMode: sourceBlock?.triggerMode,
   })
   const hasFields = fields.length > 0
-
-  let Icon = blockConfig?.icon
-  let bgColor = blockConfig?.bgColor || '#6B7280'
-
-  if (!blockConfig) {
-    if (connection.type === 'loop') {
-      Icon = Repeat
-      bgColor = '#2FB3FF'
-    } else if (connection.type === 'parallel') {
-      Icon = Split
-      bgColor = '#FEE12B'
-    }
-  }
 
   return (
     <div className='mb-0.5 last:mb-0' ref={connectionRef}>
@@ -134,7 +111,7 @@ function ConnectionItem({
         tabIndex={hasFields ? 0 : undefined}
         draggable
         onDragStart={(e) => onConnectionDragStart(e, connection)}
-        className={clsx(
+        className={cn(
           'group flex h-[26px] cursor-grab items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
           hasFields && 'cursor-pointer'
         )}
@@ -144,23 +121,9 @@ function ConnectionItem({
           handleKeyboardActivation(event, () => onToggleExpand(connection.id))
         }}
       >
-        <div
-          className='[&_img]:!size-full relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-          style={{ background: bgColor }}
-        >
-          {Icon && (
-            <Icon
-              className={clsx(
-                'transition-transform duration-200',
-                getTileIconColorClass(bgColor),
-                hasFields && 'group-hover:scale-110',
-                '!size-[9px]'
-              )}
-            />
-          )}
-        </div>
+        <BlockTile blockType={connection.type} size='sm' />
         <span
-          className={clsx(
+          className={cn(
             'truncate',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
           )}
@@ -169,8 +132,8 @@ function ConnectionItem({
         </span>
         {hasFields && (
           <ChevronDown
-            className={clsx(
-              'size-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            className={cn(
+              'size-[8px] shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
               !isExpanded && '-rotate-90'
             )}
           />
@@ -183,7 +146,6 @@ function ConnectionItem({
           <FieldTreeNodes
             fields={fields}
             parentPath=''
-            level={0}
             connection={connection}
             isFieldExpanded={isFieldExpanded}
             onToggleFieldExpansion={onToggleFieldExpansion}
@@ -197,11 +159,12 @@ function ConnectionItem({
 /**
  * Connection blocks component that displays incoming connections with their schemas
  */
-export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBlocksProps) {
+export function ConnectionBlocks({ connections }: ConnectionBlocksProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(() => new Set())
   const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(() => new Set())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const connectionElementsRef = useRef<Map<string, HTMLDivElement> | null>(null)
+  const connectionRefs = (connectionElementsRef.current ??= new Map())
 
   const { blocks } = useWorkflowStore(
     useShallow((state) => ({
@@ -240,7 +203,7 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
 
       if (isExpanding) {
         setTimeout(() => {
-          const connectionElement = connectionRefs.current.get(connectionId)
+          const connectionElement = connectionRefs.get(connectionId)
           const scrollContainer = scrollContainerRef.current
 
           if (connectionElement && scrollContainer) {
@@ -327,9 +290,9 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
             onConnectionDragStart={handleConnectionDragStart}
             connectionRef={(el) => {
               if (el) {
-                connectionRefs.current.set(connection.id, el)
+                connectionRefs.set(connection.id, el)
               } else {
-                connectionRefs.current.delete(connection.id)
+                connectionRefs.delete(connection.id)
               }
             }}
             mergedSubBlocks={mergedSubBlocks}

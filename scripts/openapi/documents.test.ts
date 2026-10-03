@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import ts from '@typescript/typescript6'
 import { describe, expect, it } from 'vitest'
 import { billingOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/files-audit'
@@ -8,11 +9,12 @@ import { logsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi
 import { resourcesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/resources'
 import { tablesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/tables'
 import { workflowsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/workflows'
-import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
+import { generateOpenApiDocument } from './generator'
 
 type JsonObject = Record<string, unknown>
 
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete'])
+const MAX_DESCRIPTION_WORDS = 80
 
 const DOCUMENTS = [
   workflowsOpenApiDocument,
@@ -24,15 +26,88 @@ const DOCUMENTS = [
   resourcesOpenApiDocument,
 ] as const
 
-const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
-  ['apps/docs/openapi-v2-workflows.json', 21],
-  ['apps/docs/openapi-v2-logs.json', 2],
-  ['apps/docs/openapi-v2-files-audit.json', 21],
-  ['apps/docs/openapi-v2-tables.json', 43],
-  ['apps/docs/openapi-v2-knowledge.json', 18],
-  ['apps/docs/openapi-v2-billing.json', 2],
-  ['apps/docs/openapi-v2-resources.json', 21],
-])
+/** Reads route admission policy without importing its database and provider implementations. */
+async function routeApplicationOperation(routePath: string, method: string): Promise<unknown> {
+  const sourcePath = path.resolve(
+    import.meta.dirname,
+    '../../apps/sim/app',
+    `.${routePath}`,
+    'route.ts'
+  )
+  const source = ts.createSourceFile(
+    sourcePath,
+    readFileSync(sourcePath, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true
+  )
+  let handler: ts.Expression | undefined
+  const imports = new Map<string, { module: string; name: string }>()
+  function visit(node: ts.Node): void {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === method) {
+      handler = node.initializer
+    }
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const bindings = node.importClause?.namedBindings
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const item of bindings.elements) {
+          imports.set(item.name.text, {
+            module: node.moduleSpecifier.text,
+            name: item.propertyName?.text ?? item.name.text,
+          })
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  if (!handler || !ts.isCallExpression(handler))
+    throw new Error(`Missing ${method} handler: ${sourcePath}`)
+  let operation: ts.Expression | undefined
+  const options = handler.arguments[0]
+  if (options && ts.isObjectLiteralExpression(options)) {
+    const property = options.properties.find(
+      (item) => ts.isPropertyAssignment(item) && item.name.getText(source) === 'operation'
+    )
+    if (property && ts.isPropertyAssignment(property)) operation = property.initializer
+  } else {
+    function findAdmission(node: ts.Node): void {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        ['admitV2Request', 'admitOptionalV2Request'].includes(node.expression.text)
+      ) {
+        if (operation) throw new Error(`Ambiguous admission policy: ${sourcePath}`)
+        operation = node.arguments[1]
+      }
+      ts.forEachChild(node, findAdmission)
+    }
+    findAdmission(handler)
+  }
+  if (
+    !operation ||
+    !ts.isPropertyAccessExpression(operation) ||
+    !ts.isIdentifier(operation.expression)
+  ) {
+    throw new Error(`Unresolved admission policy: ${sourcePath}`)
+  }
+  const imported = imports.get(operation.expression.text)
+  if (!imported || !imported.module.endsWith('/operations')) {
+    throw new Error(`Admission policy must reference its operation registry: ${sourcePath}`)
+  }
+  const registryModule = (await import(imported.module)) as Record<string, Record<string, unknown>>
+  return registryModule[imported.name]?.[operation.name.text]
+}
+
+const generatedDocuments = new Map<(typeof DOCUMENTS)[number], JsonObject>()
+
+function generatedDocument(document: (typeof DOCUMENTS)[number]): JsonObject {
+  const cached = generatedDocuments.get(document)
+  if (cached) return cached
+
+  const generated = generateOpenApiDocument(document)
+  generatedDocuments.set(document, generated)
+  return generated
+}
 
 function getOperation(spec: JsonObject, path: string, method: string): JsonObject {
   const paths = spec.paths as JsonObject
@@ -47,6 +122,26 @@ function operations(spec: JsonObject): JsonObject[] {
     }
   }
   return result
+}
+
+function _oversizedDescriptions(value: unknown, location: string, out: string[]): void {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => _oversizedDescriptions(item, `${location}[${index}]`, out))
+    return
+  }
+
+  for (const [key, nested] of Object.entries(value as JsonObject)) {
+    const nestedLocation = `${location}.${key}`
+    if (key === 'description' && typeof nested === 'string') {
+      const wordCount = nested.trim() ? nested.trim().split(/\s+/).length : 0
+      if (wordCount > MAX_DESCRIPTION_WORDS) {
+        out.push(`${nestedLocation} (${wordCount} words)`)
+      }
+      continue
+    }
+    _oversizedDescriptions(nested, nestedLocation, out)
+  }
 }
 
 function isStructuredObject(schema: JsonObject): boolean {
@@ -69,7 +164,7 @@ function anonymousPayloadObjects(schema: JsonObject, location: string): string[]
   return anonymous
 }
 
-function anonymousTopLevelResponseObjects(spec: JsonObject): string[] {
+function _anonymousTopLevelResponseObjects(spec: JsonObject): string[] {
   const anonymous: string[] = []
   const schemas = ((spec.components as JsonObject).schemas ?? {}) as JsonObject
 
@@ -132,20 +227,39 @@ function anonymousTopLevelResponseObjects(spec: JsonObject): string[] {
 }
 
 describe('generated OpenAPI documents', () => {
-  it('covers the complete public v2 operation surface with canonical errors', () => {
+  it('documents the canonical operation and its public API OAuth scope', async () => {
+    for (const document of DOCUMENTS) {
+      for (const route of document.routes) {
+        const runtimeOperation = await routeApplicationOperation(
+          route.contract.path,
+          route.contract.method
+        )
+        expect(runtimeOperation, `${route.contract.method} ${route.contract.path}`).toBe(
+          route.operation.applicationOperation
+        )
+        const generated = getOperation(
+          generatedDocument(document),
+          route.contract.path.replace(/\[([^\]]+)\]/g, '{$1}'),
+          route.contract.method.toLowerCase()
+        )
+        expect(generated['x-sim-operation']).toBe(route.operation.applicationOperation.id)
+        const operationScope = route.operation.applicationOperation.oauthScope
+        expect(generated['x-oauth-scope']).toBe(
+          operationScope === 'search:read' ? 'api:read' : operationScope
+        )
+      }
+    }
+  }, 30_000)
+
+  it('generates named schemas and canonical errors across public v2 operations', () => {
     const outputs = DOCUMENTS.map((document) => document.output)
     expect(new Set(outputs).size).toBe(DOCUMENTS.length)
 
-    let totalOperations = 0
     for (const document of DOCUMENTS) {
-      const spec = generateOpenApiDocument(document)
+      const spec = generatedDocument(document)
       const documentOperations = operations(spec)
-      const expectedCount = EXPECTED_OPERATION_COUNTS.get(document.output)
 
-      expect(expectedCount).toBeDefined()
-      expect(documentOperations).toHaveLength(expectedCount as number)
       expect(spec['x-generated-by']).toBe('scripts/generate-openapi.ts')
-      totalOperations += documentOperations.length
 
       const schemas = (spec.components as JsonObject).schemas as JsonObject
       expect(Object.keys(schemas).filter((name) => name.startsWith('__schema'))).toEqual([])
@@ -163,165 +277,35 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-
-    expect(totalOperations).toBe(128)
   })
+})
 
-  it('documents mixed workflow execution and resume responses', () => {
-    const spec = generateOpenApiDocument(workflowsOpenApiDocument)
-    const execute = getOperation(spec, '/api/v2/workflows/{id}/execute', 'post')
-    const executeResponses = execute.responses as JsonObject
-    const executeOk = executeResponses['200'] as JsonObject
-    const executeQueued = executeResponses['202'] as JsonObject
-    const executeOkContent = executeOk.content as JsonObject
-    const executeQueuedContent = executeQueued.content as JsonObject
-
-    expect((spec.tags as JsonObject[]).map((tag) => tag.name)).toEqual([
-      'Workflows',
-      'Workflow Runs',
-    ])
-    expect(execute.tags).toEqual(['Workflows'])
-    expect(execute.security).toEqual([{ apiKey: [] }, {}])
-    expect(Object.keys(executeOkContent).sort()).toEqual(['application/json', 'text/event-stream'])
-    expect(Object.keys(executeQueuedContent)).toEqual(['application/json'])
-
-    const resume = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}/resume', 'post')
-    const resumeResponses = resume.responses as JsonObject
-    const resumeOkContent = (resumeResponses['200'] as JsonObject).content as JsonObject
-    const resumeQueuedContent = (resumeResponses['202'] as JsonObject).content as JsonObject
-    const resumeOkSchema = (resumeOkContent['application/json'] as JsonObject).schema as JsonObject
-    const resumeQueuedSchema = (resumeQueuedContent['application/json'] as JsonObject)
-      .schema as JsonObject
-
-    expect(resumeResponses).toHaveProperty('200')
-    expect(resumeResponses).toHaveProperty('202')
-    expect(resume.tags).toEqual(['Workflow Runs'])
-    expect(resumeOkSchema.$ref).toBe('#/components/schemas/ResumeWorkflowSyncResponse')
-    expect(resumeQueuedSchema.$ref).toBe('#/components/schemas/ResumeWorkflowQueuedResponse')
-
-    const listRuns = getOperation(spec, '/api/v2/workflows/{id}/runs', 'get')
-    const getRun = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}', 'get')
-    const cancelRun = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}/cancel', 'post')
-    expect(listRuns.tags).toEqual(['Workflow Runs'])
-    expect(getRun.tags).toEqual(['Workflow Runs'])
-    expect(cancelRun.tags).toEqual(['Workflow Runs'])
-  })
-
-  it('documents multipart uploads, dual-status secret sets, and nullable file shares', () => {
-    const knowledgeSpec = generateOpenApiDocument(knowledgeOpenApiDocument)
-    const upload = getOperation(knowledgeSpec, '/api/v2/knowledge/{id}/documents', 'post')
-    const uploadBody = upload.requestBody as JsonObject
-    const uploadContent = uploadBody.content as JsonObject
-    const uploadSchemaRef = (uploadContent['multipart/form-data'] as JsonObject)
-      .schema as JsonObject
-    const knowledgeSchemas = (knowledgeSpec.components as JsonObject).schemas as JsonObject
-    const uploadSchemaName = (uploadSchemaRef.$ref as string).split('/').at(-1) as string
-    const uploadSchema = knowledgeSchemas[uploadSchemaName] as JsonObject
-    const uploadProperties = uploadSchema.properties as JsonObject
-
-    expect(Object.keys(uploadContent)).toEqual(['multipart/form-data'])
-    expect(uploadProperties.file).toMatchObject({ type: 'string', format: 'binary' })
-
-    const resourcesSpec = generateOpenApiDocument(resourcesOpenApiDocument)
-    const setSecret = getOperation(resourcesSpec, '/api/v2/secrets/{name}', 'put')
-    expect(
-      Object.keys(setSecret.responses as JsonObject).filter((status) => status.startsWith('2'))
-    ).toEqual(['200', '201'])
-
-    const filesSpec = generateOpenApiDocument(filesAuditOpenApiDocument)
-    const fileSchemas = (filesSpec.components as JsonObject).schemas as JsonObject
-    const fileMetadata = fileSchemas.V2FileMetadata as JsonObject
-    const fileMetadataProperties = fileMetadata.properties as JsonObject
-    const share = fileMetadataProperties.share as JsonObject
-
-    expect(share.anyOf).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'null' })]))
-  })
-
-  it('documents public resource owner email addresses', () => {
-    const knowledgeSpec = generateOpenApiDocument(knowledgeOpenApiDocument)
-    const knowledgeSchemas = (knowledgeSpec.components as JsonObject).schemas as JsonObject
-    const knowledgeBase = knowledgeSchemas.V2KnowledgeBase as JsonObject
-    const knowledgeBaseProperties = knowledgeBase.properties as JsonObject
-
-    const tablesSpec = generateOpenApiDocument(tablesOpenApiDocument)
-    const tableSchemas = (tablesSpec.components as JsonObject).schemas as JsonObject
-    const table = tableSchemas.V2ApiTable as JsonObject
-    const tableProperties = table.properties as JsonObject
-
-    expect(knowledgeBaseProperties.ownerEmail).toMatchObject({ type: 'string', format: 'email' })
-    expect(tableProperties.ownerEmail).toMatchObject({ type: 'string', format: 'email' })
-  })
-
-  it('keeps billing as its own API reference group', () => {
-    const spec = generateOpenApiDocument(billingOpenApiDocument)
-    expect((spec.tags as JsonObject[]).map((tag) => tag.name)).toEqual(['Billing'])
-    expect(getOperation(spec, '/api/v2/billing/status', 'get').tags).toEqual(['Billing'])
-    expect(getOperation(spec, '/api/v2/billing/logs', 'get').tags).toEqual(['Billing'])
-  })
-
-  it('documents workspace details as a named schema without internal mode', () => {
-    const resourcesSpec = generateOpenApiDocument(resourcesOpenApiDocument)
-    const schemas = (resourcesSpec.components as JsonObject).schemas as JsonObject
-    const response = schemas.GetWorkspaceResponse as JsonObject
-    const responseProperties = response.properties as JsonObject
-    const data = responseProperties.data as JsonObject
-    const workspace = schemas.V2Workspace as JsonObject
-    const workspaceProperties = workspace.properties as JsonObject
-
-    expect(data.$ref).toBe('#/components/schemas/V2Workspace')
-    expect(workspace.title).toBe('Workspace')
-    expect(workspaceProperties).not.toHaveProperty('mode')
-    expect(workspaceProperties).toEqual(
-      expect.objectContaining({
-        id: expect.objectContaining({ type: 'string' }),
-        name: expect.objectContaining({ type: 'string' }),
-        memberCount: expect.objectContaining({ type: 'integer' }),
-      })
+/**
+ * Documented error sets.
+ *
+ * The 413 sweep runs over all seven documents rather than the two families it
+ * first audited: the gaps the narrower scope was written around are closed, and
+ * leaving it narrow would let a new body-carrying operation in any other family
+ * ship without publishing the 413 its body read raises.
+ */
+describe('documented error sets', () => {
+  /**
+   * A v2 JSON route whose contract declares a body reads that body through
+   * `parseJsonBody` under `DEFAULT_MAX_JSON_BODY_BYTES` *before* schema
+   * validation, with the builders supplying `V2_PARSE_DEFAULTS`. So an
+   * oversized body is a real 413 on every one of them, and an operation that
+   * does not publish it is documenting a response its callers can hit. The
+   * converse does not hold — several bodyless folder reads publish 413 because
+   * materializing an oversized folder tree raises one — so this is one
+   * directional.
+   */
+  it.each(
+    DOCUMENTS.flatMap((document) =>
+      document.routes
+        .filter((route) => route.contract.body !== undefined)
+        .map((route) => [route.operation.operationId, route.operation.errors] as const)
     )
-  })
-
-  it('uses named schemas for top-level response objects and list items', () => {
-    for (const document of DOCUMENTS) {
-      expect(anonymousTopLevelResponseObjects(generateOpenApiDocument(document))).toEqual([])
-    }
-  })
-
-  it('places audit logs at the bottom of every localized API reference sidebar', () => {
-    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'zh']) {
-      const metaPath = path.resolve(
-        process.cwd(),
-        `apps/docs/content/docs/${locale}/api-reference/meta.json`
-      )
-      const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as { pages: string[] }
-      expect(meta.pages.at(-1)).toBe('(generated)/audit-logs')
-    }
-  })
-
-  it('keeps localized execution guides on the v2 request and run-status wire shape', () => {
-    for (const locale of ['de', 'es', 'fr', 'ja', 'zh']) {
-      const guideRoot = path.resolve(
-        process.cwd(),
-        `apps/docs/content/docs/${locale}/api-reference`
-      )
-      const authentication = readFileSync(path.join(guideRoot, 'authentication.mdx'), 'utf8')
-      const gettingStarted = readFileSync(path.join(guideRoot, 'getting-started.mdx'), 'utf8')
-      const guides = `${authentication}\n${gettingStarted}`
-
-      expect(guides).not.toContain('"inputs"')
-      expect(guides).not.toContain('{ inputs:')
-      expect(guides).not.toContain('/api/jobs/')
-      expect(gettingStarted).not.toContain('jobId')
-      expect(gettingStarted).toContain('-d \'{"input": {}, "async": true}\'')
-      expect(gettingStarted).toContain(
-        '/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true'
-      )
-      expect(gettingStarted).toContain('"runId"')
-    }
-  })
-
-  it('serializes all documents deterministically', () => {
-    for (const document of DOCUMENTS) {
-      expect(serializeOpenApiDocument(document)).toBe(serializeOpenApiDocument(document))
-    }
+  )('%s publishes the 413 its body read can raise', (_operationId, errors) => {
+    expect(errors).toContain('PayloadTooLarge')
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetSkillActorContext, mockUpsertSkills, mockGetSkillById, mockDeleteSkill } =
@@ -19,16 +16,6 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   upsertSkills: mockUpsertSkills,
   getSkillById: mockGetSkillById,
   deleteSkill: mockDeleteSkill,
-}))
-
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { SKILL_CREATED: 'skill.created', SKILL_UPDATED: 'skill.updated' },
-  AuditResourceType: { SKILL: 'skill' },
-  recordAudit: vi.fn(),
 }))
 
 import { createSkill, updateSkill } from '@/lib/skills/orchestration/skill-lifecycle'
@@ -56,7 +43,6 @@ function actorOwning(name: string) {
 
 describe('skill lifecycle built-in name collision', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockUpsertSkills.mockResolvedValue({ touched: [{ id: SKILL_ID, name: 'x' }] })
     mockGetSkillById.mockResolvedValue(skillRow(BUILTIN_NAME))
   })

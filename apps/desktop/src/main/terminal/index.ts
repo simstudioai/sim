@@ -32,7 +32,6 @@ import {
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, WebContents } from 'electron'
 import {
   type FocusedResourceShortcut,
@@ -83,6 +82,9 @@ const CWD_POLL_MS = 1_000
 /** Cmd-Shift-T history; independent of how many terminals may be open. */
 const MAX_RECENTLY_CLOSED_TERMINALS = 10
 
+/** A single chat cannot monopolize the process with native PTYs. */
+export const MAX_TERMINALS_PER_SCOPE = 16
+
 /** Pause between keys sent to a tmux pane, matching the pty keystroke gap. */
 const TMUX_KEY_GAP_MS = 150
 
@@ -131,7 +133,7 @@ function requestedKeys(args: TerminalToolArgs): TerminalControlKey[] {
 
 const EMPTY_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
 
-class TerminalError extends Error {
+export class TerminalError extends Error {
   constructor(
     readonly code: TerminalErrorCode,
     message: string
@@ -156,12 +158,14 @@ export interface TerminalServiceOptions {
    * to the home directory.
    */
   loadCwd?(): string | undefined
+  canSpawn?(): boolean
 }
 
 export class TerminalService {
   /** Insertion-ordered, which is also the tab order the user sees. */
   private readonly sessions = new Map<string, TerminalSession>()
   private activeId: string | null = null
+  private readonly pendingCloseConfirmations = new Set<string>()
   private agentActiveId: string | null = null
   private activeTerminalUserSelected = false
   /** True while tearing every shell down, so an exit does not respawn one. */
@@ -344,12 +348,20 @@ export class TerminalService {
     return this.getAgentTabs()
   }
 
-  switchTerminal(terminalId: string): TerminalTabsState {
+  /**
+   * Shows a terminal. `claim` records it as the user's own; a switch that only
+   * mirrors the renderer's resource-strip selection passes false so the agent
+   * can still close or adopt the shell as its own.
+   */
+  switchTerminal(
+    terminalId: string,
+    { claim = true }: { claim?: boolean } = {}
+  ): TerminalTabsState {
     if (!this.sessions.has(terminalId)) {
       throw new TerminalError('NO_SUCH_TERMINAL', unknownTerminal(terminalId))
     }
     this.activeId = terminalId
-    this.activeTerminalUserSelected = true
+    if (claim) this.activeTerminalUserSelected = true
     this.emitTabs()
     void this.sessions.get(terminalId)?.refreshCwd()
     return this.getTabs()
@@ -384,19 +396,11 @@ export class TerminalService {
   }
 
   /**
-   * Closes a terminal, or resets it when it is the only one left.
-   *
-   * Emptying the panel is not an option the close button should have: the
-   * resource IS a terminal, so a panel with no shell in it is a dead end the
-   * user has to close and reopen to escape. Replacing the last shell with a
-   * fresh one in the same directory gives the button a sensible meaning at
-   * every count — the same shape as closing a browser's last tab, which
-   * leaves you a tab rather than an empty window.
-   *
-   * A shell that ends by itself — `exit`, or Ctrl-D — goes the same way. It
-   * leaves behind a session that can no longer do anything, so it has to be
-   * reaped either way; treating it as a close means the last one is replaced
-   * rather than leaving a dead tab that cannot be typed into.
+   * Closes a terminal. Each shell is its own resource tab in the renderer, so
+   * closing the last one simply leaves none; the strip drops the tab and a new
+   * shell comes back through `+ Terminal` or the agent. A shell that ends by
+   * itself — `exit`, or Ctrl-D — goes the same way: it leaves behind a session
+   * that can no longer do anything, so it is reaped like a close.
    */
   closeTerminal(terminalId: string): TerminalTabsState {
     if (!this.sessions.has(terminalId)) {
@@ -448,16 +452,13 @@ export class TerminalService {
   }
 
   /**
-   * Drops a terminal and decides what replaces it. Closing and exiting share
-   * this so the two cannot drift into different answers for "what happens to
-   * the last one".
+   * Drops a terminal and moves both cursors to a neighbour. Closing and
+   * exiting share this so the two cannot drift into different answers.
    */
   private retire(terminalId: string): TerminalTabsState {
     const session = this.sessions.get(terminalId)
     if (!session) return this.getTabs()
     const closedCwd = session.currentCwd
-    const cols = session.cols
-    const rows = session.rows
     const order = [...this.sessions.keys()]
     const index = order.indexOf(terminalId)
     session.dispose()
@@ -465,15 +466,10 @@ export class TerminalService {
     this.tmuxCache.delete(terminalId)
     this.releasePendingRuns(terminalId)
 
-    if (this.sessions.size === 0) {
-      this.spawn(this.resolveCwd(closedCwd), cols, rows, {
-        activateVisible: true,
-        activateAgent: true,
-      })
-      return this.getTabs()
-    }
-
     this.rememberClosed(closedCwd)
+    // Nothing is left for the user to hold on to; the next shell the agent
+    // opens must not inherit a claim on a terminal that no longer exists.
+    if (this.sessions.size === 0) this.activeTerminalUserSelected = false
     if (this.activeId === terminalId) {
       this.activeId = order[index + 1] ?? order[index - 1] ?? null
     }
@@ -497,9 +493,17 @@ export class TerminalService {
     shortcut: FocusedResourceShortcut,
     ownerWindow: BrowserWindow | null,
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
-    confirmCloseRunning?: (running: string) => boolean
+    confirmCloseRunning?: (running: string) => boolean | Promise<boolean>
   ): boolean {
-    if (shortcut === 'focus-omnibox') return false
+    // Hard reload and history have no terminal meaning — leave them to the Browser or shell.
+    if (
+      shortcut === 'focus-omnibox' ||
+      shortcut === 'hard-reload' ||
+      shortcut === 'back' ||
+      shortcut === 'forward'
+    ) {
+      return false
+    }
     const visibleTabShortcut =
       shortcut === 'new-tab' || shortcut === 'reopen-closed-tab' || shortcut === 'close-tab'
     const ownsVisibleTabs =
@@ -531,7 +535,10 @@ export class TerminalService {
         if (this.activeId) {
           const active = this.sessions.get(this.activeId)
           const running = active?.isBusy ? (active.foreground ?? 'A process') : null
-          if (running && confirmCloseRunning && !confirmCloseRunning(running)) return true
+          if (running && active && confirmCloseRunning) {
+            void this.confirmCloseRunningTerminal(active, running, confirmCloseRunning)
+            return true
+          }
           this.closeTerminal(this.activeId)
         }
         return true
@@ -545,6 +552,27 @@ export class TerminalService {
 
     if (this.activeId) emitRendererCommand(shortcut, this.activeId)
     return true
+  }
+
+  /** Revalidates the captured terminal after an asynchronous native-window confirmation. */
+  private async confirmCloseRunningTerminal(
+    terminal: TerminalSession,
+    running: string,
+    confirm: (running: string) => boolean | Promise<boolean>
+  ): Promise<void> {
+    const id = this.activeId
+    if (!id || this.pendingCloseConfirmations.has(id)) return
+    this.pendingCloseConfirmations.add(id)
+    try {
+      if (!(await confirm(running))) return
+      if (this.sessions.get(id) !== terminal) return
+      if (terminal.isBusy && (terminal.foreground ?? 'A process') !== running) return
+      this.closeTerminal(id)
+    } catch {
+      logger.warn('Could not confirm closing the running terminal')
+    } finally {
+      this.pendingCloseConfirmations.delete(id)
+    }
   }
 
   /**
@@ -610,6 +638,44 @@ export class TerminalService {
       owner.removeListener('destroyed', release)
       owner.removeListener('did-start-navigation', onNavigate)
     }
+  }
+
+  /** Captures live renderer claims before the registry replaces this service. */
+  getPanelOwners(): { focused: WebContents | null; visible: WebContents | null } {
+    return {
+      focused: this.focusOwner && !this.focusOwner.isDestroyed() ? this.focusOwner : null,
+      visible: this.visibleOwner && !this.visibleOwner.isDestroyed() ? this.visibleOwner : null,
+    }
+  }
+
+  /**
+   * Whether this renderer owns the visible active terminal.
+   *
+   * IPC validates recent trusted input separately. Keeping ownership checks
+   * beside terminal state prevents a stale renderer from targeting a hidden
+   * tab or a terminal displayed by another window.
+   */
+  acceptsUserInput(owner: WebContents, terminalId: string): boolean {
+    return (
+      !owner.isDestroyed() &&
+      this.focusOwner === owner &&
+      this.visibleOwner === owner &&
+      this.activeId === terminalId &&
+      this.sessions.has(terminalId)
+    )
+  }
+
+  /**
+   * Whether one renderer may close a tab. The strip that lists shells sits
+   * outside the terminal panel, so a renderer on the chat may close a shell
+   * nobody is displaying; while a window does display the panel, only that
+   * window may close, so a second window on the same chat cannot end a shell
+   * someone is using.
+   */
+  acceptsUserClose(owner: WebContents, terminalId: string): boolean {
+    if (owner.isDestroyed() || !this.sessions.has(terminalId)) return false
+    const shown = this.visibleOwner && !this.visibleOwner.isDestroyed() ? this.visibleOwner : null
+    return shown === null || shown === owner
   }
 
   /** Drops the claim and unsubscribes from the owner's lifecycle. */
@@ -1092,6 +1158,18 @@ export class TerminalService {
     rows: number,
     options: { activateVisible: boolean; activateAgent: boolean }
   ): TerminalSession {
+    if (this.sessions.size >= MAX_TERMINALS_PER_SCOPE) {
+      throw new TerminalError(
+        'RESOURCE_LIMIT',
+        `A task can have at most ${MAX_TERMINALS_PER_SCOPE} live terminals.`
+      )
+    }
+    if (this.options.canSpawn && !this.options.canSpawn()) {
+      throw new TerminalError(
+        'RESOURCE_LIMIT',
+        'Sim can have at most 48 live terminals. Close a terminal before opening another.'
+      )
+    }
     const terminalId = String(this.nextId++)
     try {
       const session = TerminalSession.create({
@@ -1133,19 +1211,6 @@ export class TerminalService {
   private requireSession(args: TerminalToolArgs): TerminalSession {
     const requested = typeof args.terminalId === 'string' ? args.terminalId : null
     if (requested) {
-      if (requested === this.activeId && this.activeTerminalUserSelected) {
-        const claimed = this.sessions.get(requested)
-        if (claimed?.alive && requested === this.agentActiveId) {
-          return this.spawn(claimed.currentCwd ?? this.startingCwd(), claimed.cols, claimed.rows, {
-            activateVisible: false,
-            activateAgent: true,
-          })
-        }
-        throw new TerminalError(
-          'INVALID_REQUEST',
-          'That terminal is currently being used by the user. Open or switch to another agent terminal first.'
-        )
-      }
       const session = this.sessions.get(requested)
       if (!session?.alive) {
         throw new TerminalError('NO_SUCH_TERMINAL', unknownTerminal(requested))
@@ -1153,13 +1218,7 @@ export class TerminalService {
       return session
     }
 
-    let active = this.agentActiveId ? this.sessions.get(this.agentActiveId) : null
-    if (active?.terminalId === this.activeId && this.activeTerminalUserSelected) {
-      active = this.spawn(active.currentCwd ?? this.startingCwd(), active.cols, active.rows, {
-        activateVisible: false,
-        activateAgent: true,
-      })
-    }
+    const active = this.agentActiveId ? this.sessions.get(this.agentActiveId) : null
     if (active?.alive) return active
 
     const spawned = this.spawn(this.startingCwd(), 80, 24, {
@@ -1219,9 +1278,4 @@ export class TerminalService {
 
 function unknownTerminal(terminalId: string): string {
   return `No terminal with id ${terminalId}. Call terminal_list for the open ones.`
-}
-
-/** Narrows an IPC payload to the tool-call shape without trusting the sender. */
-export function parseToolParams(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
 }

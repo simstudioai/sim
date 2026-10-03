@@ -18,7 +18,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.readShare,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal share-read behavior' }),
-  errorPolicy: internalFileErrorPolicies.default,
+  errorPolicy: internalFileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
   useCase: getWorkspaceFileShare,
 })
@@ -30,7 +30,7 @@ export const PUT = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal share-update behavior',
   }),
-  errorPolicy: internalFileErrorPolicies.default,
+  errorPolicy: internalFileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,

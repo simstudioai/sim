@@ -1,3 +1,4 @@
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type { RedditEditParams, RedditWriteResponse } from '@/tools/reddit/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -43,7 +44,7 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         'Content-Type': 'application/x-www-form-urlencoded',
       }
     },

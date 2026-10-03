@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelListProjectDomainsParams,
   VercelListProjectDomainsResponse,
@@ -53,7 +54,7 @@ export const vercelListProjectDomainsTool: ToolConfig<
       if (params.slug) query.set('slug', params.slug.trim())
       if (params.limit) query.set('limit', String(params.limit))
       const qs = query.toString()
-      return `https://api.vercel.com/v9/projects/${params.projectId.trim()}/domains${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v9/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/domains${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelListProjectDomainsParams) => ({

@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3PresignedUrlTool: ToolConfig = {
+export const s3PresignedUrlTool: InternalToolConfig = {
   id: 's3_presigned_url',
   name: 'S3 Presigned URL',
   description: 'Generate a time-limited presigned URL to download or upload an S3 object',
@@ -57,13 +57,8 @@ export const s3PresignedUrlTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/presigned-url',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

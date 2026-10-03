@@ -24,7 +24,7 @@ export const listPublicWorkspaceMembers = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: { delegation: { audience: 'sim:workspaces', isWithinScope: () => true } },
   execute: async ({ input, context }): Promise<ListPublicWorkspaceMembersResult> => {
     const page = await queryPublicWorkspaceMembers(context.workspaceId, {
       limit: input.limit,

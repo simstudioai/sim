@@ -1,7 +1,7 @@
 import type { SMSSendParams, SMSSendResult } from '@/tools/sms/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const smsSendTool: ToolConfig<SMSSendParams, SMSSendResult> = {
+export const smsSendTool: InternalToolConfig<SMSSendParams, SMSSendResult> = {
   id: 'sms_send',
   name: 'Send SMS',
   description: 'Send an SMS message using the internal SMS service powered by Twilio',
@@ -22,13 +22,8 @@ export const smsSendTool: ToolConfig<SMSSendParams, SMSSendResult> = {
     },
   },
 
-  request: {
-    url: '/api/tools/sms/send',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SMSSendParams) => ({
+  operation: {
+    input: (params: SMSSendParams) => ({
       to: params.to,
       body: params.body,
     }),

@@ -39,7 +39,6 @@ import {
   validateBlockSentences,
   validateTriggerSentence,
 } from '@/lib/workflows/blocks/canvas-sentence-validation'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { getBlockRegistry } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
@@ -94,7 +93,6 @@ function paintsOnEmptyCard(
   for (const subBlock of getCardSubBlocks(config, {
     advanced: false,
     values,
-    canonicalIndex: buildCanonicalIndex(config.subBlocks),
     triggerMode: card.mode === 'trigger',
   })) {
     if (!onCardById.has(subBlock.id)) onCardById.set(subBlock.id, subBlock)

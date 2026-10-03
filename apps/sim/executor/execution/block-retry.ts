@@ -1,5 +1,6 @@
 import { findCause } from '@sim/utils/errors'
 import { type BlockRetryConfig, resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
+import { isNonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import type { SerializedBlock } from '@/serializer/types'
@@ -35,6 +36,7 @@ const isAbortError = (value: unknown): value is Error =>
  * `name`, leaving the original classification only on `cause`.
  */
 export function isRetryableBlockError(error: unknown): boolean {
+  if (isNonRetryableExecutionError(error)) return false
   if (findCause(error, ChildWorkflowError.isChildWorkflowError)) return false
   if (findCause(error, isAbortError)) return false
   return true

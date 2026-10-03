@@ -1,8 +1,8 @@
 import type { JsmGetParticipantsParams, JsmGetParticipantsResponse } from '@/tools/jsm/types'
 import { PARTICIPANT_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetParticipantsTool: ToolConfig<
+export const jsmGetParticipantsTool: InternalToolConfig<
   JsmGetParticipantsParams,
   JsmGetParticipantsResponse
 > = {
@@ -55,13 +55,8 @@ export const jsmGetParticipantsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/participants',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

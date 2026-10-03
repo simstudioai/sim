@@ -14,7 +14,7 @@
  * imports are fine — they erase.
  */
 
-import integrationsJson from '@/lib/integrations/integrations.json'
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import type { Integration, IntegrationSummary } from '@/lib/integrations/types'
 
 /** All integrations surfaced in the catalog, ordered by `scripts/generate-docs.ts`. */

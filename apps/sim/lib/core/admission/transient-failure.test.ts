@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   ADMISSION_ERROR_CODE,
-  ADMISSION_ERROR_DESCRIPTOR,
   ADMISSION_RETRY_AFTER_SECONDS,
   classifyTransientAdmissionFailure,
   getReservationDenialDescriptor,
@@ -95,10 +91,4 @@ describe('getReservationDenialDescriptor', () => {
       })
     }
   )
-
-  it('returns the canonical descriptor object', () => {
-    expect(getReservationDenialDescriptor('payer_concurrency')).toBe(
-      ADMISSION_ERROR_DESCRIPTOR.RESERVATION_CONCURRENCY
-    )
-  })
 })

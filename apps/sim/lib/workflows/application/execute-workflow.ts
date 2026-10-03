@@ -18,7 +18,7 @@ export interface ExecuteWorkflowInput {
   selectedOutputs?: string[]
   requestedTimeoutSeconds?: number
   abortSignal?: AbortSignal
-  mode: 'sync' | 'async' | 'stream'
+  mode: 'sync' | 'async' | 'stream' | 'sync-result-stream'
   requestHeaders: Headers
   includeThinking?: boolean
   includeToolCalls?: boolean
@@ -43,6 +43,7 @@ export const executeWorkflowOperation = defineAuthorizedWorkflowUseCase({
     })
     return executeWorkflowService({
       workflowId: context.workflowId,
+      principal,
       userId: attribution.attributedUserId,
       input: input.input,
       triggerType: 'api',

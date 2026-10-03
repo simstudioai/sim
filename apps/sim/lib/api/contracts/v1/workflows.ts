@@ -4,7 +4,11 @@ import {
   deploymentOperationSummarySchema,
   deploymentVersionMetadataFieldsSchema,
 } from '@/lib/api/contracts/deployments'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  versionNumberSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema, workflowStateSchema } from '@/lib/api/contracts/workflows'
 
@@ -71,13 +75,6 @@ export const v1DeployWorkflowBodySchema = z.object({
 
 export type V1DeployWorkflowBody = z.input<typeof v1DeployWorkflowBodySchema>
 
-/** Bounded to the Postgres `integer` range of `workflow_deployment_version.version`. */
-const deploymentVersionNumberSchema = z
-  .number()
-  .int('version must be an integer')
-  .min(1, 'version must be a positive integer')
-  .max(2147483647, 'version is out of range')
-
 /**
  * Optional rollback target accepted by the v1 rollback endpoint. When
  * `version` is omitted the route rolls back to the deployment version that
@@ -85,7 +82,7 @@ const deploymentVersionNumberSchema = z
  * `parseOptionalJsonBody`, so it is not attached to the contract.
  */
 export const v1RollbackWorkflowBodySchema = z.object({
-  version: deploymentVersionNumberSchema.optional(),
+  version: versionNumberSchema.optional(),
 })
 
 export type V1RollbackWorkflowBody = z.input<typeof v1RollbackWorkflowBodySchema>

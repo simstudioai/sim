@@ -1,45 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoEnrichContactsParams,
   ZoomInfoEnrichContactsResponse,
 } from '@/tools/zoominfo/types'
-import {
-  buildProxyBody,
-  extractDataArray,
-  parseCsvOrJson,
-  parseJsonField,
-  transformZoomInfoEnvelope,
-  ZOOMINFO_PROXY_URL,
-} from '@/tools/zoominfo/utils'
+import { extractDataArray, transformZoomInfoResponse } from '@/tools/zoominfo/utils'
 
-/**
- * Default output fields used when the caller does not specify any. ZoomInfo's
- * ContactEnrich schema requires `outputFields`, so we send a useful contact set
- * rather than letting the request fail. All values are valid ContactEnrich fields.
- */
-const DEFAULT_CONTACT_OUTPUT_FIELDS = [
-  'id',
-  'firstName',
-  'lastName',
-  'email',
-  'phone',
-  'mobilePhone',
-  'jobTitle',
-  'jobFunction',
-  'managementLevel',
-  'city',
-  'state',
-  'country',
-  'contactAccuracyScore',
-  'validDate',
-  'lastUpdatedDate',
-  'companyId',
-  'companyName',
-  'companyWebsite',
-  'companyPhone',
-]
-
-export const zoominfoEnrichContactsTool: ToolConfig<
+export const zoominfoEnrichContactsTool: InternalToolConfig<
   ZoomInfoEnrichContactsParams,
   ZoomInfoEnrichContactsResponse
 > = {
@@ -85,43 +51,12 @@ export const zoominfoEnrichContactsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: ZOOMINFO_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const matchPersonInput = parseJsonField<unknown>(params.matchPersonInput, 'matchPersonInput')
-      if (!Array.isArray(matchPersonInput) || matchPersonInput.length === 0) {
-        throw new Error('matchPersonInput must be a non-empty JSON array')
-      }
-      if (matchPersonInput.length > 25) {
-        throw new Error('matchPersonInput supports a maximum of 25 entries per request')
-      }
-
-      const outputFields = parseCsvOrJson(params.outputFields, 'outputFields')
-      const attributes: Record<string, unknown> = {
-        matchPersonInput,
-        outputFields: outputFields ?? DEFAULT_CONTACT_OUTPUT_FIELDS,
-      }
-      const requiredFields = parseCsvOrJson(params.requiredFields, 'requiredFields')
-      if (requiredFields) attributes.requiredFields = requiredFields
-
-      return {
-        ...buildProxyBody(params),
-        path: '/data/v1/contacts/enrich',
-        method: 'POST',
-        body: {
-          data: {
-            type: 'ContactEnrich',
-            attributes,
-          },
-        },
-      }
-    },
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    const { data } = await transformZoomInfoEnvelope(response)
+    const { data } = await transformZoomInfoResponse(response)
     const results = extractDataArray(data)
     return {
       success: true,

@@ -2,15 +2,14 @@ import { CursorIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type { CursorResponse } from '@/tools/cursor/types'
 
-export const CursorBlock: BlockConfig<CursorResponse> = {
+export const CursorBlock: BlockConfig = {
   type: 'cursor',
   name: 'Cursor (Legacy)',
   description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
   longDescription:
     'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
-  docsLink: 'https://cursor.com/docs/cloud-agent/api/endpoints',
+  docsLink: 'https://docs.sim.ai/integrations/cursor',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#1E1E1E',
@@ -258,7 +257,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
   },
 }
 
-export const CursorV2Block: BlockConfig<CursorResponse> = {
+export const CursorV2Block: BlockConfig = {
   ...CursorBlock,
   sunset: undefined,
   type: 'cursor_v2',

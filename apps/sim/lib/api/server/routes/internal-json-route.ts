@@ -1,13 +1,21 @@
-import type {
-  DelegatedPrincipal,
-  Principal,
-  SessionPrincipal,
-  WorkflowExecutionDelegatedPrincipal,
+import {
+  type DelegatedPrincipal,
+  describePrincipalAuth,
+  type Principal,
+  resolvePrincipalSubjectUserId,
+  type SessionPrincipal,
+  type WorkflowExecutionDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
-import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
+import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
+import {
+  methodMatchesContract,
+  requireJsonRouteDefinition,
+} from '@/lib/api/server/routes/definition'
+import { responseWithRequestId, withRequestId } from '@/lib/api/server/routes/request-id'
 import type {
   JsonApiRouteContract,
   JsonErrorResponseDescriptor,
@@ -29,7 +37,12 @@ import {
   InvalidInternalDelegationBindingError,
 } from '@/lib/auth/internal-delegation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
+import { enforceUserRateLimit, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export class InternalUnauthenticatedError extends Error {
@@ -49,7 +62,7 @@ export const internalSessionAuth = {
   },
 } as const
 
-export interface InternalSessionOrExecutorAuthOptions {
+interface InternalSessionOrExecutorAuthOptions {
   audience: string
   resourceScope?(
     params: Record<string, string | string[] | undefined>
@@ -63,19 +76,19 @@ export function createInternalSessionOrExecutorAuth(
 
   return {
     async authenticate(request, params) {
-      if (request.headers.has('x-api-key')) {
+      if (request.headers.has(API_KEY_HEADER)) {
         throw new InternalUnauthenticatedError('Authentication required')
       }
 
       const authorization = request.headers.get('authorization')
       if (!authorization) return internalSessionAuth.authenticate()
-      if (!authorization.startsWith('Bearer ')) {
+      if (!authorization.startsWith(BEARER_PREFIX)) {
         throw new InternalUnauthenticatedError('Authentication required')
       }
 
       let delegation
       try {
-        delegation = await verifyInternalDelegationToken(authorization.slice('Bearer '.length))
+        delegation = await verifyInternalDelegationToken(authorization.slice(BEARER_PREFIX.length))
       } catch (error) {
         if (!(error instanceof InvalidInternalDelegationTokenError)) throw error
         throw new InternalUnauthenticatedError('Authentication required')
@@ -94,19 +107,49 @@ export function createInternalSessionOrExecutorAuth(
   }
 }
 
-interface InternalRateLimitPolicy {
+interface InternalNoRateLimitPolicy {
   readonly kind: 'none'
   readonly reason: string
   enforce(request: NextRequest, principal: Principal): Promise<void>
 }
 
+interface InternalUserRateLimitPolicy {
+  readonly kind: 'user'
+  readonly bucketName: string
+  enforce(request: NextRequest, principal: Principal): Promise<NextResponse | null>
+}
+
+type InternalRateLimitPolicy = InternalNoRateLimitPolicy | InternalUserRateLimitPolicy
+
 export const internalRateLimits = {
-  none({ reason }: { reason: string }): InternalRateLimitPolicy {
+  none({ reason }: { reason: string }): InternalNoRateLimitPolicy {
     if (!reason.trim()) throw new Error('A rate-limit exemption reason is required')
     return {
       kind: 'none',
       reason,
       async enforce() {},
+    }
+  },
+  user({
+    bucketName,
+    config,
+  }: {
+    bucketName: string
+    config?: TokenBucketConfig
+  }): InternalUserRateLimitPolicy {
+    if (!bucketName.trim()) throw new Error('A user rate-limit bucket name is required')
+    return {
+      kind: 'user',
+      bucketName,
+      async enforce(_request, principal) {
+        const userId = resolvePrincipalSubjectUserId(principal)
+        if (!userId) {
+          throw new Error(
+            `User rate limit cannot resolve a subject for ${principal.kind} principal`
+          )
+        }
+        return enforceUserRateLimit(bucketName, userId, config)
+      },
     }
   },
 } as const
@@ -116,23 +159,32 @@ export interface InternalErrorPolicy {
   unhandled?(): JsonErrorResponseDescriptor
 }
 
+/**
+ * The single internal error envelope: `{ error, requestId? }`.
+ *
+ * Routes previously chose between a bare `{ error }` and a `{ success: false,
+ * error }` variant. That split approximated pre-builder behavior, where the
+ * shape depended on which branch failed — guard clauses returned `{ error }`
+ * while a route's terminal `try/catch` returned `{ success: false, error }`.
+ * A per-route policy cannot express a per-branch rule, so the two variants
+ * disagreed on the same status across families. The bare shape wins because it
+ * is what {@link messageFromErrorBody} on the client reads and what the
+ * majority of migrated routes already emitted.
+ *
+ * `success: false` is not carried on error bodies: `requestJson` throws an
+ * `ApiClientError` for any non-2xx response, so no typed client ever observes
+ * the discriminator. `success: true` on *success* bodies is a separate
+ * contract and is unaffected.
+ */
 export const internalOrchestrationErrorPolicy: InternalErrorPolicy = {
   project(error) {
     const classified = asOrchestrationError(error)
     if (!classified) return null
     return internalErrorResponse(statusForOrchestrationError(classified.code), {
-      success: false,
-      error: classified.message,
-    })
-  },
-}
-
-export const internalPlainOrchestrationErrorPolicy: InternalErrorPolicy = {
-  project(error) {
-    const classified = asOrchestrationError(error)
-    if (!classified) return null
-    return internalErrorResponse(statusForOrchestrationError(classified.code), {
-      error: classified.message,
+      error: messageForOrchestrationError(
+        { error: classified.message, errorCode: classified.code },
+        'Internal server error'
+      ),
     })
   },
   unhandled() {
@@ -189,15 +241,33 @@ type InternalJsonParseOptions = Pick<
   'maxBodyBytes' | 'validationErrorResponse'
 >
 
-type InternalJsonPresenter<C extends JsonApiRouteContract, R> = [R] extends [
-  ContractJsonResponse<C>,
-]
-  ? {
-      present?(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
-  : {
-      present(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
+/**
+ * What a presenter may render from, beyond the use case's result.
+ *
+ * A surface that serves more than one caller kind can owe them different wire
+ * shapes for the same domain result — the internal table row routes answer a
+ * session in stable column ids and a workflow execution in column names. That is
+ * presentation, not domain, so it belongs in the adapter rather than the use
+ * case. {@link InternalJsonRouteOptions.responseHeaders} and
+ * {@link InternalJsonRouteOptions.finalizeResponse} already receive this pair;
+ * this closes the same gap for `present`.
+ */
+export interface InternalJsonPresenterContext<I, P extends Principal> {
+  principal: P
+  input: I
+}
+
+type InternalJsonPresentFn<C extends JsonApiRouteContract, I, R, P extends Principal> = (
+  result: NoInfer<R>,
+  context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
+) => ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+
+/** The presenter is optional exactly when the result already is the response body. */
+type InternalJsonPresenter<C extends JsonApiRouteContract, I, R, P extends Principal> = [
+  R,
+] extends [ContractJsonResponse<C>]
+  ? { present?: InternalJsonPresentFn<C, I, R, P> }
+  : { present: InternalJsonPresentFn<C, I, R, P> }
 
 type InternalJsonRouteOptions<
   C extends JsonApiRouteContract,
@@ -220,6 +290,9 @@ type InternalJsonRouteOptions<
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
+  statusForResult?(result: NoInfer<R>): number
+  /** Headers applied last to every response path, including authentication and parse failures. */
+  staticResponseHeaders?: HeadersInit
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
   finalizeResponse?(args: {
     request: NextRequest
@@ -228,10 +301,10 @@ type InternalJsonRouteOptions<
     result: NoInfer<R>
     body: ContractJsonResponse<C>
   }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
-} & InternalJsonPresenter<C, R>
+} & InternalJsonPresenter<C, I, R, P>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
-  return NextResponse.json(descriptor.body, {
+  return NextResponse.json(withRequestId(descriptor.body), {
     status: descriptor.status,
     headers: descriptor.headers,
   })
@@ -257,6 +330,11 @@ function appendFinalizedHeaders(base: HeadersInit | undefined, additions?: Heade
   const headers = new Headers(base)
   if (!additions) return headers
   new Headers(additions).forEach((value, key) => {
+    /** A finalizer may clear several cookies at once; each needs its own header line. */
+    if (key === 'set-cookie') {
+      headers.append(key, value)
+      return
+    }
     if (headers.has(key)) {
       throw new Error(`Internal JSON response finalizer cannot replace header "${key}"`)
     }
@@ -277,15 +355,9 @@ export function defineInternalJsonRoute<
     options.operation,
     options.useCase.operation
   )
-  if (successStatuses.length !== 1) {
-    throw new Error(
-      `${options.contract.method} ${options.contract.path} internal JSON route requires one success status`
-    )
-  }
-
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )
@@ -297,12 +369,14 @@ export function defineInternalJsonRoute<
         principal = await options.auth.authenticate(request, rawParams)
       } catch (error) {
         if (error instanceof InternalUnauthenticatedError) {
-          return NextResponse.json({ error: error.message }, { status: 401 })
+          return createJsonErrorResponse(internalErrorResponse(401, { error: error.message }))
         }
         throw error
       }
+      setRequestAuth(describePrincipalAuth(principal))
 
-      await options.rateLimit.enforce(request, principal)
+      const rateLimitResponse = await options.rateLimit.enforce(request, principal)
+      if (rateLimitResponse) return responseWithRequestId(rateLimitResponse)
       if (options.beforeParse) {
         try {
           await options.beforeParse({ request, principal, params: rawParams })
@@ -318,7 +392,7 @@ export function defineInternalJsonRoute<
         context ?? {},
         options.parseOptions
       )
-      if (!parsed.success) return parsed.response
+      if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {
         const input = await options.mapInput(parsed.data, { principal, request })
@@ -328,12 +402,18 @@ export function defineInternalJsonRoute<
           request,
         })
         await options.onSuccess?.({ principal, input, result })
-        const body = options.present ? await options.present(result) : result
+        const body = options.present ? await options.present(result, { principal, input }) : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
         }
         const validatedBody = responseSchema.schema.parse(body) as ContractJsonResponse<C>
+        const responseStatus = options.statusForResult?.(result) ?? successStatus
+        if (!successStatuses.includes(responseStatus)) {
+          throw new Error(
+            `Internal JSON route produced undeclared success status ${responseStatus}; expected ${successStatuses.join(', ')}`
+          )
+        }
         const headers = options.responseHeaders?.({ principal, input, result })
         const finalization = options.finalizeResponse
           ? await options.finalizeResponse({
@@ -347,7 +427,7 @@ export function defineInternalJsonRoute<
         return NextResponse.json(
           appendFinalizedBodyFields(validatedBody, finalization?.bodyFields),
           {
-            status: successStatus,
+            status: responseStatus,
             headers: appendFinalizedHeaders(headers, finalization?.headers),
           }
         )
@@ -358,18 +438,27 @@ export function defineInternalJsonRoute<
       }
     },
     {
-      typedErrorResponse: ({ error, status }) =>
-        NextResponse.json({ error: error.message }, { status }),
+      clientAbortResponse: ({ requestId }) =>
+        createJsonErrorResponse(
+          internalErrorResponse(499, { error: 'Client cancelled request', requestId })
+        ),
+      typedErrorResponse: ({ error, status, requestId }) =>
+        NextResponse.json({ error: error.message, requestId }, { status }),
       unhandledErrorResponse: () =>
         createJsonErrorResponse(
           options.errorPolicy.unhandled?.() ??
-            internalErrorResponse(500, {
-              success: false,
-              error: 'Internal server error',
-            })
+            internalErrorResponse(500, { error: 'Internal server error' })
         ),
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  return async (request, context) => {
+    const response = await wrapped(request, context)
+    if (options.staticResponseHeaders) {
+      new Headers(options.staticResponseHeaders).forEach((value, key) => {
+        response.headers.set(key, value)
+      })
+    }
+    return response
+  }
 }

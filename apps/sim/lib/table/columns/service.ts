@@ -28,6 +28,7 @@ import {
   isValueCompatible,
   TYPE_SPECIFIC_COLUMN_KEYS,
 } from '@/lib/table/column-types'
+import { columnTextForEquality } from '@/lib/table/column-types/comparison-sql'
 import {
   migrationFrom,
   migrationTo,
@@ -39,8 +40,10 @@ import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutati
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   ColumnDefinition,
@@ -57,7 +60,7 @@ import type {
   UpdateColumnTypeData,
 } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
-import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableColumnService')
 const COLUMN_RETYPE_SCAN_MAX_BYTES = 32 * 1024 * 1024
@@ -129,6 +132,8 @@ export async function addTableColumn(
   requestId: string,
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
+  if (column.type === 'ttl') await assertTableRowTtlEnabled()
+
   return withLockedTable(
     tableId,
     async (table, trx) => {
@@ -504,113 +509,6 @@ export async function deleteColumn(
 }
 
 /**
- * Deletes multiple columns from a table in a single transaction.
- * Avoids the race condition of calling deleteColumn multiple times in parallel.
- */
-export async function deleteColumns(
-  data: { tableId: string; columnNames: string[] },
-  requestId: string,
-  options?: ColumnMutationOptions
-): Promise<TableDefinition> {
-  const { def, stripKeys } = await withLockedTable(
-    data.tableId,
-    async (table, trx) => {
-      assertColumnDestructive(table)
-      const schema = table.schema
-      const namesToDelete = new Set<string>()
-      const idsToDelete = new Set<string>()
-      const notFound: string[] = []
-
-      for (const name of data.columnNames) {
-        const col = schema.columns.find((c) => columnMatchesRef(c, name))
-        if (!col) {
-          notFound.push(name)
-        } else {
-          namesToDelete.add(col.name)
-          idsToDelete.add(getColumnId(col))
-        }
-      }
-
-      if (notFound.length > 0) {
-        throw new OrchestrationError('not_found', `Columns not found: ${notFound.join(', ')}`)
-      }
-
-      const remaining = schema.columns.filter((c) => !namesToDelete.has(c.name))
-      if (remaining.length === 0) {
-        throw new OrchestrationError('validation', 'Cannot delete all columns from a table')
-      }
-
-      // For each group, drop outputs whose column (by id) is being deleted. Groups
-      // that end up with zero outputs are removed entirely (they'd be invalid).
-      // Then any remaining group's dependencies referencing a removed column are
-      // cleaned up.
-      const removedGroupIds = new Set<string>()
-      let updatedGroups = (schema.workflowGroups ?? []).map((group) => {
-        const remainingOutputs = group.outputs.filter((o) => !idsToDelete.has(o.columnName))
-        if (remainingOutputs.length === 0) {
-          removedGroupIds.add(group.id)
-        }
-        return remainingOutputs.length === group.outputs.length
-          ? group
-          : { ...group, outputs: remainingOutputs }
-      })
-      updatedGroups = updatedGroups
-        .filter((g) => !removedGroupIds.has(g.id))
-        .map((group) => stripGroupDeps(group, idsToDelete))
-      const updatedSchema: TableSchema = {
-        ...schema,
-        columns: remaining,
-        ...(updatedGroups.length > 0 ? { workflowGroups: updatedGroups } : {}),
-      }
-      const updatedMetadata = stripColumnIdsFromMetadata(
-        table.metadata as TableMetadata | null,
-        idsToDelete
-      )
-      assertValidSchema(updatedSchema, updatedMetadata?.columnOrder)
-
-      const now = new Date()
-
-      // Schema/metadata commit now; row storage for the deleted columns is
-      // reclaimed in the background (fire-and-forget).
-      await trx
-        .update(userTableDefinitions)
-        .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
-        .where(
-          and(
-            eq(userTableDefinitions.id, data.tableId),
-            eq(userTableDefinitions.workspaceId, table.workspaceId)
-          )
-        )
-
-      await stripGroupExecutions(trx, data.tableId, removedGroupIds, {
-        expectedWorkspaceId: table.workspaceId,
-      })
-
-      logger.info(
-        `[${requestId}] Deleted columns [${[...namesToDelete].join(', ')}] from table ${data.tableId}`
-      )
-
-      return {
-        def: { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now },
-        stripKeys: Array.from(idsToDelete),
-      }
-    },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
-  )
-
-  if (stripKeys.length > 0) {
-    stripColumnDataInBackground(
-      data.tableId,
-      def.workspaceId,
-      stripKeys,
-      def.rowCount ?? 0,
-      requestId
-    )
-  }
-  return def
-}
-
-/**
  * Validates a constraint change against the column's stored data, and returns
  * the column with those constraints applied.
  *
@@ -652,7 +550,7 @@ async function applyConstraints(
         `Cannot set column "${column.name}" as unique: ${column.type} columns compare stored values that would allow only one row per value.`
       )
     }
-    if (await hasDuplicateValues(trx, tableId, workspaceId, columnKey)) {
+    if (await hasDuplicateValues(trx, tableId, workspaceId, column)) {
       throw new OrchestrationError(
         'validation',
         `Cannot set column "${column.name}" as unique: duplicate values exist`
@@ -687,7 +585,7 @@ async function persistColumns(
 }
 
 /**
- * Whether any two rows share a stored value in this column.
+ * Whether any two rows share an equal value in this column.
  *
  * Shared by the constraint write and the retype's pre-validation so the two
  * cannot drift — the same reason {@link countEmptyCells} is shared. A retype
@@ -699,10 +597,13 @@ async function hasDuplicateValues(
   trx: DbTransaction,
   tableId: string,
   workspaceId: string,
-  columnKey: string
+  column: ColumnDefinition
 ): Promise<boolean> {
+  const columnKey = getColumnId(column)
+  const storedValue = sql`${userTableRows.data}->>${columnKey}::text`
+  const comparableValue = columnTextForEquality(storedValue, column)
   const duplicates = (await trx.execute(
-    sql`SELECT ${userTableRows.data}->>${columnKey}::text AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${tableId} AND workspace_id = ${workspaceId} AND ${userTableRows.data} ? ${columnKey} AND ${userTableRows.data}->>${columnKey}::text IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
+    sql`SELECT ${comparableValue} AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${tableId} AND workspace_id = ${workspaceId} AND ${userTableRows.data} ? ${columnKey} AND ${comparableValue} IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
   )) as { val: string; cnt: number }[]
   return duplicates.length > 0
 }
@@ -744,6 +645,41 @@ export function applyPendingRename(
     throw new OrchestrationError('validation', `Column "${newName}" already exists`)
   }
   return { ...column, name: newName }
+}
+
+/**
+ * What a retype must write back for one already-compatible cell, or `null` when
+ * the stored value is already the value the new type should hold.
+ *
+ * A blank the target CANNOT read becomes null — the write path turns an
+ * unreadable value into null on an optional column, so the conversion does the
+ * same. A blank the target CAN read (`''` in a `string` or `json` column) is
+ * left exactly as stored: nulling it would silently destroy the cell, and on a
+ * `required` target it would leave a null behind a constraint that just passed
+ * (`countEmptyCells` does not treat `''` as empty).
+ *
+ * Everything else goes through the target's `coerce`, which frequently
+ * transforms the value — `$1,234.56` becomes `1234.56`. Without writing the
+ * transformed value back, the cell keeps its old bytes under the new type,
+ * and the type's `jsonbCast` can fail on every filter or sort.
+ */
+export function retypeCellRewrite(
+  value: unknown,
+  target: ColumnDefinition
+): { value: JsonValue } | null {
+  if (value === null || value === undefined) return null
+
+  const effective = value as JsonValue
+
+  if (!isValueCompatibleWithColumn(effective, target)) {
+    // Incompatible non-blanks never reach here: the compatibility scan already
+    // refused the whole conversion for them.
+    return effective === '' ? { value: null } : null
+  }
+
+  const coerced = columnTypeById(target.type).coerce(effective, target)
+  if (coerced.ok && !Object.is(coerced.value, value)) return { value: coerced.value }
+  return null
 }
 
 /**
@@ -813,6 +749,8 @@ export async function updateColumnType(
   requestId: string,
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
+  if (data.newType === 'ttl') await assertTableRowTtlEnabled()
+
   return withLockedTable(
     data.tableId,
     async (table, trx) => {
@@ -872,10 +810,7 @@ export async function updateColumnType(
       }
       const columnKey = getColumnId(column)
 
-      // Options the column will carry after the change — a `select` value is only
-      // compatible if it resolves against this set.
       const isSelectType = data.newType === 'select'
-      const targetOptions = data.options ?? column.options ?? []
       const targetMultiple = data.multiple ?? column.multiple
       // Leaving `select` behind: stored cells hold option ids, which mean nothing
       // once the column is text/number/etc. Check compatibility against the option
@@ -908,23 +843,21 @@ export async function updateColumnType(
         isSelectType,
         targetMultiple: !!targetMultiple,
       })
+      const renamedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
+      const updatedColumns = renamedColumns.map((c, i) =>
+        i === columnIndex ? applyPendingRename(renamedColumns, columnIndex, data.newName) : c
+      )
+      const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+      assertValidSchema(updatedSchema, table.metadata?.columnOrder)
 
       let incompatibleCount = 0
       let blankCount = 0
       /**
-       * Row id → the value the cell must END UP holding.
-       *
-       * Collected during the compatibility scan rather than re-derived later, so
-       * it reads the same `effective` value the check accepted — which for a
-       * `select` source is the option name, not the stored id.
-       *
-       * Load-bearing: a conversion is allowed exactly when the target type's
-       * `coerce` accepts the value, and `coerce` frequently *transforms* it (an
-       * epoch number becomes an ISO date, a formatted amount becomes a number).
-       * Without writing the transformed value back, the cell keeps its old bytes
-       * under the new type — and since filters and sorts apply the type's
-       * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
-       * `::timestamptz` fail on EVERY query against it.
+       * Compatibility scan, paged so a wide table cannot pull every row into
+       * memory at once. Only counts here — the values the cells must END UP
+       * holding are derived in the rewrite pass below, which reads the rows
+       * back after `migrationFrom` has run so a `select` source is already in
+       * its option-name form. See {@link retypeCellRewrite}.
        */
       const retypeScanBatchSize = getColumnRetypeScanBatchSize()
       let validationAfterId: string | undefined
@@ -972,11 +905,6 @@ export async function updateColumnType(
         )
       }
 
-      const renamedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
-      const updatedColumns = renamedColumns.map((c, i) =>
-        i === columnIndex ? applyPendingRename(renamedColumns, columnIndex, data.newName) : c
-      )
-
       const columnValidation = validateColumnDefinition(updatedColumns[columnIndex])
       if (!columnValidation.valid) {
         throw new OrchestrationError(
@@ -985,7 +913,6 @@ export async function updateColumnType(
         )
       }
 
-      const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
       const now = new Date()
 
       // Cell rewrites are owned by the column-type registry, keyed by direction.
@@ -1001,9 +928,7 @@ export async function updateColumnType(
         resolved: new Map<string, JsonValue>(),
       }
       await migrationFrom(column.type)?.(migrationContext)
-      if (isSelectType) {
-        await migrationTo(data.newType)?.(migrationContext)
-      } else {
+      if (!isSelectType) {
         let rewriteAfterId: string | undefined
         while (true) {
           const rows = await readColumnRetypePage(
@@ -1017,16 +942,8 @@ export async function updateColumnType(
           if (rows.length === 0) break
           const coercedByRowId = new Map<string, JsonValue>()
           for (const row of rows) {
-            const value = row.value
-            if (value === null || value === undefined) continue
-            if (value === '') {
-              coercedByRowId.set(row.id, null)
-              continue
-            }
-            const coerced = columnTypeById(data.newType).coerce(value as JsonValue, convertedColumn)
-            if (coerced.ok && !Object.is(coerced.value, value)) {
-              coercedByRowId.set(row.id, coerced.value)
-            }
+            const rewrite = retypeCellRewrite(row.value, convertedColumn)
+            if (rewrite) coercedByRowId.set(row.id, rewrite.value)
           }
           await writeBackCoercedCells(
             trx,
@@ -1039,6 +956,9 @@ export async function updateColumnType(
           if (rows.length < retypeScanBatchSize) break
         }
       }
+      if (isSelectType) {
+        await migrationTo(data.newType)?.(migrationContext)
+      }
 
       // A `unique` arriving with this retype is validated HERE, against the values
       // the conversion just wrote — not by the separate constraint write that
@@ -1048,7 +968,7 @@ export async function updateColumnType(
       // report an error with the retype already committed and the original text
       // irrecoverably rewritten.
       if (data.unique === true && !column.unique) {
-        if (await hasDuplicateValues(trx, data.tableId, table.workspaceId, columnKey)) {
+        if (await hasDuplicateValues(trx, data.tableId, table.workspaceId, convertedColumn)) {
           throw new OrchestrationError(
             'validation',
             `Cannot change column "${column.name}" to type "${data.newType}" and set it as unique: the converted values contain duplicates.`
@@ -1149,9 +1069,16 @@ export async function updateColumnConstraints(
 
 /**
  * Updates the option set (and optional single/multi mode) of a `select` column
- * without changing its type. Existing cell values are left untouched — ids that
- * no longer match an option render as a neutral fallback pill until reassigned;
- * a single↔multi toggle is reconciled lazily on the next row write.
+ * without changing its type.
+ *
+ * Lock gating is split, because the payload decides how destructive the write
+ * is. Every call changes the schema, so `assertSchemaMutable` always runs. A
+ * payload that DROPS options additionally rewrites `user_table_rows.data` (see
+ * {@link clearRemovedSelectOptions}) — exactly the cell destruction the delete
+ * lock exists to refuse — so that case escalates to `assertColumnDestructive`.
+ * Adding, reordering, or renaming options and toggling `multiple` never clear a
+ * cell (a multi→single toggle refuses rather than truncates), so gating those on
+ * the delete lock would block a non-destructive edit.
  */
 export async function updateColumnOptions(
   data: UpdateColumnOptionsData,
@@ -1161,6 +1088,8 @@ export async function updateColumnOptions(
   return withLockedTable(
     data.tableId,
     async (table, trx) => {
+      assertSchemaMutable(table)
+
       const schema = table.schema
       const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
       if (columnIndex === -1) {
@@ -1200,6 +1129,9 @@ export async function updateColumnOptions(
       // request. `applyConstraints` validates and applies it below, after the cell
       // migrations; the checks in between need to read the target value.
       const targetRequired = !!(data.required ?? column.required)
+
+      // Dropping an option is a row-data rewrite, not a schema-only edit.
+      if (removedAny) assertColumnDestructive(table)
 
       if (togglingCardinality || removedAny) {
         const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {

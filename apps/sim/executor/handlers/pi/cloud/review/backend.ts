@@ -9,6 +9,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import { resolvePiRunLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
@@ -53,7 +54,7 @@ import {
 } from '@/executor/handlers/pi/search/normalize'
 import { getPiProviderId } from '@/providers/pi-providers'
 import { executeTool } from '@/tools'
-import { isRecord, requiredTrimmedString } from '@/tools/github/response-parsers'
+import { requiredTrimmedString } from '@/tools/github/response-parsers'
 import type { ReviewFindings } from '@/tools/github/review-schema'
 
 const logger = createLogger('PiCloudReviewBackend')
@@ -191,7 +192,7 @@ async function submitReview(
   }
 
   const output: unknown = result.output
-  if (!isRecord(output)) throw new Error(`${REVIEW_RESPONSE_CONTEXT} must be an object`)
+  if (!isRecordLike(output)) throw new Error(`${REVIEW_RESPONSE_CONTEXT} must be an object`)
   if (output.commit_id !== null && output.commit_id !== headSha) {
     throw new Error('GitHub review response did not match the reviewed commit')
   }
@@ -217,7 +218,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
     const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
 
     try {
-      return await withPiSandbox({ lifetimeMs }, async (runner) => {
+      return await withPiSandbox({ lifetimeMs, cost: context.sandboxCost }, async (runner) => {
         await runner.writeFile(GIT_ASKPASS_PATH, GIT_ASKPASS_SCRIPT)
         const fetched = await raceAbort(
           runner.run(FETCH_PR_SCRIPT, {
@@ -299,7 +300,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
             )
           }
 
-          const settingsManager = sdk.SettingsManager.inMemory()
+          const settingsManager = sdk.SettingsManager.inMemory({ cacheWarming: 'off' })
           const resourceLoader = createSealedPiResourceLoader(
             sdk,
             buildReviewSystemPrompt(Boolean(searchTool))

@@ -25,7 +25,8 @@ jobs:
   migrate:
     name: Apply Database Migrations
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 45
+    # Bulk projection loads and concurrent index builds can outlast ordinary schema changes.
+    timeout-minutes: 300
 
     steps:
       - name: Checkout code
@@ -34,7 +35,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.2
 
       - name: Cache Bun dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -63,6 +64,8 @@ jobs:
           MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
+          set -euo pipefail
+
           if [ -z "$DATABASE_URL" ]; then
             echo "ERROR: no database URL secret resolved for environment '${ENVIRONMENT}'" >&2
             exit 1
@@ -70,16 +73,9 @@ jobs:
 
           if [ "${ENVIRONMENT}" = "dev" ]; then
             echo "Dev environment — pushing schema directly (db:push)"
-            # drizzle-kit push needs a TTY to resolve ambiguous renames (--force only
-            # covers data-loss). In CI it throws "Interactive prompts require a TTY
-            # terminal" but still exits 0, so the job goes green without applying the
-            # change. tee keeps the output live in the log; we then fail on drizzle's
-            # own TTY error. A genuine non-zero exit already fails via `set -e`.
-            bun run db:push --force < /dev/null 2>&1 | tee /tmp/db-push.log
-            if grep -q "Interactive prompts require a TTY terminal" /tmp/db-push.log; then
-              echo "ERROR: db:push needs an interactive rename decision; land it as a versioned migration instead of relying on push." >&2
-              exit 1
-            fi
+            # Dev deliberately forces direct schema reconciliation; staging and
+            # production use guarded versioned migrations in the other branch.
+            SIM_DEV_DB_PUSH=1 bun run db:push --force < /dev/null
           else
             echo "Applying versioned migrations (db:migrate)"
             bun run ./scripts/migrate.ts

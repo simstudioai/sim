@@ -46,7 +46,7 @@ export const kalshiGetBalanceTool: ToolConfig<KalshiGetBalanceParams, KalshiGetB
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_balance')
+      handleKalshiError(data, 'get_balance')
     }
 
     const balance = data.balance ?? 0
@@ -122,7 +122,7 @@ export const kalshiGetBalanceV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_balance_v2')
+      handleKalshiError(data, 'get_balance_v2')
     }
 
     return {

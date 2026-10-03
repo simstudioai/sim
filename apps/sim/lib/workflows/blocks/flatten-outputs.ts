@@ -8,13 +8,19 @@
  * output shapes, BFS sort order) don't drift between consumers.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { HUMAN_IN_THE_LOOP_BLOCK_TYPES } from '@/executor/constants'
 
 /**
  * Block types whose "outputs" are really workflow inputs (Start/starter) or flow
  * control and should never appear in an output picker.
  */
-export const EXCLUDED_OUTPUT_TYPES = new Set(['starter', 'start_trigger', 'human_in_the_loop'])
+export const EXCLUDED_OUTPUT_TYPES = new Set([
+  'starter',
+  'start_trigger',
+  ...HUMAN_IN_THE_LOOP_BLOCK_TYPES,
+])
 
 export interface FlattenedBlockOutput {
   blockId: string
@@ -90,9 +96,7 @@ export function flattenWorkflowOutputs(
     const add = (path: string, outputObj: unknown, prefix = ''): void => {
       const fullPath = prefix ? `${prefix}.${path}` : path
       const declaredType =
-        outputObj &&
-        typeof outputObj === 'object' &&
-        !Array.isArray(outputObj) &&
+        isRecordLike(outputObj) &&
         'type' in (outputObj as object) &&
         typeof (outputObj as { type: unknown }).type === 'string'
           ? (outputObj as { type: string }).type

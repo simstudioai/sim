@@ -1,8 +1,11 @@
 import type { JsmUpdateObjectParams, JsmUpdateObjectResponse } from '@/tools/jsm/types'
 import { ASSET_OBJECT_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmUpdateObjectTool: ToolConfig<JsmUpdateObjectParams, JsmUpdateObjectResponse> = {
+export const jsmUpdateObjectTool: InternalToolConfig<
+  JsmUpdateObjectParams,
+  JsmUpdateObjectResponse
+> = {
   id: 'jsm_update_object',
   name: 'JSM Update Asset Object',
   description:
@@ -60,11 +63,8 @@ export const jsmUpdateObjectTool: ToolConfig<JsmUpdateObjectParams, JsmUpdateObj
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/assets/object/update',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

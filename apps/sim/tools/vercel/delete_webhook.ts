@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelDeleteWebhookParams, VercelDeleteWebhookResponse } from '@/tools/vercel/types'
 
 export const vercelDeleteWebhookTool: ToolConfig<
@@ -36,7 +37,7 @@ export const vercelDeleteWebhookTool: ToolConfig<
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v1/webhooks/${params.webhookId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v1/webhooks/${safeUrlPathSegment(params.webhookId, 'webhookId')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params: VercelDeleteWebhookParams) => ({

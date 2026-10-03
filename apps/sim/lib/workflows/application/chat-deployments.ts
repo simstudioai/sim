@@ -1,25 +1,28 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
-  type Principal,
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
   toPrincipalActor,
 } from '@sim/auth/principal'
-import { chat, db } from '@sim/db'
-import { and, eq, isNull } from 'drizzle-orm'
+import {
+  ChatIdentifierInUseError,
+  chatIdentifierUniquenessConflict,
+} from '@/lib/chat-deployments/application/errors'
+import { toChatDeploymentView } from '@/lib/chat-deployments/application/read-chat-deployments'
+import {
+  getChatDeploymentIdOwningIdentifier,
+  getLiveChatDeploymentForWorkflow,
+} from '@/lib/chat-deployments/queries'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
-import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
-import {
-  ChatDeployAuthNotAllowedError,
-  validateChatDeployAuth,
-} from '@/ee/access-control/utils/permission-check'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { performChatDeploy } from '@/lib/workflows/orchestration'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
+import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
 type ChatAuthType = 'public' | 'password' | 'email' | 'sso'
-type ChatOutputConfig = { blockId: string; path: string }
+type ChatOutputConfig = { workflowId?: string; blockId: string; path: string }
 type ChatCustomizations = {
   primaryColor?: string
   welcomeMessage?: string
@@ -32,8 +35,13 @@ export interface DeployWorkflowChatInput {
   identifier?: string
   title?: string
   description?: string
-  versionDescription: string
-  versionName: string
+  /**
+   * Optional because only the Copilot surface accepts them: `deploy_as_chat`
+   * requires both and refuses the tool call without them, while neither HTTP
+   * create contract declares a way to send one.
+   */
+  versionDescription?: string
+  versionName?: string
   customizations?: ChatCustomizations
   authType?: ChatAuthType
   password?: string | null
@@ -43,11 +51,6 @@ export interface DeployWorkflowChatInput {
   includeToolCalls?: boolean
   requestId: string
   idempotencyKey?: string
-}
-
-export interface UndeployWorkflowChatInput {
-  workflowId: string
-  assertedWorkspaceId?: string
 }
 
 function parseChatOutputConfigs(value: unknown[] | undefined): ChatOutputConfig[] | undefined {
@@ -60,37 +63,30 @@ function parseChatOutputConfigs(value: unknown[] | undefined): ChatOutputConfig[
         'blockId' in entry &&
         typeof entry.blockId === 'string' &&
         entry.blockId.length > 0 &&
+        (!('workflowId' in entry) ||
+          entry.workflowId === undefined ||
+          (typeof entry.workflowId === 'string' && entry.workflowId.length > 0)) &&
         'path' in entry &&
         typeof entry.path === 'string'
     )
   ) {
     throw new OrchestrationError('validation', 'Invalid chat output configuration')
   }
+  try {
+    for (const config of value) {
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
+    }
+  } catch {
+    throw new OrchestrationError('validation', 'Invalid chat output configuration')
+  }
   return value
-}
-
-function resolveWorkflowContext<I extends { workflowId: string; assertedWorkspaceId?: string }>({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: I
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
 }
 
 export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.deployChat,
-  resolveContext: resolveWorkflowContext<DeployWorkflowChatInput>,
+  resolveContext: resolvePrincipalWorkflowContext<DeployWorkflowChatInput>,
   async execute({ principal, input, context }) {
-    const [existingDeployment] = await db
-      .select()
-      .from(chat)
-      .where(and(eq(chat.workflowId, context.workflowId), isNull(chat.archivedAt)))
-      .limit(1)
+    const existingDeployment = await getLiveChatDeploymentForWorkflow(context.workflowId)
 
     const identifier = (input.identifier || existingDeployment?.identifier || '').trim()
     const title = (input.title || existingDeployment?.title || '').trim()
@@ -104,13 +100,9 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
       )
     }
 
-    const [identifierOwner] = await db
-      .select({ id: chat.id })
-      .from(chat)
-      .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
-      .limit(1)
-    if (identifierOwner && identifierOwner.id !== existingDeployment?.id) {
-      throw new OrchestrationError('conflict', 'Identifier already in use')
+    const identifierOwnerId = await getChatDeploymentIdOwningIdentifier(identifier)
+    if (identifierOwnerId && identifierOwnerId !== existingDeployment?.id) {
+      throw new ChatIdentifierInUseError()
     }
 
     const existingCustomizations =
@@ -139,16 +131,24 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
         : {}),
     }
 
+    /**
+     * An email- or SSO-gated chat with an empty allow-list is unenterable: the
+     * login form has nothing to match, so the deployment fails closed for
+     * everyone. Enforced here rather than at the HTTP boundary because the
+     * Copilot tool reaches this use case without one.
+     */
+    if ((authType === 'email' || authType === 'sso') && allowedEmails.length === 0) {
+      throw new OrchestrationError(
+        'validation',
+        authType === 'email'
+          ? 'At least one email or domain is required when using email access control'
+          : 'At least one email or domain is required when using SSO access control'
+      )
+    }
+
     const subjectUserId = requirePrincipalSubjectUserId(principal)
     if (authType !== existingDeployment?.authType) {
-      try {
-        await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
-      } catch (error) {
-        if (error instanceof ChatDeployAuthNotAllowedError) {
-          throw new OrchestrationError('forbidden', error.message)
-        }
-        throw error
-      }
+      await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
     }
 
     const attribution = resolvePrincipalAttribution(principal, {
@@ -178,14 +178,35 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
       ...(principal.kind === 'delegated'
         ? { captureDeploymentAnalytics: false as const, captureLegacyTelemetry: false }
         : {}),
-    })
-    if (!result.success || !result.chatId || !result.chatUrl) {
-      throw new OrchestrationError('validation', result.error ?? 'Failed to deploy chat')
+    }).catch(chatIdentifierUniquenessConflict(identifier))
+    if (!result.success) {
+      /**
+       * Classified by the orchestration rather than flattened to a `400`: an
+       * in-flight deployment is a `409` the caller can retry, and an invariant
+       * failure is a `500` rather than a claim that the request was malformed.
+       */
+      const message = result.error ?? 'Failed to deploy chat'
+      if (!result.errorCode || result.errorCode === 'internal') throw new Error(message)
+      throw new OrchestrationError(result.errorCode, message)
+    }
+    if (!result.chatId || !result.chatUrl) {
+      throw new Error('Chat deployment succeeded without a chat id or URL')
+    }
+    /**
+     * Re-read the settled row so callers present what was actually stored
+     * rather than what was requested — the orchestration normalizes several
+     * fields (the gate columns, the customization defaults) on the way in.
+     */
+    const deployment = await getLiveChatDeploymentForWorkflow(context.workflowId)
+    if (!deployment) {
+      throw new Error('Chat deployment succeeded without leaving a deployment row')
     }
     return {
       ...result,
       chatId: result.chatId,
       chatUrl: result.chatUrl,
+      deployment: toChatDeploymentView(deployment),
+      workspaceId: context.workspaceId,
       workflowId: context.workflowId,
       identifier,
       title,
@@ -212,47 +233,6 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
       isUpdate: result.isUpdate,
       hasOutputConfigs: result.outputConfigs.length > 0,
       hasCustomizations: Object.keys(result.customizations).length > 0,
-    },
-  }),
-})
-
-export const undeployWorkflowChat = defineAuthorizedWorkflowUseCase({
-  operation: workflowOperations.undeployChat,
-  resolveContext: resolveWorkflowContext<UndeployWorkflowChatInput>,
-  async execute({ principal, context }) {
-    const [deployment] = await db
-      .select()
-      .from(chat)
-      .where(and(eq(chat.workflowId, context.workflowId), isNull(chat.archivedAt)))
-      .limit(1)
-    if (!deployment) {
-      throw new OrchestrationError('not_found', 'No active chat deployment found for this workflow')
-    }
-
-    const attribution = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    })
-    const result = await performChatUndeploy({
-      chatId: deployment.id,
-      userId: attribution.attributedUserId,
-      workspaceId: context.workspaceId,
-      projectLegacyAudit: false,
-    })
-    if (!result.success) {
-      throw new OrchestrationError('not_found', result.error ?? 'Failed to undeploy chat')
-    }
-    return { workflowId: context.workflowId, deployment }
-  },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.CHAT_DELETED,
-    resourceType: AuditResourceType.CHAT,
-    resourceId: result.deployment.id,
-    resourceName: result.deployment.title || result.deployment.id,
-    description: `Deleted chat deployment "${result.deployment.title || result.deployment.id}"`,
-    metadata: {
-      workflowId: result.workflowId,
-      identifier: result.deployment.identifier || undefined,
-      authType: result.deployment.authType || undefined,
     },
   }),
 })

@@ -1,0 +1,54 @@
+---
+title: Knowledge Base
+description: A store of documents your agents can search by meaning.
+---
+
+import { Video } from '@/components/ui/video'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { FAQ } from '@/components/ui/faq'
+
+A **knowledge base** is a store of documents your agents can search by meaning. You upload files, Sim splits them into chunks and indexes them, and a [Knowledge block](/knowledgebase/using-in-workflows) retrieves the chunks most relevant to a query. This is how an agent answers from your own content instead of the model's general training.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="knowledgebase-1.mp4" width={700} height={450} />
+</div>
+
+## How a document becomes searchable
+
+When you upload a document, Sim processes it in the background:
+
+1. **Extract** the text, with a parser for each file type and OCR for scanned PDFs.
+2. **Chunk** it into passages, with a size and overlap you can tune.
+3. **Embed** each chunk as a vector so it can be matched by meaning, not just keywords.
+
+A document is searchable once its status reads `completed`. Open any document to view, edit, merge, or split its chunks.
+
+Every knowledge base records the embedding model and the vector width it was built with, and keeps them for its lifetime. Two bases built differently cannot be searched in one request — vectors are only comparable when they come from the same model at the same size — so search them separately, or rebuild one to match. On Sim Cloud every base uses `text-embedding-3-small` at 1,536 dimensions; self-hosted deployments choose both with [`KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS`](/platform/self-hosting/environment-variables), including models on their own Ollama.
+
+## What you can upload
+
+Sim accepts PDF, Word, text, Markdown, HTML, Excel, PowerPoint, CSV, JSON, and YAML files, up to 100 MB each (best under 50 MB). Scanned PDFs work too: with Azure or [Mistral OCR](https://docs.mistral.ai/ocr/) configured, Sim extracts text from image-based pages.
+
+## Shaping what a search returns
+
+Two things control retrieval quality, and each has its own page:
+
+- **Chunking** decides how a document is split. Smaller chunks are more precise; larger ones keep more context. See [chunking strategies](/knowledgebase/chunking-strategies).
+- **Tags** label documents so a search can filter to a subset. See [tags and filtering](/knowledgebase/tags).
+
+To keep a base in sync with an outside source like Google Drive, use a [connector](/knowledgebase/connectors).
+
+## Next
+
+<Cards>
+  <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="The Knowledge block: search, tags, reranking, and reading the results." />
+  <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="How chunk size and boundaries shape retrieval." />
+  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Label documents and narrow a search." />
+  <Card title="Connectors" href="/knowledgebase/connectors" description="Sync documents from an external source." />
+  <Card title="Debugging retrieval" href="/knowledgebase/debugging-retrieval" description="Diagnose why a search returns the wrong chunks." />
+</Cards>
+
+<FAQ items={[
+  { question: "Does it support scanned PDFs?", answer: "Yes. With Azure or Mistral OCR configured, Sim extracts text from image-based and scanned PDF pages." },
+  { question: "Can I search across multiple knowledge bases?", answer: "Each Knowledge block searches one knowledge base. Use multiple Knowledge blocks in a workflow to search across several." },
+]} />

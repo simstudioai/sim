@@ -1,3 +1,4 @@
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type {
   RedditGetSubredditInfoParams,
   RedditSubredditInfoResponse,
@@ -47,7 +48,7 @@ export const getSubredditInfoTool: ToolConfig<
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         Accept: 'application/json',
       }
     },

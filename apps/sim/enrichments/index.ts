@@ -4,6 +4,8 @@ export type {
   EnrichmentInputField,
   EnrichmentOutputField,
   EnrichmentProvider,
+  EnrichmentProviderFailure,
+  EnrichmentProviderFailureProjection,
   EnrichmentRegistry,
   EnrichmentRunContext,
 } from './types'

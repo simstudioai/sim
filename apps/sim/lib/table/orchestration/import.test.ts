@@ -1,52 +1,46 @@
 /**
- * @vitest-environment node
- *
  * CSV import orchestration — the logic both the first-party and public import
  * routes delegate to, so neither can drift on what an import actually does.
  */
 import { Readable } from 'node:stream'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockMarkTableJobRunning,
-  mockReleaseJobClaim,
-  mockImportAppendRows,
-  mockImportReplaceRows,
-  mockGetMaxRowsPerTable,
-  mockDispatchAfterBatchInsert,
-  mockSignalSchemaChanged,
-} = vi.hoisted(() => ({
-  mockMarkTableJobRunning: vi.fn(),
-  mockReleaseJobClaim: vi.fn(),
+const { mockImportAppendRows, mockImportReplaceRows } = vi.hoisted(() => ({
   mockImportAppendRows: vi.fn(),
   mockImportReplaceRows: vi.fn(),
-  mockGetMaxRowsPerTable: vi.fn(),
-  mockDispatchAfterBatchInsert: vi.fn(),
-  mockSignalSchemaChanged: vi.fn(),
 }))
 
-vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunning: mockMarkTableJobRunning,
-  releaseJobClaim: mockReleaseJobClaim,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/import-data', () => ({
   importAppendRows: mockImportAppendRows,
   importReplaceRows: mockImportReplaceRows,
 }))
-vi.mock('@/lib/table/billing', () => ({
-  getMaxRowsPerTable: mockGetMaxRowsPerTable,
-  getWorkspaceTableLimits: vi.fn(),
-  wouldExceedRowLimit: (limit: number, current: number, added: number) =>
-    limit >= 0 && current + added > limit,
-}))
-vi.mock('@/lib/table/rows/service', () => ({
-  batchInsertRows: vi.fn(),
-  dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
-}))
-vi.mock('@/lib/table/service', () => ({ createTable: vi.fn(), deleteTable: vi.fn() }))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mockSignalSchemaChanged }))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
-import { performTableCsvImport } from '@/lib/table/orchestration/import'
+import { performCreateTableFromCsv, performTableCsvImport } from '@/lib/table/orchestration/import'
+
+const mockMarkTableJobRunning = tableJobsServiceMockFns.mockMarkTableJobRunning
+const mockReleaseJobClaim = tableJobsServiceMockFns.mockReleaseJobClaim
+const mockGetMaxRowsPerTable = tableBillingMockFns.mockGetMaxRowsPerTable
+const mockGetWorkspaceTableLimits = tableBillingMockFns.mockGetWorkspaceTableLimits
+const mockBatchInsertRows = tableRowsServiceMockFns.mockBatchInsertRows
+const mockDispatchAfterBatchInsert = tableRowsServiceMockFns.mockDispatchAfterBatchInsert
+const mockCreateTable = tableServiceMockFns.mockCreateTable
+const mockDeleteTable = tableServiceMockFns.mockDeleteTable
 
 const TABLE = {
   id: 'table-1',
@@ -80,12 +74,12 @@ function importParams(overrides: Record<string, unknown> = {}) {
     mode: 'append' as const,
     timezone: 'UTC',
     requestId: 'req-1',
+    capabilityGovernedUserId: 'user-1' as string | null,
     ...overrides,
   }
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockMarkTableJobRunning.mockResolvedValue(true)
   mockReleaseJobClaim.mockResolvedValue(undefined)
   mockGetMaxRowsPerTable.mockResolvedValue(1000)
@@ -94,34 +88,37 @@ beforeEach(() => {
     table: TABLE,
   })
   mockImportReplaceRows.mockResolvedValue({ insertedCount: 2, deletedCount: 10 })
+  mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 10, maxRowsPerTable: 1000 })
+  mockCreateTable.mockResolvedValue(TABLE)
+  mockDeleteTable.mockResolvedValue(undefined)
+  mockBatchInsertRows.mockImplementation(async ({ rows }: { rows: unknown[] }) =>
+    rows.map((_, index) => ({ id: `row-${index}` }))
+  )
 })
 
 describe('performTableCsvImport', () => {
-  it('auto-maps same-named headers and appends the parsed rows', async () => {
-    const result = await performTableCsvImport(importParams())
+  /**
+   * The rows an import lands start the table's workflow columns, and those
+   * cells gate their tools on the governed subject. Dropping it here would run
+   * the importing member's cells with no per-tool gate at all — the one thing
+   * `null` means on this field.
+   */
+  it('dispatches the auto-fired cells under the importing person', async () => {
+    await performTableCsvImport(importParams({ capabilityGovernedUserId: 'user-9' }))
 
-    expect(result.success).toBe(true)
-    expect(result.data).toEqual({
-      tableId: 'table-1',
-      mode: 'append',
-      insertedCount: 2,
-      mappedColumns: ['email', 'name'],
-      skippedHeaders: [],
-      unmappedColumns: [],
-      sourceFile: 'contacts.csv',
-    })
-    // The trigger/scheduler fan-out must run AFTER the tx commits, so it is the
-    // orchestration's job rather than the writer's.
-    expect(mockDispatchAfterBatchInsert).toHaveBeenCalled()
-    expect(mockSignalSchemaChanged).toHaveBeenCalledWith('table-1')
-  })
-
-  it('reports the deleted count on a replace', async () => {
-    const result = await performTableCsvImport(importParams({ mode: 'replace' }))
-
-    expect(result.data).toMatchObject({ mode: 'replace', insertedCount: 2, deletedCount: 10 })
-    expect(mockImportReplaceRows).toHaveBeenCalled()
-    expect(mockImportAppendRows).not.toHaveBeenCalled()
+    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'req-1',
+      'user-1',
+      'user-9'
+    )
+    expect(mockImportAppendRows).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ capabilityGovernedUserId: 'user-9' })
+    )
   })
 
   it('holds the table job slot for the write and releases it before returning', async () => {
@@ -178,15 +175,6 @@ describe('performTableCsvImport', () => {
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
   })
 
-  it('rejects a file with no data rows', async () => {
-    const result = await performTableCsvImport(
-      importParams({ fileStream: csvStream('email,name\n') })
-    )
-
-    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
-    expect(result.error).toBe('CSV file has no data rows')
-  })
-
   it('rejects a file whose headers map to nothing on the table', async () => {
     const result = await performTableCsvImport(
       importParams({ fileStream: csvStream('alpha,beta\n1,2\n') })
@@ -197,18 +185,79 @@ describe('performTableCsvImport', () => {
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
   })
 
-  it('reports which headers were skipped and which columns went unfilled', async () => {
-    const result = await performTableCsvImport(
-      importParams({
-        fileStream: csvStream('email,notes\na@b.c,hi\n'),
-        mapping: { email: 'email', notes: null },
-      })
-    )
+  /**
+   * The parser drops malformed records silently, so a buffered import used to
+   * finish with a smaller table and nothing distinguishing it from a clean one.
+   */
+  describe('rejection accounting', () => {
+    it('reports the records a malformed CSV silently dropped', async () => {
+      const result = await performTableCsvImport(
+        importParams({
+          fileStream: csvStream('email,name\na@b.c,Ann\nd@e.f,"unterminated\ng@h.i,Gil\n'),
+        })
+      )
 
-    expect(result.data).toMatchObject({
-      mappedColumns: ['email'],
-      skippedHeaders: ['notes'],
-      unmappedColumns: ['name'],
+      expect(result.success).toBe(true)
+      expect(result.data?.rejections?.rowsRejected).toBeGreaterThan(0)
+      expect(result.data?.rejections?.rejectedSamples[0]).toMatchObject({
+        code: 'CSV_QUOTE_NOT_CLOSED',
+      })
+    })
+
+    it('counts cells the target column type could not represent', async () => {
+      const result = await performTableCsvImport(
+        importParams({
+          table: {
+            ...TABLE,
+            schema: {
+              columns: [
+                { id: 'col_age', name: 'age', type: 'number', required: false, unique: false },
+              ],
+            },
+          },
+          fileStream: csvStream('age\n42\nnot-a-number\n'),
+        })
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.data?.rejections).toEqual({
+        rowsRejected: 0,
+        cellsRejected: 1,
+        rejectedSamples: [],
+      })
+    })
+
+    it('counts invalid TTL cells that the import blanks', async () => {
+      const result = await performTableCsvImport(
+        importParams({
+          table: {
+            ...TABLE,
+            schema: {
+              columns: [
+                {
+                  id: 'col_expires_at',
+                  name: 'expires_at',
+                  type: 'ttl',
+                  required: false,
+                  unique: false,
+                },
+              ],
+            },
+          },
+          fileStream: csvStream('expires_at\n2023-11-14T22:13:20Z\nnot-a-date\n'),
+        })
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.data?.rejections).toEqual({
+        rowsRejected: 0,
+        cellsRejected: 1,
+        rejectedSamples: [],
+      })
+      expect(mockImportAppendRows.mock.calls[0][2]).toEqual([
+        { col_expires_at: '2023-11-14T22:13:20-00:00' },
+        { col_expires_at: null },
+      ])
     })
   })
 
@@ -231,5 +280,33 @@ describe('performTableCsvImport', () => {
     // column the write creates share one key — otherwise the values land under
     // a key nothing reads.
     expect(Object.keys(rows[0])).toContain(additions[0].id)
+  })
+})
+
+describe('performCreateTableFromCsv', () => {
+  function createParams(text: string) {
+    return {
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      fileStream: csvStream(text),
+      fileName: 'contacts.csv',
+      fallbackDelimiter: ',' as const,
+      folderId: null,
+      timezone: 'UTC',
+      requestId: 'req-1',
+      capabilityGovernedUserId: 'user-1',
+    }
+  }
+
+  it('reports the records a malformed CSV silently dropped', async () => {
+    const result = await performCreateTableFromCsv(
+      createParams('email,name\na@b.c,Ann\nd@e.f,"unterminated\ng@h.i,Gil\n')
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.rejections?.rowsRejected).toBeGreaterThan(0)
+    expect(result.data?.rejections?.rejectedSamples[0]).toMatchObject({
+      code: 'CSV_QUOTE_NOT_CLOSED',
+    })
   })
 })

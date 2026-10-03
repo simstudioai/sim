@@ -1,9 +1,7 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
-import { getServiceAccountToken, refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { getServiceAccountToken } from '@/lib/oauth/credential-service'
+import { resolveExecutorCredentialToken } from '@/executor/utils/credential-token'
 
 const logger = createLogger('VertexCredential')
 
@@ -12,6 +10,8 @@ export interface ResolveVertexCredentialParams {
   actingUserId: string | undefined
   /** Workspace of the executing workflow. The credential must belong to it. */
   workspaceId: string | null | undefined
+  /** Pins the token request to this workflow's workspace. */
+  workflowId?: string
   callerLabel?: string
 }
 
@@ -26,6 +26,7 @@ export async function resolveVertexCredential({
   credentialId,
   actingUserId,
   workspaceId,
+  workflowId,
   callerLabel = 'vertex',
 }: ResolveVertexCredentialParams): Promise<string> {
   const requestId = `${callerLabel}-${Date.now()}`
@@ -64,15 +65,13 @@ export async function resolveVertexCredential({
     throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
   }
 
-  const accountRow = await db.query.account.findFirst({
-    where: eq(account.id, cred.accountId),
+  const { accessToken } = await resolveExecutorCredentialToken({
+    requestId,
+    credentialId,
+    userId: actingUserId,
+    workflowId,
+    toolLabel: 'Vertex AI',
   })
-
-  if (!accountRow) {
-    throw new Error(`Vertex AI credential not found: ${credentialId}`)
-  }
-
-  const { accessToken } = await refreshTokenIfNeeded(requestId, accountRow, cred.accountId)
 
   if (!accessToken) {
     throw new Error('Failed to get Vertex AI access token')

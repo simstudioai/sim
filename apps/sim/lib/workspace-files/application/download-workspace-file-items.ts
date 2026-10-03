@@ -1,9 +1,14 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import {
+  type AuthorizedWorkspaceUseCaseContext,
+  capabilityGovernedPrincipalUserId,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { parseFolderPath } from '@/lib/folders/paths'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import {
   buildWorkspaceFileFolderPathMap,
-  fetchServableWorkspaceFileBuffer,
   listWorkspaceFileFolders,
   listWorkspaceFiles,
   loadWorkspaceFileOperationContext,
@@ -16,9 +21,11 @@ import {
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
-export const MAX_ZIP_DOWNLOAD_FILES = 100
 export const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 const MAX_REQUESTED_FILE_IDS = 1_000
 const MAX_REQUESTED_FOLDER_IDS = 1_000
@@ -27,6 +34,12 @@ export interface DownloadWorkspaceFileItemsInput {
   workspaceId: string
   fileIds: string[]
   folderIds: string[]
+  /**
+   * Canonical folder paths, for surfaces that address folders by path rather
+   * than by internal id. Resolved against the same folder set the selection
+   * already loads, so this costs no additional query.
+   */
+  folderPaths?: string[]
 }
 
 export interface DownloadWorkspaceFileItemsResult {
@@ -54,6 +67,33 @@ function collectDescendantFolderIds(
   return folderIds
 }
 
+/**
+ * Maps canonical folder paths onto the ids the selection walk uses.
+ *
+ * Resolved against the folder set the download already loads rather than by a
+ * separate path query, and a path that matches nothing is rejected rather than
+ * silently dropped — a caller that misspells a folder should not receive a zip
+ * of whatever else it happened to select.
+ */
+function resolveFolderIdsFromPaths(
+  paths: string[],
+  folders: Array<{ id: string }>,
+  displayPathById: Map<string, string>
+): string[] {
+  if (paths.length === 0) return []
+  const idByPath = new Map<string, string>()
+  for (const folder of folders) {
+    const displayPath = displayPathById.get(folder.id)
+    if (!displayPath) continue
+    idByPath.set(parseWorkspaceFileFolderDisplayPath(displayPath).join('\u0000'), folder.id)
+  }
+  return paths.map((path) => {
+    const id = idByPath.get(parseFolderPath(path).join('\u0000'))
+    if (!id) validationError(`Folder not found: ${path}`)
+    return id
+  })
+}
+
 function validationError(message: string): never {
   throw new OrchestrationError('validation', message)
 }
@@ -61,22 +101,50 @@ function validationError(message: string): never {
 async function executeDownloadWorkspaceFileItems({
   input,
   context,
-}: {
-  input: DownloadWorkspaceFileItemsInput
-  context: Awaited<ReturnType<typeof resolveDownloadContext>>
-}): Promise<DownloadWorkspaceFileItemsResult> {
+  principal,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.download,
+  DownloadWorkspaceFileItemsInput,
+  Awaited<ReturnType<typeof resolveDownloadContext>>
+>): Promise<DownloadWorkspaceFileItemsResult> {
   const fileIds = [...new Set(input.fileIds)]
   const folderIds = [...new Set(input.folderIds)]
+  const requestedFolderPaths = [...new Set(input.folderPaths ?? [])]
   if (fileIds.length > MAX_REQUESTED_FILE_IDS) {
     validationError(`Too many file IDs selected. Select ${MAX_REQUESTED_FILE_IDS} or fewer files.`)
   }
-  if (folderIds.length > MAX_REQUESTED_FOLDER_IDS) {
+  if (folderIds.length + requestedFolderPaths.length > MAX_REQUESTED_FOLDER_IDS) {
     validationError(
-      `Too many folder IDs selected. Select ${MAX_REQUESTED_FOLDER_IDS} or fewer folders.`
+      `Too many folders selected. Select ${MAX_REQUESTED_FOLDER_IDS} or fewer folders.`
     )
   }
-  if (fileIds.length === 0 && folderIds.length === 0) {
+  if (fileIds.length === 0 && folderIds.length === 0 && requestedFolderPaths.length === 0) {
     validationError('No files selected for download')
+  }
+
+  /**
+   * permission-group-enforced: files.bulk_download — one operation serves both
+   * a single file and a whole folder tree, and only the archive is what the key
+   * withholds; declaring the capability on `files.download` would take away
+   * saving one file too. `context.fileId` is the same single-file predicate the
+   * resource authorization already resolved, reused so the two cannot drift.
+   * Asserted against whoever the funnel would have judged, from its own rule —
+   * nobody, for a workspace key or an executor run. A run carries the role of
+   * whoever triggered it but not their capabilities, and reading the subject
+   * straight off the principal would have re-applied here exactly the
+   * capability `authorizeWorkspaceOperation` exempts a subject-bearing executor
+   * from.
+   */
+  if (context.fileId === undefined) {
+    const actingUserId = capabilityGovernedPrincipalUserId(principal)
+    if (actingUserId) {
+      await assertWorkspaceCapability(
+        actingUserId,
+        context.workspaceId,
+        'files.bulk_download',
+        context.workspaceOrganizationId
+      )
+    }
   }
 
   const [files, folders] = await Promise.all([
@@ -84,7 +152,10 @@ async function executeDownloadWorkspaceFileItems({
     listWorkspaceFileFolders(context.workspaceId),
   ])
   const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-  const selectedFolderIds = collectDescendantFolderIds(folderIds, folders)
+  const selectedFolderIds = collectDescendantFolderIds(
+    [...folderIds, ...resolveFolderIdsFromPaths(requestedFolderPaths, folders, folderPaths)],
+    folders
+  )
   const requestedFileIds = new Set(fileIds)
   const filesToZip = files.filter(
     (file) =>
@@ -118,7 +189,9 @@ async function executeDownloadWorkspaceFileItems({
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
     const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {
-      const { buffer } = await fetchServableWorkspaceFileBuffer(file, { maxBytes: allowance })
+      const { buffer } = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
+        maxBytes: allowance,
+      })
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {
@@ -146,9 +219,17 @@ async function resolveDownloadContext({ input }: { input: DownloadWorkspaceFileI
   if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
   const fileIds = [...new Set(input.fileIds)]
   const folderIds = [...new Set(input.folderIds)]
+  const folderPaths = [...new Set(input.folderPaths ?? [])]
+  /**
+   * The authorization resource is the single file only when the request is that
+   * one file. A folder — addressed by id or by path — pulls in files the caller
+   * never named, so the request is scoped to the workspace instead.
+   */
+  const addressesOnlyOneFile =
+    fileIds.length === 1 && folderIds.length === 0 && folderPaths.length === 0
   return {
     ...context,
-    fileId: fileIds.length === 1 && folderIds.length === 0 ? fileIds[0] : undefined,
+    fileId: addressesOnlyOneFile ? fileIds[0] : undefined,
   }
 }
 

@@ -117,6 +117,7 @@ export async function getBlobServiceClient(): Promise<BlobServiceClientType> {
  * @param size File size in bytes (required if configOrSize is BlobConfig, optional otherwise)
  * @param preserveKey Preserve the fileName as the storage key without adding timestamp prefix (default: false)
  * @param metadata Optional metadata to store with the file
+ * @param createOnly Reject an existing key instead of replacing its object
  * @returns Object with file information
  */
 export async function uploadToBlob(
@@ -126,8 +127,11 @@ export async function uploadToBlob(
   configOrSize?: BlobConfig | number,
   size?: number,
   preserveKey?: boolean,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  createOnly = false,
+  signal?: AbortSignal
 ): Promise<FileInfo> {
+  signal?.throwIfAborted()
   let config: BlobConfig
   let fileSize: number
   let shouldPreserveKey: boolean
@@ -163,12 +167,16 @@ export async function uploadToBlob(
     Object.assign(blobMetadata, sanitizeStorageMetadata(metadata, 8000))
   }
 
+  signal?.throwIfAborted()
   await blockBlobClient.upload(file, fileSize, {
+    ...(signal ? { abortSignal: signal } : {}),
     blobHTTPHeaders: {
       blobContentType: contentType,
     },
     metadata: blobMetadata,
+    ...(createOnly ? { conditions: { ifNoneMatch: '*' } } : {}),
   })
+  signal?.throwIfAborted()
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -179,37 +187,6 @@ export async function uploadToBlob(
     size: fileSize,
     type: contentType,
   }
-}
-
-/**
- * Generate a presigned URL for direct file access
- * @param key Blob name
- * @param expiresIn Time in seconds until URL expires
- * @returns Presigned URL
- */
-export async function getPresignedUrl(key: string, expiresIn = 3600) {
-  const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
-    await import('@azure/storage-blob')
-  const blobServiceClient = await getBlobServiceClient()
-  const containerClient = blobServiceClient.getContainerClient(BLOB_CONFIG.containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
-
-  const { accountName, accountKey } = getAccountCredentials()
-
-  const sasOptions = {
-    containerName: BLOB_CONFIG.containerName,
-    blobName: key,
-    permissions: BlobSASPermissions.parse('r'), // Read permission
-    startsOn: new Date(),
-    expiresOn: new Date(Date.now() + expiresIn * 1000),
-  }
-
-  const sasToken = generateBlobSASQueryParameters(
-    sasOptions,
-    new StorageSharedKeyCredential(accountName, accountKey)
-  ).toString()
-
-  return `${blockBlobClient.url}?${sasToken}`
 }
 
 /**
@@ -275,7 +252,16 @@ export async function getPresignedUrlWithConfig(
   return `${blockBlobClient.url}?${sasToken}`
 }
 
-/** Generates a create-only SAS-backed single-object PUT for a caller-selected final key. */
+/**
+ * Generates a create-only SAS-backed single-object PUT for a caller-selected final key.
+ *
+ * The permission must stay `c` (create), not `w`: `w` is "create or write
+ * content" and authorizes overwriting an existing blob, so a still-valid
+ * signature could replace a completed upload. `If-None-Match` is returned for
+ * parity with the S3 and GCS signers, but Azure does not cover request headers
+ * in a service-SAS string-to-sign, so it is advisory and cannot carry this on
+ * its own.
+ */
 export async function getBlobPresignedUploadUrl(params: {
   key: string
   contentType: string
@@ -301,7 +287,7 @@ export async function getBlobPresignedUploadUrl(params: {
     {
       containerName: params.customConfig.containerName,
       blobName: params.key,
-      permissions: BlobSASPermissions.parse('w'),
+      permissions: BlobSASPermissions.parse('c'),
       startsOn,
       expiresOn,
     },
@@ -345,8 +331,16 @@ export async function downloadFromBlob(
 
 export async function downloadFromBlob(
   key: string,
+  customConfig: BlobConfig | undefined,
+  maxBytes: number | undefined,
+  signal: AbortSignal | undefined
+): Promise<Buffer>
+
+export async function downloadFromBlob(
+  key: string,
   customConfig?: BlobConfig,
-  maxBytes?: number
+  maxBytes?: number,
+  signal?: AbortSignal
 ): Promise<Buffer> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
@@ -376,7 +370,9 @@ export async function downloadFromBlob(
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  const downloadBlockBlobResponse = await blockBlobClient.download()
+  const downloadBlockBlobResponse = await blockBlobClient.download(0, undefined, {
+    abortSignal: signal,
+  })
   if (maxBytes !== undefined && downloadBlockBlobResponse.contentLength !== undefined) {
     try {
       assertKnownSizeWithinLimit(
@@ -401,6 +397,7 @@ export async function downloadFromBlob(
     {
       maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
       label: 'storage download',
+      signal,
     }
   )
 
@@ -529,9 +526,18 @@ export async function deleteFromBlob(key: string): Promise<void>
  * @param key Blob name
  * @param customConfig Custom Blob configuration
  */
-export async function deleteFromBlob(key: string, customConfig: BlobConfig): Promise<void>
+export async function deleteFromBlob(
+  key: string,
+  customConfig: BlobConfig | undefined,
+  signal?: AbortSignal
+): Promise<void>
 
-export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Promise<void> {
+export async function deleteFromBlob(
+  key: string,
+  customConfig?: BlobConfig,
+  signal?: AbortSignal
+): Promise<void> {
+  signal?.throwIfAborted()
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
   let containerName: string
@@ -560,7 +566,9 @@ export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Pr
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  await blockBlobClient.deleteIfExists()
+  signal?.throwIfAborted()
+  await blockBlobClient.deleteIfExists(...(signal ? [{ abortSignal: signal }] : []))
+  signal?.throwIfAborted()
 }
 
 /**
@@ -601,12 +609,18 @@ export async function initiateMultipartUpload(
 }
 
 /**
- * Generate presigned URLs for uploading parts
+ * Generate presigned URLs for uploading parts.
+ *
+ * `expiresOn` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h SAS tokens after the caller's window changed.
  */
 export async function getMultipartPartUrls(
   key: string,
   partNumbers: number[],
-  customConfig?: BlobConfig
+  customConfig: BlobConfig | undefined,
+  /** Absolute instant the SAS token stops being valid. */
+  expiresOn: Date
 ): Promise<AzurePartUploadUrl[]> {
   const {
     BlobServiceClient,
@@ -659,7 +673,7 @@ export async function getMultipartPartUrls(
       blobName: key,
       permissions: BlobSASPermissions.parse('w'), // Write permission
       startsOn: new Date(),
-      expiresOn: new Date(Date.now() + 3600 * 1000), // 1 hour
+      expiresOn,
     }
 
     const sasToken = generateBlobSASQueryParameters(

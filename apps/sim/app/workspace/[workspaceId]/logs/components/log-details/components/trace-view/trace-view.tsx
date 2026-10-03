@@ -42,12 +42,22 @@ import {
   getDisplayName,
   hasErrorInTree,
   hasUnhandledErrorInTree,
-  iconColorClass,
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+import { BlockTile } from '@/blocks/block-tile'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+
+/**
+ * Why a custom block's steps are not shown under it. `granted` is deliberately absent —
+ * the joined children are their own evidence, so labelling them would be noise.
+ */
+const CHILD_TRACE_ACCESS_LABEL: Record<string, string> = {
+  missing: 'Not available',
+  truncated: 'Not expanded (nesting limit)',
+  disabled: 'Not traced',
+}
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
@@ -313,7 +323,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           <Button
             type='button'
             variant='ghost'
-            className='size-[14px] flex-shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+            className='size-[14px] shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)]'
             onClick={(e) => {
               e.stopPropagation()
               onToggleExpand(id)
@@ -328,15 +338,15 @@ const TraceTreeRow = memo(function TraceTreeRow({
             />
           </Button>
         ) : (
-          <div className='size-[14px] flex-shrink-0' />
+          <div className='size-[14px] shrink-0' />
         )}
         {!isIterationType(span.type) && (
-          <div
-            className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: bgColor }}
-          >
-            {BlockIcon && <BlockIcon className={cn('size-[10px]', iconColorClass(bgColor))} />}
-          </div>
+          <BlockTile
+            blockType={span.type?.toLowerCase() ?? ''}
+            icon={BlockIcon ?? undefined}
+            bgColor={bgColor}
+            size='sm'
+          />
         )}
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -368,7 +378,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
             </div>
           </Tooltip.Content>
         </Tooltip.Root>
-        <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
+        <span className='shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
           {formatDuration(duration, { precision: 2 })}
         </span>
       </div>
@@ -484,7 +494,7 @@ function DetailCodeSection({
             <Code.Viewer
               code={jsonString}
               language='json'
-              className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-w-full rounded-md border-0 [word-break:break-all]'
+              className='max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!'
               wrapText
               searchQuery={isSearchActive ? searchQuery : undefined}
               currentMatchIndex={currentMatchIndex}
@@ -495,13 +505,14 @@ function DetailCodeSection({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label={copied ? 'Copied' : 'Copy'}
                       type='button'
                       variant='default'
                       onClick={(e) => {
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
                         <Check className='size-[10px] text-[var(--text-success)]' />
@@ -515,13 +526,14 @@ function DetailCodeSection({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label='Search'
                       type='button'
                       variant='default'
                       onClick={(e) => {
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       <Search className='size-[10px]' />
                     </Button>
@@ -534,7 +546,7 @@ function DetailCodeSection({
           {isSearchActive && (
             <div
               role='presentation'
-              className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
+              className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-xs'
               onClick={(e) => e.stopPropagation()}
             >
               <ChipInput
@@ -555,7 +567,7 @@ function DetailCodeSection({
               </span>
               <Button
                 variant='ghost'
-                className='!p-1'
+                iconPadding='sm'
                 onClick={goToPreviousMatch}
                 disabled={matchCount === 0}
                 aria-label='Previous match'
@@ -564,7 +576,7 @@ function DetailCodeSection({
               </Button>
               <Button
                 variant='ghost'
-                className='!p-1'
+                iconPadding='sm'
                 onClick={goToNextMatch}
                 disabled={matchCount === 0}
                 aria-label='Next match'
@@ -573,7 +585,7 @@ function DetailCodeSection({
               </Button>
               <Button
                 variant='ghost'
-                className='!p-1'
+                iconPadding='sm'
                 onClick={closeSearch}
                 aria-label='Close search'
               >
@@ -633,7 +645,7 @@ function DetailCodeSection({
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className='flex items-center justify-between gap-2 text-caption'>
-      <span className='flex-shrink-0 text-[var(--text-tertiary)]'>{label}</span>
+      <span className='shrink-0 text-[var(--text-tertiary)]'>{label}</span>
       <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>{value}</span>
     </div>
   )
@@ -672,10 +684,21 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
     label: 'Type',
     value: isCustomBlockType(span.type) ? 'custom block' : span.type,
   })
+  // A custom block runs in another workspace, and its steps are joined in only when its
+  // publisher opted that block into consumer traces. Say why they are absent — otherwise a
+  // boundary span with no children is indistinguishable from a block that simply did
+  // nothing. The read-time verdict wins: a span that carries one was opted in, so
+  // `disabled` can only describe a span hydration never considered.
+  const childRunState = span.childTraceAccess ?? (span.childTraceDisabled ? 'disabled' : undefined)
+  const childRunLabel = childRunState ? CHILD_TRACE_ACCESS_LABEL[childRunState] : undefined
+  if (childRunLabel) metaEntries.push({ label: 'Child run', value: childRunLabel })
   metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
   if (span.tries !== undefined) metaEntries.push({ label: 'Tries', value: String(span.tries) })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })
+  for (const failedModel of span.modelFallbacks ?? []) {
+    metaEntries.push({ label: 'Failed model', value: failedModel })
+  }
   if (span.finishReason) metaEntries.push({ label: 'Finish reason', value: span.finishReason })
   const ttftFormatted = formatTtft(span.ttft)
   if (ttftFormatted) metaEntries.push({ label: 'TTFT', value: ttftFormatted })
@@ -707,12 +730,13 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
     <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3.5 pt-3 pb-4'>
       <div className='flex items-start gap-2'>
         {!isIterationType(span.type) && (
-          <div
-            className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: bgColor }}
-          >
-            {BlockIcon && <BlockIcon className={cn('size-[12px]', iconColorClass(bgColor))} />}
-          </div>
+          <BlockTile
+            blockType={span.type?.toLowerCase() ?? ''}
+            icon={BlockIcon ?? undefined}
+            bgColor={bgColor}
+            size='lg'
+            className='mt-[2px]'
+          />
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
           <h3
@@ -983,11 +1007,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
     <div className='-mx-3.5 flex h-full min-h-0 flex-col'>
       {/* Header strip */}
       <div className='flex items-center gap-2 border-[var(--border)] border-b px-3.5 pb-2'>
-        <Badge
-          variant={runStatus === 'error' ? 'red' : 'green'}
-          size='sm'
-          className='flex-shrink-0'
-        >
+        <Badge variant={runStatus === 'error' ? 'red' : 'green'} size='sm' className='shrink-0'>
           {runStatus === 'error' ? 'Error' : 'Success'}
         </Badge>
         {firstErrorId && (
@@ -1000,16 +1020,16 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
             Jump to error
           </Button>
         )}
-        <span className='flex-shrink-0 text-[var(--text-secondary)] text-caption tabular-nums'>
+        <span className='shrink-0 text-[var(--text-secondary)] text-caption tabular-nums'>
           {formatDuration(totalDuration, { precision: 2 }) || '—'}
         </span>
-        <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+        <span className='shrink-0 text-[var(--text-tertiary)] text-caption'>
           {blockCount} {blockCount === 1 ? 'span' : 'spans'}
         </span>
         {(() => {
           const rootCost = formatCostAmount(runCostDollars ?? normalizedSpans[0]?.cost?.total)
           return rootCost ? (
-            <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
+            <span className='shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
               {rootCost}
             </span>
           ) : null
@@ -1028,7 +1048,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='!p-1'
+                iconPadding='sm'
                 onClick={() => copyTrace(JSON.stringify(traceSpans, null, 2))}
                 aria-label='Copy raw trace'
               >
@@ -1048,7 +1068,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='!p-1'
+                iconPadding='sm'
                 onClick={() => setExpandedNodes(new Set(allIds))}
                 aria-label='Expand all'
               >
@@ -1062,7 +1082,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='!p-1'
+                iconPadding='sm'
                 onClick={() => setExpandedNodes(new Set())}
                 aria-label='Collapse all'
               >
@@ -1078,7 +1098,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
       <div className='flex min-h-0 flex-1'>
         <div
           ref={treeRef}
-          className='flex flex-shrink-0 flex-col overflow-y-auto pt-2'
+          className='flex shrink-0 flex-col overflow-y-auto pt-2'
           style={{ width: treePaneWidth }}
           role='tree'
         >
@@ -1108,7 +1128,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
         <div
           role='separator'
           aria-orientation='vertical'
-          className='relative w-px flex-shrink-0 cursor-ew-resize bg-[var(--border)] transition-colors hover-hover:bg-[var(--border-1)]'
+          className='relative w-px shrink-0 cursor-ew-resize bg-[var(--border)] transition-colors hover-hover:bg-[var(--border-1)]'
           onMouseDown={(e) => {
             isResizingRef.current = true
             startXRef.current = e.clientX

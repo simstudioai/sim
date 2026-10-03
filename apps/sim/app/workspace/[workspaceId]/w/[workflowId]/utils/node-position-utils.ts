@@ -70,6 +70,15 @@ export function clampPositionToContainer(
  * Single source of truth for container sizing - ensures consistency between
  * live drag updates and final dimension calculations.
  *
+ * Child coordinates are relative to the container's own origin — React Flow
+ * places a child at the parent's origin plus its position, and
+ * {@link clampPositionToContainer} keeps them clear of the chrome by flooring
+ * them at `LEFT_PADDING` and `HEADER_HEIGHT + TOP_PADDING`. A child's far edge
+ * is therefore already the distance the container has to cover, and only the
+ * trailing padding is owed on top. Adding the header and leading padding here
+ * as well counted them twice, leaving every container 66px taller and 16px
+ * wider than its contents.
+ *
  * @param childPositions - Array of child positions with their dimensions
  * @returns Calculated width and height for the container
  */
@@ -93,14 +102,11 @@ export function calculateContainerDimensions(
 
   const width = Math.max(
     CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-    CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+    maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
   )
   const height = Math.max(
     CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    CONTAINER_DIMENSIONS.HEADER_HEIGHT +
-      CONTAINER_DIMENSIONS.TOP_PADDING +
-      maxBottom +
-      CONTAINER_DIMENSIONS.BOTTOM_PADDING
+    maxBottom + CONTAINER_DIMENSIONS.BOTTOM_PADDING
   )
 
   return { width, height }

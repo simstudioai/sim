@@ -1,9 +1,8 @@
 import { STSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { STSBaseResponse } from '@/tools/sts/types'
 
-export const STSBlock: BlockConfig<STSBaseResponse> = {
+export const STSBlock: BlockConfig = {
   type: 'sts',
   name: 'AWS STS',
   description: 'Connect to AWS Security Token Service',
@@ -130,6 +129,7 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       id: 'webIdentityToken',
       title: 'Web Identity Token',
       type: 'long-input',
+      password: true,
       placeholder: 'OIDC/OAuth 2.0 token from the identity provider',
       condition: { field: 'operation', value: 'assume_role_with_web_identity' },
       required: { field: 'operation', value: 'assume_role_with_web_identity' },
@@ -155,6 +155,7 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       id: 'samlAssertion',
       title: 'SAML Assertion',
       type: 'long-input',
+      password: true,
       placeholder: 'Base64-encoded SAML authentication response',
       condition: { field: 'operation', value: 'assume_role_with_saml' },
       required: { field: 'operation', value: 'assume_role_with_saml' },
@@ -240,6 +241,7 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       id: 'tokenCode',
       title: 'MFA Token Code',
       type: 'short-input',
+      password: true,
       placeholder: '123456',
       condition: { field: 'operation', value: ['assume_role', 'get_session_token'] },
       required: false,

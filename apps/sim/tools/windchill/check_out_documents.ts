@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_BULK_MUTATION_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillCheckOutDocumentsTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillCheckOutDocumentsTool: InternalToolConfig<
+  WindchillParams,
+  WindchillResponse
+> = {
   id: 'windchill_check_out_documents',
   name: 'Windchill Check Out Documents',
   description: 'Check out multiple documents atomically',
@@ -47,12 +50,8 @@ export const windchillCheckOutDocumentsTool: ToolConfig<WindchillParams, Windchi
       description: 'Checkout note',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_check_out_documents', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_check_out_documents', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_check_out_documents', response),

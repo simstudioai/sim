@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3HeadObjectTool: ToolConfig = {
+export const s3HeadObjectTool: InternalToolConfig = {
   id: 's3_head_object',
   name: 'S3 Head Object',
   description: 'Retrieve metadata for an S3 object without downloading its body',
@@ -45,13 +45,8 @@ export const s3HeadObjectTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/head-object',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

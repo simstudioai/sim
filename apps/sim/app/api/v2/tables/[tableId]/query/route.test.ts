@@ -1,49 +1,32 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {
-    constructor(
-      message: string,
-      readonly details?: unknown
-    ) {
-      super(message)
-    }
-  }
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
-      queryRows: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
-}))
-
+import { v2QueryRowsContract } from '@/lib/api/contracts/v2/tables'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { POST } from '@/app/api/v2/tables/[tableId]/query/route'
+
+const { mockQueryTableRows } = tableApplicationRowsMockFns
+
+/** A query cursor exactly as the route mints one, for the table given. */
+function queryCursor(tableId: string, inner: string): string {
+  return encodeScopedCursor(cursorScopeKey(cursorRoute(v2QueryRowsContract, { tableId })), inner)
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -53,16 +36,9 @@ const PRINCIPAL = {
 }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const RATE = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00Z'),
-  retryAfterMs: 0,
 }
 const TABLE = {
   id: 'table-1',
@@ -90,12 +66,10 @@ function call(body: unknown) {
 
 describe('POST /api/v2/tables/[tableId]/query', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE)
-    mocks.operationRate.mockResolvedValue(RATE)
-    mocks.gate.mockResolvedValue(null)
-    mocks.queryRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    mockQueryTableRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
   })
 
   it('delegates the typed query and preserves the public row envelope', async () => {
@@ -115,7 +89,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       ],
       nextCursor: null,
     })
-    expect(mocks.queryRows).toHaveBeenCalledWith({
+    expect(mockQueryTableRows).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
@@ -125,37 +99,57 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
         cursor: undefined,
         limit: 100,
         includeTotal: false,
+        includeRunState: false,
       },
       request: invocation.request,
     })
   })
 
+  it('normalizes a plain condition into a predicate group', async () => {
+    const condition = { field: 'phone', op: 'isEmpty' }
+    const invocation = call({ workspaceId: WORKSPACE_ID, predicate: condition })
+    const response = await invocation.response
+
+    expect(response.status).toBe(200)
+    expect(mockQueryTableRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ predicate: { all: [condition] } }),
+      })
+    )
+  })
+
   it('preserves explicit limit=0 as the unbounded opt-in', async () => {
     await call({ workspaceId: WORKSPACE_ID, limit: 0 }).response
 
-    expect(mocks.queryRows).toHaveBeenCalledWith(
+    expect(mockQueryTableRows).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ limit: undefined }) })
     )
   })
 
-  it('rejects an invalid page limit after admission and before delegation', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, limit: 5000 }).response
+  it('rejects a v1-shaped filter key instead of answering with an unfiltered page', async () => {
+    const response = await call({
+      workspaceId: WORKSPACE_ID,
+      filter: { name: { $eq: 'Ada' } },
+    }).response
 
     expect(response.status).toBe(400)
-    expect(mocks.authenticate).toHaveBeenCalledOnce()
-    expect(mocks.operationRate).toHaveBeenCalledOnce()
-    expect(mocks.queryRows).not.toHaveBeenCalled()
+    expect(mockQueryTableRows).not.toHaveBeenCalled()
   })
 
-  it('keeps malformed POST query cursors as a structured 400', async () => {
-    mocks.queryRows.mockRejectedValue(
-      new MockTableRowsValidationError('Invalid cursor', { code: 'INVALID_CURSOR' })
-    )
-
-    const response = await call({ workspaceId: WORKSPACE_ID, cursor: 'malformed' }).response
+  /**
+   * The row codec binds the predicate and sort a page was produced under but
+   * carries no table identity, so an unfiltered token from one table decoded
+   * cleanly against another and answered 200 with that other table's rows.
+   */
+  it('refuses a query cursor minted on a different table', async () => {
+    const response = await call({
+      workspaceId: WORKSPACE_ID,
+      cursor: queryCursor('table-2', 'native-row-cursor'),
+    }).response
 
     expect(response.status).toBe(400)
-    expect((await response.json()).error.details).toEqual({ code: 'INVALID_CURSOR' })
+    expect((await response.json()).error.message).toMatch(/requested filters/)
+    expect(mockQueryTableRows).not.toHaveBeenCalled()
   })
 
   it('enforces the one MiB body cap before delegation', async () => {
@@ -163,6 +157,6 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       .response
 
     expect(response.status).toBe(413)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
+    expect(mockQueryTableRows).not.toHaveBeenCalled()
   })
 })

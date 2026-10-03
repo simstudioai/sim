@@ -1,40 +1,28 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  preauthRate: vi.fn(),
-  operationRate: vi.fn(),
-  gate: vi.fn(),
   add: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/table/application/columns', () => ({
   addTableColumnUseCase: { operation: { id: 'tables.columns.add' }, execute: mocks.add },
   updateTableColumnUseCase: { operation: { id: 'tables.columns.update' }, execute: mocks.update },
   deleteTableColumnUseCase: { operation: { id: 'tables.columns.delete' }, execute: mocks.remove },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DELETE, PATCH, POST } from '@/app/api/v2/tables/[tableId]/columns/route'
+import { PATCH, POST } from '@/app/api/v2/tables/[tableId]/columns/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const principal = {
@@ -44,16 +32,9 @@ const principal = {
 }
 const auth = {
   principal,
-  rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const rate = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00.000Z'),
-  retryAfterMs: 0,
 }
 const table = {
   id: 'table-1',
@@ -76,61 +57,40 @@ function request(method: 'POST' | 'PATCH' | 'DELETE', body: unknown) {
 
 describe('/api/v2/tables/[tableId]/columns', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(auth)
-    mocks.preauthRate.mockResolvedValue(rate)
-    mocks.operationRate.mockResolvedValue(rate)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.add.mockResolvedValue({ table })
-    mocks.update.mockResolvedValue({ table, changed: false })
+    mocks.update.mockResolvedValue({ table, changed: false, unmigrated: [] })
     mocks.remove.mockResolvedValue({ table })
   })
 
-  it('delegates column creation with canonical path and body inputs', async () => {
-    const req = request('POST', {
-      workspaceId: WORKSPACE_ID,
-      column: { name: 'Name', type: 'string' },
-    })
-    const response = await POST(req, context)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data.columns).toEqual([
-      { id: 'col-1', name: 'Name', type: 'string', required: false, unique: false },
-    ])
-    expect(mocks.add).toHaveBeenCalledWith({
-      principal,
-      input: {
-        tableId: 'table-1',
+  it('forwards required on both the add and the update column write', async () => {
+    await POST(
+      request('POST', {
         workspaceId: WORKSPACE_ID,
-        column: { name: 'Name', type: 'string' },
-      },
-      request: req,
-    })
-  })
-
-  it('maps typed application validation failures without inspecting messages', async () => {
-    mocks.update.mockRejectedValueOnce(new OrchestrationError('validation', 'Invalid column'))
-
-    const response = await PATCH(
+        column: { name: 'Name', type: 'string', required: true },
+      }),
+      context
+    )
+    await PATCH(
       request('PATCH', {
         workspaceId: WORKSPACE_ID,
         columnName: 'Name',
-        updates: { name: 'Renamed' },
+        updates: { required: false },
       }),
       context
     )
 
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.message).toBe('Invalid column')
-  })
-
-  it('delegates deletion and returns the authoritative surviving schema', async () => {
-    const response = await DELETE(
-      request('DELETE', { workspaceId: WORKSPACE_ID, columnName: 'Other' }),
-      context
+    expect(mocks.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          column: { name: 'Name', type: 'string', required: true },
+        }),
+      })
     )
-
-    expect(response.status).toBe(200)
-    expect(mocks.remove).toHaveBeenCalledOnce()
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ updates: { required: false } }) })
+    )
   })
 })

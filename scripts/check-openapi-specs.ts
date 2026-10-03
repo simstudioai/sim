@@ -59,12 +59,19 @@ const SPEC_FILES = OPENAPI_SPEC_FILES
  * A stale entry — one whose contract no longer exists, or which has since
  * been documented — also fails, so the list cannot rot into a blanket
  * exemption.
+ *
+ * Being unpublished is about *addressability*, not about behaviour: both
+ * entries below answer in the canonical `{ error: { code, message } }` envelope
+ * like every documented route, and what a caller needs in order to perform the
+ * transfer is published on `transfer.url` in `contracts/v2/uploads.ts`.
  */
 const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
+  'POST /api/v2/chat':
+    'Conversational surface behind `sim chat`. The contract describes the JSON answer, but the CLI consumes the same endpoint as an NDJSON progress stream negotiated by Accept header — a protocol `checkV2Conventions` cannot describe as a published operation. Deliberately unpublished while the surface is CLI-only; document it when the JSON shape is committed to as public API.',
   'PUT /api/v2/uploads/{uploadId}':
-    'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key; carries no v2 feature gate and returns bare error bodies rather than the canonical v2 envelope. The URL is handed to the client by the session response and is never constructed from docs.',
+    'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key, so it carries neither the v2 API-key security scheme nor the rate-limit and feature-gate responses `checkV2Conventions` requires of a published operation. On a cloud deployment the same field points at object storage instead, so the endpoint is described by `transfer.url` — which publishes its method, headers, success status, and error codes — rather than by an operation of its own.',
   'PUT /api/v2/uploads/{uploadId}/parts/{partNumber}':
-    'Local-storage data plane for a signed multipart part upload. Authenticated by a per-part signed `token` query param minted by the documented part-URL operation, not by an API key; same non-canonical envelope and self-describing URL as the whole-object PUT above.',
+    'Local-storage data plane for a signed multipart part upload. Authenticated by a per-part signed `token` query param minted by the documented part-URL operation, not by an API key; same reasoning and same published `transfer.url` contract as the whole-object PUT above.',
 }
 
 /**
@@ -74,19 +81,18 @@ const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
  * capability.
  */
 const LEGACY_CORE_REPLACEMENTS = {
-  executeWorkflow: 'POST /api/v2/workflows/{id}/execute',
-  getWorkflowExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  cancelExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/cancel',
-  getJobStatus: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  listPausedExecutions: 'GET /api/v2/workflows/{id}/runs',
-  getPausedExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPauseContext: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  resumeExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/resume',
+  executeWorkflow: 'POST /api/v2/workflows/{workflowId}/execute',
+  getWorkflowExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  cancelExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/cancel',
+  getJobStatus: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  listPausedExecutions: 'GET /api/v2/workflows/{workflowId}/runs',
+  getPausedExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPauseContext: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  resumeExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/resume',
   getUsageLimits: 'GET /api/v2/billing/status',
 } as const
 
-const API_REFERENCE_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'zh'] as const
 const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/workflows',
   '(generated)/workflow-runs',
@@ -102,6 +108,8 @@ const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/custom-tools',
   '(generated)/credentials',
   '(generated)/secrets',
+  '(generated)/catalog',
+  '(generated)/meta',
 ] as const
 const REMOVED_API_REFERENCE_GROUPS = [
   '(generated)/execution',
@@ -153,7 +161,11 @@ function listContractFiles(dir: string): string[] {
     if (entry.isDirectory()) {
       if (entry.name === '__tests__') continue
       files.push(...listContractFiles(full))
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+    } else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.endsWith('.test.ts') &&
+      entry.name !== 'test-utils.ts'
+    ) {
       files.push(full)
     }
   }
@@ -242,13 +254,23 @@ function docPropertyNames(schema: unknown, spec: Json): Set<string> | null {
   return null
 }
 
-function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json {
-  return z.toJSONSchema(schema, {
+type SchemaIo = 'input' | 'output'
+
+const jsonSchemaCache = new WeakMap<z.ZodType, Map<SchemaIo, Json>>()
+
+function toJsonSchema(schema: z.ZodType, io: SchemaIo): Json {
+  const cached = jsonSchemaCache.get(schema)?.get(io)
+  if (cached) return cached
+  const converted = z.toJSONSchema(schema, {
     io,
     target: 'draft-2020-12',
     unrepresentable: 'any',
     cycles: 'ref',
   }) as Json
+  const byIo = jsonSchemaCache.get(schema) ?? new Map<SchemaIo, Json>()
+  byIo.set(io, converted)
+  jsonSchemaCache.set(schema, byIo)
+  return converted
 }
 
 const outputExampleValidator = new Ajv2020({
@@ -256,6 +278,10 @@ const outputExampleValidator = new Ajv2020({
   allErrors: true,
   validateFormats: false,
 })
+const outputValidatorCache = new WeakMap<
+  z.ZodType,
+  ReturnType<typeof outputExampleValidator.compile>
+>()
 
 function stripLegacySchemaIds(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripLegacySchemaIds)
@@ -268,9 +294,11 @@ function stripLegacySchemaIds(value: unknown): unknown {
 }
 
 function outputExampleError(schema: z.ZodType, value: unknown): string | null {
-  const validate = outputExampleValidator.compile(
-    stripLegacySchemaIds(toJsonSchema(schema, 'output'))
-  )
+  let validate = outputValidatorCache.get(schema)
+  if (!validate) {
+    validate = outputExampleValidator.compile(stripLegacySchemaIds(toJsonSchema(schema, 'output')))
+    outputValidatorCache.set(schema, validate)
+  }
   if (validate(value)) return null
   return outputExampleValidator.errorsText(validate.errors)
 }
@@ -1055,12 +1083,16 @@ for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLAC
 
 const workflowMetaGroups = [
   {
+    tag: 'Workspace Sync',
+    file: 'content/docs/api-reference/(generated)/workspace-sync/meta.json',
+  },
+  {
     tag: 'Workflows',
-    file: 'content/docs/en/api-reference/(generated)/workflows/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflows/meta.json',
   },
   {
     tag: 'Workflow Runs',
-    file: 'content/docs/en/api-reference/(generated)/workflow-runs/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflow-runs/meta.json',
   },
 ] as const
 const visibleWorkflowOperationIds = new Set<string>()
@@ -1091,19 +1123,24 @@ for (const [operationId, specFile] of globalOperationIds) {
   }
 }
 
-for (const locale of API_REFERENCE_LOCALES) {
-  const metaFile = `content/docs/${locale}/api-reference/meta.json`
-  const meta = JSON.parse(readFileSync(path.join(DOCS_DIR, metaFile), 'utf8')) as Json
-  if (!Array.isArray(meta.pages) || !meta.pages.every((page) => typeof page === 'string')) {
-    fail(metaFile, 'pages must be an array of page identifiers')
-    continue
-  }
-  const pages = new Set(meta.pages as string[])
+const API_REFERENCE_META_FILE = 'content/docs/api-reference/meta.json'
+const apiReferenceMeta = JSON.parse(
+  readFileSync(path.join(DOCS_DIR, API_REFERENCE_META_FILE), 'utf8')
+) as Json
+if (
+  !Array.isArray(apiReferenceMeta.pages) ||
+  !apiReferenceMeta.pages.every((page) => typeof page === 'string')
+) {
+  fail(API_REFERENCE_META_FILE, 'pages must be an array of page identifiers')
+} else {
+  const pages = new Set(apiReferenceMeta.pages as string[])
   for (const group of REQUIRED_API_REFERENCE_GROUPS) {
-    if (!pages.has(group)) fail(metaFile, `missing public v2 group ${group}`)
+    if (!pages.has(group)) fail(API_REFERENCE_META_FILE, `missing public v2 group ${group}`)
   }
   for (const group of REMOVED_API_REFERENCE_GROUPS) {
-    if (pages.has(group)) fail(metaFile, `obsolete legacy group ${group} must not be published`)
+    if (pages.has(group)) {
+      fail(API_REFERENCE_META_FILE, `obsolete legacy group ${group} must not be published`)
+    }
   }
 }
 

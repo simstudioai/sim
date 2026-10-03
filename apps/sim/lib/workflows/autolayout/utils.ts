@@ -3,8 +3,8 @@ import {
   CONTAINER_DIMENSIONS,
   clampNoteBlockTotalHeight,
   getNoteBlockHeight,
-  isNoteContentEmpty,
-} from '@sim/workflow-renderer'
+} from '@sim/workflow-renderer/dimensions'
+import { isNoteContentEmpty } from '@sim/workflow-renderer/note-content'
 import {
   AUTO_LAYOUT_EXCLUDED_TYPES,
   CONTAINER_BLOCK_TYPES,
@@ -28,7 +28,7 @@ import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/determi
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import { getDisplayValue, hasDisplayableRowValue } from '@/lib/workflows/subblocks/display'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
@@ -198,9 +198,9 @@ function getVisiblePreviewSubBlocks(block: BlockState): {
     rawValues.__canonicalModes = canonicalModeOverrides
   }
 
-  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
   const effectiveAdvanced = Boolean(block.advancedMode)
   const effectiveTrigger = Boolean(block.triggerMode)
+  const canonicalIndex = buildCanonicalIndexForSurface(blockConfig.subBlocks, effectiveTrigger)
   const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {

@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+
 /**
  * Mock payload generation from a trigger's `outputs` definition.
  *
@@ -88,7 +90,7 @@ function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 1
     return generateMockValue(typedField.type, typedField.description, key)
   }
 
-  if (field && typeof field === 'object' && !Array.isArray(field)) {
+  if (isRecordLike(field)) {
     const nestedObject: Record<string, unknown> = {}
     for (const [nestedKey, nestedField] of Object.entries(field)) {
       nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)

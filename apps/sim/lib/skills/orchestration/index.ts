@@ -1,15 +1,9 @@
 export {
   createSkill,
   deleteSkillRecord,
-  type PerformCreateSkillParams,
-  type PerformDeleteSkillParams,
-  type PerformSkillResult,
-  type PerformUpdateSkillParams,
-  performCreateSkill,
-  performDeleteSkill,
-  performUpdateSkill,
   type SkillOrchestrationErrorCode,
+  type SkillUpsertItem,
   type SkillWriteSource,
-  statusForSkillOrchestrationError,
   updateSkill,
+  upsertSkillBatch,
 } from './skill-lifecycle'

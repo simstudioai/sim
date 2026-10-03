@@ -20,6 +20,7 @@ import {
   isImmutableDaytonaSnapshotRef,
 } from '@sim/utils/sandbox-references'
 import {
+  FUNCTION_DAYTONA_DISK_GB,
   FUNCTION_SANDBOX_CPU_COUNT,
   FUNCTION_SANDBOX_MEMORY_GB,
 } from '@/lib/execution/remote-sandbox/function-resources'
@@ -53,7 +54,7 @@ const APT_INSTALL = 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-inst
 const RESOURCES = {
   cpu: FUNCTION_SANDBOX_CPU_COUNT,
   memory: FUNCTION_SANDBOX_MEMORY_GB,
-  disk: 10,
+  disk: FUNCTION_DAYTONA_DISK_GB,
 } as const
 
 export function createFunctionImage(manifest: FunctionSandboxParityManifest) {

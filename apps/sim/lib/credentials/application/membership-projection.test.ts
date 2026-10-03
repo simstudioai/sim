@@ -1,0 +1,138 @@
+/**
+ * `GET /api/credentials/memberships` names no workspace, so its own gate reads
+ * the caller's organization default group. Every credential it returns does name
+ * one (`credential.workspace_id` is NOT NULL), and `credentials.list` withholds
+ * those same rows inside the workspace under `integrations.manage`. These pin
+ * that the user-global listing is not the way back to what the workspace-scoped
+ * listing hides — projected against this user's own group in each workspace,
+ * never a bystander's — and that leaving a membership stays available.
+ */
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { permissionGroupScopeMock } from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockList, mockLeave } = vi.hoisted(() => ({
+  mockList: vi.fn(),
+  mockLeave: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+vi.mock('@/lib/credentials/members', () => ({
+  leaveCredentialMembership: mockLeave,
+  listCredentialMembers: vi.fn(),
+  listCredentialMembershipsForUser: mockList,
+  removeCredentialMember: vi.fn(),
+  upsertCredentialMember: vi.fn(),
+}))
+
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { DELETE, GET } from '@/app/api/credentials/memberships/route'
+
+const USER_ID = 'user-1'
+const GOVERNED_WORKSPACE = 'workspace-governed'
+const OPEN_WORKSPACE = 'workspace-open'
+
+const mockGetSession = authMockFns.mockGetSession
+const mockGetUserOrganization = organizationMembershipMockFns.mockGetUserOrganization
+const mockGetOrgPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
+const mockResolveConfig = permissionGroupScopeMock.resolvePermissionGroupConfig
+
+function membership(id: string, workspaceId: string) {
+  return {
+    membershipId: `membership-${id}`,
+    credentialId: id,
+    workspaceId,
+    type: 'oauth' as const,
+    displayName: id,
+    providerId: 'google',
+    role: 'member' as const,
+    status: 'active' as const,
+    joinedAt: null,
+  }
+}
+
+function callList() {
+  return GET(
+    createMockRequest('GET', undefined, {}, 'http://localhost/api/credentials/memberships'),
+    createRouteContext({})
+  )
+}
+
+function callLeave(credentialId: string) {
+  return DELETE(
+    createMockRequest(
+      'DELETE',
+      undefined,
+      {},
+      `http://localhost/api/credentials/memberships?credentialId=${credentialId}`
+    ),
+    createRouteContext({})
+  )
+}
+
+describe('credential membership listing under a workspace group', () => {
+  beforeEach(() => {
+    mockResolveConfig.mockReset()
+    mockGetSession.mockResolvedValue({ user: { id: USER_ID }, session: { id: 'session-1' } })
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetOrgPermissionConfig.mockResolvedValue(null)
+    mockList.mockResolvedValue([
+      membership('cred-governed', GOVERNED_WORKSPACE),
+      membership('cred-open', OPEN_WORKSPACE),
+    ])
+    mockLeave.mockResolvedValue(undefined)
+    mockResolveConfig.mockImplementation(async (_userId: string, workspaceId: string) =>
+      workspaceId === GOVERNED_WORKSPACE
+        ? { ...DEFAULT_PERMISSION_GROUP_CONFIG, hideIntegrationsTab: true }
+        : null
+    )
+  })
+
+  it('drops the rows whose workspace withholds Integrations from this user', async () => {
+    const response = await callList()
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.memberships.map((row: { credentialId: string }) => row.credentialId)).toEqual([
+      'cred-open',
+    ])
+  })
+
+  it('resolves the group as the caller themself, in each credential’s workspace', async () => {
+    await callList()
+
+    expect(mockResolveConfig).toHaveBeenCalledWith(USER_ID, GOVERNED_WORKSPACE, undefined)
+    expect(mockResolveConfig).toHaveBeenCalledWith(USER_ID, OPEN_WORKSPACE, undefined)
+  })
+
+  /**
+   * Leaving revokes the caller's own access and grants nothing, so a workspace
+   * that hides the module must not strand them inside the share.
+   */
+  it('still lets the member leave a credential in the withholding workspace', async () => {
+    const response = await callLeave('cred-governed')
+
+    expect(response.status).toBe(200)
+    expect(mockLeave).toHaveBeenCalledWith({ userId: USER_ID, credentialId: 'cred-governed' })
+  })
+})

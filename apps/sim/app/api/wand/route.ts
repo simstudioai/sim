@@ -53,14 +53,6 @@ interface ChatMessage {
   content: string
 }
 
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return '[unserializable]'
-  }
-}
-
 /**
  * Wand enricher function type.
  * Enrichers add context to the system prompt based on generationType.
@@ -138,7 +130,7 @@ async function updateUserStatsForWand(
 
     await recordUsage({
       userId: billingAttribution.actorUserId,
-      workspaceId: billingAttribution.workspaceId,
+      workspaceId: billingAttribution.workspaceId ?? undefined,
       ...toBillingContext(billingAttribution),
       entries: [
         {
@@ -472,7 +464,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                   let parsed: any
                   try {
                     parsed = JSON.parse(data)
-                  } catch (parseError) {
+                  } catch {
                     continue
                   }
 

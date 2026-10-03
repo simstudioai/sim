@@ -1,6 +1,10 @@
-import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
+import {
+  decodeToolParams,
+  getToolParamValueShape,
+  subBlockTypeForValueType,
+} from '@/tools/param-shape'
 
 /**
  * The block-type prefix that identifies a custom (deploy-as-block) block. Shared
@@ -13,8 +17,20 @@ export function isCustomBlockType(type: string | undefined | null): type is stri
   return typeof type === 'string' && type.startsWith(CUSTOM_BLOCK_TYPE_PREFIX)
 }
 
-/** Tile background for custom-block icons (the uploaded image renders on top). */
+/** Tile background behind a custom block's default glyph, when it has no image. */
 export const CUSTOM_BLOCK_TILE_COLOR = '#6F6F6F'
+
+/**
+ * Tile background for a custom block whose icon is an uploaded image — the same
+ * white plate every other light-tiled provider wears.
+ *
+ * Not `'transparent'`: the header chip sets its label beside the icon, so an
+ * unpainted chip leaves the label nothing to contrast and it renders white on white.
+ *
+ * A fixed, non-theme fill, so this is a trade: a dark logo now reads in both
+ * themes, and a light one in neither. There is no per-org override.
+ */
+export const CUSTOM_BLOCK_IMAGE_TILE_COLOR = '#FFFFFF'
 
 /** A curated output exposed on the block, mapped from a child block output. */
 export interface CustomBlockOutput {
@@ -45,6 +61,8 @@ export interface CustomBlockRow {
   name: string
   description: string
   workflowId: string
+  /** Source workflow's home workspace name, to disambiguate same-named env copies. */
+  workspaceName?: string | null
   /** Curated exposed outputs; empty/absent exposes the child's whole `result`. */
   exposedOutputs?: CustomBlockOutput[]
 }
@@ -83,9 +101,21 @@ export function isReservedOutputName(name: string): boolean {
  * stable id. Shared by the hidden `inputMapping` sub-block (canvas serialization)
  * and the agent-tool transform, so both paths assemble the mapping identically.
  */
-export function assembleCustomBlockInputMapping(params: Record<string, unknown>): string {
+export function assembleCustomBlockInputMapping(
+  params: Record<string, unknown>,
+  inputFields: readonly CustomBlockInputFieldType[] | undefined = []
+): string {
+  // A tool row stringifies every value, so a `boolean` field toggled off arrives as the
+  // string 'false' and would reach the child workflow as a truthy string. Keyed on the
+  // field's DECLARED type rather than the control it renders as: a `number` collects in
+  // a text field and an `object` in a code editor, both of which store strings, so asking
+  // the control would answer `'string'` and decode nothing.
+  const shapes = new Map(
+    inputFields.map((field) => [field.id ?? field.name, getToolParamValueShape(field.type)])
+  )
+  const decoded = decodeToolParams(params, shapes)
   const mapping: Record<string, unknown> = {}
-  for (const [key, val] of Object.entries(params)) {
+  for (const [key, val] of Object.entries(decoded)) {
     if (RESERVED_PARAMS.has(key)) continue
     if (val === undefined || val === '') continue
     mapping[key] = val
@@ -93,47 +123,30 @@ export function assembleCustomBlockInputMapping(params: Record<string, unknown>)
   return JSON.stringify(mapping)
 }
 
-/** Map a Start input field type to the editor sub-block type used to collect it. */
-function subBlockTypeForField(fieldType: string): SubBlockType {
-  switch (fieldType) {
-    case 'boolean':
-      return 'switch'
-    case 'object':
-    case 'array':
-      return 'code'
-    case 'file[]':
-      return 'file-upload'
-    default:
-      return 'short-input'
-  }
-}
-
 /**
- * Synthesize a `BlockConfig` for a published custom block from its DB row and the
- * live-derived Start input fields. Shared by the client (real icon + per-field
- * editors) and the server (placeholder icon + `inputFields: []`, since the
- * `inputMapping` wiring is schema-agnostic).
+ * The editable field sub-blocks a custom block exposes, one per Start input.
  *
- * Execution reuses the `workflow_executor` tool: the bound `workflowId` and the
- * assembled `inputMapping` are hidden, baked sub-blocks; each Start input becomes
- * its own editable sub-block whose value is collected into `inputMapping`.
- * `<refs>` inside those values resolve at execution exactly like the
- * `workflow_input` block.
+ * Split out because the server overlay builds its configs with `inputFields: []` (the
+ * live derivation is not free), so on the execution path `blockDef.subBlocks` carries
+ * none of them. The agent-tool transform has the authoritative fields from the block's
+ * binding and rebuilds them here rather than trusting the overlay.
  *
  * The sub-block id is the field's stable id (`field.id`), NOT its display name, so
  * renaming a Start input in the source workflow and redeploying never orphans a
- * consumer's placed value. The name is shown as the sub-block title and is what
- * the child workflow ultimately receives — the id→name remap happens at execution
- * in `WorkflowBlockHandler` against the loaded child's current field names. Legacy
- * fields without an id fall back to keying on the name.
+ * consumer's placed value. Legacy fields without an id fall back to keying on the name.
  */
-export function buildCustomBlockConfig(
-  row: CustomBlockRow,
-  inputFields: WorkflowInputField[],
-  opts: { icon: BlockIcon; bgColor?: string; hideFromToolbar?: boolean }
-): BlockConfig {
-  const fieldSubBlocks: SubBlockConfig[] = inputFields.map((field) => {
-    const type = subBlockTypeForField(field.type)
+/** The parts of a Start input field that decide how its stored value decodes. */
+export interface CustomBlockInputFieldType {
+  id?: string
+  name: string
+  type: string
+}
+
+function buildCustomBlockFieldSubBlocks(
+  inputFields: readonly WorkflowInputField[]
+): SubBlockConfig[] {
+  return inputFields.map((field) => {
+    const type = subBlockTypeForValueType(field.type)
     const sub: SubBlockConfig = {
       id: field.id ?? field.name,
       title: field.name,
@@ -148,12 +161,35 @@ export function buildCustomBlockConfig(
     if (field.type === 'file[]') sub.multiple = true
     return sub
   })
+}
+
+/**
+ * Synthesize a `BlockConfig` for a published custom block from its DB row and the
+ * live-derived Start input fields. Shared by the client (real icon + per-field
+ * editors) and the server (placeholder icon + `inputFields: []`, since the
+ * `inputMapping` wiring is schema-agnostic).
+ *
+ * Execution reuses the `workflow_executor` tool: the bound `workflowId` and the
+ * assembled `inputMapping` are hidden, baked sub-blocks; each Start input becomes
+ * its own editable sub-block whose value is collected into `inputMapping`.
+ * `<refs>` inside those values resolve at execution exactly like the
+ * `workflow_input` block. The name is shown as the sub-block title and is what the
+ * child workflow ultimately receives — the id→name remap happens at execution in
+ * `WorkflowBlockHandler` against the loaded child's current field names.
+ */
+export function buildCustomBlockConfig(
+  row: CustomBlockRow,
+  inputFields: WorkflowInputField[],
+  opts: { icon: BlockIcon; bgColor?: string; hideFromToolbar?: boolean }
+): BlockConfig {
+  const fieldSubBlocks = buildCustomBlockFieldSubBlocks(inputFields)
 
   return {
     type: row.type,
     name: row.name,
     description: row.description,
     sourceWorkflowId: row.workflowId,
+    ...(row.workspaceName ? { sourceWorkspaceName: row.workspaceName } : {}),
     category: 'tools',
     longDescription:
       'A published workflow packaged as a reusable, self-contained block. Fill its input ' +
@@ -178,7 +214,7 @@ export function buildCustomBlockConfig(
         type: 'code',
         language: 'json',
         hidden: true,
-        value: (params) => assembleCustomBlockInputMapping(params),
+        value: (params) => assembleCustomBlockInputMapping(params, inputFields),
       },
       ...fieldSubBlocks,
     ],

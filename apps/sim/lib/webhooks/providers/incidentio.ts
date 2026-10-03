@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
+import { toStringOrNull } from '@sim/utils/coerce'
+import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -56,17 +58,6 @@ function verifyIncidentioSignature(
   }
 }
 
-function asObject(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  return null
-}
-
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 /**
  * Locate a named entity (incident/alert) within an incident.io webhook body.
  *
@@ -84,9 +75,9 @@ function extractEntity(
   eventType: string,
   key: 'incident' | 'alert'
 ): Record<string, unknown> | null {
-  const wrapper = eventType ? asObject(body[eventType]) : null
+  const wrapper = eventType ? toRecordOrNull(body[eventType]) : null
   if (!wrapper) return null
-  return asObject(wrapper[key]) ?? wrapper
+  return toRecordOrNull(wrapper[key]) ?? wrapper
 }
 
 export const incidentioHandler: WebhookProviderHandler = {
@@ -152,9 +143,9 @@ export const incidentioHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = (asObject(body) ?? {}) as Record<string, unknown>
+    const b = (toRecordOrNull(body) ?? {}) as Record<string, unknown>
     const eventType = typeof b.event_type === 'string' ? b.event_type : ''
-    const wrapper = eventType ? asObject(b[eventType]) : null
+    const wrapper = eventType ? toRecordOrNull(b[eventType]) : null
     const isAlert = eventType.startsWith('public_alert.')
 
     if (isAlert) {
@@ -163,16 +154,16 @@ export const incidentioHandler: WebhookProviderHandler = {
         input: {
           event_type: eventType,
           alert,
-          alert_id: asString(alert?.id),
-          title: asString(alert?.title),
-          description: asString(alert?.description),
-          status: asString(alert?.status),
-          alert_source_id: asString(alert?.alert_source_id),
-          deduplication_key: asString(alert?.deduplication_key),
-          source_url: asString(alert?.source_url),
-          created_at: asString(alert?.created_at),
-          updated_at: asString(alert?.updated_at),
-          resolved_at: asString(alert?.resolved_at),
+          alert_id: toStringOrNull(alert?.id),
+          title: toStringOrNull(alert?.title),
+          description: toStringOrNull(alert?.description),
+          status: toStringOrNull(alert?.status),
+          alert_source_id: toStringOrNull(alert?.alert_source_id),
+          deduplication_key: toStringOrNull(alert?.deduplication_key),
+          source_url: toStringOrNull(alert?.source_url),
+          created_at: toStringOrNull(alert?.created_at),
+          updated_at: toStringOrNull(alert?.updated_at),
+          resolved_at: toStringOrNull(alert?.resolved_at),
           payload: b,
         },
       }
@@ -183,27 +174,27 @@ export const incidentioHandler: WebhookProviderHandler = {
       input: {
         event_type: eventType,
         incident,
-        incident_id: asString(incident?.id),
-        name: asString(incident?.name),
-        reference: asString(incident?.reference),
-        summary: asString(incident?.summary),
-        incident_status: asObject(incident?.incident_status),
-        severity: asObject(incident?.severity),
-        mode: asString(incident?.mode),
-        visibility: asString(incident?.visibility),
-        permalink: asString(incident?.permalink),
-        created_at: asString(incident?.created_at),
-        updated_at: asString(incident?.updated_at),
-        new_status: asObject(wrapper?.new_status),
-        previous_status: asObject(wrapper?.previous_status),
-        update_message: asString(wrapper?.message),
+        incident_id: toStringOrNull(incident?.id),
+        name: toStringOrNull(incident?.name),
+        reference: toStringOrNull(incident?.reference),
+        summary: toStringOrNull(incident?.summary),
+        incident_status: toRecordOrNull(incident?.incident_status),
+        severity: toRecordOrNull(incident?.severity),
+        mode: toStringOrNull(incident?.mode),
+        visibility: toStringOrNull(incident?.visibility),
+        permalink: toStringOrNull(incident?.permalink),
+        created_at: toStringOrNull(incident?.created_at),
+        updated_at: toStringOrNull(incident?.updated_at),
+        new_status: toRecordOrNull(wrapper?.new_status),
+        previous_status: toRecordOrNull(wrapper?.previous_status),
+        update_message: toStringOrNull(wrapper?.message),
         payload: b,
       },
     }
   },
 
   extractIdempotencyId(body: unknown) {
-    const b = asObject(body)
+    const b = toRecordOrNull(body)
     if (!b) return null
     const eventType = typeof b.event_type === 'string' ? b.event_type : ''
     const key = eventType.startsWith('public_alert.') ? 'alert' : 'incident'

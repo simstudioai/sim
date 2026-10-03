@@ -1,3 +1,4 @@
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { z } from 'zod'
 import {
   folderIdSchema,
@@ -58,6 +59,8 @@ export const updateWorkspaceFileContentBodySchema = z
   .object({
     content: z.string().max(70_000_000, 'Content is too large'),
     encoding: z.enum(['base64', 'utf-8']).optional(),
+    /** The content-version timestamp returned with the bytes this edit was based on. */
+    expectedUpdatedAt: z.iso.datetime().optional(),
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -95,6 +98,30 @@ export const createWorkspaceFileBodySchema = z
 
 export type CreateWorkspaceFileBody = z.input<typeof createWorkspaceFileBodySchema>
 
+export type UpdateWorkspaceFileContentBody = z.input<typeof updateWorkspaceFileContentBodySchema>
+
+export const exportWorkspaceFileSnapshotBodySchema = z.object({
+  content: z
+    .string()
+    .max(PASTE_LIMITS.RICH_MARKDOWN_BYTES, 'Markdown snapshot is too large')
+    .refine(
+      (content) =>
+        utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) <=
+        PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+      'Markdown snapshot is too large'
+    ),
+})
+
+export type ExportWorkspaceFileSnapshotBody = z.input<typeof exportWorkspaceFileSnapshotBodySchema>
+
+export const exportWorkspaceFileSnapshotContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/export',
+  params: workspaceFileParamsSchema,
+  body: exportWorkspaceFileSnapshotBodySchema,
+  response: { mode: 'binary' },
+})
+
 /** No real image approaches this; the bound rejects absurd or hostile values on the backfill path. */
 const IMAGE_DIMENSION_MAX = 100_000
 
@@ -131,7 +158,11 @@ export const workspaceFileRecordSchema = z.object({
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  /** Advances only when file bytes change; metadata edits do not invalidate text drafts. */
+  contentUpdatedAt: z.coerce.date().nullable().optional(),
+  revision: z.string().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
+  vfsNamespace: z.literal('uploads').optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 
@@ -144,6 +175,14 @@ const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
 })
 
 export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
+
+export const extractWorkspaceFileResponseSchema = workspaceFileSuccessSchema.extend({
+  folderName: z.string(),
+  extractedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+})
+
+export type ExtractWorkspaceFileResponse = z.output<typeof extractWorkspaceFileResponseSchema>
 
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
@@ -170,6 +209,17 @@ export const createWorkspaceFileContract = defineRouteContract({
   },
 })
 
+/** Authorized file-by-id reads also admit chat attachments without listing or write access. */
+export const readWorkspaceFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({ file: workspaceFileRecordSchema }),
+  },
+})
+
 export const renameWorkspaceFileContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/workspaces/[id]/files/[fileId]',
@@ -182,6 +232,16 @@ export const renameWorkspaceFileContract = defineRouteContract({
     }),
   },
   error: renameWorkspaceFileErrorSchema,
+})
+
+export const extractWorkspaceFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/extract',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: extractWorkspaceFileResponseSchema,
+  },
 })
 
 export const updateWorkspaceFileDimensionsContract = defineRouteContract({
@@ -282,20 +342,5 @@ export const workspaceFileStyleContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: documentStyleSummarySchema,
-  },
-})
-
-const compiledCheckResponseSchema = z.union([
-  z.object({ ok: z.literal(true) }),
-  z.object({ ok: z.literal(false), error: z.string(), errorName: z.string() }),
-])
-
-export const workspaceFileCompiledCheckContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/files/[fileId]/compiled-check',
-  params: workspaceFileParamsSchema,
-  response: {
-    mode: 'json',
-    schema: compiledCheckResponseSchema,
   },
 })

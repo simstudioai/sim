@@ -1,15 +1,35 @@
 export {
+  BlockTileView,
+  type BlockTileViewProps,
+  getWorkflowTypeAccent,
+  getWorkflowTypeRole,
+  hasWorkflowTypeRole,
+  WorkflowTypeIcon,
+  type WorkflowTypeIconProps,
+  type WorkflowTypeRole,
+  WorkflowTypeTag,
+  type WorkflowTypeTagProps,
+} from '@sim/workflow-renderer/workflow-type'
+export {
   BLOCK_Z_BASE,
+  CANVAS_Z_INDEX_MODE,
   CONNECTION_PICKER_Z,
   CONTAINER_CHILD_Z_BASE,
   EDGE_Z_BASE,
   EDGE_Z_MAX,
   getBlockZIndex,
   getEdgeZIndex,
+  getEdgeZIndexForTarget,
 } from './canvas-layers'
 export * from './dimensions'
-export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
+export {
+  type WorkflowEdge,
+  type WorkflowEdgeData,
+  WorkflowEdgeView,
+  type WorkflowEdgeViewProps,
+} from './edge/workflow-edge-view'
 export { humanizeBlockName } from './lib/humanize-block-name'
+export { sortNodesParentsFirst } from './node-order'
 export {
   NOTE_MARKDOWN_FLOW,
   NoteBlockView,
@@ -26,12 +46,26 @@ export {
 } from './note/note-colors'
 export { getNoteStringValue, isNoteContentEmpty } from './note/note-content'
 export {
+  countNoteSearchOccurrencesBefore,
+  forEachNoteSourceOccurrence,
+  type NoteSearchHighlight,
+  type NoteSearchRange,
+} from './note/note-search-highlight'
+export {
   type SubflowNodeData,
   SubflowNodeView,
   type SubflowNodeViewProps,
   SubflowStartView,
 } from './subflow/subflow-node-view'
-export type { BlockRunStatus, DiffStatus, EdgeDiffStatus, EdgeRunStatus } from './types'
+export type {
+  BlockRunStatus,
+  CodePreview,
+  CodePreviewLanguage,
+  DiffStatus,
+  EdgeDiffStatus,
+  EdgeRunStatus,
+} from './types'
+export { useCanvasColorMode } from './use-canvas-color-mode'
 export {
   type CanvasSentenceSegment,
   CanvasSentenceView,
@@ -60,14 +94,6 @@ export {
   getErrorBorderPort,
   getErrorSourceHandleStyle,
   getNearestBranchCursorHandleId,
-  getWorkflowTypeAccent,
-  getWorkflowTypeRole,
-  hasWorkflowTypeRole,
   WorkflowBlockView,
   type WorkflowBlockViewProps,
-  WorkflowTypeIcon,
-  type WorkflowTypeIconProps,
-  type WorkflowTypeRole,
-  WorkflowTypeTag,
-  type WorkflowTypeTagProps,
 } from './workflow-block/workflow-block-view'

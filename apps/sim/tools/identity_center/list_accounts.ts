@@ -2,9 +2,9 @@ import type {
   IdentityCenterListAccountsParams,
   IdentityCenterListAccountsResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listAccountsTool: ToolConfig<
+export const listAccountsTool: InternalToolConfig<
   IdentityCenterListAccountsParams,
   IdentityCenterListAccountsResponse
 > = {
@@ -36,7 +36,7 @@ export const listAccountsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of accounts to return',
+      description: 'Maximum number of accounts to return (1-20; the AWS Organizations ceiling)',
     },
     nextToken: {
       type: 'string',
@@ -46,11 +46,8 @@ export const listAccountsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/list-accounts',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
@@ -76,8 +73,23 @@ export const listAccountsTool: ToolConfig<
 
   outputs: {
     accounts: {
-      type: 'json',
-      description: 'List of AWS accounts with id, arn, name, email, status',
+      type: 'array',
+      description: 'Accounts in the AWS organization',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'AWS account ID' },
+          arn: { type: 'string', description: 'AWS account ARN' },
+          name: { type: 'string', description: 'Account name' },
+          email: { type: 'string', description: 'Root email address of the account' },
+          status: { type: 'string', description: 'Account status (e.g., ACTIVE, SUSPENDED)' },
+          joinedTimestamp: {
+            type: 'string',
+            description: 'ISO 8601 date the account joined the organization',
+            nullable: true,
+          },
+        },
+      },
     },
     nextToken: {
       type: 'string',

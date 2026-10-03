@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   GITHUB_GRAPHQL_MAX_PAGE_SIZE,
   GITHUB_GRAPHQL_URL,
@@ -6,7 +7,6 @@ import {
   readGraphQlData,
 } from '@/tools/github/graphql'
 import {
-  isRecord,
   nullableNumber,
   requiredBoolean,
   requiredNumber,
@@ -84,7 +84,7 @@ function parseAuthor(
   context: string
 ): { authorLogin: string | null; authorType: string | null } {
   if (value === null || value === undefined) return { authorLogin: null, authorType: null }
-  if (!isRecord(value)) throw new Error(`${context} must be an object or null`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object or null`)
   return {
     authorLogin: requiredString(value, 'login', context),
     authorType: requiredString(value, '__typename', context),
@@ -92,7 +92,7 @@ function parseAuthor(
 }
 
 function parseComment(value: unknown, context: string): ReviewThreadComment {
-  if (!isRecord(value)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object`)
   return {
     body: requiredString(value, 'body', context),
     authorAssociation: requiredString(value, 'authorAssociation', context),
@@ -102,10 +102,10 @@ function parseComment(value: unknown, context: string): ReviewThreadComment {
 
 function parseThread(value: unknown, index: number): ReviewThread {
   const context = `${CONTEXT}.threads[${index}]`
-  if (!isRecord(value)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object`)
 
   const comments = value.comments
-  if (!isRecord(comments)) throw new Error(`${context}.comments must be an object`)
+  if (!isRecordLike(comments)) throw new Error(`${context}.comments must be an object`)
   const commentNodes = comments.nodes
   if (!Array.isArray(commentNodes)) throw new Error(`${context}.comments.nodes must be an array`)
 
@@ -122,14 +122,14 @@ function parseThread(value: unknown, index: number): ReviewThread {
 }
 
 function parseLatestReview(value: unknown): SubmittedReviewSummary | null {
-  if (!isRecord(value)) throw new Error(`${CONTEXT}.reviews must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${CONTEXT}.reviews must be an object`)
   const nodes = value.nodes
   if (!Array.isArray(nodes)) throw new Error(`${CONTEXT}.reviews.nodes must be an array`)
   const newest: unknown = nodes.at(-1)
   if (newest === undefined) return null
 
   const context = `${CONTEXT}.reviews.latest`
-  if (!isRecord(newest)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(newest)) throw new Error(`${context} must be an object`)
   const submittedAt = newest.submittedAt
   if (typeof submittedAt !== 'string') {
     throw new Error(`${context}.submittedAt must be a string`)
@@ -221,12 +221,13 @@ export const listReviewThreadsTool: ToolConfig<ListReviewThreadsParams, ListRevi
       const data = await readGraphQlData(response, CONTEXT)
 
       const repository = data.repository
-      if (!isRecord(repository)) throw new Error(`${CONTEXT}.repository was not found`)
+      if (!isRecordLike(repository)) throw new Error(`${CONTEXT}.repository was not found`)
       const pullRequest = repository.pullRequest
-      if (!isRecord(pullRequest)) throw new Error(`${CONTEXT}.pullRequest was not found`)
+      if (!isRecordLike(pullRequest)) throw new Error(`${CONTEXT}.pullRequest was not found`)
 
       const reviewThreads = pullRequest.reviewThreads
-      if (!isRecord(reviewThreads)) throw new Error(`${CONTEXT}.reviewThreads must be an object`)
+      if (!isRecordLike(reviewThreads))
+        throw new Error(`${CONTEXT}.reviewThreads must be an object`)
       const nodes = reviewThreads.nodes
       if (!Array.isArray(nodes)) throw new Error(`${CONTEXT}.reviewThreads.nodes must be an array`)
 

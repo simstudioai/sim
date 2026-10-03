@@ -20,6 +20,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, WebContentsView } from 'electron'
 import { zoomPercentOf } from '@/main/browser-agent/context-menu'
 import type { AgentTab } from '@/main/browser-agent/session'
+import { reassertTabThrottling } from '@/main/browser-agent/session'
 
 const logger = createLogger('BrowserAgentPanel')
 
@@ -30,6 +31,8 @@ const logger = createLogger('BrowserAgentPanel')
  */
 const PANEL_LEASE_TTL_MS = 2_500
 const PANEL_LEASE_CHECK_MS = 1_000
+const MAX_PANEL_SNAPSHOT_PIXELS = 16_777_216
+const MAX_PANEL_SNAPSHOT_DATA_URL_LENGTH = 32 * 1024 * 1024
 
 /** What the panel needs from the session, supplied once by {@link initPanel}. */
 export interface PanelHost {
@@ -38,21 +41,21 @@ export interface PanelHost {
   activeTab: () => AgentTab | null
   /** Native backdrop used by a blank tab before its first page paint. */
   backgroundColor: () => string
-  /**
-   * Materializes the initial tab when the panel first becomes visible: a
-   * visible browser resource always represents one open browser window, and
-   * the tab strip, omnibox, and native session must not disagree about that.
-   */
-  ensureInitialTab: () => void
+  /** Hydrates the active scope's saved pages when the panel first becomes visible. */
+  restoreActiveScope: () => void
   /** Lets the session drop focus tracking for a view that is no longer attached. */
   onViewDetached: (view: WebContentsView | null) => void
+  /** Invalidates field-anchored UI when the page moves, hides, or detaches. */
+  onGeometryChanged?: () => void
+  /** Runs after each layout that leaves the active view attached and visible. */
+  onViewShown?: (view: WebContentsView) => void
 }
 
 let host: PanelHost = {
   getMainWindow: () => null,
   activeTab: () => null,
   backgroundColor: () => '#ffffff',
-  ensureInitialTab: () => {},
+  restoreActiveScope: () => {},
   onViewDetached: () => {},
 }
 
@@ -66,6 +69,19 @@ let panelOccluded = false
 let occlusionOwnerWindow: BrowserWindow | null = null
 /** Invalidates captures when ownership, scope, or panel visibility changes. */
 let panelCaptureGeneration = 0
+let inFlightPanelCapture: {
+  generation: number
+  key: string
+  promise: Promise<BrowserPanelSnapshot | null>
+} | null = null
+let queuedPanelCapture: {
+  key: string
+  ownerWindow: BrowserWindow | undefined
+  promise: Promise<BrowserPanelSnapshot | null>
+  reject: (reason?: unknown) => void
+  resolve: (snapshot: BrowserPanelSnapshot | null) => void
+  scopeId: string
+} | null = null
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
 /** Chat whose native browser surface may currently be composited. */
@@ -89,6 +105,14 @@ interface OccludablePanelFrame {
 }
 /** Geometry of the painted frame that is currently allowed to replace the view. */
 let occludableFrame: OccludablePanelFrame | null = null
+/**
+ * Each chat's agent tab, kept in a window even while no panel shows it. A view that is in no
+ * window has no compositor surface: CDP input on it never acknowledges and captures never
+ * complete. Parked invisibly, it renders exactly like the hidden panel view does.
+ */
+const agentViews = new Map<string, WebContentsView>()
+/** Agent views parked invisibly, with the window each one is parked in. */
+const parkedViews = new Map<WebContentsView, BrowserWindow>()
 /** The host window whose `resize` currently drives {@link layout}, if any. */
 let resizeBoundWindow: BrowserWindow | null = null
 /** Captures nothing, so one instance serves every window it is bound to. */
@@ -100,6 +124,8 @@ export function initPanel(panelHost: PanelHost): void {
   // by the next session: a stale owner window that rejects legitimate panel
   // updates, a lease timer polling for a panel that no longer exists, a
   // `lastApplied*` value that dedupes away the first layout of the new one.
+  agentViews.clear()
+  for (const view of [...parkedViews.keys()]) unparkView(view)
   detachAttachedView()
   resetOcclusion()
   if (leaseTimer !== null) {
@@ -131,6 +157,12 @@ export function activatePanelScope(scopeId: string | null): void {
 
 /** Retags an active pending scope without tearing down the compositor. */
 export function migratePanelScope(fromScopeId: string, toScopeId: string): void {
+  const agentView = agentViews.get(fromScopeId)
+  if (agentView) {
+    agentViews.delete(fromScopeId)
+    if (!agentViews.has(toScopeId)) agentViews.set(toScopeId, agentView)
+    else if (!isAgentView(agentView)) unparkView(agentView)
+  }
   if (activePanelScopeId !== fromScopeId) return
   activePanelScopeId = toScopeId
   panelCaptureGeneration++
@@ -280,16 +312,24 @@ function detachAttachedView(): void {
   occludableFrame = null
   unbindHostResize()
   host.onViewDetached(view)
+  host.onGeometryChanged?.()
 
   if (!view || !win) return
   try {
     if (win.isDestroyed() || view.webContents.isDestroyed()) return
+    // An agent view stays in the main window, which outlives any secondary window.
+    if (isAgentView(view) && win === host.getMainWindow()) {
+      view.setVisible(false)
+      parkedViews.set(view, win)
+      return
+    }
     win.contentView.removeChildView(view)
   } catch (error) {
     logger.warn('Could not detach embedded browser view', {
       error: getErrorMessage(error, 'unknown'),
     })
   }
+  if (isAgentView(view)) parkAgentViews()
 }
 
 /** Reveals the native view and invalidates every frame captured for its old state. */
@@ -298,6 +338,8 @@ function resetOcclusion(): void {
   occlusionOwnerWindow = null
   occludableFrame = null
   panelCaptureGeneration++
+  queuedPanelCapture?.resolve(null)
+  queuedPanelCapture = null
 }
 
 /**
@@ -317,6 +359,7 @@ function hideAttachedView(): void {
       error: getErrorMessage(error, 'unknown'),
     })
   }
+  host.onGeometryChanged?.()
 }
 
 /**
@@ -324,8 +367,70 @@ function hideAttachedView(): void {
  * tab must not pull the visible tab out of the window.
  */
 export function detachIfAttached(view: WebContentsView): void {
+  for (const [scopeId, agentView] of agentViews) {
+    if (agentView === view) agentViews.delete(scopeId)
+  }
   if (attachedView === view) {
     detachAttachedView()
+  }
+  unparkView(view)
+}
+
+/**
+ * Registers the tab a chat's agent drives, so it stays composited while the panel shows
+ * another tab or no panel is open. Null releases the chat's previous agent tab.
+ */
+export function setAgentView(scopeId: string, view: WebContentsView | null): void {
+  const previous = agentViews.get(scopeId)
+  if (view) agentViews.set(scopeId, view)
+  else agentViews.delete(scopeId)
+  if (previous && previous !== view && !isAgentView(previous)) unparkView(previous)
+  parkAgentViews()
+}
+
+function isAgentView(view: WebContentsView): boolean {
+  for (const agentView of agentViews.values()) {
+    if (agentView === view) return true
+  }
+  return false
+}
+
+/** Parks every agent view that no window holds, keeping renderer focus where it was. */
+function parkAgentViews(): void {
+  const win = host.getMainWindow()
+  if (!win || win.isDestroyed()) return
+  for (const view of agentViews.values()) {
+    if (view === attachedView || view.webContents.isDestroyed()) continue
+    const parkedIn = parkedViews.get(view)
+    if (parkedIn && !parkedIn.isDestroyed()) continue
+    // addChildView hands keyboard focus to the parked view; give it back to whichever of the
+    // Sim renderer or the visible browser page held it.
+    const focused = [win.webContents, attachedView?.webContents].find(
+      (contents) => contents && !contents.isDestroyed() && contents.isFocused()
+    )
+    try {
+      view.setVisible(false)
+      win.contentView.addChildView(view)
+      parkedViews.set(view, win)
+    } catch (error) {
+      logger.warn('Could not park the agent browser view', {
+        error: getErrorMessage(error, 'unknown'),
+      })
+    }
+    focused?.focus()
+  }
+}
+
+function unparkView(view: WebContentsView): void {
+  const win = parkedViews.get(view)
+  if (!win) return
+  parkedViews.delete(view)
+  try {
+    if (!win.isDestroyed() && !view.webContents.isDestroyed()) win.contentView.removeChildView(view)
+  } catch (error) {
+    logger.warn('Could not unpark the agent browser view', {
+      error: getErrorMessage(error, 'unknown'),
+    })
   }
 }
 
@@ -375,14 +480,31 @@ export function layout(): void {
   }
   if (!showing || !active || !win || panelBounds === null) {
     hideAttachedView()
+    parkAgentViews()
     return
   }
 
   if (attachedView !== active.view) {
-    win.contentView.addChildView(active.view)
+    // A parked agent view already sits in this window; adopting it in place avoids the
+    // blank repaint a remove-and-add costs.
+    const parkedIn = parkedViews.get(active.view)
+    parkedViews.delete(active.view)
+    if (parkedIn !== win) {
+      if (parkedIn && !parkedIn.isDestroyed()) parkedIn.contentView.removeChildView(active.view)
+      // addChildView hands keyboard focus to the newly attached WebContentsView.
+      // Agent-driven attaches happen while the user may be typing in the chat
+      // composer, so if the renderer held focus before the attach, give it back —
+      // automation drives the page over CDP and never needs OS focus.
+      const rendererHadFocus = !win.webContents.isDestroyed() && win.webContents.isFocused()
+      win.contentView.addChildView(active.view)
+      if (rendererHadFocus) {
+        win.webContents.focus()
+      }
+    }
     hostedWindow = win
     attachedView = active.view
   }
+  parkAgentViews()
   bindHostResize(win)
   const zoom = win.webContents.getZoomFactor()
   const [contentWidth, contentHeight] = win.getContentSize()
@@ -406,15 +528,30 @@ export function layout(): void {
     lastAppliedBounds = boundsKey
     occludableFrame = null
     active.view.setBounds(bounds)
+    host.onGeometryChanged?.()
   }
   const visible = !panelOccluded
   if (lastAppliedVisibility !== visible) {
     lastAppliedVisibility = visible
     active.view.setVisible(visible)
+    host.onGeometryChanged?.()
     if (visible && !active.view.webContents.isDestroyed()) {
-      active.view.webContents.invalidate()
+      // invalidate() recomposites the LAST frame — which is blank when the
+      // page finished loading while this view was hidden and background
+      // throttling suspended the rAF its SPA paints from. The page then sits
+      // "loaded" but white until the user re-navigates by hand. Pulse
+      // throttling off so the renderer actually produces a first frame, then
+      // hand the policy back to the session (which keeps the automation-tab
+      // exemption intact).
+      const contents = active.view.webContents
+      contents.setBackgroundThrottling(false)
+      contents.invalidate()
+      setTimeout(() => {
+        if (!contents.isDestroyed()) reassertTabThrottling()
+      }, 1_000)
     }
   }
+  if (visible) host.onViewShown?.(active.view)
 }
 
 /** Converts the applied native DIP rectangle back into Sim viewport CSS pixels. */
@@ -470,6 +607,39 @@ function blankSnapshot(
   }
 }
 
+function queuePanelCapture(
+  key: string,
+  ownerWindow: BrowserWindow | undefined,
+  scopeId: string
+): Promise<BrowserPanelSnapshot | null> {
+  if (queuedPanelCapture?.key === key) return queuedPanelCapture.promise
+
+  panelCaptureGeneration++
+  queuedPanelCapture?.resolve(null)
+  let resolveCapture!: (snapshot: BrowserPanelSnapshot | null) => void
+  let rejectCapture!: (reason?: unknown) => void
+  const promise = new Promise<BrowserPanelSnapshot | null>((resolve, reject) => {
+    resolveCapture = resolve
+    rejectCapture = reject
+  })
+  queuedPanelCapture = {
+    key,
+    ownerWindow,
+    promise,
+    reject: rejectCapture,
+    resolve: resolveCapture,
+    scopeId,
+  }
+  return promise
+}
+
+function startQueuedPanelCapture(): void {
+  const queued = queuedPanelCapture
+  if (!queued) return
+  queuedPanelCapture = null
+  void capturePanelSnapshot(queued.ownerWindow, queued.scopeId).then(queued.resolve, queued.reject)
+}
+
 /**
  * Captures the compositor surface without resizing or lossy encoding.
  *
@@ -482,12 +652,7 @@ export async function capturePanelSnapshot(
   ownerWindow?: BrowserWindow,
   scopeId = activePanelScopeId
 ): Promise<BrowserPanelSnapshot | null> {
-  if (
-    !scopeId ||
-    !panelUpdateAllowed(ownerWindow, scopeId) ||
-    panelBounds === null ||
-    panelOccluded
-  ) {
+  if (!scopeId || !panelUpdateAllowed(ownerWindow, scopeId) || panelBounds === null) {
     return null
   }
   const active = host.activeTab()
@@ -499,8 +664,6 @@ export async function capturePanelSnapshot(
   layout()
   if (attachedView !== active.view) return null
 
-  const generation = ++panelCaptureGeneration
-  occludableFrame = null
   const tabId = active.id
   const contents = active.view.webContents
   const shellZoom = win.webContents.getZoomFactor()
@@ -514,41 +677,107 @@ export async function capturePanelSnapshot(
     nativeBounds,
   }
   const viewportBounds = viewportBoundsFor(nativeBounds, shellZoom)
-  const zoomPercent = zoomPercentOf(contents.getZoomFactor())
+  const contentsZoom = contents.getZoomFactor()
+  const zoomPercent = zoomPercentOf(contentsZoom)
   const url = contents.getURL()
   if (url === '' || url === 'about:blank') {
+    panelCaptureGeneration++
+    occludableFrame = null
     if (!frameGeometryIsCurrent(frame)) return null
     occludableFrame = frame
     return blankSnapshot(scopeId, tabId, zoomPercent, viewportBounds)
   }
+  if (
+    nativeBounds.width <= 0 ||
+    nativeBounds.height <= 0 ||
+    nativeBounds.width * nativeBounds.height > MAX_PANEL_SNAPSHOT_PIXELS
+  ) {
+    logger.warn('Browser panel is too large to capture safely', {
+      width: nativeBounds.width,
+      height: nativeBounds.height,
+    })
+    return null
+  }
+
+  const captureKey = JSON.stringify([
+    win.id,
+    scopeId,
+    tabId,
+    url,
+    contentsZoom,
+    shellZoom,
+    nativeBounds.x,
+    nativeBounds.y,
+    nativeBounds.width,
+    nativeBounds.height,
+  ])
+  if (
+    inFlightPanelCapture?.key === captureKey &&
+    inFlightPanelCapture.generation === panelCaptureGeneration
+  ) {
+    return inFlightPanelCapture.promise
+  }
+  if (inFlightPanelCapture) return queuePanelCapture(captureKey, ownerWindow, scopeId)
+
+  occludableFrame = null
+  const generation = ++panelCaptureGeneration
+  let capture: ReturnType<typeof contents.capturePage>
   try {
-    const image = await contents.capturePage(undefined, { stayHidden: false })
-    if (
-      generation !== panelCaptureGeneration ||
-      scopeId !== activePanelScopeId ||
-      host.activeTab()?.id !== tabId ||
-      panelWindow() !== win ||
-      win.isDestroyed() ||
-      !frameGeometryIsCurrent(frame) ||
-      image.isEmpty()
-    ) {
-      return null
-    }
-    const snapshot: BrowserPanelSnapshot = {
-      scopeId,
-      tabId,
-      zoomPercent,
-      viewportBounds,
-      dataUrl: image.toDataURL(),
-    }
-    occludableFrame = frame
-    return snapshot
+    /** Refresh an occluded frame without exposing the native view above renderer overlays. */
+    capture = contents.capturePage(undefined, { stayHidden: panelOccluded })
   } catch (error) {
     logger.warn('Could not capture browser panel for a toolbar menu', {
       error: getErrorMessage(error, 'unknown'),
     })
     return null
   }
+  const promise = capture
+    .then((image): BrowserPanelSnapshot | null => {
+      const imageSize = image.getSize()
+      if (
+        generation !== panelCaptureGeneration ||
+        scopeId !== activePanelScopeId ||
+        host.activeTab()?.id !== tabId ||
+        panelWindow() !== win ||
+        win.isDestroyed() ||
+        !frameGeometryIsCurrent(frame) ||
+        image.isEmpty() ||
+        imageSize.width <= 0 ||
+        imageSize.height <= 0 ||
+        imageSize.width * imageSize.height > MAX_PANEL_SNAPSHOT_PIXELS
+      ) {
+        return null
+      }
+      const dataUrl = image.toDataURL()
+      if (dataUrl.length > MAX_PANEL_SNAPSHOT_DATA_URL_LENGTH) {
+        logger.warn('Browser panel snapshot exceeded the encoded size limit', {
+          bytes: dataUrl.length,
+        })
+        return null
+      }
+      const snapshot: BrowserPanelSnapshot = {
+        scopeId,
+        tabId,
+        zoomPercent,
+        viewportBounds,
+        dataUrl,
+      }
+      occludableFrame = frame
+      return snapshot
+    })
+    .catch((error) => {
+      logger.warn('Could not capture browser panel for a toolbar menu', {
+        error: getErrorMessage(error, 'unknown'),
+      })
+      return null
+    })
+    .finally(() => {
+      if (inFlightPanelCapture?.promise !== promise) return
+      inFlightPanelCapture = null
+      startQueuedPanelCapture()
+    })
+  inFlightPanelCapture = { generation, key: captureKey, promise }
+  return promise
 }
 
 /**
@@ -700,7 +929,7 @@ export function setPanelBounds(
   panelBounds = bounds
   panelAnchor = bounds === null ? null : (anchor ?? null)
   if (bounds !== null) {
-    host.ensureInitialTab()
+    host.restoreActiveScope()
   } else {
     resetOcclusion()
   }

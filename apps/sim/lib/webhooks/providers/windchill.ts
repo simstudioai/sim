@@ -13,7 +13,7 @@ import {
   createWindchillSession,
   WindchillProviderError,
   windchillMutationRequest,
-} from '@/tools/windchill/utils.server'
+} from '@/lib/internal/windchill/client'
 
 const logger = createLogger('WebhookProvider:Windchill')
 

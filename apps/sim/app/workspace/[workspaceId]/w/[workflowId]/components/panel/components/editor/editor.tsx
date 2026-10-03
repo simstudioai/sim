@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, ChipTag, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import {
   BookOpen,
   Check,
@@ -12,23 +12,28 @@ import {
   SquareArrowUpRight,
   Unlock,
 } from '@sim/emcn/icons'
-import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
-import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
+import {
+  type BlockRetryConfig,
+  isWorkflowBlockAncestorLocked,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
+import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { captureEvent } from '@/lib/posthog/client'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   hasAdvancedValues,
   isCanonicalPair,
   isStandaloneAdvancedMode,
   resolveCanonicalMode,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -49,12 +54,8 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  isAncestorProtected,
-  isBlockProtected,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { isLightTileColor } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -67,18 +68,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
-
-/**
- * Icon component for rendering block icons.
- *
- * @param icon - The icon component to render
- * @param className - Optional CSS classes
- * @returns Rendered icon or null if no icon provided
- */
-const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
-  if (!Icon) return null
-  return <Icon className={className} />
-}
 
 /**
  * Editor panel component.
@@ -106,8 +95,6 @@ export function Editor() {
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
-  const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
-  const isIntegration = blockConfig?.category === 'tools'
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
@@ -151,8 +138,10 @@ export function Editor() {
   // Check if block is locked (or inside a locked ancestor) and compute edit permission
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
-  const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
-  const isAncestorLocked = currentBlockId ? isAncestorProtected(currentBlockId, blocks) : false
+  const isLocked = currentBlockId ? isWorkflowBlockProtected(currentBlockId, blocks) : false
+  const isAncestorLocked = currentBlockId
+    ? isWorkflowBlockAncestorLocked(currentBlockId, blocks)
+    : false
   const canEditBlock = userPermissions.canEdit && !workflowLocked && !isLocked
 
   const { advancedMode, triggerMode } = useEditorBlockProperties(
@@ -172,11 +161,10 @@ export function Editor() {
     isEqual
   )
 
-  const subBlocksForCanonical = useMemo(() => {
-    const subBlocks = blockConfig?.subBlocks || []
-    if (!triggerMode) return subBlocks
-    return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-  }, [blockConfig?.subBlocks, triggerMode])
+  const subBlocksForCanonical = useMemo(
+    () => getCanonicalSubBlocksForSurface(blockConfig?.subBlocks || [], triggerMode),
+    [blockConfig?.subBlocks, triggerMode]
+  )
 
   const canonicalIndex = useMemo(
     () => buildCanonicalIndex(subBlocksForCanonical),
@@ -274,6 +262,7 @@ export function Editor() {
 
   const {
     collaborativeSetBlockCanonicalMode,
+    collaborativeSetSubblockValue,
     collaborativeUpdateBlockName,
     collaborativeSetBlockRetry,
     collaborativeBatchToggleLocked,
@@ -345,7 +334,8 @@ export function Editor() {
     const block = blocks[blockId]
     if (!block) return
 
-    if (!userPermissions.canEdit || workflowLocked || isBlockProtected(blockId, blocks)) return
+    if (!userPermissions.canEdit || workflowLocked || isWorkflowBlockProtected(blockId, blocks))
+      return
 
     renamingBlockIdRef.current = blockId
     setEditedName(block.name || '')
@@ -437,23 +427,10 @@ export function Editor() {
     <ActiveSearchTargetProvider value={activeSearchTargetForCurrentBlock}>
       <div className='flex h-full flex-col'>
         {/* Header */}
-        <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='mx-[-1px] flex shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            {(blockConfig || isSubflow) && (
-              <ChipTag
-                variant={isIntegration ? 'brand' : typeAccent.variant}
-                tone={isIntegration ? undefined : typeAccent.tone}
-                brandColor={isIntegration ? blockConfig.bgColor : undefined}
-                brandForeground={
-                  isIntegration && isLightTileColor(blockConfig.bgColor) ? 'dark' : 'light'
-                }
-                className='size-[18px] justify-center px-0'
-              >
-                <IconComponent
-                  icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className='size-[12px]'
-                />
-              </ChipTag>
+            {currentBlock && (blockConfig || isSubflow) && (
+              <BlockTile blockType={currentBlock.type} size='lg' />
             )}
             {isRenaming ? (
               <input
@@ -469,7 +446,7 @@ export function Editor() {
                     handleCancelRename()
                   }
                 }}
-                className='min-w-0 flex-1 truncate bg-transparent pr-2 text-[var(--text-primary)] text-sm outline-none'
+                className='min-w-0 flex-1 truncate bg-transparent pr-2 text-[var(--text-primary)] text-sm outline-hidden'
               />
             ) : (
               <h2
@@ -618,7 +595,7 @@ export function Editor() {
                           </div>
                         ) : childWorkflowState ? (
                           <>
-                            <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                            <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                               <PreviewWorkflow
                                 workflowState={childWorkflowState}
                                 height={160}
@@ -633,6 +610,7 @@ export function Editor() {
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <Button
+                                  aria-label='Open workflow'
                                   type='button'
                                   variant='ghost'
                                   onClick={handleOpenChildWorkflow}
@@ -695,17 +673,20 @@ export function Editor() {
                             subBlockValues={subBlockState}
                             disabled={!canEditBlock}
                             allowExpandInPreview={false}
-                            isSearchHighlighted={
-                              activeSearchTarget?.blockId === currentBlockId &&
-                              (activeSearchTarget.subBlockId === subBlock.id ||
-                                activeSearchTarget.canonicalSubBlockId ===
-                                  (subBlock.canonicalParamId ?? subBlock.id))
-                            }
                             canonicalToggle={
                               isCanonicalSwap && canonicalMode && canonicalId
                                 ? {
                                     mode: canonicalMode,
-                                    disabled: !canEditBlock,
+                                    disabled:
+                                      !canEditBlock ||
+                                      (currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'tool' &&
+                                        isMcpRuntimeReference(
+                                          resolveMcpBlockConfig(
+                                            blockSubBlockValues,
+                                            canonicalModeOverrides
+                                          ).server
+                                        )),
                                     onToggle: () => {
                                       if (!currentBlockId) return
                                       const nextMode =
@@ -715,6 +696,35 @@ export function Editor() {
                                         canonicalId,
                                         nextMode
                                       )
+                                      if (
+                                        currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'server'
+                                      ) {
+                                        collaborativeSetSubblockValue(
+                                          currentBlockId,
+                                          '_toolSchema',
+                                          null
+                                        )
+                                        const next = resolveMcpBlockConfig(blockSubBlockValues, {
+                                          ...canonicalModeOverrides,
+                                          server: nextMode,
+                                        })
+                                        if (
+                                          isMcpRuntimeReference(next.server) &&
+                                          canonicalModeOverrides?.tool !== 'advanced'
+                                        ) {
+                                          collaborativeSetSubblockValue(
+                                            currentBlockId,
+                                            'toolReference',
+                                            blockSubBlockValues.toolSelector ?? ''
+                                          )
+                                          collaborativeSetBlockCanonicalMode(
+                                            currentBlockId,
+                                            'tool',
+                                            'advanced'
+                                          )
+                                        }
+                                      }
                                     },
                                   }
                                 : undefined
@@ -778,12 +788,6 @@ export function Editor() {
                             subBlockValues={subBlockState}
                             disabled={!canEditBlock}
                             allowExpandInPreview={false}
-                            isSearchHighlighted={
-                              activeSearchTarget?.blockId === currentBlockId &&
-                              (activeSearchTarget.subBlockId === subBlock.id ||
-                                activeSearchTarget.canonicalSubBlockId ===
-                                  (subBlock.canonicalParamId ?? subBlock.id))
-                            }
                           />
                           {(index < advancedOnlySubBlocks.length - 1 || showRetrySettings) && (
                             <FieldDivider
@@ -801,6 +805,7 @@ export function Editor() {
 
                     {showRetrySettings && (
                       <RetrySettings
+                        blockId={currentBlockId}
                         retry={currentBlock?.retry}
                         disabled={!canEditBlock}
                         onChange={handleChangeRetry}
@@ -815,7 +820,7 @@ export function Editor() {
             {hasIncomingConnections && (
               <div
                 className={
-                  'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
+                  'connections-section flex shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
                   (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
                 }
                 style={{ height: `${connectionsHeight}px` }}
@@ -832,7 +837,7 @@ export function Editor() {
 
                 {/* Connections Header with Chevron */}
                 <div
-                  className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+                  className='flex shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
                   onClick={toggleConnectionsCollapsed}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -857,10 +862,7 @@ export function Editor() {
 
                 {/* Connections Content - Always visible */}
                 <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
-                  <ConnectionBlocks
-                    connections={incomingConnections}
-                    currentBlockId={currentBlock.id}
-                  />
+                  <ConnectionBlocks connections={incomingConnections} />
                 </div>
               </div>
             )}

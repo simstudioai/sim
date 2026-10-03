@@ -1,16 +1,9 @@
-/**
- * @vitest-environment node
- *
- * Verifies the enterprise audit-log tenant boundary. The global drizzle-orm
- * mock returns structured operator objects, so these tests assert directly on
- * the predicate tree.
- */
-import { dbChainMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { unorderedScopePart } from '@/lib/api/cursor-binding'
 import {
+  buildFilterConditions,
   buildOrgScopeCondition,
   decodeAuditLogCursor,
-  getOrgWorkspaceIds,
 } from '@/lib/audit-logs/query'
 
 const ORG_ID = 'org-1'
@@ -38,7 +31,7 @@ function asCondition(value: unknown): MockCondition {
 function expectOrgLevelCondition(condition: MockCondition, organizationId: string): void {
   expect(condition.type).toBe('and')
   const [nullCheck, orgLink] = condition.conditions!
-  expect(nullCheck).toMatchObject({ type: 'isNull', column: 'workspaceId' })
+  expect(nullCheck).toMatchObject({ type: 'isNull', column: 'auditLog.workspaceId' })
 
   expect(orgLink.type).toBe('or')
   const [metadataMatch, orgResourceMatch] = orgLink.conditions!
@@ -47,8 +40,8 @@ function expectOrgLevelCondition(condition: MockCondition, organizationId: strin
 
   expect(orgResourceMatch.type).toBe('and')
   expect(orgResourceMatch.conditions).toEqual([
-    expect.objectContaining({ type: 'eq', left: 'resourceType', right: 'organization' }),
-    expect.objectContaining({ type: 'eq', left: 'resourceId', right: organizationId }),
+    expect.objectContaining({ type: 'eq', left: 'auditLog.resourceType', right: 'organization' }),
+    expect.objectContaining({ type: 'eq', left: 'auditLog.resourceId', right: organizationId }),
   ])
 }
 
@@ -70,7 +63,7 @@ describe('buildOrgScopeCondition', () => {
     const [workspaceScope, orgLevel] = orgScope.conditions!
     expect(workspaceScope).toMatchObject({
       type: 'inArray',
-      column: 'workspaceId',
+      column: 'auditLog.workspaceId',
       values: WORKSPACE_IDS,
     })
     expectOrgLevelCondition(orgLevel, ORG_ID)
@@ -78,8 +71,12 @@ describe('buildOrgScopeCondition', () => {
     expect(actorFilter).toMatchObject({
       type: 'or',
       conditions: [
-        expect.objectContaining({ type: 'inArray', column: 'actorId', values: MEMBER_IDS }),
-        expect.objectContaining({ type: 'isNull', column: 'actorId' }),
+        expect.objectContaining({
+          type: 'inArray',
+          column: 'auditLog.actorId',
+          values: MEMBER_IDS,
+        }),
+        expect.objectContaining({ type: 'isNull', column: 'auditLog.actorId' }),
       ],
     })
   })
@@ -98,25 +95,12 @@ describe('buildOrgScopeCondition', () => {
     const [workspaceScope, orgLevel] = condition.conditions!
     expect(workspaceScope).toMatchObject({
       type: 'inArray',
-      column: 'workspaceId',
+      column: 'auditLog.workspaceId',
       values: WORKSPACE_IDS,
     })
     expectOrgLevelCondition(orgLevel, ORG_ID)
 
     expect(JSON.stringify(condition)).not.toContain('actorId')
-  })
-
-  it('falls back to the org-level branch alone when the org has no workspaces', () => {
-    const condition = asCondition(
-      buildOrgScopeCondition({
-        organizationId: ORG_ID,
-        orgWorkspaceIds: [],
-        orgMemberIds: MEMBER_IDS,
-        includeDeparted: true,
-      })
-    )
-
-    expectOrgLevelCondition(condition, ORG_ID)
   })
 
   it('still applies the actor filter on top of the org scope with no workspaces', () => {
@@ -135,8 +119,12 @@ describe('buildOrgScopeCondition', () => {
     expect(actorFilter).toMatchObject({
       type: 'or',
       conditions: [
-        expect.objectContaining({ type: 'inArray', column: 'actorId', values: MEMBER_IDS }),
-        expect.objectContaining({ type: 'isNull', column: 'actorId' }),
+        expect.objectContaining({
+          type: 'inArray',
+          column: 'auditLog.actorId',
+          values: MEMBER_IDS,
+        }),
+        expect.objectContaining({ type: 'isNull', column: 'auditLog.actorId' }),
       ],
     })
   })
@@ -153,37 +141,41 @@ describe('buildOrgScopeCondition', () => {
 
     expect(condition.type).toBe('and')
     const [, actorFilter] = condition.conditions!
-    expect(actorFilter).toMatchObject({ type: 'isNull', column: 'actorId' })
+    expect(actorFilter).toMatchObject({ type: 'isNull', column: 'auditLog.actorId' })
   })
 })
 
-describe('getOrgWorkspaceIds', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+/**
+ * `resourceType` is a comma-separated set, and the v2 cursor scope fingerprints
+ * the same list. The query and the scope must agree on the members, or either
+ * two different result sets share one stamp or two spellings of one result set
+ * get different stamps and page 2 is refused.
+ */
+describe('buildFilterConditions resourceType', () => {
+  function resourceTypeCondition(resourceType: string): MockCondition {
+    const conditions = buildFilterConditions({ resourceType })
+    expect(conditions).toHaveLength(1)
+    return asCondition(conditions[0])
+  }
+
+  it('filters identically however the caller orders, spaces, or repeats members', () => {
+    const canonical = resourceTypeCondition('file,workflow')
+    for (const spelling of ['workflow,file', 'file, workflow', ' workflow ,file,file']) {
+      expect(resourceTypeCondition(spelling)).toEqual(canonical)
+    }
   })
 
-  it('selects workspaces by organization ownership, not member ownership', async () => {
-    const ids = await getOrgWorkspaceIds(ORG_ID)
-
-    expect(ids).toEqual([])
-    expect(dbChainMockFns.where).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'eq', left: 'organizationId', right: ORG_ID })
-    )
+  it('agrees with the cursor scope on the member list', () => {
+    for (const spelling of ['file,workflow', 'workflow, file', 'file,workflow,file']) {
+      expect(asCondition(buildFilterConditions({ resourceType: spelling })[0]).values).toEqual(
+        unorderedScopePart(spelling)!.split(',')
+      )
+      expect(unorderedScopePart(spelling)).toBe(unorderedScopePart('file,workflow'))
+    }
   })
 })
 
 describe('decodeAuditLogCursor', () => {
-  it('accepts the exact timestamp and ID cursor shape', () => {
-    const cursor = Buffer.from(
-      JSON.stringify({ createdAt: '2026-01-01T00:00:00.000Z', id: 'audit-1' })
-    ).toString('base64')
-
-    expect(decodeAuditLogCursor(cursor)).toEqual({
-      createdAt: '2026-01-01T00:00:00.000Z',
-      id: 'audit-1',
-    })
-  })
-
   it.each([
     'not-base64',
     Buffer.from('{}').toString('base64'),

@@ -203,12 +203,3 @@ export const updateScheduleContract = defineRouteContract({
     schema: messageResponseSchema,
   },
 })
-
-export const executeSchedulesContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/schedules/execute',
-  response: {
-    mode: 'json',
-    schema: executeSchedulesResponseSchema,
-  },
-})

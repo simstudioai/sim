@@ -24,7 +24,7 @@ const { MockWindchillProviderError, mockCreateWindchillSession, mockWindchillMut
     }
   })
 
-vi.mock('@/tools/windchill/utils.server', () => ({
+vi.mock('@/lib/internal/windchill/client', () => ({
   createWindchillSession: mockCreateWindchillSession,
   WindchillProviderError: MockWindchillProviderError,
   windchillMutationRequest: mockWindchillMutationRequest,

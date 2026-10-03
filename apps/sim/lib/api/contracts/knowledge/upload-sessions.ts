@@ -30,6 +30,7 @@ const knowledgeDocumentUploadTransferSchema = z.discriminatedUnion('method', [
       method: z.literal('put'),
       url: z.string().url(),
       headers: z.record(z.string(), z.string()),
+      expiresAt: z.string().datetime(),
     })
     .strict(),
   z

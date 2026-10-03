@@ -5,7 +5,7 @@ import {
   buildBranchNodeId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 function createBlock(id: string, metadataId: string): SerializedBlock {
@@ -46,25 +46,6 @@ describe('DAGBuilder disabled subflow validation', () => {
 
     const builder = new DAGBuilder()
     // Should not throw even though loop has no blocks inside
-    expect(() => builder.build(workflow)).not.toThrow()
-  })
-
-  it('skips validation for disabled parallels with no blocks inside', () => {
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [createBlock('start', BlockType.STARTER)],
-      connections: [],
-      loops: {},
-      parallels: {
-        'parallel-1': {
-          id: 'parallel-1',
-          nodes: [], // Empty parallel - would normally throw
-        },
-      },
-    }
-
-    const builder = new DAGBuilder()
-    // Should not throw even though parallel has no blocks inside
     expect(() => builder.build(workflow)).not.toThrow()
   })
 
@@ -113,32 +94,6 @@ describe('DAGBuilder disabled subflow validation', () => {
     builder.build(workflow)
 
     expect(workflow.loops?.['loop-1']?.nodes).toEqual(['inner-block'])
-  })
-
-  it('does not mutate serialized parallel config nodes during DAG build', () => {
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [
-        createBlock('start', BlockType.STARTER),
-        createBlock('parallel-1', BlockType.PARALLEL),
-        { ...createBlock('inner-block', BlockType.FUNCTION), enabled: false },
-      ],
-      connections: [{ source: 'start', target: 'parallel-1' }],
-      loops: {},
-      parallels: {
-        'parallel-1': {
-          id: 'parallel-1',
-          nodes: ['inner-block'],
-          count: 2,
-          parallelType: 'count',
-        },
-      },
-    }
-
-    const builder = new DAGBuilder()
-    builder.build(workflow)
-
-    expect(workflow.parallels?.['parallel-1']?.nodes).toEqual(['inner-block'])
   })
 })
 

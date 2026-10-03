@@ -13,22 +13,27 @@ import {
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
-import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
+import {
+  filterAcyclicEdges,
+  getWorkflowBlockNameConflict,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
+import type { Edge } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
-import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import { WORKFLOW_EXTERNAL_UPDATE_EVENT } from '@/lib/workflows/external-update'
 import {
   type WorkflowSearchSubflowFieldId,
   workflowSearchSubflowFieldMatchesExpected,
 } from '@/lib/workflows/search-replace/subflow-fields'
+import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/dependencies'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { getSubBlocksDependingOnChange } from '@/blocks/utils'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
@@ -55,9 +60,21 @@ import type {
   Position,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
+import { findAllDescendantNodes } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
+
+/** Applies a subblock value and its block's replacement `canonicalModes` to the local stores. */
+function applySubblockValueWithCanonicalModes(
+  blockId: string,
+  subblockId: string,
+  value: unknown,
+  canonicalModes: Record<string, 'basic' | 'advanced'>
+) {
+  useSubBlockStore.getState().setValue(blockId, subblockId, value)
+  useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
+  useWorkflowStore.getState().setBlockCanonicalModes(blockId, canonicalModes)
+}
 
 export function useCollaborativeWorkflow() {
   const queryClient = useQueryClient()
@@ -259,6 +276,11 @@ export function useCollaborativeWorkflow() {
           }
         } else if (target === OPERATION_TARGETS.SUBBLOCK) {
           switch (operation) {
+            case SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES: {
+              const { blockId, subblockId, value, canonicalModes } = payload
+              applySubblockValueWithCanonicalModes(blockId, subblockId, value, canonicalModes)
+              break
+            }
             case SUBBLOCK_OPERATIONS.BATCH_UPDATE: {
               const { updates } = payload
               if (Array.isArray(updates)) {
@@ -837,7 +859,7 @@ export function useCollaborativeWorkflow() {
       }
     }
 
-    const handleWorkflowUpdated = async (data: any) => {
+    const handleWorkflowUpdated = async (data: { workflowId: string }) => {
       const { workflowId } = data
       logger.info(`Workflow ${workflowId} has been updated externally`)
 
@@ -865,8 +887,13 @@ export function useCollaborativeWorkflow() {
           workflowId,
         })
         diffStore.markExternalUpdatePending(workflowId)
-        void operationQueue.waitForWorkflowOperations(workflowId).then((ready) => {
-          if (!ready) {
+        void operationQueue.waitForWorkflowOperations(workflowId).then((result) => {
+          if (result === 'cancelled') {
+            useWorkflowDiffStore.getState().clearExternalUpdatePending(workflowId)
+            return
+          }
+
+          if (result === 'failed') {
             const latestQueue = useOperationQueueStore.getState()
             if (latestQueue.hasPendingOperations(workflowId) && !latestQueue.hasOperationError) {
               return
@@ -879,6 +906,7 @@ export function useCollaborativeWorkflow() {
             )
             return
           }
+
           void replayPendingExternalUpdate(workflowId, 'deferred external update after local save')
         })
         return
@@ -940,6 +968,12 @@ export function useCollaborativeWorkflow() {
     onWorkflowDeployed(handleWorkflowDeployed)
     onOperationConfirmed(handleOperationConfirmed)
     onOperationFailed(handleOperationFailed)
+    const handleToolUpdate = (event: Event) => {
+      if (event instanceof CustomEvent && typeof event.detail?.workflowId === 'string') {
+        void handleWorkflowUpdated({ workflowId: event.detail.workflowId })
+      }
+    }
+    window.addEventListener(WORKFLOW_EXTERNAL_UPDATE_EVENT, handleToolUpdate)
     window.addEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
 
     if (activeWorkflowId) {
@@ -950,6 +984,7 @@ export function useCollaborativeWorkflow() {
     }
 
     return () => {
+      window.removeEventListener(WORKFLOW_EXTERNAL_UPDATE_EVENT, handleToolUpdate)
       window.removeEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
     }
   }, [
@@ -1071,7 +1106,7 @@ export function useCollaborativeWorkflow() {
       const block = blocks[id]
 
       if (block) {
-        if (isBlockProtected(id, blocks)) {
+        if (isWorkflowBlockProtected(id, blocks)) {
           logger.error('Cannot rename locked block')
           toast({ message: 'Cannot rename locked blocks' })
           return { success: false, error: 'Block is locked' }
@@ -1168,14 +1203,14 @@ export function useCollaborativeWorkflow() {
         if (!block) continue
 
         // Skip protected blocks (locked or inside a locked ancestor)
-        if (isBlockProtected(id, currentBlocks)) continue
+        if (isWorkflowBlockProtected(id, currentBlocks)) continue
         validIds.push(id)
         previousStates[id] = block.enabled
 
         // If it's a loop or parallel, also capture descendants' previous states for undo/redo
         if (block.type === 'loop' || block.type === 'parallel') {
           findAllDescendantNodes(id, currentBlocks).forEach((descId) => {
-            if (!isBlockProtected(descId, currentBlocks)) {
+            if (!isWorkflowBlockProtected(descId, currentBlocks)) {
               previousStates[descId] = currentBlocks[descId]?.enabled ?? true
             }
           })
@@ -1356,39 +1391,6 @@ export function useCollaborativeWorkflow() {
     [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
   )
 
-  /**
-   * Wholesale-replaces `block.data.canonicalModes`, rather than merging one key like
-   * {@link collaborativeSetBlockCanonicalMode}. Needed to reindex nested tool-input overrides on
-   * reorder/removal: a merge can't atomically drop a now-stale index key, and sequential
-   * per-key sets can clobber each other when two tools swap positions.
-   */
-  const collaborativeSetBlockCanonicalModes = useCallback(
-    (id: string, canonicalModes: Record<string, 'basic' | 'advanced'>) => {
-      if (isBaselineDiffView) {
-        return
-      }
-
-      useWorkflowStore.getState().setBlockCanonicalModes(id, canonicalModes)
-
-      if (!activeWorkflowId) {
-        return
-      }
-
-      const operationId = generateId()
-      addToQueue({
-        id: operationId,
-        operation: {
-          operation: BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
-          target: OPERATION_TARGETS.BLOCK,
-          payload: { id, data: { canonicalModes } },
-        },
-        workflowId: activeWorkflowId,
-        userId: session?.user?.id || 'unknown',
-      })
-    },
-    [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
-  )
-
   const collaborativeBatchToggleBlockHandles = useCallback(
     (ids: string[]) => {
       if (isBaselineDiffView) {
@@ -1404,7 +1406,7 @@ export function useCollaborativeWorkflow() {
 
       for (const id of ids) {
         const block = blocks[id]
-        if (block && !isBlockProtected(id, blocks)) {
+        if (block && !isWorkflowBlockProtected(id, blocks)) {
           previousStates[id] = block.horizontalHandles ?? false
           validIds.push(id)
         }
@@ -1639,6 +1641,43 @@ export function useCollaborativeWorkflow() {
       } catch {
         // Best-effort; do not block on clearing
       }
+    },
+    [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
+  )
+
+  /**
+   * Sets a subblock value and wholesale-replaces its block's `canonicalModes` as ONE persisted
+   * operation, so a `tool-input` reorder or removal can never save its list without the modes
+   * keyed to its positions.
+   */
+  const collaborativeSetSubblockValueWithCanonicalModes = useCallback(
+    (
+      blockId: string,
+      subblockId: string,
+      value: unknown,
+      canonicalModes: Record<string, 'basic' | 'advanced'>
+    ) => {
+      if (isApplyingRemoteChange.current) return
+
+      if (isBaselineDiffView) {
+        logger.debug('Skipping collaborative subblock update while viewing baseline diff')
+        return
+      }
+
+      applySubblockValueWithCanonicalModes(blockId, subblockId, value, canonicalModes)
+
+      if (!activeWorkflowId) return
+
+      addToQueue({
+        id: generateId(),
+        operation: {
+          operation: SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES,
+          target: OPERATION_TARGETS.SUBBLOCK,
+          payload: { blockId, subblockId, value, canonicalModes },
+        },
+        workflowId: activeWorkflowId,
+        userId: session?.user?.id || 'unknown',
+      })
     },
     [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
   )
@@ -2286,7 +2325,6 @@ export function useCollaborativeWorkflow() {
     collaborativeSetBlockErrorEnabled,
     collaborativeSetBlockRetry,
     collaborativeSetBlockCanonicalMode,
-    collaborativeSetBlockCanonicalModes,
     collaborativeBatchToggleBlockHandles,
     collaborativeBatchToggleLocked,
     collaborativeBatchAddBlocks,
@@ -2294,6 +2332,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchAddEdges,
     collaborativeBatchRemoveEdges,
     collaborativeSetSubblockValue,
+    collaborativeSetSubblockValueWithCanonicalModes,
     collaborativeBatchSetSubblockValues,
     collaborativeSetTagSelection,
 

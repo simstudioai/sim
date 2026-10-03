@@ -3,18 +3,16 @@
 import { useMemo, useState } from 'react'
 import {
   Avatar,
-  AvatarFallback,
-  AvatarImage,
   Badge,
   Banner,
   ChipConfirmModal,
   ChipInput,
   cn,
+  OverflowText,
   Search,
   Skeleton,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { getUserColor } from '@/lib/workspaces/colors'
 import type { RosterMember } from '@/hooks/queries/organization'
 
 interface TransferOwnershipDialogProps {
@@ -88,6 +86,7 @@ export function TransferOwnershipDialog({
       onOpenChange={handleClose}
       srTitle='Leave organization'
       title='Leave organization'
+      defaultAction='none'
       confirm={{
         label: 'Transfer & leave',
         onClick: handleConfirm,
@@ -162,37 +161,32 @@ export function TransferOwnershipDialog({
                       <li key={m.userId}>
                         <button
                           type='button'
+                          aria-pressed={isSelected}
                           onClick={() => setSelectedUserId(m.userId)}
                           className={cn(
-                            'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
+                            'flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors',
                             isSelected
                               ? 'bg-[var(--surface-active)]'
                               : 'hover-hover:bg-[var(--surface-hover)]'
                           )}
                         >
-                          <Avatar className='size-8 shrink-0'>
-                            {m.image && <AvatarImage src={m.image} alt={m.name} />}
-                            <AvatarFallback
-                              style={{ background: getUserColor(m.userId || m.email) }}
-                              className='border-0 text-white'
-                            >
-                              {m.name.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
+                          <Avatar size='xs' name={m.name} src={m.image} aria-hidden />
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
-                              <span className='truncate text-[var(--text-primary)] text-small'>
-                                {m.name}
-                              </span>
+                              <OverflowText
+                                label={m.name}
+                                className='text-[var(--text-primary)] text-small'
+                              />
                               {m.role === 'admin' && (
                                 <Badge variant='gray-secondary' size='sm'>
                                   Admin
                                 </Badge>
                               )}
                             </div>
-                            <div className='truncate text-[var(--text-muted)] text-caption'>
-                              {m.email}
-                            </div>
+                            <OverflowText
+                              label={m.email}
+                              className='block text-[var(--text-muted)] text-caption'
+                            />
                           </div>
                         </button>
                       </li>

@@ -43,7 +43,7 @@ export const kalshiGetOrderbookTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_orderbook')
+      handleKalshiError(data, 'get_orderbook')
     }
 
     const orderbook = data.orderbook || { yes: [], no: [] }
@@ -133,7 +133,7 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_orderbook_v2')
+      handleKalshiError(data, 'get_orderbook_v2')
     }
 
     const orderbook = data.orderbook || {}

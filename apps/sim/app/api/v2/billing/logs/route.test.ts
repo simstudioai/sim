@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -18,17 +14,26 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/billing/application/list-billing-logs', () => ({
   listBillingLogs: { operation: { id: 'billing.logs.list' }, execute: mocks.execute },
 }))
 
+import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { GET } from '@/app/api/v2/billing/logs/route'
+import { encodeScopedCursor } from '@/app/api/v2/lib/response'
+
+/** A ledger cursor exactly as the route mints one, for the filters given. */
+function ledgerCursor(
+  inner: string,
+  filters: { source?: string; workspaceId?: string; period?: string }
+): string {
+  return encodeScopedCursor(cursorScopeKey(cursorRoute(v2ListBillingLogsContract), filters), inner)
+}
 
 const auth = {
   principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -36,11 +41,9 @@ const auth = {
 
 describe('GET /api/v2/billing/logs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-01T00:00:00Z'))
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.execute.mockResolvedValue({
@@ -61,6 +64,7 @@ describe('GET /api/v2/billing/logs', () => {
         pagination: { hasMore: false },
       },
       creditsByLogId: { 'log-1': 12 },
+      scope: 'user',
     })
   })
 
@@ -84,6 +88,7 @@ describe('GET /api/v2/billing/logs', () => {
         },
       ],
       nextCursor: null,
+      scope: 'user',
     })
     expect(mocks.execute).toHaveBeenCalledWith({
       principal: auth.principal,
@@ -95,13 +100,121 @@ describe('GET /api/v2/billing/logs', () => {
     })
   })
 
-  it('authenticates before rejecting invalid custom ranges', async () => {
+  /**
+   * The ledger cursor is a usage-event id, so it names a row rather than an
+   * ordinal — but which rows follow it depends entirely on the window and source
+   * filters, so replaying one across a changed filter walks a different ledger
+   * and never reaches the entries the caller narrowed to.
+   */
+  it('rejects a cursor replayed under a different filter without reaching the ledger', async () => {
+    const cursor = ledgerCursor('usage-1', { period: '30d' })
+
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/v2/billing/logs?period=custom')
+      new NextRequest(
+        `http://localhost:3000/api/v2/billing/logs?source=workflow&cursor=${encodeURIComponent(cursor)}`
+      )
     )
 
     expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('requested filters') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  /**
+   * An empty inner token reads as falsy in the ledger reader, so no cursor
+   * condition is applied and the caller walks the first page again — the very
+   * failure the unknown-cursor refusal exists to make visible.
+   */
+  it('rejects a cursor whose inner token is empty instead of restarting at page one', async () => {
+    const cursor = ledgerCursor('', { period: 'all' })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/billing/logs?period=all&limit=1&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `0000` satisfies the published `\d{4}` date-time pattern but names no
+   * instant Postgres can store, so the value has to be refused before
+   * `resolveDateRange` turns it into a bind parameter.
+   */
+  it('rejects a year-0000 custom range bound before it can reach the ledger', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/billing/logs?period=custom&startDate=${encodeURIComponent('0000-01-01T00:00:00Z')}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('startDate') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects a window bound the effective period would discard', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?startDate=2030-01-01T00:00:00Z&limit=100'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: expect.stringContaining('period=custom'),
+      },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects an endDate paired with an explicit relative period', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?period=7d&endDate=2026-07-01T00:00:00Z'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects a window bound that is not a UTC ISO 8601 timestamp', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?period=custom&startDate=2026-08-01'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('UTC ISO 8601') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects an inverted custom range instead of answering with an empty page', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?period=custom&startDate=2026-08-06T00:00:00Z&endDate=2026-08-05T00:00:00Z'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: expect.stringContaining('startDate must be before or equal to endDate'),
+      },
+    })
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 })

@@ -129,9 +129,7 @@ export class PptxViewer extends EventTarget {
     }
   }
 
-  // -----------------------------------------------------------------------
   // Event dispatch helpers
-  // -----------------------------------------------------------------------
 
   private emitRenderStart(): void {
     this._isRendering = true
@@ -163,9 +161,7 @@ export class PptxViewer extends EventTarget {
     this.dispatchEvent(new CustomEvent('nodeerror', { detail: { nodeId, error } }))
   }
 
-  // -----------------------------------------------------------------------
   // Public: load / render modes
-  // -----------------------------------------------------------------------
 
   /**
    * Load a parsed presentation model. Does NOT render — call `renderList()` or
@@ -202,9 +198,7 @@ export class PptxViewer extends EventTarget {
     await this.queueRender()
   }
 
-  // -----------------------------------------------------------------------
   // Instance open
-  // -----------------------------------------------------------------------
 
   async open(
     input: PreviewInput,
@@ -247,9 +241,7 @@ export class PptxViewer extends EventTarget {
     checkAborted()
   }
 
-  // -----------------------------------------------------------------------
   // Static factory
-  // -----------------------------------------------------------------------
 
   static async open(
     input: PreviewInput,
@@ -269,9 +261,7 @@ export class PptxViewer extends EventTarget {
     return viewer
   }
 
-  // -----------------------------------------------------------------------
   // Navigation
-  // -----------------------------------------------------------------------
 
   async goToSlide(index: number, scrollOptions?: ScrollIntoViewOptions): Promise<void> {
     if (!this.presentation) return
@@ -318,9 +308,7 @@ export class PptxViewer extends EventTarget {
     await this.queueRender()
   }
 
-  // -----------------------------------------------------------------------
   // Getters
-  // -----------------------------------------------------------------------
 
   get presentationData(): PresentationData | null {
     return this.presentation
@@ -354,9 +342,7 @@ export class PptxViewer extends EventTarget {
     return this._fitMode
   }
 
-  // -----------------------------------------------------------------------
   // Typed event helpers
-  // -----------------------------------------------------------------------
 
   on<K extends keyof PptxViewerEventMap>(
     type: K,
@@ -382,9 +368,7 @@ export class PptxViewer extends EventTarget {
     return [...this.mountedSlides].sort((a, b) => a - b)
   }
 
-  // -----------------------------------------------------------------------
   // External slide rendering
-  // -----------------------------------------------------------------------
 
   /**
    * Render a single slide into an external container element.
@@ -429,9 +413,7 @@ export class PptxViewer extends EventTarget {
     // No-op in base class
   }
 
-  // -----------------------------------------------------------------------
   // Cleanup
-  // -----------------------------------------------------------------------
 
   destroy(): void {
     this.teardownAdaptiveResize()
@@ -459,9 +441,7 @@ export class PptxViewer extends EventTarget {
     this.destroy()
   }
 
-  // -----------------------------------------------------------------------
   // Internal: rendering pipeline
-  // -----------------------------------------------------------------------
 
   private normalizeZoomPercent(percent: number): number {
     if (!Number.isFinite(percent)) return 100
@@ -631,14 +611,14 @@ export class PptxViewer extends EventTarget {
     item.style.cssText = 'width: fit-content; margin: 0 auto 20px;'
 
     const wrapper = document.createElement('div')
-    wrapper.style.cssText = `
-      width: ${displayWidth}px;
-      height: ${displayHeight}px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      overflow: hidden;
-      position: relative;
-      background: #fff;
-    `
+    Object.assign(wrapper.style, {
+      width: `${displayWidth}px`,
+      height: `${displayHeight}px`,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      overflow: 'hidden',
+      position: 'relative',
+      background: 'var(--white)',
+    })
 
     item.appendChild(wrapper)
 
@@ -880,11 +860,14 @@ export class PptxViewer extends EventTarget {
     this.mountedSlides.add(this.currentSlide)
 
     const wrapper = document.createElement('div')
-    wrapper.style.cssText = `
-      width: ${displayWidth}px; height: ${displayHeight}px;
-      margin: 0 auto; overflow: hidden; position: relative;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    `
+    Object.assign(wrapper.style, {
+      width: `${displayWidth}px`,
+      height: `${displayHeight}px`,
+      margin: '0 auto',
+      overflow: 'hidden',
+      position: 'relative',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+    })
 
     try {
       const handle = renderSlideInternal(this.presentation, slide, {
@@ -960,9 +943,7 @@ export class PptxViewer extends EventTarget {
   }
 }
 
-// -----------------------------------------------------------------------
 // Standalone helper (shared with Renderer.ts)
-// -----------------------------------------------------------------------
 
 async function normalizePreviewInput(input: PreviewInput): Promise<ArrayBuffer> {
   if (input instanceof ArrayBuffer) return input

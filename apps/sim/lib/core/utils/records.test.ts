@@ -1,18 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  normalizeRecord,
-  normalizeRecordMap,
-  normalizeStringRecord,
-  normalizeWorkflowVariables,
-} from '@/lib/core/utils/records'
+import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 
 describe('record normalization utilities', () => {
-  it('normalizes unknown values to object records', () => {
-    expect(normalizeRecord({ value: 1 })).toEqual({ value: 1 })
-    expect(normalizeRecord([])).toEqual({})
-    expect(normalizeRecord('not-a-record')).toEqual({})
-  })
-
   it('normalizes string records for environment-like values', () => {
     expect(
       normalizeStringRecord({
@@ -35,17 +24,6 @@ describe('record normalization utilities', () => {
     expect(Object.hasOwn(normalized, '__proto__')).toBe(true)
     expect(normalized.__proto__).toBe('secret-value')
     expect(Object.getPrototypeOf(normalized)).toBe(Object.prototype)
-  })
-
-  it('normalizes record maps by dropping malformed entries', () => {
-    expect(
-      normalizeRecordMap({
-        valid: { type: 'string' },
-        invalid: [],
-      })
-    ).toEqual({
-      valid: { type: 'string' },
-    })
   })
 
   it('normalizes legacy workflow variable arrays into records', () => {

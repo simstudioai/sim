@@ -1,23 +1,35 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   type BYOKKey,
   type BYOKKeysResponse,
   deleteByokKeyContract,
+  deleteOrganizationByokKeyContract,
+  getInheritedByokStatusContract,
+  type InheritedBYOKStatusResponse,
   listByokKeysContract,
+  listOrganizationByokKeysContract,
+  type OrganizationBYOKKeysResponse,
   upsertByokKeyContract,
+  upsertOrganizationByokKeyContract,
 } from '@/lib/api/contracts'
 
 const logger = createLogger('BYOKKeysQueries')
 
-export type { BYOKKey, BYOKKeysResponse }
+export type { BYOKKey }
 
 export const byokKeysKeys = {
   all: ['byok-keys'] as const,
   lists: () => [...byokKeysKeys.all, 'list'] as const,
   list: (workspaceId?: string) => [...byokKeysKeys.lists(), workspaceId ?? ''] as const,
+  organizationLists: () => [...byokKeysKeys.all, 'organization-list'] as const,
+  organizationList: (organizationId?: string) =>
+    [...byokKeysKeys.organizationLists(), organizationId ?? ''] as const,
+  inheritedStatuses: () => [...byokKeysKeys.all, 'inherited-status'] as const,
+  inheritedStatus: (workspaceId?: string) =>
+    [...byokKeysKeys.inheritedStatuses(), workspaceId ?? ''] as const,
 }
 
 export const BYOK_KEY_LIST_STALE_TIME = 60 * 1000
@@ -27,18 +39,67 @@ async function fetchBYOKKeys(workspaceId: string, signal?: AbortSignal): Promise
     params: { id: workspaceId },
     signal,
   })
-  return {
-    keys: data.keys ?? [],
-  }
+  return { keys: data.keys ?? [] }
+}
+
+export function byokKeysQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: byokKeysKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchBYOKKeys(workspaceId, signal),
+    retryOnMount: true,
+    staleTime: BYOK_KEY_LIST_STALE_TIME,
+  })
+}
+
+async function fetchOrganizationBYOKKeys(
+  organizationId: string,
+  signal?: AbortSignal
+): Promise<OrganizationBYOKKeysResponse> {
+  return requestJson(listOrganizationByokKeysContract, {
+    params: { id: organizationId },
+    signal,
+  })
+}
+
+async function fetchInheritedBYOKStatus(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<InheritedBYOKStatusResponse> {
+  return requestJson(getInheritedByokStatusContract, {
+    params: { id: workspaceId },
+    signal,
+  })
 }
 
 export function useBYOKKeys(workspaceId: string) {
   return useQuery({
-    queryKey: byokKeysKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchBYOKKeys(workspaceId, signal),
+    ...byokKeysQueryOptions(workspaceId),
     enabled: !!workspaceId,
+  })
+}
+
+interface UseOrganizationBYOKKeysOptions {
+  enabled?: boolean
+}
+
+export function useOrganizationBYOKKeys(
+  organizationId?: string,
+  options?: UseOrganizationBYOKKeysOptions
+) {
+  return useQuery({
+    queryKey: byokKeysKeys.organizationList(organizationId),
+    queryFn: ({ signal }) => fetchOrganizationBYOKKeys(organizationId as string, signal),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
     staleTime: BYOK_KEY_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+  })
+}
+
+export function useInheritedBYOKStatus(workspaceId?: string) {
+  return useQuery({
+    queryKey: byokKeysKeys.inheritedStatus(workspaceId),
+    queryFn: ({ signal }) => fetchInheritedBYOKStatus(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: BYOK_KEY_LIST_STALE_TIME,
   })
 }
 
@@ -58,10 +119,16 @@ export function useUpsertBYOKKey() {
       logger.info(`Saved BYOK key for ${body.providerId} in workspace ${workspaceId}`)
       return data
     },
-    onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: byokKeysKeys.list(variables.workspaceId),
-      }),
+    onSettled: async (_data, _error, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.list(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.inheritedStatus(variables.workspaceId),
+        }),
+      ])
+    },
   })
 }
 
@@ -81,9 +148,73 @@ export function useDeleteBYOKKey() {
       logger.info(`Deleted BYOK key for ${body.providerId} from workspace ${workspaceId}`)
       return data
     },
-    onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: byokKeysKeys.list(variables.workspaceId),
-      }),
+    onSettled: async (_data, _error, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.list(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.inheritedStatus(variables.workspaceId),
+        }),
+      ])
+    },
+  })
+}
+
+type UpsertOrganizationBYOKKeyParams = {
+  organizationId: string
+} & ContractBodyInput<typeof upsertOrganizationByokKeyContract>
+
+export function useUpsertOrganizationBYOKKey() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ organizationId, ...body }: UpsertOrganizationBYOKKeyParams) => {
+      const data = await requestJson(upsertOrganizationByokKeyContract, {
+        params: { id: organizationId },
+        body,
+      })
+      logger.info(`Saved BYOK key for ${body.providerId} in organization ${organizationId}`)
+      return data
+    },
+    onSettled: async (_data, _error, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.organizationList(variables.organizationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.inheritedStatuses(),
+        }),
+      ])
+    },
+  })
+}
+
+type DeleteOrganizationBYOKKeyParams = {
+  organizationId: string
+} & ContractBodyInput<typeof deleteOrganizationByokKeyContract>
+
+export function useDeleteOrganizationBYOKKey() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ organizationId, ...body }: DeleteOrganizationBYOKKeyParams) => {
+      const data = await requestJson(deleteOrganizationByokKeyContract, {
+        params: { id: organizationId },
+        body,
+      })
+      logger.info(`Deleted BYOK key for ${body.providerId} from organization ${organizationId}`)
+      return data
+    },
+    onSettled: async (_data, _error, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.organizationList(variables.organizationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: byokKeysKeys.inheritedStatuses(),
+        }),
+      ])
+    },
   })
 }

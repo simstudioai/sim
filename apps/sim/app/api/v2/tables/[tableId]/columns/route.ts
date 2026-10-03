@@ -12,7 +12,7 @@ import {
   updateTableColumnUseCase,
 } from '@/lib/table/application/columns'
 import { tableOperations } from '@/lib/table/application/operations'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn } from '@/lib/table/wire'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -40,7 +40,9 @@ export const PATCH = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
-  present: presentColumns,
+  present: ({ table, unmigrated }) => ({
+    data: { columns: table.schema.columns.map(normalizeColumn), unmigrated },
+  }),
 })
 
 export const DELETE = defineV2JsonRoute({

@@ -1,10 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  addModelInputProvenanceToRequest,
-  createModelInputProvenanceRequestMetadata,
-  markModelInputProjected,
-  projectResolvedModelInput,
-} from '@/lib/execution/model-input-provenance'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
 import {
   type AutoRoutingResult,
   addAutoRoutingCost,
@@ -14,9 +9,9 @@ import {
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type {
@@ -43,7 +38,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
     const evaluatorConfig = {
       model: inputs.model || EVALUATOR.DEFAULT_MODEL,
@@ -147,6 +143,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         'Evaluate the content and provide scores for each metric as JSON.'
     }
 
+    const fallbackSystemPrompt = systemPromptObj.systemPrompt
     let model = evaluatorConfig.model
     let autoRouting: AutoRoutingResult | null = null
     if (isAutoModel(model)) {
@@ -187,13 +184,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
         credentialId: evaluatorConfig.vertexCredential,
         actingUserId: ctx.userId,
         workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
         callerLabel: 'vertex-evaluator',
       })
     }
 
     try {
-      const url = buildAPIUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
-
       const providerRequest: ProviderRequest = {
         model,
         systemPrompt: systemPromptObj.systemPrompt,
@@ -219,29 +215,17 @@ export class EvaluatorBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
-      const headers = new Headers(await buildAuthHeaders(ctx.userId))
-      const modelInputMetadata = createModelInputProvenanceRequestMetadata(
-        modelInputProjection.registry,
-        modelInputPaths
-      )
-      const requestBody = addModelInputProvenanceToRequest(
-        { provider: providerId, ...providerRequest },
-        headers,
-        modelInputMetadata
-      )
-      if (modelInputMetadata) markModelInputProjected(headers)
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers,
-        body: stringifyJSON(requestBody),
+      const { result, usedFallback } = await executeModelRequestWithFallbacks({
+        block,
+        configuredModel: evaluatorConfig.model,
+        fallbackModels: inputs.fallbackModels,
+        fallbackSystemPrompt,
+        retry: nodeMetadata?.retry,
+        ctx,
+        providerId,
+        request: providerRequest,
+        resolvedSecretTraceRegistry: modelInputProjection.registry,
       })
-
-      if (!response.ok) {
-        const errorMessage = await extractAPIErrorMessage(response)
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
 
       const parsedContent = this.extractJSONFromResponse(
         result.content,
@@ -250,9 +234,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const metricScores = this.extractMetricScores(parsedContent, metrics, projectedMetrics)
 
-      const inputTokens = result.tokens?.input || result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT
-      const outputTokens =
-        result.tokens?.output || result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION
+      const inputTokens = result.tokens?.input || DEFAULTS.TOKENS.PROMPT
+      const outputTokens = result.tokens?.output || DEFAULTS.TOKENS.COMPLETION
 
       const cost = addAutoRoutingCost(
         resolveProxiedModelCost(result.cost),
@@ -261,7 +244,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       return {
         content: inputs.content,
-        model: autoRouting ? SIM_AUTO_MODEL_ID : result.model,
+        model: autoRouting && !usedFallback ? SIM_AUTO_MODEL_ID : result.model,
         tokens: {
           input: inputTokens,
           output: outputTokens,

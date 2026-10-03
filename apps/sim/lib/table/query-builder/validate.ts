@@ -47,6 +47,15 @@ const SYSTEM_COLUMN_TYPES: ReadonlyArray<[string, ColumnType]> = [
   ['id', 'string'],
 ]
 
+/**
+ * The system column names as a membership set, for the surfaces that decide
+ * whether a stored field still refers to something real — a check that would
+ * otherwise drop `createdAt` for the crime of not being in `schema.columns`.
+ */
+export const SYSTEM_COLUMN_FIELDS: ReadonlySet<string> = new Set(
+  SYSTEM_COLUMN_TYPES.map(([name]) => name)
+)
+
 function buildTypeByName(columns: ColumnDefinition[]): Map<string, ColumnType> {
   const typeByName = new Map<string, ColumnType>(columns.map((c) => [c.name, c.type]))
   for (const [name, type] of SYSTEM_COLUMN_TYPES) typeByName.set(name, type)
@@ -236,4 +245,21 @@ export function validateStoragePredicate(
   const typeById = new Map<string, ColumnType>(columns.map((c) => [getColumnId(c), c.type]))
   for (const [name, type] of SYSTEM_COLUMN_TYPES) typeById.set(name, type)
   validateNode(predicate, typeById)
+}
+
+/**
+ * Validates a STORAGE-keyed sort spec — fields are column ids (plus the system
+ * columns, which keep their names). The sort counterpart of
+ * {@link validateStoragePredicate}, for the same reason: after wire translation
+ * an unresolved field is a typo, and a typo must be refused rather than silently
+ * ordering by nothing.
+ */
+export function validateStorageSortSpec(spec: SortSpec, columns: ColumnDefinition[]): void {
+  const ids = new Set(columns.map(getColumnId))
+  for (const { field } of spec) {
+    validateFieldName(field)
+    if (!ids.has(field) && !SYSTEM_COLUMN_FIELDS.has(field)) {
+      throw new TableQueryValidationError(`Unknown sort column "${field}"`, 'INVALID_ORDER')
+    }
+  }
 }

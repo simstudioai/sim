@@ -43,6 +43,8 @@ export interface ImportServiceDeps {
   readSites: (historyPath: string, domains: ReadonlySet<string>) => Promise<ImportedSite[]>
   /** Records the hosts an import brought over, with their names and icons. */
   rememberSites: (records: readonly SiteRecord[]) => Promise<void>
+  /** Admits a final persistent write only while its originating account is current. */
+  commit: <T>(operation: () => Promise<T>) => Promise<T>
   vault: {
     isAvailable: () => boolean
     importCredentials: (
@@ -218,7 +220,7 @@ async function runCookieImport(
     }
   }
 
-  const written = await deps.writeCookies(read.cookies)
+  const written = await deps.commit(() => deps.writeCookies(read.cookies))
   const result: BrowserImportResult = {
     cookiesImported: written.imported,
     cookiesSkipped: skippedReading + written.failed,
@@ -294,14 +296,13 @@ async function runPasswordImport(
   const candidates = read.credentials.map(
     ({ sourceModifiedAt: _sourceModifiedAt, ...candidate }) => candidate
   )
-  const outcome = await deps.vault.importCredentials(
-    await withFavicons(candidates, profile.faviconsPath, deps),
-    policy
-  )
+  const importedCandidates = await withFavicons(candidates, profile.faviconsPath, deps)
+  const outcome = await deps.commit(() => deps.vault.importCredentials(importedCandidates, policy))
   const result: BrowserPasswordImportResult = {
     passwordsAdded: outcome.added,
     passwordsUpdated: outcome.updated,
     passwordsSkipped: outcome.skipped + read.skipped,
+    ...(read.error ? { error: read.error } : {}),
   }
   logger.info('Chrome password import finished', {
     added: result.passwordsAdded,
@@ -321,6 +322,7 @@ async function runPasswordImport(
  * source order breaks ties deterministically before applying the vault policy.
  *
  * One damaged store does not discard credentials already read from the other.
+ * A partial read carries its failure to the UI alongside the imported counts.
  * If no store can produce any useful signal, the first concrete reader error
  * is surfaced instead of reporting a misleading successful import of zero.
  */
@@ -328,7 +330,7 @@ async function readProfilePasswords(
   paths: readonly string[],
   key: Buffer,
   deps: ImportServiceDeps
-): Promise<ReadPasswordsResult> {
+): Promise<ReadPasswordsResult & { error?: BrowserPasswordImportResult['error'] }> {
   const combined: ReadPasswordsResult = { credentials: [], skipped: 0, rowsSeen: 0 }
   const credentialIndexes = new Map<string, number>()
   let successfulReads = 0
@@ -379,6 +381,7 @@ async function readProfilePasswords(
   if (firstFailure !== undefined) {
     // Category only: database names and paths are deliberately absent.
     logger.warn('Could not read every password store in the selected browser profile')
+    return { ...combined, error: categorize(firstFailure, 'password') }
   }
   return combined
 }
@@ -558,14 +561,16 @@ async function rememberImportedSites(
       : new Map<string, string>()
 
     const importedAt = new Date().toISOString()
-    await deps.rememberSites(
-      sites.map((site) => ({
-        hostname: site.hostname,
-        name: site.name,
-        icon: icons.get(originOf(site.hostname)),
-        visits: site.visits,
-        importedAt,
-      }))
+    await deps.commit(() =>
+      deps.rememberSites(
+        sites.map((site) => ({
+          hostname: site.hostname,
+          name: site.name,
+          icon: icons.get(originOf(site.hostname)),
+          visits: site.visits,
+          importedAt,
+        }))
+      )
     )
   } catch {
     // Category only, like every other failure path here: the detail that would

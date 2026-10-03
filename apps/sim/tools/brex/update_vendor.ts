@@ -1,9 +1,28 @@
-import { generateId } from '@sim/utils/id'
+import {
+  type BrexDeliveryContextParams,
+  brexIdempotencyHeader,
+  defineBrexKeyedSite,
+} from '@/tools/brex/idempotency'
 import type { BrexUpdateVendorParams, BrexUpdateVendorResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const brexUpdateVendorTool: ToolConfig<BrexUpdateVendorParams, BrexUpdateVendorResponse> = {
+/**
+ * The only site here whose duplicate is harmless on its own: a PUT that sets the
+ * same three fields to the same values converges. It is declared `keyed` rather
+ * than `converge` because it does put a token on the wire — the two classes
+ * carry identical retry policy, so this records what is actually sent without
+ * changing behavior.
+ */
+const DELIVERY = defineBrexKeyedSite(
+  'brex_update_vendor',
+  'nothing user-visible — the same three vendor fields are set to the same values'
+)
+
+export const brexUpdateVendorTool: ToolConfig<
+  BrexUpdateVendorParams & BrexDeliveryContextParams,
+  BrexUpdateVendorResponse
+> = {
   id: 'brex_update_vendor',
   name: 'Brex Update Vendor',
   description: 'Update an existing vendor in the Brex account',
@@ -47,8 +66,7 @@ export const brexUpdateVendorTool: ToolConfig<BrexUpdateVendorParams, BrexUpdate
     method: 'PUT',
     headers: (params) => ({
       ...buildBrexHeaders(params.apiKey),
-      // Optional per Brex's spec for this endpoint, but included for safe-retry semantics.
-      'Idempotency-Key': generateId(),
+      ...brexIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const body: Record<string, unknown> = {}

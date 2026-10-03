@@ -1,8 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { parseFolderPath } from '@/lib/folders/paths'
+import type { FolderSortBy } from '@/lib/folders/queries'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   assertWorkspaceFileItemsBelongToWorkspace,
@@ -11,6 +13,7 @@ import {
   createWorkspaceFileFolderAtPath,
   deleteWorkspaceFileFolderByPath,
   ensureWorkspaceFileFolderPath,
+  getWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   loadWorkspaceFileOperationContext,
   relocateWorkspaceFileFolderByPath,
@@ -21,6 +24,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 const logger = createLogger('WorkspaceFileFolders')
 
@@ -29,8 +33,18 @@ export interface ListWorkspaceFileFoldersInput {
   scope?: 'active' | 'archived' | 'all'
   parentPath?: string
   search?: string
-  sortBy?: 'name' | 'createdAt' | 'updatedAt'
-  sortOrder?: 'asc' | 'desc'
+  /**
+   * Only v2 sends a sort; the internal route, Copilot, and the VFS do not, and some of
+   * their consumers render the payload in the order it arrives. So this stays optional
+   * and undefined means "leave the repository's `position` ordering alone" — a default
+   * applied here would silently reorder those surfaces.
+   */
+  sortBy?: Exclude<FolderSortBy, 'position'>
+  sortOrder?: ListSortOrder
+  /** Descend the whole subtree instead of listing direct children only. */
+  recursive?: boolean
+  /** Deepest level below `parentPath` to include. Only meaningful with `recursive`. */
+  depth?: number
 }
 
 export interface ListWorkspaceFileFoldersResult {
@@ -87,13 +101,20 @@ export interface DeleteWorkspaceFileFolderInput {
 
 export interface DeleteWorkspaceFileFolderResult {
   deletedItems: WorkspaceFileArchiveResult
+  /** The folder actually deleted, so a path-addressed delete can still be audited by id. */
+  folderId?: string
   path?: string
 }
 
-export interface RestoreWorkspaceFileFolderInput {
+/**
+ * Addresses exactly one archived folder — by internal id, or by the canonical
+ * path an archived-scope list reports. The two selectors are mutually exclusive
+ * by construction: a caller supplying neither, or both, is a compile error rather
+ * than a `validation` failure raised after the operation has already authorized.
+ */
+export type RestoreWorkspaceFileFolderInput = {
   workspaceId: string
-  folderId: string
-}
+} & ({ folderId: string; path?: never } | { folderId?: never; path: string })
 
 export interface RestoreWorkspaceFileFolderResult {
   folder: WorkspaceFileFolderRecord
@@ -114,29 +135,74 @@ async function executeListWorkspaceFileFolders(args: {
 }): Promise<ListWorkspaceFileFoldersResult> {
   let folders = await listWorkspaceFileFolders(args.context.workspaceId, {
     scope: args.input.scope,
+    sortBy: args.input.sortBy,
+    sortOrder: args.input.sortOrder,
   })
   if (args.input.parentPath !== undefined) {
-    const parentPath = parseFolderPath(args.input.parentPath).join('/')
+    const parentSegments = parseFolderPath(args.input.parentPath)
+    /*
+     * Descendants are matched against the stored materialized path rather than
+     * walked by `parentId`, because a scoped list need not contain the parent
+     * row at all — an `archived` listing under an active parent is the case
+     * that breaks a walk. Comparison stays positional over decoded segments, so
+     * `Reportsx` is never read as a child of `Reports`.
+     */
+    const maxSegments = args.input.recursive
+      ? args.input.depth === undefined
+        ? Number.POSITIVE_INFINITY
+        : parentSegments.length + args.input.depth
+      : parentSegments.length + 1
     folders = folders.filter((folder) => {
-      const parent = folder.path.includes('/')
-        ? folder.path.slice(0, folder.path.lastIndexOf('/'))
-        : ''
-      return parent === parentPath
+      const folderSegments = parseWorkspaceFileFolderDisplayPath(folder.path)
+      if (folderSegments.length <= parentSegments.length) return false
+      if (folderSegments.length > maxSegments) return false
+      return parentSegments.every((segment, index) => folderSegments[index] === segment)
     })
   }
   if (args.input.search) {
     const search = args.input.search.toLowerCase()
     folders = folders.filter((folder) => folder.name.toLowerCase().includes(search))
   }
-  const sortBy = args.input.sortBy ?? 'name'
-  const sortOrder = args.input.sortOrder ?? 'asc'
-  folders.sort((left, right) => {
-    const leftValue = left[sortBy]
-    const rightValue = right[sortBy]
-    const comparison = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0
-    return sortOrder === 'asc' ? comparison : -comparison
-  })
   return { folders }
+}
+
+/**
+ * Creates a folder at a path, materializing missing ancestors.
+ *
+ * Ancestors are created only after the direct attempt reports the parent
+ * missing, rather than up front. `ensureWorkspaceFileFolderPath` re-normalizes
+ * every segment it is handed, and a folder name is allowed to contain a slash
+ * while a segment is not — so materializing first rejected `/A/Q3%2FQ4/C` on
+ * its own existing parent. Reaching for the materializer only when the parent
+ * is genuinely absent keeps that path untouched in the common case.
+ *
+ * Only the ancestors go through the materializer. The leaf keeps its own call
+ * so it still emits FOLDER_CREATED with a full record, and still conflicts when
+ * something is already there — the materializer is silent on both counts, so
+ * routing the whole path through it would make "create" stop meaning create.
+ */
+async function createWorkspaceFileFolderAtPathCreatingAncestors(params: {
+  workspaceId: string
+  userId: string
+  path: string
+}) {
+  try {
+    return await createWorkspaceFileFolderAtPath(params)
+  } catch (error) {
+    const parentMissing =
+      error instanceof OrchestrationError &&
+      error.code === 'not_found' &&
+      error.message === 'Parent folder not found'
+    const segments = parseFolderPath(params.path)
+    if (!parentMissing || segments.length <= 1) throw error
+
+    await ensureWorkspaceFileFolderPath({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      pathSegments: segments.slice(0, -1),
+    })
+    return await createWorkspaceFileFolderAtPath(params)
+  }
 }
 
 async function executeCreateWorkspaceFileFolder(args: {
@@ -149,7 +215,7 @@ async function executeCreateWorkspaceFileFolder(args: {
   })
   const result =
     args.input.path !== undefined
-      ? await createWorkspaceFileFolderAtPath({
+      ? await createWorkspaceFileFolderAtPathCreatingAncestors({
           workspaceId: args.context.workspaceId,
           userId: attribution.attributedUserId,
           path: args.input.path,
@@ -218,12 +284,15 @@ async function executeDeleteWorkspaceFileFolder(args: {
   context: FolderOperationContext
 }): Promise<DeleteWorkspaceFileFolderResult> {
   let deletedItems: WorkspaceFileArchiveResult
+  let deletedFolderId: string | undefined
   if (args.input.path !== undefined) {
-    deletedItems = await deleteWorkspaceFileFolderByPath({
+    const { folderId, ...archived } = await deleteWorkspaceFileFolderByPath({
       workspaceId: args.context.workspaceId,
       path: args.input.path,
       recursive: args.input.recursive ?? false,
     })
+    deletedItems = archived
+    deletedFolderId = folderId
   } else {
     if (!args.input.folderId) throw new OrchestrationError('validation', 'Folder ID is required')
     await assertWorkspaceFileItemsBelongToWorkspace({
@@ -235,24 +304,71 @@ async function executeDeleteWorkspaceFileFolder(args: {
       folderIds: [args.input.folderId],
     })
     deletedItems = { files: archived.fileIds.length, folders: archived.folderIds.length }
+    deletedFolderId = args.input.folderId
   }
   if (deletedItems.files === 0 && deletedItems.folders === 0) {
     throw new OrchestrationError('not_found', 'Folder not found')
   }
-  return { deletedItems, path: args.input.path }
+  return { deletedItems, folderId: deletedFolderId, path: args.input.path }
+}
+
+/**
+ * Resolves an archived folder's id from its canonical path.
+ *
+ * Deliberately scans the archived set rather than walking the active tree:
+ * `findWorkspaceFileFolderIdByPath` resolves live folders, and the folder being
+ * restored is by definition not one. Folder counts are small — this is the same
+ * full set the folder list already returns unpaged — so a scan is cheaper than
+ * a second recursive path query.
+ */
+async function findArchivedFolderIdByPath(workspaceId: string, path: string): Promise<string> {
+  const target = parseFolderPath(path)
+  if (target.length === 0) {
+    throw new OrchestrationError('validation', 'The workspace root cannot be restored')
+  }
+  const archived = await listWorkspaceFileFolders(workspaceId, { scope: 'archived' })
+  const matches = archived.filter((folder) => {
+    const segments = parseWorkspaceFileFolderDisplayPath(folder.path)
+    return (
+      segments.length === target.length &&
+      segments.every((segment, index) => segment === target[index])
+    )
+  })
+  if (matches.length === 0) throw new OrchestrationError('not_found', 'Folder not found')
+  if (matches.length > 1) {
+    throw new OrchestrationError(
+      'conflict',
+      'Multiple archived folders share this path. Restore by folder id instead.'
+    )
+  }
+  return matches[0].id
 }
 
 async function executeRestoreWorkspaceFileFolder(args: {
   input: RestoreWorkspaceFileFolderInput
   context: FolderOperationContext
 }): Promise<RestoreWorkspaceFileFolderResult> {
-  return restoreWorkspaceFileFolder(args.context.workspaceId, args.input.folderId)
+  const folderId =
+    args.input.path !== undefined
+      ? await findArchivedFolderIdByPath(args.context.workspaceId, args.input.path)
+      : args.input.folderId
+  return restoreWorkspaceFileFolder(args.context.workspaceId, folderId)
 }
 
 export const listWorkspaceFileFoldersOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.listFolders,
   resolveContext: (args: { input: ListWorkspaceFileFoldersInput }) => resolveFolderContext(args),
   execute: executeListWorkspaceFileFolders,
+})
+
+/** Resolves one active folder under the folder-list policy without loading the entire tree. */
+export const resolveWorkspaceFileFolderPathOperation = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.listFolders,
+  resolveContext: (args: { input: { workspaceId: string; folderId: string } }) =>
+    resolveFolderContext(args),
+  async execute({ input, context }) {
+    return { path: await getWorkspaceFileFolderPath(context.workspaceId, input.folderId) }
+  },
 })
 
 export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({
@@ -313,7 +429,12 @@ export const deleteWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
     return {
       action: AuditAction.FOLDER_DELETED,
       resourceType: AuditResourceType.FOLDER,
-      resourceId: input.folderId,
+      /*
+       * A path-addressed delete has no `input.folderId`, so the audit carried no
+       * resource at all and the folder survived only as free text in metadata.
+       * The execution resolves the path to an id either way; this is that id.
+       */
+      resourceId: result.folderId ?? input.folderId,
       description: 'Deleted file folder',
       metadata: {
         path: input.path,
@@ -330,11 +451,11 @@ export const restoreWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFile
   operation: fileOperations.restoreFolder,
   resolveContext: (args: { input: RestoreWorkspaceFileFolderInput }) => resolveFolderContext(args),
   execute: executeRestoreWorkspaceFileFolder,
-  projectAudit({ input, result }) {
+  projectAudit({ result }) {
     return {
       action: AuditAction.FOLDER_RESTORED,
       resourceType: AuditResourceType.FOLDER,
-      resourceId: input.folderId,
+      resourceId: result.folder.id,
       resourceName: result.folder.name,
       description: `Restored file folder "${result.folder.name}"`,
       metadata: { restoredItems: result.restoredItems },

@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineOutlookCalendarKeyedSite,
+  type OutlookCalendarDeliveryContextParams,
+  withOutlookCalendarTransactionId,
+} from '@/tools/outlook/calendar-idempotency'
 import {
   buildAllDayRange,
   buildCalendarScopedUrl,
@@ -20,8 +24,13 @@ import type { ToolConfig } from '@/tools/types'
 /** Agent calls may deliver booleans as the strings "true"/"false". */
 const toBool = (value: unknown): boolean => value === true || value === 'true'
 
+const DELIVERY = defineOutlookCalendarKeyedSite(
+  'outlook_calendar_create_event',
+  'a second event would appear on the calendar and every attendee would get a second invite'
+)
+
 export const outlookCalendarCreateEventTool: ToolConfig<
-  OutlookCalendarCreateEventParams,
+  OutlookCalendarCreateEventParams & OutlookCalendarDeliveryContextParams,
   OutlookCalendarCreateEventResponse
 > = {
   id: 'outlook_calendar_create_event',
@@ -138,13 +147,6 @@ export const outlookCalendarCreateEventTool: ToolConfig<
       const isAllDay = toBool(params.isAllDay) || bothBoundsDateOnly
       const event: Record<string, unknown> = {
         subject: params.subject,
-        // Graph de-duplicates create-event POSTs that repeat a transactionId, which is
-        // exactly the retry case: the executor retries 5xx as well as 429, so a failure
-        // returned after Graph already committed the event would otherwise create a
-        // duplicate. The request body is built once per execution and reused across
-        // attempts, so this id is stable for all retries of this call and unique across
-        // calls. https://learn.microsoft.com/en-us/graph/api/resources/event
-        transactionId: generateId(),
       }
 
       if (isAllDay) {
@@ -180,7 +182,20 @@ export const outlookCalendarCreateEventTool: ToolConfig<
         event.isOnlineMeeting = true
       }
 
-      return event
+      /**
+       * Graph discards a create-event POST that repeats a `transactionId`, which
+       * is exactly the retry case: `CALENDAR_RETRY` replays 5xx as well as 429,
+       * so a failure returned after Graph already committed the event would
+       * otherwise create a second one.
+       *
+       * This body is rebuilt from scratch on every entry into tool preparation,
+       * so a token minted here survives only the innermost of the three retry
+       * layers. Deriving it from the execution identity is what makes it survive
+       * all of them.
+       *
+       * @see https://learn.microsoft.com/en-us/graph/api/resources/event
+       */
+      return withOutlookCalendarTransactionId(DELIVERY, params, event)
     },
   },
 

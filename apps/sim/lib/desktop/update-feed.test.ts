@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  channelForHostname,
-  channelOfVersion,
+  DESKTOP_PRERELEASE_REPOSITORY,
+  DESKTOP_STABLE_RELEASE_REPOSITORY,
   MANIFEST_ASSET_NAME,
   rewriteManifestUrls,
   selectReleaseForChannel,
@@ -21,35 +21,6 @@ function release(
     })),
   }
 }
-
-describe('channelForHostname', () => {
-  it('maps hosted environments to their channels', () => {
-    expect(channelForHostname('dev.sim.ai')).toBe('dev')
-    expect(channelForHostname('www.dev.sim.ai')).toBe('dev')
-    expect(channelForHostname('staging.sim.ai')).toBe('staging')
-    expect(channelForHostname('www.staging.sim.ai')).toBe('staging')
-    expect(channelForHostname('sim.ai')).toBe('latest')
-    expect(channelForHostname('www.sim.ai')).toBe('latest')
-  })
-
-  it('defaults self-hosted and local deployments to stable', () => {
-    expect(channelForHostname('sim.example.com')).toBe('latest')
-    expect(channelForHostname('localhost')).toBe('latest')
-  })
-})
-
-describe('channelOfVersion', () => {
-  it('classifies versions by prerelease tag', () => {
-    expect(channelOfVersion('0.5.24')).toBe('latest')
-    expect(channelOfVersion('0.5.25-staging.3')).toBe('staging')
-    expect(channelOfVersion('0.5.25-dev.412')).toBe('dev')
-  })
-
-  it('classifies legacy alpha and beta tags with their environment', () => {
-    expect(channelOfVersion('0.5.25-alpha.412')).toBe('dev')
-    expect(channelOfVersion('0.5.25-beta.3')).toBe('staging')
-  })
-})
 
 describe('selectReleaseForChannel', () => {
   const releases = [
@@ -91,62 +62,92 @@ describe('selectReleaseForChannel', () => {
     expect(selectReleaseForChannel(withNewStable, 'latest')?.tag_name).toBe('v0.5.25')
   })
 
-  it('reports no production release when only prereleases exist', () => {
-    expect(
-      selectReleaseForChannel([release('v0.5.25-dev.412'), release('v0.5.25-staging.2')], 'latest')
-    ).toBeNull()
-  })
-
   it('skips stable-tagged releases flagged prerelease on the latest channel', () => {
     const flagged = [release('v0.5.25', { prerelease: true }), release('v0.5.24')]
     expect(selectReleaseForChannel(flagged, 'latest')?.tag_name).toBe('v0.5.24')
   })
 
-  it('skips releases missing the updater manifest asset', () => {
-    // A release whose build failed (or is mid-upload) must not take the
-    // channel down; the previous good release keeps serving.
+  it('keeps releases missing the updater manifest eligible for candidate validation', () => {
     const withBrokenNewest = [
       release('v0.5.25-dev.413', { assets: [{ name: 'Sim-0.5.25-dev.413-universal.dmg' }] }),
       release('v0.5.25-dev.412'),
     ]
-    expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
-  })
-
-  it('tolerates release listings without asset data', () => {
-    const bare = { tag_name: 'v0.5.24', draft: false, prerelease: false }
-    expect(selectReleaseForChannel([bare], 'latest')?.tag_name).toBe('v0.5.24')
-  })
-
-  it('skips drafts and unparseable tags', () => {
-    expect(selectReleaseForChannel([release('v0.5.26-dev.1', { draft: true })], 'dev')).toBe(null)
-    expect(selectReleaseForChannel([release('nightly')], 'dev')).toBe(null)
+    expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.413')
   })
 })
 
 describe('rewriteManifestUrls', () => {
-  it('rewrites relative url and path entries to absolute asset URLs', () => {
+  it.each([
+    ['stable', DESKTOP_STABLE_RELEASE_REPOSITORY],
+    ['prerelease', DESKTOP_PRERELEASE_REPOSITORY],
+  ])('rewrites relative url and path entries to absolute %s asset URLs', (_kind, repository) => {
     const manifest = [
       'version: 0.5.24',
       'files:',
-      '  - url: Sim-0.5.24-universal-mac.zip',
+      '  - url: Sim-0.5.24-universal.zip',
       '    sha512: abc',
       '    size: 123',
-      'path: Sim-0.5.24-universal-mac.zip',
+      'path: Sim-0.5.24-universal.zip',
       'sha512: abc',
       "releaseDate: '2026-07-23T00:00:00.000Z'",
     ].join('\n')
-    const rewritten = rewriteManifestUrls(manifest, 'v0.5.24')
-    expect(rewritten).toContain(
-      '  - url: https://github.com/simstudioai/sim/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip'
+    const rewritten = rewriteManifestUrls(
+      manifest,
+      'v0.5.24',
+      repository,
+      new Set(['Sim-0.5.24-universal.zip'])
     )
     expect(rewritten).toContain(
-      'path: https://github.com/simstudioai/sim/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip'
+      `  - url: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
+    )
+    expect(rewritten).toContain(
+      `path: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
     )
     expect(rewritten).toContain('sha512: abc')
   })
 
-  it('leaves already-absolute URLs alone', () => {
-    const manifest = '  - url: https://cdn.example.com/Sim.zip'
-    expect(rewriteManifestUrls(manifest, 'v0.5.24')).toBe(manifest)
+  it('canonicalizes an expected absolute asset URL', () => {
+    const manifest = '  - url: https://cdn.example.com/Sim-0.5.24-universal.zip'
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-universal.zip'])
+      )
+    ).toBe(
+      `  - url: https://github.com/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
+    )
+  })
+
+  it('rejects unexpected manifest asset names', () => {
+    const manifest = '  - url: https://cdn.example.com/unreviewed.zip'
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-universal.zip'])
+      )
+    ).toBeNull()
+  })
+
+  it('rejects an expected artifact that is absent from the release', () => {
+    const manifest = '  - url: Sim-0.5.24-universal.zip'
+    expect(
+      rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY, new Set())
+    ).toBeNull()
+  })
+
+  it('rejects a manifest without an updater file entry', () => {
+    const manifest = ['version: 0.5.24', 'files: []', 'path: Sim-0.5.24-universal.zip'].join('\n')
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-universal.zip'])
+      )
+    ).toBeNull()
   })
 })

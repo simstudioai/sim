@@ -1,7 +1,7 @@
 import { A2A_TASK_OUTPUTS, type A2AGetTaskParams, type A2ATaskResponse } from '@/tools/a2a/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2ATaskResponse> = {
+export const a2aGetTaskTool: InternalToolConfig<A2AGetTaskParams, A2ATaskResponse> = {
   id: 'a2a_get_task',
   name: 'A2A Get Task',
   description: 'Retrieve the current state and result of an A2A task.',
@@ -34,11 +34,8 @@ export const a2aGetTaskTool: ToolConfig<A2AGetTaskParams, A2ATaskResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/a2a/get-task',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const body: Record<string, unknown> = {
         agentUrl: params.agentUrl,
         taskId: params.taskId,

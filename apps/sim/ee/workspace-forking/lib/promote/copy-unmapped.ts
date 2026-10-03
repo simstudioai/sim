@@ -4,6 +4,10 @@ import type {
   PromoteCopyResources,
 } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
+import type {
+  ForkReferenceResolver,
+  ForkRemapKind,
+} from '@/lib/workflows/references/remap-references'
 import {
   type SerializableForkContentRefMaps,
   serializeContentRefMaps,
@@ -21,10 +25,6 @@ import {
   resourceTypeToForkKind,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
-import type {
-  ForkReferenceResolver,
-  ForkRemapKind,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
 
 /**
  * The source ids selected for copy at promote, validated against the plan's copyable
@@ -168,12 +168,15 @@ export async function copyPromoteUnmappedResources(params: {
   edge: ForkEdge
   sourceWorkspaceId: string
   targetWorkspaceId: string
-  direction: 'push' | 'pull'
   userId: string
   now: Date
   selection: PromoteCopySelection
   workflowIdMap: Map<string, string>
-  /** source folder id -> target folder id, so copied skill/markdown bodies rewrite `sim:folder/<id>`. */
+  /**
+   * source workflow-folder id -> target folder id, so copied skill/markdown bodies rewrite
+   * `sim:folder/<id>`. The file / table / knowledge-base trees are mirrored by the copies run
+   * here and unioned onto this map before the content rewrite.
+   */
   folderIdMap: Map<string, string>
   /** Base resolver (persisted mappings + env identity), used to detect already-mapped KBs (U-docs). */
   resolver: ForkReferenceResolver
@@ -196,7 +199,6 @@ export async function copyPromoteUnmappedResources(params: {
     edge,
     sourceWorkspaceId,
     targetWorkspaceId,
-    direction,
     userId,
     now,
     selection,
@@ -231,7 +233,7 @@ export async function copyPromoteUnmappedResources(params: {
     resolveBlockId,
     documentMappingContext: {
       edgeChildWorkspaceId: edge.childWorkspaceId,
-      sourceIsParent: direction === 'pull',
+      sourceIsParent: sourceWorkspaceId === edge.parentWorkspaceId,
     },
   })
 
@@ -251,6 +253,7 @@ export async function copyPromoteUnmappedResources(params: {
           keyMap: new Map<string, string>(),
           idMap: new Map<string, string>(),
           blobTasks: [] as BlobCopyTask[],
+          folderIdMap: new Map<string, string>(),
         }
 
   // U-docs: documents referenced under an already-mapped (not copied this sync) KB. Skip any doc
@@ -280,7 +283,7 @@ export async function copyPromoteUnmappedResources(params: {
     executor: tx,
     edgeChildWorkspaceId: edge.childWorkspaceId,
     userId,
-    sourceIsParent: direction === 'pull',
+    sourceIsParent: sourceWorkspaceId === edge.parentWorkspaceId,
     entries: [...result.mappingEntries, ...fileMappingEntries, ...mappedKbDocs.mappingEntries],
   })
 
@@ -304,7 +307,9 @@ export async function copyPromoteUnmappedResources(params: {
   const contentRefMaps = serializeContentRefMaps({
     workspaceId: { from: sourceWorkspaceId, to: targetWorkspaceId },
     workflows: workflowIdMap,
-    folders: folderIdMap,
+    // Workflow folders (mapped by the caller) unioned with the file / table / knowledge-base
+    // folders this copy mirrored, so a `sim:folder/<id>` ref resolves whichever tree it names.
+    folders: new Map([...folderIdMap, ...fileResult.folderIdMap, ...result.folderIdMap]),
     fileKeys: fileResult.keyMap,
     fileIds: fileResult.idMap,
     skills: result.idMap.get('skill'),

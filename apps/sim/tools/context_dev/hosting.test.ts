@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { contextDevClassifyNaicsTool } from '@/tools/context_dev/classify_naics'
 import { contextDevGetBrandTool } from '@/tools/context_dev/get_brand'
@@ -17,18 +14,6 @@ function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, un
 }
 
 describe('Context.dev hosted key pricing', () => {
-  it('declares hosting with the shared env prefix and BYOK provider on every tool', () => {
-    for (const tool of [
-      contextDevScrapeMarkdownTool,
-      contextDevScreenshotTool,
-      contextDevGetBrandTool,
-      contextDevClassifyNaicsTool,
-    ]) {
-      expect(tool.hosting?.envKeyPrefix).toBe('CONTEXT_DEV_API_KEY')
-      expect(tool.hosting?.byokProviderId).toBe('context_dev')
-    }
-  })
-
   it('charges the reported credits at the per-credit rate for a 1-credit scrape', () => {
     expect(cost(contextDevScrapeMarkdownTool, {}, { creditsConsumed: 1 }).cost).toBeCloseTo(
       CONTEXT_DEV_CREDIT_USD

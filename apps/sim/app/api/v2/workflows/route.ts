@@ -1,20 +1,43 @@
 import type { V2WorkflowListItem } from '@/lib/api/contracts/v2/workflows'
 import { v2CreateWorkflowContract, v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
-import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { workspaceResourceWebUrl } from '@/lib/resources'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { cursorSortKey, decodeSortedCursor, encodeSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Every param that changes which workflows, in which order, this list returns. */
+function workflowCursorFilters(query: {
+  workspaceId: string
+  folderPath?: string
+  scope: 'active' | 'archived'
+  deployedOnly: boolean
+  search?: string
+}) {
+  return cursorScopeKey(cursorRoute(v2ListWorkflowsContract), {
+    workspaceId: query.workspaceId,
+    folderPath: query.folderPath,
+    // Stamped only when it is not the default. `scope` carries
+    // `.default('active')`, so it is always present on the parsed query;
+    // binding it unconditionally would put a constant in every fingerprint and
+    // reject every cursor minted before the field existed — including on
+    // callers who never sent it.
+    scope: query.scope === 'active' ? undefined : query.scope,
+    deployedOnly: query.deployedOnly,
+    search: query.search,
+  })
+}
 
 export const GET = defineV2JsonRoute({
   contract: v2ListWorkflowsContract,
@@ -22,44 +45,50 @@ export const GET = defineV2JsonRoute({
   operation: workflowOperations.list,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  mapInput: ({ query }) => {
-    const sort = cursorSortKey(query.sortBy, query.sortOrder)
-    const decoded = decodeSortedCursor(query.cursor, sort)
-    if (decoded.status === 'invalid') {
-      throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
-    }
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    folderPath: query.folderPath,
+    scope: query.scope,
+    deployedOnly: query.deployedOnly,
+    search: query.search,
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
+    cursorKeys: readSortedCursor(
+      query.cursor,
+      query.sortBy,
+      query.sortOrder,
+      workflowCursorFilters(query)
+    ),
+    limit: query.limit,
+  }),
+  useCase: listWorkflows,
+  present: ({ workflows, nextCursorKeys }, { query }) => {
+    const baseUrl = getBaseUrl()
     return {
-      workspaceId: query.workspaceId,
-      folderPath: query.folderPath,
-      deployedOnly: query.deployedOnly,
-      search: query.search,
-      sortBy: query.sortBy,
-      sortOrder: query.sortOrder,
-      cursorKeys: decoded.status === 'ok' ? decoded.keys : undefined,
-      limit: query.limit,
+      data: workflows.map(
+        (workflow): V2WorkflowListItem => ({
+          id: workflow.id,
+          webUrl: workspaceResourceWebUrl(baseUrl, workflow.workspaceId, 'workflow', workflow.id),
+          name: workflow.name,
+          description: workflow.description,
+          folderPath: workflow.folderPath,
+          workspaceId: workflow.workspaceId,
+          isDeployed: workflow.isDeployed,
+          deployedAt: workflow.deployedAt?.toISOString() ?? null,
+          runCount: workflow.runCount,
+          lastRunAt: workflow.lastRunAt?.toISOString() ?? null,
+          createdAt: workflow.createdAt.toISOString(),
+          updatedAt: workflow.updatedAt.toISOString(),
+        })
+      ),
+      nextCursor: writeSortedCursor(
+        nextCursorKeys,
+        query.sortBy,
+        query.sortOrder,
+        workflowCursorFilters(query)
+      ),
     }
   },
-  useCase: listWorkflows,
-  present: ({ workflows, nextCursorKeys, sortBy, sortOrder }) => ({
-    data: workflows.map(
-      (workflow): V2WorkflowListItem => ({
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        folderPath: workflow.folderPath,
-        workspaceId: workflow.workspaceId,
-        isDeployed: workflow.isDeployed,
-        deployedAt: workflow.deployedAt?.toISOString() ?? null,
-        runCount: workflow.runCount,
-        lastRunAt: workflow.lastRunAt?.toISOString() ?? null,
-        createdAt: workflow.createdAt.toISOString(),
-        updatedAt: workflow.updatedAt.toISOString(),
-      })
-    ),
-    nextCursor: nextCursorKeys
-      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
-      : null,
-  }),
 })
 
 export const POST = defineV2JsonRoute({
@@ -70,9 +99,15 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ body }) => body,
   useCase: createWorkflow,
-  present: ({ workflow, folderPath }) => ({
+  present: ({ workflow, folderPath, normalizedState }) => ({
     data: {
+      blocks: Object.values(normalizedState.blocks).map((block) => ({
+        id: block.id,
+        type: block.type,
+        name: block.name,
+      })),
       id: workflow.id,
+      webUrl: workspaceResourceWebUrl(getBaseUrl(), workflow.workspaceId, 'workflow', workflow.id),
       name: workflow.name,
       description: workflow.description ?? null,
       folderPath,

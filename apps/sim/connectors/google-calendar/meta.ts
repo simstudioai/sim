@@ -9,19 +9,53 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
   description: 'Sync calendar events from Google Calendar',
   version: '1.0.0',
   icon: GoogleCalendarIcon,
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/google-calendar',
 
   auth: {
     mode: 'oauth',
     provider: 'google-calendar',
     requiredScopes: ['https://www.googleapis.com/auth/calendar'],
+    adminCredentialType: 'service_account',
+    serviceAccountScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+    adminServiceAccountScopes: ['https://www.googleapis.com/auth/admin.directory.user.readonly'],
+    serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+    serviceAccountSubjectFieldId: 'adminEmail',
   },
 
+  permissionScopedListing: { capFieldIds: ['maxEvents'] },
+  mirrorsSourceAcls: true,
+  adminSetupHint:
+    'Use a service account with domain-wide delegation to index selected Google Workspace calendars. Each person searches only their own view of events.',
   configFields: [
+    {
+      id: 'adminEmail',
+      title: 'Directory administrator email',
+      showInAdminModeOnly: true,
+      type: 'short-input',
+      required: false,
+      placeholder: 'admin@yourcompany.com',
+      description:
+        'A Google Workspace administrator who can read the user directory. Calendars are read as each selected user.',
+    },
+    {
+      id: 'userEmails',
+      title: 'Users',
+      showInAdminModeOnly: true,
+      setupGroup: 'options',
+      type: 'short-input',
+      multi: true,
+      required: false,
+      placeholder: 'All active Google Workspace users',
+      description:
+        'Optional primary email addresses, separated by commas (up to 100). Leave blank to index all active users across this Google Workspace customer.',
+    },
     {
       id: 'calendarSelector',
       title: 'Calendars',
       type: 'selector',
       selectorKey: 'google.calendar',
+      hideInAdminMode: true,
       canonicalParamId: 'calendarId',
       mode: 'basic',
       multi: true,
@@ -40,12 +74,15 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
       required: false,
       description:
         'Calendars to sync from. Use "primary" for your main calendar. Defaults to "primary".',
+      descriptionInAdminMode:
+        'Leave blank or use "primary" for each selected user’s main calendar. Shared calendar IDs apply to each user who can read them.',
     },
     {
       id: 'dateRange',
       title: 'Date Range',
       type: 'dropdown',
       required: false,
+      placeholder: 'Last 30 days + next 30 days (default)',
       options: [
         { label: 'Last 30 days + next 30 days (default)', id: 'default' },
         { label: 'Past events only (last 30 days)', id: 'past_only' },
@@ -55,14 +92,31 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'searchQuery',
+      setupGroup: 'options',
       title: 'Search Query',
       type: 'short-input',
       placeholder: 'e.g. standup, sprint review (optional)',
       required: false,
-      description: 'Filter events by text search across all fields.',
+      description:
+        'Free-text search. Google matches it against the event summary, description, location, and the organizer and attendee names and email addresses.',
+    },
+    {
+      id: 'includeAttendees',
+      setupGroup: 'options',
+      title: 'Include Attendees',
+      type: 'dropdown',
+      required: false,
+      placeholder: 'Yes (default)',
+      options: [
+        { label: 'Yes (default)', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      description:
+        'Include organizer and attendee names and email addresses in searchable event details. Choose No to include only the attendee count.',
     },
     {
       id: 'maxEvents',
+      setupGroup: 'options',
       title: 'Max Events',
       type: 'short-input',
       required: false,

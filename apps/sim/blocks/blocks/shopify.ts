@@ -4,12 +4,6 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 
-interface ShopifyResponse {
-  success: boolean
-  error?: string
-  output: Record<string, unknown>
-}
-
 const LIST_OPERATIONS = [
   'shopify_list_products',
   'shopify_list_orders',
@@ -19,7 +13,7 @@ const LIST_OPERATIONS = [
   'shopify_list_collections',
 ] as const
 
-export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
+export const ShopifyBlock: BlockConfig = {
   type: 'shopify',
   name: 'Shopify',
   description: 'Manage products, orders, customers, and inventory in your Shopify store',
@@ -130,32 +124,25 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Product Operations
         { label: 'Create Product', id: 'shopify_create_product' },
         { label: 'Get Product', id: 'shopify_get_product' },
         { label: 'List Products', id: 'shopify_list_products' },
         { label: 'Update Product', id: 'shopify_update_product' },
         { label: 'Delete Product', id: 'shopify_delete_product' },
-        // Order Operations
         { label: 'Get Order', id: 'shopify_get_order' },
         { label: 'List Orders', id: 'shopify_list_orders' },
         { label: 'Update Order', id: 'shopify_update_order' },
         { label: 'Cancel Order', id: 'shopify_cancel_order' },
-        // Customer Operations
         { label: 'Create Customer', id: 'shopify_create_customer' },
         { label: 'Get Customer', id: 'shopify_get_customer' },
         { label: 'List Customers', id: 'shopify_list_customers' },
         { label: 'Update Customer', id: 'shopify_update_customer' },
         { label: 'Delete Customer', id: 'shopify_delete_customer' },
-        // Inventory Operations
         { label: 'List Inventory Items', id: 'shopify_list_inventory_items' },
         { label: 'Get Inventory Level', id: 'shopify_get_inventory_level' },
         { label: 'Adjust Inventory', id: 'shopify_adjust_inventory' },
-        // Location Operations
         { label: 'List Locations', id: 'shopify_list_locations' },
-        // Fulfillment Operations
         { label: 'Create Fulfillment', id: 'shopify_create_fulfillment' },
-        // Collection Operations
         { label: 'List Collections', id: 'shopify_list_collections' },
         { label: 'Get Collection', id: 'shopify_get_collection' },
       ],
@@ -188,7 +175,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       placeholder: 'Auto-detected from OAuth or enter manually',
       hidden: true,
     },
-    // Product ID (for get/update/delete operations)
     {
       id: 'productId',
       title: 'Product ID',
@@ -200,7 +186,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_get_product', 'shopify_update_product', 'shopify_delete_product'],
       },
     },
-    // Product Title (for create/update)
     {
       id: 'title',
       title: 'Product Title',
@@ -215,7 +200,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_product', 'shopify_update_product'],
       },
     },
-    // Product Description
     {
       id: 'descriptionHtml',
       title: 'Description (HTML)',
@@ -226,7 +210,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_product', 'shopify_update_product'],
       },
     },
-    // Product Type
     {
       id: 'productType',
       title: 'Product Type',
@@ -237,7 +220,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_product', 'shopify_update_product'],
       },
     },
-    // Vendor
     {
       id: 'vendor',
       title: 'Vendor',
@@ -248,7 +230,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_product', 'shopify_update_product'],
       },
     },
-    // Tags
     {
       id: 'tags',
       title: 'Tags',
@@ -259,7 +240,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_product', 'shopify_update_product'],
       },
     },
-    // Status
     {
       id: 'status',
       title: 'Status',
@@ -275,7 +255,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_product', 'shopify_update_product'],
       },
     },
-    // Query for listing products
     {
       id: 'productQuery',
       title: 'Search Query',
@@ -287,7 +266,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_list_products'],
       },
     },
-    // Query for listing customers
     {
       id: 'customerQuery',
       title: 'Search Query',
@@ -299,7 +277,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_list_customers'],
       },
     },
-    // Query for listing inventory items
     {
       id: 'inventoryQuery',
       title: 'Search Query',
@@ -322,7 +299,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: [...LIST_OPERATIONS],
       },
     },
-    // Order ID
     {
       id: 'orderId',
       title: 'Order ID',
@@ -334,7 +310,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_get_order', 'shopify_update_order', 'shopify_cancel_order'],
       },
     },
-    // Order Status (for listing)
     {
       id: 'orderStatus',
       title: 'Order Status',
@@ -362,7 +337,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_list_orders'],
       },
     },
-    // Order Note (for update)
     {
       id: 'orderNote',
       title: 'Order Note',
@@ -373,7 +347,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_update_order'],
       },
     },
-    // Order Email (for update)
     {
       id: 'orderEmail',
       title: 'Customer Email',
@@ -384,7 +357,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_update_order'],
       },
     },
-    // Order Tags (for update)
     {
       id: 'orderTags',
       title: 'Order Tags',
@@ -395,7 +367,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_update_order'],
       },
     },
-    // Cancel Order Reason
     {
       id: 'cancelReason',
       title: 'Cancel Reason',
@@ -415,7 +386,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_cancel_order'],
       },
     },
-    // Staff Note (for cancel order)
     {
       id: 'staffNote',
       title: 'Staff Note',
@@ -472,7 +442,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_cancel_order'],
       },
     },
-    // Customer ID
     {
       id: 'customerId',
       title: 'Customer ID',
@@ -484,7 +453,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_get_customer', 'shopify_update_customer', 'shopify_delete_customer'],
       },
     },
-    // Customer Email (at least one of email/phone/firstName/lastName required for create)
+    // At least one of email/phone/firstName/lastName is required for create
     {
       id: 'customerEmail',
       title: 'Email',
@@ -495,7 +464,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_customer', 'shopify_update_customer'],
       },
     },
-    // Customer First Name
     {
       id: 'firstName',
       title: 'First Name',
@@ -506,7 +474,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_customer', 'shopify_update_customer'],
       },
     },
-    // Customer Last Name
     {
       id: 'lastName',
       title: 'Last Name',
@@ -517,7 +484,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_customer', 'shopify_update_customer'],
       },
     },
-    // Customer Phone
     {
       id: 'phone',
       title: 'Phone',
@@ -528,7 +494,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_customer', 'shopify_update_customer'],
       },
     },
-    // Customer Note
     {
       id: 'customerNote',
       title: 'Customer Note',
@@ -539,7 +504,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_customer', 'shopify_update_customer'],
       },
     },
-    // Customer Tags
     {
       id: 'customerTags',
       title: 'Customer Tags',
@@ -550,7 +514,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_customer', 'shopify_update_customer'],
       },
     },
-    // Inventory Item ID
     {
       id: 'inventoryItemId',
       title: 'Inventory Item ID',
@@ -562,7 +525,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_get_inventory_level', 'shopify_adjust_inventory'],
       },
     },
-    // Location ID
     {
       id: 'locationId',
       title: 'Location ID',
@@ -577,7 +539,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_get_inventory_level', 'shopify_adjust_inventory'],
       },
     },
-    // Delta (for inventory adjustment)
     {
       id: 'delta',
       title: 'Quantity Change',
@@ -589,7 +550,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_adjust_inventory'],
       },
     },
-    // Fulfillment Order ID
     {
       id: 'fulfillmentOrderId',
       title: 'Fulfillment Order ID',
@@ -601,7 +561,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_fulfillment'],
       },
     },
-    // Tracking Number
     {
       id: 'trackingNumber',
       title: 'Tracking Number',
@@ -612,7 +571,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_fulfillment'],
       },
     },
-    // Tracking Company
     {
       id: 'trackingCompany',
       title: 'Shipping Carrier',
@@ -623,7 +581,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_fulfillment'],
       },
     },
-    // Tracking URL
     {
       id: 'trackingUrl',
       title: 'Tracking URL',
@@ -634,7 +591,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_create_fulfillment'],
       },
     },
-    // Notify Customer (for fulfillment)
     {
       id: 'notifyCustomer',
       title: 'Notify Customer',
@@ -665,7 +621,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_list_locations'],
       },
     },
-    // Collection ID
     {
       id: 'collectionId',
       title: 'Collection ID',
@@ -677,7 +632,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         value: ['shopify_get_collection'],
       },
     },
-    // Collection Query
     {
       id: 'collectionQuery',
       title: 'Search Query',
@@ -737,7 +691,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         }
 
         switch (params.operation) {
-          // Product Operations
           case 'shopify_create_product':
             if (!params.title?.trim()) {
               throw new Error('Product title is required.')
@@ -798,7 +751,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               productId: params.productId.trim(),
             }
 
-          // Order Operations
           case 'shopify_get_order':
             if (!params.orderId?.trim()) {
               throw new Error('Order ID is required.')
@@ -851,7 +803,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               staffNote: params.staffNote?.trim(),
             }
 
-          // Customer Operations
           case 'shopify_create_customer':
             // At least one of email/phone/firstName/lastName required (validated in tool)
             return {
@@ -910,7 +861,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               customerId: params.customerId.trim(),
             }
 
-          // Inventory Operations
           case 'shopify_list_inventory_items':
             return {
               ...baseParams,
@@ -945,7 +895,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               delta: Number(params.delta),
             }
 
-          // Location Operations
           case 'shopify_list_locations':
             return {
               ...baseParams,
@@ -953,7 +902,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               includeInactive: parseOptionalBooleanInput(params.includeInactive),
             }
 
-          // Fulfillment Operations
           case 'shopify_create_fulfillment':
             if (!params.fulfillmentOrderId?.trim()) {
               throw new Error('Fulfillment Order ID is required.')
@@ -967,7 +915,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               notifyCustomer: parseOptionalBooleanInput(params.notifyCustomer),
             }
 
-          // Collection Operations
           case 'shopify_list_collections':
             return {
               ...baseParams,
@@ -995,7 +942,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Shopify access token' },
     shopDomain: { type: 'string', description: 'Shopify store domain' },
-    // Product inputs
     productId: { type: 'string', description: 'Product ID' },
     title: { type: 'string', description: 'Product title' },
     descriptionHtml: { type: 'string', description: 'Product description (HTML)' },
@@ -1005,7 +951,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     status: { type: 'string', description: 'Product status' },
     productQuery: { type: 'string', description: 'Product search query' },
     first: { type: 'number', description: 'Maximum number of results to return' },
-    // Order inputs
     orderId: { type: 'string', description: 'Order ID' },
     orderStatus: { type: 'string', description: 'Order status filter' },
     orderQuery: { type: 'string', description: 'Order search query' },
@@ -1020,7 +965,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       description: 'Whether to refund to the original payment method',
     },
     staffNote: { type: 'string', description: 'Staff note for order cancellation' },
-    // Customer inputs
     customerId: { type: 'string', description: 'Customer ID' },
     customerEmail: { type: 'string', description: 'Customer email' },
     firstName: { type: 'string', description: 'Customer first name' },
@@ -1029,25 +973,21 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     customerNote: { type: 'string', description: 'Customer note' },
     customerTags: { type: 'string', description: 'Customer tags' },
     customerQuery: { type: 'string', description: 'Customer search query' },
-    // Inventory inputs
     inventoryQuery: { type: 'string', description: 'Inventory search query' },
     inventoryItemId: { type: 'string', description: 'Inventory item ID' },
     locationId: { type: 'string', description: 'Location ID' },
     delta: { type: 'number', description: 'Quantity change' },
-    // Fulfillment inputs
     fulfillmentOrderId: { type: 'string', description: 'Fulfillment order ID' },
     trackingNumber: { type: 'string', description: 'Shipment tracking number' },
     trackingCompany: { type: 'string', description: 'Shipping carrier name' },
     trackingUrl: { type: 'string', description: 'Tracking URL' },
     notifyCustomer: { type: 'boolean', description: 'Send shipping notification email' },
     includeInactive: { type: 'boolean', description: 'Include inactive locations in results' },
-    // Collection inputs
     collectionId: { type: 'string', description: 'Collection ID' },
     collectionQuery: { type: 'string', description: 'Collection search query' },
     productsFirst: { type: 'number', description: 'Maximum number of products to return' },
   },
   outputs: {
-    // Product outputs
     product: {
       type: 'json',
       description:
@@ -1057,7 +997,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       type: 'json',
       description: 'List of products with core product fields and media summaries',
     },
-    // Order outputs
     order: {
       type: 'json',
       description:
@@ -1067,7 +1006,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       type: 'json',
       description: 'List of orders with status, totals, customer, and shipping summary fields',
     },
-    // Customer outputs
     customer: {
       type: 'json',
       description:
@@ -1077,7 +1015,6 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       type: 'json',
       description: 'List of customers with contact details, tags, spend, and default address',
     },
-    // Inventory outputs
     inventoryItems: {
       type: 'json',
       description:
@@ -1088,19 +1025,16 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       description:
         'Inventory levels for an item or an inventory adjustment result (levels by location, or adjustmentGroup and changes)',
     },
-    // Location outputs
     locations: {
       type: 'json',
       description:
         'Store locations with id, name, active status, fulfillment capability, and address',
     },
-    // Fulfillment outputs
     fulfillment: {
       type: 'json',
       description:
         'Fulfillment result (id, status, trackingInfo, createdAt, updatedAt, fulfillmentLineItems)',
     },
-    // Collection outputs
     collection: {
       type: 'json',
       description:
@@ -1115,9 +1049,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
       type: 'json',
       description: 'Pagination info for list operations (hasNextPage, hasPreviousPage)',
     },
-    // Delete outputs
     deletedId: { type: 'string', description: 'ID of deleted resource' },
-    // Success indicator
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -1,17 +1,29 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
+import {
+  credential,
+  credentialGroup,
+  credentialGroupEnrollment,
+  credentialMember,
+  environment,
+  permissions,
+  user,
+  workspace,
+  workspaceEnvironment,
+} from '@sim/db/schema'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
-import type { DbOrTx } from '@/lib/db/types'
+import { isManagedCredentialGroupBindingLive } from '@/lib/credential-groups/credentials'
+import { lockPersonalEnvMap } from '@/lib/credentials/env-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   getEffectiveWorkspacePermission,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 
-const PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
+const ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
 
 export interface WorkspaceMembership {
   ownerId: string | null
@@ -72,8 +84,9 @@ export async function getCredentialCreationWorkspaceContext(params: {
     })
     .from(workspace)
     .where(and(eq(workspace.id, params.workspaceId), isNull(workspace.archivedAt)))
+  /** `FOR NO KEY UPDATE`: see the module header of `lib/billing/storage/tracking.ts`. */
   const [workspaceRow] = params.forUpdate
-    ? await workspaceQuery.for('update').limit(1)
+    ? await workspaceQuery.for('no key update').limit(1)
     : await workspaceQuery.limit(1)
   if (!workspaceRow) return null
 
@@ -170,6 +183,32 @@ export async function getPersonalEnvKeyRawAccess(params: {
 }
 
 /**
+ * Whether the workspace holds a value under this env key, read from the authoritative
+ * `workspace_environment.variables` map.
+ *
+ * Deliberately NOT {@link getWorkspaceEnvKeyAdminAccess}'s `knownKeys`, which answers the
+ * narrower "does an `env_workspace` credential row exist". A legacy value written before the
+ * credential ACL existed has no such row yet still wins at run time, so a gate that reads
+ * `knownKeys` as "there is no workspace secret here" would let a non-admin through on exactly
+ * the keys that predate the ACL. Callers deciding whether a NAME belongs to the workspace must
+ * ask this; callers deciding who may administer an ACL keep asking `knownKeys`.
+ */
+export async function hasWorkspaceEnvValue(params: {
+  workspaceId: string
+  envKey: string
+}): Promise<boolean> {
+  const [row] = await db
+    .select({ variables: workspaceEnvironment.variables })
+    .from(workspaceEnvironment)
+    .where(eq(workspaceEnvironment.workspaceId, params.workspaceId))
+    .limit(1)
+
+  const variables = row?.variables
+  if (!variables || typeof variables !== 'object') return false
+  return Object.hasOwn(variables as Record<string, unknown>, params.envKey)
+}
+
+/**
  * For a set of workspace env keys, resolves which the caller may administer
  * (active `credential_member` with role `admin`) and which already have an
  * `env_workspace` credential at all. Keys absent from `knownKeys` have no ACL
@@ -217,6 +256,10 @@ interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
   envKey: string
   envOwnerUserId: string | null
+  /** Always null on `env_personal`: a mirror row cannot own a user-global secret's note. */
+  description: string | null
+  /** Always false on `env_personal`: only workspace secrets can opt out of redaction. */
+  unredacted: boolean
   updatedAt: Date
 }
 
@@ -401,27 +444,35 @@ export async function createWorkspaceEnvCredentials(params: {
 
   const now = params.updatedAt ?? new Date()
 
-  const inserted = await executor
-    .insert(credential)
-    .values(
-      keys.map((envKey) => ({
-        id: generateId(),
-        workspaceId,
-        type: 'env_workspace' as const,
-        displayName: envKey,
-        envKey,
-        createdBy: actingUserId,
-        createdAt: now,
-        updatedAt: now,
-      }))
-    )
-    .onConflictDoNothing()
-    .returning({ id: credential.id })
-  const createdIds = inserted.map((row) => row.id)
+  const credentialValues = keys.map((envKey) => ({
+    id: generateId(),
+    workspaceId,
+    type: 'env_workspace' as const,
+    displayName: envKey,
+    envKey,
+    createdBy: actingUserId,
+    createdAt: now,
+    updatedAt: now,
+  }))
+  const createdIds: string[] = []
+  for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    const inserted = await executor
+      .insert(credential)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({ id: credential.id })
+    createdIds.push(...inserted.map((row) => row.id))
+  }
 
   if (createdIds.length === 0 || memberUserIds.length === 0) return
 
-  // Bulk-insert memberships for all new credentials × all workspace members in one query
+  /**
+   * Chunked because the row count is keys × members and neither side is
+   * bounded: a wide enough save exceeds Postgres's 65535 bind parameters and
+   * throws. Unchunked that was a partial success — the value was already
+   * committed — but this now runs inside the value's transaction, so it would
+   * roll the save back, deterministically, on every retry.
+   */
   const membershipValues = createdIds.flatMap((credentialId) =>
     memberUserIds.map((memberUserId) => ({
       id: generateId(),
@@ -436,7 +487,9 @@ export async function createWorkspaceEnvCredentials(params: {
     }))
   )
 
-  await executor.insert(credentialMember).values(membershipValues).onConflictDoNothing()
+  for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    await executor.insert(credentialMember).values(values).onConflictDoNothing()
+  }
 }
 
 /**
@@ -473,11 +526,11 @@ export async function upsertPersonalEnvCredentialForUser(params: {
   userId: string
   envKey: string
   updatedAt: Date
-  executor?: DbOrTx
+  executor?: DbTransaction
 }): Promise<void> {
   const { userId, envKey, updatedAt } = params
 
-  const upsert = async (tx: DbOrTx) => {
+  const upsert = async (tx: DbTransaction) => {
     await acquireUserBillingIdentityLock(tx, userId)
     const workspaceIds = (await getUserWorkspaceIds(userId, tx)).sort()
     if (workspaceIds.length === 0) return
@@ -493,7 +546,7 @@ export async function upsertPersonalEnvCredentialForUser(params: {
       createdAt: updatedAt,
       updatedAt,
     }))
-    for (const values of chunkArray(credentialValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
       await tx.insert(credential).values(values).onConflictDoNothing()
     }
 
@@ -534,7 +587,7 @@ export async function upsertPersonalEnvCredentialForUser(params: {
       createdAt: updatedAt,
       updatedAt,
     }))
-    for (const values of chunkArray(membershipValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
       await tx
         .insert(credentialMember)
         .values(values)
@@ -552,15 +605,61 @@ export async function upsertPersonalEnvCredentialForUser(params: {
   await db.transaction(upsert)
 }
 
-/** Deletes one caller-owned personal secret's credential metadata in every workspace. */
+export interface PersonalEnvCredentialMetadata {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+/**
+ * Reads one caller-owned personal secret's credential metadata without scoping to
+ * a workspace.
+ *
+ * A personal secret is stored once per user; the `env_personal` credential rows
+ * are per-workspace mirrors, so a reader that needs the secret's own timestamps
+ * must not require a mirror in one particular workspace. The earliest mirror is
+ * the authoritative creation time — later ones are written when the caller joins
+ * another workspace, long after the secret itself was created.
+ */
+export async function getPersonalEnvCredentialMetadata(params: {
+  userId: string
+  envKey: string
+}): Promise<PersonalEnvCredentialMetadata | null> {
+  const [row] = await db
+    .select({
+      id: credential.id,
+      createdAt: credential.createdAt,
+      updatedAt: credential.updatedAt,
+    })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.type, 'env_personal'),
+        eq(credential.envOwnerUserId, params.userId),
+        eq(credential.envKey, params.envKey)
+      )
+    )
+    .orderBy(asc(credential.createdAt))
+    .limit(1)
+
+  return row ?? null
+}
+
+/**
+ * Deletes one caller-owned personal secret's credential metadata in every workspace.
+ *
+ * Deliberately unscoped by workspace: the value being removed alongside it lives
+ * in the user-global `environment` row, so leaving mirrors behind in other
+ * workspaces would advertise a secret that no longer exists.
+ */
 export async function deletePersonalEnvCredentialForUser(params: {
   userId: string
   envKey: string
-  executor?: DbOrTx
+  executor?: DbTransaction
 }): Promise<void> {
   const { userId, envKey } = params
 
-  const remove = async (tx: DbOrTx) => {
+  const remove = async (tx: DbTransaction) => {
     await acquireUserBillingIdentityLock(tx, userId)
     await tx
       .delete(credential)
@@ -580,15 +679,13 @@ export async function deletePersonalEnvCredentialForUser(params: {
   await db.transaction(remove)
 }
 
-export async function syncPersonalEnvCredentialsForUser(params: {
-  userId: string
-  envKeys: string[]
-}): Promise<void> {
-  const { userId, envKeys } = params
-  const normalizedKeys = Array.from(new Set(envKeys.filter(Boolean)))
+/** Reconciles user-global secret deletions and active-workspace mirrors against the locked map. */
+export async function syncPersonalEnvCredentialsForUser(params: { userId: string }): Promise<void> {
+  const { userId } = params
   const now = new Date()
 
   await db.transaction(async (tx) => {
+    await lockPersonalEnvMap(tx, userId)
     /**
      * Cross-organization transfer takes this same user-identity fence before
      * checking source-owned credentials. If this sync wins, transfer observes
@@ -596,88 +693,81 @@ export async function syncPersonalEnvCredentialsForUser(params: {
      * workspace re-read cannot recreate credentials in the departed org.
      */
     await acquireUserBillingIdentityLock(tx, userId)
-    const workspaceIds = (await getUserWorkspaceIds(userId, tx)).sort()
+    const [personalEnvironment] = await tx
+      .select({ variables: environment.variables })
+      .from(environment)
+      .where(eq(environment.userId, userId))
+      .limit(1)
+    const envKeys = Object.keys(personalEnvironment?.variables ?? {}).filter(Boolean)
 
-    if (workspaceIds.length === 0) return
-
-    if (normalizedKeys.length > 0) {
-      const credentialValues = workspaceIds.flatMap((workspaceId) =>
-        normalizedKeys.map((envKey) => ({
-          id: generateId(),
-          workspaceId,
-          type: 'env_personal' as const,
-          displayName: envKey,
-          envKey,
-          envOwnerUserId: userId,
-          createdBy: userId,
-          createdAt: now,
-          updatedAt: now,
-        }))
-      )
-      for (const values of chunkArray(credentialValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
-        await tx.insert(credential).values(values).onConflictDoNothing()
-      }
-
-      const currentCredentials = await tx
-        .select({ id: credential.id })
-        .from(credential)
-        .where(
-          and(
-            inArray(credential.workspaceId, workspaceIds),
-            eq(credential.type, 'env_personal'),
-            eq(credential.envOwnerUserId, userId),
-            inArray(credential.envKey, normalizedKeys)
-          )
-        )
-
-      if (currentCredentials.length > 0) {
-        const membershipValues = currentCredentials.map(({ id: credentialId }) => ({
-          id: generateId(),
-          credentialId,
-          userId,
-          role: 'admin' as const,
-          status: 'active' as const,
-          joinedAt: now,
-          invitedBy: userId,
-          createdAt: now,
-          updatedAt: now,
-        }))
-        for (const values of chunkArray(
-          membershipValues,
-          PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE
-        )) {
-          await tx
-            .insert(credentialMember)
-            .values(values)
-            .onConflictDoUpdate({
-              target: [credentialMember.credentialId, credentialMember.userId],
-              set: { role: 'admin', status: 'active', updatedAt: now },
-            })
-        }
-      }
-
-      await tx
-        .delete(credential)
-        .where(
-          and(
-            inArray(credential.workspaceId, workspaceIds),
-            eq(credential.type, 'env_personal'),
-            eq(credential.envOwnerUserId, userId),
-            notInArray(credential.envKey, normalizedKeys)
-          )
-        )
-      return
-    }
-
+    /** Deleted keys must lose mirrors even in archived or no-longer-accessible workspaces. */
     await tx
       .delete(credential)
       .where(
         and(
-          inArray(credential.workspaceId, workspaceIds),
           eq(credential.type, 'env_personal'),
-          eq(credential.envOwnerUserId, userId)
+          eq(credential.envOwnerUserId, userId),
+          envKeys.length > 0 ? notInArray(credential.envKey, envKeys) : undefined
         )
       )
+
+    if (envKeys.length === 0) return
+
+    const workspaceIds = (await getUserWorkspaceIds(userId, tx)).sort()
+
+    if (workspaceIds.length === 0) return
+
+    const credentialValues = workspaceIds.flatMap((workspaceId) =>
+      envKeys.map((envKey) => ({
+        id: generateId(),
+        workspaceId,
+        type: 'env_personal' as const,
+        displayName: envKey,
+        envKey,
+        envOwnerUserId: userId,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    )
+    for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+      await tx.insert(credential).values(values).onConflictDoNothing()
+    }
+
+    const currentCredentials = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(
+        and(
+          inArray(credential.workspaceId, workspaceIds),
+          eq(credential.type, 'env_personal'),
+          eq(credential.envOwnerUserId, userId),
+          inArray(credential.envKey, envKeys)
+        )
+      )
+
+    if (currentCredentials.length > 0) {
+      const membershipValues = currentCredentials.map(({ id: credentialId }) => ({
+        id: generateId(),
+        credentialId,
+        userId,
+        role: 'admin' as const,
+        status: 'active' as const,
+        joinedAt: now,
+        invitedBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      }))
+      for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+        await tx
+          .insert(credentialMember)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [credentialMember.credentialId, credentialMember.userId],
+            set: { role: 'admin', status: 'active', updatedAt: now },
+          })
+      }
+    }
   })
 }
 
@@ -694,6 +784,8 @@ export async function getAccessibleEnvCredentials(
       type: credential.type,
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
+      description: credential.description,
+      unredacted: credential.unredacted,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -726,6 +818,8 @@ export async function getAccessibleEnvCredentials(
       type: row.type,
       envKey: row.envKey,
       envOwnerUserId: row.envOwnerUserId,
+      description: row.type === 'env_workspace' ? row.description : null,
+      unredacted: row.type === 'env_workspace' ? row.unredacted : false,
       updatedAt: row.updatedAt,
     }))
 }
@@ -735,9 +829,94 @@ export interface AccessibleOAuthCredential {
   providerId: string
   displayName: string
   role: 'admin' | 'member'
-  /** Distinguishes a personal OAuth connection from a shared service account. */
-  type: 'oauth' | 'service_account'
+  /**
+   * A personal OAuth connection, a shared service account, or a Credential
+   * Group credential the person collected under their own enrollment.
+   */
+  type: 'oauth' | 'service_account' | 'managed_oauth'
   updatedAt: Date
+}
+
+/**
+ * The Credential Group credentials a verified person holds through their own
+ * enrollments in the workspace and may use right now: the credential, its
+ * enrollment, its option, and its group are all live, the same bar every mint
+ * applies. These are theirs to use as themselves; the policy's actor statement
+ * is what a use is authorized against, so nothing here widens access, it only
+ * tells the person (and the agent acting for them) what exists.
+ */
+export async function getEnrolledManagedOAuthCredentials(
+  workspaceId: string,
+  userId: string,
+  credentialId?: string
+): Promise<(AccessibleOAuthCredential & { connectedAt: Date })[]> {
+  const query = db
+    .select({
+      id: credential.id,
+      providerId: credential.providerId,
+      displayName: credential.displayName,
+      credentialGroupOptionId: credential.credentialGroupOptionId,
+      managedOauthStatus: credential.managedOauthStatus,
+      enrollmentStatus: credentialGroupEnrollment.status,
+      groupName: credentialGroup.name,
+      groupStatus: credentialGroup.status,
+      groupOptions: credentialGroup.options,
+      updatedAt: credential.updatedAt,
+      grantedAt: credential.grantedAt,
+      createdAt: credential.createdAt,
+    })
+    .from(credential)
+    .innerJoin(
+      credentialGroupEnrollment,
+      eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
+    )
+    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
+    .innerJoin(user, eq(user.id, credentialGroupEnrollment.userId))
+    .innerJoin(workspace, eq(workspace.id, workspaceId))
+    .where(
+      and(
+        or(
+          and(
+            eq(credential.workspaceId, workspaceId),
+            eq(credentialGroup.workspaceId, workspaceId)
+          ),
+          and(
+            eq(credential.organizationId, workspace.organizationId),
+            eq(credentialGroup.organizationId, workspace.organizationId)
+          )
+        ),
+        eq(credential.createdBy, userId),
+        eq(credential.type, 'managed_oauth'),
+        credentialId === undefined ? undefined : eq(credential.id, credentialId),
+        eq(user.id, userId),
+        eq(user.emailVerified, true)
+      )
+    )
+  const rows = await (credentialId === undefined ? query : query.limit(1))
+
+  return rows
+    .filter(
+      (row): row is typeof row & { providerId: string } =>
+        Boolean(row.providerId) &&
+        row.managedOauthStatus !== null &&
+        isManagedCredentialGroupBindingLive({
+          managedOauthStatus: row.managedOauthStatus,
+          enrollmentStatus: row.enrollmentStatus,
+          groupStatus: row.groupStatus,
+          optionStatus:
+            row.groupOptions.find((option) => option.id === row.credentialGroupOptionId)?.status ??
+            null,
+        })
+    )
+    .map((row) => ({
+      id: row.id,
+      providerId: row.providerId,
+      displayName: `${row.displayName} (${row.groupName})`,
+      role: 'member' as const,
+      type: 'managed_oauth' as const,
+      updatedAt: row.updatedAt,
+      connectedAt: row.grantedAt ?? row.createdAt,
+    }))
 }
 
 export async function getAccessibleOAuthCredentials(

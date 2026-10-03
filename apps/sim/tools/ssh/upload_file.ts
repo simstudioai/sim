@@ -1,7 +1,7 @@
 import type { SSHResponse, SSHUploadFileParams } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const uploadFileTool: ToolConfig<SSHUploadFileParams, SSHResponse> = {
+export const uploadFileTool: InternalToolConfig<SSHUploadFileParams, SSHResponse> = {
   id: 'ssh_upload_file',
   name: 'SSH Upload File',
   description: 'Upload a file to a remote SSH server',
@@ -76,13 +76,8 @@ export const uploadFileTool: ToolConfig<SSHUploadFileParams, SSHResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/upload-file',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

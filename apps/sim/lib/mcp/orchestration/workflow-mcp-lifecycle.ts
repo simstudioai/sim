@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -549,7 +549,7 @@ export async function performUpdateWorkflowMcpServer(
   if (params.description !== undefined) updateData.description = params.description?.trim() || null
   if (params.isPublic !== undefined) updateData.isPublic = params.isPublic
 
-  const updatedFields = Object.keys(updateData).filter((key) => key !== 'updatedAt')
+  const updatedFields = auditUpdatedFields(updateData)
 
   try {
     const [server] = await db
@@ -936,7 +936,7 @@ export async function performUpdateWorkflowMcpTool(
       updateData.parameterSchema = applyDescriptionOverrides(baseSchema, overrides)
     }
 
-    const updatedFields = Object.keys(updateData).filter((key) => key !== 'updatedAt')
+    const updatedFields = auditUpdatedFields(updateData)
 
     const tool = await db.transaction(async (tx) => {
       await acquireWorkflowMcpServerLock(tx, params.serverId)

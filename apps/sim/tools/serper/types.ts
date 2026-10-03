@@ -20,23 +20,6 @@ export const SEARCH_PARAMETERS_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete search parameters output definition
- */
-export const SEARCH_PARAMETERS_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Parameters used for this search request',
-  properties: SEARCH_PARAMETERS_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for Knowledge Graph attributes
- */
-export const KNOWLEDGE_GRAPH_ATTRIBUTES_OUTPUT_PROPERTIES = {
-  key: { type: 'string', description: 'Attribute name (e.g., "Headquarters", "CEO", "Founded")' },
-  value: { type: 'string', description: 'Attribute value' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Output definition for Knowledge Graph panel
  * Appears for entities like companies, people, places
  */
@@ -73,16 +56,6 @@ export const KNOWLEDGE_GRAPH_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete Knowledge Graph output definition
- */
-export const KNOWLEDGE_GRAPH_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Knowledge Graph panel information for entities like companies, people, places',
-  optional: true,
-  properties: KNOWLEDGE_GRAPH_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for Answer Box / Featured Snippet
  * Appears for direct answer queries
  */
@@ -96,16 +69,6 @@ export const ANSWER_BOX_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Title of the source', optional: true },
   link: { type: 'string', description: 'URL of the source', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete Answer Box output definition
- */
-export const ANSWER_BOX_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Featured snippet / answer box with direct answers to queries',
-  optional: true,
-  properties: ANSWER_BOX_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for sitelinks under an organic result
@@ -146,18 +109,6 @@ export const ORGANIC_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete organic results array output definition
- */
-export const ORGANIC_RESULTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Organic search results',
-  items: {
-    type: 'object',
-    properties: ORGANIC_RESULT_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for People Also Ask questions
  */
 export const PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES = {
@@ -168,37 +119,11 @@ export const PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete People Also Ask array output definition
- */
-export const PEOPLE_ALSO_ASK_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'People Also Ask questions and answers',
-  optional: true,
-  items: {
-    type: 'object',
-    properties: PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for related search suggestions
  */
 export const RELATED_SEARCH_OUTPUT_PROPERTIES = {
   query: { type: 'string', description: 'Suggested search query' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete related searches array output definition
- */
-export const RELATED_SEARCHES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Related search suggestions',
-  optional: true,
-  items: {
-    type: 'object',
-    properties: RELATED_SEARCH_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Output definition for top stories in news carousel
@@ -212,19 +137,6 @@ export const TOP_STORY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete top stories array output definition
- */
-export const TOP_STORIES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Top stories carousel',
-  optional: true,
-  items: {
-    type: 'object',
-    properties: TOP_STORY_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for news search result items
  */
 export const NEWS_RESULT_OUTPUT_PROPERTIES = {
@@ -236,18 +148,6 @@ export const NEWS_RESULT_OUTPUT_PROPERTIES = {
   imageUrl: { type: 'string', description: 'Article thumbnail image URL', optional: true },
   position: { type: 'number', description: 'Position in results (1-based)' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete news results array output definition
- */
-export const NEWS_RESULTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'News search results',
-  items: {
-    type: 'object',
-    properties: NEWS_RESULT_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Output definition for image search result items
@@ -268,18 +168,6 @@ export const IMAGE_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete image results array output definition
- */
-export const IMAGE_RESULTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Image search results',
-  items: {
-    type: 'object',
-    properties: IMAGE_RESULT_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for video search result items
  */
 export const VIDEO_RESULT_OUTPUT_PROPERTIES = {
@@ -295,18 +183,6 @@ export const VIDEO_RESULT_OUTPUT_PROPERTIES = {
   date: { type: 'string', description: 'Upload date or relative time', optional: true },
   position: { type: 'number', description: 'Position in results (1-based)' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete video results array output definition
- */
-export const VIDEO_RESULTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Video search results',
-  items: {
-    type: 'object',
-    properties: VIDEO_RESULT_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Output definition for places/maps search result items
@@ -340,18 +216,6 @@ export const PLACE_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete places results array output definition
- */
-export const PLACES_RESULTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Places/maps search results',
-  items: {
-    type: 'object',
-    properties: PLACE_RESULT_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for shopping/product search result items
  */
 export const SHOPPING_RESULT_OUTPUT_PROPERTIES = {
@@ -363,18 +227,6 @@ export const SHOPPING_RESULT_OUTPUT_PROPERTIES = {
   imageUrl: { type: 'string', description: 'Product image URL' },
   position: { type: 'number', description: 'Position in results (1-based)' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete shopping results array output definition
- */
-export const SHOPPING_RESULTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Shopping/product search results',
-  items: {
-    type: 'object',
-    properties: SHOPPING_RESULT_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Combined search result output definition (supports all search types for legacy compatibility)
@@ -395,22 +247,13 @@ export const SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES = {
   duration: { type: 'string', description: 'Duration (videos)', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete search result output definition
- */
-export const SERPER_SEARCH_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Search result item with type-specific metadata',
-  properties: SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES,
-}
-
 export interface SearchParams {
   query: string
   apiKey: string
   num?: number
   gl?: string
   hl?: string
-  type?: 'search' | 'news' | 'places' | 'images' | 'videos' | 'shopping'
+  type?: 'search' | 'news' | 'places' | 'images' | 'videos' | 'shopping' | 'scholar' | 'patents'
   tbs?: string
 }
 
@@ -424,6 +267,8 @@ export interface SearchResult {
   source?: string
   rating?: number
   ratingCount?: number
+  /** Legacy passthrough of the raw `reviews` key on places items; not an advertised output. */
+  reviews?: number
   address?: string
   price?: string
   duration?: string

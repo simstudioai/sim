@@ -1,7 +1,7 @@
 import type { TypeformFilesParams, TypeformFilesResponse } from '@/tools/typeform/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
+export const filesTool: InternalToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
   id: 'typeform_files',
   name: 'Typeform Files',
   description: 'Download files uploaded in Typeform responses',
@@ -46,25 +46,14 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     },
   },
 
-  request: {
-    url: '/api/tools/typeform/files',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       formId: params.formId,
       responseId: params.responseId,
       fieldId: params.fieldId,
       filename: params.filename,
       inline: params.inline,
       apiKey: params.apiKey,
-      workspaceId:
-        typeof params._context?.workspaceId === 'string' ? params._context.workspaceId : undefined,
-      workflowId:
-        typeof params._context?.workflowId === 'string' ? params._context.workflowId : undefined,
-      executionId:
-        typeof params._context?.executionId === 'string' ? params._context.executionId : undefined,
     }),
   },
 

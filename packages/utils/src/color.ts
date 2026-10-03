@@ -20,6 +20,64 @@
  */
 export function perceivedBrightness(color: string): number | null {
   const value = color.trim().replace(/['"]/g, '').toLowerCase()
+  return parseSolidBrightness(value)
+}
+
+/**
+ * Perceived brightness of a solid color or static CSS gradient background.
+ * Gradient brightness is the average of supported hex/black/white color stops,
+ * a small deterministic heuristic for choosing readable tile foregrounds
+ * without a browser color parser. Unsupported backgrounds return `null`.
+ */
+export function perceivedBackgroundBrightness(background: string): number | null {
+  const value = background.trim().replace(/['"]/g, '').toLowerCase()
+  const solidBrightness = parseSolidBrightness(value)
+  if (solidBrightness !== null) return solidBrightness
+
+  const gradient = value.match(/^(?:repeating-)?(linear|radial|conic)-gradient\((.*)\)$/)
+  if (!gradient) return null
+
+  const [, gradientType, contents] = gradient
+  const parts = contents.split(',').map((part) => part.trim())
+  const firstStop = parseSupportedColorStop(parts[0])
+  const colorStops = firstStop === null ? parts.slice(1) : parts
+  if (
+    colorStops.length < 2 ||
+    (firstStop === null && !isSupportedGradientPreamble(gradientType, parts[0]))
+  ) {
+    return null
+  }
+
+  let totalBrightness = 0
+  for (const colorStop of colorStops) {
+    const brightness = parseSupportedColorStop(colorStop)
+    if (brightness === null) return null
+    totalBrightness += brightness
+  }
+
+  return totalBrightness / colorStops.length
+}
+
+function parseSupportedColorStop(value: string): number | null {
+  const match = value.match(/^(#[0-9a-f]{6}\b|#[0-9a-f]{3}\b|(?:white|black)\b)(?:\s|$)/)
+  return match ? parseSolidBrightness(match[1]) : null
+}
+
+function isSupportedGradientPreamble(type: string, value: string): boolean {
+  if (type === 'linear') {
+    return /^(?:-?(?:\d+(?:\.\d+)?|\.\d+)(?:deg|grad|rad|turn)|to\s+(?:top|right|bottom|left)(?:\s+(?:top|right|bottom|left))?)$/.test(
+      value
+    )
+  }
+  if (type === 'radial') {
+    return /^(?:(?:circle|ellipse|closest-side|closest-corner|farthest-side|farthest-corner|at)\b|-?(?:\d|\.\d))/.test(
+      value
+    )
+  }
+  return /^(?:from|at)\b/.test(value)
+}
+
+function parseSolidBrightness(value: string): number | null {
   if (value === 'white') return 1
   if (value === 'black') return 0
   const hex = value.replace('#', '')

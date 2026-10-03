@@ -25,13 +25,34 @@ export const v2OptionalUploadTokenHeadersSchema = z.object({
   'upload-token': z.string().min(1, 'upload-token header cannot be empty').optional(),
 })
 
+/**
+ * What a caller needs about the transfer step, stated in the published document
+ * rather than only in the source.
+ *
+ * The URL a transfer hands back can point at object storage or, on a
+ * self-hosted deployment, at Sim's own local data plane — so the endpoint is
+ * described by this field rather than by an operation of its own, and no
+ * OpenAPI document declares it. That is deliberate (the URL is signed,
+ * short-lived, and never constructed from docs), but it left the one step that
+ * actually moves the bytes with no published status codes at all. This is that
+ * contract.
+ */
+const TRANSFER_STEP_CONTRACT =
+  'Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML.'
+
 export const v2PutUploadTransferSchema = z
   .object({
     method: z.literal('put').describe('Upload strategy discriminator.'),
-    url: z.string().url().describe('Signed URL to which the file bytes are uploaded.'),
+    url: z
+      .string()
+      .url()
+      .describe(`Signed URL to which the file bytes are uploaded. ${TRANSFER_STEP_CONTRACT}`),
     headers: z
       .record(z.string(), z.string())
       .describe('Headers that must be included with the upload request.'),
+    expiresAt: v2TimestampSchema.describe(
+      "ISO 8601 expiration time for this signed URL. This is the URL's own expiry and is normally earlier than the upload session's expiresAt: the session stays open for later part, status, completion, and abort requests, but the bytes must be uploaded before this time. Once it passes, the storage provider rejects the upload and a new upload session must be created."
+    ),
   })
   .strict()
   .meta({
@@ -79,7 +100,12 @@ export type V2PartUrlsBody = z.input<typeof v2PartUrlsBodySchema>
 export const v2UploadPartUrlSchema = z
   .object({
     partNumber: z.number().int().min(1).describe('Multipart part number.'),
-    url: z.string().url().describe('Signed URL for this upload part.'),
+    url: z
+      .string()
+      .url()
+      .describe(
+        `Signed URL for this upload part. ${TRANSFER_STEP_CONTRACT} Do not retain part \`ETag\` values; after every part succeeds, call the completion endpoint without a request body.`
+      ),
     headers: z
       .record(z.string(), z.string())
       .describe('Headers that must be included with the part upload.'),

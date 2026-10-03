@@ -5,9 +5,9 @@ import type {
   ExtendParserOutput,
   ExtendParserV2Input,
 } from '@/tools/extend/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const extendParserTool: ToolConfig<ExtendParserInput, ExtendParserOutput> = {
+export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParserOutput> = {
   id: 'extend_parser',
   name: 'Extend Document Parser',
   description: 'Parse and extract content from documents using Extend AI',
@@ -59,15 +59,8 @@ export const extendParserTool: ToolConfig<ExtendParserInput, ExtendParserOutput>
     },
   },
 
-  request: {
-    url: '/api/tools/extend/parse',
-    method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       if (!params || typeof params !== 'object') {
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }
@@ -185,12 +178,11 @@ export const extendParserTool: ToolConfig<ExtendParserInput, ExtendParserOutput>
   },
 }
 
-export const extendParserV2Tool: ToolConfig<ExtendParserV2Input, ExtendParserOutput> = {
+export const extendParserV2Tool: InternalToolConfig<ExtendParserV2Input, ExtendParserOutput> = {
   ...extendParserTool,
   id: 'extend_parser_v2',
   name: 'Extend Document Parser',
   postProcess: undefined,
-  directExecution: undefined,
   transformResponse: extendParserTool.transformResponse
     ? (response: Response, params?: ExtendParserV2Input) =>
         extendParserTool.transformResponse!(response, params)
@@ -207,15 +199,8 @@ export const extendParserV2Tool: ToolConfig<ExtendParserV2Input, ExtendParserOut
     engine: extendParserTool.params.engine,
     apiKey: extendParserTool.params.apiKey,
   },
-  request: {
-    url: '/api/tools/extend/parse',
-    method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
-    body: (params: ExtendParserV2Input) => {
+  operation: {
+    input: (params: ExtendParserV2Input) => {
       if (!params || typeof params !== 'object') {
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }

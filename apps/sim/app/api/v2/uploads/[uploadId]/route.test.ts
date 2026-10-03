@@ -1,31 +1,26 @@
-/**
- * @vitest-environment node
- */
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockLocalUploadBodyError, mockGetOwnedUploadSession, mockMetadata, mockWriteLocalPut } =
-  vi.hoisted(() => {
-    class MockLocalUploadBodyError extends Error {}
-    return {
-      MockLocalUploadBodyError,
-      mockGetOwnedUploadSession: vi.fn(),
-      mockMetadata: vi.fn(),
-      mockWriteLocalPut: vi.fn(),
-    }
-  })
+const { MockLocalUploadBodyError, mockWriteLocalPut } = vi.hoisted(() => {
+  class MockLocalUploadBodyError extends Error {}
+  return {
+    MockLocalUploadBodyError,
+    mockWriteLocalPut: vi.fn(),
+  }
+})
 
 vi.mock('@/lib/uploads/upload-session/provider', () => ({
   LocalUploadBodyError: MockLocalUploadBodyError,
   writeLocalPutObject: mockWriteLocalPut,
 }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  getOwnedUploadSession: mockGetOwnedUploadSession,
-  uploadSessionObjectMetadata: mockMetadata,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 import { PUT } from '@/app/api/v2/uploads/[uploadId]/route'
+
+const { mockGetOwnedUploadSession, mockUploadSessionObjectMetadata: mockMetadata } =
+  uploadSessionMockFns
 
 const SESSION = {
   id: 'upload-1',
@@ -60,7 +55,6 @@ const SESSION = {
 
 describe('PUT /api/v2/uploads/[uploadId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetOwnedUploadSession.mockReturnValue(SESSION)
     mockMetadata.mockReturnValue({ uploadId: 'upload-1', purpose: 'workspace_file' })
     mockWriteLocalPut.mockResolvedValue(undefined)
@@ -99,17 +93,27 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
-      error: 'Upload must contain exactly 3 bytes',
+      error: { code: 'BAD_REQUEST', message: 'Upload must contain exactly 3 bytes' },
     })
     expect(mockWriteLocalPut).not.toHaveBeenCalled()
   })
 
-  it('rejects a URL whose token names a non-local or multipart session', async () => {
+  /**
+   * This route is deliberately absent from the OpenAPI documents, which is a
+   * statement about addressability rather than about behaviour. It used to
+   * answer with a bare `{ error: string }`, which made the one step of an
+   * upload that actually moves the bytes the one step a caller could not parse
+   * with its v2 error handling.
+   */
+  it('rejects a URL whose token names a non-local or multipart session, in the v2 envelope', async () => {
     mockGetOwnedUploadSession.mockReturnValue({ ...SESSION, method: 'multipart' })
 
     const response = await request()
 
     expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'FORBIDDEN', message: 'Upload URL does not match this session' },
+    })
     expect(mockWriteLocalPut).not.toHaveBeenCalled()
   })
 
@@ -119,7 +123,9 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
     const response = await request({ contentLength: null })
 
     expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ error: 'Upload exceeds 3 bytes' })
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'BAD_REQUEST', message: 'Upload exceeds 3 bytes' },
+    })
   })
 })
 
