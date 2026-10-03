@@ -871,6 +871,28 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'microsoft-powerbi',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
+      getUserInfo: async (tokens) => {
+        const canonicalScopes = getCanonicalScopesForProvider('microsoft-powerbi')
+        tokens.scopes = tokens.scopes?.map((scope) => {
+          const qualified = `https://analysis.windows.net/powerbi/api/${scope}`
+          return canonicalScopes.includes(qualified) ? qualified : scope
+        })
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
+      },
+    },
+
+    {
       providerId: 'outlook',
       clientId: env.MICROSOFT_CLIENT_ID as string,
       clientSecret: env.MICROSOFT_CLIENT_SECRET as string,

@@ -1971,6 +1971,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 
     const triggerRegistry = await buildTriggerRegistry()
     const { desc: toolDescMap, name: toolNameMap } = await buildToolDescriptionMap()
+    const toolMetadataById = await loadToolMetadata()
 
     // Hand-authored, integration-specific landing content (install walkthrough,
     // privacy blurb), keyed by slug. Imported as pure data — its only import is
@@ -2066,6 +2067,15 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 
           return { name: label, description: opDesc }
         })
+        // A block with no operation dropdown (single-tool blocks, provider pickers)
+        // exposes its tools directly, so list them from the client-safe tool metadata.
+        if (operations.length === 0) {
+          for (const toolId of toolsAccess) {
+            const tool = toolMetadataById[toolId]
+            if (!tool?.name) continue
+            operations.push({ name: tool.name, description: tool.description ?? '' })
+          }
+        }
 
         const triggerIds: string[] = (config as any).triggerIds || []
         const triggers: TriggerInfo[] = triggerIds
@@ -2245,6 +2255,26 @@ function extractSpreadBase(blockContent: string): string | null {
   return spreadMatch ? spreadMatch[1] : null
 }
 
+/**
+ * Operations a block inherits by spreading a same-file block's fields array
+ * (`subBlocks: [...NotionBlock.subBlocks, ...]`) rather than the whole config.
+ * Only a plain spread counts: a transformed one (`...XBlock.subBlocks.map(...)`) may rewrite the
+ * operations, so it falls through to the block's own `tools.access`.
+ */
+function extractSpreadSubBlocksOperations(
+  blockContent: string,
+  fileContent: string | undefined
+): { label: string; id: string }[] {
+  if (!fileContent) return []
+  const declarations = blockDeclarations(fileContent)
+  for (const match of blockContent.matchAll(/\.\.\.(\w+Block)\.subBlocks\s*[,\]]/g)) {
+    const declaration = declarations.find((candidate) => candidate.name === match[1])
+    const operations = declaration ? extractOperationsFromContent(declaration.content) : []
+    if (operations.length > 0) return operations
+  }
+  return []
+}
+
 /** Resolves a block's category through local spread ancestry without loading its registry. */
 export function extractInheritedBlockCategory(
   blockContent: string,
@@ -2345,7 +2375,14 @@ function extractBlockConfigFromContent(
       }
     }
 
-    const operations = extractOperationsFromContent(blockContent)
+    const ownOperations = extractOperationsFromContent(blockContent)
+    const baseOperations = baseConfig?.operations ?? []
+    const operations =
+      ownOperations.length > 0
+        ? ownOperations
+        : baseOperations.length > 0
+          ? baseOperations
+          : extractSpreadSubBlocksOperations(blockContent, fileContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
     const supplied = extractBlockSuppliedParamIds(blockContent, blockName)
     /**
@@ -2435,7 +2472,7 @@ function extractBlockConfigFromContent(
       tools: {
         access: finalToolsAccess.length > 0 ? finalToolsAccess : baseConfig?.tools?.access || [],
       },
-      operations: operations.length > 0 ? operations : (baseConfig as any)?.operations || [],
+      operations,
       userSettableParamIds,
       triggerIds: triggerIds.length > 0 ? triggerIds : (baseConfig as any)?.triggerIds || [],
       docsLink,

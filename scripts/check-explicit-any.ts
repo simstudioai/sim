@@ -85,10 +85,19 @@ function collect(): Baseline {
   return counts
 }
 
-/** `biome-ignore` comments for either rule, which would hide a hit from Biome's count. */
+/**
+ * `biome-ignore` comments that would hide a hit from Biome's count: either rule, or a group
+ * (`lint/suspicious`) or bare `lint` suppression that covers it.
+ */
 function suppressions(): string[] {
+  const covering = Object.values(METRICS)
+    .map((rule) => {
+      const [, group, name] = rule.split('/')
+      return `/${group}(/${name})?`
+    })
+    .join('|')
   // Anchored to a comment opener so the phrase inside a string literal (a test fixture) is not a hit.
-  const pattern = `^[[:space:]]*(//|/\\*|\\{/\\*)[[:space:]]*biome-ignore(-all|-start)?[[:space:]]+(${Object.values(METRICS).join('|')})`
+  const pattern = `^[[:space:]]*(//|/\\*|\\{/\\*)[[:space:]]*biome-ignore(-all|-start)?[[:space:]]+lint(${covering})?([[:space:]:(]|$)`
   const result = Bun.spawnSync(
     ['git', 'grep', '-nE', '--untracked', pattern, '--', 'apps', 'packages', 'scripts'],
     { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
@@ -177,8 +186,8 @@ if (process.argv.includes('--update')) {
 
 let regressed = 0
 let stale = 0
-/** A vanished baselined file next to a new file with no more hits: likely a rename. */
-const renames = new Set<string>()
+/** A baselined file no longer has any hits, so a regression elsewhere may be the same file renamed. */
+let vanished = false
 
 for (const metric of Object.keys(METRICS) as Metric[]) {
   const before = baseline[metric] ?? {}
@@ -191,13 +200,7 @@ for (const metric of Object.keys(METRICS) as Metric[]) {
   const shrunk = Object.entries(before)
     .filter(([file, count]) => (after[file] ?? 0) < count)
     .map(([file, count]) => `  ${file}: ${after[file] ?? 0} (baseline ${count})`)
-  for (const [oldFile, oldCount] of Object.entries(before)) {
-    if (oldFile in after) continue
-    const renamed = Object.entries(after).find(
-      ([file, count]) => !(file in before) && count <= oldCount
-    )
-    if (renamed) renames.add(`${oldFile} → ${renamed[0]}`)
-  }
+  if (Object.keys(before).some((file) => !(file in after))) vanished = true
   if (regressions.length) {
     console.error(`✗ ${metric}: ${regressions.length} file(s) gained ${METRICS[metric]} hits`)
     console.error(regressions.sort().join('\n'))
@@ -222,10 +225,10 @@ if (regressed || stale || suppressed.length) {
     )
   }
   if (regressed) console.error('\nNever raise the baseline to make a new `any` or `!` pass.')
-  for (const rename of renames) {
+  if (regressed && vanished) {
     console.error(
-      `\nLooks like a rename: ${rename}. Move its baseline entries to the new path in ` +
-        `${path.relative(ROOT, BASELINE)} (debt carries over; it may not grow).`
+      `If a regressed file is a baselined file you only moved (git mv), move its entry to the new ` +
+        `path in ${path.relative(ROOT, BASELINE)}; its count may not grow.`
     )
   }
   process.exit(1)

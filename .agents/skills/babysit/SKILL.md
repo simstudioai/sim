@@ -88,9 +88,10 @@ conditions freshly after every push.
    across all pages has `isResolved: true`, and every check has finished and passed, stop —
    report the outcome (see "Reporting" below) and skip the rest of this list.
 
-2. **If the PR has a merge conflict**, resolve it with step 6 (its rebase-based sync flow and
-   the `/ship` gates; a merge commit would be discarded by that rebase), then steps 7–8: push
-   with `--force-with-lease` and re-trigger review.
+2. **If the PR has a merge conflict**, rebase rather than merge (step 6's rebase would discard a
+   merge commit): `git fetch origin staging && git rebase origin/staging`, resolve each conflict
+   and `git rebase --continue` until the rebase finishes. Then run step 6 (the sync check and the
+   `/ship` gates), then steps 7–8: push with `--force-with-lease` and re-trigger review.
 
 3. **If no review has run yet** (fresh PR, no bot comments): both run automatically on PR open —
    confirm via `gh pr checks <n>` (look for `Greptile Review` and `cubic · AI code reviewer`) and

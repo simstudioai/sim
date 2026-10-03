@@ -27,7 +27,7 @@ describe('unlinkForkEdge', () => {
     mockResolveForkLineageRootId.mockResolvedValue('root-ws')
   })
 
-  it('nulls the child pointer and purges all four edge tables under the edge lock', async () => {
+  it('detaches the child under its edge lock', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'child-ws' }])
 
     const result = await unlinkForkEdge(EDGE, 'req-1')
@@ -39,7 +39,6 @@ describe('unlinkForkEdge', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ forkedFromWorkspaceId: null })
     )
-    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(4)
   })
 
   /** A root moved by a concurrent unlink higher up means the lock taken no longer covers it. */

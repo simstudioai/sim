@@ -270,15 +270,6 @@ if (added.length || stale.length) {
         'baseline: bun run scripts/check-file-names.ts --update'
     )
   }
-  for (const entry of added) {
-    const old = stale.find((s) => s.split('\t')[0] === entry.split('\t')[0])
-    if (old) {
-      console.error(
-        `\nLooks like a rename: ${old.split('\t')[1]} → ${entry.split('\t')[1]}. Move its baseline ` +
-          `entry to the new path in ${path.relative(ROOT, BASELINE)} (debt carries over; it may not grow).`
-      )
-    }
-  }
   process.exit(1)
 }
 

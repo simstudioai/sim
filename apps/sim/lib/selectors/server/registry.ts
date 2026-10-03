@@ -26,6 +26,7 @@ import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/ne
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
 import { pipedriveSelectorAttachments } from '@/lib/selectors/server/providers/pipedrive'
 import { planetScaleSelectorAttachments } from '@/lib/selectors/server/providers/planetscale'
+import { powerBISelectorAttachments } from '@/lib/selectors/server/providers/powerbi'
 import { sharepointSelectorAttachments } from '@/lib/selectors/server/providers/sharepoint'
 import { slackSelectorAttachments } from '@/lib/selectors/server/providers/slack'
 import { snowflakeSelectorAttachments } from '@/lib/selectors/server/providers/snowflake'
@@ -64,6 +65,7 @@ export const serverSelectorRegistry = {
   ...notionSelectorAttachments,
   ...pipedriveSelectorAttachments,
   ...planetScaleSelectorAttachments,
+  ...powerBISelectorAttachments,
   ...sharepointSelectorAttachments,
   ...slackSelectorAttachments,
   ...snowflakeSelectorAttachments,

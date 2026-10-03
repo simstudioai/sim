@@ -253,6 +253,7 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'microsoft-dataverse',
   'microsoft-excel',
   'microsoft-planner',
+  'microsoft-powerbi',
   'microsoft-teams',
   'microsoft-word',
   'outlook',

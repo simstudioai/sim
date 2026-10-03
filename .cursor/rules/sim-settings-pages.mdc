@@ -90,14 +90,17 @@ return (
 ## Title + description live in navigation metadata
 
 `apps/sim/components/settings/navigation.ts` is the single source of truth (the
-`settings/navigation.ts` in the route tree is only a re-export shim). Every `SETTINGS_SECTION_REGISTRY` entry carries a one-line `description`; `SettingsPanel`
+`settings/navigation.ts` in the route tree is only a re-export shim). Each `SETTINGS_SECTION_REGISTRY` entry's one-line description is
+`unified.description` (a plane projection's `planes.<plane>.description` overrides it where that
+plane's scope differs), or, for a section that exists only on a standalone plane, its
+`planes.<plane>.description`; `SettingsPanel`
 resolves both via `getSettingsSectionMeta(plane, section)` and the
 `SettingsSectionProvider` the settings shell wraps around the active section.
 
 Adding a new settings page:
 
 1. Add the section id to the `UnifiedSettingsSection` union + a `SETTINGS_SECTION_REGISTRY`
-   entry (with `label` **and** `unified.description`) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
+   entry (with `label` **and** its description, as described above) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
    ~40–55 chars, in the product voice (see `.claude/rules/constitution.md`).
 2. Register its module in `SECTION_MODULES` (`settings/section-warmers.ts`) and render it
    inside the shell's `effectiveSection` switch in `settings/[section]/settings.tsx`.

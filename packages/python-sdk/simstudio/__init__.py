@@ -21,7 +21,7 @@ MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 # rather than silently reporting True.
 _SUCCESSFUL_RUN_STATUSES = ('completed', 'paused')
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 def _client_headers() -> Dict[str, str]:
@@ -140,10 +140,10 @@ class SimStudioClient:
     
     Args:
         api_key: Your Sim API key
-        base_url: Base URL for the Sim API (defaults to https://sim.ai)
+        base_url: Base URL for the Sim API (defaults to https://www.sim.ai)
     """
     
-    def __init__(self, api_key: str, base_url: str = "https://sim.ai"):
+    def __init__(self, api_key: str, base_url: str = "https://www.sim.ai"):
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self._session = requests.Session()

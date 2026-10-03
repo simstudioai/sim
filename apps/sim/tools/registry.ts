@@ -3860,6 +3860,16 @@ import {
   posthogUpdateSurveyTool,
 } from '@/tools/posthog'
 import {
+  powerbiExecuteQueryTool,
+  powerbiGetDatasetTool,
+  powerbiGetRefreshHistoryTool,
+  powerbiGetReportTool,
+  powerbiListDatasetsTool,
+  powerbiListReportsTool,
+  powerbiListWorkspacesTool,
+  powerbiRefreshDatasetTool,
+} from '@/tools/powerbi'
+import {
   profoundBotLogsTool,
   profoundBotsReportTool,
   profoundCategoryAssetsTool,
@@ -6026,6 +6036,16 @@ import {
   xWriteTool,
 } from '@/tools/x'
 import {
+  youComAnswerTool,
+  youComFinanceResearchTool,
+  youComGetAccountBalanceTool,
+  youComGetContentsTool,
+  youComGetResearchTaskTool,
+  youComResearchTool,
+  youComSearchImagesTool,
+  youComSearchTool,
+} from '@/tools/youcom'
+import {
   youtubeChannelInfoTool,
   youtubeChannelPlaylistsTool,
   youtubeChannelVideosTool,
@@ -7751,6 +7771,14 @@ export const tools: Record<string, ExecutableToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
+  youcom_answer: youComAnswerTool,
+  youcom_finance_research: youComFinanceResearchTool,
+  youcom_get_account_balance: youComGetAccountBalanceTool,
+  youcom_get_contents: youComGetContentsTool,
+  youcom_get_research_task: youComGetResearchTaskTool,
+  youcom_research: youComResearchTool,
+  youcom_search: youComSearchTool,
+  youcom_search_images: youComSearchImagesTool,
   youtube_channel_info: youtubeChannelInfoTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
   youtube_channel_videos: youtubeChannelVideosTool,
@@ -8083,6 +8111,14 @@ export const tools: Record<string, ExecutableToolConfig> = {
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
   postgresql_introspect: postgresIntrospectTool,
+  powerbi_execute_query: powerbiExecuteQueryTool,
+  powerbi_get_dataset: powerbiGetDatasetTool,
+  powerbi_get_refresh_history: powerbiGetRefreshHistoryTool,
+  powerbi_get_report: powerbiGetReportTool,
+  powerbi_list_datasets: powerbiListDatasetsTool,
+  powerbi_list_reports: powerbiListReportsTool,
+  powerbi_list_workspaces: powerbiListWorkspacesTool,
+  powerbi_refresh_dataset: powerbiRefreshDatasetTool,
   quickbooks_add_attachment: quickbooksAddAttachmentTool,
   quickbooks_create_bill: quickbooksCreateBillTool,
   quickbooks_create_bill_payment: quickbooksCreateBillPaymentTool,
