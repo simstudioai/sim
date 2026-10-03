@@ -3529,6 +3529,14 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleDeleteTool,
+  oracleExecuteTool,
+  oracleInsertTool,
+  oracleIntrospectTool,
+  oracleQueryTool,
+  oracleUpdateTool,
+} from '@/tools/oracledb'
+import {
   otterCreateConversationTool,
   otterGetConversationAudioTool,
   otterGetConversationTool,
@@ -8596,6 +8604,12 @@ export const tools: Record<string, ExecutableToolConfig> = {
   new_relic_get_entity: newRelicGetEntityTool,
   new_relic_nrql_query: newRelicNrqlQueryTool,
   new_relic_search_entities: newRelicSearchEntitiesTool,
+  oracledb_query: oracleQueryTool,
+  oracledb_insert: oracleInsertTool,
+  oracledb_update: oracleUpdateTool,
+  oracledb_delete: oracleDeleteTool,
+  oracledb_execute: oracleExecuteTool,
+  oracledb_introspect: oracleIntrospectTool,
   github_pr: githubPrTool,
   github_pr_v2: githubPrV2Tool,
   github_comment: githubCommentTool,
