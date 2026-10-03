@@ -1,4 +1,3 @@
-import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it, vi } from 'vitest'
 import { isInternalToolOperationRegistered } from '@/lib/internal/tool-operations/registry.server'
 import { requestTool } from '@/tools/http/request'
@@ -81,6 +80,12 @@ function isAbsoluteHttpUrl(url: string): boolean {
   }
 }
 
+function hasDotDotPathSegment(url: string): boolean {
+  const pathStart = url.indexOf('/', url.indexOf('//') + 2)
+  if (pathStart === -1) return false
+  return url.slice(pathStart).split(/[?#]/)[0].split('/').includes('..')
+}
+
 function createRequestTool(
   url: string | ((params: Record<string, unknown>) => string)
 ): ToolConfig {
@@ -139,6 +144,8 @@ describe('external request transport', () => {
     'https://api.example.com/v0/inboxes/inbox_1/drafts/.%2e?force=true',
     'https://api.example.com/v0/inboxes/inbox_1/drafts/.\t.',
     'https://api.example.com/v0/inboxes/inbox_1\\drafts\\..',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/..\u0001',
+    ' https://api.example.com/v0/inboxes/inbox_1/drafts/..\u0000 ',
   ])('rejects a URL whose path resolves a dot segment: %s', (url) => {
     expect(() =>
       prepareToolRequest(
@@ -153,6 +160,7 @@ describe('external request transport', () => {
     'https://api.example.com/v1/files/..foo/foo../.env',
     'https://api.example.com/v1/search?path=../x#..',
     'https://api.example.com/',
+    'https://api.example.com/v1/files/..\u00a0',
   ])('allows dots that are not whole path segments: %s', (url) => {
     expect(
       prepareToolRequest(
@@ -202,12 +210,12 @@ describe('dynamic external request registry invariant', () => {
       if (typeof urlBuilder !== 'function') throw new Error(`${toolId} must have a dynamic URL`)
       const observations: string[] = []
       const scenarios = [
-        { params: createSchemaProbeParams(tool, false), adversarial: false },
-        { params: createSchemaProbeParams(tool, true), adversarial: false },
-        { params: createSchemaProbeParams(tool, true, true), adversarial: true },
+        createSchemaProbeParams(tool, false),
+        createSchemaProbeParams(tool, true),
+        createSchemaProbeParams(tool, true, true),
       ]
 
-      for (const { params, adversarial } of scenarios) {
+      for (const params of scenarios) {
         let url: string
         try {
           url = urlBuilder(params as never)
@@ -226,14 +234,10 @@ describe('dynamic external request registry invariant', () => {
             createRequestTool(() => url),
             {}
           )
-        if (!adversarial) {
+        if (hasDotDotPathSegment(url)) {
+          expect(prepare, `${toolId} dispatched ${url}`).toThrow(DOT_SEGMENT_ERROR)
+        } else {
           expect(prepare, `${toolId} rejected ${url}`).not.toThrow()
-          continue
-        }
-        try {
-          prepare()
-        } catch (error) {
-          expect(getErrorMessage(error), `${toolId} rejected ${url}`).toBe(DOT_SEGMENT_ERROR)
         }
       }
 

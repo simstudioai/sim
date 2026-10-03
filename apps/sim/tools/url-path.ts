@@ -192,15 +192,16 @@ const SCHEME_AND_AUTHORITY = /^[a-z][a-z\d+.-]*:[\\/]*[^\\/?#]*/i
 
 /**
  * Rejects a request URL whose path carries a dot segment the WHATWG parser
- * would resolve away. Mirrors the parser: tabs and newlines are stripped,
- * `\` separates segments like `/`, and `%2e` counts as a dot.
+ * would resolve away. Mirrors the parser: boundary C0 controls and spaces,
+ * then tabs and newlines, are stripped, `\` separates segments like `/`, and
+ * `%2e` counts as a dot.
  *
  * @throws If the path contains a `.` or `..` segment in any spelling.
  */
 export function assertNoDotPathSegments(url: string): void {
   const path = url
+    .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '')
     .replace(/[\t\n\r]/g, '')
-    .trim()
     .replace(SCHEME_AND_AUTHORITY, '')
     .split(/[?#]/, 1)[0]
   const hasDotSegment = path.split(/[\\/]/).some((segment) => {
