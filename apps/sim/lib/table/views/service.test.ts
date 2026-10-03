@@ -67,10 +67,8 @@ describe('pruneViewConfig', () => {
       any: [{ all: [{ field: 'col_a', op: 'contains', value: 'A' }] }],
     })
     expect(
-      pruneViewConfig(
-        { filter: { all: [{ field: 'col_gone', op: 'eq', value: 'x' }] } },
-        columns
-      ).filter
+      pruneViewConfig({ filter: { all: [{ field: 'col_gone', op: 'eq', value: 'x' }] } }, columns)
+        .filter
     ).toBeNull()
     expect(
       pruneViewConfig(
