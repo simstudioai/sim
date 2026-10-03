@@ -251,6 +251,7 @@ import {
   NotionV2BlockMeta,
 } from '@/blocks/blocks/notion'
 import { ObsidianBlock, ObsidianBlockMeta } from '@/blocks/blocks/obsidian'
+import { OciComputeBlock, OciComputeBlockMeta } from '@/blocks/blocks/oci_compute'
 import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
@@ -602,6 +603,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
   netsuite: NetSuiteBlock,
+  oci_compute: OciComputeBlock,
   new_relic: NewRelicBlock,
   note: NoteBlock,
   notion: NotionBlock,
@@ -937,6 +939,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
   netsuite: NetSuiteBlockMeta,
+  oci_compute: OciComputeBlockMeta,
   neverbounce: NeverBounceBlockMeta,
   new_relic: NewRelicBlockMeta,
   notion: NotionBlockMeta,

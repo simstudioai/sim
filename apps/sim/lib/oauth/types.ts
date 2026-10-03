@@ -108,6 +108,7 @@ export type OAuthProvider =
 
 export type OAuthService =
   | 'oci'
+  | 'oci_compute'
   | 'github-repositories'
   | 'google'
   | 'google-email'
