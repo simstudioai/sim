@@ -1,0 +1,292 @@
+/**
+ * @vitest-environment node
+ */
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+
+const mocks = vi.hoisted(() => ({
+  listBuckets: vi.fn(),
+  listObjects: vi.fn(),
+  uploadObject: vi.fn(),
+  downloadObject: vi.fn(),
+  headObject: vi.fn(),
+  deleteObject: vi.fn(),
+}))
+
+vi.mock('@/lib/internal/oci-object-storage/operations', () => ({
+  executeOciObjectStorageListBuckets: mocks.listBuckets,
+  executeOciObjectStorageListObjects: mocks.listObjects,
+  executeOciObjectStorageUploadObject: mocks.uploadObject,
+  executeOciObjectStorageDownloadObject: mocks.downloadObject,
+  executeOciObjectStorageHeadObject: mocks.headObject,
+  executeOciObjectStorageDeleteObject: mocks.deleteObject,
+}))
+
+import { executeOciObjectStorageTool } from '@/lib/internal/oci-object-storage/execute-tool'
+import { OciObjectStorageBlock } from '@/blocks/blocks/oci_object_storage'
+import { ociObjectStorageDeleteObjectTool } from '@/tools/oci_object_storage/delete_object'
+import { ociObjectStorageDownloadObjectTool } from '@/tools/oci_object_storage/download_object'
+import { ociObjectStorageHeadObjectTool } from '@/tools/oci_object_storage/head_object'
+import { ociObjectStorageListBucketsTool } from '@/tools/oci_object_storage/list_buckets'
+import { ociObjectStorageListObjectsTool } from '@/tools/oci_object_storage/list_objects'
+import { ociObjectStorageUploadObjectTool } from '@/tools/oci_object_storage/upload_object'
+
+const logger = getMockLogger('OciObjectStorageToolExecution')
+
+function request(toolId: string, input: Record<string, unknown>) {
+  return {
+    toolId,
+    input,
+    context: { userId: 'user-1' },
+    requestId: 'request-1',
+  } as Parameters<typeof executeOciObjectStorageTool>[0]
+}
+
+describe('OCI Object Storage tool execution boundary', () => {
+  it.each([
+    [ociObjectStorageListBucketsTool, mocks.listBuckets],
+    [ociObjectStorageListObjectsTool, mocks.listObjects],
+    [ociObjectStorageUploadObjectTool, mocks.uploadObject],
+    [ociObjectStorageDownloadObjectTool, mocks.downloadObject],
+    [ociObjectStorageHeadObjectTool, mocks.headObject],
+    [ociObjectStorageDeleteObjectTool, mocks.deleteObject],
+  ] as const)('projects native workflow inputs for $0.id', async (tool, execute) => {
+    execute.mockResolvedValue({ success: true, output: {} })
+    const mapParams = OciObjectStorageBlock.tools.config?.params
+    if (!mapParams) throw new Error('Expected OCI Object Storage block parameter mapping')
+    for (const blank of [null, '', undefined]) {
+      const raw = {
+        operation: tool.id,
+        oauthCredential: 'caller-reference',
+        accessToken: 'authorized-reference',
+        credentialId: 'forged-reference',
+        workspaceId: 'untrusted',
+        workflowId: 'untrusted',
+        _context: { executionId: 'execution' },
+        bucketName: 'documents',
+        objectKey: 'empty.txt',
+        uploadObjectKey: 'stale.txt',
+        content: '',
+        file: null,
+        contentType: blank,
+        prefix: blank,
+        delimiter: blank,
+        maxKeys: blank,
+        startAfter: blank,
+        continuationToken: blank,
+      }
+      const params = { ...raw, ...mapParams(raw) }
+      const response = await executeOciObjectStorageTool(
+        request(tool.id, tool.operation.input(params))
+      )
+      expect(response.status).toBe(200)
+      const input = execute.mock.lastCall?.[0]
+      expect(input.credentialId).toBe('authorized-reference')
+      for (const key of ['operation', 'workspaceId', 'workflowId', '_context', 'uploadObjectKey']) {
+        expect(input).not.toHaveProperty(key)
+      }
+      if (tool.id === 'oci_object_storage_list_buckets') {
+        expect(input).toEqual({ credentialId: 'authorized-reference' })
+      }
+      if (tool.id === 'oci_object_storage_list_objects') {
+        expect(input.maxKeys).toBe(100)
+        expect(input).not.toHaveProperty('continuationToken')
+        expect(input).not.toHaveProperty('objectKey')
+      }
+      if (tool.id === 'oci_object_storage_upload_object') {
+        expect(input.content).toBe('')
+        expect(input).not.toHaveProperty('prefix')
+      }
+    }
+  })
+
+  it.each([
+    [403, 403, 'invalid or lacks permission'],
+    [404, 404, 'was not found'],
+    [500, 502, 'request failed'],
+  ])(
+    'maps provider status %i without exposing provider details',
+    async (providerStatus, status, text) => {
+      const error = Object.assign(new Error('secret-key-canary'), {
+        $metadata: { httpStatusCode: providerStatus },
+      })
+      mocks.headObject.mockRejectedValueOnce(error)
+
+      const response = await executeOciObjectStorageTool(
+        request('oci_object_storage_head_object', {
+          credentialId: 'credential-1',
+          bucketName: 'documents',
+          objectKey: 'missing.txt',
+        })
+      )
+      const body = await response.json()
+
+      expect(response.status).toBe(status)
+      expect(body.error).toContain(text)
+      expect(JSON.stringify(body)).not.toContain('secret-key-canary')
+      if (status >= 500) {
+        expect(logger.error).toHaveBeenCalledOnce()
+        expect(logger.warn).not.toHaveBeenCalled()
+      } else {
+        expect(logger.warn).toHaveBeenCalledOnce()
+        expect(logger.error).not.toHaveBeenCalled()
+      }
+    }
+  )
+
+  it.each([null, undefined])(
+    'sanitizes an upstream %s rejection without throwing from the error boundary',
+    async (providerError) => {
+      mocks.headObject.mockRejectedValueOnce(providerError)
+
+      const response = await executeOciObjectStorageTool(
+        request('oci_object_storage_head_object', {
+          credentialId: 'credential-1',
+          bucketName: 'documents',
+          objectKey: 'missing.txt',
+        })
+      )
+
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({
+        success: false,
+        error: 'Oracle Object Storage request failed',
+      })
+      expect(logger.error).toHaveBeenCalledOnce()
+      expect(logger.warn).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reports the bounded bucket-inventory failure without provider details', async () => {
+    mocks.listBuckets.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'OCI bucket listing',
+        maxBytes: 8,
+        observedBytes: 9,
+      })
+    )
+    const response = await executeOciObjectStorageTool(
+      request('oci_object_storage_list_buckets', { credentialId: 'credential-1' })
+    )
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'OCI bucket listing exceeds the Sim limit',
+    })
+  })
+
+  it('rejects malformed strict input before calling provider code', async () => {
+    const response = await executeOciObjectStorageTool(
+      request('oci_object_storage_list_buckets', {
+        credentialId: 'credential-1',
+        secretAccessKey: 'secret-key-canary',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listBuckets).not.toHaveBeenCalled()
+    expect(JSON.stringify(await response.json())).not.toContain('secret-key-canary')
+  })
+
+  it.each([
+    [{ bucketName: 'bucket/name', maxKeys: 10 }, 'bucket'],
+    [{ bucketName: 'documents', prefix: 'bad\nkey', maxKeys: 10 }, 'prefix'],
+    [{ bucketName: 'documents', delimiter: ':', maxKeys: 10 }, 'delimiter'],
+    [{ bucketName: 'documents', continuationToken: 'x'.repeat(1_025), maxKeys: 10 }, 'cursor'],
+  ])('rejects OCI-incompatible list inputs before execution (%s)', async (fields) => {
+    const response = await executeOciObjectStorageTool(
+      request('oci_object_storage_list_objects', {
+        credentialId: 'credential-1',
+        ...fields,
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listObjects).not.toHaveBeenCalled()
+  })
+
+  it('keeps encoded number-sign and question-mark object keys valid', async () => {
+    mocks.headObject.mockResolvedValue({ success: true, output: {} })
+    const response = await executeOciObjectStorageTool(
+      request('oci_object_storage_head_object', {
+        credentialId: 'credential-1',
+        bucketName: 'documents',
+        objectKey: 'folder/a#b?.txt',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.headObject).toHaveBeenCalledOnce()
+  })
+
+  it.each([null, '', '   '])(
+    'applies the maxKeys default to a blank value (%s)',
+    async (maxKeys) => {
+      mocks.listObjects.mockResolvedValue({ success: true, output: {} })
+      const response = await executeOciObjectStorageTool(
+        request('oci_object_storage_list_objects', {
+          credentialId: 'credential-1',
+          bucketName: 'documents',
+          maxKeys,
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mocks.listObjects).toHaveBeenCalledWith(
+        expect.objectContaining({ maxKeys: 100 }),
+        undefined
+      )
+    }
+  )
+
+  it('allows an inline upload without a user actor', async () => {
+    mocks.uploadObject.mockResolvedValue({ success: true, output: { size: 5 } })
+    const response = await executeOciObjectStorageTool({
+      ...request('oci_object_storage_upload_object', {
+        credentialId: 'credential-1',
+        bucketName: 'documents',
+        objectKey: 'report.txt',
+        content: 'hello',
+      }),
+      context: {},
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.uploadObject).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'hello' }),
+      expect.objectContaining({ userId: undefined, requestId: 'request-1' })
+    )
+  })
+
+  it('uses the trusted delegated subject for file-backed uploads', async () => {
+    mocks.uploadObject.mockResolvedValue({ success: true, output: { size: 5 } })
+    const response = await executeOciObjectStorageTool({
+      ...request('oci_object_storage_upload_object', {
+        credentialId: 'credential-1',
+        bucketName: 'documents',
+        objectKey: 'report.txt',
+        file: {
+          name: 'report.txt',
+          key: 'workspace/file-1',
+          size: 5,
+          type: 'text/plain',
+        },
+      }),
+      context: {
+        executorDelegationOrigin: {
+          subjectUserId: 'user-origin',
+          workflowId: 'workflow-origin',
+          executionId: 'execution-origin',
+        },
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.uploadObject).toHaveBeenCalledWith(
+      expect.objectContaining({ file: expect.objectContaining({ key: 'workspace/file-1' }) }),
+      expect.objectContaining({ userId: 'user-origin', requestId: 'request-1' })
+    )
+  })
+})

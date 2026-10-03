@@ -54,6 +54,7 @@ import {
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
+  OciObjectStorageIcon,
   OutlookIcon,
   PipedriveIcon,
   PowerBIIcon,
@@ -1071,6 +1072,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'netsuite',
+  },
+  oci_object_storage: {
+    name: 'OCI Object Storage',
+    icon: OciObjectStorageIcon,
+    services: {
+      oci_object_storage: {
+        name: 'OCI Object Storage',
+        description:
+          'List, upload, download, inspect, and delete objects in Oracle Cloud Infrastructure Object Storage.',
+        providerId: 'oci_object_storage',
+        serviceAccountProviderId: 'oci-object-storage-service-account',
+        icon: OciObjectStorageIcon,
+        baseProviderIcon: OciObjectStorageIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci_object_storage',
   },
   reddit: {
     name: 'Reddit',

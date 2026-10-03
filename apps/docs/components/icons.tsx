@@ -9500,7 +9500,7 @@ export function NewRelicIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
+function OracleOvalMark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 93.9 59.4' xmlns='http://www.w3.org/2000/svg'>
       <path
@@ -9509,6 +9509,15 @@ export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
       />
     </svg>
   )
+}
+
+export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
+  return <OracleOvalMark {...props} />
+}
+
+/** Oracle brand mark reused for the OCI Object Storage integration. */
+export function OciObjectStorageIcon(props: SVGProps<SVGSVGElement>) {
+  return <OracleOvalMark {...props} />
 }
 
 export function WizaIcon(props: SVGProps<SVGSVGElement>) {
