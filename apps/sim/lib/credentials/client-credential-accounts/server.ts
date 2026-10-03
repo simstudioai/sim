@@ -5,6 +5,7 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -12,6 +13,7 @@ import {
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
+import { mintOracleFusionServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/oracle-fusion'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
@@ -130,6 +132,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID]: mintSalesforceServiceAccountToken,
   [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: mintZohoDeskServiceAccountToken,
   [NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID]: mintNetSuiteServiceAccountToken,
+  [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: mintOracleFusionServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(
