@@ -10,7 +10,6 @@ import {
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
   dropdownMenuRowClass,
-  OverflowText,
 } from '@sim/emcn'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
@@ -32,7 +31,9 @@ import {
   MENTION_PREVIEW_DEFAULT_LIMIT,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { MentionRowContent } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/mention-row-content'
 import {
+  buildFolderMentionLocationMap,
   buildMentionPreview,
   type ResourceMentionCandidate,
   resourceMentionMatches,
@@ -217,6 +218,11 @@ export const PlusMenuDropdown = React.memo(
       settledCommands,
       terminalTabs,
     ])
+
+    const folderMentionLocations = useMemo(
+      () => buildFolderMentionLocationMap(visibleResources),
+      [visibleResources]
+    )
 
     /**
      * Built from this workspace's own inventory, which has no foldered families in an
@@ -481,6 +487,7 @@ export const PlusMenuDropdown = React.memo(
                   const config = type === 'workspace' ? null : getResourceConfig(type)
                   const workspaceName = 'workspaceName' in item ? item.workspaceName : undefined
                   const isActive = index === activeIndex
+                  const location = folderMentionLocations.get(candidateKey(candidate))
                   /* Items arrive grouped by family (one group per type, ordered by
                      RESOURCE_MENU_ORDER), so a type change marks a section boundary.
                      Deriving the heading from the flat list keeps `activeIndex` — and
@@ -506,25 +513,26 @@ export const PlusMenuDropdown = React.memo(
                           isActive && 'bg-[var(--surface-hover)]'
                         )}
                       >
-                        {candidate.type === 'workspace' ? (
-                          <>
-                            <IdentityTile
-                              initial={getWorkspaceInitial(candidate.item.name)}
-                              logoUrl={candidate.item.logoUrl}
-                            />
-                            <DropdownMenuItemLabel label={candidate.item.name} />
-                          </>
-                        ) : (
-                          getResourceConfig(candidate.type).renderDropdownItem({
-                            item: candidate.item,
-                          })
-                        )}
-                        {typeof workspaceName === 'string' && (
-                          <OverflowText
-                            label={workspaceName}
-                            className='ml-auto max-w-[35%] shrink-0 text-[var(--text-muted)] text-xs'
-                          />
-                        )}
+                        <MentionRowContent
+                          location={location}
+                          workspaceName={
+                            typeof workspaceName === 'string' ? workspaceName : undefined
+                          }
+                        >
+                          {candidate.type === 'workspace' ? (
+                            <>
+                              <IdentityTile
+                                initial={getWorkspaceInitial(candidate.item.name)}
+                                logoUrl={candidate.item.logoUrl}
+                              />
+                              <DropdownMenuItemLabel label={candidate.item.name} />
+                            </>
+                          ) : (
+                            getResourceConfig(candidate.type).renderDropdownItem({
+                              item: candidate.item,
+                            })
+                          )}
+                        </MentionRowContent>
                       </button>
                     </React.Fragment>
                   )
