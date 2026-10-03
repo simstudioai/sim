@@ -10,11 +10,11 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
 import {
   fileUtilsServerMock,
   fileUtilsServerMockFns,
 } from '@sim/testing/mocks/file-utils-server.mock'
-import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
 import {
   filesAuthorizationMock,
   filesAuthorizationMockFns,
