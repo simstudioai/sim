@@ -2168,7 +2168,6 @@
   "apps/sim/lib/api/contracts/tools/agiloft.ts#agiloftRemoveAttachmentBodySchema",
   "apps/sim/lib/api/contracts/tools/agiloft.ts#agiloftRemoveAttachmentResponseSchema",
   "apps/sim/lib/api/contracts/tools/agiloft.ts#agiloftRetrieveBodySchema",
-  "apps/sim/lib/api/contracts/tools/agiloft.ts#agiloftRetrieveResponseSchema",
   "apps/sim/lib/api/contracts/tools/agiloft.ts#agiloftRunActionButtonBodySchema",
   "apps/sim/lib/api/contracts/tools/agiloft.ts#agiloftRunActionButtonResponseSchema",
   "apps/sim/lib/api/contracts/tools/agiloft.ts#agiloftSavedSearchBodySchema",

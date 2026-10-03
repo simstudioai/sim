@@ -554,7 +554,15 @@ from `transformResponse(response, params?, context?)`. The executor's `FileToolP
 and replaces it with a `UserFile`; tools never call it.
 
 In an operation handler, return `createInternalToolFileResult` / `createInternalToolFilesResult`
-from `lib/internal/tool-operations/file-result.ts` — never base64 JSON. See the `add-tools` skill →
+from `lib/internal/tool-operations/file-result.ts` — never base64 JSON. The shared presenter stores
+bounded provider bytes using trusted execution or Copilot ownership, normalizes image metadata,
+and returns a small JSON envelope before the unchanged 10 MiB response cap. Preserve the stored
+`UserFile` unchanged through response schemas and transforms (`userFileSchema` / `UserFile`),
+including its `id`, `key`, `url`, `context`, `type`, `name`, and `size`.
+
+Keep provider authentication, DNS-pinned downloads, byte caps, and cancellation. Surface storage
+failures; never fall back to oversized inline bytes or raise the global JSON cap. Preserve explicit
+legacy base64 outputs when they are a separate versioned contract. See the `add-tools` skill →
 File Downloads and Generated Files.
 
 ### Key Helpers Reference
