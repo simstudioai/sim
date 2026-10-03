@@ -15,7 +15,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
   id: 'file_write',
   name: 'File Write',
   description:
-    'Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv") unless overwrite is enabled.',
+    'Create a new workspace file at a relative path, either from text content or from an existing file. Missing folders are created automatically. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv") unless overwrite is enabled.',
   version: '1.0.0',
 
   params: {
@@ -24,7 +24,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       required: false,
       visibility: 'user-or-llm',
       description:
-        'File name (e.g., "data.csv"). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled.',
+        'Relative workspace file path (e.g., "Reports/2026/report.md"). Missing folders are created automatically. Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled.',
     },
     folderPath: {
       type: 'string',
@@ -102,6 +102,11 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
   outputs: {
     id: { type: 'string', description: 'File ID' },
     name: { type: 'string', description: 'File name' },
+    vfsPath: {
+      type: 'string',
+      description:
+        'Canonical workspace path of the created file (e.g., files/Reports/2026/report.md)',
+    },
     size: { type: 'number', description: 'File size in bytes' },
     url: { type: 'string', description: 'URL to access the file', optional: true },
     version: { type: 'number', description: 'Version number of the content this write recorded' },

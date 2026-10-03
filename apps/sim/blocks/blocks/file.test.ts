@@ -94,6 +94,35 @@ describe('FileV5Block', () => {
     ).toBe(false)
   })
 
+  it('keeps the saved fileName key while presenting nested paths', () => {
+    const pathSubBlock = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'fileName')
+    expect(pathSubBlock).toMatchObject({
+      id: 'fileName',
+      title: 'File Path',
+      placeholder: 'Reports/2026/report.md',
+      tooltip: 'Relative workspace path. Missing folders are created automatically.',
+    })
+    expect(
+      buildParams({
+        operation: 'file_write',
+        fileName: 'Reports/2026/report.md',
+        content: 'report',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toEqual({
+      fileName: 'Reports/2026/report.md',
+      folderPath: undefined,
+      content: 'report',
+      contentType: undefined,
+      overwrite: false,
+      workspaceId: 'workspace-1',
+    })
+    expect(FileV5Block.outputs.vfsPath).toMatchObject({
+      type: 'string',
+      description: expect.stringContaining('Canonical workspace path'),
+    })
+  })
+
   it('keeps the builder-configured search limit as a fixed hard cap', () => {
     expect(
       buildParams({
