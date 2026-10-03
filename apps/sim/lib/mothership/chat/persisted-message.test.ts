@@ -595,7 +595,9 @@ describe('stripToolResultOutput', () => {
       { ...launch, async: false },
     ]) {
       const invalid = structuredClone(message)
-      invalid.contentBlocks![0].toolCall!.result!.output = output
+      const result = invalid.contentBlocks?.[0].toolCall?.result
+      if (!result) throw new Error('Expected an async launch result')
+      result.output = output
       expect(stripToolResultOutput(invalid).contentBlocks?.[0].toolCall?.result).toEqual({
         success: true,
       })

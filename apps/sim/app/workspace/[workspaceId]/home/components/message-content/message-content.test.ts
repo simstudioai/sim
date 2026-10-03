@@ -303,17 +303,17 @@ describe('async agent display names', () => {
         content: '',
         timestamp: new Date(0).toISOString(),
         contentBlocks: blocks
-          .filter((block) => block.toolCall)
-          .map((block) => ({
+          .flatMap((block) => (block.toolCall ? [block.toolCall] : []))
+          .map((toolCall) => ({
             type: 'tool',
             phase: 'call',
             toolCall: {
-              id: block.toolCall!.id,
-              name: block.toolCall!.name,
-              state: block.toolCall!.status,
-              params: block.toolCall!.params,
-              result: block.toolCall!.result,
-              display: { title: block.toolCall!.displayTitle },
+              id: toolCall.id,
+              name: toolCall.name,
+              state: toolCall.status,
+              params: toolCall.params,
+              result: toolCall.result,
+              display: { title: toolCall.displayTitle },
             },
             ...(spans ? { spanId: 'main' } : {}),
           })),
@@ -339,7 +339,8 @@ describe('async agent display names', () => {
       { result: { success: true, output: null } },
     ]) {
       const invalid = structuredClone(launch)
-      Object.assign(invalid.toolCall!, patch)
+      if (!invalid.toolCall) throw new Error('Expected an async launch tool call')
+      Object.assign(invalid.toolCall, patch)
       expect(waitTitle([invalid, wait])).toMatchObject({
         data: { displayTitle: wait.toolCall?.displayTitle },
       })
