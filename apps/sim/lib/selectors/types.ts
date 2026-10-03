@@ -35,6 +35,8 @@ export const selectorContextKeys = [
   'logGroupName',
   'tableId',
   'jobId',
+  'applicationName',
+  'jobType',
   'database',
   'schema',
   'orgId',

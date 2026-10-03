@@ -1,0 +1,628 @@
+---
+title: Oracle EPCM
+description: Operate Enterprise Profitability models, POVs, allocations, jobs, and results
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_enterprise_profitability"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an Oracle EPM service-account credential to Enterprise Profitability and Cost Management (EPCM). Run existing models and allocation rules, manage POV data, inspect members, monitor jobs, exchange data/metadata, and transfer ordinary repository files up to 100 MB. Model, POV, cube, dimension, and rule names are tenant-specific manual inputs. No legacy PCM APIs, model/rule CRUD, migrations, or snapshot workflows. Most operations require Service Administrator. Dynamic member creation requires an eligible parent and a prior cube refresh. Oracle documentation is inconsistent about EPCM job-definition discovery; verify availability in your tenant and use manual saved-job names where necessary.
+
+
+
+## Actions
+
+### Oracle EPCM List Applications
+
+List applications accessible to the EPCM service account; no application-type enum is assumed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applications` | array | Accessible applications \(not filtered by an invented EPCM type\) |
+|   ↳ `name` | string | name output from the tool |
+|   ↳ `type` | string | type output from the tool |
+|   ↳ `appType` | string | appType output from the tool |
+|   ↳ `appStorage` | string | appStorage output from the tool |
+
+### Oracle EPCM Get Member
+
+Read documented properties of one member; this does not list dimensions or descendants.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `dimensionName` | string | Yes | Exact dimension name |
+| `memberName` | string | Yes | Exact member name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | object | Documented member properties; this is not a descendant listing |
+|   ↳ `name` | string | Member name |
+|   ↳ `description` | string | description output from the tool |
+|   ↳ `parentName` | string | parentName output from the tool |
+|   ↳ `dimName` | string | dimName output from the tool |
+|   ↳ `dataType` | string | dataType output from the tool |
+|   ↳ `dataStorage` | string | dataStorage output from the tool |
+|   ↳ `objectType` | number | objectType output from the tool |
+|   ↳ `twoPass` | boolean | twoPass output from the tool |
+
+### Oracle EPCM Add Member
+
+Create a dynamic member under an eligible parent. The parent must allow dynamic children and the cube must have been refreshed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `dimensionName` | string | Yes | Exact dimension name |
+| `memberName` | string | Yes | New member name |
+| `parentName` | string | Yes | Parent enabled for dynamic children |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | object | Documented member properties; this is not a descendant listing |
+|   ↳ `name` | string | Member name |
+|   ↳ `description` | string | description output from the tool |
+|   ↳ `parentName` | string | parentName output from the tool |
+|   ↳ `dimName` | string | dimName output from the tool |
+|   ↳ `dataType` | string | dataType output from the tool |
+|   ↳ `dataStorage` | string | dataStorage output from the tool |
+|   ↳ `objectType` | number | objectType output from the tool |
+|   ↳ `twoPass` | boolean | twoPass output from the tool |
+
+### Oracle EPCM List Job Definitions
+
+List saved data or metadata exchange jobs of one type. EPCM availability requires tenant verification because Oracle's applicability matrix is inconsistent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobType` | string | Yes | Supported saved exchange job type. Allowed values: IMPORT_DATA, EXPORT_DATA, IMPORT_METADATA, EXPORT_METADATA. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobDefinitions` | array | Saved exchange jobs matching the selected type |
+|   ↳ `jobName` | string | jobName output from the tool |
+|   ↳ `jobType` | string | jobType output from the tool |
+
+### Oracle EPCM Generate Model Documentation
+
+Submit documentation generation for an existing EPCM model and its rules. Wait for the job before downloading the report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Calculation/report/POV job label; an existing saved job is not required |
+| `modelName` | string | Yes | Existing EPCM model name; use the tenant's exact name |
+| `fileName` | string | Yes | Output report filename in the repository |
+| `outputType` | string | No | Report output format. Allowed values: PDF, Word, Excel, HTML, XML. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Validate Model
+
+Submit validation of an existing EPCM model; retain the job ID and download the named validation file after completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Calculation/report/POV job label; an existing saved job is not required |
+| `modelName` | string | Yes | Existing EPCM model name; use the tenant's exact name |
+| `fileName` | string | Yes | Validation results filename in the repository |
+| `ruleStatus` | string | No | Rules to validate; uses Oracle's parameter-table casing. Allowed values: All, Enabled, Disabled. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Calculate Model
+
+Execute allocations in an existing EPCM model. Submission is separate from waiting; never blindly retry after an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Calculation/report/POV job label; an existing saved job is not required |
+| `modelName` | string | Yes | Existing EPCM model name; use the tenant's exact name |
+| `povDelimiter` | string | No | Explicit single-character POV delimiter: _, #, ~, %, ;, :, or - |
+| `povName` | string | Yes | POV members joined with the delimiter; calculations also accept comma-separated POVs |
+| `executionType` | string | No | Calculation execution scope. Allowed values: ALL_RULES, RULESET_SUBSET, SINGLE_RULE, RUN_FROM_RULE, STOP_AFTER_RULE. |
+| `ruleName` | string | No | Required for SINGLE_RULE, RUN_FROM_RULE, or STOP_AFTER_RULE |
+| `rulesetSeqNumStart` | number | No | Required first rule-set sequence for RULESET_SUBSET |
+| `rulesetSeqNumEnd` | number | No | Required last rule-set sequence for RULESET_SUBSET |
+| `clearCalculatedData` | boolean | No | Clear previously calculated data |
+| `executeCalculations` | boolean | No | Execute calculations; Sim explicitly defaults to true |
+| `optimizeForReporting` | boolean | No | Optimize results for reporting |
+| `captureDebugScripts` | boolean | No | Capture debug scripts |
+| `comment` | string | No | Optional calculation comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Clear POV Data
+
+Clear explicitly selected input, allocated, or adjustment data in a specified POV and cube. This is destructive.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Calculation/report/POV job label; an existing saved job is not required |
+| `povDelimiter` | string | No | Explicit single-character POV delimiter: _, #, ~, %, ;, :, or - |
+| `povName` | string | Yes | POV members joined with the delimiter; calculations also accept comma-separated POVs |
+| `cubeName` | string | Yes | Exact cube name |
+| `clearInput` | boolean | No | Clear input data |
+| `clearAllocatedValues` | boolean | No | Clear allocated values |
+| `clearAdjustmentValues` | boolean | No | Clear adjustment values |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Copy POV Data
+
+Copy existing POV data between explicitly identified source and destination POVs and cubes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Calculation/report/POV job label; an existing saved job is not required |
+| `povDelimiter` | string | No | Explicit single-character POV delimiter: _, #, ~, %, ;, :, or - |
+| `sourcePOVName` | string | Yes | Source POV members joined with the delimiter |
+| `destPOVName` | string | Yes | Destination POV members joined with the delimiter |
+| `sourceCubeName` | string | Yes | Source cube |
+| `destCubeName` | string | Yes | Destination cube |
+| `copyType` | string | Yes | Copy all data or only input data. Allowed values: ALL_DATA, INPUT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Delete POV
+
+Delete a specified POV and its data from the calculation cube. This is destructive.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Calculation/report/POV job label; an existing saved job is not required |
+| `povDelimiter` | string | No | Explicit single-character POV delimiter: _, #, ~, %, ;, :, or - |
+| `povName` | string | Yes | POV members joined with the delimiter; calculations also accept comma-separated POVs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Get Job Status
+
+Read one Oracle job status without resubmitting or waiting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobId` | string | Yes | Oracle job ID returned by a submission |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Wait for Job
+
+Wait with a bounded timeout for an existing Oracle job. Timeout or local cancellation does not cancel the remote job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobId` | string | Yes | Oracle job ID returned by a submission |
+| `maxWaitSeconds` | number | No | Maximum local wait, 1–3600 seconds; also bounded by the execution deadline |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+| `attempts` | number | Number of status reads |
+
+### Oracle EPCM Get Job Details
+
+Read one page of data/metadata import/export diagnostics, not EPCM calculation traces.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobId` | string | Yes | Oracle job ID returned by a submission |
+| `jobType` | string | Yes | Diagnostic job family; must match the submitted job. Allowed values: IMPORT_DATA, EXPORT_DATA, IMPORT_METADATA, EXPORT_METADATA. |
+| `offset` | number | No | Zero-based diagnostic offset |
+| `limit` | number | No | One diagnostic page, 1–1000 items |
+| `messageType` | string | No | Optional message filter: ERROR, WARNING, or INFO |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `details` | array | One page of exchange diagnostics |
+|   ↳ `recordsRead` | number | recordsRead output from the tool |
+|   ↳ `recordsRejected` | number | recordsRejected output from the tool |
+|   ↳ `recordsProcessed` | number | recordsProcessed output from the tool |
+|   ↳ `dimensionName` | string | dimensionName output from the tool |
+|   ↳ `loadType` | string | loadType output from the tool |
+|   ↳ `childJobIds` | array | childJobIds output from the tool |
+| `offset` | number | offset output from the tool |
+| `limit` | number | limit output from the tool |
+
+### Oracle EPCM Get Child Job Details
+
+Read one page of child-job diagnostic messages for a metadata import or export.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobId` | string | Yes | Oracle job ID returned by a submission |
+| `childJobId` | string | Yes | Validated child job ID returned by Get Job Details |
+| `jobType` | string | Yes | Metadata diagnostic job family. Allowed values: IMPORT_METADATA, EXPORT_METADATA. |
+| `offset` | number | No | Zero-based diagnostic offset |
+| `limit` | number | No | One diagnostic page, 1–1000 items |
+| `messageType` | string | No | Optional message filter: ERROR, WARNING, or INFO |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Child job messages |
+|   ↳ `msgType` | string | msgType output from the tool |
+|   ↳ `msgCategory` | string | msgCategory output from the tool |
+|   ↳ `msgText` | string | msgText output from the tool |
+| `offset` | number | offset output from the tool |
+| `limit` | number | limit output from the tool |
+
+### Oracle EPCM Export Data Slice
+
+Read a bounded balance/results grid from a specified cube, preserving Oracle's string cell values. Notes and supporting detail are outside this operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `cubeName` | string | Yes | Exact cube name |
+| `gridDefinition` | json | Yes | Grid definition with pov, rows, and columns axes; each axis has members \(string\[\]\[\]\) and optional dimensions. Example: \{"pov":\{"dimensions":\["Scenario"\],"members":\[\["Actual"\]\]\},"rows":\[\{"dimensions":\["Account"\],"members":\[\["Net Income"\]\]\}\],"columns":\[\{"dimensions":\["Period"\],"members":\[\["Jan"\]\]\}\]\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `grid` | object | Data slice with unmodified financial cell values |
+|   ↳ `pov` | array | pov output from the tool |
+|   ↳ `columns` | array | columns output from the tool |
+|   ↳ `rows` | array | rows output from the tool |
+|     ↳ `headers` | array | headers output from the tool |
+|     ↳ `data` | array | data output from the tool |
+
+### Oracle EPCM Import Data Slice
+
+Write a bounded data grid. Aggregation adds values and is not idempotent; it is off by default. Cell notes are left unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `cubeName` | string | Yes | Exact cube name |
+| `dataGrid` | json | Yes | Grid with pov \(string\[\]\), columns \(string\[\]\[\]\), and rows containing headers \(string\[\]\) and data \(strings/numbers\). Example: \{"pov":\["Actual"\],"columns":\[\["Jan"\]\],"rows":\[\{"headers":\["Revenue"\],"data":\["125.00"\]\}\]\} |
+| `aggregateEssbaseData` | boolean | No | Add values to existing data instead of overwriting |
+| `dateFormat` | string | No | Date format for date cells. Allowed values: MM-DD-YYYY, DD-MM-YYYY, YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, YYYY/MM/DD. |
+| `strictDateValidation` | boolean | No | Reject invalid dates |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `numAcceptedCells` | number | numAcceptedCells output from the tool |
+| `numRejectedCells` | number | numRejectedCells output from the tool |
+| `numUpdateCells` | number | numUpdateCells output from the tool |
+| `rejectedCells` | array | rejectedCells output from the tool |
+| `rejectedCellsWithDetails` | array | rejectedCellsWithDetails output from the tool |
+|   ↳ `memberNames` | array | memberNames output from the tool |
+|   ↳ `readOnlyReasons` | array | readOnlyReasons output from the tool |
+|   ↳ `otherReasons` | array | otherReasons output from the tool |
+
+### Oracle EPCM Import Data
+
+Run a saved data import or provide a repository file and source type for an ad hoc import. Essbase source requires a cube.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | No | Exact saved exchange-job name; optional only with complete ad hoc data parameters |
+| `fileName` | string | No | Raw repository filename, including ordinary folders; do not URL-encode it |
+| `sourceType` | string | No | Required for an ad hoc import. Allowed values: Planning, Essbase. |
+| `cubeName` | string | No | Cube required for an ad hoc Essbase import |
+| `delimiter` | string | No | Planning-format file delimiter. Allowed values: comma, tab. |
+| `includeMetaData` | boolean | No | Include metadata from a Planning-format file |
+| `stopOnError` | boolean | No | Stop on intermediate Essbase import errors |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Export Data
+
+Run a saved data export or provide a complete cube/row/column/POV selection for an ad hoc ZIP export.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | No | Exact saved exchange-job name; optional only with complete ad hoc data parameters |
+| `fileName` | string | No | Optional output ZIP filename; existing output may be replaced by Oracle |
+| `cubeName` | string | No | Cube required for an ad hoc export |
+| `rowMembers` | string | No | Row members or supported member expressions; required for an ad hoc export |
+| `columnMembers` | string | No | Column members or supported member expressions; required for an ad hoc export |
+| `povMembers` | string | No | POV members or supported member expressions; required for an ad hoc export |
+| `delimiter` | string | No | Export file delimiter. Allowed values: comma, tab. |
+| `includeDynamicMembers` | boolean | No | Include dynamic members |
+| `exportDataDecimalScale` | number | No | Optional decimal formatting, 0–16; omit to preserve Essbase precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Import Metadata
+
+Run an existing saved metadata import. ZIP entries must match configured dimensions; refreshCube optionally overrides the saved setting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Exact saved metadata import job name; an existing job is required |
+| `fileName` | string | No | Optional repository ZIP filename overriding the saved job's files |
+| `refreshCube` | boolean | No | Override the saved job's cube refresh option |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM Export Metadata
+
+Run an existing saved metadata export to a repository ZIP file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `applicationName` | string | Yes | Exact EPCM application name |
+| `jobName` | string | Yes | Exact saved metadata export job name; an existing job is required |
+| `fileName` | string | No | Optional output ZIP filename; existing output may be replaced by Oracle |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Oracle job ID; retain it for status and waiting |
+| `status` | number | Oracle status: -1 running, 0 success, 1 error, 2 cancelling, 3 cancelled, 4 invalid parameters, 2147483647 unknown |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `jobName` | string | Job name returned by Oracle |
+| `descriptiveStatus` | string | Oracle descriptive status |
+| `details` | string | Oracle job details |
+
+### Oracle EPCM List Repository Files
+
+List ordinary EXTERNAL repository files; exclude LCM snapshots.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Ordinary repository files, excluding LCM snapshots |
+|   ↳ `name` | string | name output from the tool |
+|   ↳ `type` | string | type output from the tool |
+|   ↳ `size` | number | size output from the tool |
+|   ↳ `lastModifiedTime` | number | lastModifiedTime output from the tool |
+
+### Oracle EPCM Upload File
+
+Upload one authorized Sim file, at most 100 MB, as an ordinary repository file. Oracle rejects existing names; snapshot extraction is unsupported.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `fileName` | string | Yes | Raw repository filename, including ordinary folders; do not URL-encode it |
+| `file` | file | Yes | One canonical Sim UserFile \(or one-element file-upload array\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fileName` | string | fileName output from the tool |
+| `status` | number | Oracle repository status; zero means success |
+
+### Oracle EPCM Download File
+
+Download one ordinary repository file, at most 100 MB, into Sim execution storage. Requires trusted workspace/workflow/execution context.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `fileName` | string | Yes | Raw repository filename, including ordinary folders; do not URL-encode it |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Canonical Sim UserFile stored in this execution |
+
+### Oracle EPCM Delete File
+
+Delete one ordinary EXTERNAL repository file after verifying its type. LCM snapshots are excluded.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for an EPCM tenant |
+| `fileName` | string | Yes | Raw repository filename, including ordinary folders; do not URL-encode it |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fileName` | string | fileName output from the tool |
+| `status` | number | Oracle repository status; zero means success |
+
+

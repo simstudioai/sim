@@ -255,6 +255,10 @@ import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock, OpenAIBlockMeta } from '@/blocks/blocks/openai'
+import {
+  OracleEpcmBlock,
+  OracleEpcmBlockMeta,
+} from '@/blocks/blocks/oracle_epm_enterprise_profitability'
 import { OtterBlock, OtterBlockMeta } from '@/blocks/blocks/otter'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
 import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
@@ -611,6 +615,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   onepassword: OnePasswordBlock,
   openai: OpenAIBlock,
+  oracle_epm_enterprise_profitability: OracleEpcmBlock,
   otter: OtterBlock,
   outlook: OutlookBlock,
   pagerduty: PagerDutyBlock,
@@ -946,6 +951,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   onedrive: OneDriveBlockMeta,
   onepassword: OnePasswordBlockMeta,
   openai: OpenAIBlockMeta,
+  oracle_epm_enterprise_profitability: OracleEpcmBlockMeta,
   otter: OtterBlockMeta,
   outlook: OutlookBlockMeta,
   pagerduty: PagerDutyBlockMeta,
