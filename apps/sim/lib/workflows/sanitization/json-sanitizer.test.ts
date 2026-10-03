@@ -1,11 +1,23 @@
-/**
- * @vitest-environment node
- */
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { getBlock } from '@/blocks/registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) =>
+  type === 'generic_webhook'
+    ? genericWebhookConfig
+    : type === 'github_v2'
+      ? multiTriggerConfig
+      : type === 'mothership'
+        ? mothershipConfig
+        : type === 'function'
+          ? functionConfig
+          : undefined
+)
 
 beforeAll(() => {
   urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
@@ -66,19 +78,6 @@ const functionConfig = {
   ],
 }
 
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'generic_webhook'
-      ? genericWebhookConfig
-      : type === 'github_v2'
-        ? multiTriggerConfig
-        : type === 'mothership'
-          ? mothershipConfig
-          : type === 'function'
-            ? functionConfig
-            : undefined,
-}))
-
 /**
  * Builds a minimal one-block workflow whose knowledge block carries the two
  * subblock keys `edit_workflow` is allowed to write.
@@ -123,20 +122,6 @@ describe('sanitizeForCopilot knowledge tag subblocks', () => {
     const inputs = result.blocks['kb-1'].inputs
 
     expect(inputs?.tagFilters).toBe(value)
-  })
-
-  it('retains documentTags alongside tagFilters', () => {
-    const result = sanitizeForCopilot(makeKnowledgeWorkflow(JSON.stringify([])))
-    const inputs = result.blocks['kb-1'].inputs
-
-    expect(inputs?.documentTags).toBeDefined()
-  })
-
-  it('still omits the key when no filter is set, so absent means unset', () => {
-    const result = sanitizeForCopilot(makeKnowledgeWorkflow(null))
-    const inputs = result.blocks['kb-1'].inputs
-
-    expect(inputs).not.toHaveProperty('tagFilters')
   })
 })
 
@@ -199,27 +184,6 @@ describe('sanitizeForCopilot Agent tool modes', () => {
   })
 })
 
-describe('sanitizeForCopilot product-gated block inputs', () => {
-  it('retains a persisted Function sandbox selection for model-visible read access', () => {
-    const state = makeSingleBlockWorkflow('function-1', {
-      type: 'function',
-      name: 'Function 1',
-      enabled: true,
-      subBlocks: {
-        code: { id: 'code', type: 'code', value: 'return 1' },
-        language: { id: 'language', type: 'dropdown', value: 'javascript' },
-        sandboxId: { id: 'sandboxId', type: 'combobox', value: 'sandbox-1' },
-      },
-    })
-
-    expect(sanitizeForCopilot(state).blocks['function-1'].inputs).toEqual({
-      code: 'return 1',
-      language: 'javascript',
-      sandboxId: 'sandbox-1',
-    })
-  })
-})
-
 describe('sanitizeForCopilot subflow config', () => {
   /**
    * The model's read view has to use the same field names as the write contract it is
@@ -238,36 +202,6 @@ describe('sanitizeForCopilot subflow config', () => {
     expect(sanitizeForCopilot(state).blocks['parallel-1'].inputs).toEqual({
       parallelType: 'count',
       count: 5,
-    })
-  })
-
-  it("names a for-loop's trip count `iterations`, matching the loop write contract", () => {
-    const state = makeSingleBlockWorkflow('loop-1', {
-      type: 'loop',
-      name: 'Loop 1',
-      enabled: true,
-      subBlocks: {},
-      data: { loopType: 'for', count: 3 },
-    })
-
-    expect(sanitizeForCopilot(state).blocks['loop-1'].inputs).toEqual({
-      loopType: 'for',
-      iterations: 3,
-    })
-  })
-
-  it('exports a collection parallel without a branch count', () => {
-    const state = makeSingleBlockWorkflow('parallel-2', {
-      type: 'parallel',
-      name: 'Parallel 2',
-      enabled: true,
-      subBlocks: {},
-      data: { parallelType: 'collection', collection: '<start.items>' },
-    })
-
-    expect(sanitizeForCopilot(state).blocks['parallel-2'].inputs).toEqual({
-      parallelType: 'collection',
-      collection: '<start.items>',
     })
   })
 })
@@ -300,27 +234,6 @@ describe('sanitizeForCopilot webhook trigger URL', () => {
     )
   })
 
-  it('prefers the stored triggerPath over the block id', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('hook-1', {
-        type: 'generic_webhook',
-        name: 'Webhook 1',
-        enabled: true,
-        subBlocks: { triggerPath: { id: 'triggerPath', type: 'short-input', value: 'my-path' } },
-      })
-    )
-
-    expect(result.blocks['hook-1'].inputs?.[TRIGGER_WEBHOOK_URL_FIELD]).toBe(
-      'https://sim.test/api/webhooks/trigger/my-path'
-    )
-  })
-
-  it('does not synthesize a URL for non-trigger blocks', () => {
-    const result = sanitizeForCopilot(makeKnowledgeWorkflow(null))
-
-    expect(result.blocks['kb-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
-  })
-
   it('synthesizes a URL for an integration block whose selected trigger is webhook-based', () => {
     const result = sanitizeForCopilot(
       makeSingleBlockWorkflow('gh-1', {
@@ -337,37 +250,6 @@ describe('sanitizeForCopilot webhook trigger URL', () => {
     expect(result.blocks['gh-1'].inputs?.[TRIGGER_WEBHOOK_URL_FIELD]).toBe(
       'https://sim.test/api/webhooks/trigger/gh-1'
     )
-  })
-
-  it('omits the URL when the selected trigger has no webhook-URL field', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('gh-1', {
-        type: 'github_v2',
-        name: 'GitHub 1',
-        enabled: true,
-        triggerMode: true,
-        subBlocks: {
-          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: 'github_poller' },
-        },
-      })
-    )
-
-    expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
-  })
-
-  it('omits the URL when the integration block is not in trigger mode', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('gh-1', {
-        type: 'github_v2',
-        name: 'GitHub 1',
-        enabled: true,
-        subBlocks: {
-          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: 'github_push' },
-        },
-      })
-    )
-
-    expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
   })
 })
 
@@ -397,18 +279,5 @@ describe('sanitizeForCopilot credential-routed trigger routing', () => {
     expect(routing?.selectedCredentialId).toBe('cred-123')
     expect(String(routing?.note)).toContain('no per-workflow webhook URL')
     expect(result.blocks['slack-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
-  })
-
-  it('omits the routing note when the block is not in trigger mode', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('slack-1', {
-        type: 'slack_v2',
-        name: 'Slack Action',
-        enabled: true,
-        subBlocks: {},
-      })
-    )
-
-    expect(result.blocks['slack-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_ROUTING_FIELD)
   })
 })

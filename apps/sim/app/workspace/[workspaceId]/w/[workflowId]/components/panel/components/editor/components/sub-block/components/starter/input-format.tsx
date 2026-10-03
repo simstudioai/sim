@@ -314,7 +314,6 @@ export function FieldFormat({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       nameFieldKey,
-      fieldValue,
       (newValue) => updateField(field.id, 'name', newValue)
     )
 
@@ -461,7 +460,6 @@ export function FieldFormat({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       field.id,
-      fieldValue,
       (newValue) => updateField(field.id, 'value', newValue)
     )
 

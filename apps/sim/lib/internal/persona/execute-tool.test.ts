@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +12,6 @@ import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/t
 
 describe('executePersonaTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.importPersonaAccounts.mockResolvedValue({ success: true, output: {} })
   })
 

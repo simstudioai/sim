@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { copilotChats, copilotRuns, member } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -7,31 +6,45 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 
-const mocks = vi.hoisted(() => ({
-  append: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   lease: vi.fn(),
-  config: vi.fn(),
-  banned: vi.fn(),
-  searchAvailable: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: mocks.searchAvailable,
-}))
+const mocks = {
+  ...hoisted,
+  append: mothershipChatMessagesMockFns.mockAppendCopilotChatMessages,
+  banned: authBanMockFns.mockGetActivelyBannedUserIds,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  searchAvailable: knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable,
+}
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 afterAll(resetEnvFlagsMock)
-vi.mock('@/lib/mothership/chat/messages-store', () => ({ appendCopilotChatMessages: mocks.append }))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 vi.mock('@/lib/mothership/request/session/controller-lease', () => ({
-  assertChatStreamLease: mocks.lease,
+  assertChatStreamLease: hoisted.lease,
 }))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mocks.banned }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: vi.fn() }))
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 const chatId = '11111111-1111-4111-8111-111111111111'
 const streamId = '22222222-2222-4222-8222-222222222222'
 const chat = {
@@ -69,7 +82,6 @@ function input(mode: 'assistant' | 'agent' | 'plan' = 'assistant') {
 
 describe('organization turn admission through current private-chat authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.config.mockResolvedValue(null)
     mocks.banned.mockResolvedValue([])

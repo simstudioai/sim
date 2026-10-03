@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
 

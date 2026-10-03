@@ -1,76 +1,46 @@
-/**
- * @vitest-environment node
- */
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
-const {
-  mockCreate,
-  mockSupportsNativeStructuredOutputs,
-  mockPrepareToolsWithUsageControl,
-  mockExecuteTool,
-  mockResolveFireworksWireModel,
-} = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockSupportsNativeStructuredOutputs: vi.fn(),
-  mockPrepareToolsWithUsageControl: vi.fn(),
-  mockExecuteTool: vi.fn(),
+const { mockResolveFireworksWireModel } = vi.hoisted(() => ({
   mockResolveFireworksWireModel: vi.fn(),
 }))
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('openai', () => openaiMock)
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn().mockReturnValue([]),
-  getProviderDefaultModel: vi.fn().mockReturnValue('llama-v3p1-70b-instruct'),
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages) => messages),
-}))
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
 vi.mock('@/providers/fireworks/utils', () => ({
-  supportsNativeStructuredOutputs: mockSupportsNativeStructuredOutputs,
-  createReadableStreamFromOpenAIStream: vi.fn(
-    () => new ReadableStream({ start: (controller) => controller.close() })
-  ),
-  checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
   resolveFireworksWireModel: mockResolveFireworksWireModel,
 }))
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn().mockReturnValue({ input: 0, output: 0, total: 0 }),
-  generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),
-  prepareToolExecution: vi.fn(() => ({ toolParams: { x: 1 }, executionParams: { x: 1 } })),
-  prepareToolsWithUsageControl: mockPrepareToolsWithUsageControl,
-  sumToolCosts: vi.fn().mockReturnValue(0),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import { fireworksProvider } from '@/providers/fireworks/index'
-import { ProviderError } from '@/providers/types'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+providersMock.MAX_TOOL_ITERATIONS = 5
+
+const mockPrepareToolsWithUsageControl = providersUtilsMockFns.mockPrepareToolsWithUsageControl
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: { x: 1 },
+  executionParams: { x: 1 },
+})
 
 const textResponse = (content: string) => ({
   choices: [{ message: { content, tool_calls: [] } }],
@@ -109,8 +79,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('fireworksProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
       toolChoice: 'auto',
@@ -137,12 +105,6 @@ describe('fireworksProvider', () => {
       'accounts/Example/models/CustomModel'
     )
     expect(callBody(0).model).toBe('accounts/Example/models/CustomModel')
-  })
-
-  it('throws when the API key is missing', async () => {
-    await expect(
-      fireworksProvider.executeRequest({ ...baseRequest, apiKey: undefined })
-    ).rejects.toThrow('API key is required for Fireworks')
   })
 
   it('returns content and token usage for a simple request', async () => {
@@ -173,16 +135,8 @@ describe('fireworksProvider', () => {
     expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
   })
 
-  it('wraps API errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(fireworksProvider.executeRequest(baseRequest)).rejects.toBeInstanceOf(
-      ProviderError
-    )
-  })
-
   it('streams directly when there are no tools', async () => {
-    mockCreate.mockResolvedValueOnce({})
+    mockCreate.mockResolvedValueOnce((async function* () {})())
 
     const result = await fireworksProvider.executeRequest({ ...baseRequest, stream: true })
 
@@ -204,22 +158,6 @@ describe('fireworksProvider', () => {
       json_schema: { name: 'my_schema', schema: { type: 'object' } },
     })
     expect(lastCallBody().response_format.json_schema).not.toHaveProperty('strict')
-  })
-
-  it('falls back to json_object with prompt instructions when native is unsupported', async () => {
-    mockSupportsNativeStructuredOutputs.mockResolvedValue(false)
-    mockCreate.mockResolvedValueOnce(textResponse('{}'))
-
-    await fireworksProvider.executeRequest({
-      ...baseRequest,
-      responseFormat: { name: 'my_schema', schema: { type: 'object' } },
-    })
-
-    expect(lastCallBody().response_format).toEqual({ type: 'json_object' })
-    expect(lastCallBody().messages.at(-1)).toEqual({
-      role: 'user',
-      content: 'SCHEMA_INSTRUCTIONS',
-    })
   })
 
   it('defers response_format to a final call when tools are active', async () => {

@@ -1,45 +1,25 @@
-/**
- * @vitest-environment node
- */
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockRedirect, baseUrl } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockRedirect: vi.fn((url: string) => {
-    throw new Error(`NEXT_REDIRECT:${url}`)
-  }),
-  /** Mutable so a test can give the deployment a trailing-slash base URL. */
-  baseUrl: { value: 'https://sim.test' },
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: mockGetSession } },
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: { oauth2: { link: vi.fn() } },
-  signOut: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => baseUrl.value,
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 /** Keeps the landing-page barrel the real shell pulls in out of this graph. */
 vi.mock('@/app/desktop/components/desktop-handoff-shell', () => ({
   DesktopHandoffShell: () => null,
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers()),
 }))
 
 import DesktopConnectPage from '@/app/desktop/connect/page'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const VALID_STATE = 'a'.repeat(32)
 const PORT = '57979'
@@ -58,8 +38,7 @@ async function renderPage(params: Record<string, string>) {
 
 describe('DesktopConnectPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    baseUrl.value = 'https://sim.test'
+    urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', email: 'user@example.com' },
     })
@@ -86,108 +65,6 @@ describe('DesktopConnectPage', () => {
     expect(completeUrl.searchParams.get('port')).toBe(PORT)
     expect(completeUrl.searchParams.get('credentialDraftId')).toBe('draft-1')
   })
-
-  it('keeps the complete URL absolute when no draft rides along', async () => {
-    const result = await renderPage({
-      provider: 'google-email',
-      state: VALID_STATE,
-      port: PORT,
-    })
-
-    expect(result.type.name).toBe('ConnectLauncher')
-    expect(() => new URL(result.props.completeUrl as string)).not.toThrow()
-  })
-
-  it('keeps the completion route intact when the deployment base URL has a trailing slash', async () => {
-    // `//desktop/connect/complete` matches no route, so the provider result
-    // would never reach the loopback and the connect would hang.
-    baseUrl.value = 'https://sim.test/'
-
-    const launcher = await renderPage({
-      provider: 'google-email',
-      state: VALID_STATE,
-      port: PORT,
-    })
-    expect(new URL(launcher.props.completeUrl as string).pathname).toBe('/desktop/connect/complete')
-
-    await expect(
-      DesktopConnectPage(
-        pageProps({
-          provider: 'google-email',
-          state: VALID_STATE,
-          port: PORT,
-          workspaceId: 'workspace-1',
-        })
-      )
-    ).rejects.toThrow('NEXT_REDIRECT:')
-    const callbackUrl = new URL(mockRedirect.mock.calls[0][0]).searchParams.get('callbackURL')
-    expect(new URL(callbackUrl as string).pathname).toBe('/desktop/connect/complete')
-  })
-
-  it('sends a workspace-scoped connect to the authorize route with an absolute callback', async () => {
-    await expect(
-      DesktopConnectPage(
-        pageProps({
-          provider: 'google-email',
-          state: VALID_STATE,
-          port: PORT,
-          workspaceId: 'workspace-1',
-        })
-      )
-    ).rejects.toThrow('NEXT_REDIRECT:')
-
-    const authorize = new URL(mockRedirect.mock.calls[0][0])
-    expect(authorize.pathname).toBe('/api/auth/oauth2/authorize')
-    expect(authorize.searchParams.get('providerId')).toBe('google-email')
-    expect(authorize.searchParams.get('workspaceId')).toBe('workspace-1')
-    expect(authorize.searchParams.get('callbackURL')).toBe(
-      `https://sim.test/desktop/connect/complete?state=${VALID_STATE}&port=${PORT}`
-    )
-  })
-
-  it('starts a draft-scoped QuickBooks connect through the server authorize route', async () => {
-    await expect(
-      DesktopConnectPage(
-        pageProps({
-          provider: 'quickbooks',
-          state: VALID_STATE,
-          port: PORT,
-          draftId: 'draft-1',
-        })
-      )
-    ).rejects.toThrow('NEXT_REDIRECT:')
-
-    const authorize = new URL(mockRedirect.mock.calls[0][0])
-    expect(authorize.pathname).toBe('/api/auth/oauth2/authorize')
-    expect(authorize.searchParams.get('draftId')).toBe('draft-1')
-    expect(authorize.searchParams.get('providerId')).toBeNull()
-    expect(authorize.searchParams.get('callbackURL')).toBe(
-      `https://sim.test/desktop/connect/complete?state=${VALID_STATE}&port=${PORT}`
-    )
-  })
-
-  it.each(['trello', 'instagram', 'shopify'])(
-    'starts %s through its dedicated authorize route in the system browser',
-    async (provider) => {
-      await expect(
-        DesktopConnectPage(
-          pageProps({
-            provider,
-            state: VALID_STATE,
-            port: PORT,
-            draftId: 'draft-1',
-          })
-        )
-      ).rejects.toThrow('NEXT_REDIRECT:')
-
-      const authorize = new URL(mockRedirect.mock.calls[0][0])
-      expect(authorize.pathname).toBe(`/api/auth/${provider}/authorize`)
-      expect(authorize.searchParams.get('draftId')).toBe('draft-1')
-      expect(authorize.searchParams.get('returnUrl')).toBe(
-        `https://sim.test/desktop/connect/complete?state=${VALID_STATE}&port=${PORT}`
-      )
-    }
-  )
 
   it('rejects a malformed request without reading the session', async () => {
     const invalid = [

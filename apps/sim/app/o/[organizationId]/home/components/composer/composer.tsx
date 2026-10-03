@@ -10,6 +10,7 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
@@ -23,6 +24,7 @@ import {
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
+import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
@@ -99,6 +101,25 @@ export function Composer({
     onPasteFiles: files.processFiles,
   })
   const { textareaRef } = editor
+  const searchBlocked =
+    editor.getActiveContexts().length > 0 ||
+    files.attachedFiles.some((file) => !isAssistantImageType(file.type))
+  const handleModeChange = (mode: ChatRequestMode) => {
+    if (mode === 'assistant' && searchBlocked) {
+      toast.info(
+        'Remove resource and skill mentions and non-image attachments before switching to Search.'
+      )
+      return
+    }
+    onModeChange?.(mode)
+  }
+  const handleModeShortcut = useConversationModeShortcut({
+    value: requestMode,
+    searchEnabled: searchEnabled && !searchBlocked,
+    onChange: showModeSelector && onModeChange ? handleModeChange : undefined,
+    textareaRef,
+    pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,
+  })
   const editorRef = useRef(editor)
   editorRef.current = editor
   const lastPublished = useRef(value)
@@ -221,30 +242,14 @@ export function Composer({
         <ConversationModeSelector
           value={requestMode}
           searchEnabled={searchEnabled}
-          onChange={
-            onModeChange
-              ? (mode) => {
-                  if (
-                    mode === 'assistant' &&
-                    (editor.getActiveContexts().length > 0 ||
-                      files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
-                  ) {
-                    toast.info(
-                      'Remove resource and skill mentions and non-image attachments before switching to Ask.'
-                    )
-                    return
-                  }
-                  onModeChange(mode)
-                }
-              : undefined
-          }
+          onChange={onModeChange ? handleModeChange : undefined}
         />
       )}
     </>
   )
   const voiceControl = voice.isSupported && (
     <MicButton
-      audioLevelsRef={voice.audioLevelsRef}
+      audioLevels={voice.audioLevels}
       isListening={voice.isListening}
       onToggle={voice.toggleListening}
     />
@@ -275,11 +280,13 @@ export function Composer({
 
   return (
     <div
+      onKeyDown={handleModeShortcut}
       onDragEnter={files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
       onDragOver={files.handleDragOver}
       onDrop={files.handleDrop}
       className={cn(
+        inter.className,
         'relative z-10 mx-auto w-full max-w-chat',
         !imagesOnly &&
           'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',

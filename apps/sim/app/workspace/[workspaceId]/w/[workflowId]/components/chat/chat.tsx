@@ -63,7 +63,6 @@ import { useChatStore } from '@/stores/chat/store'
 import { getChatPosition } from '@/stores/chat/utils'
 import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
-import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -267,17 +266,23 @@ export function Chat() {
     }))
   )
 
-  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const entries = useWorkflowConsoleEntries(
-    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  const promptHistory = useChatStore(
+    useShallow((state) =>
+      !activeWorkflowId
+        ? []
+        : state.messages
+            .filter((message) => message.workflowId === activeWorkflowId && message.type === 'user')
+            .map((message) => message.content)
+            .filter((content): content is string => typeof content === 'string')
+    )
   )
+
   const isExecuting = useIsCurrentWorkflowExecuting()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
   const { addToQueue } = useOperationQueue()
 
   const [chatMessage, setChatMessage] = useState('')
-  const [promptHistory, setPromptHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
@@ -399,10 +404,6 @@ export function Chat() {
     onDimensionsChange: setChatDimensions,
   })
 
-  const outputEntries = useMemo(() => {
-    return entries.filter((entry) => entry.output)
-  }, [entries])
-
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []
     return messages.filter((msg) => msg.workflowId === activeWorkflowId)
@@ -428,23 +429,9 @@ export function Chat() {
     }
   )
 
-  const userMessages = useMemo(() => {
-    return workflowMessages
-      .filter((msg) => msg.type === 'user')
-      .map((msg) => msg.content)
-      .filter((content): content is string => typeof content === 'string')
-  }, [workflowMessages])
-
   useEffect(() => {
-    if (!activeWorkflowId) {
-      setPromptHistory([])
-      setHistoryIndex(-1)
-      return
-    }
-
-    setPromptHistory(userMessages)
     setHistoryIndex(-1)
-  }, [activeWorkflowId, userMessages])
+  }, [activeWorkflowId, promptHistory])
 
   /**
    * Auto-scroll to bottom when messages load and chat is open
@@ -724,9 +711,6 @@ export function Chat() {
       }
       const messageAttachments = toChatMessageAttachments(result.uploadedAttachments)
 
-      if (sentMessage && promptHistory[promptHistory.length - 1] !== sentMessage) {
-        setPromptHistory((prev) => [...prev, sentMessage])
-      }
       setHistoryIndex(-1)
 
       const messageContent =
@@ -759,7 +743,6 @@ export function Chat() {
     chatFiles,
     activeWorkflowId,
     isExecuting,
-    promptHistory,
     getConversationId,
     addMessage,
     handleRunWorkflow,
@@ -1111,7 +1094,7 @@ export function Chat() {
                     onClick={handleStopStreaming}
                     size='sm'
                   >
-                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
+                    <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </ComposerActionButton>
                 ) : (
                   <ComposerActionButton

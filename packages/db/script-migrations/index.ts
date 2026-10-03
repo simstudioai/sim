@@ -8,6 +8,8 @@ import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_ti
 import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
 import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
 import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/0024_knowledge_projection_async'
+import { scopeKeywordProjectionsMigration } from '@sim/db/script-migrations/0025_scope_keyword_projections'
+import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -52,6 +54,14 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   projectionAclSkipUnfilledMigration,
   /** 0024 marks changed documents for the knowledge projector and lets writers defer to it. */
   knowledgeProjectionAsyncMigration,
+  /** 0025 keeps the keyword projections for search indexes only. */
+  scopeKeywordProjectionsMigration,
+  /** 0026 installs the schema guard every table row write takes before it validates. */
+  userTableSchemaForWriteMigration,
+  /**
+   * Search retirement (0027–0029) is an operator-run maintenance command, not a deploy step:
+   * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.
+   */
 ]
 
 /**

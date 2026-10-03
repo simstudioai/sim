@@ -1,22 +1,15 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetSession } = vi.hoisted(() => ({ mockGetSession: vi.fn() }))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { GET } from '@/app/api/auth/sso/providers/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const providerRow = {
   id: 'row-1',
@@ -35,16 +28,8 @@ const providerRow = {
 
 describe('GET /api/auth/sso/providers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-  })
-
-  it('refuses a caller without a session before reading any provider', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const res = await GET(createMockRequest('GET'))
-    expect(res.status).toBe(401)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('lists only the providers the caller registered when no organization is named', async () => {

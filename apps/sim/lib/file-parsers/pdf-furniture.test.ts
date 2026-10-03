@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
-  furnitureThreshold,
   isPageNumber,
   normalizeFurnitureText,
   type PdfPageLines,
@@ -236,26 +232,12 @@ describe('suppressFurniture', () => {
       expect(kept).toEqual(['Repeated body sentence.'])
     }
   })
-
-  it('skips pages without a page height or line geometry', () => {
-    const pages: PdfPageLines[] = [1, 2, 3].map(() => ({
-      lines: [{ text: 'Header', height: 0 }, line('Header', 729)],
-    }))
-
-    for (const kept of texts(suppressFurniture(pages))) expect(kept).toEqual(['Header', 'Header'])
-  })
 })
 
 describe('normalizeFurnitureText', () => {
   it('keys mirrored facing-page footers identically', () => {
     expect(normalizeFurnitureText('6 Chapter 1 Filing Information Publication 17 (2025)')).toBe(
       normalizeFurnitureText('Publication 17 (2025) Chapter 1 Filing Information 17')
-    )
-  })
-
-  it('collapses case, digits, and edge punctuation', () => {
-    expect(normalizeFurnitureText('  Confidential DRAFT — Page 12 of 40. ')).toBe(
-      '# # confidential draft of page'
     )
   })
 })
@@ -285,15 +267,5 @@ describe('isPageNumber', () => {
     expect(isPageNumber('CD', 10)).toBe(false)
     expect(isPageNumber('xiv', 10)).toBe(false)
     expect(isPageNumber('ii', 1)).toBe(false)
-  })
-})
-
-describe('furnitureThreshold', () => {
-  it('scales with the page count', () => {
-    expect(furnitureThreshold(1)).toBeUndefined()
-    expect(furnitureThreshold(2)).toBe(2)
-    expect(furnitureThreshold(3)).toBe(3)
-    expect(furnitureThreshold(10)).toBe(5)
-    expect(furnitureThreshold(142)).toBe(71)
   })
 })

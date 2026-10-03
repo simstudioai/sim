@@ -36,7 +36,11 @@ function inventoryKeys(type: NamedResource, workspaceId: string): readonly Query
     case 'table':
       return [tableKeys.list(workspaceId), tableKeys.list(workspaceId, 'archived')]
     case 'knowledgebase':
-      return [knowledgeKeys.list(workspaceId), knowledgeKeys.list(workspaceId, 'archived')]
+      return [
+        knowledgeKeys.list(workspaceId),
+        knowledgeKeys.countedList(workspaceId),
+        knowledgeKeys.list(workspaceId, 'archived'),
+      ]
     case 'file':
       return [
         workspaceFilesKeys.list(workspaceId),

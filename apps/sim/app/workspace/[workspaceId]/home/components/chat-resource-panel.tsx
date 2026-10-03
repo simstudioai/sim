@@ -59,6 +59,8 @@ export function ChatResourcePanel({
     expandResource,
     mothershipRef,
     handleResourceResizePointerDown,
+    handleResourceResizeKeyDown,
+    handleResourceResizeFocus,
     handleResourceInteraction,
   } = panel
   const summarize = useCallback(
@@ -75,6 +77,8 @@ export function ChatResourcePanel({
       activityCount={resourceActivityIds.size}
       onToggle={isResourceCollapsed ? expandResource : collapseResource}
       onResize={handleResourceResizePointerDown}
+      onResizeKeyDown={handleResourceResizeKeyDown}
+      onResizeFocus={handleResourceResizeFocus}
       panel={
         <MothershipResourcesProvider
           selectResource={selectResourceFromUser}

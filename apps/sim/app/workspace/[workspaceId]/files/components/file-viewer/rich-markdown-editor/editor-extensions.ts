@@ -3,13 +3,12 @@ import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
-import { withAlpha } from '@/lib/workspaces/colors'
 import { BlockMover } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-mover'
 import { CodeBlockWithLanguage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block'
 import { CodeBlockHighlight } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-highlight'
 import {
+  caretColorSlot,
   createCaretActivityExtension,
-  DEFAULT_CARET_COLOR,
   renderCaret,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/caret-presence'
 import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
@@ -106,10 +105,10 @@ export function createMarkdownEditorExtensions({
             user: collaboration.user,
             render: renderCaret,
             selectionRender: (user) => {
-              const color = typeof user.color === 'string' ? user.color : DEFAULT_CARET_COLOR
+              const slot = caretColorSlot(user.color)
               return {
                 class: 'collaboration-carets__selection',
-                style: `background-color: ${withAlpha(color, 0.2)};`,
+                ...(slot >= 0 ? { 'data-color-slot': String(slot) } : {}),
               }
             },
           }),

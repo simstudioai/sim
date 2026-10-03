@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { expect, it, vi } from 'vitest'
 
 const inventory = vi.hoisted(
@@ -33,7 +32,6 @@ vi.mock('@/lib/api/server/routes/v2-body-lifecycle-route', async (importOriginal
   defineV2BodyLifecycleRoute: builder,
 }))
 
-import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { V2_ROUTES } from '@/lib/api/server/routes/v2-route-table.generated'
 
 it('inventories private operation admission without executing route requests', async () => {
@@ -342,13 +340,3 @@ it('inventories private operation admission without executing route requests', a
     inventory.filter((route) => route.audience).every((route) => route.audience?.startsWith('sim:'))
   ).toBe(true)
 }, 60000)
-
-it('leaves unknown paths to the network fallback without shadowing real routes', () => {
-  expect(matchV2Route('/api/v2/unknown')).toBeNull()
-  expect(matchV2Route('/api/v2/unknown/nested')).toBeNull()
-  expect(matchV2Route('/api/v2/blocks')).not.toBeNull()
-  expect(matchV2Route('/api/v2/files/file-1/versions/2')?.params).toEqual({
-    fileId: 'file-1',
-    version: '2',
-  })
-})

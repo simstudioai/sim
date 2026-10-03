@@ -18,6 +18,7 @@ import { cn, toast } from '@sim/emcn'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
+import { readSeparatorKey } from '@/lib/core/utils/separator-keys'
 import {
   buildFileSelectionLabel,
   truncateSelectionText,
@@ -627,27 +628,17 @@ export const TextEditor = memo(function TextEditor({
   }, [isResizing])
 
   const handleSplitKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
-      event.nativeEvent.isComposing ||
-      event.keyCode === 229
-    ) {
-      return
-    }
-    const { key } = event
-    if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'Home' && key !== 'End') return
+    const key = readSeparatorKey(event)
+    if (!key) return
     event.preventDefault()
     event.stopPropagation()
-    if (key === 'Home' || key === 'End') {
-      setSplitPct(key === 'Home' ? SPLIT_MIN_PCT : SPLIT_MAX_PCT)
+    if (key === 'min' || key === 'max') {
+      setSplitPct(key === 'min' ? SPLIT_MIN_PCT : SPLIT_MAX_PCT)
       return
     }
     const container = containerRef.current
     const isRtl = container !== null && getComputedStyle(container).direction === 'rtl'
-    const delta = (key === 'ArrowLeft' ? -1 : 1) * (isRtl ? -1 : 1) * SPLIT_KEYBOARD_STEP_PCT
+    const delta = (key === 'left' ? -1 : 1) * (isRtl ? -1 : 1) * SPLIT_KEYBOARD_STEP_PCT
     setSplitPct((current) => Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, current + delta)))
   }
 

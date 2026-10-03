@@ -1,12 +1,10 @@
 import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const applicationUrl = 'postgresql://application.invalid/application'
 const migrationUrl = 'postgresql://migration.invalid/migrations'
 
 describe('standalone migration database URL', () => {
-  afterEach(() => vi.unstubAllEnvs())
-
   it.each([
     { direct: undefined, application: applicationUrl, expected: applicationUrl },
     { direct: '', application: applicationUrl, expected: applicationUrl },

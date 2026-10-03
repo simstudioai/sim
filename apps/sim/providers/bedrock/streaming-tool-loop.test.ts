@@ -1,55 +1,29 @@
-/**
- * @vitest-environment node
- */
 import type { ConverseStreamCommand } from '@aws-sdk/client-bedrock-runtime'
+import { collectStream } from '@sim/testing/helpers/async'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBedrockStreamingToolLoopStream } from '@/providers/bedrock/streaming-tool-loop'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 
-async function collectEvents(
-  stream: ReadableStream<AgentStreamEvent>
-): Promise<AgentStreamEvent[]> {
-  const events: AgentStreamEvent[] = []
-  const reader = stream.getReader()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    events.push(value)
-  }
-  return events
-}
-
-const { mockExecuteTool } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(),
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: { url: 'https://example.com' },
+  executionParams: { url: 'https://example.com' },
+})
+providersUtilsMockFns.mockCalculateCost.mockImplementation(() => ({
+  input: 0.01,
+  output: 0.02,
+  total: 0.03,
+  pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
 }))
 
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-}))
+vi.mock('@/tools', () => toolsMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  prepareToolExecution: vi.fn(() => ({
-    toolParams: { url: 'https://example.com' },
-    executionParams: { url: 'https://example.com' },
-  })),
-  calculateCost: vi.fn(() => ({
-    input: 0.01,
-    output: 0.02,
-    total: 0.03,
-    pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
-  })),
-  sumToolCosts: vi.fn(() => 0),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 describe('createBedrockStreamingToolLoopStream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({
       success: true,
       output: { ok: true },
@@ -160,7 +134,7 @@ describe('createBedrockStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
 
     expect(client.send.mock.calls[1][0].input.messages?.[1]).toEqual({
       role: 'assistant',
@@ -265,7 +239,7 @@ describe('createBedrockStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(collectStream(stream)).rejects.toMatchObject({ name: 'AbortError' })
     expect(onComplete).toHaveBeenLastCalledWith(
       expect.objectContaining({ tokens: { input: 11, output: 4, total: 15 } })
     )
@@ -303,7 +277,7 @@ describe('createBedrockStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).resolves.toEqual([
+    await expect(collectStream(stream)).resolves.toEqual([
       { type: 'text_delta', text: 'Truncated answer', turn: 'pending' },
       { type: 'turn_end', turn: 'final' },
     ])

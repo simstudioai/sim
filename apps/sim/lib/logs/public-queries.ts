@@ -454,7 +454,11 @@ export async function getPublicWorkflowLogScope(executionId: string) {
  * is deliberately left-sided: a missing snapshot does not make an otherwise
  * valid execution disappear from the log resource.
  */
-export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, workspaceId?: string) {
+export async function getPublicWorkflowLog(
+  lookup: PublicWorkflowLogLookup,
+  workspaceId?: string,
+  options: { includeWorkflowState?: boolean } = {}
+) {
   const lookupCondition =
     lookup.column === 'id'
       ? eq(workflowExecutionLogs.id, lookup.value)
@@ -478,7 +482,10 @@ export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, work
       costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
       createdAt: workflowExecutionLogs.createdAt,
-      workflowState: workflowExecutionSnapshots.stateData,
+      workflowState:
+        options.includeWorkflowState === false
+          ? sql<null>`null`
+          : workflowExecutionSnapshots.stateData,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,

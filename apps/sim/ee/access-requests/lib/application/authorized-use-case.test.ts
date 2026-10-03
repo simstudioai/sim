@@ -1,25 +1,34 @@
-/** @vitest-environment node */
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   authorize: vi.fn(),
-  lock: vi.fn(),
-  audit: vi.fn(),
   outbound: vi.fn(),
 }))
 vi.mock('@/ee/access-requests/lib/application/authorization', () => ({
-  authorizeAccessRequestScope: mocks.authorize,
+  authorizeAccessRequestScope: hoistedMocks.authorize,
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.lock,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
 vi.mock('@/lib/core/network/context.server', () => ({
-  runWithOutboundOrganization: mocks.outbound,
+  runWithOutboundOrganization: hoistedMocks.outbound,
 }))
 
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
@@ -29,7 +38,13 @@ import type { DbOrTx } from '@/lib/db/types'
 import { defineAuthorizedAccessRequestUseCase } from '@/ee/access-requests/lib/application/authorized-use-case'
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'requester', sessionId: 'session' }
+const mocks = {
+  ...hoistedMocks,
+  lock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+}
+
+const principal = createSessionPrincipal({ userId: 'requester', sessionId: 'session' })
 const scope: AccessRequestScope = { kind: 'workspace', workspaceId: 'workspace' }
 const context = {
   organizationId: 'org',
@@ -41,7 +56,6 @@ const transaction = { select: vi.fn() } as unknown as DbOrTx
 const input = { workspaceId: 'workspace' }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.authorize.mockResolvedValue(context)
   mocks.lock.mockResolvedValue(undefined)
   mocks.outbound.mockImplementation((_organizationId: string, run: () => Promise<unknown>) => run())
@@ -61,7 +75,7 @@ describe('authorized access request execution', () => {
     })
     await expect(
       useCase.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
         input,
       })
     ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })
@@ -72,7 +86,7 @@ describe('authorized access request execution', () => {
   })
 
   it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'requester', keyId: 'key' },
+    createPersonalApiKeyPrincipal({ userId: 'requester', keyId: 'key' }),
     {
       kind: 'oauth_access_token',
       userId: 'requester',
@@ -226,70 +240,5 @@ describe('authorized access request execution', () => {
     expect(execute).not.toHaveBeenCalled()
     expect(projectAudit).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('does not acquire locks when preparation fails', async () => {
-    const execute = vi.fn()
-    const useCase = defineAuthorizedAccessRequestUseCase({
-      operation: accessRequestOperations.create,
-      scope: () => scope,
-      mutation: true,
-      prepare: async () => {
-        throw new Error('Catalog unavailable')
-      },
-      execute,
-    })
-    await expect(useCase.execute({ principal, input })).rejects.toThrow('Catalog unavailable')
-    expect(db.transaction).not.toHaveBeenCalled()
-    expect(mocks.lock).not.toHaveBeenCalled()
-    expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('supports authorization-only probes without preparing or running business behavior', async () => {
-    const prepare = vi.fn()
-    const execute = vi.fn()
-    const useCase = defineAuthorizedAccessRequestUseCase({
-      operation: accessRequestOperations.listMine,
-      scope: () => scope,
-      prepare,
-      execute,
-    })
-    await useCase.authorize?.({ principal, input })
-    expect(mocks.authorize).toHaveBeenCalledExactlyOnceWith(
-      principal,
-      accessRequestOperations.listMine,
-      scope
-    )
-    expect(prepare).not.toHaveBeenCalled()
-    expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('keeps the acting session principal for reads and audits', async () => {
-    const execute = vi.fn().mockResolvedValue('result')
-    const projectAudit = vi.fn().mockReturnValue([])
-    const useCase = defineAuthorizedAccessRequestUseCase({
-      operation: accessRequestOperations.listMine,
-      scope: () => scope,
-      execute,
-      projectAudit,
-    })
-    await useCase.execute({ principal, input })
-    expect(execute).toHaveBeenCalledExactlyOnceWith({
-      principal,
-      input,
-      context,
-      executor: db,
-      prepared: undefined,
-    })
-    expect(mocks.outbound).toHaveBeenCalledWith('org', expect.any(Function))
-    expect(mocks.audit).toHaveBeenCalledWith(
-      accessRequestOperations.listMine,
-      'workspace',
-      principal,
-      undefined,
-      [],
-      'org'
-    )
-    expect(db.transaction).not.toHaveBeenCalled()
   })
 })

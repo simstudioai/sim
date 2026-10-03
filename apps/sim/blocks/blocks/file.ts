@@ -15,7 +15,6 @@ import {
   normalizeFileInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
 
@@ -296,7 +295,7 @@ function folderScopePaths(value: unknown): string[] | undefined {
   return paths.length > 0 ? paths : undefined
 }
 
-export const FileBlock: BlockConfig<FileParserOutput> = {
+export const FileBlock: BlockConfig = {
   type: 'file',
   name: 'File (Legacy)',
   description: 'Read and parse multiple files',
@@ -421,7 +420,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   },
 }
 
-export const FileV2Block: BlockConfig<FileParserOutput> = {
+export const FileV2Block: BlockConfig = {
   ...FileBlock,
   type: 'file_v2',
   name: 'File (Legacy)',
@@ -518,7 +517,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
   },
 }
 
-export const FileV3Block: BlockConfig<FileParserV3Output> = {
+export const FileV3Block: BlockConfig = {
   type: 'file_v3',
   name: 'File',
   description: 'Read and write workspace files',
@@ -830,7 +829,7 @@ const parseReadFileIds = (input: unknown): string | string[] | null => {
   return null
 }
 
-export const FileV4Block: BlockConfig<FileParserV3Output> = {
+export const FileV4Block: BlockConfig = {
   ...FileV3Block,
   type: 'file_v4',
   name: 'File (Legacy)',
@@ -1105,7 +1104,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
   },
 }
 
-export const FileV5Block: BlockConfig<FileParserV3Output> = {
+export const FileV5Block: BlockConfig = {
   ...FileV4Block,
   sunset: undefined,
   type: 'file_v5',

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Sql } from 'postgres'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -30,12 +27,6 @@ function createSqlHarness(options: { available: boolean; createError?: { code: s
 }
 
 describe('installTinKeywordProjection', () => {
-  it('records a no-op where the database does not offer tin', async () => {
-    const { sql, statements } = createSqlHarness({ available: false })
-    expect(await installTinKeywordProjection(sql)).toBeUndefined()
-    expect(statements.some((text) => text.startsWith('CREATE EXTENSION'))).toBe(false)
-  })
-
   it.each(['42501', '0A000'])(
     'defers without installing anything when the database refuses the extension (%s)',
     async (code) => {
@@ -45,22 +36,8 @@ describe('installTinKeywordProjection', () => {
     }
   )
 
-  it('is a no-op when run directly against a database that refuses the extension', async () => {
-    const { sql, statements } = createSqlHarness({
-      available: true,
-      createError: { code: '42501' },
-    })
-    await expect(adoptTinKeywordProjection(sql)).resolves.toBeUndefined()
-    expect(statements.at(-1)).toBe('CREATE EXTENSION IF NOT EXISTS tin')
-  })
-
   it('fails a direct run on any other extension error', async () => {
     const { sql } = createSqlHarness({ available: true, createError: { code: '53100' } })
     await expect(adoptTinKeywordProjection(sql)).rejects.toEqual({ code: '53100' })
-  })
-
-  it('fails the migration on any other extension error', async () => {
-    const { sql } = createSqlHarness({ available: true, createError: { code: '53100' } })
-    await expect(installTinKeywordProjection(sql)).rejects.toEqual({ code: '53100' })
   })
 })

@@ -280,7 +280,9 @@ export function AgentGroupView({
       liveToolId={liveCall?.id}
     />
   ) : (
-    <div className='flex min-w-0 flex-col gap-1.5 py-0.5'>{items.map(renderItem)}</div>
+    <div className='flex min-w-0 flex-col gap-2 [&>*:has(+[data-interaction-card])]:mb-2 [&>[data-interaction-card]:not(:last-child)]:mb-2'>
+      {items.map(renderItem)}
+    </div>
   )
   const headerText = error
     ? agentLabel
@@ -308,7 +310,7 @@ export function AgentGroupView({
     )
 
   return (
-    <div className='flex min-w-0 flex-col gap-1.5'>
+    <div className='flex min-w-0 flex-col gap-2'>
       {isMainAgent ? (
         activity
       ) : (

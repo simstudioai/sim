@@ -90,7 +90,10 @@ export async function indexWorkspaceFileForSearch(
   if (!payload.dispatchToken) return
   const revision = parseRevision(payload)
   const build = await beginFileSearchBuild(revision, payload.dispatchToken)
-  if (!build) return
+  if (!build) {
+    logger.info('Workspace file search run no longer owns its revision', payload)
+    return
+  }
   const startedAt = Date.now()
   try {
     const file = await getWorkspaceFile(payload.workspaceId, payload.fileId, { throwOnError: true })

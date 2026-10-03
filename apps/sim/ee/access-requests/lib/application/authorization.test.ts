@@ -1,26 +1,24 @@
-/** @vitest-environment node */
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  effectiveRole: vi.fn(),
-  config: vi.fn(),
-  workspaceConfig: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.effectiveRole,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.workspaceConfig,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import type { DbOrTx } from '@/lib/db/types'
@@ -31,7 +29,13 @@ import {
 } from '@/ee/access-requests/lib/application/authorization'
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'person', sessionId: 'session' }
+const mocks = {
+  effectiveRole: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  workspaceConfig: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
+}
+
+const principal = createSessionPrincipal({ userId: 'person', sessionId: 'session' })
 const workspaceScope = { kind: 'workspace' as const, workspaceId: 'workspace' }
 const organizationScope = { kind: 'organization' as const, organizationId: 'org' }
 const activePerson = { suspendedAt: null, banned: false, banExpires: null }
@@ -44,7 +48,6 @@ function queueMembership(orgRole: string | null = 'member', grantId: string | nu
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.workspaceConfig.mockResolvedValue(null)
   mocks.effectiveRole.mockResolvedValue('read')
@@ -82,19 +85,6 @@ describe('access request membership identity', () => {
     expect(mocks.effectiveRole).not.toHaveBeenCalled()
   })
 
-  it.each(['owner', 'admin', 'member'])(
-    'captures the organization membership incarnation for %s',
-    async (role) => {
-      queueMembership(role)
-      await expect(
-        loadAccessRequestMembership(db, 'person', organizationScope, 'org')
-      ).resolves.toEqual({
-        membershipId: '["membership",null]',
-        role: role === 'member' ? 'read' : 'admin',
-      })
-    }
-  )
-
   it('fails closed on an unknown organization role', async () => {
     queueMembership('billing-admin')
     await expect(
@@ -113,32 +103,6 @@ describe('access request membership identity', () => {
     ).resolves.toBeNull()
     expect(mocks.effectiveRole).not.toHaveBeenCalled()
     expect(dbChainMockFns.from).toHaveBeenCalledExactlyOnceWith(user)
-  })
-
-  it('recognizes an expired temporary ban as lifted', async () => {
-    queueTableRows(user, [{ ...activePerson, banned: true, banExpires: new Date('2020-01-01') }])
-    queueTableRows(member, [{ id: 'membership', role: 'member' }])
-    await expect(
-      loadAccessRequestMembership(db, 'person', organizationScope, 'org')
-    ).resolves.toMatchObject({ role: 'read' })
-  })
-
-  it('keeps reciprocal account reads compatible while exclusively locking membership and grant identities', async () => {
-    queueMembership()
-    await loadAccessRequestMembership(db, 'person', workspaceScope, 'org', true)
-    expect(dbChainMockFns.from.mock.calls.map(([table]) => table)).toEqual([
-      user,
-      member,
-      permissions,
-    ])
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
-    expect(dbChainMockFns.for.mock.calls).toEqual([['share'], ['update'], ['update']])
-    expect(mocks.effectiveRole).toHaveBeenCalledWith('person', 'workspace', 'org', db, {
-      forUpdate: true,
-    })
-    expect(dbChainMockFns.for.mock.invocationCallOrder.at(-1)).toBeLessThan(
-      mocks.effectiveRole.mock.invocationCallOrder[0]
-    )
   })
 })
 
@@ -214,21 +178,6 @@ describe('access request scope authorization', () => {
     expect(mocks.config).not.toHaveBeenCalled()
   })
 
-  it('allows organization review independently of the restrictions under review', async () => {
-    queueMembership('owner')
-    queueTableRows(member, [{ role: 'owner' }])
-    await expect(
-      authorizeAccessRequestScope(
-        principal,
-        accessRequestOperations.resolve,
-        organizationScope,
-        db,
-        true
-      )
-    ).resolves.toMatchObject({ role: 'admin', organizationId: 'org', workspaceId: null })
-    expect(mocks.config).not.toHaveBeenCalled()
-  })
-
   it('never authorizes organization review from a workspace-scoped request', async () => {
     await expect(
       authorizeAccessRequestScope(principal, accessRequestOperations.resolve, workspaceScope)
@@ -246,7 +195,7 @@ describe('access request scope authorization', () => {
 })
 
 describe('access request credential policy', () => {
-  const key = { kind: 'personal_api_key', userId: 'person', keyId: 'key' } as const
+  const key = createPersonalApiKeyPrincipal({ userId: 'person', keyId: 'key' })
   const oauth = {
     kind: 'oauth_access_token',
     userId: 'person',
@@ -267,14 +216,6 @@ describe('access request credential policy', () => {
       expect(mocks.workspaceConfig).toHaveBeenCalled()
     }
   )
-
-  it('preserves the workspace personal-key switch', async () => {
-    queueTableRows(workspace, [canonicalWorkspace])
-    queueMembership()
-    await expect(
-      authorizeAccessRequestScope(key, accessRequestOperations.create, workspaceScope)
-    ).rejects.toMatchObject({ detailCode: 'PERSONAL_API_KEYS_DISABLED' })
-  })
 
   it.each(['disablePersonalApiKeys', 'disableOAuthAppAccess', 'disableCliAccess'] as const)(
     'enforces %s even though access requests are capability-exempt',

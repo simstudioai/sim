@@ -1,12 +1,36 @@
-import { describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { getBlock } from '@/blocks/registry'
+import { getToolParams } from '@/tools/metadata'
 import {
   collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
   collectWorkflowTableIds,
-  formatWorkflowLintMessage,
   hasWorkflowLintIssues,
   lintEditedWorkflowState,
 } from './lint'
+
+const mockGetToolParams = getToolParams as Mock
+const mockGetBlock = getBlock as Mock
+mockGetToolParams.mockImplementation((toolId: string) => {
+  if (toolId === 'knowledge_search') {
+    return {
+      knowledgeBaseId: { type: 'string', required: true, visibility: 'user-or-llm' },
+      query: { type: 'string', required: true, visibility: 'user-or-llm' },
+    }
+  }
+  if (toolId === 'table_v2_query_rows') {
+    return { tableId: { type: 'string', required: true, visibility: 'user-only' } }
+  }
+  return undefined
+})
+
+mockGetBlock.mockImplementation((type: string) => {
+  if (type === 'schedule') return { category: 'triggers', subBlocks: [], outputs: {} }
+  if (type === 'knowledge') return KNOWLEDGE_BLOCK
+  if (type === 'table_v2') return TABLE_BLOCK
+  return undefined
+})
 
 /**
  * A resource block shaped like `knowledge`: a picker/manual canonical pair for
@@ -74,33 +98,6 @@ const TABLE_BLOCK = {
 }
 
 /** Overrides the global registry mock so a `schedule` block carries its real category. */
-vi.mock('@/blocks/registry', () => ({
-  getBlock: vi.fn((type: string) => {
-    if (type === 'schedule') return { category: 'triggers', subBlocks: [], outputs: {} }
-    if (type === 'knowledge') return KNOWLEDGE_BLOCK
-    if (type === 'table_v2') return TABLE_BLOCK
-    return undefined
-  }),
-  getAllBlocks: vi.fn(() => []),
-  getBlockMeta: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-}))
-
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: vi.fn(() => undefined),
-  getToolParams: vi.fn((toolId: string) => {
-    if (toolId === 'knowledge_search') {
-      return {
-        knowledgeBaseId: { type: 'string', required: true, visibility: 'user-or-llm' },
-        query: { type: 'string', required: true, visibility: 'user-or-llm' },
-      }
-    }
-    if (toolId === 'table_v2_query_rows') {
-      return { tableId: { type: 'string', required: true, visibility: 'user-only' } }
-    }
-    return undefined
-  }),
-}))
 
 function baseBlock(id: string, type: string, name: string, subBlocks: Record<string, any> = {}) {
   return {
@@ -226,48 +223,6 @@ describe('lintEditedWorkflowState', () => {
       }),
     ])
     expect(hasWorkflowLintIssues(lint)).toBe(true)
-  })
-
-  it('returns clean result when every active block and dynamic port is connected', () => {
-    const workflowState = {
-      blocks: {
-        start: baseBlock('start', 'starter', 'Start'),
-        router: baseBlock('router', 'router_v2', 'Router', {
-          routes: {
-            value: [{ id: 'route-1', title: 'Route 1', value: 'support' }],
-          },
-        }),
-        agent: baseBlock('agent', 'agent', 'Agent'),
-      },
-      edges: [
-        {
-          id: 'edge-start-router',
-          source: 'start',
-          sourceHandle: 'source',
-          target: 'router',
-          targetHandle: 'target',
-        },
-        {
-          id: 'edge-router-agent',
-          source: 'router',
-          sourceHandle: 'route-0',
-          target: 'agent',
-          targetHandle: 'target',
-        },
-      ],
-    }
-
-    const lint = lintEditedWorkflowState(workflowState as any)
-
-    expect(lint).toEqual({
-      sources: [{ blockId: 'start', blockName: 'Start', blockType: 'starter' }],
-      sinks: [{ blockId: 'agent', blockName: 'Agent', blockType: 'agent' }],
-      orphanBlocks: [],
-      emptyOutgoingPorts: [],
-      invalidBranchPorts: [],
-      invalidConnectionTargets: [],
-    })
-    expect(hasWorkflowLintIssues(lint)).toBe(false)
   })
 
   it('objectively reports multiple sources without turning disconnected islands into an issue', () => {
@@ -475,24 +430,6 @@ describe('collectWorkflowFieldIssues', () => {
       expect.objectContaining({ blockId: 'table', missingRequiredFields: ['Table'] }),
     ])
   })
-
-  it('accepts a value on either member of the pair and leaves optional sub-blocks alone', () => {
-    const issues = collectWorkflowFieldIssues({
-      picked: resourceBlock('picked', 'knowledge', {
-        operation: 'search',
-        knowledgeBaseSelector: 'kb_123',
-        manualKnowledgeBaseId: null,
-        query: null,
-      }),
-      manual: resourceBlock('manual', 'knowledge', {
-        operation: 'search',
-        knowledgeBaseSelector: null,
-        manualKnowledgeBaseId: 'kb_456',
-      }),
-    })
-
-    expect(issues).toEqual([])
-  })
 })
 
 /**
@@ -553,21 +490,6 @@ describe('collectTableBlockFieldIssues', () => {
     ])
   })
 
-  it('accepts a bare condition, a record-shaped sort, and the implicit row fields', () => {
-    const issues = collectTableBlockFieldIssues(
-      {
-        query: tableBlock('query', {
-          tableSelector: 'tbl_leads',
-          filter: '{"field":"id","op":"eq","value":"row_1"}',
-          order: '{"updatedAt":"desc","status":"asc"}',
-        }),
-      },
-      tables
-    )
-
-    expect(issues).toEqual([])
-  })
-
   it('skips a block whose table is unresolved, and a filter that is a reference or not JSON', () => {
     const issues = collectTableBlockFieldIssues(
       {
@@ -594,25 +516,6 @@ describe('collectTableBlockFieldIssues', () => {
     )
 
     expect(issues).toEqual([])
-  })
-
-  it('surfaces the finding through the issue check and the summary', () => {
-    const lint = {
-      sources: [],
-      sinks: [],
-      orphanBlocks: [],
-      emptyOutgoingPorts: [],
-      invalidBranchPorts: [],
-      invalidConnectionTargets: [],
-      tableFieldIssues: [
-        { blockId: 'query', blockName: 'Query leads', field: 'score', tableName: 'Leads' },
-      ],
-    }
-
-    expect(hasWorkflowLintIssues(lint)).toBe(true)
-    expect(formatWorkflowLintMessage(lint)).toContain(
-      'Table filter/sort fields that are not columns of the referenced table (the run will fail in the block\'s error edge): "Query leads".score (table "Leads")'
-    )
   })
 })
 

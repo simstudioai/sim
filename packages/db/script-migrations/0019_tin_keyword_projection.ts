@@ -1,8 +1,9 @@
+import { SYNCHRONOUS_PROJECTION_WHEN } from '@sim/db/knowledge-projection'
 import { EMBEDDING_KEYWORD_TIN_INDEX } from '@sim/db/schema'
 import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import { type ScriptMigration, ScriptMigrationDeferred } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 
 const logger = createLogger('TinKeywordProjection')
 const BATCH_SIZE = 500
@@ -40,6 +41,75 @@ async function tinAvailable(sql: Sql): Promise<boolean> {
 }
 
 /**
+ * The advisory lock key that serializes a knowledge base's keyword projection writers with a change
+ * of its search-index marker (see {@link installProjection}).
+ */
+export async function installMembershipKey(tx: Sql | TransactionSql): Promise<void> {
+  await tx.unsafe(`CREATE OR REPLACE FUNCTION knowledge_tin_membership_key(knowledge_base_id text)
+    RETURNS bigint LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+      SELECT hashtextextended('embedding_keyword_tin:' || knowledge_base_id, 0)
+    $$`)
+}
+
+/**
+ * The chunk trigger's body. A chunk outside a search index writes nothing; an update removes the
+ * row a chunk left behind by moving out of one. An insert has nothing to remove, since a new chunk
+ * id has no row and a base adopted meanwhile waits on the membership lock the insert holds.
+ */
+export async function installTinChunkSync(tx: Sql | TransactionSql): Promise<void> {
+  await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_keyword_tin()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      PERFORM pg_advisory_xact_lock_shared(knowledge_tin_membership_key(NEW.knowledge_base_id));
+      IF NOT EXISTS (
+        SELECT 1 FROM knowledge_base WHERE id = NEW.knowledge_base_id AND is_search_index
+      ) THEN
+        IF TG_OP = 'UPDATE' THEN
+          DELETE FROM embedding_keyword_tin WHERE id = NEW.id;
+        END IF;
+        RETURN NEW;
+      END IF;
+      INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content)
+      VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled,
+        knowledge_tin_base_token(NEW.knowledge_base_id) || ' ' || knowledge_tin_stream(NEW.content_tsv))
+      ON CONFLICT (id) DO UPDATE SET
+        knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
+        enabled = EXCLUDED.enabled, content = EXCLUDED.content;
+      RETURN NEW;
+    END;
+    $$`)
+}
+
+/**
+ * The knowledge base trigger's body: projects or removes a whole base when its search-index marker
+ * changes. The chunks are key-share locked as they are read, as the backfill locks its own, so a
+ * chunk delete in flight is waited for and its chunk skipped rather than failing the adoption on
+ * the row's foreign key.
+ */
+export async function installTinMembershipSync(tx: Sql | TransactionSql): Promise<void> {
+  await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_knowledge_base_keyword_tin()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      PERFORM pg_advisory_xact_lock(knowledge_tin_membership_key(NEW.id));
+      IF NOT NEW.is_search_index THEN
+        DELETE FROM embedding_keyword_tin t USING embedding e
+        WHERE e.knowledge_base_id = NEW.id AND t.id = e.id;
+        RETURN NEW;
+      END IF;
+      INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content)
+      SELECT id, knowledge_base_id, document_id, enabled,
+        knowledge_tin_base_token(knowledge_base_id) || ' ' || knowledge_tin_stream(content_tsv)
+      FROM embedding WHERE knowledge_base_id = NEW.id
+      ORDER BY id FOR KEY SHARE
+      ON CONFLICT (id) DO UPDATE SET
+        knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
+        enabled = EXCLUDED.enabled, content = EXCLUDED.content;
+      RETURN NEW;
+    END;
+    $$`)
+}
+
+/**
  * Installs the stream and base-token functions shared by the triggers and the query path, and the
  * embedding and knowledge base triggers, atomically with respect to embedding writers.
  *
@@ -60,7 +130,9 @@ async function tinAvailable(sql: Sql): Promise<boolean> {
  * other's rows. A row lock cannot do this: a key-share lock on the marker row is compatible with
  * the uncommitted marker update, so a writer would read the old marker without waiting. A whole
  * base is reached through `embedding`'s knowledge base index, since a projected row always carries
- * its chunk's base and the projection keeps no index but Tin's.
+ * its chunk's base and the projection keeps no index but Tin's. The embedding trigger carries the
+ * guard `0024_knowledge_projection_async` added, so a database adopting Tin later ends where a full
+ * migration run does.
  */
 export async function installProjection(sql: Sql): Promise<void> {
   await sql.begin(async (tx) => {
@@ -75,51 +147,12 @@ export async function installProjection(sql: Sql): Promise<void> {
       RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
         SELECT 'zkb' || md5(knowledge_base_id)
       $$`)
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION knowledge_tin_membership_key(knowledge_base_id text)
-      RETURNS bigint LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-        SELECT hashtextextended('embedding_keyword_tin:' || knowledge_base_id, 0)
-      $$`)
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_keyword_tin()
-      RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        PERFORM pg_advisory_xact_lock_shared(knowledge_tin_membership_key(NEW.knowledge_base_id));
-        IF NOT EXISTS (
-          SELECT 1 FROM knowledge_base WHERE id = NEW.knowledge_base_id AND is_search_index
-        ) THEN
-          DELETE FROM embedding_keyword_tin WHERE id = NEW.id;
-          RETURN NEW;
-        END IF;
-        INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content)
-        VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled,
-          knowledge_tin_base_token(NEW.knowledge_base_id) || ' ' || knowledge_tin_stream(NEW.content_tsv))
-        ON CONFLICT (id) DO UPDATE SET
-          knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
-          enabled = EXCLUDED.enabled, content = EXCLUDED.content;
-        RETURN NEW;
-      END;
-      $$`)
+    await installMembershipKey(tx)
+    await installTinChunkSync(tx)
     await tx.unsafe(`CREATE OR REPLACE TRIGGER embedding_keyword_tin_sync
       AFTER INSERT OR UPDATE OF knowledge_base_id, document_id, enabled, content ON embedding
-      FOR EACH ROW EXECUTE FUNCTION sync_embedding_keyword_tin()`)
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_knowledge_base_keyword_tin()
-      RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        PERFORM pg_advisory_xact_lock(knowledge_tin_membership_key(NEW.id));
-        IF NOT NEW.is_search_index THEN
-          DELETE FROM embedding_keyword_tin t USING embedding e
-          WHERE e.knowledge_base_id = NEW.id AND t.id = e.id;
-          RETURN NEW;
-        END IF;
-        INSERT INTO embedding_keyword_tin (id, knowledge_base_id, document_id, enabled, content)
-        SELECT id, knowledge_base_id, document_id, enabled,
-          knowledge_tin_base_token(knowledge_base_id) || ' ' || knowledge_tin_stream(content_tsv)
-        FROM embedding WHERE knowledge_base_id = NEW.id
-        ON CONFLICT (id) DO UPDATE SET
-          knowledge_base_id = EXCLUDED.knowledge_base_id, document_id = EXCLUDED.document_id,
-          enabled = EXCLUDED.enabled, content = EXCLUDED.content;
-        RETURN NEW;
-      END;
-      $$`)
+      FOR EACH ROW WHEN (${SYNCHRONOUS_PROJECTION_WHEN}) EXECUTE FUNCTION sync_embedding_keyword_tin()`)
+    await installTinMembershipSync(tx)
     await tx.unsafe(`CREATE OR REPLACE TRIGGER knowledge_base_keyword_tin_sync
       AFTER UPDATE OF is_search_index ON knowledge_base
       FOR EACH ROW WHEN (OLD.is_search_index IS DISTINCT FROM NEW.is_search_index)

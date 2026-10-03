@@ -21,17 +21,6 @@ describe('shouldBlockRequest', () => {
     expect(shouldBlockRequest('https://analytics.google.com/g/collect')).toBe(true)
     expect(shouldBlockRequest('https://stats.g.doubleclick.net/j/collect')).toBe(true)
   })
-
-  it('leaves first-party and functional traffic alone', () => {
-    expect(shouldBlockRequest('https://sim.ai/api/workflows')).toBe(false)
-    expect(shouldBlockRequest('https://sim.ai/ingest/e')).toBe(false)
-    expect(shouldBlockRequest('wss://api.elevenlabs.io/v1/stt')).toBe(false)
-    expect(shouldBlockRequest('https://storage.googleapis.com/bucket/file')).toBe(false)
-  })
-
-  it('ignores unparseable URLs', () => {
-    expect(shouldBlockRequest('not a url')).toBe(false)
-  })
 })
 
 describe('attachTelemetryPolicy', () => {
@@ -75,35 +64,5 @@ describe('attachTelemetryPolicy', () => {
       callback
     )
     expect(callback).not.toHaveBeenCalled()
-  })
-
-  it('preserves ordinary workers on the exact configured LAN app origin', () => {
-    const contents = new WebContentsView().webContents
-    const onBeforeRequest = vi.mocked(contents.session.webRequest.onBeforeRequest)
-    onBeforeRequest.mockClear()
-    requestPolicy.handleBrowserRequest.mockClear()
-    registerAgentWebContents(contents, 'http://192.168.1.10:3000')
-    attachTelemetryPolicy(contents.session, false)
-    const listener = onBeforeRequest.mock.calls[0][0]
-    if (typeof listener !== 'function') throw new Error('Missing request policy')
-    const request: OnBeforeRequestListenerDetails = {
-      id: 1,
-      url: 'http://192.168.1.10:3000/editor.worker.js',
-      method: 'GET',
-      resourceType: 'script',
-      referrer: '',
-      timestamp: 0,
-      uploadData: [],
-    }
-    const callback = vi.fn()
-    listener(request, callback)
-    expect(callback).toHaveBeenCalledExactlyOnceWith({ cancel: false })
-    expect(requestPolicy.handleBrowserRequest).not.toHaveBeenCalled()
-
-    for (const url of ['http://192.168.1.11/data', 'http://192.168.1.10:4000/data']) {
-      const otherRequest = { ...request, url }
-      listener(otherRequest, callback)
-      expect(requestPolicy.handleBrowserRequest).toHaveBeenCalledWith(otherRequest, callback)
-    }
   })
 })

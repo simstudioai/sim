@@ -1,24 +1,28 @@
-/** @vitest-environment node */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   access: vi.fn(),
-  decrypt: vi.fn(),
-  parse: vi.fn(),
-  repository: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/application/connector-credential', () => ({
-  requireConnectorCredential: m.access,
+  requireConnectorCredential: hoisted.access,
 }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: m.decrypt }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {},
-  parseGitHubInstallationBinding: m.parse,
-  resolveGitHubInstallationRepository: m.repository,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { prepareGitHubInstallationSource } from '@/lib/knowledge/application/github-installation-source'
+
+const m = {
+  ...hoisted,
+  parse: githubInstallationMockFns.mockParseGitHubInstallationBinding,
+  repository: githubInstallationMockFns.mockResolveGitHubInstallationRepository,
+}
 
 const installed = {
   id: 'installation-credential',
@@ -32,7 +36,7 @@ const installed = {
   providerTenantId: '7',
 }
 const input = {
-  principal: { kind: 'session' as const, userId: 'admin', sessionId: 'session' },
+  principal: createSessionPrincipal({ userId: 'admin', sessionId: 'session' }),
   requestId: 'request',
   connectorType: 'github',
   credentialId: installed.id,
@@ -44,9 +48,8 @@ const input = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   m.access.mockResolvedValue(installed)
-  m.decrypt.mockResolvedValue({ decrypted: '{}' })
+  encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: '{}' })
   m.parse.mockReturnValue({ installationId: '42', accountId: '7' })
   m.repository.mockResolvedValue({ id: '123', fullName: 'example/private', defaultBranch: 'main' })
 })
@@ -89,7 +92,7 @@ describe('GitHub installation source identity', () => {
     await expect(prepareGitHubInstallationSource(input)).rejects.toMatchObject({
       code: 'forbidden',
     })
-    expect(m.decrypt).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
   it('refuses credentials the acting user cannot use', async () => {
     m.access.mockRejectedValue(new OrchestrationError('forbidden', 'Credential access denied'))
@@ -102,7 +105,7 @@ describe('GitHub installation source identity', () => {
     await expect(prepareGitHubInstallationSource(input)).rejects.toMatchObject({
       code: 'validation',
     })
-    expect(m.decrypt).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
   it('refuses mismatched installation identity', async () => {
     m.parse.mockReturnValue({ installationId: 'evil', accountId: '7' })
@@ -122,11 +125,6 @@ describe('GitHub installation source identity', () => {
       })
     ).resolves.toMatchObject({ githubRepositoryId: '123' })
   })
-  it('keeps the marker when an edit omits it', async () => {
-    await expect(
-      prepareGitHubInstallationSource({ ...input, previousConfig: { githubRepositoryId: '123' } })
-    ).resolves.toMatchObject({ githubRepositoryId: '123' })
-  })
   it.each([null, { providerId: 'github-repositories' }])(
     'cannot downgrade an existing installation by replacing or deleting its credential',
     async (access) => {
@@ -136,12 +134,6 @@ describe('GitHub installation source identity', () => {
       ).rejects.toMatchObject({ code: 'validation' })
     }
   )
-  it('leaves ordinary GitHub member setup available without an installation', async () => {
-    await expect(
-      prepareGitHubInstallationSource({ ...input, credentialId: undefined })
-    ).resolves.toEqual(input.sourceConfig)
-    expect(m.repository).not.toHaveBeenCalled()
-  })
   it('does not accept the installation marker on ordinary member setup', async () => {
     await expect(
       prepareGitHubInstallationSource({

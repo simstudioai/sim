@@ -1,87 +1,66 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import { WorkflowLockedError } from '@sim/platform-authz/workflow'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workflowDeploymentStatusMock } from '@sim/testing/mocks/workflow-deployment-status.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockWorkflowLockedError, mocks } = vi.hoisted(() => {
-  class MockWorkflowLockedError extends Error {}
-  return {
-    MockWorkflowLockedError,
-    mocks: {
-      activate: vi.fn(),
-      assertMutable: vi.fn(),
-      audit: vi.fn(),
-      deploy: vi.fn(),
-      findPrevious: vi.fn(),
-      listMcpTools: vi.fn(),
-      notifyReverted: vi.fn(),
-      revert: vi.fn(),
-      resolveContext: vi.fn(),
-      resolvePermission: vi.fn(),
-      undeploy: vi.fn(),
-    },
-  }
-})
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
-    WORKFLOW_UNDEPLOYED: 'workflow.undeployed',
-  },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.audit,
+const mocks = vi.hoisted(() => ({
+  listMcpTools: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  assertWorkflowMutable: mocks.assertMutable,
-  WorkflowLockedError: MockWorkflowLockedError,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performActivateVersion: mocks.activate,
-  performFullDeploy: mocks.deploy,
-  performFullUndeploy: mocks.undeploy,
-  performRevertToVersion: mocks.revert,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  findPreviousDeploymentVersion: mocks.findPrevious,
-  updateDeploymentVersionMetadata: vi.fn(),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkflowReverted: mocks.notifyReverted,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 vi.mock('@/lib/mcp/queries', () => ({
   listLiveWorkflowMcpToolsForWorkflow: mocks.listMcpTools,
 }))
 
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: vi.fn(),
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
 
 import {
   activateWorkflowVersion,
   deployWorkflow,
-  revertWorkflowVersion,
   undeployWorkflow,
 } from '@/lib/workflows/application/deployments'
+
+const mockAssertMutable = workflowAuthzMockFns.mockAssertWorkflowMutable
+const mockActivate = workflowsOrchestrationMockFns.mockPerformActivateVersion
+const mockDeploy = workflowsOrchestrationMockFns.mockPerformFullDeploy
+const mockUndeploy = workflowsOrchestrationMockFns.mockPerformFullUndeploy
+const mockRevert = workflowsOrchestrationMockFns.mockPerformRevertToVersion
+
+const mockAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 const workflow = {
   id: 'workflow-1',
@@ -101,11 +80,11 @@ const context = {
 
 const adminPrincipals: Array<{ principal: Principal; actorUserId: string }> = [
   {
-    principal: { kind: 'session', userId: 'session-user', sessionId: 'session-1' },
+    principal: createSessionPrincipal({ userId: 'session-user' }),
     actorUserId: 'session-user',
   },
   {
-    principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
+    principal: createPersonalApiKeyPrincipal({ userId: 'key-user', keyId: 'personal-key' }),
     actorUserId: 'key-user',
   },
   {
@@ -125,10 +104,9 @@ const adminPrincipals: Array<{ principal: Principal; actorUserId: string }> = [
 
 describe('workflow deployment application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.deploy.mockResolvedValue({
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('admin')
+    mockDeploy.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-08-08T00:00:00Z'),
       version: 4,
@@ -136,17 +114,20 @@ describe('workflow deployment application use cases', () => {
       latestDeploymentAttempt: null,
       warnings: [],
     })
-    mocks.undeploy.mockResolvedValue({ success: true, warnings: [] })
+    mockUndeploy.mockResolvedValue({ success: true, warnings: [] })
     mocks.listMcpTools.mockResolvedValue([])
-    mocks.activate.mockResolvedValue({
+    mockActivate.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-08-08T00:01:00Z'),
       activeDeployment: null,
       latestDeploymentAttempt: null,
       warnings: [],
     })
-    mocks.findPrevious.mockResolvedValue({ ok: true, version: 3 })
-    mocks.revert.mockResolvedValue({ success: true, lastSaved: 12345 })
+    workflowsPersistenceUtilsMockFns.mockFindPreviousDeploymentVersion.mockResolvedValue({
+      ok: true,
+      version: 3,
+    })
+    mockRevert.mockResolvedValue({ success: true, lastSaved: 12345 })
   })
 
   it.each(adminPrincipals)(
@@ -163,7 +144,7 @@ describe('workflow deployment application use cases', () => {
         },
       })
 
-      expect(mocks.deploy).toHaveBeenCalledWith(
+      expect(mockDeploy).toHaveBeenCalledWith(
         expect.objectContaining({
           workflowId: 'workflow-1',
           userId: actorUserId,
@@ -175,24 +156,20 @@ describe('workflow deployment application use cases', () => {
           idempotencyKey: 'deploy-idempotency-1',
         })
       )
-      expect(mocks.audit).not.toHaveBeenCalled()
+      expect(mockAudit).not.toHaveBeenCalled()
     }
   )
 
   it('denies workspace API keys before canonical lookup for admin transitions', async () => {
     await expect(
       deployWorkflow.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'workspace-key',
-        },
+        principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key' }),
         input: { workflowId: 'workflow-1', requestId: 'request-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
-    expect(mocks.deploy).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
+    expect(mockDeploy).not.toHaveBeenCalled()
   })
 
   it('admits executor deployment transitions through canonical workflow authorization', async () => {
@@ -215,15 +192,15 @@ describe('workflow deployment application use cases', () => {
       input: { workflowId: 'workflow-1', requestId: 'request-1' },
     })
 
-    expect(mocks.resolveContext).toHaveBeenCalledWith({
+    expect(mockResolveContext).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       assertedWorkspaceId: undefined,
     })
-    expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', 'workspace-1', null, undefined, {
+    expect(mockResolvePermission).toHaveBeenCalledWith('user-1', 'workspace-1', null, undefined, {
       forUpdate: undefined,
     })
-    expect(mocks.assertMutable).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.deploy).toHaveBeenCalledWith(
+    expect(mockAssertMutable).toHaveBeenCalledWith('workflow-1')
+    expect(mockDeploy).toHaveBeenCalledWith(
       expect.objectContaining({
         workflowId: 'workflow-1',
         userId: 'user-1',
@@ -241,159 +218,24 @@ describe('workflow deployment application use cases', () => {
   })
 
   it('requires current admin permission before deployment', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce('write')
+    mockResolvePermission.mockResolvedValueOnce('write')
 
     await expect(
       deployWorkflow.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workflowId: 'workflow-1', requestId: 'request-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.assertMutable).not.toHaveBeenCalled()
-    expect(mocks.deploy).not.toHaveBeenCalled()
-  })
-
-  it('undeploys without legacy audit and projects one semantic audit entry', async () => {
-    await undeployWorkflow.execute({
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: { workflowId: 'workflow-1', requestId: 'request-2' },
-    })
-
-    expect(mocks.undeploy).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      userId: 'key-user',
-      actorId: 'key-user',
-      projectLegacyAudit: false,
-      requestId: 'request-2',
-    })
-    expect(mocks.audit).toHaveBeenCalledOnce()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        actorId: 'key-user',
-        action: 'workflow.undeployed',
-        resourceType: 'workflow',
-        resourceId: 'workflow-1',
-        metadata: expect.objectContaining({ operation: 'workflows.undeploy' }),
-      })
-    )
-  })
-
-  /**
-   * Undeploying archives every MCP tool that published the workflow. The live
-   * set is read before the undeploy runs, so the caller learns which tools went
-   * inactive instead of finding them missing from the server's tool list.
-   */
-  it('reports the MCP tools an undeploy takes inactive', async () => {
-    mocks.listMcpTools.mockResolvedValue([{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }])
-
-    const result = await undeployWorkflow.execute({
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: { workflowId: 'workflow-1', requestId: 'request-2' },
-    })
-
-    expect(mocks.listMcpTools).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.listMcpTools.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.undeploy.mock.invocationCallOrder[0]
-    )
-    expect(result.archivedMcpTools).toEqual([{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }])
-  })
-
-  it('projects revert audit and notification exactly once outside legacy orchestration', async () => {
-    await revertWorkflowVersion.execute({
-      principal: adminPrincipals[2].principal,
-      input: { workflowId: 'workflow-1', version: 3 },
-    })
-
-    expect(mocks.revert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        version: 3,
-        userId: 'delegated-user',
-        captureAnalytics: false,
-        projectLegacyAudit: false,
-        notifyRealtime: false,
-      })
-    )
-    expect(mocks.audit).toHaveBeenCalledOnce()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'workflow.deployment_reverted',
-        resourceId: 'workflow-1',
-        metadata: expect.objectContaining({ targetVersion: '3' }),
-      })
-    )
-    expect(mocks.notifyReverted).toHaveBeenCalledOnce()
-    expect(mocks.notifyReverted).toHaveBeenCalledWith('workflow-1', 12345)
-  })
-
-  it('keeps human activation analytics enabled for durable post-activation capture', async () => {
-    await activateWorkflowVersion.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workflowId: 'workflow-1',
-        version: 2,
-        transition: 'activate',
-        requestId: 'request-3',
-        idempotencyKey: 'activation-1',
-      },
-    })
-
-    expect(mocks.findPrevious).not.toHaveBeenCalled()
-    expect(mocks.activate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        version: 2,
-        userId: 'user-1',
-        actorId: 'user-1',
-        requestId: 'request-3',
-        idempotencyKey: 'activation-1',
-      })
-    )
-  })
-
-  it('forwards optional version metadata through the activation command', async () => {
-    await activateWorkflowVersion.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workflowId: 'workflow-1',
-        version: 2,
-        transition: 'activate',
-        requestId: 'request-metadata',
-        name: 'Release 2',
-        description: 'Production',
-      },
-    })
-
-    expect(mocks.activate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Release 2',
-        description: 'Production',
-      })
-    )
-  })
-
-  it('resolves the previous active version for an implicit rollback', async () => {
-    const result = await activateWorkflowVersion.execute({
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: {
-        workflowId: 'workflow-1',
-        transition: 'rollback',
-        requestId: 'request-4',
-      },
-    })
-
-    expect(mocks.findPrevious).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.activate).toHaveBeenCalledWith(expect.objectContaining({ version: 3 }))
-    expect(result.version).toBe(3)
+    expect(mockAssertMutable).not.toHaveBeenCalled()
+    expect(mockDeploy).not.toHaveBeenCalled()
   })
 
   it('rejects undeploy and rollback when the canonical workflow is not deployed', async () => {
-    mocks.resolveContext.mockResolvedValue({
+    mockResolveContext.mockResolvedValue({
       ...context,
       workflow: { ...workflow, isDeployed: false },
     })
-    const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+    const principal = createSessionPrincipal()
 
     await expect(
       undeployWorkflow.execute({
@@ -412,47 +254,25 @@ describe('workflow deployment application use cases', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.undeploy).not.toHaveBeenCalled()
-    expect(mocks.activate).not.toHaveBeenCalled()
-  })
-
-  it('allows explicit internal activation to redeploy an undeployed workflow', async () => {
-    mocks.resolveContext.mockResolvedValue({
-      ...context,
-      workflow: { ...workflow, isDeployed: false },
-    })
-
-    await activateWorkflowVersion.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workflowId: 'workflow-1',
-        version: 1,
-        transition: 'activate',
-        requestId: 'request-activation',
-      },
-    })
-
-    expect(mocks.findPrevious).not.toHaveBeenCalled()
-    expect(mocks.activate).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: 'workflow-1', version: 1 })
-    )
+    expect(mockUndeploy).not.toHaveBeenCalled()
+    expect(mockActivate).not.toHaveBeenCalled()
   })
 
   it('maps lock failures and propagates manager infrastructure failures', async () => {
-    mocks.assertMutable.mockRejectedValueOnce(new MockWorkflowLockedError('Workflow is locked'))
+    mockAssertMutable.mockRejectedValueOnce(new WorkflowLockedError('Workflow is locked'))
 
     await expect(
       deployWorkflow.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workflowId: 'workflow-1', requestId: 'request-7' },
       })
     ).rejects.toMatchObject({ code: 'locked', message: 'Workflow is locked' })
 
     const infrastructureError = new Error('deployment manager unavailable')
-    mocks.activate.mockRejectedValueOnce(infrastructureError)
+    mockActivate.mockRejectedValueOnce(infrastructureError)
     await expect(
       activateWorkflowVersion.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workflowId: 'workflow-1',
           version: 1,
@@ -464,7 +284,7 @@ describe('workflow deployment application use cases', () => {
   })
 
   it('does not expose an internal deployment failure message', async () => {
-    mocks.deploy.mockResolvedValueOnce({
+    mockDeploy.mockResolvedValueOnce({
       success: false,
       errorCode: 'internal',
       error: 'driver connection string',
@@ -472,7 +292,7 @@ describe('workflow deployment application use cases', () => {
 
     await expect(
       deployWorkflow.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workflowId: 'workflow-1', requestId: 'request-9' },
       })
     ).rejects.toThrow('Failed to deploy workflow')

@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { acquireLock, extendLock, releaseLock } from '@/lib/core/config/redis'
 
 const logger = createLogger('SandboxSessionLock')
@@ -17,7 +17,7 @@ export async function withSandboxSessionLock<T>(
   signal.throwIfAborted()
   localOwners.add(key)
   const lockKey = `sandbox-session:${key}`
-  const owner = randomUUID()
+  const owner = generateId()
   const lost = new AbortController()
   const leaseSignal = AbortSignal.any([signal, lost.signal])
   let acquired = false

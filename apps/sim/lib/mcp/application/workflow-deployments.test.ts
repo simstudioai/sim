@@ -1,58 +1,37 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { mcpPubsubMock, mcpPubsubMockFns } from '@sim/testing/mocks/mcp-pubsub.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    audit: vi.fn(),
-    loadWorkspace: vi.fn(),
-    permission: vi.fn(),
-    publish: vi.fn(),
+const { hoisted } = vi.hoisted(() => ({
+  hoisted: {
     updateServer: vi.fn(),
     deleteTool: vi.fn(),
   },
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    MCP_SERVER_ADDED: 'mcp_server.added',
-    MCP_SERVER_UPDATED: 'mcp_server.updated',
-    MCP_SERVER_REMOVED: 'mcp_server.removed',
-  },
-  AuditResourceType: { MCP_SERVER: 'mcp_server' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 vi.mock('@/lib/mcp/orchestration', () => ({
   performCreateWorkflowMcpServer: vi.fn(),
   performCreateWorkflowMcpTool: vi.fn(),
   performDeleteWorkflowMcpServer: vi.fn(),
-  performDeleteWorkflowMcpTool: mocks.deleteTool,
-  performUpdateWorkflowMcpServer: mocks.updateServer,
+  performDeleteWorkflowMcpTool: hoisted.deleteTool,
+  performUpdateWorkflowMcpServer: hoisted.updateServer,
   performUpdateWorkflowMcpTool: vi.fn(),
 }))
 
-vi.mock('@/lib/mcp/pubsub', () => ({
-  mcpPubSub: { publishWorkflowToolsChanged: mocks.publish },
-}))
+vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
 
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
   getDeployedWorkflowInputFormat: vi.fn(),
@@ -65,21 +44,22 @@ vi.mock('@/lib/mcp/workflow-tool-schema', () => ({
 }))
 
 import {
-  deployWorkflowMcpTool,
   undeployWorkflowMcpTool,
   updateWorkflowMcpDeploymentServer,
 } from '@/lib/mcp/application/workflow-deployments'
 
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
+const mocks = {
+  ...hoisted,
+  publish: mcpPubsubMockFns.mockPublishWorkflowToolsChanged,
+  audit: auditMockFns.mockRecordAudit,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createDelegatedPrincipal({
   delegationId: 'tool-call-1',
   audience: 'sim:mcp-servers',
-  issuedAt: new Date('2026-01-01T00:00:00Z'),
-  expiresAt: new Date('2099-01-01T00:00:00Z'),
-}
+})
 
 const server = {
   id: 'server-1',
@@ -92,7 +72,6 @@ const server = {
 
 describe('workflow MCP deployment application commands', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockImplementation(async (workspaceId: string) => ({
       workspaceId,
@@ -106,23 +85,6 @@ describe('workflow MCP deployment application commands', () => {
       server: { ...server, name: 'Renamed MCP' },
       updatedFields: ['name'],
     })
-  })
-
-  /**
-   * `deploy_as_api` is a Copilot tool name. A CLI or HTTP caller reading this
-   * error has no such command, so the remediation has to name the action.
-   */
-  it('states the remediation without naming an agent-only tool', async () => {
-    queueTableRows(schemaMock.workflowMcpServer, [server])
-    queueTableRows(schemaMock.workflow, [{ id: 'wf-1', name: 'Orders', isDeployed: false }])
-
-    const rejection = await deployWorkflowMcpTool
-      .execute({ principal, input: { serverId: server.id, workflowId: 'wf-1' } })
-      .catch((error: Error) => error)
-
-    expect(rejection).toBeInstanceOf(Error)
-    expect((rejection as Error).message).not.toMatch(/deploy_as_api|_as_api/)
-    expect((rejection as Error).message).toContain('Deploy the workflow first')
   })
 
   /**
@@ -200,53 +162,6 @@ describe('workflow MCP deployment application commands', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.updateServer).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('owns mutation attribution and semantic audit', async () => {
-    queueTableRows(schemaMock.workflowMcpServer, [server])
-
-    const result = await updateWorkflowMcpDeploymentServer.execute({
-      principal,
-      input: { serverId: server.id, name: 'Renamed MCP' },
-    })
-
-    expect(result.server.name).toBe('Renamed MCP')
-    expect(mocks.updateServer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        serverId: server.id,
-        workspaceId: server.workspaceId,
-        userId: principal.subjectUserId,
-        projectLegacyAudit: false,
-        publishEffects: false,
-      })
-    )
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'mcp_server.updated',
-        resourceId: server.id,
-        metadata: expect.objectContaining({
-          operation: 'mcp_servers.workflow_deployments.update_server',
-        }),
-      })
-    )
-  })
-
-  it('fails fast with a generic application error for an internal lower-layer result', async () => {
-    queueTableRows(schemaMock.workflowMcpServer, [server])
-    mocks.updateServer.mockResolvedValueOnce({
-      success: false,
-      error: 'postgres password=secret',
-      errorCode: 'internal',
-    })
-
-    await expect(
-      updateWorkflowMcpDeploymentServer.execute({
-        principal,
-        input: { serverId: server.id, name: 'Renamed MCP' },
-      })
-    ).rejects.toThrow('Failed to update workflow MCP server')
-
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 })

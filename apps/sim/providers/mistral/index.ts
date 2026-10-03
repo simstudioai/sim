@@ -14,9 +14,10 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
-import { createReadableStreamFromMistralStream } from '@/providers/mistral/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -110,14 +111,7 @@ export const mistralProvider: ProviderConfig = {
     if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
+      payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
     }
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -177,9 +171,10 @@ export const mistralProvider: ProviderConfig = {
           initialCost: { input: 0, output: 0, total: 0 },
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromMistralStream(
-              streamResponse,
-              (content, usage) => {
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'Mistral',
+              request,
+              onComplete: ({ content, usage }) => {
                 output.content = content
                 output.tokens = {
                   input: usage.prompt_tokens,
@@ -200,8 +195,7 @@ export const mistralProvider: ProviderConfig = {
 
                 finalizeTiming()
               },
-              request
-            ),
+            }),
         })
 
         return streamingResult

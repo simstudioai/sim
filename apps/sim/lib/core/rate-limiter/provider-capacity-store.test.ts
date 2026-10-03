@@ -1,19 +1,17 @@
-/**
- * @vitest-environment node
- */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { evalScript, transaction, getRedis, getStorage } = vi.hoisted(() => ({
-  evalScript: vi.fn(),
-  transaction: vi.fn(),
-  getRedis: vi.fn(),
+const { getStorage } = vi.hoisted(() => ({
   getStorage: vi.fn(),
 }))
-vi.mock('@sim/db', () => ({ db: { transaction } }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: getRedis }))
 vi.mock('@/lib/core/storage', () => ({ getStorageMethod: getStorage }))
 
 import { mutateProviderCapacity } from '@/lib/core/rate-limiter/provider-capacity-store'
+
+const evalScript = vi.fn()
+const transaction = dbChainMockFns.transaction
+const getRedis = redisConfigMockFns.mockGetRedisClient
 
 const CONFIG = {
   requestsPerMinute: 60,
@@ -29,7 +27,6 @@ const RESULT = { allowed: true, retryAfterMs: 0, scale: 1, inFlight: 1 }
 describe('provider capacity storage bounds', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
     getStorage.mockReturnValue('redis')
     getRedis.mockReturnValue({ eval: evalScript })
     evalScript.mockResolvedValue(JSON.stringify(RESULT))

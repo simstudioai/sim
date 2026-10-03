@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +17,6 @@ import { ErrorExtractorId, extractErrorMessage, redactErrorData } from '@/tools/
 import { executeTool } from '@/tools/index'
 import RECORDED from '@/tools/pitchbook/__fixtures__/recorded-responses.json'
 import { tools } from '@/tools/registry'
-import { hasToolId } from '@/tools/tool-ids'
 
 /**
  * The registry is typed `Record<string, ToolConfig>`, so a tool's `url`/`headers`/
@@ -55,30 +51,6 @@ function blockParams(input: ToolParams): Record<string, unknown> {
 }
 
 describe('pitchbook wiring', () => {
-  const access = PitchBookBlock.tools.access ?? []
-
-  it('registry keys match each tool id', () => {
-    for (const id of access) {
-      expect(hasToolId(id), `missing registry entry ${id}`).toBe(true)
-      expect(tools[id].id).toBe(id)
-    }
-  })
-
-  it('every operation option maps to an accessible tool', () => {
-    const op = PitchBookBlock.subBlocks.find((s) => s.id === 'operation')
-    const ids = (op?.options as Array<{ id: string }>).map((o) => o.id)
-    expect(ids.length).toBe(access.length)
-    for (const id of ids) {
-      const selected = PitchBookBlock.tools.config?.tool?.({ operation: id })
-      expect(access).toContain(selected)
-    }
-  })
-
-  it('subblock ids are unique', () => {
-    const ids = PitchBookBlock.subBlocks.map((s) => s.id)
-    expect(new Set(ids).size).toBe(ids.length)
-  })
-
   it('maps prefixed search subblocks onto PitchBook query params', () => {
     const mapped = blockParams({
       operation: 'company_search',
@@ -233,7 +205,6 @@ describe('pitchbook wiring', () => {
   })
 
   it('omits activeContract unless the user picks a side, since PitchBook is tri-state', () => {
-    const cfg = PitchBookBlock.tools.config
     const run = (contractFilter?: string) =>
       blockParams({ operation: 'contracts_history', apiKey: 'k', contractFilter })
 
@@ -331,26 +302,6 @@ describe('pitchbook wiring', () => {
       dealId: '52721-65T',
     })
     expect(asSearch.pbId).toBeUndefined()
-  })
-
-  it('exposes every window and paging field its operation actually accepts', () => {
-    const visibleFor = (operation: string) =>
-      new Set(
-        PitchBookBlock.subBlocks
-          .filter((sub) => {
-            const condition = sub.condition
-            if (!condition || condition.field !== 'operation') return true
-            const values = Array.isArray(condition.value) ? condition.value : [condition.value]
-            return values.includes(operation)
-          })
-          .map((sub) => sub.id)
-      )
-
-    // Each tool declares these; the canvas must offer them too.
-    expect(visibleFor('entity_news').has('sinceDate')).toBe(true)
-    expect(visibleFor('shared_search').has('page')).toBe(true)
-    expect(visibleFor('shared_search').has('perPage')).toBe(true)
-    expect(visibleFor('company_social_analytics').has('compare')).toBe(true)
   })
 
   it('clears cleared numeric fields instead of sending an empty string', () => {

@@ -4,7 +4,6 @@ import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   isManagedCredentialGroupBindingLive,
@@ -84,49 +83,25 @@ export const resolveOrganizationPersonalToken = {
     ) {
       throw new OrchestrationError('forbidden', 'This integration operation is unavailable.')
     }
-    let cursor: string | undefined
-    let owned = isLiveEnterpriseSearchEnabled
-      ? (await listLiveAccounts({ organizationId: context.organizationId }, context.userId)).some(
-          (account) =>
-            account.id === input.credentialId &&
-            account.type === 'managed_oauth' &&
-            account.providerId === binding.providerId
-        )
-      : false
-    const seen = new Set<string>()
-    for (let page = 0; !isLiveEnterpriseSearchEnabled && page < 100; page++) {
-      const inventory = await listPersonalSearchIntegrations.execute({
-        principal,
-        input: {
-          organizationId: context.organizationId,
-          connectorType: connector.type,
-          ...(cursor ? { cursor } : {}),
-        },
-      })
-      owned = inventory.connections.some((connection) =>
-        connection.accounts.some(
-          (account) => account.credentialId === input.credentialId && account.status === 'connected'
-        )
-      )
-      if (owned || inventory.nextCursor === null) break
-      if (seen.has(inventory.nextCursor))
-        throw new Error('Personal account pagination did not advance')
-      seen.add(inventory.nextCursor)
-      cursor = inventory.nextCursor
-    }
+    const owned = (
+      await listLiveAccounts({ organizationId: context.organizationId }, context.userId)
+    ).some(
+      (account) =>
+        account.id === input.credentialId &&
+        account.type === 'managed_oauth' &&
+        account.providerId === binding.providerId
+    )
     if (!owned)
       throw new OrchestrationError(
         'forbidden',
         'Assistant can only use your own connected account for this integration.'
       )
-    if (isLiveEnterpriseSearchEnabled) {
-      const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
-      if (requiresScopedRetrieval(connector.type, livePolicyFor(policies, connector.type)))
-        throw new OrchestrationError(
-          'forbidden',
-          'This organization restricts search scope for this app. Use search_workspace with nativeQueries and read_document so those restrictions are enforced.'
-        )
-    }
+    const policies = await loadLiveSearchPolicies({ organizationId: context.organizationId })
+    if (requiresScopedRetrieval(connector.type, livePolicyFor(policies, connector.type)))
+      throw new OrchestrationError(
+        'forbidden',
+        'This organization restricts search scope for this app. Use search_workspace with nativeQueries and read_document so those restrictions are enforced.'
+      )
     const token = await resolveManagedOAuthToken({
       ...input,
       expectedProviderId: binding.providerId,
@@ -190,29 +165,16 @@ export const prepareOrganizationPersonalConnection = {
     )
     if (!connector)
       throw new OrchestrationError('validation', 'This integration is unavailable in Search.')
-    let cursor: string | undefined
-    const seen = new Set<string>()
-    for (let page = 0; page < 100; page++) {
-      const inventory = await listPersonalSearchIntegrations.execute({
-        principal,
-        input: {
-          organizationId: context.organizationId,
-          connectorType: connector.type,
-          ...(cursor ? { cursor } : {}),
-        },
-      })
-      const target = input.credentialId
-        ? inventory.connections
-            .flatMap((connection) => connection.accounts)
-            .find((account) => account.credentialId === input.credentialId)?.action
-        : inventory.available[0]?.target
-      if (target) return { provider: connector.meta.name, providerId: connector.providerId, target }
-      if (inventory.nextCursor === null) break
-      if (seen.has(inventory.nextCursor))
-        throw new Error('Personal account pagination did not advance')
-      seen.add(inventory.nextCursor)
-      cursor = inventory.nextCursor
-    }
+    const inventory = await listPersonalSearchIntegrations.execute({
+      principal,
+      input: { organizationId: context.organizationId, connectorType: connector.type },
+    })
+    const target = input.credentialId
+      ? inventory.connections
+          .flatMap((connection) => connection.accounts)
+          .find((account) => account.credentialId === input.credentialId)?.action
+      : inventory.available[0]?.target
+    if (target) return { provider: connector.meta.name, providerId: connector.providerId, target }
     throw new OrchestrationError(
       'validation',
       'No connection action is currently available. Check your integration connection status.'

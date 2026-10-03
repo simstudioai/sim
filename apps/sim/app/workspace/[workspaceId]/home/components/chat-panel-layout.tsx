@@ -1,6 +1,12 @@
 'use client'
 
-import type { PointerEventHandler, ReactNode, Ref } from 'react'
+import type {
+  FocusEventHandler,
+  KeyboardEventHandler,
+  PointerEventHandler,
+  ReactNode,
+  Ref,
+} from 'react'
 import { Button, cn } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
@@ -13,6 +19,9 @@ interface ChatPanelLayoutProps {
   activityCount?: number
   onToggle: () => void
   onResize: PointerEventHandler<HTMLDivElement>
+  onResizeKeyDown: KeyboardEventHandler<HTMLDivElement>
+  /** Reports the panel's current width and bounds on the divider's `aria-value*`. */
+  onResizeFocus: FocusEventHandler<HTMLDivElement>
 }
 
 /** Shared resize handle and collapse control for resources and Search results. */
@@ -24,6 +33,8 @@ export function ChatPanelLayout({
   activityCount = 0,
   onToggle,
   onResize,
+  onResizeKeyDown,
+  onResizeFocus,
 }: ChatPanelLayoutProps) {
   const toggleLabel = `${collapsed ? 'Expand' : 'Collapse'} ${label}${
     collapsed && activityCount > 0
@@ -38,11 +49,14 @@ export function ChatPanelLayout({
       {!collapsed && (
         <div className='relative z-20 w-0 flex-none'>
           <div
-            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
+            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
             role='separator'
+            tabIndex={0}
             aria-orientation='vertical'
             aria-label={`Resize ${label}`}
             onPointerDown={onResize}
+            onKeyDown={onResizeKeyDown}
+            onFocus={onResizeFocus}
           />
         </div>
       )}

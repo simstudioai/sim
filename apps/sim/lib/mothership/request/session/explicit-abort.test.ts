@@ -1,7 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -10,46 +15,45 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
-const { mockFetchGo } = vi.hoisted(() => ({
-  mockFetchGo: vi.fn(),
-}))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
 
-vi.mock('@/lib/mothership/request/go/fetch', () => ({
-  fetchGo: mockFetchGo,
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: vi.fn().mockResolvedValue('https://copilot.test'),
-  getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({ 'X-Sim-Source-Env': 'test' }),
-}))
-
+import { BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
 import { AbortRequest } from '@/lib/mothership/generated/protocol'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+
+const { mockFetchGo } = mothershipGoFetchMockFns
+mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://copilot.test')
+mothershipAgentUrlMockFns.mockGetMothershipSourceEnvHeaders.mockReturnValue({
+  'X-Sim-Source-Env': 'test',
+})
 
 describe('requestExplicitStreamAbort', () => {
   afterEach(() => vi.useRealTimers())
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetchGo.mockImplementation(async (_url, request) => {
       AbortRequest.parse(JSON.parse(request.body))
       return new Response(null, { status: 200 })
     })
   })
 
-  it('sends an explicit legacy protocol marker for strict Go admission', async () => {
+  it('sends a valid unbilled control request through worker admission', async () => {
     const result = await requestExplicitStreamAbort({
       streamId: '11111111-1111-4111-8111-111111111111',
       userId: 'user-1',
       chatId: 'chat-1',
     })
     expect(result).toEqual({ settled: false })
+    const headers = mockFetchGo.mock.calls[0][1].headers
+    expect(BillingCallbackHeaders.safeParse(headers).success).toBe(true)
+    expect(headers).not.toHaveProperty('x-sim-billing-protocol')
 
     expect(mockFetchGo).toHaveBeenCalledWith(
       'https://copilot.test/api/streams/explicit-abort',
       expect.objectContaining({
         headers: expect.objectContaining({
           'x-api-key': 'sim-agent-key',
-          'x-sim-billing-protocol': 'legacy-v0',
         }),
       })
     )

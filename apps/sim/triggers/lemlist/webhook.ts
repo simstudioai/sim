@@ -23,7 +23,7 @@ export const lemlistWebhookTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_webhook',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('All Events (no type filter)'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_webhook'),
   }),
 

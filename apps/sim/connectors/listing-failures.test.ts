@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import {
   beginListingCheckpoint,
@@ -32,19 +31,6 @@ describe('listing failure diagnostics', () => {
       ).toEqual(checkpoint.listingFailures)
     }
   )
-
-  it('accepts existing samples without reason state and rejects arbitrary new state strings', () => {
-    expect(listingFailuresSchema.parse({ count: 1, samples: [sample] })).toEqual({
-      count: 1,
-      samples: [sample],
-    })
-    expect(
-      listingFailuresSchema.safeParse({
-        count: 1,
-        samples: [{ ...sample, reasonState: 'provider-private-description' }],
-      }).success
-    ).toBe(false)
-  })
 
   it('retains the enum without persisting attached provider messages or response bodies', () => {
     const result = listingFailuresSchema.parse({

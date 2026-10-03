@@ -179,7 +179,7 @@ export function HeroChatLoop({
 
   return (
     <div
-      className='relative flex h-full w-full flex-col bg-[var(--bg)]'
+      className='relative flex size-full flex-col bg-[var(--bg)]'
       data-chat-view={welcome ? 'welcome' : 'conversation'}
       data-chat-phase={phase}
     >
@@ -208,7 +208,7 @@ export function HeroChatLoop({
           )}
         >
           {showThinking && (
-            <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking…'} />
+            <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking'} />
           )}
           {showBuilding && (
             <AgentGroupView

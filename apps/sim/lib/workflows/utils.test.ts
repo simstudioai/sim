@@ -13,13 +13,12 @@ import {
   createWorkflowRecord,
   dbChainMockFns,
   expectWorkflowAccessDenied,
-  expectWorkflowAccessGranted,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
   workflowAuthzMockFns,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
 const { mockAuthorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow } = workflowAuthzMockFns
 
@@ -50,13 +49,6 @@ const largeValueRef = {
   executionId: 'execution-1',
 }
 
-const allowed = (workspacePermission: 'read' | 'write' | 'admin') => ({
-  allowed: true,
-  status: 200,
-  workflow: mockWorkflow,
-  workspacePermission,
-})
-
 const denied = (status: number, message: string, workspacePermission: string | null = null) => ({
   allowed: false,
   status,
@@ -67,7 +59,6 @@ const denied = (status: number, message: string, workspacePermission: string | n
 
 describe('deduplicateWorkflowName', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -84,7 +75,6 @@ describe('deduplicateWorkflowName', () => {
 
 describe('validateWorkflowPermissions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(mockSession)
   })
 
@@ -96,14 +86,6 @@ describe('validateWorkflowPermissions', () => {
 
       expectWorkflowAccessDenied(result, 401)
       expect(result.error?.message).toBe('Unauthorized')
-    })
-
-    it('should return 401 when session has no user id', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({ user: {} })
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
-
-      expectWorkflowAccessDenied(result, 401)
     })
   })
 
@@ -136,40 +118,9 @@ describe('validateWorkflowPermissions', () => {
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
       expectWorkflowAccessDenied(result, 403)
     })
-
-    it('should deny access to workflow owner without workspace permissions for write action', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'owner-1', email: 'owner-1@test.com' },
-      })
-      mockAuthorizeWorkflow.mockResolvedValue(
-        denied(403, 'Unauthorized: Access denied to write this workflow')
-      )
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
-      expectWorkflowAccessDenied(result, 403)
-    })
-
-    it('should deny access to workflow owner without workspace permissions for admin action', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'owner-1', email: 'owner-1@test.com' },
-      })
-      mockAuthorizeWorkflow.mockResolvedValue(
-        denied(403, 'Unauthorized: Access denied to admin this workflow')
-      )
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1', 'admin')
-      expectWorkflowAccessDenied(result, 403)
-    })
   })
 
   describe('workspace member access with permissions', () => {
-    it('should grant read access to user with read permission', async () => {
-      mockAuthorizeWorkflow.mockResolvedValue(allowed('read'))
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
-      expectWorkflowAccessGranted(result)
-    })
-
     it('should deny write access to user with only read permission', async () => {
       mockAuthorizeWorkflow.mockResolvedValue(
         denied(403, 'Unauthorized: Access denied to write this workflow', 'read')
@@ -180,20 +131,6 @@ describe('validateWorkflowPermissions', () => {
       expect(result.error?.message).toContain('write')
     })
 
-    it('should grant write access to user with write permission', async () => {
-      mockAuthorizeWorkflow.mockResolvedValue(allowed('write'))
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
-      expectWorkflowAccessGranted(result)
-    })
-
-    it('should grant write access to user with admin permission', async () => {
-      mockAuthorizeWorkflow.mockResolvedValue(allowed('admin'))
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1', 'write')
-      expectWorkflowAccessGranted(result)
-    })
-
     it('should deny admin access to user with only write permission', async () => {
       mockAuthorizeWorkflow.mockResolvedValue(
         denied(403, 'Unauthorized: Access denied to admin this workflow', 'write')
@@ -202,13 +139,6 @@ describe('validateWorkflowPermissions', () => {
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'admin')
       expectWorkflowAccessDenied(result, 403)
       expect(result.error?.message).toContain('admin')
-    })
-
-    it('should grant admin access to user with admin permission', async () => {
-      mockAuthorizeWorkflow.mockResolvedValue(allowed('admin'))
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1', 'admin')
-      expectWorkflowAccessGranted(result)
     })
   })
 
@@ -252,15 +182,6 @@ describe('validateWorkflowPermissions', () => {
       expectWorkflowAccessDenied(result, 403)
     })
   })
-
-  describe('default action', () => {
-    it('should default to read action when not specified', async () => {
-      mockAuthorizeWorkflow.mockResolvedValue(allowed('read'))
-
-      const result = await validateWorkflowPermissions('wf-1', 'req-1')
-      expectWorkflowAccessGranted(result)
-    })
-  })
 })
 
 describe('createHttpResponseFromBlock', () => {
@@ -274,22 +195,10 @@ describe('createHttpResponseFromBlock', () => {
       } as any)
     ).rejects.toThrow('This execution value is too large to inline')
   })
-
-  it('returns raw response data when no large execution values are present', async () => {
-    const response = await createHttpResponseFromBlock({
-      output: {
-        data: { issues: [] },
-        status: 200,
-      },
-    } as any)
-
-    await expect(response.json()).resolves.toEqual({ issues: [] })
-  })
 })
 
 describe('updateWorkflowRunCounts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

@@ -1,8 +1,15 @@
 import { type ReactNode, useRef } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import {
+  cn,
+  overflowFadeSizeClass,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
+import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { PAGE_COLUMN_CLASS } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results'
@@ -36,11 +43,11 @@ export function SearchResultsView({
   })
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
-      <div className={PAGE_HEADER_BAR}>
-        <div className={HEADER_ACTION_CLUSTER} />
-      </div>
       {searching ? (
         <>
+          <div className={PAGE_HEADER_BAR}>
+            <div className={HEADER_ACTION_CLUSTER} />
+          </div>
           <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
             {composer}
           </div>
@@ -50,6 +57,7 @@ export function SearchResultsView({
               SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
               SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
               scrollFadeClass,
+              overflowFadeSizeClass,
               'min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'
             )}
             {...scrollFadeAttributes(scrollEdges)}
@@ -67,15 +75,9 @@ export function SearchResultsView({
           </div>
         </>
       ) : (
-        <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
-          {/* Asymmetric padding biases the group up so heading and field sit at the optical center, as on Home */}
-          <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-            <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
-              Search {organization.name}
-            </h1>
-            <div className='w-full max-w-chat'>{composer}</div>
-          </div>
-        </div>
+        <OrganizationLanding heading={`Search ${organization.name}`}>
+          {composer}
+        </OrganizationLanding>
       )}
     </div>
   )

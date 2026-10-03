@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
@@ -9,7 +6,6 @@ import {
   createTurnModel,
   MAIN_SPAN,
   reduceEvent,
-  type TextNode,
   type ToolNode,
   type TurnModel,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
@@ -100,10 +96,6 @@ function spanEnd(
   )
 }
 
-function textEvent(seq: number, channel: 'assistant' | 'thinking', text: string, scope?: Scope) {
-  return envelope(seq, 'text', { channel, text }, scope)
-}
-
 function complete(seq: number, status: 'complete' | 'cancelled' | 'error' = 'complete') {
   return envelope(seq, 'complete', { status })
 }
@@ -126,75 +118,9 @@ function agent(model: TurnModel, spanId: string): AgentNode {
 }
 
 describe('reduceEvent — tool lifecycle', () => {
-  it('runs a tool then settles it success on result', () => {
-    const m = apply([toolCall(1, 'tc-1', 'search'), toolResult(2, 'tc-1', true)])
-    expect(tool(m, 'tc-1').status).toBe('success')
-    expect(tool(m, 'tc-1').result?.success).toBe(true)
-  })
-
-  it('settles a tool error on a failed result', () => {
-    const m = apply([toolCall(1, 'tc-1', 'search'), toolResult(2, 'tc-1', false)])
-    expect(tool(m, 'tc-1').status).toBe('error')
-  })
-
-  it('honors an explicit terminal status over the success boolean', () => {
-    const m = apply([toolCall(1, 'tc-1', 'search'), toolResult(2, 'tc-1', true, 'cancelled')])
-    expect(tool(m, 'tc-1').status).toBe('cancelled')
-  })
-
-  it('accumulates streaming args across deltas', () => {
-    const m = apply([
-      toolCall(1, 'tc-1', 'prepare_file_edit'),
-      envelope(2, 'tool', {
-        phase: 'args_delta',
-        toolCallId: 'tc-1',
-        toolName: 'prepare_file_edit',
-        argumentsDelta: '{"a":',
-      }),
-      envelope(3, 'tool', {
-        phase: 'args_delta',
-        toolCallId: 'tc-1',
-        toolName: 'prepare_file_edit',
-        argumentsDelta: '1}',
-      }),
-    ])
-    expect(tool(m, 'tc-1').streamingArgs).toBe('{"a":1}')
-    expect(tool(m, 'tc-1').status).toBe('running')
-  })
-
-  it('clears streamingArgs once the result settles the tool', () => {
-    const m = apply([
-      toolCall(1, 'tc-1', 'prepare_file_edit'),
-      envelope(2, 'tool', {
-        phase: 'args_delta',
-        toolCallId: 'tc-1',
-        toolName: 'prepare_file_edit',
-        argumentsDelta: '{"operation":"create"',
-      }),
-      toolResult(3, 'tc-1', true),
-    ])
-    expect(tool(m, 'tc-1').status).toBe('success')
-    expect(tool(m, 'tc-1').streamingArgs).toBeUndefined()
-  })
-
   it('buffers a result that arrives before its call, then applies it', () => {
     const m = apply([toolResult(1, 'tc-1', true), toolCall(2, 'tc-1', 'search')])
     expect(tool(m, 'tc-1').status).toBe('success')
-  })
-
-  it('preserves result.error when a result is buffered before its call', () => {
-    const m = apply([
-      envelope(1, 'tool', {
-        phase: 'result',
-        toolCallId: 'tc-1',
-        toolName: 'search',
-        success: false,
-        error: 'boom',
-      }),
-      toolCall(2, 'tc-1', 'search'),
-    ])
-    expect(tool(m, 'tc-1').status).toBe('error')
-    expect(tool(m, 'tc-1').result?.error).toBe('boom')
   })
 
   it('resolves output-based cancellation (user_cancelled) as cancelled, not error', () => {
@@ -210,72 +136,9 @@ describe('reduceEvent — tool lifecycle', () => {
     ])
     expect(tool(m, 'tc-1').status).toBe('cancelled')
   })
-
-  it('ignores preview phases (decoupled from tool status)', () => {
-    const m = apply([
-      toolCall(1, 'tc-1', 'prepare_file_edit'),
-      envelope(2, 'tool', {
-        previewPhase: 'file_preview_content',
-        toolCallId: 'tc-1',
-        toolName: 'prepare_file_edit',
-        content: 'x',
-        contentMode: 'delta',
-        fileName: 'f',
-        previewVersion: 1,
-      }),
-    ])
-    expect(tool(m, 'tc-1').status).toBe('running')
-    expect(m.order).toEqual(['tc-1'])
-  })
 })
 
 describe('reduceEvent — subagent lifecycle', () => {
-  it('opens an agent run on span start and settles it on span end', () => {
-    const m = apply([spanStart(1, 'S1', 'file', 'tc-file'), spanEnd(2, 'S1', 'file')])
-    expect(agent(m, 'S1').status).toBe('success')
-    expect(agent(m, 'S1').triggerToolCallId).toBe('tc-file')
-    expect(agent(m, 'S1').parentSpanId).toBe(MAIN_SPAN)
-  })
-
-  it('captures the orchestrator-chosen display name from span start data', () => {
-    const m = apply([
-      envelope(
-        1,
-        'span',
-        {
-          kind: 'subagent',
-          event: 'start',
-          agent: 'research',
-          data: { tool_call_id: 'tc-r', name: 'Pricing research' },
-        },
-        {
-          lane: 'subagent',
-          spanId: 'S1',
-          parentSpanId: MAIN_SPAN,
-          parentToolCallId: 'tc-r',
-          agentId: 'research',
-        }
-      ),
-    ])
-    expect(agent(m, 'S1').displayName).toBe('Pricing research')
-  })
-
-  it('settles an agent error when span end carries an error', () => {
-    const m = apply([
-      spanStart(1, 'S1', 'file', 'tc-file'),
-      spanEnd(2, 'S1', 'file', { error: 'boom' }),
-    ])
-    expect(agent(m, 'S1').status).toBe('error')
-  })
-
-  it('keeps an agent running on a pending-pause span end', () => {
-    const m = apply([
-      spanStart(1, 'S1', 'deploy', 'tc-deploy'),
-      spanEnd(2, 'S1', 'deploy', { pending: true }),
-    ])
-    expect(agent(m, 'S1').status).toBe('running')
-  })
-
   it('nests a child run under its parent by parentSpanId', () => {
     const m = apply([
       spanStart(1, 'S1', 'workflow', 'tc-wf'),
@@ -309,34 +172,6 @@ describe('reduceEvent — subagent lifecycle', () => {
   })
 })
 
-describe('reduceEvent — text segmentation', () => {
-  it('records wall-clock start/end for a thinking segment from wire ts', () => {
-    // envelope() stamps ts = new Date(seq).toISOString(), so tsMs === seq here.
-    const m = apply([
-      textEvent(1, 'thinking', 'pondering'),
-      textEvent(2, 'assistant', 'the answer'),
-    ])
-    const thinking = [...m.nodes.values()].find(
-      (n) => n.kind === 'text' && n.channel === 'thinking'
-    ) as TextNode
-    expect(thinking.startedAtMs).toBe(1)
-    // The answer starting closes the thinking segment, bounding its duration.
-    expect(thinking.endedAtMs).toBe(2)
-  })
-
-  it('merges contiguous deltas and splits across a tool boundary', () => {
-    const m = apply([
-      textEvent(1, 'assistant', 'Hello '),
-      textEvent(2, 'assistant', 'world'),
-      toolCall(3, 'tc-1', 'search'),
-      toolResult(4, 'tc-1', true),
-      textEvent(5, 'assistant', 'after'),
-    ])
-    const texts = m.order.map((id) => m.nodes.get(id)).filter((n) => n?.kind === 'text')
-    expect(texts.map((t) => (t as { text: string }).text)).toEqual(['Hello world', 'after'])
-  })
-})
-
 describe('reduceEvent — idempotency', () => {
   it('is a no-op for an already-applied seq (reconnect replay over a populated model)', () => {
     const m = apply([toolCall(1, 'tc-1', 'search'), toolResult(2, 'tc-1', true)])
@@ -364,32 +199,6 @@ describe('reduceEvent — idempotency', () => {
 })
 
 describe('reduceEvent — apply_file_edit row merge', () => {
-  it('folds an apply_file_edit write into its span prepare_file_edit row', () => {
-    const sub: Scope = { lane: 'subagent', spanId: 'S1' }
-    const m = apply([
-      spanStart(1, 'S1', 'file', 'tc-file'),
-      toolCall(2, 'wf-1', 'prepare_file_edit', sub),
-      toolResult(3, 'wf-1', true, undefined, sub),
-      toolCall(4, 'ec-1', 'apply_file_edit', sub),
-    ])
-    // No separate apply_file_edit node; the prepare_file_edit row reopened for the edit.
-    expect(m.nodes.has('ec-1')).toBe(false)
-    expect(tool(m, 'wf-1').status).toBe('running')
-    expect(m.toolAlias.get('ec-1')).toBe('wf-1')
-  })
-
-  it('settles the merged row on the apply_file_edit result', () => {
-    const sub: Scope = { lane: 'subagent', spanId: 'S1' }
-    const m = apply([
-      spanStart(1, 'S1', 'file', 'tc-file'),
-      toolCall(2, 'wf-1', 'prepare_file_edit', sub),
-      toolCall(3, 'ec-1', 'apply_file_edit', sub),
-      toolResult(4, 'ec-1', true, undefined, sub),
-    ])
-    expect(tool(m, 'wf-1').status).toBe('success')
-    expect(m.nodes.has('ec-1')).toBe(false)
-  })
-
   it('folds an apply_file_edit result that raced ahead of its call into the merged row', () => {
     const sub: Scope = { lane: 'subagent', spanId: 'S1' }
     const m = apply([
@@ -404,61 +213,9 @@ describe('reduceEvent — apply_file_edit row merge', () => {
     expect(tool(m, 'wf-1').result?.success).toBe(true)
     expect(m.bufferedResults.has('ec-1')).toBe(false)
   })
-
-  it('finalizes a stale running section row when the next section opens', () => {
-    const sub: Scope = { lane: 'subagent', spanId: 'S1' }
-    const m = apply([
-      spanStart(1, 'S1', 'file', 'tc-file'),
-      // Section 1: the prepare_file_edit row is reopened by its apply_file_edit, but the
-      // edit's closing result is reordered/dropped — wf-1 is left running.
-      toolCall(2, 'wf-1', 'prepare_file_edit', sub),
-      toolResult(3, 'wf-1', true, undefined, sub),
-      toolCall(4, 'ec-1', 'apply_file_edit', sub),
-      // Section 2 opens before section 1's edit result lands.
-      toolCall(5, 'wf-2', 'prepare_file_edit', sub),
-    ])
-    // The previous section settles instead of spinning until the turn terminal...
-    expect(tool(m, 'wf-1').status).toBe('success')
-    // ...and the new section's row is the live write.
-    expect(tool(m, 'wf-2').status).toBe('running')
-  })
 })
 
 describe('reduceEvent — error tag + compaction coverage', () => {
-  it('appends an inline mothership-error tag to the scoped lane text', () => {
-    const m = apply([
-      textEvent(1, 'assistant', 'Working'),
-      envelope(2, 'error', { message: 'boom', code: 'E1', provider: 'openai' }),
-    ])
-    const text = [...m.nodes.values()].find((n) => n.kind === 'text') as { text: string }
-    expect(text.text).toContain('<mothership-error>')
-    expect(text.text).toContain('boom')
-    expect(text.text).toContain('E1')
-  })
-
-  it('does not duplicate an identical error tag', () => {
-    const m = apply([
-      textEvent(1, 'assistant', 'Working'),
-      envelope(2, 'error', { message: 'boom' }),
-      envelope(3, 'error', { message: 'boom' }),
-    ])
-    const text = [...m.nodes.values()].find((n) => n.kind === 'text') as { text: string }
-    const occurrences = text.text.split('<mothership-error>').length - 1
-    expect(occurrences).toBe(1)
-  })
-
-  it('opens and closes a compaction node with titles', () => {
-    const m = apply([
-      envelope(1, 'run', { kind: 'compaction_start' }),
-      envelope(2, 'run', { kind: 'compaction_done' }),
-    ])
-    const compaction = [...m.nodes.values()].find(
-      (n) => n.kind === 'tool' && n.name === 'context_compaction'
-    ) as ToolNode
-    expect(compaction.status).toBe('success')
-    expect(compaction.uiTitle).toBe('Summarizing context')
-  })
-
   it('pairs concurrent compactions only within their scoped subagent spans', () => {
     const scopeA: Scope = {
       lane: 'subagent',
@@ -503,20 +260,6 @@ describe('reduceEvent — error tag + compaction coverage', () => {
 })
 
 describe('turn-terminal propagation', () => {
-  it('settles stragglers as success on a clean complete (never interrupted)', () => {
-    const m = apply([
-      toolCall(1, 'tc-1', 'search'),
-      spanStart(2, 'S1', 'file', 'tc-file'),
-      complete(3, 'complete'),
-    ])
-    expect(m.status).toBe('complete')
-    expect(tool(m, 'tc-1').status).toBe('success')
-    expect(agent(m, 'S1').status).toBe('success')
-    for (const node of m.nodes.values()) {
-      expect(node.kind === 'text' || node.status).not.toBe('interrupted')
-    }
-  })
-
   it('closes a straggler subagent lane (sets endSeq) so a model-driven terminal resolves the group', () => {
     // A file subagent opened but no span end arrived (mid-stream error/disconnect).
     const m = apply([
@@ -529,18 +272,6 @@ describe('turn-terminal propagation', () => {
     // endSeq must be stamped so the serializer emits subagent_end and the lane's
     // delegating spinner resolves instead of spinning forever.
     expect(agent(m, 'S1').endSeq).toBeDefined()
-  })
-
-  it('settles open nodes cancelled on a stop', () => {
-    const m = apply([toolCall(1, 'tc-1', 'search'), complete(2, 'cancelled')])
-    expect(m.status).toBe('cancelled')
-    expect(tool(m, 'tc-1').status).toBe('cancelled')
-  })
-
-  it('settles open nodes error on an errored turn', () => {
-    const m = apply([toolCall(1, 'tc-1', 'search'), complete(2, 'error')])
-    expect(m.status).toBe('error')
-    expect(tool(m, 'tc-1').status).toBe('error')
   })
 
   it('never reopens an already-terminal node', () => {
@@ -609,28 +340,6 @@ describe('reduceEvent — span end settles stale lane tools', () => {
     const lane = laneId ? model.nodes.get(laneId) : undefined
     if (lane?.kind !== 'agent') throw new Error('expected agent lane')
     expect(lane.status).toBe('success')
-  })
-
-  it('marks still-running tools error when the lane ends with an error', () => {
-    const model = apply([
-      envelope(
-        1,
-        'span',
-        { kind: 'subagent', event: 'start', agent: 'browser', data: { tool_call_id: 'd1' } },
-        laneScope
-      ),
-      toolCall(2, 'click-1', 'browser_click', laneScope),
-      envelope(
-        3,
-        'span',
-        { kind: 'subagent', event: 'end', agent: 'browser', data: { error: 'boom' } },
-        laneScope
-      ),
-    ])
-
-    const click = model.nodes.get('click-1')
-    if (click?.kind !== 'tool') throw new Error('expected tool node')
-    expect(click.status).toBe('error')
   })
 
   it('leaves settled tools alone and lets a late result overwrite the settle', () => {

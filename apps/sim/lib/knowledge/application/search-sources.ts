@@ -1,8 +1,8 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
+import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { toRecord } from '@sim/utils/object'
-import { and, desc, eq, exists, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import {
   listSearchSourcesContract,
   searchSourceCursorSchema,
@@ -12,19 +12,13 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
-import { hasViewerMemberSyncError } from '@/lib/knowledge/connectors/viewer-member-sync-error'
-import { resolveViewerSourceAccounts } from '@/lib/knowledge/connectors/viewer-source-accounts'
 import {
   SEARCH_SOURCE_CANDIDATE_PAGE_SIZE,
   SEARCH_SOURCE_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
-import { failedDocumentCondition } from '@/lib/knowledge/documents/processing-status'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { getConnectorMeta } from '@/connectors/registry'
@@ -35,10 +29,9 @@ export interface ListSearchSourcesInput extends ResourceOwner {
   connectorType?: string
   excludeConnectorType?: string
   search?: string
-  mine?: boolean
 }
 
-/** Viewer-safe setup and indexing state; source credentials and other members never leave this use case. */
+/** Bounded live source configuration; credentials and account identities remain private. */
 export const listSearchSources = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listSearchSources,
   resolveContext: ({ input }: { input: ListSearchSourcesInput }) =>
@@ -56,7 +49,6 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
       connectorType: connectorType ?? '',
       ...(excludeConnectorType ? { excludeConnectorType } : {}),
       connectorId: input.connectorId ?? '',
-      mine: input.mine === true,
       order: 'newest',
     })
     const cursor = (() => {
@@ -84,12 +76,6 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         accessMode: knowledgeConnector.accessMode,
         status: knowledgeConnector.status,
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
-        lastSyncAt: knowledgeConnector.lastSyncAt,
-        hasRetainedSyncError: sql<boolean>`${knowledgeConnector.lastSyncError} IS NOT NULL`,
-        hasViewerMemberSyncError: hasViewerMemberSyncError(userId),
-        lastMemberSyncAt: knowledgeConnector.lastMemberSyncAt,
-        credentialGroupId: knowledgeConnector.credentialGroupId,
-        credentialGroupOptionId: knowledgeConnector.credentialGroupOptionId,
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -122,38 +108,11 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
     if (candidates.length === 0) return { sources: [], nextCursor: null }
     const scanned = candidates.slice(0, SEARCH_SOURCE_CANDIDATE_PAGE_SIZE)
 
-    const [availability, memberships, viewers, approvals, accounts] = await Promise.all([
+    const [availability, approvals] = await Promise.all([
       resolveKnowledgeAccessAvailability(context),
-      resolveViewerConnectorMemberships({
-        userId: userId,
-        workspaceId: context.workspaceId,
-        organizationId: context.organizationId,
-        connectors: scanned,
-      }),
-      db
-        .select({ emailVerified: user.emailVerified })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1),
       context.organizationId ? listOrganizationSearchApprovals(context.organizationId) : null,
-      context.organizationId
-        ? resolveViewerSourceAccounts({
-            organizationId: context.organizationId,
-            userId: userId,
-            connectors: scanned,
-          })
-        : new Map<string, never[]>(),
     ])
-    /** Owned grants stay manageable even when the source can no longer authorize Search. */
     const matches = scanned.filter((row) => {
-      const membership = memberships.get(row.id)
-      if (
-        input.mine &&
-        (context.organizationId
-          ? !accounts.has(row.id)
-          : membership !== 'connected' && membership !== 'needs_reauth')
-      )
-        return false
       const meta = getConnectorMeta(row.connectorType)
       const label = meta
         ? `${meta.name ?? row.connectorType} ${describeSearchSource(meta, row.sourceConfig)}`
@@ -174,67 +133,6 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           ).toString('base64url')
         : null
     if (rows.length === 0) return { sources: [], nextCursor }
-    const access = await createKnowledgeAccessProvider(principal, context).getForConnectors(
-      rows.map((row) => row.id)
-    )
-    /**
-     * Per-source probes rather than one aggregate: the existence checks stop at the first
-     * visible document, and the failed and in-progress rows are few and indexed, so the cost no
-     * longer grows with every document the viewer can read.
-     */
-    const readable = knowledgeAccessCondition(access)
-    const viewerDocument = (condition: SQL | undefined) =>
-      and(
-        eq(document.connectorId, knowledgeConnector.id),
-        eq(document.enabled, true),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        condition,
-        readable
-      )
-    const documentStates = await db
-      .select({
-        connectorId: knowledgeConnector.id,
-        hasDocuments: sql<boolean>`${exists(
-          db
-            .select({ id: document.id })
-            .from(document)
-            .where(
-              viewerDocument(
-                and(
-                  eq(document.processingStatus, 'completed'),
-                  exists(
-                    db
-                      .select({ id: embedding.id })
-                      .from(embedding)
-                      .where(
-                        and(eq(embedding.documentId, document.id), eq(embedding.enabled, true))
-                      )
-                  )
-                )
-              )
-            )
-        )}`,
-        failedCount: sql<number>`${db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(document)
-          .where(viewerDocument(failedDocumentCondition()))}`,
-        isIndexing: sql<boolean>`${exists(
-          db
-            .select({ id: document.id })
-            .from(document)
-            .where(viewerDocument(inArray(document.processingStatus, ['pending', 'processing'])))
-        )}`,
-      })
-      .from(knowledgeConnector)
-      .where(
-        inArray(
-          knowledgeConnector.id,
-          rows.map((row) => row.id)
-        )
-      )
-    const states = new Map(documentStates.map((state) => [state.connectorId, state]))
 
     return {
       nextCursor,
@@ -252,7 +150,6 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           row.status !== 'paused' &&
           row.status !== 'disabled' &&
           (row.accessMode !== 'members' || row.memberSyncStatus !== 'disabled')
-        const state = states.get(row.id)
         const source = {
           knowledgeBaseId: row.knowledgeBaseId,
           connectorId: row.id,
@@ -266,39 +163,8 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           availability: available ? ('available' as const) : ('unavailable' as const),
           enabled,
           ...(approvals ? { approved: approvals.get(row.connectorType) ?? true } : {}),
-          isSyncing:
-            available &&
-            enabled &&
-            approvals?.get(row.connectorType) !== false &&
-            (row.status === 'pending' ||
-              row.status === 'syncing' ||
-              (row.accessMode === 'members' &&
-                (row.memberSyncStatus === 'pending' || row.memberSyncStatus === 'running')) ||
-              state?.isIndexing === true),
-          lastSyncAt:
-            (row.accessMode === 'members' ? row.lastMemberSyncAt : row.lastSyncAt)?.toISOString() ??
-            null,
-          hasSyncError:
-            row.status === 'error' ||
-            row.hasRetainedSyncError === true ||
-            row.hasViewerMemberSyncError === true ||
-            (row.accessMode === 'members' && row.memberSyncStatus === 'error'),
-          hasViewerDocuments: available && state?.hasDocuments === true,
-          viewerFailedDocumentCount: available ? (state?.failedCount ?? 0) : 0,
-          viewerEmailVerified: viewers[0]?.emailVerified === true,
-          viewerAccounts: accounts.get(row.id) ?? [],
         } as const
-        return [
-          {
-            ...source,
-            ...(connectionRequired
-              ? {
-                  connectionRequired: true as const,
-                  viewerMembership: available ? (memberships.get(row.id) ?? null) : null,
-                }
-              : { connectionRequired: false as const, viewerMembership: null }),
-          },
-        ]
+        return [source]
       }),
     }
   },

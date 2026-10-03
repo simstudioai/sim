@@ -1,14 +1,14 @@
-/** @vitest-environment node */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ select: vi.fn(), limit: vi.fn() }))
 vi.unmock('drizzle-orm')
 vi.unmock('@sim/db/schema')
-vi.mock('@sim/db', () => ({ db: { select: mocks.select } }))
 
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { readConversationItems, readPlainMemoryTail } from '@/lib/memory/conversation-store'
 import { PlainMemoryReadBudget } from '@/lib/memory/read-budget'
+
+const mocks = { select: dbChainMockFns.select, limit: vi.fn() }
 
 const message = { role: 'user', content: 'hello' }
 function row(sequence: number) {
@@ -31,7 +31,6 @@ function row(sequence: number) {
 
 describe('plain appended-memory read budget', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.limit.mockReset()
     const chain = {
       from: vi.fn(),

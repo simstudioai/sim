@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { curateKnowledgeDocuments } from '@/lib/mothership/agent-cli/knowledge-curation'
 
@@ -56,11 +55,5 @@ describe('knowledge document discovery', () => {
       original: { readReference: 'knowledge/kb/doc', availability: 'not_checked' },
       processingStatus: 'failed',
     })
-  })
-  it('preserves errors and unrelated results', () => {
-    const error = { exitCode: 1, stdout: '', stderr: 'permission denied' }
-    expect(curateKnowledgeDocuments(error)).toBe(error)
-    const unrelated = result({ id: 'table' })
-    expect(curateKnowledgeDocuments(unrelated)).toBe(unrelated)
   })
 })

@@ -34,6 +34,10 @@ import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import {
+  onBrowserOmniboxFocusRequest,
+  takeBrowserOmniboxFocusRequest,
+} from '@/lib/browser-agent/omnibox-focus'
 import { onFocusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import {
   loadBrowserSearchSuggestions,
@@ -189,15 +193,15 @@ const MAX_HANDLED_PERMISSION_REQUESTS = 256
 
 /** Claims the one renderer response allowed for a native browser permission request. */
 export function claimPermissionResponse(
-  handledRequestIds: { current: Set<string> },
+  handledRequestIds: Set<string>,
   requestId: string
 ): boolean {
-  if (handledRequestIds.current.has(requestId)) return false
-  handledRequestIds.current.add(requestId)
-  while (handledRequestIds.current.size > MAX_HANDLED_PERMISSION_REQUESTS) {
-    const oldest = handledRequestIds.current.values().next().value
+  if (handledRequestIds.has(requestId)) return false
+  handledRequestIds.add(requestId)
+  while (handledRequestIds.size > MAX_HANDLED_PERMISSION_REQUESTS) {
+    const oldest = handledRequestIds.values().next().value
     if (typeof oldest !== 'string') break
-    handledRequestIds.current.delete(oldest)
+    handledRequestIds.delete(oldest)
   }
   return true
 }
@@ -291,7 +295,7 @@ export function browserPanelSnapshotStyle(
     width: bounds.width,
     height: bounds.height,
     maxWidth: 'none',
-    zIndex: layer === 'modal' ? 'calc(var(--z-modal) - 1)' : 'calc(var(--z-popover) - 1)',
+    zIndex: layer === 'modal' ? 'calc(var(--z-modal) - 1)' : 'calc(var(--z-dropdown) - 1)',
   }
 }
 
@@ -445,7 +449,8 @@ export function BrowserSession({
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
-  const handledPermissionRequestIdsRef = useRef<Set<string>>(new Set())
+  const handledPermissionRequestIdsRef = useRef<Set<string> | null>(null)
+  const handledPermissionRequestIds = (handledPermissionRequestIdsRef.current ??= new Set())
   const [answeredPermissionRequestId, setAnsweredPermissionRequestId] = useState<string | null>(
     null
   )
@@ -492,6 +497,7 @@ export function BrowserSession({
     requestOverlay,
     closeOverlay,
     onSnapshotError,
+    shouldKeepNativeHidden,
   } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
   const respondToPermission = useCallback(
@@ -500,7 +506,7 @@ export function BrowserSession({
       action: ReturnType<typeof browserPermissionResponseAction>,
       allowed: boolean
     ) => {
-      if (!claimPermissionResponse(handledPermissionRequestIdsRef, requestId)) {
+      if (!claimPermissionResponse(handledPermissionRequestIds, requestId)) {
         return
       }
       setAnsweredPermissionRequestId(requestId)
@@ -642,16 +648,17 @@ export function BrowserSession({
 
   useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
 
-  // A fresh blank tab coming on screen — opened from the resource strip or by
-  // Cmd+T — gets the omnibox, the way Chrome's new-tab page does. A tab with a
-  // page keeps its content.
-  const focusedBlankTabIdRef = useRef<string | null>(null)
+  // A blank tab the user opened from the resource strip gets the omnibox once
+  // it is on screen, the way Chrome's new-tab page does. Cmd+T arrives from the
+  // shell above. A blank tab the agent opened must never take the caret.
   useEffect(() => {
-    if (!visible || !activeTabId || !showEmptyState) return
-    if (focusedBlankTabIdRef.current === activeTabId) return
-    focusedBlankTabIdRef.current = activeTabId
-    focusOmnibox('clear')
-  }, [activeTabId, focusOmnibox, showEmptyState, visible])
+    if (!visible || !activeTabId) return
+    const claimFocusRequest = () => {
+      if (takeBrowserOmniboxFocusRequest(activeTabId, scopeId)) focusOmnibox('clear')
+    }
+    claimFocusRequest()
+    return onBrowserOmniboxFocusRequest(claimFocusRequest)
+  }, [activeTabId, focusOmnibox, scopeId, visible])
 
   // Sim owns keyboard events while its renderer has focus. Claim Cmd+L here
   // before the workspace's global "Go to Logs" command can navigate away.
@@ -766,14 +773,18 @@ export function BrowserSession({
     let disposed = false
     let occlusionRequest = 0
     const atomicPanelOcclusion = supportsAtomicBrowserPanelOcclusion()
-    let occlusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+    const hasRequestedOcclusion = () =>
+      atomicPanelOcclusion && (hasNativeSurfaceOcclusion() || shouldKeepNativeHidden())
+    let occlusionPresent = hasRequestedOcclusion()
     // A full-screen marker can exist before this Browser reports its first
     // rect. In that path this bounds effect acquires a serialized hidden lease
     // before attaching geometry, including rollback if the marker disappears
     // while Electron is still processing the hide.
-    const geometryOcclusionLease = createBrowserPanelGeometryOcclusionLease((occluded) =>
-      setBrowserPanelOccluded(occluded, scopeId, occluded).catch(() => false)
-    )
+    const geometryOcclusionLease = createBrowserPanelGeometryOcclusionLease((occluded) => {
+      /** The snapshot controller retains ownership if a tooltip or menu outlives the modal. */
+      if (!occluded && shouldKeepNativeHidden()) return Promise.resolve(true)
+      return setBrowserPanelOccluded(occluded, scopeId, occluded).catch(() => false)
+    })
 
     const commitGeometry = (
       bounds: BrowserPanelBounds,
@@ -814,7 +825,7 @@ export function BrowserSession({
       }
 
       const anchor = describeAnchor(panel)
-      const nativeSurfaceOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+      const nativeSurfaceOcclusionPresent = hasRequestedOcclusion()
       const request = ++occlusionRequest
 
       if (
@@ -833,14 +844,13 @@ export function BrowserSession({
         // resets panelOccluded — while this side still remembers `applied:
         // true`. Without dropping that belief, setDesired(true) is a no-op,
         // the next bounds commit lays out an unoccluded native view, and the
-        // browser punches above the still-open modal with nothing left to
-        // ever re-hide it. Forgetting `applied` costs one idempotent hide IPC
-        // per heartbeat while a modal is up, and makes any main-side lease
-        // loss self-heal within a second.
+        // browser punches above the still-open overlay. Forgetting `applied`
+        // reasserts the lease for modals and painted transient overlays on each
+        // heartbeat, recovering main-side lease loss within a second.
         if (nativeSurfaceOcclusionPresent) geometryOcclusionLease.assumeRevealed()
         void geometryOcclusionLease.setDesired(nativeSurfaceOcclusionPresent).then((settled) => {
           if (disposed) return
-          const latestOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
+          const latestOcclusionPresent = hasRequestedOcclusion()
           if (
             request !== occlusionRequest ||
             latestOcclusionPresent !== nativeSurfaceOcclusionPresent
@@ -876,7 +886,7 @@ export function BrowserSession({
     const resizeObserver = new ResizeObserver(() => reportGeometry(false))
     const occlusionObserver = new MutationObserver((records) => {
       if (!mutationsTouchNativeSurfaceOcclusion(records)) return
-      const next = hasNativeSurfaceOcclusion()
+      const next = hasRequestedOcclusion()
       if (next === occlusionPresent) return
       occlusionPresent = next
       scheduleGeometryReport(true)
@@ -917,7 +927,7 @@ export function BrowserSession({
       void geometryOcclusionLease.setDesired(false)
       reportBrowserPanelBounds(null, null, scopeId)
     }
-  }, [hasRendererPage, visible, suspended, scopeId])
+  }, [hasRendererPage, visible, suspended, scopeId, shouldKeepNativeHidden])
 
   /**
    * Programmatic focus on a new tab keeps the omnibox ready for typing without
@@ -1147,6 +1157,8 @@ export function BrowserSession({
                   }}
                   onKeyDown={(event) => {
                     event.stopPropagation()
+                    // Keys during an IME composition edit the composed text, not the URL.
+                    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
                     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                       // Never move a highlight through a list that is not on screen.
                       if (!suggestionsOpen) return
@@ -1163,10 +1175,17 @@ export function BrowserSession({
                     }
                     if (event.key === 'Enter') submitUrl()
                     if (event.key === 'Escape') {
-                      // Dismiss the list first; leave the omnibox only once
-                      // there is no highlight left to back out of.
-                      if (activeSuggestion !== null) setActiveSuggestion(null)
-                      else urlInputRef.current?.blur()
+                      // Back out one step at a time, as Chrome does: the
+                      // highlight, then the edited text, then the omnibox.
+                      if (activeSuggestion !== null) {
+                        setActiveSuggestion(null)
+                      } else if ((urlDraft ?? '') !== (pageState?.url ?? '')) {
+                        setUrlDraft(pageState?.url ?? '')
+                        setSuggestionsVisible(false)
+                        selectFocusedOmniboxOnNextFrame(event.currentTarget)
+                      } else {
+                        urlInputRef.current?.blur()
+                      }
                     }
                   }}
                 />
@@ -1321,7 +1340,7 @@ export function BrowserSession({
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-2'>
             <Globe className='size-[18px] text-[var(--text-tertiary)]' />
             <p className='text-[var(--text-muted)] text-small'>
-              Waiting for the browser session to start…
+              Waiting for the browser session to start
             </p>
           </div>
         )}

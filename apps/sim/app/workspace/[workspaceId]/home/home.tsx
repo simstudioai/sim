@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { cn, toast } from '@sim/emcn'
+import { cn, pageHeadingClassName, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -178,7 +178,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     dispatchingHeadId,
     getCurrentRequestId,
   } = chat
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, userId)
   const {
     isResourceCollapsed,
     skipResourceTransition,
@@ -314,6 +314,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         return context.fileId ? { type: 'file', id: context.fileId } : null
       case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'dashboard':
+        return { type: 'dashboard', id: context.dashboardId }
       default:
         return null
     }
@@ -434,7 +436,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
             {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
             <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-              <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+              <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
               <div ref={initialViewInputRef} className='relative w-full max-w-chat'>
@@ -467,6 +469,14 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           </div>
         ) : (
           <MothershipChat
+            onViewSources={(messageId, requestId) =>
+              addResourceFromUser({
+                type: 'sources',
+                id: 'cited-sources',
+                title: 'Sources',
+                sources: { messageId, ...(requestId ? { requestId } : {}) },
+              })
+            }
             workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}

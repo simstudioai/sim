@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
+import { sleep } from '@sim/utils/helpers'
 import { writeStderr } from '#sim-cli/output/io'
-import { sleep } from '../helpers'
 import { buildUrl, REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
 import { identityHeaders } from '../telemetry/client-info'
 

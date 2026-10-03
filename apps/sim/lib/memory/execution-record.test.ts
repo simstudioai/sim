@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { renderConversationExecutionRecord } from '@/lib/memory/execution-record'
 import { setNativeConversationMessage } from '@/providers/conversation-metadata'

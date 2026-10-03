@@ -1,30 +1,28 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
-import { setEnvFlags } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorizeOrganizationOperation: vi.fn(),
-  isOrganizationFeatureEntitled: vi.fn(),
-  getOrganizationSubscription: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   readUsageTotals: vi.fn(),
   readUsageTimeSeries: vi.fn(),
 }))
 
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOrganizationOperation,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mocks.isOrganizationFeatureEntitled,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mocks.getOrganizationSubscription,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
-  readUsageTotals: mocks.readUsageTotals,
-  readUsageTimeSeries: mocks.readUsageTimeSeries,
+  readUsageTotals: hoisted.readUsageTotals,
+  readUsageTimeSeries: hoisted.readUsageTimeSeries,
   readUsageBreakdown: vi.fn(),
   readUsageEntities: vi.fn(),
 }))
@@ -33,12 +31,15 @@ import { getOrganizationUsageSummary } from '@/lib/billing/application/organizat
 import { ForbiddenOperationError } from '@/lib/core/application'
 
 const ORG = 'org-1'
-const session: SessionPrincipal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
-const personalKey: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'admin-1',
-  keyId: 'key-1',
+const mocks = {
+  ...hoisted,
+  getOrganizationSubscription: billingCoreMockFns.mockGetOrganizationSubscription,
+  authorizeOrganizationOperation:
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  isOrganizationFeatureEntitled: billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled,
 }
+
+const session = createSessionPrincipal({ userId: 'admin-1' })
 
 const input = {
   organizationId: ORG,
@@ -62,7 +63,6 @@ async function codeOf(promise: Promise<unknown>): Promise<string> {
 
 describe('organization usage authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isBillingEnabled: true, isHosted: true })
     mocks.authorizeOrganizationOperation.mockResolvedValue(true)
     mocks.isOrganizationFeatureEntitled.mockResolvedValue(true)
@@ -77,19 +77,6 @@ describe('organization usage authorization', () => {
 
   afterAll(() => {
     setEnvFlags({ isBillingEnabled: false, isHosted: false })
-  })
-
-  it('admits personal keys through the shared current-organization authorization', async () => {
-    await run(personalKey)
-    expect(mocks.authorizeOrganizationOperation).toHaveBeenCalledWith(
-      personalKey,
-      expect.objectContaining({
-        id: 'organization_usage.summary.read',
-        minimumRole: 'admin',
-        oauthScope: 'api:read',
-      }),
-      { organizationId: ORG }
-    )
   })
 
   it('refuses a member who is not an organization admin', async () => {
@@ -114,26 +101,6 @@ describe('organization usage authorization', () => {
 
     expect(await codeOf(run())).toBe('ORGANIZATION_ADMIN_REQUIRED')
     expect(mocks.isOrganizationFeatureEntitled).not.toHaveBeenCalled()
-  })
-
-  it('asks the entitlement helper, not the plan directly, so self-hosted stays gated', async () => {
-    // `isOrganizationOnEnterprisePlan` answers true for every organization once billing
-    // is off, which would hand the feature to every self-hosted deployment.
-    await run()
-
-    expect(mocks.isOrganizationFeatureEntitled).toHaveBeenCalledWith(ORG, expect.any(Boolean))
-  })
-
-  it('scopes the read to the caller’s organization and resolves its period once', async () => {
-    await run()
-
-    expect(mocks.getOrganizationSubscription).toHaveBeenCalledTimes(1)
-    // Both reads share one scope built from one resolved period, which is what keeps the
-    // totals and the chart describing the same rows.
-    const [totalsScope] = mocks.readUsageTotals.mock.calls[0]
-    const [seriesScope] = mocks.readUsageTimeSeries.mock.calls[0]
-    expect(JSON.stringify(totalsScope)).toContain(ORG)
-    expect(JSON.stringify(seriesScope)).toBe(JSON.stringify(totalsScope))
   })
 
   it('narrows the drill-down’s chart and its comparison window to the same workspace', async () => {

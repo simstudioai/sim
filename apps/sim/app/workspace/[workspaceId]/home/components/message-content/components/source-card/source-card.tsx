@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import {
   Chip,
+  chipGeometryClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
   chipRadiusClass,
@@ -18,18 +19,20 @@ import {
 import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
-import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
   SourceIcon,
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
+import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 const SOURCE_ROW_CLASSES = cn(
   'not-prose flex items-start gap-2 px-2 py-2 transition-colors focus-within:bg-[var(--surface-hover)]',
   chipHoverSurfaceClass,
-  chipRadiusClass
+  chipRadiusClass,
+  inter.className
 )
 const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
 
@@ -112,6 +115,7 @@ interface SourceCardProps {
 
 /** Source results share the same document identity and actions across search and cited evidence. */
 export function SourceCard({ source, query, onSummarize, dense = false }: SourceCardProps) {
+  const navigate = useSourceNavigation(source)
   const updatedAt = parseUpdatedAt(source.updatedAt)
   const meta = [
     sourceSiteName(source),
@@ -121,28 +125,38 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
 
   if (dense) {
     return (
-      <div className={cn(SOURCE_ROW_CLASSES, 'items-center py-1')}>
-        <span className={chipIconSlotClass}>
-          <SourceIcon source={source} />
-        </span>
-        <a
-          href={source.url}
-          target='_blank'
-          rel='noopener noreferrer'
-          data-source-link=''
-          onClick={(event) => handleExternalLinkClick(event, source.url)}
-          className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
+      <div className='not-prose py-1'>
+        <div
+          className={cn(
+            chipGeometryClass,
+            chipHoverSurfaceClass,
+            'flex transition-colors focus-within:bg-[var(--surface-hover)]',
+            inter.className
+          )}
         >
+          <span className={chipIconSlotClass}>
+            <SourceIcon source={source} />
+          </span>
+          <a
+            href={source.url}
+            target='_blank'
+            rel='noopener noreferrer'
+            data-source-link=''
+            onClick={navigate}
+            onAuxClick={navigate}
+            className='min-w-0 flex-1 text-[var(--text-body)] text-sm no-underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
+          >
+            <OverflowText
+              label={source.title?.trim() || sourceLabel(source)}
+              focusTarget='nearest-interactive'
+            />
+          </a>
           <OverflowText
-            label={source.title?.trim() || sourceLabel(source)}
-            focusTarget='nearest-interactive'
+            label={meta.join(' · ')}
+            className='max-w-[40%] shrink-0 text-[var(--text-tertiary)] text-caption'
           />
-        </a>
-        <OverflowText
-          label={meta.join(' · ')}
-          className='max-w-[40%] shrink-0 text-[var(--text-muted)] text-caption'
-        />
-        <SourceActions source={source} />
+          <SourceActions source={source} />
+        </div>
       </div>
     )
   }
@@ -159,7 +173,8 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
             target='_blank'
             rel='noopener noreferrer'
             data-source-link=''
-            onClick={(event) => handleExternalLinkClick(event, source.url)}
+            onClick={navigate}
+            onAuxClick={navigate}
             className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline [overflow-wrap:anywhere] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
           >
             {sourceLabel(source)}
@@ -171,10 +186,10 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
         <div className='flex min-w-0 flex-col gap-1 pl-6'>
           <OverflowText
             label={meta.join(' · ')}
-            className='text-[var(--text-muted)] text-caption'
+            className='text-[var(--text-tertiary)] text-caption'
           />
           {source.snippet && (
-            <p className='text-[var(--text-body)] text-small [overflow-wrap:anywhere]'>
+            <p className='line-clamp-3 text-[var(--text-body)] text-small [overflow-wrap:anywhere]'>
               {highlightTerms(source.snippet, query)}
             </p>
           )}

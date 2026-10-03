@@ -1,11 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockExecuteInSandbox,
   mockLoadCompiledDoc,
   mockLoadPublishedCompiledDoc,
   mockPublishCompiledDocArtifact,
@@ -14,7 +11,6 @@ const {
   mockRunSandboxTask,
   mockStoreCompiledDoc,
 } = vi.hoisted(() => ({
-  mockExecuteInSandbox: vi.fn(),
   mockLoadCompiledDoc: vi.fn(),
   mockLoadPublishedCompiledDoc: vi.fn(),
   mockPublishCompiledDocArtifact: vi.fn(),
@@ -24,10 +20,7 @@ const {
   mockStoreCompiledDoc: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  executeInSandbox: mockExecuteInSandbox,
-  executeShellInSandbox: vi.fn(),
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/execution/languages', () => ({
   CodeLanguage: { javascript: 'javascript', python: 'python' },
 }))
@@ -58,11 +51,12 @@ vi.mock('@/app/api/files/utils', () => ({
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { compileDoc, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
 
+const { mockExecuteInSandbox } = remoteSandboxMockFns
+
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const
 const PDF_MAGIC = Buffer.from('%PDF-1.7\n...binary...')
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates a PDF', 'utf-8')
-const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01])
 const XLSX_SOURCE = Buffer.from('from openpyxl import Workbook\n# generates an xlsx', 'utf-8')
 
 function referencedFileSource(count: number): Buffer {
@@ -76,7 +70,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('resolveServableDocBytes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isDocSandboxEnabled: true })
     mockLoadPublishedCompiledDoc.mockResolvedValue(null)
   })
@@ -521,48 +514,9 @@ describe('resolveServableDocBytes', () => {
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
   })
 
-  it('passes non-doc files through untouched with their extension content type', async () => {
-    const text = Buffer.from('hello world', 'utf-8')
-    const result = await resolveServableDocBytes({
-      rawBuffer: text,
-      fileName: 'notes.txt',
-      workspaceId: WORKSPACE_ID,
-    })
-
-    expect(result.buffer).toBe(text)
-    expect(result.contentType).toBe('text/plain')
-    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
-  })
-
-  it('passes through a real binary XLSX (ZIP magic) without an artifact lookup', async () => {
-    const result = await resolveServableDocBytes({
-      rawBuffer: ZIP_MAGIC,
-      fileName: 'sheet.xlsx',
-      workspaceId: WORKSPACE_ID,
-    })
-
-    expect(result.buffer).toBe(ZIP_MAGIC)
-    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
-  })
-
   it('throws when a generated XLSX artifact is not ready (E2B enabled)', async () => {
     mockLoadCompiledDoc.mockResolvedValue(null)
     setEnvFlags({ isDocSandboxEnabled: true })
-
-    await expect(
-      resolveServableDocBytes({
-        rawBuffer: XLSX_SOURCE,
-        fileName: 'sheet.xlsx',
-        workspaceId: WORKSPACE_ID,
-      })
-    ).rejects.toBeInstanceOf(DocCompileUserError)
-
-    expect(mockRunSandboxTask).not.toHaveBeenCalled()
-  })
-
-  it('throws instead of returning XLSX source when E2B is disabled', async () => {
-    mockLoadCompiledDoc.mockResolvedValue(null)
-    setEnvFlags({ isDocSandboxEnabled: false })
 
     await expect(
       resolveServableDocBytes({

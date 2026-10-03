@@ -52,6 +52,8 @@ Extra response headers, as key-value pairs:
 | Cache-Control | no-cache |
 | X-API-Version | 1.0 |
 
+HTTP responses always use `Content-Type: application/json` and `X-Content-Type-Options: nosniff`. Headers that set cookies, redirect the browser, change security or CORS policies, or control the HTTP transport are ignored. Ordinary custom headers and cache directives are preserved.
+
 ## Outputs
 
 A Response block is a terminal block, so nothing reads from it. Its `data`, `status`, and `headers` become the HTTP response itself. A workflow with no Response block returns its last block's output by default; add a Response block when you need exact HTTP control.

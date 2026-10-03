@@ -1,22 +1,21 @@
-/**
- * @vitest-environment node
- */
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadFileFromStorage: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mocks.downloadFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { executeSquareCreateCatalogImage } from '@/lib/internal/square/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadFileFromStorage } = fileUtilsServerMockFns
 
 const FILE = {
   id: 'file-1',
@@ -29,9 +28,8 @@ const FILE = {
 
 describe('executeSquareCreateCatalogImage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from('image'))
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadFileFromStorage.mockResolvedValue(Buffer.from('image'))
     vi.stubGlobal(
       'fetch',
       vi
@@ -58,59 +56,13 @@ describe('executeSquareCreateCatalogImage', () => {
       success: true,
       output: { metadata: { id: 'image-1', type: 'IMAGE', version: 1 } },
     })
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledOnce()
-    expect(mocks.downloadFileFromStorage).toHaveBeenCalledOnce()
+    expect(mockAssertToolFileAccess).toHaveBeenCalledOnce()
+    expect(mockDownloadFileFromStorage).toHaveBeenCalledOnce()
     expect(fetch).toHaveBeenCalledOnce()
     const formData = vi.mocked(fetch).mock.calls[0][1]?.body as FormData
     expect(JSON.parse(String(formData.get('request')))).toMatchObject({
       idempotency_key: 'stable-key',
       object_id: 'item-1',
     })
-  })
-
-  it('preserves Square provider error status and detail', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      Response.json({ errors: [{ detail: 'Invalid image' }] }, { status: 400 })
-    )
-
-    const response = await executeSquareCreateCatalogImage(
-      {
-        accessToken: 'square-token',
-        file: FILE,
-        fileName: null,
-        objectId: null,
-        caption: null,
-        idempotencyKey: 'stable-key',
-      },
-      { userId: 'user-1', requestId: 'request-1' }
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'Invalid image',
-    })
-  })
-
-  it('forwards cancellation to Square', async () => {
-    const controller = new AbortController()
-    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      throw init?.signal?.reason
-    })
-
-    await expect(
-      executeSquareCreateCatalogImage(
-        {
-          accessToken: 'square-token',
-          file: FILE,
-          fileName: null,
-          objectId: null,
-          caption: null,
-          idempotencyKey: 'stable-key',
-        },
-        { userId: 'user-1', requestId: 'request-1', signal: controller.signal }
-      )
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

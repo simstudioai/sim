@@ -180,11 +180,7 @@ export async function clearFailedForkResourceReferences(params: {
 
   let affectedWorkflowIds: Set<string> = new Set()
   try {
-    affectedWorkflowIds = await clearFailedReferencesInWorkflows(
-      childWorkspaceId,
-      failedByKind,
-      requestId
-    )
+    affectedWorkflowIds = await clearFailedReferencesInWorkflows(childWorkspaceId, failedByKind)
   } catch (error) {
     clearingSucceeded = false
     logger.error(`[${requestId}] Failed to clear references for failed fork resources`, {
@@ -262,8 +258,7 @@ export async function clearFailedForkResourceReferences(params: {
  */
 export async function clearFailedReferencesInWorkflows(
   childWorkspaceId: string,
-  failedByKind: Map<ForkRemapKind, Set<string>>,
-  requestId: string
+  failedByKind: Map<ForkRemapKind, Set<string>>
 ): Promise<Set<string>> {
   const resolve = buildFailedResolver(failedByKind)
   const affectedWorkflowIds = new Set<string>()

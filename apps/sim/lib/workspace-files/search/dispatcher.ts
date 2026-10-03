@@ -21,6 +21,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  lte,
   notExists,
   or,
   type SQL,
@@ -29,10 +30,12 @@ import {
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { runDetached } from '@/lib/core/utils/background'
+import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   FILE_SEARCH_BACKFILL_PAGE_SIZE,
   FILE_SEARCH_CLEANUP_BACKLOG_ROWS,
+  FILE_SEARCH_DISPATCH_HANDOFF_MS,
   FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS,
   FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS,
   FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS,
@@ -91,6 +94,8 @@ interface PreparedDispatch {
   payloads: WorkspaceFileSearchIndexPayload[]
   backfilledFiles: number
   reapedClaims: number
+  /** Of the reaped claims, those released because their handoff deadline passed. */
+  abandonedClaims: number
   lockAcquired: boolean
 }
 
@@ -98,6 +103,8 @@ export interface WorkspaceFileSearchDispatchResult {
   dispatchedFiles: number
   backfilledFiles: number
   reapedClaims: number
+  /** Of the reaped claims, those released because their handoff deadline passed. */
+  abandonedClaims: number
   lockAcquired: boolean
 }
 
@@ -251,7 +258,19 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   return files.length
 }
 
-async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
+/**
+ * Releases claims that are not expected to finish, returning their files and slots to the queue. A
+ * claim whose handoff deadline has passed has no run known to exist, normally because its dispatcher
+ * stopped between the claim's commit and its enqueue. A claim past the stale-dispatch window has
+ * outlasted the retries its run is expected to make.
+ *
+ * A released claim is claimed again under a new token rather than re-sent, so recovery never has to
+ * deduplicate against a run the original claim did get: that run is fenced out by the old token.
+ */
+async function reapStaleClaims(
+  tx: DbTransaction,
+  now: Date
+): Promise<{ reaped: number; abandoned: number }> {
   const staleBefore = new Date(now.getTime() - FILE_SEARCH_INDEX_STALE_DISPATCH_MS)
   const rows = await tx
     .select({
@@ -259,6 +278,7 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
       fileId: workspaceFileSearchRevision.fileId,
       sourceContentUpdatedAt: workspaceFileSearchRevision.sourceContentUpdatedAt,
       currentFileId: workspaceFiles.id,
+      handoffExpired: sql<boolean>`coalesce(${workspaceFileSearchRevision.handoffExpiresAt} <= clock_timestamp(), false)`,
     })
     .from(workspaceFileSearchRevision)
     .leftJoin(
@@ -275,7 +295,10 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
       and(
         eq(workspaceFileSearchRevision.status, 'pending'),
         isNotNull(workspaceFileSearchRevision.dispatchedAt),
-        lt(workspaceFileSearchRevision.dispatchedAt, staleBefore)
+        or(
+          lt(workspaceFileSearchRevision.dispatchedAt, staleBefore),
+          lte(workspaceFileSearchRevision.handoffExpiresAt, sql`clock_timestamp()`)
+        )
       )
     )
     .orderBy(asc(workspaceFileSearchRevision.dispatchedAt), asc(workspaceFileSearchRevision.fileId))
@@ -288,7 +311,7 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
   if (currentFilter) {
     await tx
       .update(workspaceFileSearchRevision)
-      .set({ dispatchedAt: null, updatedAt: now })
+      .set({ dispatchedAt: null, handoffExpiresAt: null, updatedAt: now })
       .where(currentFilter)
     await enqueueWorkspaces(
       tx,
@@ -300,7 +323,7 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
   if (obsoleteFilter) {
     await tx.delete(workspaceFileSearchRevision).where(obsoleteFilter)
   }
-  return rows.length
+  return { reaped: rows.length, abandoned: current.filter((row) => row.handoffExpired).length }
 }
 
 /**
@@ -367,7 +390,8 @@ async function claimQueuedWorkspaceJobs(
       LIMIT ${remainingGlobalCapacity}
     )
     UPDATE workspace_file_search_revision AS search_index
-    SET dispatched_at = ${now.toISOString()}::timestamp
+    SET dispatched_at = ${now.toISOString()}::timestamp,
+      handoff_expires_at = clock_timestamp() + ${FILE_SEARCH_DISPATCH_HANDOFF_MS} * interval '1 millisecond'
     FROM candidates
     WHERE search_index.file_id = candidates.file_id
       AND search_index.source_content_updated_at = candidates.source_content_updated_at
@@ -438,16 +462,27 @@ export async function prepareWorkspaceFileSearchDispatch(
         })
       )
       return runDispatchPhase('prepare', async () => {
-        const [lock] = await tx.execute<{ acquired: boolean }>(
-          sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${DISPATCH_LOCK_NAME}, 0)) AS acquired`
+        const acquired = await tryAcquireAdvisoryXactLock(
+          tx,
+          'workspace_file_search_dispatch',
+          DISPATCH_LOCK_NAME
         )
-        if (!lock?.acquired) {
-          return { payloads: [], backfilledFiles: 0, reapedClaims: 0, lockAcquired: false }
+        if (!acquired) {
+          return {
+            payloads: [],
+            backfilledFiles: 0,
+            reapedClaims: 0,
+            abandonedClaims: 0,
+            lockAcquired: false,
+          }
         }
 
         const now = new Date()
         const backfilledFiles = await runDispatchPhase('backfill', () => seedBackfillPage(tx, now))
-        const reapedClaims = await runDispatchPhase('reap', () => reapStaleClaims(tx, now))
+        const { reaped: reapedClaims, abandoned: abandonedClaims } = await runDispatchPhase(
+          'reap',
+          () => reapStaleClaims(tx, now)
+        )
         const [{ active, cleanupBacklogged }] = await tx.execute<{
           active: number
           cleanupBacklogged: boolean
@@ -468,11 +503,23 @@ export async function prepareWorkspaceFileSearchDispatch(
           ) AS active_claims`)
         if (cleanupBacklogged) {
           logger.info('Workspace file search dispatch paused for cleanup')
-          return { payloads: [], backfilledFiles, reapedClaims, lockAcquired: true }
+          return {
+            payloads: [],
+            backfilledFiles,
+            reapedClaims,
+            abandonedClaims,
+            lockAcquired: true,
+          }
         }
         const remainingGlobalCapacity = Math.max(0, maxOutstanding - Number(active))
         if (remainingGlobalCapacity === 0) {
-          return { payloads: [], backfilledFiles, reapedClaims, lockAcquired: true }
+          return {
+            payloads: [],
+            backfilledFiles,
+            reapedClaims,
+            abandonedClaims,
+            lockAcquired: true,
+          }
         }
 
         const workspaces = await tx
@@ -494,27 +541,31 @@ export async function prepareWorkspaceFileSearchDispatch(
             now
           )
         )
-        return { payloads, backfilledFiles, reapedClaims, lockAcquired: true }
+        return { payloads, backfilledFiles, reapedClaims, abandonedClaims, lockAcquired: true }
       })
     })
   )
 }
 
-async function releaseDispatchClaims(payloads: readonly WorkspaceFileSearchIndexPayload[]) {
-  if (payloads.length === 0) return
-  const rows = payloads.map((payload) => ({
+function dispatchedRevisions(payloads: readonly WorkspaceFileSearchIndexPayload[]) {
+  return payloads.map((payload) => ({
     workspaceId: payload.workspaceId,
     fileId: payload.fileId,
     sourceContentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
     dispatchToken: payload.dispatchToken,
   }))
+}
+
+async function releaseDispatchClaims(payloads: readonly WorkspaceFileSearchIndexPayload[]) {
+  if (payloads.length === 0) return
+  const rows = dispatchedRevisions(payloads)
   await runDispatchPhase('release-claims', () =>
     db.transaction(async (tx) => {
       const filter = revisionFilter(rows)
       if (filter) {
         await tx
           .update(workspaceFileSearchRevision)
-          .set({ dispatchedAt: null, updatedAt: new Date() })
+          .set({ dispatchedAt: null, handoffExpiresAt: null, updatedAt: new Date() })
           .where(and(filter, eq(workspaceFileSearchRevision.status, 'pending')))
       }
       await enqueueWorkspaces(
@@ -524,6 +575,42 @@ async function releaseDispatchClaims(payloads: readonly WorkspaceFileSearchIndex
       )
     })
   )
+}
+
+/**
+ * Records that each claim now has a run, so a later dispatch leaves it to that run. The token in the
+ * filter keeps a late write from completing a claim that was released and claimed again.
+ *
+ * A row another transaction holds is skipped, not waited on: its run is beginning the build, which
+ * completes the handoff itself, or a file change or a release is replacing the claim. Waiting would
+ * keep the rows already written locked against runs beginning on them, and would deadlock with a
+ * bulk file change that reaches the same rows in another order.
+ */
+async function completeDispatchHandoff(payloads: readonly WorkspaceFileSearchIndexPayload[]) {
+  const filter = revisionFilter(dispatchedRevisions(payloads))
+  if (!filter) return
+  await db.transaction(async (tx) => {
+    await configureFileSearchTransaction(tx, {
+      statementTimeout: FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS,
+      lockTimeout: FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS,
+      transactionTimeout: FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS,
+    })
+    const unclaimedByRun = tx
+      .select({ fileId: workspaceFileSearchRevision.fileId })
+      .from(workspaceFileSearchRevision)
+      .where(
+        and(
+          filter,
+          eq(workspaceFileSearchRevision.status, 'pending'),
+          isNotNull(workspaceFileSearchRevision.handoffExpiresAt)
+        )
+      )
+      .for('update', { skipLocked: true })
+    await tx
+      .update(workspaceFileSearchRevision)
+      .set({ handoffExpiresAt: null })
+      .where(inArray(workspaceFileSearchRevision.fileId, unclaimedByRun))
+  })
 }
 
 async function dispatchPreparedJobs(
@@ -571,24 +658,25 @@ export async function dispatchWorkspaceFileSearchIndexJobs(): Promise<WorkspaceF
       ? FILE_SEARCH_INDEX_MAX_OUTSTANDING
       : FILE_SEARCH_INDEX_GLOBAL_CONCURRENCY
   )
+  if (prepared.abandonedClaims > 0) {
+    logger.warn('Released workspace file search claims with no run known to exist', {
+      claims: prepared.abandonedClaims,
+    })
+  }
   if (!prepared.lockAcquired || prepared.payloads.length === 0) {
     return {
       dispatchedFiles: 0,
       backfilledFiles: prepared.backfilledFiles,
       reapedClaims: prepared.reapedClaims,
+      abandonedClaims: prepared.abandonedClaims,
       lockAcquired: prepared.lockAcquired,
     }
   }
+  let dispatchedFiles: number
   try {
-    const dispatchedFiles = await runDispatchPhase('enqueue', () =>
+    dispatchedFiles = await runDispatchPhase('enqueue', () =>
       dispatchPreparedJobs(prepared.payloads)
     )
-    return {
-      dispatchedFiles,
-      backfilledFiles: prepared.backfilledFiles,
-      reapedClaims: prepared.reapedClaims,
-      lockAcquired: prepared.lockAcquired,
-    }
   } catch (error) {
     logger.error('Failed to dispatch workspace file search indexing batch', {
       files: prepared.payloads.length,
@@ -606,5 +694,19 @@ export async function dispatchWorkspaceFileSearchIndexJobs(): Promise<WorkspaceF
       )
     }
     throw error
+  }
+  /**
+   * The runs exist whether or not this write lands, so its failure is only logged. A claim whose run
+   * has not begun by the deadline is then released, and its token fences out the run it already has.
+   */
+  await runDispatchPhase('handoff', () => completeDispatchHandoff(prepared.payloads)).catch(
+    () => undefined
+  )
+  return {
+    dispatchedFiles,
+    backfilledFiles: prepared.backfilledFiles,
+    reapedClaims: prepared.reapedClaims,
+    abandonedClaims: prepared.abandonedClaims,
+    lockAcquired: prepared.lockAcquired,
   }
 }

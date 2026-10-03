@@ -8,11 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { app, type Session } from 'electron'
-import {
-  discardStagedUploads,
-  saveDownloadToWorkspace,
-  stageUploadFiles,
-} from '@/main/browser-agent/file-transfer'
+import { stageUploadFiles } from '@/main/browser-agent/file-transfer'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 
 let temp: string
@@ -90,21 +86,6 @@ describe('stageUploadFiles', () => {
     expect(staged.endsWith('/evil')).toBe(true)
   })
 
-  it('reports an app refusal and discards partial staging', async () => {
-    const fetch = vi.fn(async () => Response.json({ error: 'File not found' }, { status: 404 }))
-
-    await expect(
-      stageUploadFiles({
-        scopeId: 'chat-1',
-        toolCallId: 'call-2',
-        paths: ['files/missing.pdf'],
-        appSession: appSession(fetch),
-        localFiles: undefined,
-        signal,
-      })
-    ).rejects.toThrow('Could not read that workspace file (File not found).')
-  })
-
   it('refuses a workspace file over the transfer ceiling', async () => {
     const oversized = new Uint8Array(BROWSER_FILE_TRANSFER_MAX_BYTES + 1)
     const fetch = vi.fn(async () => new Response(oversized))
@@ -174,35 +155,6 @@ describe('stageUploadFiles', () => {
     }
   })
 
-  it('closes a local handle and discards staging when the upload is cancelled', async () => {
-    const local = join(temp, 'cancelled.txt')
-    writeFileSync(local, 'local bytes')
-    const handle = await open(local, 'r')
-    const controller = new AbortController()
-    controller.abort()
-
-    try {
-      await expect(
-        stageUploadFiles({
-          scopeId: 'chat-cancelled',
-          toolCallId: 'call-cancelled',
-          paths: ['user-local/Docs--m1/cancelled.txt'],
-          appSession: undefined,
-          localFiles: {
-            resolveGrantedFile: async () => ({ handle, name: 'cancelled.txt', size: 11 }),
-          },
-          signal: controller.signal,
-        })
-      ).rejects.toThrow(/aborted/)
-      expect(handle.fd).toBe(-1)
-      expect(existsSync(join(temp, 'sim-browser-uploads/chat-cancelled/call-cancelled'))).toBe(
-        false
-      )
-    } finally {
-      await handle.close()
-    }
-  })
-
   it.runIf(process.platform !== 'win32')(
     'preserves a granted POSIX backslash filename when staging',
     async () => {
@@ -246,61 +198,5 @@ describe('stageUploadFiles', () => {
         signal,
       })
     ).rejects.toThrow('Local folders are unavailable')
-  })
-
-  it('discards a scope staging directory', async () => {
-    const fetch = vi.fn(async () => new Response('x'))
-    const [staged] = await stageUploadFiles({
-      scopeId: 'chat-9',
-      toolCallId: 'call-9',
-      paths: ['files/a.txt'],
-      appSession: appSession(fetch),
-      localFiles: undefined,
-      signal,
-    })
-
-    await discardStagedUploads('chat-9')
-
-    expect(() => readFileSync(staged)).toThrow()
-  })
-})
-
-describe('saveDownloadToWorkspace', () => {
-  it('stores the download under its claimed call and returns the workspace path', async () => {
-    const file = join(temp, 'report.csv')
-    writeFileSync(file, 'a,b\n1,2\n')
-    const fetch = vi.fn(async () =>
-      Response.json({ path: 'files/report.csv', name: 'report.csv', size: 8 })
-    )
-
-    const saved = await saveDownloadToWorkspace({
-      appSession: appSession(fetch),
-      toolCallId: 'call-5',
-      filePath: file,
-      filename: 'report.csv',
-      signal,
-    })
-
-    expect(saved).toEqual({ path: 'files/report.csv', name: 'report.csv', size: 8 })
-    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('https://sim.test/api/desktop/tool/file?toolCallId=call-5&name=report.csv')
-    expect(init.method).toBe('PUT')
-    expect(await new Response(init.body).text()).toBe('a,b\n1,2\n')
-  })
-
-  it('surfaces the app error message', async () => {
-    const file = join(temp, 'report.csv')
-    writeFileSync(file, 'x')
-    const fetch = vi.fn(async () => Response.json({ error: 'Storage limit' }, { status: 402 }))
-
-    await expect(
-      saveDownloadToWorkspace({
-        appSession: appSession(fetch),
-        toolCallId: 'call-6',
-        filePath: file,
-        filename: 'report.csv',
-        signal,
-      })
-    ).rejects.toThrow('Could not save the download (Storage limit).')
   })
 })

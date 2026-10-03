@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { tableQueryRowsV2Tool } from '@/tools/table/query_rows_v2'
 

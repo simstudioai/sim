@@ -26,11 +26,15 @@ import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/eg
 import {
   checkEgressUrl,
   checkResolvedEgress,
+  type EgressValidationOptions,
   validateEgressUrl,
 } from '@/lib/core/security/egress/validate'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { ValidationResult } from '@/lib/core/security/input-validation'
-import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
+import {
+  createPrematureStreamCloseError,
+  nodeReadableToWebStream,
+} from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('InputValidation')
@@ -40,7 +44,13 @@ const logger = createLogger('InputValidation')
  */
 export type AsyncValidationResult =
   | { isValid: true; resolvedIP: string; originalHostname: string; error?: undefined }
-  | { isValid: false; error: string; resolvedIP?: undefined; originalHostname?: undefined }
+  | {
+      isValid: false
+      error: string
+      cause?: unknown
+      resolvedIP?: undefined
+      originalHostname?: undefined
+    }
 
 /**
  * Validates a URL, resolves its DNS, and returns the address to pin.
@@ -59,12 +69,12 @@ export async function validateUrlWithDNS(
   url: string | null | undefined,
   paramName: string,
   profile: EgressProfile,
-  options: { logDetails?: boolean } = {}
+  options: EgressValidationOptions = {}
 ): Promise<AsyncValidationResult> {
   const result = await validateEgressUrl(url, paramName, profile, options)
   return result.isValid
     ? { isValid: true, resolvedIP: result.resolvedIP, originalHostname: result.originalHostname }
-    : { isValid: false, error: result.error }
+    : { isValid: false, error: result.error, cause: result.cause }
 }
 
 /**
@@ -911,7 +921,7 @@ async function undiciRequestAsResponse(
     signal?.addEventListener('abort', onAbort, { once: true })
     body.once('error', (error) => decoder.destroy(error))
     body.once('close', () => {
-      if (!body.readableEnded) decoder.destroy(new Error('Response body closed before completing'))
+      if (!body.readableEnded) decoder.destroy(createPrematureStreamCloseError())
     })
     decoder.once('close', () => {
       signal?.removeEventListener('abort', onAbort)
@@ -1210,10 +1220,13 @@ export async function secureFetchWithPinnedIP(
         }
         validateUrlWithDNS(redirectUrl, 'redirectUrl', options.profile, {
           logDetails: options.logUrlValidationDetails,
+          signal: options.signal,
         })
           .then((validation) => {
             if (!validation.isValid) {
-              settledReject(new Error(`Redirect blocked: ${validation.error}`))
+              settledReject(
+                new Error(`Redirect blocked: ${validation.error}`, { cause: validation.cause })
+              )
               return
             }
             const redirectPolicy = options.redirectPolicy
@@ -1411,13 +1424,12 @@ export async function secureFetchWithPinnedIP(
           })
           nodeRes.once('error', fail)
           nodeRes.once('close', () => {
-            if (!bodySettled) fail(new Error('Response body closed before completing'))
+            if (!bodySettled) fail(createPrematureStreamCloseError())
           })
           if (decoder) {
             res.once('error', (error) => decoder.destroy(error))
             res.once('close', () => {
-              if (!res.readableEnded)
-                decoder.destroy(new Error('Response body closed before completing'))
+              if (!res.readableEnded) decoder.destroy(createPrematureStreamCloseError())
             })
             res.pipe(decoder)
           }
@@ -1514,7 +1526,11 @@ export async function secureFetchWithPinnedIP(
       req.on('error', settledReject)
       req.on('timeout', () => {
         destroyRequest()
-        settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
+        settledReject(
+          Object.assign(new Error(`Request timed out after ${requestOptions.timeout}ms`), {
+            code: 'ETIMEDOUT',
+          })
+        )
       })
       send = () => {
         req.end(options.body)
@@ -1555,9 +1571,10 @@ export async function secureFetchWithValidation(
 ): Promise<SecureFetchResponse> {
   const validation = await validateUrlWithDNS(url, paramName, options.profile, {
     logDetails: options.logUrlValidationDetails,
+    signal: options.signal,
   })
   if (!validation.isValid) {
-    throw new Error(validation.error)
+    throw new Error(validation.error, { cause: validation.cause })
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, options)
 }

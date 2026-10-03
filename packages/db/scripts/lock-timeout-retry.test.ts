@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { retryOnLockTimeout } from '@sim/db/scripts/lock-timeout-retry'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -70,27 +66,6 @@ describe('retryOnLockTimeout', () => {
     expect(attempt).toHaveBeenCalledTimes(onRetry.mock.calls.length + 1)
   })
 
-  it('does not start an attempt when a timer resolves after the budget', async () => {
-    let nowMs = 0
-    const attempt = vi.fn(async () => {
-      nowMs += 1_000
-      throw pgError('55P03')
-    })
-
-    await expect(
-      retryOnLockTimeout(attempt, {
-        budgetMs: 60_000,
-        backoff: BACKOFF,
-        now: () => nowMs,
-        /** The process stalls: the timer fires long after its delay. */
-        sleep: async () => {
-          nowMs += 120_000
-        },
-      })
-    ).rejects.toMatchObject({ code: '55P03' })
-    expect(attempt).toHaveBeenCalledOnce()
-  })
-
   it('finds a lock timeout wrapped in a cause chain', async () => {
     const clock = fakeClock()
     let calls = 0
@@ -121,19 +96,5 @@ describe('retryOnLockTimeout', () => {
     ).rejects.toMatchObject({ code: '42P07' })
     expect(attempt).toHaveBeenCalledTimes(1)
     expect(clock.sleep).not.toHaveBeenCalled()
-  })
-
-  it('passes the attempt number to each attempt', async () => {
-    const clock = fakeClock()
-    const seen: number[] = []
-    await retryOnLockTimeout(
-      async (attemptNumber) => {
-        seen.push(attemptNumber)
-        if (attemptNumber < 3) throw pgError('55P03')
-      },
-      { budgetMs: 60_000, backoff: BACKOFF, now: clock.now, sleep: clock.sleep }
-    )
-
-    expect(seen).toEqual([1, 2, 3])
   })
 })

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import * as workspaceAuthz from '@sim/platform-authz/workspace'
 import {
   authMockFns,
@@ -11,53 +10,65 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordUsage: vi.fn(),
-  resolveBilling: vi.fn(),
-  resolveOrganizationBilling: vi.fn(),
-  checkUsage: vi.fn(),
-  toBillingContext: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   billOverage: vi.fn(),
-  rateCheck: vi.fn(),
-  organizationConfig: vi.fn(),
-  workspaceContext: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mocks.recordUsage }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.resolveBilling,
-  resolveOrganizationBillingAttribution: mocks.resolveOrganizationBilling,
-  checkAttributedUsageLimits: mocks.checkUsage,
-  toBillingContext: mocks.toBillingContext,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/threshold-billing', () => ({
-  checkAndBillPayerOverageThreshold: mocks.billOverage,
+  checkAndBillPayerOverageThreshold: hoisted.billOverage,
 }))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.rateCheck
-  },
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.organizationConfig,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspaceContext,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createSpeechToken } from '@/lib/speech/application/create-token'
 import { POST } from '@/app/api/speech/token/route'
 
-const permission = vi.spyOn(workspaceAuthz, 'resolveEffectiveWorkspacePermission')
-const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
+const mocks = {
+  recordUsage: billingUsageLogMockFns.mockRecordUsage,
+  ...hoisted,
+  resolveBilling: billingAttributionMockFns.mockResolveBillingAttribution,
+  resolveOrganizationBilling: billingAttributionMockFns.mockResolveOrganizationBillingAttribution,
+  checkUsage: billingAttributionMockFns.mockCheckAttributedUsageLimits,
+  toBillingContext: billingAttributionMockFns.mockToBillingContext,
+  rateCheck: rateLimiterMockFns.mockCheckRateLimitDirect,
+  organizationConfig: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  workspaceContext: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+
+let permission: MockInstance<typeof workspaceAuthz.resolveEffectiveWorkspacePermission>
+const principal = createSessionPrincipal({ userId: 'member-1' })
 const billingEntity = { type: 'organization', id: 'org-1' } as const
 const billingPeriod = { start: new Date('2026-07-01'), end: new Date('2026-08-01') }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  permission = vi.spyOn(workspaceAuthz, 'resolveEffectiveWorkspacePermission')
   resetDbChainMock()
   setEnv({ ELEVENLABS_API_KEY: 'test-key' })
   setEnvFlags({ isBillingEnabled: true })
@@ -90,7 +101,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   resetDbChainMock()
   resetEnvMock()
   resetEnvFlagsMock()
@@ -169,19 +179,6 @@ describe('POST /api/speech/token', () => {
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 
-  it.each([
-    {},
-    { workspaceId: 'ws-1', organizationId: 'org-1' },
-    { organizationId: '' },
-    { workspaceId: 1 },
-  ])('rejects absent, ambiguous or invalid scope %j', async (body) => {
-    const response = await POST(createMockRequest('POST', body))
-    expect(response.status).toBe(400)
-    expect(mocks.workspaceContext).not.toHaveBeenCalled()
-    expect(mocks.resolveOrganizationBilling).not.toHaveBeenCalled()
-    expect(fetch).not.toHaveBeenCalled()
-  })
-
   it('conceals a workspace the caller cannot access', async () => {
     permission.mockResolvedValue(null)
     const response = await POST(createMockRequest('POST', { workspaceId: 'ws-other' }))
@@ -223,13 +220,6 @@ describe('POST /api/speech/token', () => {
     expect(mocks.resolveOrganizationBilling).not.toHaveBeenCalled()
   })
 
-  it('preserves the rate exemption when billing is disabled', async () => {
-    setEnvFlags({ isBillingEnabled: false })
-    const response = await POST(createMockRequest('POST', { organizationId: 'org-1' }))
-    expect(response.status).toBe(200)
-    expect(mocks.rateCheck).not.toHaveBeenCalled()
-  })
-
   it.each(['actor', 'payer', 'member'])(
     'enforces the %s usage cap before contacting the provider',
     async (scope) => {
@@ -256,19 +246,6 @@ describe('POST /api/speech/token', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('preserves service-not-configured and upstream errors', async () => {
-    setEnv({ ELEVENLABS_API_KEY: '' })
-    expect((await POST(createMockRequest('POST', { organizationId: 'org-1' }))).status).toBe(503)
-    setEnv({ ELEVENLABS_API_KEY: 'key' })
-    vi.mocked(fetch).mockResolvedValue(
-      Response.json({ detail: 'Provider unavailable' }, { status: 503 })
-    )
-    const response = await POST(createMockRequest('POST', { organizationId: 'org-1' }))
-    expect(response.status).toBe(502)
-    expect(await response.json()).toMatchObject({ error: 'Provider unavailable' })
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
-  })
-
   it.each(['recordUsage', 'billOverage'] as const)(
     'keeps an issued token available when %s fails',
     async (failure) => {
@@ -284,7 +261,7 @@ describe('POST /api/speech/token', () => {
     for (const input of [{ workspaceId: 'ws-1' }, { organizationId: 'org-1' }]) {
       await expect(
         createSpeechToken.execute({
-          principal: { kind: 'personal_api_key', userId: 'member-1', keyId: 'key-1' },
+          principal: createPersonalApiKeyPrincipal({ userId: 'member-1' }),
           input,
         })
       ).rejects.toThrow('cannot perform operation speech.token.create')

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   isUserCredentialPrincipal,
   type OAuthAccessTokenPrincipal,

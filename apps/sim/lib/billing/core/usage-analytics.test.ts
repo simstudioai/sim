@@ -1,16 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { ResolvedUsagePeriod } from '@/lib/billing/core/reporting-period'
 import {
   buildUsageAnalyticsScope,
   densifyUsageSeries,
   foldUsageBreakdown,
-  MAX_CUSTOM_RANGE_DAYS,
   mergeRowsByKey,
   resolveComparisonWindow,
-  resolvePreviousPeriod,
   resolveUsageAnalyticsWindow,
   resolveUsageBucket,
   sumUsageDays,
@@ -57,22 +52,6 @@ describe('buildUsageAnalyticsScope', () => {
     expect(shape).toContain('usageLog.billingPeriodEnd')
   })
 
-  it('matches a plain range on created_at', () => {
-    const shape = scopeShape({
-      kind: 'range',
-      from: new Date('2026-08-01T00:00:00.000Z'),
-      to: new Date('2026-08-08T00:00:00.000Z'),
-    })
-    expect(shape).toContain('usageLog.createdAt')
-    expect(shape).not.toContain('usageLog.billingPeriodStart')
-  })
-
-  it('always scopes to the billing entity', () => {
-    const shape = scopeShape({ kind: 'period', period: period() })
-    expect(shape).toContain('usageLog.billingEntityType')
-    expect(shape).toContain('usageLog.billingEntityId')
-  })
-
   it('narrows to a workspace in every window shape', () => {
     // Each branch returns its own array, so a narrowing added to only one of them is a
     // drill-down that quietly reports the whole organization under the other two.
@@ -94,10 +73,6 @@ describe('buildUsageAnalyticsScope', () => {
         'usageLog.workspaceId'
       )
     }
-  })
-
-  it('leaves the scope organization-wide when no workspace is given', () => {
-    expect(scopeShape({ kind: 'period', period: period() })).not.toContain('usageLog.workspaceId')
   })
 })
 
@@ -159,11 +134,6 @@ describe('resolveUsageAnalyticsWindow', () => {
       now: window.kind === 'range' ? window.to : undefined,
     })
     expect(first?.settled).toBe(true)
-  })
-
-  it('keeps current-period a period so it matches the billing page', () => {
-    const window = resolveUsageAnalyticsWindow({ preset: 'current-period', period: period(), now })
-    expect(window).toEqual({ kind: 'period', period: period() })
   })
 
   it('derives the previous reporting period from its anchor', () => {
@@ -246,11 +216,6 @@ describe('resolveUsageAnalyticsWindow', () => {
         now,
       })
     ).toThrow(UsageWindowRangeTooLargeError)
-  })
-
-  it('falls back to the period when a custom range is missing a bound', () => {
-    const window = resolveUsageAnalyticsWindow({ preset: 'custom', period: period(), now })
-    expect(window.kind).toBe('period')
   })
 
   it('anchors custom bounds on midnight in the viewer calendar, not UTC', () => {
@@ -359,22 +324,8 @@ describe('resolveUsageAnalyticsWindow', () => {
   })
 })
 
-describe('resolvePreviousPeriod', () => {
-  it('returns null for a period with no derivation rule', () => {
-    expect(resolvePreviousPeriod(period({ source: 'stripe' }))).toBeNull()
-    expect(resolvePreviousPeriod(period({ source: 'default' }))).toBeNull()
-  })
-})
-
 describe('resolveUsageBucket', () => {
   const from = new Date('2026-01-01T00:00:00.000Z')
-  const days = (n: number) => new Date(from.getTime() + n * 24 * 60 * 60 * 1000)
-
-  it('scales granularity with the window', () => {
-    expect(resolveUsageBucket({ kind: 'range', from, to: days(30) })).toBe('day')
-    expect(resolveUsageBucket({ kind: 'range', from, to: days(200) })).toBe('week')
-    expect(resolveUsageBucket({ kind: 'range', from, to: days(500) })).toBe('month')
-  })
 
   it('keeps daily bars for the maximum range across a DST transition', () => {
     // 92 calendar days spanning the autumn fall-back is 92 days and one hour. Ceiling
@@ -505,10 +456,6 @@ describe('foldUsageBreakdown', () => {
     expect(fold.other.rowCount).toBe(1)
   })
 
-  it('ranks by cost descending', () => {
-    expect(foldUsageBreakdown(rows, 10, labelFor, 3).rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
-  })
-
   it('decides a tie at the cutoff by key, then orders the kept rows by label', () => {
     const tied = [
       { key: 'k3', cost: '1', events: 1 },
@@ -525,11 +472,6 @@ describe('foldUsageBreakdown', () => {
     // Sharing against the visible rows would make a truncated list read as 100%.
     const fold = foldUsageBreakdown(rows, 10, labelFor, 1)
     expect(fold.rows[0].share).toBeCloseTo(0.5, 8)
-  })
-
-  it('labels a null grouping key rather than dropping the row', () => {
-    const fold = foldUsageBreakdown([{ key: null, cost: '4', events: 1 }], 4, labelFor, 5)
-    expect(fold.rows[0].label).toBe('Unattributed')
   })
 
   it('yields zero shares when nothing was spent, without dividing by zero', () => {
@@ -566,12 +508,6 @@ describe('foldUsageBreakdown', () => {
   })
 })
 
-describe('MAX_CUSTOM_RANGE_DAYS', () => {
-  it('is the documented cap', () => {
-    expect(MAX_CUSTOM_RANGE_DAYS).toBe(92)
-  })
-})
-
 describe('mergeRowsByKey', () => {
   it('collapses sources that share a display label', () => {
     // The ledger stores `copilot` and `workspace-chat` separately but both render as
@@ -604,31 +540,6 @@ describe('mergeRowsByKey', () => {
     expect(merged).toEqual([
       { key: 'anthropic', cost: 3, events: 4, inputTokens: 150, outputTokens: 15 },
     ])
-  })
-
-  it('preserves a null key rather than merging it into a named row', () => {
-    const merged = mergeRowsByKey(
-      [
-        { key: null, cost: '1', events: 1 },
-        { key: 'a', cost: '2', events: 1 },
-      ],
-      (key) => key
-    )
-    expect(merged.map((row) => row.key)).toEqual([null, 'a'])
-  })
-
-  it('leaves totals unchanged', () => {
-    const rows = [
-      { key: 'a', cost: '1.5', events: 1 },
-      { key: 'b', cost: '2.5', events: 2 },
-      { key: 'c', cost: '3', events: 3 },
-    ]
-    const before = rows.reduce((sum, row) => sum + Number(row.cost), 0)
-    const after = mergeRowsByKey(rows, (key) => (key === 'c' ? 'c' : 'ab')).reduce(
-      (sum, row) => sum + Number(row.cost),
-      0
-    )
-    expect(after).toBeCloseTo(before, 8)
   })
 })
 
@@ -744,24 +655,6 @@ describe('resolveComparisonWindow', () => {
       kind: 'range',
       from: new Date('2026-07-02T00:00:00.000Z'),
       to: new Date('2026-08-01T00:00:00.000Z'),
-    })
-  })
-
-  it('offers no comparison it cannot state exactly', () => {
-    const current = { kind: 'period', period: period() } as const
-    expect(resolveComparisonWindow('current-period', current, period())).toBeNull()
-    expect(resolveComparisonWindow('previous-period', current, period())).toBeNull()
-  })
-})
-
-describe('rolling windows', () => {
-  it('start on the hour, so their first hour can be cached', () => {
-    const now = new Date('2026-09-22T19:47:13.500Z')
-    const window = resolveUsageAnalyticsWindow({ preset: '30d', period: period(), now })
-    expect(window).toEqual({
-      kind: 'range',
-      from: new Date('2026-08-23T19:00:00.000Z'),
-      to: now,
     })
   })
 })

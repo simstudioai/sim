@@ -4,8 +4,7 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
-import type { SessionFileIdentity } from '@/lib/execution/remote-sandbox/session-file-observer'
-import { isSessionFileProvenanceClean } from '@/lib/execution/remote-sandbox/session-file-provenance'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
@@ -93,15 +92,11 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
       sessionKey,
       signal: input.signal,
     })
-    let machine: SessionFileIdentity | undefined
     const snapshot = await openSessionFileSnapshot(
       sessionKey,
       path,
       input.signal,
-      (identity, stream) => {
-        machine = identity
-        return provenance.observeUpload(identity, stream)
-      },
+      provenance.observeUpload,
       { allowedRoots: ['/home/user', '/tmp'], maxBytes }
     )
     try {
@@ -116,10 +111,9 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
       })
       input.signal?.throwIfAborted()
       const receipt = provenance.uploadProvenance()
-      const exactEmpty = receipt.status === 'exact' && receipt.entries.length === 0
       if (
-        (receipt.status === 'exact' && receipt.entries.length > 0) ||
-        (!exactEmpty && (!machine || !(await isSessionFileProvenanceClean(sessionKey, machine))))
+        receipt.status === 'unknown' ||
+        (receipt.status === 'exact' && receipt.entries.length > 0)
       ) {
         throw new OrchestrationError(
           'forbidden',
@@ -127,6 +121,14 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
         )
       }
       input.signal?.throwIfAborted()
+      if (receipt.status === 'unrecorded') {
+        reportDurableSecretProvenanceUnrecorded({
+          surface: 'workspace-file',
+          workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
+          actorUserId: context.userId,
+        })
+      }
       return { buffer, path, name: posix.basename(path) }
     } finally {
       await snapshot.dispose()

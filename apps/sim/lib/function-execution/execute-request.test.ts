@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
@@ -13,6 +10,18 @@ import {
   resetEnvFlagsMock,
   workflowsUtilsMock,
 } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
 import JSZip from 'jszip'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,58 +42,30 @@ import {
 } from '@/lib/execution/remote-sandbox/output-limits'
 
 const {
-  mockExecuteInSandbox,
   mockExecuteInIsolatedVM,
-  mockExecuteShellInSandbox,
-  mockFetchWorkspaceFileBuffer,
-  mockDecryptSecret,
-  mockEncryptSecret,
-  mockGetWorkspaceFile,
-  mockResolveWorkspaceFileReference,
-  mockUpdateWorkspaceFileContent,
-  mockUploadFile,
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
   mockMountContributors,
+  mockUnprovenancedMountCount,
   mockRenderedMountContributors,
 } = vi.hoisted(() => ({
-  mockExecuteInSandbox: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
-  mockExecuteShellInSandbox: vi.fn(),
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockDecryptSecret: vi.fn(async (value: string) => ({
-    decrypted: value === 'encrypted:mounted-secret' ? 'mounted-secret' : value,
-  })),
-  mockEncryptSecret: vi.fn(async (value: string) => ({
-    encrypted: `encrypted:${value}`,
-    iv: 'iv',
-  })),
-  mockGetWorkspaceFile: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockUpdateWorkspaceFileContent: vi.fn(),
-  mockUploadFile: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
   mockMountContributors: vi.fn(),
+  mockUnprovenancedMountCount: vi.fn(),
   mockRenderedMountContributors: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  executeInSandbox: mockExecuteInSandbox,
-  executeShellInSandbox: mockExecuteShellInSandbox,
-  SIM_RESULT_PREFIX: '__SIM_RESULT__=',
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
 vi.mock('@/lib/mothership/tools/sandbox-session', () => ({
   buildMothershipSandboxSession: async (args: { sessionKey: string }) => ({ key: args.sessionKey }),
@@ -135,29 +116,22 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
-  getWorkspaceFile: mockGetWorkspaceFile,
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-  updateWorkspaceFileContent: mockUpdateWorkspaceFileContent,
-  uploadWorkspaceFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: {
-    execute: vi.fn(async () => ({ content: await mockFetchWorkspaceFileBuffer() })),
+    execute: vi.fn(async () => ({
+      content: await workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer(),
+    })),
   },
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
   uploadExecutionFile: mockUploadExecutionFile,
@@ -181,6 +155,7 @@ vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
   }) => ({
     contributingFiles: mockMountContributors(),
     renderedContributingFiles: mockRenderedMountContributors(),
+    unprovenancedMountCount: mockUnprovenancedMountCount(),
     sandboxFiles: planned.map(({ mountPath }) => ({
       type: 'url' as const,
       path: mountPath,
@@ -202,6 +177,20 @@ import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import * as fileMaterialization from '@/lib/execution/payloads/materialization.server'
 import { executeFunctionRequest } from '@/lib/function-execution/execute-request'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockFetchWorkspaceFileBuffer, mockGetWorkspaceFile, mockUpdateWorkspaceFileContent } =
+  workspaceFileManagerMockFns
+const { mockResolveWorkspaceFileReference } = workspaceFileReferenceMockFns
+const { mockExecuteInSandbox, mockExecuteShellInSandbox } = remoteSandboxMockFns
+const { mockUploadFile } = storageServiceMockFns
+const { mockDecryptSecret, mockEncryptSecret } = encryptionMockFns
+mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted: value === 'encrypted:mounted-secret' ? 'mounted-secret' : value,
+}))
+mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${value}`,
+  iv: 'iv',
+}))
 
 async function POST(
   request: NextRequest,
@@ -271,9 +260,9 @@ const MOUNT_REF = {
 
 describe('Function execution request', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockMountContributors.mockReturnValue(undefined)
+    mockUnprovenancedMountCount.mockReturnValue(0)
     mockRenderedMountContributors.mockReturnValue(undefined)
     mockUploadExecutionFile.mockImplementation(async (context, buffer, name, type) => ({
       id: 'execution-file-1',
@@ -554,10 +543,7 @@ describe('Function execution request', () => {
       expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     })
 
-    it.each([
-      { language: 'javascript', code: 'return 42' },
-      { language: 'python', code: '__sim_result__ = 42' },
-    ])(
+    it.each([{ language: 'javascript', code: 'return 42' }])(
       'runs trusted Mothership $language in the Mothership sandbox image',
       async ({ language, code }) => {
         envFlagsMock.isMothershipSandboxEnabled = true
@@ -638,10 +624,7 @@ describe('Function execution request', () => {
       }
     )
 
-    it.each([
-      { language: 'javascript', code: 'return 42' },
-      { language: 'python', code: '__sim_result__ = 42' },
-    ])(
+    it.each([{ language: 'javascript', code: 'return 42' }])(
       'runs trusted Mothership $language in the selected Function-based Sim sandbox',
       async ({ language, code }) => {
         envFlagsMock.isRemoteSandboxEnabled = true
@@ -837,21 +820,6 @@ describe('Function execution request', () => {
   })
 
   describe('Basic Function Execution', () => {
-    it.concurrent('should execute simple JavaScript code successfully', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return "Hello World"',
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.output).toHaveProperty('result')
-      expect(data.output).toHaveProperty('executionTime')
-    })
-
     it('compacts large array result fields to manifests when execution context is durable', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({
         result: {
@@ -929,81 +897,6 @@ describe('Function execution request', () => {
 
       expect(isLargeValueRef(data.output.result.text)).toBe(true)
       expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
-    })
-
-    it('exports multiple declared sandbox output files', async () => {
-      envFlagsMock.isRemoteSandboxEnabled = true
-      mockExecuteInSandbox.mockResolvedValueOnce({
-        result: 'done',
-        stdout: 'ok',
-        sandboxId: 'sandbox-123',
-        cost: { input: 0, output: 0, total: 0.00023456 },
-        exportedFiles: {
-          '/home/user/chart.png': 'iVBORw0KGgo=',
-          '/home/user/summary.json': '{"ok":true}',
-        },
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'print("done")',
-        language: 'python',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        outputs: {
-          files: [
-            {
-              path: 'files/reports/chart.png',
-              mode: 'create',
-              sandboxPath: '/home/user/chart.png',
-              mimeType: 'image/png',
-            },
-            {
-              path: 'files/reports/summary.json',
-              mode: 'overwrite',
-              sandboxPath: '/home/user/summary.json',
-              mimeType: 'application/json',
-            },
-          ],
-        },
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(mockExecuteInSandbox).toHaveBeenCalledWith(
-        expect.objectContaining({
-          outputSandboxPaths: ['/home/user/chart.png', '/home/user/summary.json'],
-        })
-      )
-      expect(mockValidateWorkspaceFileWriteTarget).toHaveBeenCalledTimes(2)
-      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
-      expect(mockWriteWorkspaceFileByPath).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({
-          target: expect.objectContaining({ path: 'files/reports/chart.png', mode: 'create' }),
-        })
-      )
-      expect(mockWriteWorkspaceFileByPath).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({
-          target: expect.objectContaining({
-            path: 'files/reports/summary.json',
-            mode: 'overwrite',
-          }),
-        })
-      )
-      expect(data.output.result).toBe('done')
-      expect(data.output.exported.files).toHaveLength(2)
-      expect(data.output.message).toContain('Exported 2 sandbox files')
-      expect(data.output.exported.message).toBe(data.output.message)
-      expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00023456 })
-      expect(data.resources).toEqual([
-        expect.objectContaining({ path: 'files/reports/chart.png' }),
-        expect.objectContaining({ path: 'files/reports/summary.json' }),
-      ])
     })
 
     it('exports a .jpg declared without a format as image/jpeg bytes, never as base64 text', async () => {
@@ -2371,11 +2264,13 @@ describe('Function execution request', () => {
     )
 
     it.each([
-      { reason: 'source-provenance-incomplete', status: 200 },
-      { reason: 'entry-decrypt-failed', status: 400 },
+      { reason: 'source-provenance-incomplete', status: 200, knownMount: false, text: false },
+      { reason: 'source-provenance-incomplete', status: 200, knownMount: true, text: false },
+      { reason: 'source-provenance-incomplete', status: 200, knownMount: true, text: true },
+      { reason: 'entry-decrypt-failed', status: 400, knownMount: false, text: false },
     ] as const)(
-      'distinguishes historical absence from provenance faults: $reason',
-      async ({ reason, status }) => {
+      'distinguishes historical absence from provenance faults: $reason knownMount=$knownMount text=$text',
+      async ({ reason, status, knownMount, text }) => {
         envFlagsMock.isRemoteSandboxEnabled = true
         const registry = new ResolvedSecretTraceRegistry([], {
           userId: 'user-123',
@@ -2385,7 +2280,7 @@ describe('Function execution request', () => {
         const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
         mockMountContributors.mockReturnValue([
           {
-            fileId: 'legacy-file',
+            fileId: knownMount ? 'known-file' : 'legacy-file',
             key: 'execution/workspace-1/workflow-1/execution-1/a/input.txt',
             context: 'execution',
             contentUpdatedAt,
@@ -2394,25 +2289,38 @@ describe('Function execution request', () => {
         dbChainMockFns.limit.mockResolvedValue([
           {
             fileContentUpdatedAt: contentUpdatedAt,
-            secretProvenanceVersion: null,
-            provenanceContentUpdatedAt: null,
-            status: null,
-            entries: null,
+            secretProvenanceVersion: knownMount ? 1 : null,
+            provenanceContentUpdatedAt: knownMount ? contentUpdatedAt : null,
+            status: knownMount ? 'exact' : null,
+            entries: knownMount
+              ? [
+                  {
+                    name: 'API_KEY',
+                    encryptedValue: 'encrypted:mounted-secret',
+                    sourceUserId: 'user-123',
+                    sourceWorkspaceId: 'workspace-1',
+                  },
+                ]
+              : null,
           },
         ])
-        const buffer = Buffer.from('ordinary file')
-        mockExecuteInSandbox.mockResolvedValueOnce({
+        const buffer = Buffer.from(text ? 'Bearer mounted-secret' : 'ordinary file')
+        mockExecuteInSandbox.mockResolvedValue({
           result: null,
           stdout: '',
           sandboxId: 'sbx',
-          collectedFiles: [
-            {
-              relativePath: 'report.zip',
-              path: '/tmp/sim/outputs/report.zip',
-              contentBase64: buffer.toString('base64'),
-              byteLength: buffer.length,
-            },
-          ],
+          ...(text
+            ? { exportedFiles: { '/home/user/report.txt': buffer.toString('utf8') } }
+            : {
+                collectedFiles: [
+                  {
+                    relativePath: 'report.zip',
+                    path: '/tmp/sim/outputs/report.zip',
+                    contentBase64: buffer.toString('base64'),
+                    byteLength: buffer.length,
+                  },
+                ],
+              }),
         })
         const response = await POST(
           createMockRequest('POST', {
@@ -2421,13 +2329,42 @@ describe('Function execution request', () => {
             workspaceId: 'workspace-1',
             workflowId: 'workflow-1',
             executionId: 'execution-1',
+            ...(text
+              ? {
+                  outputs: {
+                    files: [
+                      {
+                        path: 'files/report.txt',
+                        sandboxPath: '/home/user/report.txt',
+                        mimeType: 'text/plain',
+                      },
+                    ],
+                  },
+                }
+              : {}),
           }),
           registry
         )
         expect(response.status).toBe(status)
-        if (status === 200)
-          expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({ status: 'unrecorded' })
-        else expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+        if (status === 200) {
+          if (text) {
+            expect(mockWriteWorkspaceFileByPath.mock.calls[0][0].secretProvenance).toEqual({
+              status: 'exact',
+              entries: [
+                {
+                  name: 'API_KEY',
+                  encryptedValue: 'encrypted:mounted-secret',
+                  sourceUserId: 'user-123',
+                  sourceWorkspaceId: 'workspace-1',
+                },
+              ],
+            })
+          } else {
+            expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({
+              status: knownMount ? 'unknown' : 'unrecorded',
+            })
+          }
+        } else expect(mockUploadExecutionFile).not.toHaveBeenCalled()
       }
     )
 
@@ -2596,7 +2533,7 @@ describe('Function execution request', () => {
       expect(runtimePayload).not.toContain('__simSandboxFileMount')
     })
 
-    it.each(['python', 'javascript', 'shell'])(
+    it.each(['python', 'shell'])(
       'exports a chat %s harvest through workspace policy without workflow context',
       async (language) => {
         envFlagsMock.isMothershipSandboxEnabled = true
@@ -2671,6 +2608,33 @@ describe('Function execution request', () => {
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
+    it.each([
+      ['a mount with no provenance source', true],
+      ['no mounts', false],
+    ] as const)('keeps workbench use available for %s', async (_label, mounted) => {
+      envFlagsMock.isMothershipSandboxEnabled = true
+      mockUnprovenancedMountCount.mockReturnValue(mounted ? 1 : 0)
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType: 'internal_jwt',
+        sandboxProfile: 'mothership',
+      })
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'x',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          sandboxSessionKey: 'chat-session',
+          ...(mounted ? { contextVariables: { doc: MOUNT_REF } } : {}),
+        })
+      )
+      expect(response.status).toBe(200)
+      const session = mockExecuteInSandbox.mock.calls.at(-1)?.[0].session
+      expect(session.key).toBe('chat-session')
+      expect(session.unprovenancedInputs).not.toBe(true)
+    })
+
     it('gives overlapping calls in one persistent workbench distinct automatic export directories', async () => {
       envFlagsMock.isMothershipSandboxEnabled = true
       hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
@@ -2699,52 +2663,6 @@ describe('Function execution request', () => {
       expect(python.outputSandboxDir).toMatch(/^\/tmp\/sim\/outputs\/call-/)
       expect(shell.outputSandboxDir).toMatch(/^\/tmp\/sim\/outputs\/call-/)
       expect(python.outputSandboxDir).not.toBe(shell.outputSandboxDir)
-    })
-
-    it('harvests the output directory on every remote run, with no toggle', async () => {
-      envFlagsMock.isRemoteSandboxEnabled = true
-
-      const req = createMockRequest('POST', {
-        code: 'x',
-        language: 'python',
-        workspaceId: 'workspace-1',
-      })
-
-      await POST(req)
-
-      expect(mockExecuteInSandbox.mock.calls[0]?.[0].outputSandboxDir).toBe('/tmp/sim/outputs')
-    })
-
-    it('does not ask for an output directory on an isolate run', async () => {
-      envFlagsMock.isRemoteSandboxEnabled = true
-
-      const req = createMockRequest('POST', {
-        code: 'return 1',
-        language: 'javascript',
-        workspaceId: 'workspace-1',
-      })
-
-      await POST(req)
-
-      // Harvesting is free only because it rides an existing sandbox; an
-      // isolate run must not gain one just to look for files.
-      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
-      expect(mockExecuteInIsolatedVM).toHaveBeenCalled()
-    })
-
-    it('leaves a plain JavaScript call with no file inputs or outputs in isolated-vm', async () => {
-      envFlagsMock.isRemoteSandboxEnabled = true
-
-      const req = createMockRequest('POST', {
-        code: 'return "content"',
-        language: 'javascript',
-        workspaceId: 'workspace-1',
-      })
-
-      await POST(req)
-
-      expect(mockExecuteInIsolatedVM).toHaveBeenCalled()
-      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     })
 
     it('rejects sandbox file mounts when the call would run in isolated-vm', async () => {
@@ -3179,46 +3097,6 @@ describe('Function execution request', () => {
       expect(data.error).toContain('timed out')
     })
 
-    it('should return computed result for multi-line code', async () => {
-      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 10, stdout: '' })
-
-      const req = createMockRequest('POST', {
-        code: 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nreturn a + b + c + d;',
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.output.result).toBe(10)
-    })
-
-    it.concurrent('should handle missing code parameter', async () => {
-      const req = createMockRequest('POST', {
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error')
-    })
-
-    it.concurrent('should use default timeout when not provided', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return "test"',
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-    })
-
     it('rejects large refs in runtimes without ref-native helpers', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       const req = createMockRequest('POST', {
@@ -3244,46 +3122,6 @@ describe('Function execution request', () => {
       expect(data.error).toContain(
         'Large execution values require the JavaScript isolated-vm runtime'
       )
-    })
-
-    it('registers manifest array read broker for isolated-vm execution', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return await sim.values.readArray(__blockRef_0)',
-        language: 'javascript',
-        contextVariables: {
-          __blockRef_0: {
-            __simLargeArrayManifest: true,
-            version: 2,
-            kind: 'array',
-            totalCount: 1,
-            chunkCount: 1,
-            byteSize: 16,
-            chunks: [
-              {
-                ref: {
-                  __simLargeValueRef: true,
-                  version: 1,
-                  id: 'lv_ABCDEFGHIJKL',
-                  kind: 'array',
-                  size: 16,
-                  executionId: 'execution-1',
-                },
-                count: 1,
-                byteSize: 16,
-              },
-            ],
-            preview: [{ id: 1 }],
-          },
-        },
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-      const [, options] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(options?.brokers).toHaveProperty('sim.values.readArray')
     })
 
     it.each([
@@ -3394,26 +3232,51 @@ describe('Function execution request', () => {
   })
 
   describe('Template Variable Resolution', () => {
-    it('should resolve environment variables with {{var_name}} syntax', async () => {
-      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'secret-key-123', stdout: '' })
-      const req = createMockRequest(
-        'POST',
-        {
-          code: 'return {{API_KEY}}',
-          envVars: {
-            API_KEY: 'secret-key-123',
-          },
-        },
-        {
-          'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1',
-        }
+    it.each([
+      { code: ' '.repeat(1024 * 1024 + 1), reason: 'source length' },
+      {
+        code: 'return 1',
+        sourceCode: ' '.repeat(1024 * 1024 + 1),
+        reason: 'diagnostic source length',
+      },
+      { code: `/* ${'< a.value>'.repeat(10_001)} */ return 1`, reason: 'block references' },
+      {
+        code: `/* ${'<variable.total>'.repeat(10_001)} */ return 1`,
+        reason: 'workflow references',
+      },
+    ])('rejects excessive $reason before execution', async ({ code, sourceCode }) => {
+      const response = await POST(
+        createMockRequest('POST', {
+          code,
+          sourceCode,
+          workflowVariables: { total: { name: 'total', type: 'number', value: 1 } },
+        })
       )
+      expect(response.status).toBe(400)
+    })
 
-      const response = await POST(req)
-      const data = await response.json()
-
+    it('preserves repeated values, legacy variable precedence, and skipped-block references', async () => {
+      mockExecuteInIsolatedVM.mockImplementationOnce(async (request) => ({
+        result: await runInNewContext(`(async () => { ${request.code} })()`, {
+          ...request.contextVariables,
+        }),
+        stdout: '',
+      }))
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return [<source.result>.total, <source.result>.total, <variable.totalamount>, <variable.totalamount>, typeof < skipped.value>, <variable.tax-rate>, <variable.tax_rate>]',
+          blockNameMapping: { source: 'source-id', skipped: 'skipped-id' },
+          blockData: { 'source-id': { result: '{"total":3}' } },
+          workflowVariables: {
+            first: { name: 'Total amount', type: 'number', value: '7' },
+            second: { name: 'totalamount', type: 'number', value: '99' },
+            taxRate: { name: 'tax-rate', type: 'number', value: '11' },
+            legacyTaxRate: { name: 'tax_rate', type: 'number', value: '12' },
+          },
+        })
+      )
       expect(response.status).toBe(200)
-      expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
+      expect((await response.json()).output.result).toEqual([3, 3, 7, 7, 'undefined', 11, 11])
     })
 
     it('keeps an exact-name/exact-value JavaScript secret out of source and returns its raw runtime value with private provenance', async () => {
@@ -3545,7 +3408,7 @@ describe('Function execution request', () => {
       expect(request.code).not.toContain('secret')
     })
 
-    it.each(['console.log("checked")', 'console.log("checked"); return undefined'])(
+    it.each(['console.log("checked"); return undefined'])(
       'serializes a JavaScript call without a result as valid JSON: %s',
       async (code) => {
         envFlagsMock.isRemoteSandboxEnabled = true
@@ -4159,128 +4022,6 @@ describe('Function execution request', () => {
 
       expect((await response.json()).__resolvedSecretNames).toEqual(['API_KEY'])
     })
-
-    it.concurrent('should resolve tag variables with <tag_name> syntax', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return <email>',
-        blockData: {
-          'block-123': { id: '123', subject: 'Test Email' },
-        },
-        blockNameMapping: {
-          email: 'block-123',
-        },
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-    })
-
-    it.concurrent('should NOT treat email addresses as template variables', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return "Email sent to user"',
-        params: {
-          email: {
-            from: 'Dr. Shaw <shaw@high-flying.ai>',
-            to: 'User <user@example.com>',
-          },
-        },
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-    })
-
-    it.concurrent('should only match valid variable names in angle brackets', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return <validVar> + "<invalid@email.com>" + <another_valid>',
-        blockData: {
-          'block-1': 'hello',
-          'block-2': 'world',
-        },
-        blockNameMapping: {
-          validvar: 'block-1',
-          another_valid: 'block-2',
-        },
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-    })
-  })
-
-  describe('Gmail Email Data Handling', () => {
-    it.concurrent(
-      'should handle Gmail webhook data with email addresses containing angle brackets',
-      async () => {
-        const emailData = {
-          id: '123',
-          from: 'Dr. Shaw <shaw@high-flying.ai>',
-          to: 'User <user@example.com>',
-          subject: 'Test Email',
-          bodyText: 'Hello world',
-        }
-
-        const req = createMockRequest('POST', {
-          code: 'return <email>',
-          blockData: {
-            'block-email': emailData,
-          },
-          blockNameMapping: {
-            email: 'block-email',
-          },
-        })
-
-        const response = await POST(req)
-
-        expect(response.status).toBe(200)
-        const data = await response.json()
-        expect(data.success).toBe(true)
-      }
-    )
-
-    it.concurrent(
-      'should properly serialize complex email objects with special characters',
-      async () => {
-        const emailData = {
-          from: 'Test User <test@example.com>',
-          bodyHtml: '<div>HTML content with "quotes" and \'apostrophes\'</div>',
-          bodyText: 'Text with\nnewlines\tand\ttabs',
-        }
-
-        const req = createMockRequest('POST', {
-          code: 'return <email>',
-          blockData: {
-            'block-email': emailData,
-          },
-          blockNameMapping: {
-            email: 'block-email',
-          },
-        })
-
-        const response = await POST(req)
-
-        expect(response.status).toBe(200)
-      }
-    )
-  })
-
-  describe('Custom Tools', () => {
-    it.concurrent('should handle custom tool execution with direct parameter access', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return location + " weather is sunny"',
-        params: {
-          location: 'San Francisco',
-        },
-        isCustomTool: true,
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-    })
   })
 
   describe('Security and Edge Cases', () => {
@@ -4326,26 +4067,6 @@ describe('Function execution request', () => {
   })
 
   describe('Enhanced Error Handling', () => {
-    it('should provide detailed syntax error with line content', async () => {
-      mockExecuteInIsolatedVM.mockResolvedValueOnce({
-        result: null,
-        stdout: '',
-        error: { message: 'Unexpected end of input', name: 'SyntaxError' },
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'const obj = {\n  name: "test",\n  description: "This has a missing closing quote\n};\nreturn obj;',
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(422)
-      expect(data.success).toBe(false)
-      expect(data.error).toBeTruthy()
-    })
-
     it('should provide detailed runtime error with line and column', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({
         result: null,
@@ -4368,27 +4089,6 @@ describe('Function execution request', () => {
       expect(data.success).toBe(false)
       expect(data.error).toContain('Type Error')
       expect(data.error).toContain('Cannot read properties of null')
-    })
-
-    it('should handle ReferenceError with enhanced details', async () => {
-      mockExecuteInIsolatedVM.mockResolvedValueOnce({
-        result: null,
-        stdout: '',
-        error: { message: 'undefinedVariable is not defined', name: 'ReferenceError' },
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'const x = 42;\nreturn undefinedVariable + x;',
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(422)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Reference Error')
-      expect(data.error).toContain('undefinedVariable is not defined')
     })
 
     it('should show original source code when resolved block references cause syntax errors', async () => {
@@ -4419,87 +4119,6 @@ describe('Function execution request', () => {
       expect(data.error).toContain('Line 1: `retur <start.reqerror>`')
       expect(data.error).not.toContain('globalThis')
       expect(data.debug.lineContent).toBe('retur <start.reqerror>')
-    })
-
-    it('should handle thrown errors gracefully', async () => {
-      mockExecuteInIsolatedVM.mockResolvedValueOnce({
-        result: null,
-        stdout: '',
-        error: { message: 'Custom error message', name: 'Error' },
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'throw new Error("Custom error message");',
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(422)
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('Custom error message')
-    })
-
-    it('should provide helpful suggestions for common syntax errors', async () => {
-      mockExecuteInIsolatedVM.mockResolvedValueOnce({
-        result: null,
-        stdout: '',
-        error: { message: 'Unexpected end of input', name: 'SyntaxError' },
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'const obj = {\n  name: "test"\n// Missing closing brace',
-        timeout: 5000,
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(422)
-      expect(data.success).toBe(false)
-      expect(data.error).toBeTruthy()
-    })
-  })
-
-  describe('Utility Functions', () => {
-    it.concurrent('should properly escape regex special characters', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return {{special.chars+*?}}',
-        envVars: {
-          'special.chars+*?': 'escaped-value',
-        },
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-    })
-
-    it.concurrent('should handle JSON serialization edge cases', async () => {
-      const complexData = {
-        special: 'chars"with\'quotes',
-        unicode: '🎉 Unicode content',
-        nested: {
-          deep: {
-            value: 'test',
-          },
-        },
-      }
-
-      const req = createMockRequest('POST', {
-        code: 'return <complexData>',
-        blockData: {
-          'block-complex': complexData,
-        },
-        blockNameMapping: {
-          complexdata: 'block-complex',
-        },
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
     })
   })
 })

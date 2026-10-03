@@ -1,6 +1,13 @@
 'use client'
 
-import { chipVariants, cn, DropdownMenuItem, OverflowText } from '@sim/emcn'
+import {
+  chipVariants,
+  cn,
+  DropdownMenuItem,
+  OverflowText,
+  RowActions,
+  rowActionsGroupClass,
+} from '@sim/emcn'
 import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { useOrganizationChatActions } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-chat-actions'
@@ -8,7 +15,6 @@ import {
   ChatNavigationLink,
   CollapsedChatFlyoutItem,
   CollapsedSidebarMenu,
-  SidebarRowActions,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
@@ -23,7 +29,9 @@ import {
 interface ChatRowProps {
   chat: OrganizationChat
   isCurrentRoute: boolean
+  isSelected: boolean
   isMenuOpen: boolean
+  onSelectChat: (chatId: string, shiftKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, chatId: string) => void
   onMorePointerDown: () => void
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, chatId: string) => void
@@ -32,7 +40,9 @@ interface ChatRowProps {
 function ChatRow({
   chat,
   isCurrentRoute,
+  isSelected,
   isMenuOpen,
+  onSelectChat,
   onContextMenu,
   onMorePointerDown,
   onMoreClick,
@@ -50,13 +60,14 @@ function ChatRow({
       chatId={chat.id}
       isCurrentRoute={isCurrentRoute}
       className={cn(
-        chipVariants({ active: isCurrentRoute || isMenuOpen, fullWidth: true }),
-        'group/sidebar-row'
+        chipVariants({ active: isCurrentRoute || isSelected || isMenuOpen, fullWidth: true }),
+        rowActionsGroupClass
       )}
       onContextMenu={(e) => onContextMenu(e, chat.id)}
+      onSelectChat={onSelectChat}
     >
       <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
-      <SidebarRowActions
+      <RowActions
         open={isMenuOpen}
         indicator={
           showStatusDot ? (
@@ -81,7 +92,7 @@ function ChatRow({
         >
           <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
         </SidebarRowAction>
-      </SidebarRowActions>
+      </RowActions>
     </ChatNavigationLink>
   )
 }
@@ -102,8 +113,7 @@ export function ChatsSection({
   pathname,
 }: ChatsSectionProps) {
   const actions = useOrganizationChatActions({ organizationId, chats })
-  const { menu, hover, rename, selectedChat } = actions
-  const menuOpenChatId = menu.isOpen ? selectedChat?.id : null
+  const { menu, hover, rename, selectedChat, selectedChats, menuOpenChatId } = actions
   const saveRename = () => {
     void rename.saveRename()
   }
@@ -131,6 +141,8 @@ export function ChatsSection({
                     key={chat.id}
                     chat={chat}
                     isCurrentRoute={pathname === chat.href}
+                    isSelected={selectedChats.size > 1 && selectedChats.has(chat.id)}
+                    onSelectChat={actions.handleChatClick}
                     isMenuOpen={menuOpenChatId === chat.id}
                     isEditing={rename.editingId === chat.id}
                     editValue={rename.value}
@@ -173,7 +185,9 @@ export function ChatsSection({
                       key={chat.id}
                       chat={chat}
                       isCurrentRoute={pathname === chat.href}
+                      isSelected={selectedChats.size > 1 && selectedChats.has(chat.id)}
                       isMenuOpen={menuOpenChatId === chat.id}
+                      onSelectChat={actions.handleChatClick}
                       onContextMenu={actions.onContextMenu}
                       onMorePointerDown={actions.onMorePointerDown}
                       onMoreClick={actions.onMoreClick}
@@ -191,29 +205,30 @@ export function ChatsSection({
         menuRef={menu.menuRef}
         onClose={menu.closeMenu}
         onOpenInNewTab={actions.openInNewTab}
-        onCopyLink={actions.copyLink}
+        onCopyLink={selectedChat ? actions.copyLink : undefined}
         onRename={actions.startRename}
         renameInputRef={rename.inputRef}
         onTogglePin={actions.togglePin}
         onMarkAsRead={actions.markRead}
         onMarkAsUnread={actions.markUnread}
-        showOpenInNewTab
+        showOpenInNewTab={Boolean(selectedChat)}
         showRename={Boolean(selectedChat)}
         showPin={Boolean(selectedChat)}
         isPinned={Boolean(selectedChat?.isPinned)}
         showMarkAsRead={Boolean(selectedChat?.isUnread)}
         showMarkAsUnread={Boolean(selectedChat) && !selectedChat?.isUnread}
         onDelete={actions.startDelete}
-        showDelete={Boolean(selectedChat)}
+        showDelete={actions.selectedCount > 0}
+        selectedCount={actions.selectedCount}
         showDuplicate={false}
       />
       <DeleteModal
-        isOpen={actions.chatToDelete !== null}
+        isOpen={actions.chatsToDelete.length > 0}
         onClose={actions.cancelDelete}
         onConfirm={actions.confirmDelete}
         isDeleting={actions.isDeleting}
         itemType='task'
-        itemName={actions.chatToDelete?.name}
+        itemName={actions.chatsToDelete.map((chat) => chat.name)}
       />
     </>
   )

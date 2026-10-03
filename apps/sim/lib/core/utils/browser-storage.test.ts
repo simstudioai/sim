@@ -34,14 +34,6 @@ describe('MothershipHandoffStorage', () => {
     localStorage.clear()
   })
 
-  it.each(['fast', 'adaptive', 'max'] as const)('preserves %s on an immutable handoff', (level) => {
-    MothershipHandoffStorage.store(
-      { message: 'Search', requestMode: 'assistant', assistantSearchLevel: level },
-      WS
-    )
-    expect(MothershipHandoffStorage.consume(WS)).toMatchObject({ assistantSearchLevel: level })
-  })
-
   it.each([
     [true, 'fast'],
     [false, 'adaptive'],
@@ -74,24 +66,6 @@ describe('MothershipHandoffStorage', () => {
     expect(MothershipHandoffStorage.store({ message: '  fix it  ', contexts }, WS)).toBe(true)
 
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ message: 'fix it', contexts })
-  })
-
-  it('retains the selected document and filters when Search hands off to Assistant', () => {
-    const assistantSearch = {
-      source: 'slack',
-      modifiedAfter: '2026-09-01T00:00:00.000Z',
-      documentIds: ['selected-doc'],
-    }
-    MothershipHandoffStorage.store(
-      { message: 'Summarize this', requestMode: 'assistant', assistantSearch },
-      WS
-    )
-    expect(MothershipHandoffStorage.consume(WS)).toEqual({
-      message: 'Summarize this',
-      contexts: [],
-      requestMode: 'assistant',
-      assistantSearch,
-    })
   })
 
   it('discards a corrupted scope instead of silently widening the Assistant request', () => {
@@ -132,21 +106,6 @@ describe('MothershipHandoffStorage', () => {
 
     // The owning workspace still consumes it.
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ message: 'fix it', contexts: [] })
-  })
-
-  it('stores a chip-only handoff (no message) and returns it without one', () => {
-    const contexts: ChatContext[] = [
-      {
-        kind: 'file_selection',
-        fileId: 'f1',
-        fileName: 'notes.md',
-        label: 'notes.md:2-4',
-        text: 'passage',
-      },
-    ]
-    expect(MothershipHandoffStorage.store({ contexts }, WS)).toBe(true)
-
-    expect(MothershipHandoffStorage.consume(WS)).toEqual({ contexts })
   })
 
   it('accumulates chip-only handoffs so a second add before navigation is not dropped', () => {

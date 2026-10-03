@@ -19,6 +19,7 @@ export type ProviderId =
   | 'meta'
   | 'zai'
   | 'kimi'
+  | 'kie'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'
@@ -48,17 +49,6 @@ export interface ModelPricing extends ModelTokenPricing {
 }
 
 export type ModelPricingMap = Record<string, ModelPricing>
-
-interface TokenInfo {
-  input?: number
-  output?: number
-  total?: number
-}
-
-interface TransformedResponse {
-  content: string
-  tokens?: TokenInfo
-}
 
 export interface ProviderConfig {
   id: string

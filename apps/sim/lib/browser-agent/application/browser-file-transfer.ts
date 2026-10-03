@@ -103,39 +103,66 @@ export const readBrowserUploadFile = defineAuthorizedWorkspaceFileUseCase({
   },
 })
 
-export interface SaveBrowserDownloadInput {
+export interface AdmitBrowserDownloadSaveInput {
   toolCallId: string
   /** The download's file name on this machine; the call's own `name` argument wins. */
   name: string
+}
+
+export interface SaveBrowserDownloadInput extends AdmitBrowserDownloadSaveInput {
   content: Buffer
+}
+
+async function resolveBrowserDownloadSaveContext({
+  principal,
+  input,
+}: {
+  principal: Principal
+  input: AdmitBrowserDownloadSaveInput
+}) {
+  const binding = await loadBrowserFileTransferBinding(
+    principal,
+    input.toolCallId,
+    'browser_save_download'
+  )
+  const workspace = await loadActiveWorkspaceContext(binding.workspaceId)
+  if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
+  const requestedName = binding.args.name
+  return {
+    ...workspace,
+    name:
+      typeof requestedName === 'string' && requestedName.trim() ? requestedName.trim() : input.name,
+  }
+}
+
+const admitBrowserDownloadSaveUseCase = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.create,
+  resolveContext: resolveBrowserDownloadSaveContext,
+  async execute() {},
+})
+
+/**
+ * Admits a `browser_save_download` upload before its body is read, so a caller without a claimed,
+ * running call of its own is refused without buffering the download. {@link saveBrowserDownload}
+ * re-validates and claims the call atomically after the read.
+ */
+export async function admitBrowserDownloadSave(
+  principal: Principal,
+  input: AdmitBrowserDownloadSaveInput
+): Promise<void> {
+  await admitBrowserDownloadSaveUseCase.execute({ principal, input })
 }
 
 /** Stores a completed browser download as a workspace file for a claimed `browser_save_download` call. */
 export const saveBrowserDownload = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.create,
-  async resolveContext({
+  resolveContext: ({
     principal,
     input,
   }: {
     principal: Principal
     input: SaveBrowserDownloadInput
-  }) {
-    const binding = await loadBrowserFileTransferBinding(
-      principal,
-      input.toolCallId,
-      'browser_save_download'
-    )
-    const workspace = await loadActiveWorkspaceContext(binding.workspaceId)
-    if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
-    const requestedName = binding.args.name
-    return {
-      ...workspace,
-      name:
-        typeof requestedName === 'string' && requestedName.trim()
-          ? requestedName.trim()
-          : input.name,
-    }
-  },
+  }) => resolveBrowserDownloadSaveContext({ principal, input }),
   async execute({ principal, input, context }) {
     if (!(await claimBrowserDownloadSave(input.toolCallId))) {
       throw new OrchestrationError(

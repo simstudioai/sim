@@ -4,22 +4,103 @@ import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog
 export const liveSearchProviderSchema = z.enum(LIVE_SEARCH_PROVIDER_IDS)
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 
+/**
+ * Native queries one call may send to the same provider account. Alternatives run as separate
+ * provider searches and fuse into one ranking, so the bound keeps a call within the provider's
+ * burst limits (Slack allows about ten searches per user per minute) while leaving room for the
+ * four independently searchable kinds in GitHub, GitLab, or HubSpot.
+ */
+export const MAX_NATIVE_QUERIES_PER_ACCOUNT = 4
+
+/**
+ * Providers whose kind selects a distinct search collection. A query without a kind fans out
+ * across its provider's default collections, so it cannot share an account with kinded queries;
+ * the per-account request limit bounds the rest.
+ */
+const PROVIDER_KIND_SCHEMAS = {
+  github: z.enum(['issues', 'code', 'repositories', 'commits']),
+  gitlab: z.enum(['issues', 'code', 'merge_requests', 'wiki']),
+  hubspot: z.enum(['contacts', 'companies', 'deals', 'tickets']),
+  lucid: z.enum(['lucidchart', 'lucidspark']),
+  google_meet: z.enum(['transcript', 'smart_notes']),
+  zoom: z.enum(['meeting']),
+} as const
+
+function hasSearchKinds(
+  provider: LiveSearchProvider
+): provider is keyof typeof PROVIDER_KIND_SCHEMAS {
+  return Object.hasOwn(PROVIDER_KIND_SCHEMAS, provider)
+}
+
+const nativeSearchKindSchema = z.enum([
+  ...PROVIDER_KIND_SCHEMAS.github.options,
+  ...PROVIDER_KIND_SCHEMAS.gitlab.options,
+  ...PROVIDER_KIND_SCHEMAS.hubspot.options,
+  ...PROVIDER_KIND_SCHEMAS.lucid.options,
+  ...PROVIDER_KIND_SCHEMAS.google_meet.options,
+  ...PROVIDER_KIND_SCHEMAS.zoom.options,
+])
+
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
 export const nativeSearchQuerySchema = z
   .object({
     provider: liveSearchProviderSchema,
     query: z.string().trim().max(2000),
     accountId: z.string().min(1).max(200).optional(),
-    kind: z
-      .enum(['issues', 'code', 'repositories', 'commits', 'merge_requests', 'wiki'])
-      .optional(),
+    kind: nativeSearchKindSchema.optional(),
     project: z.string().min(1).max(300).optional(),
+    browse: z
+      .enum(['folder', 'private', 'shared', 'favorites', 'recent'])
+      .optional()
+      .describe(
+        'Queryless discovery: Lucid folder lists one folder page (omit project for root; otherwise use a returned numeric folder ID). Notion private/shared list sidebar pages, favorites lists pinned pages, recent lists recently viewed pages, not recently modified pages. These lists are not an exhaustive workspace inventory. Follow the returned cursor with the same account, browse mode, project, filters and topK.'
+      ),
     cursor: z.string().max(4000).optional(),
     termClauses: z.array(z.string().max(500)).max(10).optional(),
     modifiers: z.string().max(1000).optional(),
     keywordOnly: z.boolean().optional(),
   })
   .strict()
+  .superRefine((input, context) => {
+    if (input.kind) {
+      const kinds = hasSearchKinds(input.provider) ? PROVIDER_KIND_SCHEMAS[input.provider] : null
+      if (!kinds?.safeParse(input.kind).success)
+        context.addIssue({
+          code: 'custom',
+          path: ['kind'],
+          message: kinds
+            ? `${input.provider} kind must be one of: ${kinds.options.join(', ')}.`
+            : `${input.provider} does not support kind selection.`,
+        })
+    }
+    if (
+      input.browse &&
+      (input.query ||
+        input.modifiers ||
+        input.keywordOnly ||
+        input.termClauses?.length ||
+        (input.browse === 'folder' ? input.provider !== 'lucid' : input.provider !== 'notion') ||
+        (input.provider === 'notion' && input.project))
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['browse'],
+        message:
+          'Browse requires an empty query and a supported provider mode; Notion lists cannot be scoped to a page.',
+      })
+    if (input.browse === 'folder' && input.project && !/^[1-9]\d{0,14}$/.test(input.project))
+      context.addIssue({
+        code: 'custom',
+        path: ['project'],
+        message: 'Lucid folder browsing requires a numeric folder ID returned by the provider.',
+      })
+    if (input.provider === 'lucid' && !input.query && !input.browse)
+      context.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'Lucid requires title keywords or explicit browse: folder.',
+      })
+  })
 export type NativeSearchQuery = z.output<typeof nativeSearchQuerySchema>
 
 export const nativeSearchQueriesSchema = z
@@ -27,32 +108,60 @@ export const nativeSearchQueriesSchema = z
   .min(1)
   .max(9)
   .superRefine((queries, context) => {
-    for (const [index, query] of queries.entries()) {
-      if (
-        queries
-          .slice(0, index)
-          .some(
-            (previous) =>
-              previous.provider === query.provider &&
-              (!previous.accountId || !query.accountId || previous.accountId === query.accountId)
-          )
+    /** A query without an account ID targets every account of its provider. */
+    const overlaps = (left: NativeSearchQuery, right: NativeSearchQuery) =>
+      left.provider === right.provider &&
+      (!left.accountId || !right.accountId || left.accountId === right.accountId)
+    /**
+     * Queries already bound for the busiest account a new query reaches: every account-wide
+     * query, plus the most queries any one targeted account has.
+     */
+    const busiestAccountLoad = (earlier: NativeSearchQuery[]) => {
+      const perAccount = new Map<string, number>()
+      for (const { accountId } of earlier)
+        if (accountId) perAccount.set(accountId, (perAccount.get(accountId) ?? 0) + 1)
+      return (
+        earlier.filter(({ accountId }) => !accountId).length + Math.max(0, ...perAccount.values())
       )
-        context.addIssue({
-          code: 'custom',
-          path: [index],
-          message:
-            'Use one query per provider/account per call; refine in another call or combine native query clauses.',
-        })
+    }
+    /** The search a query runs, ignoring its account and any kind its provider does not use. */
+    const searchKey = ({ accountId: _, kind, ...query }: NativeSearchQuery) =>
+      JSON.stringify({ ...query, kind: hasSearchKinds(query.provider) ? kind : undefined })
+    for (const [index, query] of queries.entries()) {
+      const addIssue = (message: string) =>
+        context.addIssue({ code: 'custom', path: [index], message })
+      const earlier = queries.slice(0, index).filter((previous) => overlaps(previous, query))
+      if (earlier.some((previous) => searchKey(previous) === searchKey(query)))
+        addIssue('Duplicate native query.')
+      else if (
+        hasSearchKinds(query.provider) &&
+        earlier.some(
+          (previous) => !previous.browse && !query.browse && (!previous.kind || !query.kind)
+        )
+      )
+        addIssue(
+          'A GitHub, GitLab, HubSpot, Lucid, Google Meet, or Zoom query without a kind already searches its default kinds; give each query on this account a kind.'
+        )
+      else if (busiestAccountLoad(earlier) >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
+        addIssue(
+          `Send at most ${MAX_NATIVE_QUERIES_PER_ACCOUNT} native queries per provider account in one call; queries without an accountId count toward every account of their provider.`
+        )
     }
   })
 
 export const liveSearchAccountStatusSchema = z.object({
   accountId: z.string(),
   provider: liveSearchProviderSchema,
+  /** Index of the native query in the request that this status and its cursor belong to. */
+  queryIndex: z.number().int().min(0).optional(),
   displayName: z.string(),
   status: z.enum(['ok', 'partial', 'reconnect', 'rate_limited', 'unavailable', 'timeout']),
   message: z.string().optional(),
   nextCursor: z.string().optional(),
+  folders: z
+    .array(z.object({ id: z.string(), name: z.string() }))
+    .max(10)
+    .optional(),
   retryAfterSeconds: z.number().optional(),
 })
 export type LiveSearchAccountStatus = z.output<typeof liveSearchAccountStatusSchema>
@@ -70,20 +179,20 @@ export const workspaceSearchFiltersSchema = z.object({
     .datetime({ offset: true })
     .optional()
     .describe(
-      'Live search: inclusive lower date bound. Calendar uses scheduled event start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.'
+      'Live search: inclusive lower date bound. For a specific day or bounded date range, always supply endDate too, including exact-title lookups; startDate alone means an open-ended "since" search. Calendar, Google Meet, Zoom, Fireflies and Granola use event or meeting start; Gmail/Slack use message time; other sources use modification time. Include the user’s timezone offset.'
     ),
   endDate: z
     .string()
     .datetime({ offset: true })
     .optional()
     .describe(
-      'Live search: exclusive upper bound on the same date as startDate. For a whole day, use the next local midnight.'
+      'Live search: exclusive upper date bound. Include this with startDate whenever the request names a specific day or bounded range, even if the title uniquely identifies a result. For whole days, startDate is local midnight on the first included day and endDate is local midnight after the final included day. Preserve the timezone offset at each boundary.'
     ),
   sortBy: z
     .enum(['relevance', 'newest', 'oldest'])
     .optional()
     .describe(
-      'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall.'
+      'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall. Without search terms or dates, newest or oldest lists items up to now.'
     ),
   source: z
     .string()
@@ -117,7 +226,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound, sortBy newest/oldest, or explicit browse mode. Lucid browse folder lists root or a numeric folder project; Notion browse private/shared/favorites/recent lists sidebar pages. Recent means viewed, not modified. Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple content queries on one account, each need a kind, which may repeat; explicit browse queries may select distinct folders or sidebar sections without a kind. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid title search has no continuation; folder browsing is paginated and returns child folders in account coverage; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()
@@ -125,7 +234,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
       .max(2000)
       .default('')
       .describe(
-        'Search terms, without dates already supplied as filters. May be empty for a live date-bounded listing.'
+        'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.'
       ),
     topK: z
       .number()
@@ -138,18 +247,23 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
       ),
   })
   .superRefine((input, context) => {
+    const bounded = Boolean(
+      input.startDate ||
+        input.endDate ||
+        input.modifiedAfter ||
+        input.modifiedBefore ||
+        input.sortBy === 'newest' ||
+        input.sortBy === 'oldest'
+    )
     if (
       !input.query &&
-      !input.nativeQueries?.some((query) => query.query) &&
-      !input.startDate &&
-      !input.endDate &&
-      !input.modifiedAfter &&
-      !input.modifiedBefore
+      !input.nativeQueries?.some((query) => query.query || query.browse) &&
+      !bounded
     )
       context.addIssue({
         code: 'custom',
         path: ['query'],
-        message: 'Supply search terms, a native query, or a date bound.',
+        message: 'Supply search terms, a native query, a date bound, or sortBy newest or oldest.',
       })
     if (
       input.startDate &&
@@ -161,17 +275,11 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
         path: ['endDate'],
         message: 'endDate must be after startDate.',
       })
-    if (
-      input.nativeQueries?.some((query) => !query.query) &&
-      !input.startDate &&
-      !input.endDate &&
-      !input.modifiedAfter &&
-      !input.modifiedBefore
-    )
+    if (input.nativeQueries?.some((query) => !query.query && !query.browse) && !bounded)
       context.addIssue({
         code: 'custom',
         path: ['nativeQueries'],
-        message: 'Empty native queries require a date bound.',
+        message: 'Empty native queries require a date bound or sortBy newest or oldest.',
       })
   })
 
@@ -181,14 +289,15 @@ export const readDocumentInputSchema = z.object({
     .min(1)
     .max(4000)
     .describe('Canonical document ID returned by search or selected document context.'),
+  /** A larger request is capped rather than refused: the server returns at most 8 chunks anyway. */
   limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(8)
+    .preprocess(
+      (limit) => (typeof limit === 'number' && limit > 8 ? 8 : limit),
+      z.number().int().min(1).max(8)
+    )
     .default(3)
     .describe(
-      'Maximum chunks; the server may return fewer to fit its text budget. Follow next for more context.'
+      'Maximum number of chunks, from 1 to 8 (default 3); the server may return fewer to fit its text budget. Follow next for more context.'
     ),
   startChunkIndex: z
     .number()

@@ -9,6 +9,8 @@ import {
   permissions,
   user,
   workflow,
+  workflowExecutionLogs,
+  workflowExecutionSnapshots,
   workspace,
   workspaceOperationReceipt,
 } from '@sim/db/schema'
@@ -17,9 +19,16 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { processOutboxEventById } from '@/lib/core/outbox/service'
+import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
+import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
+import { workspaceOperationOutboxHandlers } from '@/lib/workspaces/operations/outbox'
+import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
+import { GET as logGet } from '@/app/api/v2/logs/[runId]/route'
 import { POST as importPreview } from '@/app/api/v2/workflows/import/preview/route'
 import { POST as importApply } from '@/app/api/v2/workflows/import/route'
 import { POST as forkPreview } from '@/app/api/v2/workspaces/[workspaceId]/fork/preview/route'
+import { POST as pushPreview } from '@/app/api/v2/workspaces/[workspaceId]/fork/push/preview/route'
 import { POST as pushApply } from '@/app/api/v2/workspaces/[workspaceId]/fork/push/route'
 import { POST as forkApply } from '@/app/api/v2/workspaces/[workspaceId]/fork/route'
 import { GET as operationGet } from '@/app/api/v2/workspaces/[workspaceId]/operations/[operationId]/route'
@@ -29,6 +38,10 @@ const userId = generateId()
 const workspaceId = generateId()
 const personalKey = `sk-sim-fixture-${generateId()}`
 const workspaceKey = `sk-sim-fixture-${generateId()}`
+const logRunId = generateId()
+const logSnapshotId = generateId()
+const foreignWorkspaceId = generateId()
+const logSnapshot = { blocks: {}, edges: [], variables: { fixture: 'configuration'.repeat(2000) } }
 const childWorkspaceIds: string[] = []
 let endpoint: string
 let directory: string
@@ -118,6 +131,29 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
       entityId: workspaceId,
       permissionType: 'admin',
     })
+    await db.insert(workspace).values({
+      id: foreignWorkspaceId,
+      name: 'Inaccessible log fixture',
+      ownerId: userId,
+      billedAccountUserId: userId,
+    })
+    await db.insert(workflowExecutionSnapshots).values({
+      id: logSnapshotId,
+      stateHash: generateId(),
+      stateData: logSnapshot,
+    })
+    await db.insert(workflowExecutionLogs).values({
+      id: generateId(),
+      workspaceId,
+      executionId: logRunId,
+      stateSnapshotId: logSnapshotId,
+      level: 'info',
+      status: 'completed',
+      trigger: 'manual',
+      startedAt: now,
+      endedAt: now,
+      executionData: { finalOutput: { delivered: false }, traceSpans: [] },
+    })
     await db.insert(apiKey).values([
       {
         id: generateId(),
@@ -160,8 +196,10 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
         const path = new URL(request.url).pathname
         const match = path.match(/^\/api\/v2\/workspaces\/([^/]+)\/(.*)$/)
         const context = { params: Promise.resolve({ workspaceId: match?.[1] ?? workspaceId }) }
-        const response =
-          path === '/api/v2/workflows/import/preview'
+        const logMatch = path.match(/^\/api\/v2\/logs\/([^/]+)$/)
+        const response = logMatch
+          ? await logGet(request, { params: Promise.resolve({ runId: logMatch[1] }) })
+          : path === '/api/v2/workflows/import/preview'
             ? await importPreview(request, { params: Promise.resolve({}) })
             : path === '/api/v2/workflows/import'
               ? await importApply(request, { params: Promise.resolve({}) })
@@ -169,18 +207,20 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
                 ? await forkPreview(request, context)
                 : match?.[2] === 'fork'
                   ? await forkApply(request, context)
-                  : match?.[2] === 'fork/push'
-                    ? await pushApply(request, context)
-                    : match?.[2] === 'operations'
-                      ? await operationsList(request, context)
-                      : match?.[2].startsWith('operations/')
-                        ? await operationGet(request, {
-                            params: Promise.resolve({
-                              workspaceId: match[1],
-                              operationId: match[2].slice('operations/'.length),
-                            }),
-                          })
-                        : new Response('Unknown fixture route', { status: 404 })
+                  : match?.[2] === 'fork/push/preview'
+                    ? await pushPreview(request, context)
+                    : match?.[2] === 'fork/push'
+                      ? await pushApply(request, context)
+                      : match?.[2] === 'operations'
+                        ? await operationsList(request, context)
+                        : match?.[2].startsWith('operations/')
+                          ? await operationGet(request, {
+                              params: Promise.resolve({
+                                workspaceId: match[1],
+                                operationId: match[2].slice('operations/'.length),
+                              }),
+                            })
+                          : new Response('Unknown fixture route', { status: 404 })
         outgoing.statusCode = response.status
         response.headers.forEach((value, name) => outgoing.setHeader(name, value))
         const body = await response.text()
@@ -207,9 +247,61 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
       })
     for (const id of childWorkspaceIds) await db.delete(workspace).where(eq(workspace.id, id))
     await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await db.delete(workspace).where(eq(workspace.id, foreignWorkspaceId))
+    await db
+      .delete(workflowExecutionSnapshots)
+      .where(eq(workflowExecutionSnapshots.id, logSnapshotId))
     await db.delete(user).where(eq(user.id, userId))
     await rm(directory, { recursive: true, force: true })
     await db.$client.end()
+  })
+
+  it('omits only the requested log snapshot through the CLI and preserves the default read', async () => {
+    const args = ['logs', 'get', logRunId]
+    const before = await cli(args)
+    expect(before.code, before.stderr).toBe(0)
+    const original = JSON.parse(before.stdout)
+    expect(original.workflowState.variables).toEqual(logSnapshot.variables)
+
+    const explicit = await cli([...args, '--include-workflow-state'])
+    expect(explicit.code, explicit.stderr).toBe(0)
+    expect(JSON.parse(explicit.stdout)).toEqual(original)
+    const compact = await cli([...args, '--no-include-workflow-state'])
+    expect(compact.code, compact.stderr).toBe(0)
+    expect(JSON.parse(compact.stdout)).toEqual({ ...original, workflowState: null })
+    expect(Buffer.byteLength(compact.stdout)).toBeLessThan(Buffer.byteLength(before.stdout) / 2)
+    const after = await cli(args)
+    expect(after.code, after.stderr).toBe(0)
+    expect(JSON.parse(after.stdout)).toEqual(original)
+  })
+
+  it('validates log query flags and retains authorization for compact reads over HTTP', async () => {
+    const path = `${endpoint}/api/v2/logs/${logRunId}`
+    const headers = { 'X-API-Key': workspaceKey }
+    const invalid = await fetch(`${path}?includeWorkflowState=invalid`, { headers })
+    expect(invalid.status).toBe(400)
+    expect(await invalid.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } })
+    const unknown = await fetch(`${path}?includeWorkflowState=false&unknown=true`, { headers })
+    expect(unknown.status).toBe(400)
+    const unauthenticated = await fetch(`${path}?includeWorkflowState=false`)
+    expect(unauthenticated.status).toBe(401)
+
+    await db
+      .update(workflowExecutionLogs)
+      .set({ workspaceId: foreignWorkspaceId })
+      .where(eq(workflowExecutionLogs.executionId, logRunId))
+    try {
+      for (const query of ['', '?includeWorkflowState=false']) {
+        const concealed = await fetch(`${path}${query}`, { headers })
+        expect(concealed.status).toBe(404)
+        expect(await concealed.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
+      }
+    } finally {
+      await db
+        .update(workflowExecutionLogs)
+        .set({ workspaceId })
+        .where(eq(workflowExecutionLogs.executionId, logRunId))
+    }
   })
 
   it('previews stdin JSON, applies @file input, waits, and returns the same receipt on retry', async () => {
@@ -310,7 +402,14 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
     expect(requestCount).toBe(before)
   })
 
-  it('creates a draft fork through the CLI and follows its operation receipt', async () => {
+  it('creates a draft fork and exposes the activated same-source comparison through the CLI', async () => {
+    const [sourceWorkflow] = await db
+      .select()
+      .from(workflow)
+      .where(eq(workflow.workspaceId, workspaceId))
+      .limit(1)
+    const deployed = await performFullDeploy({ workflowId: sourceWorkflow.id, userId })
+    expect(deployed.success).toBe(true)
     const preview = await cli(['workspaces', 'fork-preview', '--name', 'CLI fork fixture'])
     expect(preview.code, preview.stderr).toBe(0)
     const created = await cli([
@@ -331,5 +430,40 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
     const drafts = await db.select().from(workflow).where(eq(workflow.workspaceId, childId))
     expect(drafts.length).toBeGreaterThan(0)
     expect(drafts.every((draft) => !draft.isDeployed)).toBe(true)
+    const previewArgs = ['workspaces', 'push-preview', '--other-workspace-id', childId]
+    const before = await cli(previewArgs)
+    expect(before.code, before.stderr).toBe(0)
+    const previewData = JSON.parse(before.stdout)
+    expect(previewData.workflows[0]).toMatchObject({
+      sourceWorkflowId: sourceWorkflow.id,
+      comparison: { status: 'unavailable', reason: 'no_baseline' },
+    })
+    const pushed = await cli([
+      'workspaces',
+      'push',
+      '--other-workspace-id',
+      childId,
+      '--preview-fingerprint',
+      previewData.previewFingerprint,
+      '--request-id',
+      generateId(),
+      '--yes',
+    ])
+    expect(pushed.code, pushed.stderr).toBe(0)
+    const [receipt] = await db
+      .select()
+      .from(workspaceOperationReceipt)
+      .where(eq(workspaceOperationReceipt.id, JSON.parse(pushed.stdout).operationId))
+    const admitted = receipt.report as WorkspaceOperationReport
+    const registry = { ...workflowDeploymentOutboxHandlers, ...workspaceOperationOutboxHandlers }
+    for (const eventId of admitted.effectEventIds ?? [])
+      expect(await processOutboxEventById(eventId, registry)).toBe('completed')
+    const after = await cli(previewArgs)
+    expect(after.code, after.stderr).toBe(0)
+    const version = { id: deployed.deploymentVersionId, version: deployed.version }
+    expect(JSON.parse(after.stdout).workflows[0]).toMatchObject({
+      sourceWorkflowId: sourceWorkflow.id,
+      comparison: { status: 'available', base: version, target: version },
+    })
   })
 })

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import { JsonYamlChunker } from '@/lib/chunkers/json-yaml-chunker'

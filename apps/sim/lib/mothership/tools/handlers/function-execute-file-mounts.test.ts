@@ -1,59 +1,72 @@
-/** @vitest-environment node */
 import { workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  file: vi.fn(),
-  list: vi.fn(),
-  context: vi.fn(),
-  buffer: vi.fn(),
-  permission: vi.fn(),
-  cloud: vi.fn(),
-  presign: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   render: vi.fn(),
-  decrypt: vi.fn(),
   attachment: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/application/read-attachment', () => ({
-  readChatAttachment: { execute: mocks.attachment },
+  readChatAttachment: { execute: hoisted.attachment },
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual === 'read',
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.file,
-  fetchWorkspaceFileBuffer: mocks.buffer,
-  loadActiveWorkspaceFileContext: mocks.context,
-  findWorkspaceFileRecord: (files: { id: string }[], id: string) =>
-    files.find((file) => file.id === id),
-  getSandboxWorkspaceFilePath: () => '/home/user/files/source.txt',
-  parseChatUploadReference: () => null,
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mocks.file,
-  fetchWorkspaceFileBuffer: mocks.buffer,
-}))
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listAllWorkspaceFiles: { execute: mocks.list },
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
-  fetchAuthorizedServableWorkspaceFileBuffer: mocks.render,
+  fetchAuthorizedServableWorkspaceFileBuffer: hoisted.render,
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  hasCloudStorage: mocks.cloud,
-  generatePresignedDownloadUrl: mocks.presign,
-}))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/tools', () => toolsMock)
 
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
-import { resolveInputFiles } from '@/lib/mothership/tools/handlers/function-execute'
+import {
+  executeFunctionExecute,
+  resolveInputFiles,
+} from '@/lib/mothership/tools/handlers/function-execute'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = {
+  ...hoisted,
+  list: workspaceFilesListMockFns.mockListAllWorkspaceFiles,
+  file: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  context: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  buffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  cloud: storageServiceMockFns.mockHasCloudStorage,
+  presign: storageServiceMockFns.mockGeneratePresignedDownloadUrl,
+  decrypt: encryptionMockFns.mockDecryptSecret,
+}
+
+/** Reinstalls the file-manager helpers this suite fixes, after `vi.resetAllMocks()` restores defaults. */
+function pinFileManagerHelpers() {
+  workspaceFileManagerMockFns.mockFindWorkspaceFileRecord.mockImplementation(
+    (files: { id: string }[], id: string) => files.find((candidate) => candidate.id === id)
+  )
+  workspaceFileManagerMockFns.mockGetSandboxWorkspaceFilePath.mockReturnValue(
+    '/home/user/files/source.txt'
+  )
+  workspaceFileManagerMockFns.mockParseChatUploadReference.mockReturnValue(null)
+}
 
 const revision = new Date('2026-09-06T00:00:00Z')
 const content = 'FILE_MOUNT_TEST_SECRET'
@@ -113,6 +126,7 @@ function mountedBytes(mounts: SandboxFile[]) {
 describe('Mothership file mounts bind content and classification to the same record', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    pinFileManagerHelpers()
     resetDbChainMock()
     mocks.file.mockResolvedValue(file)
     mocks.list.mockResolvedValue({ files: [file] })
@@ -181,6 +195,75 @@ describe('Mothership file mounts bind content and classification to the same rec
         'run_code'
       )
       expect(JSON.stringify(observation.result).includes(content)).toBe(kind === 'safe')
+    }
+  )
+
+  /**
+   * The run's code can read every mounted byte, so the per-call registry the Copilot projection
+   * and output-file writers read must carry the mount's own verdict across the crossing: a
+   * tainted mount stays a taint (never the `unrecorded` absence) and names the guard that tripped,
+   * while exact mounts keep redacting and clean mounts stay readable.
+   */
+  it.each(['safe', 'secret', 'unknown'] as const)(
+    'carries a %s mount verdict across the run_code crossing',
+    async (kind) => {
+      queueProvenance(kind === 'unknown' ? 'unknown' : 'exact', revision, kind === 'secret')
+      toolsMockFns.mockExecuteTool.mockResolvedValue({
+        success: true,
+        output: { result: content, stdout: content },
+      })
+      const trace = new ResolvedSecretTraceRegistry([], {
+        userId: 'reader',
+        workspaceId: 'workspace',
+      })
+      const result = await executeFunctionExecute(
+        {
+          code: "print(open('/tmp/source.txt').read())",
+          language: 'python',
+          inputs: { files: [{ path: 'file', sandboxPath: '/tmp/source.txt' }] },
+        },
+        { ...context, resolvedSecretTraceRegistry: trace }
+      )
+
+      const observation = inspectToolResultForCopilot(result, trace, 'run_code')
+      const written = await createWorkspaceFileSecretProvenanceFromRegistry(trace, result.output, {
+        userId: 'reader',
+        workspaceId: 'workspace',
+      })
+      expect(JSON.stringify(observation.result).includes(content)).toBe(kind === 'safe')
+      if (kind === 'unknown') {
+        expect(observation.safe).toBe(false)
+        expect.soft(observation.safe ? undefined : observation.cause).toMatchObject({
+          kind: 'registry-incomplete',
+          reasons: expect.arrayContaining(['mounted-file-provenance-unavailable']),
+        })
+        expect.soft(written).toEqual({ safe: false })
+        expect(observation.result.output).toEqual({
+          resultWithheld: true,
+          withheldReason: expect.stringMatching(
+            /file, table, or document .* unknown secret provenance/
+          ),
+        })
+      } else {
+        expect(observation.safe).toBe(true)
+        expect(written).toMatchObject({
+          safe: true,
+          provenance: {
+            status: 'exact',
+            // A mounted file's secret crosses anonymously: its ciphertext binds it, not a name.
+            entries:
+              kind === 'secret'
+                ? [
+                    {
+                      encryptedValue: 'fixture-ciphertext',
+                      sourceUserId: 'reader',
+                      sourceWorkspaceId: 'workspace',
+                    },
+                  ]
+                : [],
+          },
+        })
+      }
     }
   )
 
@@ -290,7 +373,7 @@ describe('Mothership file mounts bind content and classification to the same rec
     mocks.buffer.mockRejectedValue(new Error('Storage unavailable'))
     await expect(
       readWorkspaceFileMount.execute({
-        principal: { kind: 'session', userId: 'reader', sessionId: 'fixture' },
+        principal: createSessionPrincipal({ userId: 'reader', sessionId: 'fixture' }),
         input: {
           fileId: 'file',
           assertedWorkspaceId: 'workspace',
@@ -307,6 +390,7 @@ describe('Mothership file mounts bind content and classification to the same rec
 describe('organization-owned upload mounts', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    pinFileManagerHelpers()
     mocks.attachment.mockResolvedValue({
       id: 'upload',
       name: 'data.txt',
@@ -346,24 +430,63 @@ describe('organization-owned upload mounts', () => {
     expect(mocks.list).not.toHaveBeenCalled()
     expect(registry.isComplete()).toBe(true)
   })
-  it('rejects unknown provenance without certifying derived scratch', async () => {
-    const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
-    registry.markIncomplete('mounted-file-provenance-unavailable')
-    await expect(
-      resolveInputFiles(
+  it.each(['missing', 'absence', 'matching-secret'] as const)(
+    'accepts intentionally uploaded bytes with $0 source provenance without activating them',
+    async (source) => {
+      const parent = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+      if (source === 'absence') parent.markIncomplete('source-provenance-incomplete')
+      if (source === 'matching-secret') {
+        mocks.decrypt.mockResolvedValue({ decrypted: 'public input' })
+        await parent.importProvenance(
+          {
+            version: 1,
+            complete: true,
+            scope: { userId: 'reader' },
+            entries: [{ name: 'TOKEN', encryptedValue: 'encrypted:public input' }],
+          },
+          { trusted: true }
+        )
+      }
+      const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+      const result = await resolveInputFiles(
         {
           ...context,
           workspaceId: undefined,
           organizationId: 'org',
-          resolvedSecretTraceRegistry: registry,
+          ...(source === 'missing' ? {} : { resolvedSecretTraceRegistry: parent }),
         },
-        [{ path: 'uploads/upload' }],
+        [{ path: 'uploads/upload', sandboxPath: '/tmp/input.txt' }],
         [],
         [],
         registry
       )
-    ).rejects.toThrow('provenance')
-    expect(registry.isComplete()).toBe(false)
+      expect(result).toEqual([
+        {
+          path: '/tmp/input.txt',
+          content: Buffer.from('public input').toString('base64'),
+          encoding: 'base64',
+        },
+      ])
+      expect(registry.exportCheckpointProvenance()).toMatchObject({ complete: true, entries: [] })
+    }
+  )
+  it('does not repair an existing protection fault when an intentional upload is mounted', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+    registry.markIncomplete('entry-decrypt-failed')
+    const result = await resolveInputFiles(
+      {
+        ...context,
+        workspaceId: undefined,
+        organizationId: 'org',
+        resolvedSecretTraceRegistry: registry,
+      },
+      [{ path: 'uploads/upload' }],
+      [],
+      [],
+      registry
+    )
+    expect(result).toHaveLength(1)
+    expect(registry.isPermanentlyIncomplete()).toBe(true)
   })
   it('requires a target for workspace files and never treats missing upload authority as a workspace fallback', async () => {
     const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })

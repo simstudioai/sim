@@ -19,9 +19,11 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { toNumberOrNull } from '@sim/utils/coerce'
 import { generateId } from '@sim/utils/id'
+import { toArray, toRecord } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
   storageRoot: '',
@@ -92,6 +94,7 @@ import {
   executeMemberSync,
   resumeMembershipRewrites,
 } from '@/lib/knowledge/connectors/member-sync-engine'
+import { RECONCILIATION_WINDOW_SIZE } from '@/lib/knowledge/connectors/reconciliation-window'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import {
@@ -896,6 +899,220 @@ describe('durable source and member cycles in PostgreSQL', () => {
       await db.delete(document).where(eq(document.connectorId, connectorId))
       await db.delete(knowledgeConnector).where(eq(knowledgeConnector.id, connectorId))
     }
+  })
+
+  describe('reconciliation windows', () => {
+    const UNRELATED_FILENAME = 'reconciliation-window-unrelated'
+    const acl = [`u:${ids.aliceId}@fixture.test`]
+    let connectorId = ''
+    let runId = ''
+    let startedAt = new Date()
+    beforeEach(() => {
+      connectorId = generateId()
+      runId = generateId()
+      startedAt = new Date()
+    })
+    afterEach(async () => {
+      await db.delete(document).where(eq(document.filename, UNRELATED_FILENAME))
+      await db.delete(document).where(eq(document.connectorId, connectorId))
+      await db.delete(knowledgeConnector).where(eq(knowledgeConnector.id, connectorId))
+    })
+    const row = (id: string) => ({
+      id,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorId,
+      externalId: id,
+      filename: id,
+      fileUrl: '',
+      fileSize: 0,
+      mimeType: 'text/plain',
+      processingStatus: 'completed',
+      contentHash: `hash-${id}`,
+      acl,
+      aclVerifiedAt: startedAt,
+    })
+    /**
+     * Seeds a connector whose listing already completed, so the pass goes straight to
+     * reconciliation. Other documents spread across the id space keep the connector the minority
+     * it is at scale; a connector that is nearly the whole table may be walked through the
+     * primary key instead, one row at a time all the same, reading the other rows between its
+     * own.
+     */
+    const seed = async (rows: ReturnType<typeof row>[], listedCount: number) => {
+      await db.execute(sql`
+        INSERT INTO ${document} (id, knowledge_base_id, filename, file_url, file_size, mime_type, processing_status)
+        SELECT md5(${connectorId} || g), ${ids.knowledgeBaseId}, ${UNRELATED_FILENAME}, '', 0, 'text/plain', 'completed'
+        FROM generate_series(1, ${rows.length}) g`)
+      const checkpoint = beginListingCheckpoint({
+        fingerprint: listingFingerprint({ connectorId }),
+        generationId: runId,
+        startedAt,
+      })
+      checkpoint.complete = true
+      checkpoint.listedCount = listedCount
+      await db.insert(knowledgeConnector).values({
+        id: connectorId,
+        knowledgeBaseId: ids.knowledgeBaseId,
+        connectorType: 'google_drive',
+        sourceConfig: {},
+        accessMode: 'admin',
+        status: 'syncing',
+        syncLockToken: runId,
+        listingCheckpoint: checkpoint,
+      })
+      for (let offset = 0; offset < rows.length; offset += 1_000)
+        await db.insert(document).values(rows.slice(offset, offset + 1_000))
+      await db.execute(sql`ANALYZE document`)
+    }
+    const isWindowScan = (query: string) => /^\s*with "document" as materialized/i.test(query)
+    /** Runs the pass, returning the window statements it issued outside transactions. */
+    const reconcile = async () => {
+      const hardDelete = vi.spyOn(documentService, 'hardDeleteDocuments')
+      const statements = vi.spyOn(db.$client, 'unsafe')
+      try {
+        const [connector] = await db
+          .select()
+          .from(knowledgeConnector)
+          .where(eq(knowledgeConnector.id, connectorId))
+        const stats = result()
+        const pass = await runConnectorContentPass({
+          connectorId,
+          connector,
+          connectorConfig: CONNECTOR_REGISTRY.google_drive,
+          sourceConfig: {},
+          syncContext: {},
+          kbOwner: { userId: ids.aliceId, workspaceId: ids.workspaceId },
+          billingAttribution: billing,
+          result: stats,
+          lease: createContentSyncLease(connectorId, runId),
+          leaseKind: 'content',
+          runId,
+          fingerprint: listingFingerprint({ connectorId }),
+          documentAccess: 'admin',
+          getAccessToken: async () => 'fixture',
+          hydration: { getDocument: fixture.get },
+          forceRehydrate: false,
+          deadlineAt: Date.now() + 60_000,
+        })
+        return {
+          pass,
+          stats,
+          hardDeleted: hardDelete.mock.calls.flatMap(([batch]) => batch),
+          walked: statements.mock.calls
+            .map(([query, params]) => ({ query, params }))
+            .filter(({ query }) => isWindowScan(query)),
+        }
+      } finally {
+        statements.mockRestore()
+        hardDelete.mockRestore()
+      }
+    }
+    /** Plans a window statement from freshly analyzed statistics, returning the document rows it read. */
+    const explainWalk = async (query: string, params: Parameters<typeof db.$client.unsafe>[1]) => {
+      const [explained] = await db.$client.begin(async (tx) => {
+        await tx.unsafe('ANALYZE document')
+        return tx.unsafe(`EXPLAIN (ANALYZE, FORMAT JSON) ${query}`, params)
+      })
+      const nodes = (node: unknown): Record<string, unknown>[] => {
+        const plan = toRecord(node)
+        return [plan, ...toArray(plan.Plans).flatMap(nodes)]
+      }
+      const plan = nodes(toRecord(toArray(explained['QUERY PLAN'])[0]).Plan)
+      return plan
+        .filter((node) => node['Relation Name'] === 'document')
+        .reduce(
+          (total, node) =>
+            total +
+            ((toNumberOrNull(node['Actual Rows']) ?? 0) +
+              (toNumberOrNull(node['Rows Removed by Filter']) ?? 0)) *
+              (toNumberOrNull(node['Actual Loops']) ?? 1),
+          0
+        )
+    }
+    /**
+     * Every window statement reads at most one window of documents, whichever connector index
+     * the planner walks: a read of the whole connector, or of every tombstone it has, is what
+     * must never happen.
+     */
+    const expectBounded = async (
+      walked: { query: string; params: Parameters<typeof db.$client.unsafe>[1] }[]
+    ) => {
+      expect(walked.length).toBeGreaterThan(0)
+      for (const { query, params } of walked) {
+        expect(await explainWalk(query, params), query).toBeLessThanOrEqual(
+          RECONCILIATION_WINDOW_SIZE
+        )
+      }
+    }
+
+    it('bounds every page by the ids it scans when absence is rare and late in id order', async () => {
+      /** Ids sort present rows first, so each absent row is found only after three full windows. */
+      const present = Array.from({ length: 3 * RECONCILIATION_WINDOW_SIZE }, (_, index) => ({
+        ...row(`${connectorId}-a-${String(index).padStart(6, '0')}`),
+        sourceSeenAt: startedAt,
+      }))
+      const absent = Array.from({ length: 3 }, (_, index) => ({
+        ...row(`${connectorId}-z-live-${index}`),
+        sourceSeenAt: null,
+      }))
+      const tombstoned = Array.from({ length: 2 }, (_, index) => ({
+        ...row(`${connectorId}-z-tombstone-${index}`),
+        sourceSeenAt: null,
+        deletedAt: new Date(startedAt.getTime() - 60_000),
+      }))
+      await seed([...present, ...absent, ...tombstoned], present.length)
+      const { pass, stats, hardDeleted, walked } = await reconcile()
+      expect(pass).toMatchObject({ complete: true, holdNotice: null })
+      expect(stats.docsDeleted).toBe(absent.length)
+      expect(hardDeleted.sort()).toEqual(tombstoned.map((item) => item.id).sort())
+      const stored = await db
+        .select({ id: document.id, acl: document.acl, deletedAt: document.deletedAt })
+        .from(document)
+        .where(eq(document.connectorId, connectorId))
+      expect(stored).toHaveLength(present.length + absent.length)
+      for (const item of stored) expect(item.deletedAt !== null).toBe(item.id.includes('-z-'))
+      expect(
+        stored.filter((item) => item.id.includes('-z-')).every((item) => item.acl.length === 0)
+      ).toBe(true)
+      await expectBounded(walked)
+    }, 120_000)
+
+    it('scans a dense window once and never reads every tombstone of the connector', async () => {
+      /**
+       * Three hard-delete pages of absent tombstones open the first window; the rest of the
+       * connector is tombstones the listing still sees, which the hard walk must pass over.
+       */
+      const dense = Array.from({ length: 75 }, (_, index) => ({
+        ...row(`${connectorId}-a-${String(index).padStart(3, '0')}`),
+        acl: [],
+        sourceSeenAt: null,
+        deletedAt: new Date(startedAt.getTime() - 60_000),
+      }))
+      const seenTombstones = Array.from({ length: 3 * RECONCILIATION_WINDOW_SIZE }, (_, index) => ({
+        ...row(`${connectorId}-b-${String(index).padStart(6, '0')}`),
+        sourceSeenAt: startedAt,
+        deletedAt: new Date(startedAt.getTime() - 60_000),
+      }))
+      await seed([...dense, ...seenTombstones], seenTombstones.length)
+      const { pass, hardDeleted, walked } = await reconcile()
+      expect(pass).toMatchObject({ complete: true, holdNotice: null })
+      expect(hardDeleted.sort()).toEqual(dense.map((item) => item.id).sort())
+      expect(
+        await db
+          .select({ id: document.id })
+          .from(document)
+          .where(eq(document.connectorId, connectorId))
+      ).toHaveLength(seenTombstones.length)
+      /**
+       * The only walk is the hard one: one statement per window, the dense first one included,
+       * then the tail, however many pages of matches a window holds.
+       */
+      expect(walked).toHaveLength(
+        Math.floor((dense.length + seenTombstones.length) / RECONCILIATION_WINDOW_SIZE) + 1
+      )
+      /** `deleted_at < $1` implies the tombstone index, which would read every connector tombstone. */
+      await expectBounded(walked)
+    }, 120_000)
   })
 
   it('indexes a page, resumes under a new lease, and reconciles absence only after EOF', async () => {

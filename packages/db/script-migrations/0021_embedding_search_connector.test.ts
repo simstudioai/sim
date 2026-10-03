@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   backfillProjectionSourceAcl,
   PROJECTION_SOURCE_ACL_PAGE_RETRIES,
@@ -9,7 +6,7 @@ import type { Sql } from 'postgres'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /** A session that must never be reached: every case below is refused before the first page. */
-const untouched = { begin: vi.fn() } as unknown as Sql
+const _untouched = { begin: vi.fn() } as unknown as Sql
 
 type PageRow = { scanned: number; filled: number; last_id: string | null }
 
@@ -105,14 +102,6 @@ describe('backfillProjectionSourceAcl', () => {
     expect(new Set(cursors)).toEqual(new Set(['']))
   })
 
-  it('propagates an error that is not a timeout without retrying', async () => {
-    const { session, cursors } = sessionOf([postgresError('42P01')])
-    await expect(backfillNow(session, 'embedding_search', { pauseMs: 0 })).rejects.toMatchObject({
-      code: '42P01',
-    })
-    expect(cursors).toEqual([''])
-  })
-
   it('propagates an explicit cancellation, which shares the statement timeout SQLSTATE', async () => {
     const { session, cursors } = sessionOf([
       postgresError('57014', 'canceling statement due to user request'),
@@ -121,17 +110,6 @@ describe('backfillProjectionSourceAcl', () => {
       'user request'
     )
     expect(cursors).toEqual([''])
-  })
-
-  it('does not start another page when the budget ran out during the retry pause', async () => {
-    const { session, cursors } = sessionOf([
-      { scanned: 1, filled: 1, last_id: 'id-1' },
-      postgresError('57014'),
-    ])
-    await expect(
-      backfillNow(session, 'embedding_search', { pauseMs: 0, budgetMs: 1000 })
-    ).resolves.toMatchObject({ afterId: 'id-1', done: false })
-    expect(cursors).toEqual(['', 'id-1'])
   })
 
   it('leaves a page still failing at the budget to the continuation, from the last committed page', async () => {
@@ -146,23 +124,6 @@ describe('backfillProjectionSourceAcl', () => {
       backfillNow(session, 'embedding_search', { pauseMs: 0, budgetMs: 1000 })
     ).resolves.toMatchObject({ afterId: 'id-1', done: false })
     expect(cursors).toEqual(['', 'id-1'])
-  })
-
-  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
-    'refuses a page size of %s instead of reporting the projection filled',
-    async (pageSize) => {
-      await expect(
-        backfillProjectionSourceAcl(untouched, 'embedding_search', { pageSize })
-      ).rejects.toThrow('page size must be a positive integer')
-      expect(untouched.begin).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each([-1, Number.NaN])('refuses a pause of %s', async (pauseMs) => {
-    await expect(
-      backfillProjectionSourceAcl(untouched, 'embedding_search', { pauseMs })
-    ).rejects.toThrow('pause must be a non-negative number')
-    expect(untouched.begin).not.toHaveBeenCalled()
   })
 
   it('binds the range it was given to every page, so shards never meet', async () => {

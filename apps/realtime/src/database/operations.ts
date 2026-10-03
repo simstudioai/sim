@@ -291,7 +291,6 @@ function isSubflowBlockType(blockType: string): blockType is SubflowType {
 
 export async function updateSubflowNodeList(dbOrTx: any, workflowId: string, parentId: string) {
   try {
-    // Get all child blocks of this parent
     const childBlocks = await dbOrTx
       .select({ id: workflowBlocks.id })
       .from(workflowBlocks)
@@ -304,7 +303,6 @@ export async function updateSubflowNodeList(dbOrTx: any, workflowId: string, par
 
     const childNodeIds = childBlocks.map((block: any) => block.id)
 
-    // Get current subflow config
     const subflowData = await dbOrTx
       .select({ config: workflowSubflows.config })
       .from(workflowSubflows)
@@ -437,7 +435,6 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
       }
     })
 
-    // Audit workflow-level lock/unlock operations
     if (
       target === OPERATION_TARGETS.BLOCKS &&
       op === BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED &&
@@ -541,7 +538,6 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for update name operation')
       }
 
-      // Check if block is protected (locked or inside locked parent)
       const blockToRename = await tx
         .select({
           id: workflowBlocks.id,
@@ -612,7 +608,6 @@ async function handleBlockOperationTx(
         throw new Error('Missing block ID for toggle enabled operation')
       }
 
-      // Get current enabled state
       const currentBlock = await tx
         .select({ enabled: workflowBlocks.enabled })
         .from(workflowBlocks)
@@ -654,7 +649,6 @@ async function handleBlockOperationTx(
 
       const isRemovingFromParent = !payload.parentId
 
-      // Get current data to update
       const [currentBlock] = await tx
         .select({ data: workflowBlocks.data })
         .from(workflowBlocks)
@@ -663,7 +657,6 @@ async function handleBlockOperationTx(
 
       const currentData = currentBlock?.data || {}
 
-      // Update data with parentId and extent
       const { parentId: _removedParentId, extent: _removedExtent, ...restData } = currentData
       const updatedData = isRemovingFromParent
         ? restData
@@ -686,11 +679,9 @@ async function handleBlockOperationTx(
         throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      // If the block now has a parent, update the new parent's subflow node list
       if (payload.parentId) {
         await updateSubflowNodeList(tx, workflowId, payload.parentId)
       }
-      // If the block had a previous parent, update that parent's node list as well
       if (existing?.parentId && existing.parentId !== payload.parentId) {
         await updateSubflowNodeList(tx, workflowId, existing.parentId)
       }
@@ -918,7 +909,6 @@ async function handleBlocksOperationTx(
       })
 
       if (blocks && blocks.length > 0) {
-        // Fetch existing blocks to check for locked parents
         const existingBlocks = await tx
           .select({ id: workflowBlocks.id, locked: workflowBlocks.locked })
           .from(workflowBlocks)
@@ -931,7 +921,6 @@ async function handleBlocksOperationTx(
             .map((b: ExistingBlockRecord) => b.id)
         )
 
-        // Filter out blocks being added to locked parents
         const allowedBlocks = (blocks as Array<Record<string, unknown>>).filter((block) => {
           const parentId = (block.data as Record<string, unknown> | null)?.parentId as
             | string
@@ -1050,7 +1039,6 @@ async function handleBlocksOperationTx(
           }
         }
 
-        // Update parent subflow node lists
         const parentIds = new Set<string>()
         for (const block of allowedBlocks) {
           const parentId = (block.data as Record<string, unknown>)?.parentId as string | undefined
@@ -1166,7 +1154,6 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch removing ${ids.length} blocks from workflow ${workflowId}`)
 
-      // Fetch all blocks to check lock status and filter out protected blocks
       const allBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1182,7 +1169,6 @@ async function handleBlocksOperationTx(
         allBlocks.map((b: BlockRecord) => [b.id, b])
       )
 
-      // Filter out protected blocks from deletion request
       const deletableIds = ids.filter((id) => !isWorkflowBlockProtected(id, blocksById))
       if (deletableIds.length === 0) {
         logger.info('All requested blocks are protected, skipping deletion')
@@ -1195,7 +1181,6 @@ async function handleBlocksOperationTx(
         )
       }
 
-      // Collect all block IDs including all descendants of subflows
       const allBlocksToDelete = new Set<string>(deletableIds)
 
       for (const id of deletableIds) {
@@ -1226,7 +1211,6 @@ async function handleBlocksOperationTx(
       // lifecycle is managed by deploy.ts, lifecycle.ts, and the /api/webhooks/[id] route.
       // Removing a trigger block from the draft canvas does not touch any webhook rows.
 
-      // Delete edges connected to any of the blocks
       await tx
         .delete(workflowEdges)
         .where(
@@ -1239,7 +1223,6 @@ async function handleBlocksOperationTx(
           )
         )
 
-      // Delete subflow entries
       await tx
         .delete(workflowSubflows)
         .where(
@@ -1249,14 +1232,12 @@ async function handleBlocksOperationTx(
           )
         )
 
-      // Delete all blocks
       await tx
         .delete(workflowBlocks)
         .where(
           and(eq(workflowBlocks.workflowId, workflowId), inArray(workflowBlocks.id, blockIdsArray))
         )
 
-      // Update parent subflow node lists using pre-collected parent IDs
       for (const parentId of parentIds) {
         await updateSubflowNodeList(tx, workflowId, parentId)
       }
@@ -1277,7 +1258,6 @@ async function handleBlocksOperationTx(
         `Batch toggling enabled state for ${blockIds.length} blocks in workflow ${workflowId}`
       )
 
-      // Get all blocks in workflow to find children and check locked state
       const allBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1295,14 +1275,12 @@ async function handleBlocksOperationTx(
       )
       const blocksToToggle = new Set<string>()
 
-      // Collect all blocks to toggle including descendants of containers
       for (const id of blockIds) {
         const block = blocksById[id]
         if (!block || isWorkflowBlockProtected(id, blocksById)) continue
 
         blocksToToggle.add(id)
 
-        // If it's a loop or parallel, also include all non-locked descendants
         if (block.type === 'loop' || block.type === 'parallel') {
           for (const descId of findDbDescendants(id, allBlocks)) {
             if (!isWorkflowBlockProtected(descId, blocksById)) {
@@ -1319,7 +1297,6 @@ async function handleBlocksOperationTx(
       if (!firstBlock) break
       const targetEnabled = !firstBlock.enabled
 
-      // Update all affected blocks
       for (const blockId of blocksToToggle) {
         await tx
           .update(workflowBlocks)
@@ -1342,7 +1319,6 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch toggling handles for ${blockIds.length} blocks in workflow ${workflowId}`)
 
-      // Fetch all blocks to check lock status and filter out protected blocks
       const allBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1358,7 +1334,6 @@ async function handleBlocksOperationTx(
         allBlocks.map((b: HandleBlockRecord) => [b.id, b])
       )
 
-      // Filter to only toggle handles on unprotected blocks
       const blocksToToggle = blockIds.filter(
         (id) => blocksById[id] && !isWorkflowBlockProtected(id, blocksById)
       )
@@ -1390,7 +1365,6 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch toggling locked for ${blockIds.length} blocks in workflow ${workflowId}`)
 
-      // Get all blocks in workflow to find children
       const allBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1407,14 +1381,12 @@ async function handleBlocksOperationTx(
       )
       const blocksToToggle = new Set<string>()
 
-      // Collect all blocks to toggle including descendants of containers
       for (const id of blockIds) {
         const block = blocksById[id]
         if (!block) continue
 
         blocksToToggle.add(id)
 
-        // If it's a loop or parallel, also include all descendants
         if (block.type === 'loop' || block.type === 'parallel') {
           for (const descId of findDbDescendants(id, allBlocks)) {
             blocksToToggle.add(descId)
@@ -1429,7 +1401,6 @@ async function handleBlocksOperationTx(
       if (!firstBlock) break
       const targetLocked = !firstBlock.locked
 
-      // Update all affected blocks
       for (const blockId of blocksToToggle) {
         await tx
           .update(workflowBlocks)
@@ -1452,7 +1423,6 @@ async function handleBlocksOperationTx(
 
       logger.info(`Batch updating parent for ${updates.length} blocks in workflow ${workflowId}`)
 
-      // Fetch all blocks to check lock status
       const allBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1471,7 +1441,6 @@ async function handleBlocksOperationTx(
         const { id, parentId, position } = update
         if (!id) continue
 
-        // Skip protected blocks (locked or inside locked container)
         if (isWorkflowBlockProtected(id, blocksById)) {
           logger.info(`Skipping block ${id} parent update - block is protected`)
           continue
@@ -1496,7 +1465,6 @@ async function handleBlocksOperationTx(
 
         const isRemovingFromParent = !parentId
 
-        // Get current data and position
         const [currentBlock] = await tx
           .select({
             data: workflowBlocks.data,
@@ -1527,11 +1495,9 @@ async function handleBlocksOperationTx(
           })
           .where(and(eq(workflowBlocks.id, id), eq(workflowBlocks.workflowId, workflowId)))
 
-        // If the block now has a parent, update the new parent's subflow node list
         if (parentId) {
           await updateSubflowNodeList(tx, workflowId, parentId)
         }
-        // If the block had a previous parent, update that parent's node list as well
         if (existingParentId && existingParentId !== parentId) {
           await updateSubflowNodeList(tx, workflowId, existingParentId)
         }
@@ -1596,7 +1562,6 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error('Missing edge ID for remove operation')
       }
 
-      // Get the edge to check if target block is protected
       const [edgeToRemove] = await tx
         .select({
           sourceBlockId: workflowEdges.sourceBlockId,
@@ -1610,7 +1575,6 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error(`Edge ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      // Check if target block is protected
       const connectedBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1630,7 +1594,6 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         connectedBlocks.map((b: RemoveEdgeBlockRecord) => [b.id, b])
       )
 
-      // Collect parent IDs that need to be fetched
       const parentIds = new Set<string>()
       for (const block of connectedBlocks) {
         const parentId = (block.data as Record<string, unknown> | null)?.parentId as
@@ -1641,7 +1604,6 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         }
       }
 
-      // Fetch parent blocks if needed
       if (parentIds.size > 0) {
         const parentBlocks = await tx
           .select({
@@ -1696,7 +1658,6 @@ async function handleEdgesOperationTx(
 
       logger.info(`Batch removing ${ids.length} edges from workflow ${workflowId}`)
 
-      // Get edges to check connected blocks
       const edgesToRemove = await tx
         .select({
           id: workflowEdges.id,
@@ -1713,14 +1674,12 @@ async function handleEdgesOperationTx(
 
       type EdgeToRemove = (typeof edgesToRemove)[number]
 
-      // Get all connected block IDs
       const connectedBlockIds = new Set<string>()
       edgesToRemove.forEach((e: EdgeToRemove) => {
         connectedBlockIds.add(e.sourceBlockId)
         connectedBlockIds.add(e.targetBlockId)
       })
 
-      // Fetch blocks to check lock status
       const connectedBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1740,7 +1699,6 @@ async function handleEdgesOperationTx(
         connectedBlocks.map((b: EdgeBlockRecord) => [b.id, b])
       )
 
-      // Collect parent IDs that need to be fetched
       const parentIds = new Set<string>()
       for (const block of connectedBlocks) {
         const parentId = (block.data as Record<string, unknown> | null)?.parentId as
@@ -1751,7 +1709,6 @@ async function handleEdgesOperationTx(
         }
       }
 
-      // Fetch parent blocks if needed
       if (parentIds.size > 0) {
         const parentBlocks = await tx
           .select({
@@ -1983,7 +1940,6 @@ async function handleSubflowOperationTx(
       break
     }
 
-    // Add other subflow operations as needed
     default:
       logger.warn(`Unknown subflow operation: ${operation}`)
       throw new Error(`Unsupported subflow operation: ${operation}`)
@@ -2022,7 +1978,7 @@ function getWritableSubblockUpdateBlock(
   return block
 }
 
-// Subblock operations - targeted value updates without replacing workflow state
+/** Applies targeted subblock value updates without replacing the workflow state. */
 async function handleSubblockOperationTx(
   tx: any,
   workflowId: string,
@@ -2109,14 +2065,13 @@ async function handleSubblockOperationTx(
   }
 }
 
-// Variable operations - updates workflow.variables JSON field
+/** Applies variable operations to the `workflow.variables` JSON field. */
 async function handleVariableOperationTx(
   tx: any,
   workflowId: string,
   operation: string,
   payload: any
 ) {
-  // Get current workflow variables
   const workflowData = await tx
     .select({ variables: workflow.variables })
     .from(workflow)
@@ -2135,7 +2090,6 @@ async function handleVariableOperationTx(
         throw new Error('Missing required fields for add variable operation')
       }
 
-      // Add the new variable
       const updatedVariables = {
         ...currentVariables,
         [payload.id]: {
@@ -2164,7 +2118,6 @@ async function handleVariableOperationTx(
         throw new Error('Missing variable ID for remove operation')
       }
 
-      // Remove the variable
       const { [payload.variableId]: _, ...updatedVariables } = currentVariables
 
       await tx
@@ -2185,7 +2138,7 @@ async function handleVariableOperationTx(
   }
 }
 
-// Workflow operations - handles complete state replacement
+/** Replaces the complete workflow state. */
 async function handleWorkflowOperationTx(
   tx: any,
   workflowId: string,
@@ -2209,10 +2162,8 @@ async function handleWorkflowOperationTx(
 
       await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
 
-      // Delete all existing subflows
       await tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId))
 
-      // Insert all blocks from the new state
       if (blocks && Object.keys(blocks).length > 0) {
         const blockValues = Object.values(blocks).map((block: any) => ({
           id: block.id,
@@ -2237,7 +2188,6 @@ async function handleWorkflowOperationTx(
         await tx.insert(workflowBlocks).values(blockValues)
       }
 
-      // Insert all edges from the new state
       if (edges && edges.length > 0) {
         const canonicalEdges = (edges as Array<Record<string, unknown>>).map((edge) =>
           canonicalizeEdgeAddCandidate({
@@ -2269,7 +2219,6 @@ async function handleWorkflowOperationTx(
         }
       }
 
-      // Insert all loops from the new state
       if (loops && Object.keys(loops).length > 0) {
         const loopValues = Object.entries(loops).map(([id, loop]: [string, any]) => ({
           id,
@@ -2281,7 +2230,6 @@ async function handleWorkflowOperationTx(
         await tx.insert(workflowSubflows).values(loopValues)
       }
 
-      // Insert all parallels from the new state
       if (parallels && Object.keys(parallels).length > 0) {
         const parallelValues = Object.entries(parallels).map(([id, parallel]: [string, any]) => ({
           id,

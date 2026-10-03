@@ -30,7 +30,6 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import { useSession } from '@/lib/auth/auth-client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
@@ -45,15 +44,20 @@ import {
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
-import type {
-  PersistedFileAttachment,
-  PersistedMessage,
+import {
+  isUnsettledToolState,
+  type PersistedFileAttachment,
+  type PersistedMessage,
 } from '@/lib/mothership/chat/persisted-message'
 import {
   type RevealedSimKeysByMessage,
   restoreRevealedSimKeysForMessage,
 } from '@/lib/mothership/chat/sim-key-redaction'
-import { MOTHERSHIP_CHAT_API_PATH, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import {
+  MOTHERSHIP_CHAT_API_PATH,
+  MOTHERSHIP_CHAT_ID_HEADER,
+  MOTHERSHIP_STREAM_REPLAY_HEADER,
+} from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
@@ -82,8 +86,8 @@ import {
 } from '@/lib/mothership/tools/client/run-tool-execution'
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
+import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
@@ -121,6 +125,7 @@ import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-ca
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
+import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -152,7 +157,6 @@ import {
   type ReconnectReplaySelection,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
-  toRawPersistedContentBlock,
 } from './message-reconcile'
 import {
   clearQueuedSendHandoffClaim,
@@ -288,6 +292,8 @@ const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
 const RECONNECT_EXHAUSTED_RECHECK_MS = 30_000
 const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
+/** Both live transports heartbeat every 15s; three missed heartbeats trigger cursor recovery. */
+const STREAM_IDLE_TIMEOUT_MS = 45_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
 const STOP_REQUEST_TIMEOUT_MS = 15_000
@@ -299,6 +305,15 @@ const DETACHED_CHAT_RETRY_MAX_MS = 30_000
 const EMPTY_MESSAGE_QUEUE: QueuedMothershipMessage[] = []
 
 const logger = createLogger('useChat')
+
+/**
+ * The reconnect query for a stream. Once a stream was re-synced from the worker's log,
+ * its cursors are log positions, so every later read names the log as its source and
+ * is never served from the replay ring, even one that restarted and grew past them.
+ */
+function streamReconnectQuery(streamId: string, afterCursor: string, fromLog: boolean): string {
+  return `streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}${fromLog ? '&source=log' : ''}`
+}
 
 /**
  * Fire-and-forget desktop-surface handoff between chat scopes: drops an
@@ -532,8 +547,6 @@ export function selectDeletedWorkflowResources(
 }
 
 export interface ResourceEventOptions {
-  /** A completed Search answer reveals its cited evidence as the turn result. */
-  revealCitedSources?: boolean
   activate?: boolean
   tableViewId?: string
 }
@@ -679,9 +692,9 @@ export function useChat(
    */
   const [activeResourceId, setActiveResourceId] =
     options?.activeResourceState ?? internalActiveResourceState
-  const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
-  const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
+  const revealedSimKeysRef = useRef<RevealedSimKeysByMessage | null>(null)
+  const revealedSimKeys = (revealedSimKeysRef.current ??= new Map())
   onResourceEventRef.current = options?.onResourceEvent
   const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
   apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
@@ -708,8 +721,8 @@ export function useChat(
   const clearQueueDispatchState = useCallback(() => {
     queueDispatchEpochRef.current++
     queueDispatchActionsRef.current = []
-    queuedMessageDispatchIdsRef.current.clear()
-    userRemovedDuringDispatchRef.current.clear()
+    queuedMessageDispatchIds.clear()
+    userRemovedDuringDispatch.clear()
     queueDispatchTaskRef.current = null
     setDispatchingHeadId(null)
   }, [])
@@ -724,6 +737,10 @@ export function useChat(
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
   const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
+  const pendingResourceReordersRef = useRef<Map<string, MothershipResource[]> | null>(null)
+  const pendingResourceReorders = (pendingResourceReordersRef.current ??= new Map())
+  const pendingResourceReorderFlushesRef = useRef<Map<string, Promise<void>> | null>(null)
+  const pendingResourceReorderFlushes = (pendingResourceReorderFlushesRef.current ??= new Map())
   const refreshResourceHistory = useCallback(
     async (chatId: string) => {
       /** Cancel pre-write reads without rolling back newer optimistic changes. */
@@ -733,7 +750,7 @@ export function useChat(
         const queue = resourcePersistenceQueueRef.current
         if (!current || !queue) return current
         const resources = queue.applyPendingUpdates(chatId, current.resources)
-        const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+        const pendingOrder = pendingResourceReorders.get(chatId)
         return {
           ...current,
           resources: pendingOrder
@@ -765,8 +782,6 @@ export function useChat(
     })
   }
   const resourcePersistenceQueue = resourcePersistenceQueueRef.current
-  const pendingResourceReordersRef = useRef(new Map<string, MothershipResource[]>())
-  const pendingResourceReorderFlushesRef = useRef(new Map<string, Promise<void>>())
 
   // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
   // migrates this bucket onto the real chatId on first send. Rotated on
@@ -853,11 +868,13 @@ export function useChat(
   )
   const editingQueuedId = useMothershipQueueStore((state) => state.editing[chatKey] ?? null)
   const [dispatchingHeadId, setDispatchingHeadId] = useState<string | null>(null)
-  const queuedMessageDispatchIdsRef = useRef<Set<string>>(new Set())
+  const queuedMessageDispatchIdsRef = useRef<Set<string> | null>(null)
+  const queuedMessageDispatchIds = (queuedMessageDispatchIdsRef.current ??= new Set())
   // Ids the user explicitly removed while a dispatch was in flight — used to
   // suppress the dispatch's failure-restore path, which would otherwise undo
   // the user's removal silently.
-  const userRemovedDuringDispatchRef = useRef<Set<string>>(new Set())
+  const userRemovedDuringDispatchRef = useRef<Set<string> | null>(null)
+  const userRemovedDuringDispatch = (userRemovedDuringDispatchRef.current ??= new Set())
   const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
   const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
   const queueDispatchEpochRef = useRef(0)
@@ -906,7 +923,9 @@ export function useChat(
   const reconnectExhaustedRecheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
-  const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
+  const detachedChatResolutionControllersRef = useRef<Set<AbortController> | null>(null)
+  const detachedChatResolutionControllers = (detachedChatResolutionControllersRef.current ??=
+    new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const tableViewContextsRef = useRef({
@@ -952,15 +971,20 @@ export function useChat(
   const streamRequestIdRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
   const lastCursorRef = useRef('0')
+  const logResyncedStreamIdRef = useRef<string | null>(null)
   const activeStreamReturnRecoveryRef = useRef<ActiveStreamRecovery | null>(null)
   const sendingRef = useRef(false)
   const streamGenRef = useRef(0)
   const resourceActivityTrackerRef = useRef<ResourceActivityTracker | null>(null)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
-  const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
-  const handledClientLocalFilesystemToolIdsRef = useRef<Set<string>>(new Set())
-  const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
+  const handledClientWorkflowToolIdsRef = useRef<Set<string> | null>(null)
+  const handledClientWorkflowToolIds = (handledClientWorkflowToolIdsRef.current ??= new Set())
+  const handledClientLocalFilesystemToolIdsRef = useRef<Set<string> | null>(null)
+  const handledClientLocalFilesystemToolIds = (handledClientLocalFilesystemToolIdsRef.current ??=
+    new Set())
+  const recoveringClientWorkflowToolIdsRef = useRef<Set<string> | null>(null)
+  const recoveringClientWorkflowToolIds = (recoveringClientWorkflowToolIdsRef.current ??= new Set())
   const isHomePage = pathname.endsWith('/home')
 
   const setTransportIdle = useCallback(() => {
@@ -1086,12 +1110,12 @@ export function useChat(
 
   const flushPendingResourceReorder = useCallback(
     (chatId: string): Promise<void> => {
-      const activeFlush = pendingResourceReorderFlushesRef.current.get(chatId)
+      const activeFlush = pendingResourceReorderFlushes.get(chatId)
       if (activeFlush) return activeFlush
 
       const flush = async () => {
         while (true) {
-          const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+          const pendingOrder = pendingResourceReorders.get(chatId)
           if (!pendingOrder) return
           if (resourcePersistenceQueue.hasPendingIdentityChanges(chatId)) return
 
@@ -1102,7 +1126,7 @@ export function useChat(
           }
 
           if (pendingOrder.length === 0) {
-            pendingResourceReordersRef.current.delete(chatId)
+            pendingResourceReorders.delete(chatId)
             return
           }
           try {
@@ -1110,8 +1134,8 @@ export function useChat(
               body: { chatId, resources: pendingOrder },
             })
             await refreshResourceHistory(chatId)
-            if (pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
-              pendingResourceReordersRef.current.delete(chatId)
+            if (pendingResourceReorders.get(chatId) === pendingOrder) {
+              pendingResourceReorders.delete(chatId)
             }
           } catch (error) {
             // 400 is the server rejecting the body's identity set — a tab was
@@ -1120,8 +1144,8 @@ export function useChat(
             // re-establish the order. Everything else (offline, 401, 5xx) is
             // transient and keeps the body for the next retry.
             const unsatisfiable = isApiClientError(error) && error.status === 400
-            if (unsatisfiable && pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
-              pendingResourceReordersRef.current.delete(chatId)
+            if (unsatisfiable && pendingResourceReorders.get(chatId) === pendingOrder) {
+              pendingResourceReorders.delete(chatId)
             }
             logger.warn(
               unsatisfiable
@@ -1134,11 +1158,11 @@ export function useChat(
         }
       }
       const tracked = flush().finally(() => {
-        if (pendingResourceReorderFlushesRef.current.get(chatId) === tracked) {
-          pendingResourceReorderFlushesRef.current.delete(chatId)
+        if (pendingResourceReorderFlushes.get(chatId) === tracked) {
+          pendingResourceReorderFlushes.delete(chatId)
         }
       })
-      pendingResourceReorderFlushesRef.current.set(chatId, tracked)
+      pendingResourceReorderFlushes.set(chatId, tracked)
       return tracked
     },
     [refreshResourceHistory, resourcePersistenceQueue]
@@ -1169,6 +1193,9 @@ export function useChat(
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
       const resolvedDesktopScopeId = desktopChatScopeId(scopeKey, chatId)
+      if (wasPending) {
+        useChatPanelStore.getState().migrate(pendingDesktopScopeId, resolvedDesktopScopeId)
+      }
       const activeActivityTracker = resourceActivityTrackerRef.current
       if (activeActivityTracker?.generation === streamGenRef.current) {
         if (wasPending) {
@@ -1280,7 +1307,7 @@ export function useChat(
         source.splice(ownerIndex + 1, 0, liveAssistant)
       }
     }
-    return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
+    return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeys))
   }, [chatHistory, pendingMessages, pendingTurn, liveContent, liveBlocks])
   const addResource = useCallback(
     (resourceUpdate: MothershipResourceUpdate): boolean => {
@@ -1472,7 +1499,7 @@ export function useChat(
         ...newOrder.filter((resource) => !isEphemeralResource(resource)),
         ...undisplayableResourcesRef.current,
       ]
-      pendingResourceReordersRef.current.set(persistChatId, persistableResources)
+      pendingResourceReorders.set(persistChatId, persistableResources)
       void flushPendingResourceReorder(persistChatId)
     },
     [flushPendingResourceReorder]
@@ -1513,13 +1540,13 @@ export function useChat(
       if (!isWorkflowToolName(toolName)) {
         return
       }
-      if (handledClientWorkflowToolIdsRef.current.has(toolCallId)) {
+      if (handledClientWorkflowToolIds.has(toolCallId)) {
         return
       }
-      if (recoveringClientWorkflowToolIdsRef.current.has(toolCallId)) {
+      if (recoveringClientWorkflowToolIds.has(toolCallId)) {
         return
       }
-      handledClientWorkflowToolIdsRef.current.add(toolCallId)
+      handledClientWorkflowToolIds.add(toolCallId)
 
       ensureWorkflowToolResource(toolArgs)
       executeRunToolOnClient(toolCallId, toolName, toolArgs)
@@ -1535,10 +1562,10 @@ export function useChat(
       ) {
         return
       }
-      if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
+      if (handledClientLocalFilesystemToolIds.has(toolCallId)) {
         return
       }
-      handledClientLocalFilesystemToolIdsRef.current.add(toolCallId)
+      handledClientLocalFilesystemToolIds.add(toolCallId)
       const options = {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
@@ -1658,12 +1685,12 @@ export function useChat(
           if (!toolCall || !isWorkflowToolName(toolCall.name)) continue
           if (toolCall.status !== 'executing') continue
           if (
-            handledClientWorkflowToolIdsRef.current.has(toolCall.id) ||
-            recoveringClientWorkflowToolIdsRef.current.has(toolCall.id)
+            handledClientWorkflowToolIds.has(toolCall.id) ||
+            recoveringClientWorkflowToolIds.has(toolCall.id)
           ) {
             continue
           }
-          recoveringClientWorkflowToolIdsRef.current.add(toolCall.id)
+          recoveringClientWorkflowToolIds.add(toolCall.id)
           pending.push(toolCall)
         }
       }
@@ -1676,15 +1703,15 @@ export function useChat(
           if (targetWorkflowId) {
             const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
             if (rebound) {
-              handledClientWorkflowToolIdsRef.current.add(toolCall.id)
+              handledClientWorkflowToolIds.add(toolCall.id)
               continue
             }
           }
 
-          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
+          recoveringClientWorkflowToolIds.delete(toolCall.id)
           startClientWorkflowTool(toolCall.id, toolCall.name, toolArgs)
         } finally {
-          recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
+          recoveringClientWorkflowToolIds.delete(toolCall.id)
         }
       }
     },
@@ -1717,7 +1744,7 @@ export function useChat(
           // background so its native resources are re-keyed onto the server
           // chat even though this reader is intentionally being cancelled.
           const detachedResolutionController = new AbortController()
-          detachedChatResolutionControllersRef.current.add(detachedResolutionController)
+          detachedChatResolutionControllers.add(detachedResolutionController)
           void (async () => {
             const resolution = await waitForDetachedChatResolution(
               () =>
@@ -1739,6 +1766,7 @@ export function useChat(
               return
             }
 
+            useChatPanelStore.getState().migrate(previousDesktopScopeId, resolvedChatId)
             await migrateDesktopChatScopes(previousDesktopScopeId, resolvedChatId)
             if (pendingChatKey) {
               useMothershipQueueStore.getState().migrate(pendingChatKey, resolvedChatId)
@@ -1761,7 +1789,7 @@ export function useChat(
               })
             })
             .finally(() => {
-              detachedChatResolutionControllersRef.current.delete(detachedResolutionController)
+              detachedChatResolutionControllers.delete(detachedResolutionController)
             })
         }
         // Detach the current UI from the old stream without cancelling it on the server.
@@ -1908,20 +1936,17 @@ export function useChat(
     )
     /** Recovery discards interim search tabs without taking an already visible panel away. */
     if (
-      getDeploymentShape().features.liveEnterpriseSearch &&
       requestModeRef.current === 'assistant' &&
       !sendingRef.current &&
       (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
     ) {
-      const hasCitedSources = updatedResources.some((resource) => resource.type === 'sources')
       for (const resource of updatedResources) {
         if (
           resource.type === 'search' &&
-          (hasCitedSources ||
-            (getChatResourceSelectionId(resource) !== selectedResourceIdRef.current &&
-              !resourcesRef.current.some(
-                (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
-              )))
+          getChatResourceSelectionId(resource) !== selectedResourceIdRef.current &&
+          !resourcesRef.current.some(
+            (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
+          )
         ) {
           removeResource('search', resource.id, resource.workspaceId)
         }
@@ -1934,12 +1959,11 @@ export function useChat(
     // A stored panel this client cannot open is kept out of the tab strip
     // rather than restored onto an error, but stays in the stored set so the
     // desktop app still gets it back.
-    const pendingOrder = pendingResourceReordersRef.current.get(chatHistory.id)
+    const pendingOrder = pendingResourceReorders.get(chatHistory.id)
     const projectedResources = pendingOrder
       ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
       : updatedResources
     const keepSearchPanelStable =
-      getDeploymentShape().features.liveEnterpriseSearch &&
       requestModeRef.current === 'assistant' &&
       (sendingRef.current ||
         (activeStreamId && !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)))
@@ -1950,7 +1974,10 @@ export function useChat(
         const visible = resourcesRef.current.find(
           (item) => getChatResourceKey(item) === getChatResourceKey(resource)
         )
-        return visible ? [visible] : []
+        if (visible) return [visible]
+        return getChatResourceSelectionId(resource) === selectedResourceIdRef.current
+          ? [resource]
+          : []
       })
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a
@@ -2153,9 +2180,7 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
-        citedSourcesEnabled:
-          getDeploymentShape().features.liveEnterpriseSearch &&
-          requestModeRef.current === 'assistant',
+        citedSourcesEnabled: requestModeRef.current === 'assistant',
         refreshRoute: () => router.refresh(),
         viewerId,
         workspaceId,
@@ -2195,7 +2220,7 @@ export function useChat(
         chatIdRef,
         selectedChatIdRef,
         streamIdRef,
-        revealedSimKeysRef,
+        revealedSimKeys,
         pendingUserMsgRef,
         activeTurnRef,
         resourcesRef,
@@ -2220,6 +2245,7 @@ export function useChat(
 
       try {
         await readSSELines(reader, {
+          idleTimeoutMs: STREAM_IDLE_TIMEOUT_MS,
           onData: (raw) => {
             if (state.sawCompleteEvent) return true
             if (ops.isStale()) return
@@ -2365,7 +2391,7 @@ export function useChat(
       )
       // boundary-raw-fetch: stream-resume batch endpoint requires dynamic per-request traceparent header propagation that the contract layer does not model, and the response is consumed alongside live SSE tail fetches
       const response = await fetch(
-        `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}&batch=true`,
+        `/api/mothership/chat/stream?${streamReconnectQuery(streamId, afterCursor, logResyncedStreamIdRef.current === streamId)}&batch=true`,
         {
           signal: fetchSignal,
           ...(streamTraceparentRef.current
@@ -2557,7 +2583,7 @@ export function useChat(
 
           // boundary-raw-fetch: live SSE tail endpoint streams events consumed via response.body.getReader() and processSSEStream
           const sseRes = await fetch(
-            `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(latestCursor)}`,
+            `/api/mothership/chat/stream?${streamReconnectQuery(streamId, latestCursor, logResyncedStreamIdRef.current === streamId)}`,
             {
               signal: activeAbort.signal,
               ...(streamTraceparentRef.current
@@ -2574,6 +2600,14 @@ export function useChat(
 
           if (isStaleReconnect()) {
             return { error: false, aborted: true }
+          }
+
+          // Re-sent from the worker's log with cursors restarting at 1: rebuild from empty.
+          if (sseRes.headers.get(MOTHERSHIP_STREAM_REPLAY_HEADER) === 'log') {
+            logResyncedStreamIdRef.current = streamId
+            const reset = applyReconnectReplaySelection(streamId, '0')
+            latestCursor = reset.afterCursor
+            preserveNextReplayState = reset.preserveExistingState
           }
 
           setTransportStreaming()
@@ -2763,8 +2797,16 @@ export function useChat(
         abortControllerRef.current?.signal.aborted === true ||
         shouldContinue?.() === false
 
-      for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+      /**
+       * An attempt whose tail delivered new events re-attached successfully, so
+       * the failure after it starts a fresh budget at the base delay. Only
+       * failures without progress count toward exhaustion, which keeps separate
+       * network drops hours apart in a long turn from adding up.
+       */
+      let attempt = 0
+      while (attempt <= MAX_RECONNECT_ATTEMPTS) {
         if (isStaleReconnect()) return true
+        const cursorBeforeAttempt = lastCursorRef.current
 
         if (attempt > 0) {
           const delayMs = Math.min(
@@ -2866,6 +2908,7 @@ export function useChat(
             error: toError(err).message,
           })
         }
+        attempt = lastCursorRef.current !== cursorBeforeAttempt ? 1 : attempt + 1
       }
 
       logger.error('All reconnect attempts exhausted', {
@@ -3078,12 +3121,10 @@ export function useChat(
     }
   }, [recoverActiveStreamFromRedis])
 
-  const persistPartialResponse = useCallback(
+  const persistStoppedResponse = useCallback(
     async (overrides?: {
       chatId?: string
       streamId?: string
-      content?: string
-      blocks?: ContentBlock[]
       // `stopGeneration` must snapshot these BEFORE clearActiveTurn()
       // nulls the refs, or the fetch sees undefined.
       requestId?: string
@@ -3093,30 +3134,8 @@ export function useChat(
       const streamId = overrides?.streamId ?? streamIdRef.current
       if (!chatId || !streamId) return
 
-      const content = overrides?.content ?? streamingContentRef.current
       const requestId = overrides?.requestId ?? streamRequestIdRef.current
       const traceparent = overrides?.traceparent ?? streamTraceparentRef.current
-
-      const sourceBlocks = overrides?.blocks ?? streamingBlocksRef.current
-      const storedBlocks = sourceBlocks
-        .map((block) => {
-          const persisted = toRawPersistedContentBlock(block)
-          if (
-            persisted?.toolCall &&
-            (persisted.toolCall.state === 'executing' || persisted.toolCall.state === 'cancelled')
-          ) {
-            persisted.toolCall = {
-              ...persisted.toolCall,
-              state: 'cancelled',
-              display: { title: 'Stopped by user' },
-            }
-          }
-          return persisted
-        })
-        .filter((block) => block !== null)
-      if (storedBlocks.length > 0) {
-        storedBlocks.push({ type: 'complete', status: 'cancelled' })
-      }
 
       try {
         const res = await fetch(stopPathRef.current, {
@@ -3129,8 +3148,6 @@ export function useChat(
           body: JSON.stringify({
             chatId,
             streamId,
-            content,
-            ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
             ...(requestId ? { requestId } : {}),
           }),
         })
@@ -3252,8 +3269,7 @@ export function useChat(
       const isError = !!options?.error
       if (isError) {
         const blocks = streamingBlocksRef.current
-        if (blocks.some((block) => block.toolCall?.status === 'executing')) {
-          finalizeResidualToolCalls(blocks, 'error')
+        if (finalizeResidualToolCalls(blocks, 'error')) {
           const assistantId =
             activeTurnRef.current?.assistantMessageId ??
             (streamIdRef.current ? getLiveAssistantMessageId(streamIdRef.current) : undefined)
@@ -3417,6 +3433,7 @@ export function useChat(
           ? { viewId: (c.currentView ? c.currentView.viewId : c.viewId) ?? undefined }
           : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
+        ...('dashboardId' in c && c.dashboardId ? { dashboardId: c.dashboardId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
         ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
@@ -4330,7 +4347,6 @@ export function useChat(
         throw err
       }
 
-      const stopContentSnapshot = streamingContentRef.current
       const stopNow = Date.now()
       const stopBlocksSnapshot = streamingBlocksRef.current.map((block) => ({
         ...block,
@@ -4396,11 +4412,11 @@ export function useChat(
         } else {
           setPendingMessages((prev) =>
             prev.map((msg) => {
-              const hasExecutingTool = msg.contentBlocks?.some(
-                (block) => block.toolCall?.status === 'executing'
+              const hasUnsettledTool = msg.contentBlocks?.some((block) =>
+                isUnsettledToolState(block.toolCall?.status)
               )
               const hasOpenBlock = msg.contentBlocks?.some((block) => block.endedAt === undefined)
-              if (!hasExecutingTool && !hasOpenBlock) {
+              if (!hasUnsettledTool && !hasOpenBlock) {
                 return msg
               }
               const updatedBlocks: ContentBlock[] = (msg.contentBlocks ?? []).map((block) => ({
@@ -4489,11 +4505,9 @@ export function useChat(
             }
 
             if (wasSending && resolvedChatId) {
-              await persistPartialResponse({
+              await persistStoppedResponse({
                 chatId: resolvedChatId,
                 streamId: sid,
-                content: stopContentSnapshot,
-                blocks: stopBlocksSnapshot,
                 requestId: stopRequestIdSnapshot,
                 traceparent: stopTraceparentSnapshot,
               })
@@ -4560,7 +4574,7 @@ export function useChat(
       cancelActiveBrowserTools,
       invalidateChatQueries,
       notifyTurnEnded,
-      persistPartialResponse,
+      persistStoppedResponse,
       queryClient,
       resolveChatIdForStream,
       resetEphemeralPreviewState,
@@ -4585,17 +4599,17 @@ export function useChat(
         queuedSendHandoff?: QueuedSendHandoffSeed
       }
     ) => {
-      if (queuedMessageDispatchIdsRef.current.has(msg.id)) {
+      if (queuedMessageDispatchIds.has(msg.id)) {
         return
       }
-      queuedMessageDispatchIdsRef.current.add(msg.id)
+      queuedMessageDispatchIds.add(msg.id)
 
       const dispatchChatKey = chatKeyRef.current
       const queueAtStart =
         useMothershipQueueStore.getState().queues[dispatchChatKey] ?? EMPTY_MESSAGE_QUEUE
       let originalIndex = queueAtStart.findIndex((queued) => queued.id === msg.id)
       if (originalIndex === -1) {
-        queuedMessageDispatchIdsRef.current.delete(msg.id)
+        queuedMessageDispatchIds.delete(msg.id)
         return
       }
 
@@ -4639,7 +4653,7 @@ export function useChat(
         }
         // If the user explicitly removed this message during dispatch, honor
         // that and don't re-insert on failure.
-        if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
+        if (userRemovedDuringDispatch.delete(msg.id)) {
           clearQueuedSendHandoffState(msg.id)
           return
         }
@@ -4718,8 +4732,8 @@ export function useChat(
         restoreQueuedMessage(activeQueuedSendHandoff)
       } finally {
         setDispatchingHeadId((current) => (current === msg.id ? null : current))
-        queuedMessageDispatchIdsRef.current.delete(msg.id)
-        userRemovedDuringDispatchRef.current.delete(msg.id)
+        queuedMessageDispatchIds.delete(msg.id)
+        userRemovedDuringDispatch.delete(msg.id)
       }
     },
     [startSendMessage, handOffWithdrawnSend]
@@ -4775,8 +4789,8 @@ export function useChat(
   const removeFromQueue = useCallback((id: string) => {
     // If the message is mid-dispatch, mark it so the dispatch's failure-restore
     // path won't silently undo the user's removal.
-    if (queuedMessageDispatchIdsRef.current.has(id)) {
-      userRemovedDuringDispatchRef.current.add(id)
+    if (queuedMessageDispatchIds.has(id)) {
+      userRemovedDuringDispatch.add(id)
     }
     clearQueuedSendHandoffState(id)
     clearQueuedSendHandoffClaim(id)
@@ -4785,10 +4799,12 @@ export function useChat(
 
   const sendQueuedMessageImmediately = useCallback(
     async (id?: string) => {
-      const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
+      const queueState = useMothershipQueueStore.getState()
+      const chatKey = chatKeyRef.current
+      const queue = queueState.queues[chatKey]
       const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
-      if (!msg) return
-      if (queuedMessageDispatchIdsRef.current.has(msg.id)) return
+      if (!msg || queueState.editing[chatKey] === msg.id) return
+      if (queuedMessageDispatchIds.has(msg.id)) return
       const admissionPending = hasPendingChatAdmission()
 
       // Explicit queue sends should supersede any older auto-drain work scheduled by finalize().
@@ -4853,7 +4869,7 @@ export function useChat(
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
     // Reject edits on a message already mid-dispatch; the slot is about to be
     // dropped. UI also disables this via `dispatchingHeadId`.
-    if (queuedMessageDispatchIdsRef.current.has(id)) return undefined
+    if (queuedMessageDispatchIds.has(id)) return undefined
     const activeChatKey = chatKeyRef.current
     const queue = useMothershipQueueStore.getState().queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE
     const msg = queue.find((m) => m.id === id)
@@ -4882,7 +4898,7 @@ export function useChat(
     )
     if (chatHistory.activeStreamId) acceptedMessageIds.add(chatHistory.activeStreamId)
     for (const queued of messageQueue) {
-      if (queuedMessageDispatchIdsRef.current.has(queued.id)) continue
+      if (queuedMessageDispatchIds.has(queued.id)) continue
       const requestId = queued.queuedSendHandoff?.userMessageId ?? queued.resumeUserMessageId
       if (!requestId || !acceptedMessageIds.has(requestId)) continue
       clearQueuedSendHandoffState(queued.id)
@@ -4923,10 +4939,10 @@ export function useChat(
       cancelActiveStreamReader()
       abortControllerRef.current?.abort('unmount:client_cleanup')
       abortControllerRef.current = null
-      for (const controller of detachedChatResolutionControllersRef.current) {
+      for (const controller of detachedChatResolutionControllers) {
         controller.abort('unmount:detached_chat_resolution')
       }
-      detachedChatResolutionControllersRef.current.clear()
+      detachedChatResolutionControllers.clear()
       clearActiveTurn()
       sendingRef.current = false
       // Release the editing slot — the composer it binds to is unmounting.
@@ -4965,7 +4981,7 @@ export function useChat(
     editingQueuedId,
     dispatchingHeadId,
     previewSession,
-    genericResourceData,
+    genericResourceData: null,
     getCurrentRequestId,
   }
 }

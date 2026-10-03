@@ -1,8 +1,13 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import type { TaskWakeRequest } from '@/lib/mothership/generated/tasks'
-import { acquirePendingChatStream } from '@/lib/mothership/request/session/abort'
+import {
+  acquirePendingChatStream,
+  getLocalChatStreamLease,
+  releasePendingChatStream,
+} from '@/lib/mothership/request/session/abort'
 import { taskDelegationPolicy } from '@/lib/mothership/tasks/application/context'
 import {
   organizationTaskOperations,
@@ -38,6 +43,23 @@ export const prepareTaskWake = defineAuthorizedChatUseCase({
   async execute({ input }) {
     if (!(await acquirePendingChatStream(input.chatId, input.runId))) {
       throw new OrchestrationError('conflict', 'Another stream holds this chat; retry the wake')
+    }
+    const lease = getLocalChatStreamLease(input.chatId, input.runId)
+    /**
+     * The worker retries a wake under the same run ID until its own run appears. A turn sim
+     * already ran under that ID without reaching the worker (a usage-limit refusal) can never
+     * open again, so answer not-found: the worker dismisses the notification instead of
+     * retrying forever. Checked under the chat lock, so an in-flight turn still answers busy.
+     * Any throw here releases the lock just taken, by its own lease: a slow lookup can outlive
+     * the lock, and a retry under the same run ID may hold the chat by then.
+     */
+    try {
+      if (await getLatestRunForStream(input.runId)) {
+        throw new OrchestrationError('not_found', 'This wake already ran')
+      }
+    } catch (error) {
+      await releasePendingChatStream(input.chatId, input.runId, lease)
+      throw error
     }
     return { accepted: true } as const
   },

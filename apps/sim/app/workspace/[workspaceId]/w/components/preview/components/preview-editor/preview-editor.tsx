@@ -384,7 +384,7 @@ function ConnectionsSection({
                 {hasFields && (
                   <ChevronDown
                     className={cn(
-                      'h-3.5 w-3.5 shrink-0 transition-transform duration-100',
+                      'size-3.5 shrink-0 transition-transform duration-100',
                       'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                       isExpanded && 'rotate-180'
                     )}
@@ -605,7 +605,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox
@@ -622,9 +622,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          {getConfigLabel()}
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>{getConfigLabel()}</Label>
 
         {isCountMode ? (
           <div>
@@ -1062,7 +1060,7 @@ function PreviewEditorContent({
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
     return (
-      <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <BlockTile blockType={block.type} size='lg' />
@@ -1095,7 +1093,7 @@ function PreviewEditorContent({
 
   if (!blockConfig) {
     return (
-      <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='text-[var(--text-primary)] text-sm'>
@@ -1152,7 +1150,7 @@ function PreviewEditorContent({
         : 'gray'
 
   return (
-    <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
@@ -1376,7 +1374,7 @@ function PreviewEditorContent({
                       </div>
                     ) : resolvedChildWorkflowState ? (
                       <>
-                        <div className='[&_.react-flow__handle]:hidden! h-full w-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
+                        <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                           <PreviewWorkflow
                             workflowState={resolvedChildWorkflowState}
                             height={160}

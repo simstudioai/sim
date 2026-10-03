@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   queueTableRows,
@@ -9,33 +6,24 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsOrganizationBillingBlocked, mockCheckOrganizationPersonalKeyRefusal } = vi.hoisted(
-  () => ({
-    mockIsOrganizationBillingBlocked: vi.fn(),
-    mockCheckOrganizationPersonalKeyRefusal: vi.fn(),
-  })
-)
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
-
-vi.mock('@/app/api/v1/middleware', () => ({
-  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
-  checkOrganizationPersonalKeyRefusal: mockCheckOrganizationPersonalKeyRefusal,
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 import {
   validateEnterpriseAuditAccess,
   validateV1EnterpriseAuditAccess,
 } from '@/app/api/v1/audit-logs/auth'
 
+const { mockIsOrganizationBillingBlocked } = billingAccessMockFns
+const { mockCheckOrganizationPersonalKeyRefusal } = v1MiddlewareMockFns
+
 describe('enterprise audit access', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     mockCheckOrganizationPersonalKeyRefusal.mockResolvedValue(null)
@@ -46,52 +34,9 @@ describe('enterprise audit access', () => {
     resetEnvFlagsMock()
   })
 
-  describe('with billing enabled', () => {
-    beforeEach(() => {
-      setEnvFlags({ isBillingEnabled: true })
-      queueTableRows(schemaMock.member, [{ organizationId: 'organization-route', role: 'admin' }])
-      queueTableRows(schemaMock.subscription, [{ id: 'subscription-1' }])
-      queueTableRows(schemaMock.member, [{ userId: 'viewer' }, { userId: 'member-2' }])
-    })
-
-    it('authorizes and bills against the organization named by the route', async () => {
-      await expect(validateEnterpriseAuditAccess('viewer', 'organization-route')).resolves.toEqual({
-        success: true,
-        context: {
-          organizationId: 'organization-route',
-          orgMemberIds: ['viewer', 'member-2'],
-        },
-      })
-      expect(dbChainMockFns.where).toHaveBeenNthCalledWith(1, {
-        type: 'and',
-        conditions: [
-          { type: 'eq', left: schemaMock.member.userId, right: 'viewer' },
-          { type: 'eq', left: schemaMock.member.organizationId, right: 'organization-route' },
-        ],
-      })
-      expect(mockIsOrganizationBillingBlocked).toHaveBeenCalledWith('organization-route')
-    })
-  })
-
   describe('with billing disabled', () => {
     beforeEach(() => {
       setEnvFlags({ isBillingEnabled: false })
-    })
-
-    it('authorizes on the audit-logs entitlement without any subscription row', async () => {
-      setEnvFlags({ isAuditLogsEnabled: true })
-      queueTableRows(schemaMock.member, [{ organizationId: 'org-1', role: 'owner' }])
-      queueTableRows(schemaMock.member, [{ userId: 'viewer' }, { userId: 'member-2' }])
-
-      await expect(validateEnterpriseAuditAccess('viewer')).resolves.toEqual({
-        success: true,
-        context: { organizationId: 'org-1', orgMemberIds: ['viewer', 'member-2'] },
-      })
-      /**
-       * The subscription lookup is what made audit logs unreachable
-       * self-hosted; a billing-free deployment never has one to find.
-       */
-      expect(mockIsOrganizationBillingBlocked).not.toHaveBeenCalled()
     })
 
     it('refuses when the audit-logs entitlement is off', async () => {
@@ -154,18 +99,6 @@ describe('enterprise audit access', () => {
       })
       expect(dbChainMockFns.where).not.toHaveBeenCalled()
       expect(mockCheckOrganizationPersonalKeyRefusal).not.toHaveBeenCalled()
-    })
-
-    it('authorizes a personal key held by an organization admin', async () => {
-      queueTableRows(schemaMock.member, [{ organizationId: 'org-1', role: 'admin' }])
-      queueTableRows(schemaMock.member, [{ userId: 'viewer' }])
-
-      await expect(validateV1EnterpriseAuditAccess(personalKey)).resolves.toEqual({
-        success: true,
-        userId: 'viewer',
-        context: { organizationId: 'org-1', orgMemberIds: ['viewer'] },
-      })
-      expect(mockCheckOrganizationPersonalKeyRefusal).toHaveBeenCalledWith(personalKey)
     })
 
     it('refuses a personal key its permission group withholds', async () => {

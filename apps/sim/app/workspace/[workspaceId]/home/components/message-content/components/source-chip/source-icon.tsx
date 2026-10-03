@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { FileText } from '@sim/emcn/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
+import { GoogleDocsIcon, GoogleSheetsIcon, GoogleSlidesIcon } from '@/components/icons'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
-import { externalLinkHostname } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
+import { externalLinkHostname } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 
@@ -21,25 +22,52 @@ const BRAND_ICON_BY_BASE_TYPE: ReadonlyMap<string, StyleableIcon> = new Map(
   Object.entries(blockTypeToIconMap).map(([type, icon]) => [stripVersionSuffix(type), icon])
 )
 
+/** Docs, Sheets and Slides share a hostname; the first path segment identifies the product. */
+const GOOGLE_DOCUMENT_ICON_BY_PATH: ReadonlyMap<string, StyleableIcon> = new Map([
+  ['document', GoogleDocsIcon],
+  ['spreadsheets', GoogleSheetsIcon],
+  ['presentation', GoogleSlidesIcon],
+])
+
+const BRAND_TYPE_BY_HOSTNAME: ReadonlyMap<string, string> = new Map([
+  ['github.com', 'github'],
+  ['gitlab.com', 'gitlab'],
+  ['notion.so', 'notion'],
+  ['drive.google.com', 'google_drive'],
+  ['mail.google.com', 'gmail'],
+  ['calendar.google.com', 'google_calendar'],
+])
+
 interface SourceIconProps {
   source: SourceTagData
   size?: 'default' | 'inline'
 }
 
-/** Shared connector mark, favicon and document fallback across all source presentations. */
+/** Shared document mark, connector mark, favicon and fallback across all source presentations. */
 export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
   const [failedHostname, setFailedHostname] = useState<string | null>(null)
   const hostname = externalLinkHostname(source.url)
   const ConnectorIcon = source.connectorType
     ? BRAND_ICON_BY_BASE_TYPE.get(stripVersionSuffix(source.connectorType))
     : undefined
+  const DocumentIcon =
+    hostname === 'docs.google.com'
+      ? GOOGLE_DOCUMENT_ICON_BY_PATH.get(new URL(source.url).pathname.split('/')[1] ?? '')
+      : undefined
+  const hostBrandType =
+    hostname === 'slack.com' || hostname?.endsWith('.slack.com')
+      ? 'slack'
+      : BRAND_TYPE_BY_HOSTNAME.get(hostname?.replace(/^www\./, '') ?? '')
+  const HostIcon = hostBrandType ? BRAND_ICON_BY_BASE_TYPE.get(hostBrandType) : undefined
+  const Icon = DocumentIcon ?? ConnectorIcon ?? HostIcon
   const className = cn('shrink-0', size === 'inline' ? 'size-[12px]' : 'size-[14px]')
-  if (ConnectorIcon) return <BrandIcon icon={ConnectorIcon} className={className} />
+  if (Icon) return <BrandIcon icon={Icon} className={className} />
   if (hostname && failedHostname !== hostname) {
     return (
       <img
-        src={faviconUrl(hostname, 32)}
+        src={faviconUrl(hostname, 64)}
         alt=''
+        referrerPolicy='no-referrer'
         className={cn(className, 'rounded-sm')}
         onError={() => setFailedHostname(hostname)}
       />

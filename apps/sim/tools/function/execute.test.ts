@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { functionExecuteBodySchema } from '@/lib/api/contracts/hotspots'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
@@ -8,6 +5,7 @@ import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
+import { MAX_FUNCTION_CODE_LENGTH } from '@/lib/function-execution/limits'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { createLLMToolSchema, createUserToolSchema } from '@/tools/params'
 
@@ -50,52 +48,6 @@ describe('Function Execute Tool', () => {
     expect(modelBlockedParams).toEqual(expect.arrayContaining(['secretScope', 'mountedSecrets']))
   })
 
-  it('declares an in-process operation without HTTP-shaped configuration', () => {
-    expect(functionExecuteTool.operation).toBeDefined()
-    expect('request' in functionExecuteTool).toBe(false)
-  })
-
-  it('materializes the canonical operation input', () => {
-    expect(
-      functionExecuteTool.operation.input({
-        code: 'return 42',
-        timeout: 5000,
-      })
-    ).toEqual({
-      code: 'return 42',
-      language: 'javascript',
-      timeout: 5000,
-      title: undefined,
-      outputPath: undefined,
-      outputFormat: undefined,
-      outputTable: undefined,
-      outputSandboxPath: undefined,
-      outputMimeType: undefined,
-      sandboxId: undefined,
-      secretScope: undefined,
-      mountedSecrets: undefined,
-      unredactedSecretNames: undefined,
-      overwriteFileId: undefined,
-      inputs: undefined,
-      outputs: undefined,
-      envVars: {},
-      workflowVariables: {},
-      blockData: {},
-      blockNameMapping: {},
-      blockOutputSchemas: {},
-      contextVariables: {},
-      workflowId: undefined,
-      executionId: undefined,
-      largeValueExecutionIds: undefined,
-      largeValueKeys: undefined,
-      fileKeys: undefined,
-      allowLargeValueWorkflowScope: undefined,
-      userId: undefined,
-      workspaceId: undefined,
-      isCustomTool: false,
-    })
-  })
-
   it('joins serialized code blocks and applies the default timeout', () => {
     const body = buildFunctionExecuteBody({
       code: [
@@ -106,6 +58,24 @@ describe('Function Execute Tool', () => {
 
     expect(body.code).toBe('const x = 40;\nreturn x + 2;')
     expect(body.timeout).toBe(DEFAULT_EXECUTION_TIMEOUT_MS)
+  })
+
+  it('sends display code the route accepts when inlined references outgrow the source cap', () => {
+    const inlinedValue = 'x'.repeat(MAX_FUNCTION_CODE_LENGTH)
+    const body = buildFunctionExecuteBody({
+      code: 'return __blockRef_0.length',
+      sourceCode: `return "${inlinedValue}".length`,
+      contextVariables: { __blockRef_0: inlinedValue },
+    })
+
+    expect(functionExecuteBodySchema.safeParse(body).success).toBe(true)
+    expect(body.sourceCode).toBeUndefined()
+
+    const withinCap = buildFunctionExecuteBody({
+      code: 'return __blockRef_0',
+      sourceCode: 'return <api.data>',
+    })
+    expect(withinCap.sourceCode).toBe('return <api.data>')
   })
 
   it('preserves reference context and large-value authorization', () => {

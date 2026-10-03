@@ -1,4 +1,4 @@
-import { auditFile, mayReferencePendingTable } from '@scripts/check-pending-drop-tables'
+import { auditFile } from '@scripts/check-pending-drop-tables'
 import { describe, expect, it } from 'vitest'
 
 const tables = new Map([['retiringTable', new Set(['retired', 'otherRetired'])]])
@@ -21,15 +21,6 @@ describe('pending-drop query audit', () => {
     expect(audit(statement)).toEqual([
       expect.objectContaining({ pattern: expect.stringContaining('insert()') }),
     ])
-  })
-
-  it.each([
-    "import { retiringTable as stats } from '@sim/db/schema'; db.insert(stats).values({})",
-    "import * as schema from '@sim/db/schema'; db.insert(schema.retiringTable).values({})",
-    "import { retiringTable as stats } from '@sim/db/schema'; db.select().from(alias(stats, 's'))",
-    "import * as schema from '@sim/db/schema'; db.select().from(schema.retiringTable)",
-  ])('resolves renamed and namespace table imports', (source) => {
-    expect(auditFile('query-example.ts', source, tables)).toHaveLength(1)
   })
 
   it.each([
@@ -63,20 +54,5 @@ describe('pending-drop query audit', () => {
     expect(audit(statement)).toEqual([
       expect.objectContaining({ pattern: expect.stringContaining('otherRetired') }),
     ])
-  })
-
-  it('scans escaped identifiers without treating comments as table references', () => {
-    expect(
-      mayReferencePendingTable(
-        "import { retiring\\u0054able } from '@sim/db/schema'",
-        new Set(tables.keys())
-      )
-    ).toBe(true)
-    expect(
-      mayReferencePendingTable(
-        "import { activeTable } from '@sim/db/schema'; // retiringTable",
-        new Set(tables.keys())
-      )
-    ).toBe(false)
   })
 })

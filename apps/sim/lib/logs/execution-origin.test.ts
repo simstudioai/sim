@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')

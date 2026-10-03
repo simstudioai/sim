@@ -12,8 +12,8 @@
  * dead `@/` aliases, and `@sim/*` subpaths a package does not export.
  *
  * Skipped: bare npm specifiers (node_modules' business, and flaky on install state),
- * type-only imports (erased before resolution), and tests plus `apps/*&#47;scripts/**`,
- * which run under vitest and bun — both of which do resolve `.js` -> `.ts`.
+ * type-only imports (erased before resolution), and tests, `vitest.config.ts`, plus
+ * `apps/*&#47;scripts/**`, which run under vitest and bun — both of which do resolve `.js` -> `.ts`.
  *
  * Usage: `bun run scripts/check-import-specifiers.ts [--verbose]`
  */
@@ -55,7 +55,7 @@ function repoPath(absolute: string): string {
 /** Only source a bundler compiles — see the "Deliberately NOT checked" note above. */
 function isCompiledSource(full: string, name: string): boolean {
   if (!/\.(ts|tsx)$/.test(name) || name.endsWith('.d.ts')) return false
-  if (/\.(test|spec)\.tsx?$/.test(name)) return false
+  if (/\.(test|spec)\.tsx?$/.test(name) || name === 'vitest.config.ts') return false
   const rel = repoPath(full)
   return !rel.startsWith('apps/sim/scripts/') && !rel.startsWith('apps/realtime/scripts/')
 }

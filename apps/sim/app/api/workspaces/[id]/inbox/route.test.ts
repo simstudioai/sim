@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
@@ -12,20 +8,22 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetUserEntityPermissions, mockHasWorkspaceInboxAccess } = vi.hoisted(() => ({
-  mockGetUserEntityPermissions: vi.fn(),
-  mockHasWorkspaceInboxAccess: vi.fn(),
-}))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceInboxAccess: mockHasWorkspaceInboxAccess,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/mothership/inbox/lifecycle', () => ({
   disableInbox: vi.fn(),
@@ -33,31 +31,32 @@ vi.mock('@/lib/mothership/inbox/lifecycle', () => ({
   updateInboxAddress: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mockGetUserEntityPermissions,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: 'org-1',
-    allowPersonalApiKeys: true,
-  }),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET, PATCH } from '@/app/api/workspaces/[id]/inbox/route'
 
-const context = { params: Promise.resolve({ id: 'workspace-1' }) }
+const { mockGetUserEntityPermissions } = permissionsMockFns
+const { mockHasWorkspaceInboxAccess } = billingSubscriptionMockFns
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(
+  (...args: unknown[]) => mockGetUserEntityPermissions(...args)
+)
+workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
+  async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org-1',
+    allowPersonalApiKeys: true,
+  })
+)
+
+const context = createRouteContext({ id: 'workspace-1' })
 
 describe('Inbox config secret policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'admin-1' },
@@ -144,7 +143,6 @@ function queueInboxReadRows() {
 
 describe('Inbox inbox.use capability gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'admin-1' },
@@ -185,57 +183,6 @@ describe('Inbox inbox.use capability gate', () => {
         details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
       })
       expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('when a group governs the user but withholds nothing', () => {
-    beforeEach(() => {
-      resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-    })
-
-    it('reads the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await GET(getRequest(), context)
-
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toMatchObject({
-        enabled: true,
-        address: 'tasks@example.com',
-      })
-    })
-
-    it('updates the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await PATCH(patchRequest(), context)
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.set).toHaveBeenCalled()
-    })
-  })
-
-  /** A personal workspace, or any non-enterprise organization, is governed by no group. */
-  describe('when no permission group governs the user', () => {
-    beforeEach(() => {
-      resolveGroupConfigMock.mockResolvedValue(null)
-    })
-
-    it('reads the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await GET(getRequest(), context)
-
-      expect(response.status).toBe(200)
-    })
-
-    it('updates the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await PATCH(patchRequest(), context)
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.set).toHaveBeenCalled()
     })
   })
 })

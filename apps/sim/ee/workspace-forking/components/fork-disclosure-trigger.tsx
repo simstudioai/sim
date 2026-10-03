@@ -1,7 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ChevronDown, cn, disclosureChevronClass, OverflowText } from '@sim/emcn'
+import { cn, disclosureChevronClass, OverflowText } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 
 interface ForkDisclosureTriggerProps {
   label: string

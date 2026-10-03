@@ -1,6 +1,14 @@
-/** @vitest-environment node */
 import { copilotChats, member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
@@ -8,20 +16,15 @@ import {
   readRunControl,
 } from '@/lib/mothership/request/application/read-control'
 
-const mocks = vi.hoisted(() => ({
-  run: vi.fn(),
-  stopped: vi.fn(),
-  config: vi.fn(),
-  banned: vi.fn(),
-}))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: mocks.run,
-  isRunStopRequested: mocks.stopped,
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mocks.banned }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
+const mocks = {
+  run: mothershipAsyncRunsMockFns.mockGetLatestRunForStream,
+  stopped: mothershipAsyncRunsMockFns.mockIsRunStopRequested,
+  banned: authBanMockFns.mockGetActivelyBannedUserIds,
+}
 
 const input = { chatId: 'chat-1', streamId: 'stream-1' }
 function principal() {
@@ -38,10 +41,11 @@ function queueChat() {
 }
 describe('organization run-control authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.banned.mockResolvedValue([])
-    mocks.config.mockResolvedValue(null)
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(
+      null
+    )
     mocks.run.mockResolvedValue({
       chatId: 'chat-1',
       userId: 'actor',

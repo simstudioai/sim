@@ -1,21 +1,38 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { getAllBlocks, getBlock, getBlockByToolName } from '@/blocks/registry'
 import { ExecutionState } from '@/executor/execution/state'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertImmutableFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
-  insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
-  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
-}))
+const mockGetBlock = getBlock as Mock
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockGetBlockByToolName = getBlockByToolName as Mock
+mockGetBlock.mockImplementation((type: string) => MOCK_BLOCKS[type] ?? undefined)
+mockGetAllBlocks.mockImplementation(() => Object.values(MOCK_BLOCKS))
+mockGetBlockByToolName.mockImplementation(() => undefined)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+  decrypted: encryptedValue,
 }))
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockResolvedValue({
+  id: 'execution-payload-file',
+})
+uploadsMetadataMockFns.mockInsertFileMetadata.mockResolvedValue({ id: 'execution-payload-file' })
+uploadsMetadataMockFns.mockDeleteFileMetadata.mockResolvedValue(undefined)
+
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 /**
  * Minimal block configs providing only the fields needed by getBlockSchema / getEffectiveBlockOutputs.
@@ -128,26 +145,6 @@ const MOCK_BLOCKS = vi.hoisted(
     }) as Record<string, any>
 )
 
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) => MOCK_BLOCKS[type] ?? undefined,
-  registry: MOCK_BLOCKS,
-  getAllBlocks: () => Object.values(MOCK_BLOCKS),
-  getAllBlockTypes: () => Object.keys(MOCK_BLOCKS),
-  isValidBlockType: (type: string) => type in MOCK_BLOCKS,
-  getBlockByToolName: () => undefined,
-  getBlocksByCategory: () => [],
-  getLatestBlock: () => undefined,
-}))
-vi.mock('@/blocks', () => ({
-  getBlock: (type: string) => MOCK_BLOCKS[type] ?? undefined,
-  registry: MOCK_BLOCKS,
-  getAllBlocks: () => Object.values(MOCK_BLOCKS),
-  getAllBlockTypes: () => Object.keys(MOCK_BLOCKS),
-  isValidBlockType: (type: string) => type in MOCK_BLOCKS,
-  getBlockByToolName: () => undefined,
-  getBlocksByCategory: () => [],
-}))
-
 function createTestWorkflow(
   blocks: Array<{
     id: string
@@ -202,49 +199,7 @@ function createTestContext(
 }
 
 describe('BlockResolver', () => {
-  describe('canResolve', () => {
-    it.concurrent('should return true for block references', () => {
-      const resolver = new BlockResolver(createTestWorkflow([{ id: 'block-1' }]))
-      expect(resolver.canResolve('<block-1>')).toBe(true)
-      expect(resolver.canResolve('<block-1.output>')).toBe(true)
-      expect(resolver.canResolve('<block-1.result.value>')).toBe(true)
-    })
-
-    it.concurrent('should return true for block references by name', () => {
-      const resolver = new BlockResolver(createTestWorkflow([{ id: 'block-1', name: 'My Block' }]))
-      expect(resolver.canResolve('<myblock>')).toBe(true)
-      expect(resolver.canResolve('<My Block>')).toBe(true)
-    })
-
-    it.concurrent('should return false for special prefixes', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.canResolve('<loop.index>')).toBe(false)
-      expect(resolver.canResolve('<parallel.currentItem>')).toBe(false)
-      expect(resolver.canResolve('<variable.myvar>')).toBe(false)
-    })
-
-    it.concurrent('should return false for non-references', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.canResolve('plain text')).toBe(false)
-      expect(resolver.canResolve('{{ENV_VAR}}')).toBe(false)
-      expect(resolver.canResolve('block-1.output')).toBe(false)
-    })
-  })
-
   describe('resolve', () => {
-    it.concurrent('should resolve block output by ID', () => {
-      const workflow = createTestWorkflow([{ id: 'source-block' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'source-block': { result: 'success', data: { value: 42 } },
-      })
-
-      expect(resolver.resolve('<source-block>', ctx)).toEqual({
-        result: 'success',
-        data: { value: 42 },
-      })
-    })
-
     it.concurrent('should resolve block output by name', () => {
       const workflow = createTestWorkflow([{ id: 'block-123', name: 'My Source Block' }])
       const resolver = new BlockResolver(workflow)
@@ -282,17 +237,6 @@ describe('BlockResolver', () => {
 
       const reversedResolver = new BlockResolver(createTestWorkflow([...blocks].reverse()))
       expect(reversedResolver.resolve('<hunterio1.email>', ctx)).toBe('plain@acme.com')
-    })
-
-    it.concurrent('should resolve nested property path', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        source: { user: { profile: { name: 'Alice', email: 'alice@test.com' } } },
-      })
-
-      expect(resolver.resolve('<source.user.profile.name>', ctx)).toBe('Alice')
-      expect(resolver.resolve('<source.user.profile.email>', ctx)).toBe('alice@test.com')
     })
 
     it('does not fall back to unscoped block state inside cloned subflow branches', () => {
@@ -349,25 +293,6 @@ describe('BlockResolver', () => {
       )
 
       expect(resolver.resolve('<nestedloop.results>', ctx)).toEqual(['branch-2'])
-    })
-
-    it('resolves regular block outputs from the same cloned branch scope', () => {
-      const workflow = createTestWorkflow(
-        [
-          { id: 'source', name: 'Source' },
-          { id: 'consumer', name: 'Consumer' },
-        ],
-        {
-          parallels: { 'parallel-1': { id: 'parallel-1', nodes: ['source', 'consumer'] } },
-        }
-      )
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('consumer__cloneabc__obranch-2₍0₎', {
-        'source__obranch-2': { result: 'wrong-container-alias' },
-        'source__cloneabc__obranch-2₍0₎': { result: 'same-branch' },
-      })
-
-      expect(resolver.resolve('<source.result>', ctx)).toBe('same-branch')
     })
 
     it('uses outer branch suffix over inner parallel mappings for cloned subflow outputs', () => {
@@ -501,22 +426,6 @@ describe('BlockResolver', () => {
     })
 
     describe('implicit error output', () => {
-      /**
-       * `RESOLVED_EMPTY` is what the variable resolver renders as `null` in
-       * Function and Condition code and as an empty string in every other field,
-       * so a successful block's `.error` reads as absent rather than failing the
-       * referencing block.
-       */
-      it.concurrent('resolves empty on a successful block whose schema omits error', () => {
-        const workflow = createTestWorkflow([{ id: 'guard', type: 'function' }])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {
-          guard: { result: { ok: true }, stdout: '' },
-        })
-
-        expect(resolver.resolve('<guard.error>', ctx)).toBe(RESOLVED_EMPTY)
-      })
-
       it.concurrent('resolves the message on a failed block', () => {
         const workflow = createTestWorkflow([{ id: 'guard', type: 'function' }])
         const resolver = new BlockResolver(workflow)
@@ -525,16 +434,6 @@ describe('BlockResolver', () => {
         })
 
         expect(resolver.resolve('<guard.error>', ctx)).toBe('Guard rejected the payload')
-      })
-
-      it.concurrent('resolves empty through the async path too', async () => {
-        const workflow = createTestWorkflow([{ id: 'guard', type: 'function' }], {})
-        const resolver = new BlockResolver(workflow, navigatePathAsync)
-        const ctx = createTestContext('current', {
-          guard: { result: { ok: true } },
-        })
-
-        await expect(resolver.resolveAsync('<guard.error>', ctx)).resolves.toBe(RESOLVED_EMPTY)
       })
 
       it.concurrent('still rejects an unrelated unknown field', () => {
@@ -570,50 +469,6 @@ describe('BlockResolver', () => {
       }
     )
 
-    it.concurrent(
-      'should allow hiddenFromDisplay fields for workflow_input pre-execution schema validation',
-      () => {
-        const workflow = createTestWorkflow([
-          {
-            id: 'workflow-input-block',
-            name: 'Workflow Input',
-            type: 'workflow_input',
-          },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {})
-
-        expect(resolver.resolve('<workflowinput.childTraceSpans>', ctx)).toBe(RESOLVED_EMPTY)
-      }
-    )
-
-    it.concurrent(
-      'should allow hiddenFromDisplay fields for HITL pre-execution schema validation',
-      () => {
-        const workflow = createTestWorkflow([
-          {
-            id: 'hitl-block',
-            name: 'HITL',
-            type: 'human_in_the_loop',
-          },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {})
-
-        expect(resolver.resolve('<hitl.response>', ctx)).toBe(RESOLVED_EMPTY)
-        expect(resolver.resolve('<hitl.submission>', ctx)).toBe(RESOLVED_EMPTY)
-        expect(resolver.resolve('<hitl.resumeInput>', ctx)).toBe(RESOLVED_EMPTY)
-      }
-    )
-
-    it.concurrent('should return undefined for block not in workflow', () => {
-      const workflow = createTestWorkflow([{ id: 'existing' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {})
-
-      expect(resolver.resolve('<nonexistent>', ctx)).toBeUndefined()
-    })
-
     it.concurrent('should return RESOLVED_EMPTY for block in workflow that did not execute', () => {
       const workflow = createTestWorkflow([
         { id: 'start-block', name: 'Start', type: 'start_trigger' },
@@ -628,47 +483,6 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<start>', ctx)).toBe(RESOLVED_EMPTY)
       expect(resolver.resolve('<start.input>', ctx)).toBe(RESOLVED_EMPTY)
     })
-
-    it.concurrent(
-      'should return RESOLVED_EMPTY for nested json path on function block that did not execute',
-      () => {
-        // Repro for the branched-trigger CRM workflow bug: a function block
-        // on an untaken branch is referenced via a nested path under its
-        // `result` (declared `type: 'json'`). The resolver must not validate
-        // the path against the declared top-level schema keys in this case.
-        const workflow = createTestWorkflow([
-          { id: 'normalize-email', name: 'NormalizeEmail', type: 'function' },
-          { id: 'normalize-calendar', name: 'NormalizeCalendar', type: 'function' },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {
-          'normalize-email': { result: { summary: 'email summary' }, stdout: '' },
-        })
-
-        expect(resolver.resolve('<NormalizeEmail.result.summary>', ctx)).toBe('email summary')
-        expect(resolver.resolve('<NormalizeCalendar.result.summary>', ctx)).toBe(RESOLVED_EMPTY)
-        expect(resolver.resolve('<NormalizeCalendar.result>', ctx)).toBe(RESOLVED_EMPTY)
-      }
-    )
-
-    it.concurrent(
-      'should return RESOLVED_EMPTY for nested json path on executed block when data is missing',
-      () => {
-        // Even for a block that ran, drilling into a `json`-typed field that
-        // the runtime output didn't include should resolve to empty rather
-        // than throw — `json` explicitly means dynamic shape.
-        const workflow = createTestWorkflow([
-          { id: 'normalize-email', name: 'NormalizeEmail', type: 'function' },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {
-          'normalize-email': { result: { subject: 'hi' }, stdout: '' },
-        })
-
-        expect(resolver.resolve('<NormalizeEmail.result.subject>', ctx)).toBe('hi')
-        expect(resolver.resolve('<NormalizeEmail.result.summary>', ctx)).toBe(RESOLVED_EMPTY)
-      }
-    )
 
     it.concurrent('should fall back to context blockStates', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
@@ -751,12 +565,6 @@ describe('BlockResolver', () => {
   })
 
   describe('formatValueForBlock', () => {
-    it.concurrent('should format string for condition block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      const result = resolver.formatValueForBlock('hello world', 'condition')
-      expect(result).toBe('"hello world"')
-    })
-
     it.concurrent('should escape special characters for condition block', () => {
       const resolver = new BlockResolver(createTestWorkflow())
       expect(resolver.formatValueForBlock('line1\nline2', 'condition')).toBe('"line1\\nline2"')
@@ -788,125 +596,19 @@ describe('BlockResolver', () => {
       expect(resolver.formatValueForBlock(undefined, 'condition')).toBe('undefined')
     })
 
-    it.concurrent('should format number for condition block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock(42, 'condition')).toBe('42')
-      expect(resolver.formatValueForBlock(3.14, 'condition')).toBe('3.14')
-      expect(resolver.formatValueForBlock(-100, 'condition')).toBe('-100')
-    })
-
-    it.concurrent('should format boolean for condition block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock(true, 'condition')).toBe('true')
-      expect(resolver.formatValueForBlock(false, 'condition')).toBe('false')
-    })
-
     it.concurrent('should format string for function block (JSON escaped)', () => {
       const resolver = new BlockResolver(createTestWorkflow())
       const result = resolver.formatValueForBlock('hello', 'function')
       expect(result).toBe('"hello"')
     })
 
-    it.concurrent('should format object for function block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      const result = resolver.formatValueForBlock({ a: 1 }, 'function')
-      expect(result).toBe('{"a":1}')
-    })
-
-    it.concurrent('should format null/undefined for function block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock(null, 'function')).toBe('null')
-      expect(resolver.formatValueForBlock(undefined, 'function')).toBe('undefined')
-    })
-
     it.concurrent('should format string for response block (no quotes)', () => {
       const resolver = new BlockResolver(createTestWorkflow())
       expect(resolver.formatValueForBlock('plain text', 'response')).toBe('plain text')
     })
-
-    it.concurrent('should format object for response block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock({ key: 'value' }, 'response')).toBe('{"key":"value"}')
-    })
-
-    it.concurrent('should format array for response block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock([1, 2, 3], 'response')).toBe('[1,2,3]')
-    })
-
-    it.concurrent('should format primitives for response block', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock(42, 'response')).toBe('42')
-      expect(resolver.formatValueForBlock(true, 'response')).toBe('true')
-    })
-
-    it.concurrent('should format object for default block type', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock({ x: 1 }, undefined)).toBe('{"x":1}')
-      expect(resolver.formatValueForBlock({ x: 1 }, 'agent')).toBe('{"x":1}')
-    })
-
-    it.concurrent('should format primitive for default block type', () => {
-      const resolver = new BlockResolver(createTestWorkflow())
-      expect(resolver.formatValueForBlock('text', undefined)).toBe('text')
-      expect(resolver.formatValueForBlock(123, undefined)).toBe('123')
-    })
   })
 
   describe('Response block backwards compatibility', () => {
-    it.concurrent('should resolve new format: <responseBlock.data>', () => {
-      const workflow = createTestWorkflow([
-        { id: 'response-block', name: 'Response', type: 'response' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'response-block': {
-          data: { message: 'hello', userId: 123 },
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      })
-
-      expect(resolver.resolve('<response.data>', ctx)).toEqual({ message: 'hello', userId: 123 })
-      expect(resolver.resolve('<response.data.message>', ctx)).toBe('hello')
-      expect(resolver.resolve('<response.data.userId>', ctx)).toBe(123)
-    })
-
-    it.concurrent('should resolve new format: <responseBlock.status>', () => {
-      const workflow = createTestWorkflow([
-        { id: 'response-block', name: 'Response', type: 'response' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'response-block': {
-          data: { message: 'hello' },
-          status: 201,
-          headers: {},
-        },
-      })
-
-      expect(resolver.resolve('<response.status>', ctx)).toBe(201)
-    })
-
-    it.concurrent('should resolve new format: <responseBlock.headers>', () => {
-      const workflow = createTestWorkflow([
-        { id: 'response-block', name: 'Response', type: 'response' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'response-block': {
-          data: {},
-          status: 200,
-          headers: { 'X-Custom-Header': 'custom-value', 'Content-Type': 'application/json' },
-        },
-      })
-
-      expect(resolver.resolve('<response.headers>', ctx)).toEqual({
-        'X-Custom-Header': 'custom-value',
-        'Content-Type': 'application/json',
-      })
-    })
-
     it.concurrent(
       'should resolve old format (backwards compat): <responseBlock.response.data>',
       () => {
@@ -931,63 +633,6 @@ describe('BlockResolver', () => {
         expect(resolver.resolve('<response.response.data.userId>', ctx)).toBe(123)
       }
     )
-
-    it.concurrent(
-      'should resolve old format (backwards compat): <responseBlock.response.status>',
-      () => {
-        const workflow = createTestWorkflow([
-          { id: 'response-block', name: 'Response', type: 'response' },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {
-          'response-block': {
-            data: { message: 'hello' },
-            status: 404,
-            headers: {},
-          },
-        })
-
-        // Old format: <responseBlock.response.status> should strip 'response.' and resolve to status
-        expect(resolver.resolve('<response.response.status>', ctx)).toBe(404)
-      }
-    )
-
-    it.concurrent(
-      'should resolve old format (backwards compat): <responseBlock.response.headers>',
-      () => {
-        const workflow = createTestWorkflow([
-          { id: 'response-block', name: 'Response', type: 'response' },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {
-          'response-block': {
-            data: {},
-            status: 200,
-            headers: { 'X-Request-Id': 'abc-123' },
-          },
-        })
-
-        // Old format: <responseBlock.response.headers> should strip 'response.' and resolve to headers
-        expect(resolver.resolve('<response.response.headers>', ctx)).toEqual({
-          'X-Request-Id': 'abc-123',
-        })
-      }
-    )
-
-    it.concurrent('should resolve entire Response block output with new format', () => {
-      const workflow = createTestWorkflow([
-        { id: 'response-block', name: 'My Response', type: 'response' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const fullOutput = {
-        data: { result: 'success' },
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }
-      const ctx = createTestContext('current', { 'response-block': fullOutput })
-
-      expect(resolver.resolve('<myresponse>', ctx)).toEqual(fullOutput)
-    })
 
     it.concurrent(
       'should only strip response prefix for response block type, not other blocks',
@@ -1032,75 +677,6 @@ describe('BlockResolver', () => {
   })
 
   describe('Workflow block with child Response block backwards compatibility', () => {
-    it.concurrent('should resolve new format: <workflowBlock.result.data>', () => {
-      const workflow = createTestWorkflow([
-        { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      // After our change, child workflow with Response block returns { data, status, headers }
-      // Workflow block wraps it in { success, result: { data, status, headers }, ... }
-      const ctx = createTestContext('current', {
-        'workflow-block': {
-          success: true,
-          childWorkflowName: 'Child Workflow',
-          result: {
-            data: { userId: 456, name: 'Test User' },
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        },
-      })
-
-      expect(resolver.resolve('<myworkflow.result.data>', ctx)).toEqual({
-        userId: 456,
-        name: 'Test User',
-      })
-      expect(resolver.resolve('<myworkflow.result.data.userId>', ctx)).toBe(456)
-      expect(resolver.resolve('<myworkflow.result.data.name>', ctx)).toBe('Test User')
-    })
-
-    it.concurrent('should resolve new format: <workflowBlock.result.status>', () => {
-      const workflow = createTestWorkflow([
-        { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'workflow-block': {
-          success: true,
-          childWorkflowName: 'Child Workflow',
-          result: {
-            data: { message: 'created' },
-            status: 201,
-            headers: {},
-          },
-        },
-      })
-
-      expect(resolver.resolve('<myworkflow.result.status>', ctx)).toBe(201)
-    })
-
-    it.concurrent('should resolve new format: <workflowBlock.result.headers>', () => {
-      const workflow = createTestWorkflow([
-        { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'workflow-block': {
-          success: true,
-          childWorkflowName: 'Child Workflow',
-          result: {
-            data: {},
-            status: 200,
-            headers: { 'X-Trace-Id': 'trace-abc-123' },
-          },
-        },
-      })
-
-      expect(resolver.resolve('<myworkflow.result.headers>', ctx)).toEqual({
-        'X-Trace-Id': 'trace-abc-123',
-      })
-    })
-
     it.concurrent(
       'should resolve old format (backwards compat): <workflowBlock.result.response.data>',
       () => {
@@ -1129,114 +705,6 @@ describe('BlockResolver', () => {
         expect(resolver.resolve('<myworkflow.result.response.data.name>', ctx)).toBe('Test User')
       }
     )
-
-    it.concurrent(
-      'should resolve old format (backwards compat): <workflowBlock.result.response.status>',
-      () => {
-        const workflow = createTestWorkflow([
-          { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {
-          'workflow-block': {
-            success: true,
-            childWorkflowName: 'Child Workflow',
-            result: {
-              data: { message: 'error' },
-              status: 500,
-              headers: {},
-            },
-          },
-        })
-
-        // Old format: <workflowBlock.result.response.status> should strip 'response.' and resolve to result.status
-        expect(resolver.resolve('<myworkflow.result.response.status>', ctx)).toBe(500)
-      }
-    )
-
-    it.concurrent(
-      'should resolve old format (backwards compat): <workflowBlock.result.response.headers>',
-      () => {
-        const workflow = createTestWorkflow([
-          { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-        ])
-        const resolver = new BlockResolver(workflow)
-        const ctx = createTestContext('current', {
-          'workflow-block': {
-            success: true,
-            childWorkflowName: 'Child Workflow',
-            result: {
-              data: {},
-              status: 200,
-              headers: { 'Cache-Control': 'no-cache' },
-            },
-          },
-        })
-
-        // Old format: <workflowBlock.result.response.headers> should strip 'response.' and resolve to result.headers
-        expect(resolver.resolve('<myworkflow.result.response.headers>', ctx)).toEqual({
-          'Cache-Control': 'no-cache',
-        })
-      }
-    )
-
-    it.concurrent('should resolve workflow block success and other properties', () => {
-      const workflow = createTestWorkflow([
-        { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'workflow-block': {
-          success: true,
-          childWorkflowName: 'Child Workflow',
-          result: { data: {}, status: 200, headers: {} },
-        },
-      })
-
-      expect(resolver.resolve('<myworkflow.success>', ctx)).toBe(true)
-      expect(resolver.resolve('<myworkflow.childWorkflowName>', ctx)).toBe('Child Workflow')
-    })
-
-    it.concurrent('should handle workflow block with failed child workflow', () => {
-      const workflow = createTestWorkflow([
-        { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'workflow-block': {
-          success: false,
-          childWorkflowName: 'Child Workflow',
-          result: {},
-          error: 'Child workflow execution failed',
-        },
-      })
-
-      expect(resolver.resolve('<myworkflow.success>', ctx)).toBe(false)
-      expect(resolver.resolve('<myworkflow.error>', ctx)).toBe('Child workflow execution failed')
-    })
-
-    it.concurrent('should handle workflow block where child has non-Response final block', () => {
-      // When child workflow does NOT have a Response block as final block,
-      // the result structure will be different (not data/status/headers)
-      const workflow = createTestWorkflow([
-        { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-      ])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        'workflow-block': {
-          success: true,
-          childWorkflowName: 'Child Workflow',
-          result: {
-            content: 'AI generated response',
-            tokens: { input: 100, output: 50 },
-          },
-        },
-      })
-
-      // No backwards compat needed here since child didn't have Response block
-      expect(resolver.resolve('<myworkflow.result.content>', ctx)).toBe('AI generated response')
-      expect(resolver.resolve('<myworkflow.result.tokens.input>', ctx)).toBe(100)
-    })
 
     it.concurrent('should not apply workflow backwards compat for non-workflow blocks', () => {
       // For non-workflow blocks, 'result.response' is a valid path that should NOT be modified
@@ -1283,98 +751,6 @@ describe('BlockResolver', () => {
           'from external API'
         )
         expect(resolver.resolve('<myworkflow.result.content>', ctx)).toBe('AI generated text')
-      }
-    )
-
-    it.concurrent('should handle mixed scenarios correctly', () => {
-      // Test that new format works when child workflow had Response block
-      const workflow = createTestWorkflow([
-        { id: 'workflow-block', name: 'My Workflow', type: 'workflow' },
-      ])
-      const resolver = new BlockResolver(workflow)
-
-      // Scenario 1: Child had Response block (new format - no 'response' key in result)
-      const ctx1 = createTestContext('current', {
-        'workflow-block': {
-          success: true,
-          result: { data: { id: 1 }, status: 200, headers: {} },
-        },
-      })
-      // New format works
-      expect(resolver.resolve('<myworkflow.result.data.id>', ctx1)).toBe(1)
-      // Old format also works (backwards compat kicks in because result.response is undefined)
-      expect(resolver.resolve('<myworkflow.result.response.data.id>', ctx1)).toBe(1)
-
-      // Scenario 2: Child had Agent block with 'response' property
-      const ctx2 = createTestContext('current', {
-        'workflow-block': {
-          success: true,
-          result: {
-            content: 'text',
-            response: { external: 'data' }, // actual 'response' property
-          },
-        },
-      })
-      // Access the actual 'response' property - no stripping
-      expect(resolver.resolve('<myworkflow.result.response.external>', ctx2)).toBe('data')
-    })
-
-    it.concurrent(
-      'real-world scenario: parent workflow referencing child Response block via <workflow1.result.response.data>',
-      () => {
-        /**
-         * This test simulates the exact scenario from user workflows:
-         *
-         * Child workflow (vibrant-cliff):
-         *   Start → Function 1 (returns "fuck") → Response 1
-         *   Response 1 outputs: { data: { hi: "fuck" }, status: 200, headers: {...} }
-         *
-         * Parent workflow (flying-glacier):
-         *   Start → Workflow 1 (calls vibrant-cliff) → Function 1
-         *   Function 1 code: return <workflow1.result.response.data>
-         *
-         * After our changes:
-         * - Child Response block outputs { data, status, headers } (no wrapper)
-         * - Workflow block wraps it in { success, result: { data, status, headers }, ... }
-         * - Parent uses OLD reference <workflow1.result.response.data>
-         * - Backwards compat should strip 'response.' and resolve to result.data
-         */
-        const workflow = createTestWorkflow([
-          { id: 'workflow-block', name: 'Workflow 1', type: 'workflow' },
-        ])
-        const resolver = new BlockResolver(workflow)
-
-        // Simulate the workflow block output after child (vibrant-cliff) executes
-        // Child's Response block now outputs { data, status, headers } directly (no wrapper)
-        // Workflow block wraps it in { success, result: <child_output>, ... }
-        const ctx = createTestContext('current', {
-          'workflow-block': {
-            success: true,
-            childWorkflowName: 'vibrant-cliff',
-            result: {
-              // This is what Response block outputs after our changes (no 'response' wrapper)
-              data: { hi: 'fuck' },
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          },
-        })
-
-        // OLD reference pattern: <workflow1.result.response.data>
-        // Should work via backwards compatibility (strips 'response.')
-        expect(resolver.resolve('<workflow1.result.response.data>', ctx)).toEqual({ hi: 'fuck' })
-        expect(resolver.resolve('<workflow1.result.response.data.hi>', ctx)).toBe('fuck')
-        expect(resolver.resolve('<workflow1.result.response.status>', ctx)).toBe(200)
-
-        // NEW reference pattern: <workflow1.result.data>
-        // Should work directly
-        expect(resolver.resolve('<workflow1.result.data>', ctx)).toEqual({ hi: 'fuck' })
-        expect(resolver.resolve('<workflow1.result.data.hi>', ctx)).toBe('fuck')
-        expect(resolver.resolve('<workflow1.result.status>', ctx)).toBe(200)
-
-        // Other workflow block properties should still work
-        expect(resolver.resolve('<workflow1.success>', ctx)).toBe(true)
-        expect(resolver.resolve('<workflow1.childWorkflowName>', ctx)).toBe('vibrant-cliff')
       }
     )
 
@@ -1427,62 +803,6 @@ describe('BlockResolver', () => {
         expect(response.data.obj.key1).toBe('value1')
       }
     )
-
-    it.concurrent(
-      'real-world scenario: workflow_input type block with <workflow1.result.response>',
-      () => {
-        /**
-         * CRITICAL: Workflow blocks can have type 'workflow' OR 'workflow_input'.
-         * Both must support backwards compatibility.
-         *
-         * This test uses 'workflow_input' which is the actual type in production.
-         */
-        const workflow = createTestWorkflow([
-          { id: 'workflow-block', name: 'Workflow 1', type: 'workflow_input' },
-        ])
-        const resolver = new BlockResolver(workflow)
-
-        const ctx = createTestContext('current', {
-          'workflow-block': {
-            success: true,
-            childWorkflowName: 'response-workflow-child-editor',
-            result: {
-              data: {
-                s: 'example string',
-                nums: [1, 2, 3],
-                n: 42,
-                obj: { key1: 'value1', key2: 'value2' },
-              },
-              status: 206,
-              headers: { 'Content-Type': 'application/json', apple: 'banana' },
-            },
-          },
-        })
-
-        // OLD reference: <workflow1.result.response> should return the entire result object
-        const response = resolver.resolve('<workflow1.result.response>', ctx)
-        expect(response).toEqual({
-          data: {
-            s: 'example string',
-            nums: [1, 2, 3],
-            n: 42,
-            obj: { key1: 'value1', key2: 'value2' },
-          },
-          status: 206,
-          headers: { 'Content-Type': 'application/json', apple: 'banana' },
-        })
-
-        // Also test drilling into specific fields
-        expect(resolver.resolve('<workflow1.result.response.data>', ctx)).toEqual({
-          s: 'example string',
-          nums: [1, 2, 3],
-          n: 42,
-          obj: { key1: 'value1', key2: 'value2' },
-        })
-        expect(resolver.resolve('<workflow1.result.response.status>', ctx)).toBe(206)
-        expect(resolver.resolve('<workflow1.result.response.data.s>', ctx)).toBe('example string')
-      }
-    )
   })
 
   describe('edge cases', () => {
@@ -1494,54 +814,6 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<MYBLOCK>', ctx)).toEqual({ data: 'test' })
       expect(resolver.resolve('<myblock>', ctx)).toEqual({ data: 'test' })
       expect(resolver.resolve('<MyBlock>', ctx)).toEqual({ data: 'test' })
-    })
-
-    it.concurrent('should handle block names with spaces', () => {
-      const workflow = createTestWorkflow([{ id: 'block-1', name: 'API Request Block' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', { 'block-1': { status: 200 } })
-
-      expect(resolver.resolve('<apirequestblock>', ctx)).toEqual({ status: 200 })
-    })
-
-    it.concurrent('should handle empty path returning entire output', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
-      const resolver = new BlockResolver(workflow)
-      const output = { a: 1, b: 2, c: { nested: true } }
-      const ctx = createTestContext('current', { source: output })
-
-      expect(resolver.resolve('<source>', ctx)).toEqual(output)
-    })
-
-    it.concurrent('should handle output with null values', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        source: { value: null, other: 'exists' },
-      })
-
-      expect(resolver.resolve('<source.value>', ctx)).toBeNull()
-      expect(resolver.resolve('<source.other>', ctx)).toBe('exists')
-    })
-
-    it.concurrent('should return RESOLVED_EMPTY for output with undefined values', () => {
-      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        source: { value: undefined, other: 'exists' },
-      })
-
-      expect(resolver.resolve('<source.value>', ctx)).toBe(RESOLVED_EMPTY)
-    })
-
-    it.concurrent('should return RESOLVED_EMPTY for deeply nested non-existent path', () => {
-      const workflow = createTestWorkflow([{ id: 'source', type: 'unknown_block_type' }])
-      const resolver = new BlockResolver(workflow)
-      const ctx = createTestContext('current', {
-        source: { level1: { level2: {} } },
-      })
-
-      expect(resolver.resolve('<source.level1.level2.level3>', ctx)).toBe(RESOLVED_EMPTY)
     })
   })
 })

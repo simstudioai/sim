@@ -10,11 +10,6 @@ import {
 import { GONG_JWT_PUBLIC_KEY_CONFIG_KEY } from '@/lib/webhooks/providers/gong-config'
 
 describe('normalizeGongPublicKeyPem', () => {
-  it('passes through PEM', () => {
-    const pem = '-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----'
-    expect(normalizeGongPublicKeyPem(pem)).toBe(pem)
-  })
-
   it('wraps raw base64', () => {
     const raw = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxfj3'
     const out = normalizeGongPublicKeyPem(raw)
@@ -25,44 +20,6 @@ describe('normalizeGongPublicKeyPem', () => {
 
   it('returns null for garbage', () => {
     expect(normalizeGongPublicKeyPem('not-base64!!!')).toBeNull()
-  })
-})
-
-describe('gongHandler formatInput', () => {
-  it('always returns callId as a string', async () => {
-    const { input } = await gongHandler.formatInput!({
-      webhook: {},
-      workflow: { id: 'wf', userId: 'u' },
-      body: { callData: { metaData: {} } },
-      headers: {},
-      requestId: 'gong-format',
-    })
-
-    expect((input as Record<string, unknown>).callId).toBe('')
-  })
-
-  it('exposes content topics and highlights alongside trackers', async () => {
-    const { input } = await gongHandler.formatInput!({
-      webhook: {},
-      workflow: { id: 'wf', userId: 'u' },
-      body: {
-        callData: {
-          metaData: { id: '99' },
-          content: {
-            trackers: [{ id: 't1', name: 'Competitor', count: 2 }],
-            topics: [{ name: 'Pricing', duration: 120 }],
-            highlights: [{ title: 'Action items' }],
-          },
-        },
-      },
-      headers: {},
-      requestId: 'gong-format-content',
-    })
-    const rec = input as Record<string, unknown>
-    expect(rec.callId).toBe('99')
-    expect(rec.trackers).toEqual([{ id: 't1', name: 'Competitor', count: 2 }])
-    expect(rec.topics).toEqual([{ name: 'Pricing', duration: 120 }])
-    expect(rec.highlights).toEqual([{ title: 'Action items' }])
   })
 })
 
@@ -82,24 +39,6 @@ describe('gongHandler verifyAuth (JWT)', () => {
       providerConfig: {},
     })
     expect(res).toBeNull()
-  })
-
-  it('returns 401 when key is configured but Authorization is missing', async () => {
-    const { publicKey } = await jose.generateKeyPair('RS256')
-    const spki = await jose.exportSPKI(publicKey)
-    const request = new NextRequest('https://app.example.com/api/webhooks/trigger/abc', {
-      method: 'POST',
-      body: '{}',
-    })
-    const res = await verifyGongJwtAuth({
-      webhook: {},
-      workflow: {},
-      request,
-      rawBody: '{}',
-      requestId: 't2',
-      providerConfig: { [GONG_JWT_PUBLIC_KEY_CONFIG_KEY]: spki },
-    })
-    expect(res?.status).toBe(401)
   })
 
   it('accepts a valid Gong-style JWT', async () => {

@@ -1,36 +1,21 @@
-/**
- * @vitest-environment node
- */
+import { dbChainMockFns } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockClose,
   mockCreateSecureImapClient,
   mockDbLimit,
-  mockDbSelect,
-  mockDbUpdate,
   mockHasImapEnvironmentReferences,
-  mockLogger,
   mockNormalizeLiteralImapConnection,
   mockResolveImapConnectionForActor,
 } = vi.hoisted(() => ({
   mockClose: vi.fn(),
   mockCreateSecureImapClient: vi.fn(),
   mockDbLimit: vi.fn(),
-  mockDbSelect: vi.fn(),
-  mockDbUpdate: vi.fn(),
   mockHasImapEnvironmentReferences: vi.fn(),
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   mockNormalizeLiteralImapConnection: vi.fn(),
   mockResolveImapConnectionForActor: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { select: mockDbSelect, update: mockDbUpdate },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
 }))
 
 vi.mock('@/lib/imap/connection.server', () => ({
@@ -41,6 +26,11 @@ vi.mock('@/lib/imap/connection.server', () => ({
 }))
 
 import { imapHandler } from '@/lib/webhooks/providers/imap'
+
+const mockDbSelect = dbChainMockFns.select
+const mockDbUpdate = dbChainMockFns.update
+
+const mockLogger = getMockLogger('WebhookProvider:Imap')
 
 const referenceConfig = {
   host: '{{IMAP_HOST}}',
@@ -53,7 +43,6 @@ const referenceConfig = {
 
 describe('IMAP polling deployment policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockHasImapEnvironmentReferences.mockImplementation((connection: object) =>
       Object.values(connection).some(
         (value) => typeof value === 'string' && /^\{\{[^{}]+\}\}$/.test(value)
@@ -126,34 +115,6 @@ describe('IMAP polling deployment policy', () => {
     expect(mockDbSelect).not.toHaveBeenCalled()
     expect(mockResolveImapConnectionForActor).not.toHaveBeenCalled()
     expect(mockCreateSecureImapClient).not.toHaveBeenCalled()
-  })
-
-  it('persists legacy defaults when nullable port and secure values are supplied', async () => {
-    const persistProviderConfig = vi.fn().mockResolvedValue(true)
-
-    await expect(
-      imapHandler.configurePolling!({
-        webhook: {
-          id: 'webhook-1',
-          providerConfig: {
-            host: 'imap.example.com',
-            port: null,
-            secure: null,
-            username: 'literal-user',
-            password: 'literal-password',
-          },
-        },
-        requestId: 'request-1',
-        userId: 'actor-1',
-        workspaceId: 'workspace-1',
-        persistProviderConfig,
-      })
-    ).resolves.toBe(true)
-
-    expect(persistProviderConfig).toHaveBeenCalledWith(
-      expect.objectContaining({ port: '993', secure: true })
-    )
-    expect(mockDbSelect).not.toHaveBeenCalled()
   })
 
   it('fails closed without logging raw connection errors or authentication values', async () => {

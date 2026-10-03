@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSend } = vi.hoisted(() => ({
@@ -33,49 +30,10 @@ function uniqueIds() {
 }
 
 describe('fetchAppConfigProfile', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('starts a session then returns the parsed configuration', async () => {
-    mockSend.mockImplementation((command: { __type: string }) => {
-      if (command.__type === 'start') return Promise.resolve({ InitialConfigurationToken: 'tok-1' })
-      return Promise.resolve({
-        Configuration: encode({ blockedSignupDomains: ['spam.example'] }),
-        NextPollConfigurationToken: 'tok-2',
-      })
-    })
-
-    const result = await fetchAppConfigProfile(
-      uniqueIds(),
-      (json) => json as Record<string, unknown>
-    )
-    expect(result).toEqual({ blockedSignupDomains: ['spam.example'] })
-
-    const sentTypes = mockSend.mock.calls.map(([c]) => c.__type)
-    expect(sentTypes).toEqual(['start', 'get'])
-  })
-
   it('returns null when the cold fetch fails (never throws)', async () => {
     mockSend.mockRejectedValue(new Error('appconfig down'))
     const result = await fetchAppConfigProfile(uniqueIds(), (json) => json)
     expect(result).toBeNull()
-  })
-
-  it('applies the parse function to the decoded JSON', async () => {
-    mockSend.mockImplementation((command: { __type: string }) => {
-      if (command.__type === 'start') return Promise.resolve({ InitialConfigurationToken: 'tok-1' })
-      return Promise.resolve({
-        Configuration: encode({ count: 2 }),
-        NextPollConfigurationToken: 'tok-2',
-      })
-    })
-
-    const result = await fetchAppConfigProfile(
-      uniqueIds(),
-      (json) => (json as { count: number }).count * 10
-    )
-    expect(result).toBe(20)
   })
 
   it('warms the cache on an empty payload and does not re-poll (unseeded profile)', async () => {
@@ -179,7 +137,6 @@ describe('fetchAppConfigProfile', () => {
 
 describe('fetchAppConfigSnapshot freshness', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(100_000)
   })

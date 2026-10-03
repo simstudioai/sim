@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChipDropdown, Tooltip } from '@sim/emcn'
+import { getConversationModes } from '@/app/workspace/[workspaceId]/home/components/user-input/utils/conversation-modes'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
@@ -19,11 +20,7 @@ export function ConversationModeSelector({
 }: ConversationModeSelectorProps) {
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [open, setOpen] = useState(false)
-  const options = [
-    ...(searchEnabled ? [{ value: 'assistant', label: 'Ask' }] : []),
-    { value: 'agent', label: 'Build' },
-    ...(planEnabled ? [{ value: 'plan', label: 'Plan' }] : []),
-  ]
+  const options = getConversationModes(searchEnabled, planEnabled)
   if (options.length < 2) return null
   return (
     <Tooltip.Root>
@@ -52,7 +49,11 @@ export function ConversationModeSelector({
           />
         </span>
       </Tooltip.Trigger>
-      {!open && <Tooltip.Content side='top'>Select mode</Tooltip.Content>}
+      {!open && (
+        <Tooltip.Content side='top'>
+          {onChange ? <Tooltip.Shortcut keys='⇧ Tab'>Select mode</Tooltip.Shortcut> : 'Select mode'}
+        </Tooltip.Content>
+      )}
     </Tooltip.Root>
   )
 }

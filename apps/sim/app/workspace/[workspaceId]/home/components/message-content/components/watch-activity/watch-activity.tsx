@@ -48,7 +48,11 @@ export function WatchActivity({ task: recorded }: WatchActivityProps) {
       : recorded
   const pending = task.status === undefined || task.status === 'pending'
   return (
-    <div aria-busy={pending} title={[task.summary, task.note].filter(Boolean).join('\n')}>
+    <div
+      data-chat-activity
+      aria-busy={pending}
+      title={[task.summary, task.note].filter(Boolean).join('\n')}
+    >
       <ActivityStatus label={watchLabel(task, params?.workspaceId)} isActive={pending} />
     </div>
   )

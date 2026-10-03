@@ -18,7 +18,7 @@ import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
 } from '@/lib/workflows/deployment-outbox'
-import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
+import { finishPreparedWorkflowDeployment } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { collectForkCustomBlockReconfigs } from '@/lib/workflows/references/custom-block-reconfigs'
 import { collectForkDependentReconfigs } from '@/lib/workflows/references/dependent-reconfigs'
@@ -114,6 +114,10 @@ import {
   hasPromoteCopySelection,
 } from '@/ee/workspace-forking/lib/promote/copy-unmapped'
 import {
+  type PreparedForkDeployment,
+  prepareForkSyncDeployments,
+} from '@/ee/workspace-forking/lib/promote/prepare-deployments'
+import {
   computeForkPromotePlan,
   type ForkPromotePlan,
 } from '@/ee/workspace-forking/lib/promote/promote-plan'
@@ -186,6 +190,7 @@ export interface PromoteForkParams {
     subBlockKey: string
     value: string
   }>
+  expectedSourceVersions?: Array<{ workflowId: string; deploymentVersionId: string }>
 }
 
 export interface PromoteForkResult {
@@ -424,6 +429,7 @@ type PromoteTxBlocked =
   | { blocked: 'cleared-refs'; blockers: ForkSyncBlocker[] }
 
 interface PromoteTxApplied {
+  deployments: Map<string, PreparedForkDeployment>
   operation?: WorkspaceOperationReport
   blocked: null
   promoteRunId: string
@@ -619,13 +625,19 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       // Target lock before edge lock (consistent ordering): the target lock serializes
       // every sync into this target so sibling forks can't interleave writes, and so
       // rollback's "newest sync" check stays race-free against a concurrent promote.
+      // Ranks 3, 4, then 5 below - see the rank table on `acquireForkLineageLock`.
       await acquireForkTargetLock(tx, targetWorkspaceId)
       await acquireForkEdgeLock(tx, edge.childWorkspaceId)
+      await lockForkRevision(tx, revisionScope)
       if (admission) {
-        await lockForkRevision(tx, revisionScope)
         await assertForkPreviewFresh(tx, revisionScope, admission)
-        await assertForkSourceVersions(tx, sourceWorkspaceId, sourceVersionIds)
       }
+      await assertForkSourceVersions(
+        tx,
+        sourceWorkspaceId,
+        sourceVersionIds,
+        params.expectedSourceVersions
+      )
       if (params.mappings)
         await validateForkMappingTargets(sourceWorkspaceId, targetWorkspaceId, params.mappings, tx)
 
@@ -868,7 +880,6 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           edge,
           sourceWorkspaceId,
           targetWorkspaceId,
-          direction,
           userId,
           now,
           selection: copySelection,
@@ -1227,6 +1238,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       }
 
       const applied: PromoteTxApplied = {
+        deployments: new Map(),
         blocked: null,
         promoteRunId,
         deployTargetIds: writtenItems.map((item) => item.targetWorkflowId),
@@ -1287,6 +1299,11 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           undeployEventIds,
           mcpAttachmentServerIds: applied.mcpAttachmentServerIds,
           needsConfigurationIds: needsConfigurationTargetIds,
+          deploymentSources: {
+            childWorkspaceId: edge.childWorkspaceId,
+            items: writtenItems,
+            sourceVersions: sourceVersionIds,
+          },
           ...(copyContentPlan
             ? {
                 copy: {
@@ -1298,6 +1315,17 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
                 },
               }
             : {}),
+        })
+      } else {
+        applied.deployments = await prepareForkSyncDeployments(tx, {
+          childWorkspaceId: edge.childWorkspaceId,
+          targetWorkspaceId,
+          promoteRunId,
+          items: writtenItems,
+          sourceVersions: sourceVersionIds,
+          needsConfigurationIds: needsConfigurationTargetIds,
+          userId,
+          requestId,
         })
       }
       return applied
@@ -1369,7 +1397,11 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     void notifyForkWorkflowChanged(targetWorkflowId)
     if (needsConfigTargetIds.has(targetWorkflowId)) continue
     try {
-      const result = await performFullDeploy({ workflowId: targetWorkflowId, userId, requestId })
+      const prepared = txResult.deployments.get(targetWorkflowId)
+      if (!prepared) throw new Error('A synced workflow is missing its deployment admission')
+      const result = prepared.success
+        ? await finishPreparedWorkflowDeployment(prepared, requestId)
+        : prepared
       if (result.success) {
         redeployed += 1
         // A deploy can succeed but defer/queue some side-effects (trigger/schedule/MCP

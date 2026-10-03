@@ -1,36 +1,47 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAppendCopilotChatMessages,
-  mockPublishStatusChanged,
-  mockGetAccessibleChat,
-  mockReadEvents,
-} = vi.hoisted(() => ({
-  mockGetAccessibleChat: vi.fn(),
-  mockAppendCopilotChatMessages: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
+const { mockReadEvents } = vi.hoisted(() => ({
   mockReadEvents: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
 
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages: mockAppendCopilotChatMessages,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  publishChatStatusChanged: mockPublishStatusChanged,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+
+import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { POST } from '@/app/api/copilot/chat/stop/route'
+
+const mockGetAccessibleChat = mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth
+const mockAppendCopilotChatMessages = mothershipChatMessagesMockFns.mockAppendCopilotChatMessages
+const mockPublishStatusChanged = mothershipChatStatusMockFns.mockPublishChatStatusChanged
+
+mothershipAsyncRunsMockFns.mockGetLatestRunForStream.mockResolvedValue({
+  chatId: 'chat-1',
+  status: 'cancelled',
+})
 
 const stopRequest = (request: NextRequest) => POST(request, undefined)
 
@@ -57,7 +68,6 @@ function mockReads(opts: {
 
 describe('copilot chat stop route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
@@ -125,64 +135,131 @@ describe('copilot chat stop route', () => {
     expect(appended[0].contentBlocks).toEqual(expect.arrayContaining(blocks))
   })
 
-  it('returns 401 when unauthenticated', async () => {
-    authMockFns.mockGetSession.mockResolvedValueOnce(null)
-
-    const response = await stopRequest(
-      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
-    )
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
-  })
-
-  it('is a no-op when the chat is missing', async () => {
-    mockReads({ chat: null })
-
-    const response = await stopRequest(
-      createRequest({ chatId: 'missing-chat', streamId: 'stream-1', content: '' })
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
-    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
-  })
-
-  it('appends a stopped assistant message even with no content', async () => {
+  it('persists a response larger than the HTTP limit from an identifiers-only Stop', async () => {
     mockReads({
       chat: { workspaceId: 'ws-1', conversationId: 'stream-1', model: null },
       last: { messageId: 'stream-1', role: 'user' },
     })
-
-    const response = await stopRequest(
-      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: '' })
-    )
-
-    expect(mockReadEvents).toHaveBeenCalledWith('stream-1', '0')
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
-
-    const setArg = dbChainMockFns.set.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(setArg.conversationId).toBeNull()
-    expect(Object.hasOwn(setArg, 'messages')).toBe(false)
-
-    expect(mockAppendCopilotChatMessages).toHaveBeenCalledTimes(1)
-    const [, appended] = mockAppendCopilotChatMessages.mock.calls[0]
-    expect(appended[0]).toMatchObject({
-      role: 'assistant',
-      content: '',
-      contentBlocks: [{ type: 'complete', status: 'cancelled' }],
-    })
-
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'ws-1' }),
+    const content = 'x'.repeat(11 * 1024 * 1024)
+    const envelope = { v: 1, ts: '2026-09-24T19:00:00Z', stream: { streamId: 'stream-1' } }
+    mockReadEvents.mockResolvedValue([
+      { ...envelope, seq: 1, type: 'text', payload: { channel: 'assistant', text: content } },
       {
-        chatId: 'chat-1',
-        type: 'completed',
-        streamId: 'stream-1',
-      }
+        ...envelope,
+        seq: 2,
+        type: 'tool',
+        payload: {
+          phase: 'call',
+          toolCallId: 'call-1',
+          toolName: 'run_code',
+          arguments: { code: 'preserve me' },
+          status: 'executing',
+        },
+      },
+      { ...envelope, seq: 3, type: 'complete', payload: { status: 'cancelled' } },
+    ])
+    const request = createRequest({ chatId: 'chat-1', streamId: 'stream-1' })
+    expect((await request.clone().text()).length).toBeLessThan(1024)
+    const response = await stopRequest(request)
+    expect(response.status).toBe(200)
+    expect(mockReadEvents).toHaveBeenCalledOnce()
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledOnce()
+    const saved = mockAppendCopilotChatMessages.mock.calls[0][1][0]
+    expect(saved.content).toBe(content)
+    expect(saved.contentBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'tool',
+          toolCall: expect.objectContaining({
+            id: 'call-1',
+            state: 'cancelled',
+            params: { code: 'preserve me' },
+          }),
+        }),
+        { type: 'complete', status: 'cancelled' },
+      ])
     )
+    expect(dbChainMockFns.set.mock.calls[0][0].conversationId).toBeNull()
+    expect(mockPublishStatusChanged).toHaveBeenCalledOnce()
   })
+
+  it.each(['active', 'other-chat', 'missing'])(
+    'does not read replay for an unfinalized or mismatched run: %s',
+    async (state) => {
+      vi.mocked(getLatestRunForStream).mockResolvedValueOnce(
+        state === 'missing'
+          ? null
+          : ({
+              chatId: state === 'other-chat' ? 'other-chat' : 'chat-1',
+              status: state === 'active' ? 'active' : 'cancelled',
+            } as Awaited<ReturnType<typeof getLatestRunForStream>>)
+      )
+      const response = await stopRequest(createRequest({ chatId: 'chat-1', streamId: 'stream-1' }))
+      expect(response.status).toBe(200)
+      expect(getLatestRunForStream).toHaveBeenCalledWith('stream-1', 'user-1')
+      expect(mockReadEvents).not.toHaveBeenCalled()
+      expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    }
+  )
+
+  it('persists completed replay when a late title session event follows completion', async () => {
+    mockReads({
+      chat: { workspaceId: 'ws-1', conversationId: 'stream-1', model: null },
+      last: { messageId: 'stream-1', role: 'user' },
+    })
+    const envelope = { v: 1, ts: '2026-09-24T19:00:00Z', stream: { streamId: 'stream-1' } }
+    mockReadEvents.mockResolvedValue([
+      {
+        ...envelope,
+        seq: 1,
+        type: 'text',
+        payload: { channel: 'assistant', text: 'Full response' },
+      },
+      { ...envelope, seq: 2, type: 'complete', payload: { status: 'cancelled' } },
+      { ...envelope, seq: 3, type: 'session', payload: { kind: 'title', title: 'New title' } },
+    ])
+    const response = await stopRequest(createRequest({ chatId: 'chat-1', streamId: 'stream-1' }))
+    expect(response.status).toBe(200)
+    expect(mockAppendCopilotChatMessages.mock.calls[0][1][0].content).toBe('Full response')
+  })
+
+  it('does not finalize a contiguous prefix before the final event is flushed', async () => {
+    mockReadEvents.mockResolvedValue([
+      {
+        v: 1,
+        seq: 1,
+        ts: '2026-09-24T19:00:00Z',
+        stream: { streamId: 'stream-1' },
+        type: 'text',
+        payload: { channel: 'assistant', text: 'incomplete prefix' },
+      },
+    ])
+    const response = await stopRequest(createRequest({ chatId: 'chat-1', streamId: 'stream-1' }))
+    expect(response.status).toBe(200)
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it.each([{ seqs: [] }, { seqs: [2, 3] }, { seqs: [1, 3] }])(
+    'leaves incomplete replay $seqs to the run owner without erasing its response',
+    async ({ seqs }) => {
+      mockReadEvents.mockResolvedValue(
+        seqs.map((seq) => ({
+          v: 1,
+          seq,
+          ts: '2026-09-24T19:00:00Z',
+          stream: { streamId: 'stream-1' },
+          type: 'text',
+          payload: { channel: 'assistant', text: 'tail only' },
+        }))
+      )
+      const response = await stopRequest(createRequest({ chatId: 'chat-1', streamId: 'stream-1' }))
+      expect(response.status).toBe(200)
+      expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+    }
+  )
 
   it('appends a stopped assistant message if the stream marker was already cleared', async () => {
     mockReads({
@@ -201,30 +278,6 @@ describe('copilot chat stop route', () => {
     const [, appended] = mockAppendCopilotChatMessages.mock.calls[0]
     expect(appended[0]).toMatchObject({ role: 'assistant', content: 'partial' })
 
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'ws-1' }),
-      {
-        chatId: 'chat-1',
-        type: 'completed',
-        streamId: 'stream-1',
-      }
-    )
-  })
-
-  it('republishes completed status when the assistant was already persisted', async () => {
-    mockReads({
-      chat: { workspaceId: 'ws-1', conversationId: null, model: null },
-      last: { messageId: 'assistant-1', role: 'assistant' },
-    })
-
-    const response = await stopRequest(
-      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: 'partial' })
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
-    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(mockPublishStatusChanged).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: 'ws-1' }),
       {

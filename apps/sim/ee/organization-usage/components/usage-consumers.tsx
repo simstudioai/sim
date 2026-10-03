@@ -13,6 +13,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  KieIcon,
   KimiIcon,
   LitellmIcon,
   MetaIcon,
@@ -64,6 +65,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   fireworks: FireworksIcon,
   google: GeminiIcon,
   groq: GroqIcon,
+  kie: KieIcon,
   kimi: KimiIcon,
   litellm: LitellmIcon,
   meta: MetaIcon,
@@ -84,8 +86,6 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   /** Not a registry provider — a BYOK credential kind the breakdown can also emit. */
   'azure-openai': AzureIcon,
 }
-
-export const USAGE_PROVIDER_ICON_IDS = Object.keys(PROVIDER_ICONS)
 
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow

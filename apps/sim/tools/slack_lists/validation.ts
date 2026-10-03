@@ -3,6 +3,22 @@ import { z } from 'zod'
 export const slackListIdSchema = z.string().trim().min(1, 'List ID is required')
 export const slackListItemIdSchema = z.string().trim().min(1, 'Item ID is required')
 const id = z.string().trim().min(1)
+export const slackListAccessSchema = z
+  .object({
+    list_id: slackListIdSchema,
+    access_level: z.enum(['read', 'write', 'owner']),
+    user_ids: z.array(id).min(1, 'At least one user ID is required').optional(),
+    channel_ids: z.array(id).min(1, 'At least one channel ID is required').optional(),
+  })
+  .refine((value) => (value.user_ids !== undefined) !== (value.channel_ids !== undefined), {
+    message: 'Provide exactly one of userIds or channelIds',
+    path: ['user_ids'],
+  })
+  .refine((value) => value.access_level !== 'owner' || value.channel_ids === undefined, {
+    message: 'Owner access can only be granted to users',
+    path: ['access_level'],
+  })
+
 const richText = z
   .object({
     type: z.literal('rich_text'),

@@ -1,12 +1,14 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   sender: vi.fn(),
   member: vi.fn(),
-  permission: vi.fn(),
   abort: vi.fn(),
   status: vi.fn(),
   thread: vi.fn(),
@@ -23,9 +25,7 @@ vi.mock('@/lib/knowledge/application/slack-search/identity', () => ({
   resolveSlackSearchMember: mocks.member,
   SlackSearchIdentityError: class extends Error {},
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.permission,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/knowledge/application/slack-search/chat', () => ({
   slackSearchChatOperation: { id: 'organization.chats.slack' },
   resolveSlackSearchChatRecord: mocks.chat,
@@ -89,11 +89,12 @@ const job = {
 const stop = () => stopSlackSearchThread.execute({ principal, input })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.authorize.mockResolvedValue({ installation, secret: { botToken: 'token' } })
   mocks.sender.mockResolvedValue({ email: 'member@fixture.test' })
   mocks.member.mockResolvedValue('member1')
-  mocks.permission.mockResolvedValue({ userId: 'member1' })
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue({
+    userId: 'member1',
+  })
   mocks.thread.mockResolvedValue([{ id: 'turn1', payload: job }])
   mocks.chat.mockImplementation(async (_tx, input: { userId: string }) => {
     if (input.userId !== 'member1') throw new Error('identity changed')
@@ -129,7 +130,9 @@ describe('Slack native Stop', () => {
   it('authorizes the sender and cancels active and pending turns before clearing Slack status', async () => {
     await stop()
     expect(mocks.member).toHaveBeenCalledWith('org1', 'T1', 'U1', 'member@fixture.test')
-    expect(mocks.permission).toHaveBeenCalledWith(
+    expect(
+      organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+    ).toHaveBeenCalledWith(
       expect.objectContaining({ subjectUserId: 'member1', organizationId: 'org1' }),
       expect.anything(),
       installation

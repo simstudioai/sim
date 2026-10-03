@@ -41,8 +41,7 @@ export async function assertForkingEnabled(organizationId: string | null): Promi
  * from what the fork routes actually enforce.
  */
 export async function isForkingAvailableForWorkspace(
-  organizationId: string | null,
-  userId: string
+  organizationId: string | null
 ): Promise<boolean> {
   try {
     await assertForkingEnabled(organizationId)

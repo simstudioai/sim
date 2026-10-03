@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { convertAnthropicRequestHistory } from '@/providers/anthropic/request-history'
 import { setNativeConversationMessage } from '@/providers/conversation-metadata'

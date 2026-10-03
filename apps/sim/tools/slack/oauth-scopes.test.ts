@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import metadata from '@/tools/generated/tool-metadata'
@@ -54,6 +51,7 @@ describe('Slack personal-token scope policy', () => {
   })
 
   it.each([
+    'slack_lists_access_set',
     'slack_lists_create',
     'slack_lists_update',
     'slack_lists_items_list',

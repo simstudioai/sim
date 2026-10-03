@@ -1,6 +1,9 @@
-/**
- * @vitest-environment node
- */
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -15,14 +18,10 @@ import {
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 
-const { mockUploadFile, mockDownloadFile, mockRegisterOwner, mockAddReference } = vi.hoisted(
-  () => ({
-    mockUploadFile: vi.fn(),
-    mockDownloadFile: vi.fn(),
-    mockRegisterOwner: vi.fn(),
-    mockAddReference: vi.fn(),
-  })
-)
+const mockRegisterOwner = largeValueMetadataMockFns.mockRegisterLargeValueOwner
+const mockAddReference = largeValueMetadataMockFns.mockAddLargeValueReference
+
+const { mockUploadFile, mockDownloadFile } = storageServiceMockFns
 
 /** Scale the two caps down to exercise real serialization and storage reads with small fixtures. */
 vi.mock('@/lib/execution/payloads/limits', async (importOriginal) => ({
@@ -31,14 +30,9 @@ vi.mock('@/lib/execution/payloads/limits', async (importOriginal) => ({
   MAX_TRACE_ARCHIVE_BYTES: 4096,
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { uploadFile: mockUploadFile, downloadFile: mockDownloadFile },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  registerLargeValueOwner: mockRegisterOwner,
-  addLargeValueReference: mockAddReference,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 const CONTEXT = {
   workspaceId: 'workspace-1',
@@ -48,7 +42,6 @@ const CONTEXT = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   clearLargeValueCacheForTests()
   mockRegisterOwner.mockResolvedValue(true)
   mockUploadFile.mockImplementation(async ({ customKey, file }) => {

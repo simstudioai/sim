@@ -1,23 +1,32 @@
-/**
- * @vitest-environment node
- */
-
 import { copilotChats } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendCopilotChatMessages, mockReadEvents } = vi.hoisted(() => ({
-  mockAppendCopilotChatMessages: vi.fn(),
+const { mockReadEvents } = vi.hoisted(() => ({
   mockReadEvents: vi.fn(),
 }))
 vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
 
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages: mockAppendCopilotChatMessages,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
+
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
 import { finalizeAssistantTurn } from './terminal-state'
+
+const mockAppendCopilotChatMessages = mothershipChatMessagesMockFns.mockAppendCopilotChatMessages
+mothershipAsyncRunsMockFns.mockGetLatestRunForStream.mockResolvedValue({
+  chatId: 'chat-1',
+  status: 'cancelled',
+})
 
 const assistantMessage = {
   id: 'assistant-1',
@@ -40,7 +49,6 @@ function mockReads(opts: {
 
 describe('finalizeAssistantTurn', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
@@ -72,6 +80,7 @@ describe('finalizeAssistantTurn', () => {
           status: 'executing',
         },
       },
+      { ...envelope, seq: 3, type: 'complete', payload: { status: 'cancelled' } },
     ])
     await finalizeAssistantTurn({
       chatId: 'chat-1',

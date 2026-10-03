@@ -2,6 +2,8 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,9 +14,7 @@ const { mockUseMothershipChatEvents } = vi.hoisted(() => ({
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
 }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'user-a', email: 'test@example.com' } } }),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/hooks/use-mothership-chat-events', () => ({
   useMothershipChatEvents: mockUseMothershipChatEvents,
 }))
@@ -28,6 +28,10 @@ import {
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 
+authClientMockFns.mockUseSession.mockReturnValue({
+  data: { user: { id: 'user-a', email: 'test@example.com' } },
+})
+
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 function ScimReader() {
@@ -36,8 +40,10 @@ function ScimReader() {
 
 let host: HTMLDivElement
 let root: Root
+let client: QueryClient
 
 beforeEach(() => {
+  client = new QueryClient()
   resetDeploymentShape()
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -46,8 +52,8 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount())
+  client.clear()
   host.remove()
-  vi.clearAllMocks()
 })
 
 describe('OrganizationProvider', () => {
@@ -67,9 +73,11 @@ describe('OrganizationProvider', () => {
 
     act(() =>
       root.render(
-        <OrganizationProvider context={context}>
-          <ScimReader />
-        </OrganizationProvider>
+        <QueryClientProvider client={client}>
+          <OrganizationProvider context={context}>
+            <ScimReader />
+          </OrganizationProvider>
+        </QueryClientProvider>
       )
     )
 

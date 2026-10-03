@@ -7,13 +7,12 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { TextractParserOutput } from '@/tools/textract/types'
 
 const LEGACY_DOCUMENT_FIELD = ['fileUpload', 'filePath', 's3Uri'] as const
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference', 's3Uri'] as const
 const UPLOADED_DOCUMENT_FIELD = ['fileUpload', 'fileReference'] as const
 
-export const TextractBlock: BlockConfig<TextractParserOutput> = {
+export const TextractBlock: BlockConfig = {
   type: 'textract',
   name: 'AWS Textract',
   description: 'Extract text, tables, and forms from documents',
@@ -253,7 +252,7 @@ function requireAwsCredentials(params: Record<string, unknown>) {
   return { accessKeyId, secretAccessKey, region }
 }
 
-export const TextractV2Block: BlockConfig<TextractParserOutput> = {
+export const TextractV2Block: BlockConfig = {
   ...TextractBlock,
   sunset: undefined,
   type: 'textract_v2',

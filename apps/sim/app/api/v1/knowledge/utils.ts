@@ -6,7 +6,8 @@ import {
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
+import { getActiveKnowledgeBaseReference } from '@/lib/knowledge/service'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import {
   type RateLimitResult,
@@ -32,7 +33,7 @@ export async function resolveKnowledgeBase(
   rateLimit: RateLimitResult,
   capability: V1RouteCapability,
   level: 'read' | 'write' = 'read'
-): Promise<{ kb: KnowledgeBaseWithCounts } | NextResponse> {
+): Promise<{ kb: ActiveKnowledgeBaseReference } | NextResponse> {
   const accessError = await validateWorkspaceAccess(
     rateLimit,
     userId,
@@ -42,7 +43,7 @@ export async function resolveKnowledgeBase(
   )
   if (accessError) return accessError
 
-  const kb = await getKnowledgeBaseById(id)
+  const kb = await getActiveKnowledgeBaseReference(id)
   if (!kb) {
     return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
   }

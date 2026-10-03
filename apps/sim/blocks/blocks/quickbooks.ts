@@ -7,7 +7,7 @@ import {
   getQuickBooksReportTypesSupporting,
   type QuickBooksReportControl,
 } from '@/tools/quickbooks/report-metadata'
-import type { QuickBooksReportType, QuickBooksResponse } from '@/tools/quickbooks/types'
+import type { QuickBooksReportType } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_MAX_RESULTS } from '@/tools/quickbooks/values'
 import { getTrigger } from '@/triggers'
 
@@ -554,7 +554,7 @@ function attachmentIdCondition(values?: Record<string, unknown>) {
   return { field: 'operation', value: DOWNLOAD_ATTACHMENT_OPERATION }
 }
 
-export const QuickBooksBlock: BlockConfig<QuickBooksResponse> = {
+export const QuickBooksBlock: BlockConfig = {
   type: 'quickbooks',
   name: 'QuickBooks',
   description:

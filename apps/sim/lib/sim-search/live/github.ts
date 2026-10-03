@@ -4,6 +4,7 @@ import {
   nativeDateBounds,
   nativeText,
 } from '@/lib/sim-search/live/dates'
+import { readDiscussionSection } from '@/lib/sim-search/live/discussion'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { collectNativePages, joinMessages } from '@/lib/sim-search/live/pages'
 import type {
@@ -56,11 +57,17 @@ function githubDocument(row: Record<string, unknown>, kind: string): NativeDocum
         : `${container} · ${string(row.title) || string(row.name) || string(row.full_name)}`,
     url: string(row.html_url),
     content:
+      array(row.text_matches)
+        .map((match) => {
+          const fragment = string(match.fragment)
+          return fragment
+            ? `${match.object_type === 'IssueComment' ? 'Matched comment' : 'Matched text'}: ${fragment}`
+            : ''
+        })
+        .filter(Boolean)
+        .join('\n') ||
       string(row.body) ||
       string(row.description) ||
-      array(row.text_matches)
-        .map((match) => string(match.fragment))
-        .join('\n') ||
       string(row.path),
     modifiedAt: string(row.updated_at),
     author: string(object(row.user).login) || string(object(row.owner).login),
@@ -95,10 +102,24 @@ const GITHUB_DATE_FIELD: Partial<Record<GitHubKind, 'updated' | 'author-date'>> 
   issues: 'updated',
   commits: 'author-date',
 }
-const CODE_EXCLUDED_BY_DATES = 'Code has no dates and is excluded from date-filtered searches.'
+/** Whether a query uses GitHub's boolean operators: upper-case AND/OR/NOT outside quoted phrases. */
+const hasGitHubBoolean = (query: string) =>
+  githubTokens(query).some((token) => /^(?:AND|OR|NOT)$/.test(token))
 
-/** Code has no file dates, so a date-bounded search covers issues and pull requests only. */
-function githubKinds(input: NativeSearchInput): GitHubKind[] {
+/**
+ * Why a search without a kind leaves out code: code search has no file dates and, as legacy REST
+ * code search, no boolean operators, so it would silently match nothing for such a query.
+ */
+function codeExclusion(input: NativeSearchInput): string | undefined {
+  if (hasDateBounds(input.filters))
+    return 'Code has no dates and is excluded from date-filtered searches.'
+  if (hasGitHubBoolean(input.native?.query ?? input.query))
+    return 'Code search has no AND/OR/NOT operators and is excluded from boolean searches; search code alternatives with kind code.'
+  return undefined
+}
+
+/** The kinds a search runs: its explicit kind, or issues plus code unless code is excluded. */
+function githubKinds(input: NativeSearchInput, exclusion = codeExclusion(input)): GitHubKind[] {
   const kind = input.native?.kind
   if (isGitHubKind(kind)) return [kind]
   if (kind)
@@ -106,7 +127,7 @@ function githubKinds(input: NativeSearchInput): GitHubKind[] {
       'unavailable',
       `GitHub search supports these kinds: ${GITHUB_KINDS.join(', ')}.`
     )
-  return hasDateBounds(input.filters) ? ['issues'] : ['issues', 'code']
+  return exclusion ? ['issues'] : ['issues', 'code']
 }
 
 /**
@@ -145,19 +166,20 @@ const githubTokens = (query: string) => query.match(/-?[\w-]+:"[^"]*"|-?"[^"]*"|
  * parentheses or boolean operators is structured by its author and is left as written.
  */
 function groupGitHubText(query: string): string {
-  if (!query || /[()]/.test(query) || /(?:^|\s)(?:AND|OR|NOT)(?=\s|$)/.test(query)) return query
+  if (!query || /[()]/.test(query) || hasGitHubBoolean(query)) return query
   const tokens = githubTokens(query)
   const qualifiers = tokens.filter((token) => GITHUB_QUALIFIER.test(token))
   const text = tokens.filter((token) => !GITHUB_QUALIFIER.test(token)).join(' ')
   return [text ? `(${text})` : '', ...qualifiers].filter(Boolean).join(' ')
 }
 
-/** GitHub rejects more than 256 characters of search text; qualifiers do not count toward it. */
 const GITHUB_TEXT_CHARACTERS = 256
-const githubTextLength = (query: string) =>
+
+/** Whether a query's search text exceeds GitHub's 256-character limit; qualifiers do not count toward it. */
+export const exceedsGitHubTextLimit = (query: string) =>
   githubTokens(query)
     .filter((token) => !GITHUB_QUALIFIER.test(token))
-    .join(' ').length
+    .join(' ').length > GITHUB_TEXT_CHARACTERS
 
 export async function searchGitHub(
   client: NativeClient,
@@ -172,6 +194,7 @@ export async function searchGitHub(
           per_page: '100',
           sort: 'pushed',
         },
+        memo: true,
       })
     )
     const names = repositories
@@ -182,7 +205,8 @@ export async function searchGitHub(
         documents: [],
         message: 'No repositories are accessible through this GitHub connection.',
       }
-    const kinds = githubKinds(input)
+    const exclusion = input.native?.kind ? undefined : codeExclusion(input)
+    const kinds = githubKinds(input, exclusion)
     const planned = kinds.map((kind) => ({
       kind,
       repositories: repositoryBatches(
@@ -233,7 +257,7 @@ export async function searchGitHub(
           ({ kind }) =>
             `GitHub ${kind} search was skipped because the query is too long to scope to repositories.`
         ),
-        !input.native?.kind && !kinds.includes('code') ? CODE_EXCLUDED_BY_DATES : undefined,
+        exclusion,
         capped
           ? `Only the ${searched} most recently pushed repositories were searched; target a repository for broader coverage.`
           : undefined,
@@ -241,7 +265,8 @@ export async function searchGitHub(
     }
   }
   if (!input.native?.kind) {
-    const kinds = githubKinds(input)
+    const exclusion = codeExclusion(input)
+    const kinds = githubKinds(input, exclusion)
     return collectNativePages(
       kinds.map((kind) =>
         searchGitHub(client, {
@@ -249,9 +274,9 @@ export async function searchGitHub(
           native: { provider: 'github', ...input.native, query, kind },
         })
       ),
-      kinds.includes('code')
-        ? 'Searched GitHub issues, pull requests, and code.'
-        : `Searched GitHub issues and pull requests. ${CODE_EXCLUDED_BY_DATES}`
+      exclusion
+        ? `Searched GitHub issues and pull requests. ${exclusion}`
+        : 'Searched GitHub issues, pull requests, and code.'
     )
   }
   if (
@@ -294,7 +319,7 @@ export async function searchGitHub(
             ? `${dateField}:<=${dates.end}`
             : ''
   const datedQuery = dateRange ? [groupGitHubText(text), dateRange].filter(Boolean).join(' ') : text
-  if (githubTextLength(text) > GITHUB_TEXT_CHARACTERS)
+  if (exceedsGitHubTextLimit(text))
     throw new NativeSearchError(
       'unavailable',
       'GitHub search text is limited to 256 characters. Shorten the query.'
@@ -405,5 +430,126 @@ export async function readGitHub(
   }
   if (!/^\d+$/.test(id))
     throw new NativeSearchError('unavailable', 'Invalid GitHub issue reference.')
-  return githubDocument(object(await client.json(`${path}/issues/${id}`)), 'issues')
+  const row = object(await client.json(`${path}/issues/${id}`))
+  const document = githubDocument(row, 'issues')
+  const isPullRequest = Boolean(string(object(row.pull_request).url))
+  const discussions = await Promise.all([
+    readGitHubDiscussion(
+      client,
+      `${path}/issues/${id}/comments`,
+      'Issue and PR conversation',
+      'comment'
+    ),
+    ...(isPullRequest
+      ? [
+          readGitHubDiscussion(
+            client,
+            `${path}/pulls/${id}/reviews`,
+            'PR review history (individual review events)',
+            'review'
+          ),
+          readGitHubDiscussion(
+            client,
+            `${path}/pulls/${id}/comments`,
+            'PR inline review comments',
+            'inline'
+          ),
+        ]
+      : []),
+  ])
+  return {
+    ...document,
+    content: [
+      ...discussions.map(({ warning }) => warning),
+      `${isPullRequest ? 'Pull request' : 'Issue'} #${id}: ${string(row.title)}`,
+      string(row.state) ? `State: ${string(row.state)}` : '',
+      document.content,
+      ...discussions.map(({ content }) => content),
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  }
+}
+
+/** Small pages keep even long Markdown comments below the provider response byte ceiling. */
+const GITHUB_DISCUSSION_PAGE_SIZE = 50
+
+function githubDiscussionEntry(
+  row: Record<string, unknown>,
+  kind: 'comment' | 'review' | 'inline'
+): string {
+  if (kind === 'review' && string(row.state) === 'PENDING') return ''
+  const location =
+    kind === 'inline'
+      ? [
+          string(row.path),
+          row.line != null
+            ? `line ${string(row.line)}`
+            : row.original_line != null
+              ? `original line ${string(row.original_line)} (outdated)`
+              : '',
+          string(row.side),
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : ''
+  return [
+    [
+      `${kind === 'review' ? 'Review' : kind === 'inline' ? 'Inline comment' : 'Comment'} ${string(row.id)}`,
+      string(object(row.user).login) || 'Unknown author',
+      kind === 'review' ? string(row.state) : '',
+      string(row.submitted_at) || string(row.created_at),
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    string(row.updated_at) && row.updated_at !== row.created_at
+      ? `Updated: ${string(row.updated_at)}`
+      : '',
+    string(row.html_url),
+    location,
+    kind === 'inline' && row.pull_request_review_id != null
+      ? `Review: ${string(row.pull_request_review_id)}`
+      : '',
+    kind === 'inline' && row.in_reply_to_id != null
+      ? `Reply to: ${string(row.in_reply_to_id)}`
+      : '',
+    string(row.body),
+    kind === 'inline' && string(row.diff_hunk) ? `Diff context:\n${string(row.diff_hunk)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+function readGitHubDiscussion(
+  client: NativeClient,
+  path: string,
+  label: string,
+  kind: 'comment' | 'review' | 'inline'
+) {
+  const seen = new Set<string>()
+  return readDiscussionSection(label, async (cursor) => {
+    const page = cursor ?? '1'
+    const response = await client.json(path, {
+      query: {
+        per_page: String(GITHUB_DISCUSSION_PAGE_SIZE),
+        page,
+        ...(kind === 'inline' ? { sort: 'created', direction: 'asc' } : {}),
+      },
+    })
+    if (!Array.isArray(response))
+      throw new NativeSearchError('unavailable', 'returned an invalid discussion response')
+    const rows = array(response)
+    const entries = rows.flatMap((row) => {
+      const id = string(row.id)
+      if (id && seen.has(id)) return []
+      if (id) seen.add(id)
+      return [githubDiscussionEntry(row, kind)]
+    })
+    return {
+      entries,
+      ...(rows.length >= GITHUB_DISCUSSION_PAGE_SIZE
+        ? { nextCursor: String(Number(page) + 1) }
+        : {}),
+    }
+  })
 }

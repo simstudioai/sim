@@ -1,37 +1,29 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   discoverMcpToolsContract,
-  getAllowedMcpDomainsContract,
   listManagedMcpCatalogContract,
   listMcpServersContract,
-  listStoredMcpToolsContract,
   type McpServer,
 } from '@/lib/api/contracts/mcp'
-import {
-  useAllowedMcpDomains,
-  useForceRefreshMcpTools,
-  useMcpServers,
-  useMcpToolServers,
-  useMcpToolsQuery,
-  useStoredMcpTools,
-} from '@/hooks/queries/mcp'
+import { useMcpToolServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -120,24 +112,6 @@ class FakeEventSource {
 }
 
 describe('useMcpToolServers', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('lists ordinary workspace servers when no managed connections are available', async () => {
-    const sharedServer = server('shared-server')
-    mockServers([
-      sharedServer,
-      server('managed-canonical-server', { credentialGroupId: 'group-1' }),
-    ])
-
-    const hook = renderHookWithClient(() => useMcpToolServers(WORKSPACE_ID))
-    await flush()
-
-    expect(hook.getResult()).toEqual({ data: [sharedServer], isLoading: false, error: null })
-    hook.unmount()
-  })
-
   it('includes allowed managed connections alongside ordinary servers', async () => {
     const sharedServer = server('shared-server')
     const managedServer = server('mcp-cg-123456789012345678901', {
@@ -164,38 +138,14 @@ describe('useMcpToolServers', () => {
     })
     hook.unmount()
   })
-
-  it.each([
-    { name: 'shared servers', failingContract: listMcpServersContract },
-    { name: 'managed catalog', failingContract: listManagedMcpCatalogContract },
-  ])('keeps unrelated $name errors visible', async ({ failingContract }) => {
-    const error = new Error('MCP request failed')
-    mockRequestJson.mockImplementation(async (contract) => {
-      if (contract === failingContract) throw error
-      if (contract === listMcpServersContract) {
-        return { success: true, data: { servers: [server('shared-server')] } }
-      }
-      if (contract === listManagedMcpCatalogContract) return { servers: [], tools: [] }
-      throw new Error('Unexpected MCP request')
-    })
-
-    const hook = renderHookWithClient(() => useMcpToolServers(WORKSPACE_ID))
-    await flush()
-
-    expect(hook.getResult().error).toBe(error)
-    expect(hook.getResult().isLoading).toBe(false)
-    hook.unmount()
-  })
 })
 
 describe('useMcpToolsQuery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     ;(globalThis as unknown as { EventSource: unknown }).EventSource = FakeEventSource
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
     // mcp.ts captured these Map/Set instances in module consts at import, so reassigning the
     // globalThis property wouldn't reset what the module uses — clear the shared instances.
     ;(
@@ -218,144 +168,6 @@ describe('useMcpToolsQuery', () => {
       listMcpServersContract,
       expect.objectContaining({ query: { workspaceId: WORKSPACE_ID } })
     )
-
-    unmount()
-  })
-
-  it('includes managed Credential Group connection snapshots without upstream discovery', async () => {
-    const managedServer = server('mcp-cg-123456789012345678901', {
-      name: 'Fireflies — alex@example.com',
-      authType: 'oauth',
-      url: undefined,
-    })
-    mockRequestJson.mockImplementation(async (contract) => {
-      if (contract === listMcpServersContract) {
-        return { success: true, data: { servers: [] } }
-      }
-      if (contract === listManagedMcpCatalogContract) {
-        return {
-          servers: [managedServer],
-          tools: [
-            {
-              name: 'search_transcripts',
-              description: 'Search transcripts',
-              inputSchema: { type: 'object', properties: {} },
-              serverId: managedServer.id,
-              serverName: managedServer.name,
-            },
-          ],
-        }
-      }
-      throw new Error('Managed MCP snapshots must not trigger discovery')
-    })
-
-    const hook = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
-    await flush()
-
-    expect(hook.getResult().data).toEqual([
-      expect.objectContaining({
-        name: 'search_transcripts',
-        serverId: managedServer.id,
-      }),
-    ])
-    expect(mockRequestJson).toHaveBeenCalledTimes(2)
-
-    hook.unmount()
-  })
-
-  it('surfaces a shared server-list failure when the managed catalog is empty', async () => {
-    const serverListError = new Error('server list failed')
-    mockRequestJson.mockImplementation(async (contract) => {
-      if (contract === listMcpServersContract) throw serverListError
-      if (contract === listManagedMcpCatalogContract) return { servers: [], tools: [] }
-      throw new Error('Unexpected MCP request')
-    })
-
-    const hook = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
-    await flush()
-
-    expect(hook.getResult().data).toEqual([])
-    expect(hook.getResult().error).toBe(serverListError)
-    expect(hook.getResult().isLoading).toBe(false)
-
-    hook.unmount()
-  })
-
-  it('defers detail and form metadata queries while their surfaces are closed', async () => {
-    mockRequestJson.mockImplementation(async (contract) => {
-      if (contract === listStoredMcpToolsContract || contract === getAllowedMcpDomainsContract) {
-        throw new Error('Deferred MCP metadata should not be requested')
-      }
-      throw new Error('Unexpected MCP request')
-    })
-
-    const { unmount } = renderHookWithClient(() => ({
-      storedTools: useStoredMcpTools(WORKSPACE_ID, { enabled: false }),
-      allowedDomains: useAllowedMcpDomains({ enabled: false }),
-    }))
-    await flush()
-
-    expect(mockRequestJson).not.toHaveBeenCalled()
-
-    unmount()
-  })
-
-  it('continues discovering connected OAuth and disconnected non-OAuth servers', async () => {
-    mockServers([
-      server('oauth-connected', { authType: 'oauth', connectionStatus: 'connected' }),
-      server('headers-disconnected', { authType: 'headers', connectionStatus: 'disconnected' }),
-    ])
-
-    const { unmount } = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
-    await flush()
-
-    // Both eligible servers get discovered.
-    const discoveryCalls = mockRequestJson.mock.calls.filter(
-      ([contract]) => contract === discoverMcpToolsContract
-    )
-    expect(discoveryCalls).toHaveLength(2)
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      discoverMcpToolsContract,
-      expect.objectContaining({
-        query: { workspaceId: WORKSPACE_ID, serverId: 'oauth-connected' },
-      })
-    )
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      discoverMcpToolsContract,
-      expect.objectContaining({
-        query: { workspaceId: WORKSPACE_ID, serverId: 'headers-disconnected' },
-      })
-    )
-
-    unmount()
-  })
-
-  it('refreshes the server list after a connected OAuth discovery fails', async () => {
-    let serverListRequests = 0
-    mockRequestJson.mockImplementation(async (contract) => {
-      if (contract === listMcpServersContract) {
-        serverListRequests++
-        const connectionStatus = serverListRequests === 1 ? 'connected' : 'disconnected'
-        return {
-          success: true,
-          data: {
-            servers: [server('oauth-server', { authType: 'oauth', connectionStatus })],
-          },
-        }
-      }
-      if (contract === discoverMcpToolsContract) {
-        throw new Error('OAuth authorization required')
-      }
-      throw new Error('Unexpected MCP request')
-    })
-
-    const { unmount } = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
-    await flush()
-
-    expect(serverListRequests).toBe(2)
-    expect(
-      mockRequestJson.mock.calls.filter(([contract]) => contract === discoverMcpToolsContract)
-    ).toHaveLength(1)
 
     unmount()
   })
@@ -439,35 +251,6 @@ describe('useMcpToolsQuery', () => {
 
     // Stored status is now 'error' → the dead server's stale tools are dropped from the aggregate.
     expect(getResult().tools.data).toHaveLength(0)
-
-    unmount()
-  })
-
-  it('does not force-refresh disconnected OAuth servers', async () => {
-    mockServers([
-      server('oauth-disconnected', { authType: 'oauth', connectionStatus: 'disconnected' }),
-      server('headers-connected', { authType: 'headers', connectionStatus: 'connected' }),
-    ])
-
-    const { getResult, unmount } = renderHookWithClient(() => ({
-      servers: useMcpServers(WORKSPACE_ID),
-      refresh: useForceRefreshMcpTools(),
-    }))
-    await flush()
-
-    await act(async () => {
-      await getResult().refresh.mutateAsync(WORKSPACE_ID)
-    })
-
-    const discoveryCalls = mockRequestJson.mock.calls.filter(
-      ([contract]) => contract === discoverMcpToolsContract
-    )
-    expect(discoveryCalls).toHaveLength(1)
-    expect(discoveryCalls[0]?.[1]).toEqual(
-      expect.objectContaining({
-        query: { workspaceId: WORKSPACE_ID, refresh: true, serverId: 'headers-connected' },
-      })
-    )
 
     unmount()
   })

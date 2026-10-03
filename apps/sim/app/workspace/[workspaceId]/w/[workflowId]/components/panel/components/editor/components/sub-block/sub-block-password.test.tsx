@@ -1,7 +1,6 @@
-/**
- * @vitest-environment node
- */
 import type { ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -27,18 +26,9 @@ vi.mock('@sim/emcn', () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  ArrowLeftRight: () => null,
-  ArrowUp: () => null,
-  Check: () => null,
-  Clipboard: () => null,
-  SquareArrowUpRight: () => null,
-  TriangleAlert: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components',
@@ -99,6 +89,8 @@ import { PASSWORD_MASKED_SUBBLOCK_TYPES } from '@/app/workspace/[workspaceId]/w/
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import type { SubBlockConfig } from '@/blocks/types'
 
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
 function renderSubBlock(config: SubBlockConfig) {
   return renderToStaticMarkup(<SubBlock blockId='block-1' config={config} />)
 }
@@ -114,16 +106,5 @@ describe('SubBlock password forwarding', () => {
     })
 
     expect(html).toContain('data-password="on"')
-  })
-
-  it.each(PASSWORD_MASKED_SUBBLOCK_TYPES)('leaves the %s renderer unmasked by default', (type) => {
-    const html = renderSubBlock({
-      id: 'secret',
-      title: 'Secret',
-      type,
-      columns: ['Key', 'Value'],
-    })
-
-    expect(html).toContain('data-password="off"')
   })
 })

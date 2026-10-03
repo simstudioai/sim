@@ -85,7 +85,11 @@ async function lockBuild(tx: DbTransaction, build: FileSearchBuild): Promise<boo
   return Boolean(state)
 }
 
-/** A new attempt replaces the build token, never another attempt's chunks. */
+/**
+ * A new attempt replaces the build token, never another attempt's chunks. Beginning also completes
+ * the claim's handoff: the run the claim was waiting for evidently exists, even if the dispatcher
+ * never recorded enqueueing it.
+ */
 export async function beginFileSearchBuild(
   revision: FileSearchRevision,
   dispatchToken?: string
@@ -132,6 +136,7 @@ export async function beginFileSearchBuild(
         indexedBytes: 0,
         lineCount: 0,
         dispatchedAt: state.dispatchedAt ?? now,
+        handoffExpiresAt: null,
         updatedAt: now,
       })
       .where(revisionFilter(revision))

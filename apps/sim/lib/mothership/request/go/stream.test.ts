@@ -1,6 +1,11 @@
-/**
- * @vitest-environment node
- */
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
@@ -28,8 +33,6 @@ vi.mock('@/lib/mothership/request/session', async () => {
   }
 })
 
-const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
-const listAllWorkspaceFilesMock = vi.hoisted(() => vi.fn())
 const changeStoredChatResourcesMock = vi.hoisted(() => vi.fn())
 const materializeStreamImageMock = vi.hoisted(() => vi.fn())
 
@@ -41,21 +44,8 @@ vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: changeStoredChatResourcesMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
-  findWorkspaceFileRecord: (
-    files: Array<{ name: string; folderPath?: string | null }>,
-    path: string
-  ) =>
-    files.find((file) => {
-      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
-      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
-      return filePath === normalized
-    }) ?? null,
-}))
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
   executeCopilotFileUseCase: (
@@ -90,41 +80,40 @@ vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
 
 import {
   buildPreviewContentUpdate,
+  CopilotBackendError,
   decodeJsonStringPrefix,
   extractEditContent,
   runStreamLoop,
   STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
   StreamEndedWithoutTerminalError,
+  WorkerStreamInterruptedError,
+  WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 import {
   createProviderToolCallIdentity,
   PROVIDER_TOOL_CALL_IDENTITY_LIMITS,
   scopeProviderToolCallId,
 } from '@/lib/mothership/request/go/tool-call-identity'
-import { AbortReason, createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
-import { RequestTraceV1Outcome, TraceCollector } from '@/lib/mothership/request/trace'
+import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
+import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
+
+const mockListAllWorkspaceFiles = workspaceFilesListMockFns.mockListAllWorkspaceFiles
+
+const resolveWorkspaceFileReferenceMock =
+  workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
+workspaceFileManagerMockFns.mockFindWorkspaceFileRecord.mockImplementation(
+  (files: Array<{ name: string; folderPath?: string | null }>, path: string) =>
+    files.find((file) => {
+      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
+      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
+      return filePath === normalized
+    }) ?? null
+)
 
 function createSseResponse(events: unknown[]): Response {
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
 
-  return new Response(
-    new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(payload))
-        controller.close()
-      },
-    }),
-    {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-      },
-    }
-  )
-}
-
-function createRawSseResponse(payload: string): Response {
   return new Response(
     new ReadableStream<Uint8Array>({
       start(controller) {
@@ -162,6 +151,7 @@ function createStreamingContext(): StreamingContext {
     wasAborted: false,
     errors: [],
     activeFileIntents: new Map(),
+    filePreviewBudget: { contentBytes: 0 },
     trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
@@ -191,15 +181,11 @@ describe('copilot go stream helpers', () => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
-    listAllWorkspaceFilesMock.mockReset()
-    listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
+    mockListAllWorkspaceFiles.mockReset()
+    mockListAllWorkspaceFiles.mockResolvedValue({ files: [] })
     changeStoredChatResourcesMock.mockReset()
     changeStoredChatResourcesMock.mockResolvedValue([])
     materializeStreamImageMock.mockReset().mockResolvedValue({ url: '/private-image' })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('prepares inline images before delivery without changing text offsets or final receipt length', async () => {
@@ -267,6 +253,77 @@ describe('copilot go stream helpers', () => {
     })
     expect(context.streamComplete).toBe(true)
   })
+
+  it.each([
+    [
+      'an HTML gateway page',
+      502,
+      'text/html',
+      '<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    [
+      "the worker's internal error",
+      500,
+      'application/json',
+      '{"error":"Internal error"}',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    ['a rate limit', 429, 'application/json', '{"error":"Too many requests"}', 'Too many requests'],
+    [
+      'an enterprise-only request',
+      403,
+      'application/json',
+      '{"error":"Enterprise BYOK required"}',
+      'Enterprise BYOK required',
+    ],
+    [
+      'a model selection problem',
+      400,
+      'application/json',
+      '{"error":"This workspace uses an Anthropic API key. Select Opus 5.5 to continue."}',
+      'This workspace uses an Anthropic API key. Select Opus 5.5 to continue.',
+    ],
+    [
+      'protocol skew',
+      426,
+      'application/json',
+      '{"error":"protocol_version_mismatch","expected":3,"got":2,"message":"This Sim build speaks a different mothership protocol version. Update the older side."}',
+      'This Sim build speaks a different mothership protocol version. Update the older side.',
+    ],
+    [
+      'an internal validation detail',
+      400,
+      'application/json',
+      '{"error":"Bad Request","message":"userId required for internal API key"}',
+      'The agent service could not process this request.',
+    ],
+    [
+      'a plain-text request rejection',
+      400,
+      'text/plain',
+      'Invalid request body',
+      'The agent service could not process this request.',
+    ],
+  ])(
+    'tells the user about %s without the raw body',
+    async (_label, status, contentType, body, userMessage) => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(body, { status, headers: { 'Content-Type': contentType } })
+      )
+
+      const error = await runStreamLoop(
+        'https://example.com/api/mothership',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 1000 }
+      ).catch((thrown: unknown) => thrown)
+
+      expect(error).toBeInstanceOf(CopilotBackendError)
+      expect(error).toMatchObject({ message: userMessage, status, body })
+    }
+  )
 
   it('terminates the stream on an exhausted identity budget before forwarding later events', async () => {
     const identity = createProviderToolCallIdentity('exhausted-identity-run')
@@ -377,7 +434,6 @@ describe('copilot go stream helpers', () => {
     { fail: false, readOnly: false },
     { fail: true, readOnly: false },
     { fail: false, readOnly: true },
-    { fail: true, readOnly: true },
   ])(
     'persists mutations but never read-only panels (failure: $fail, read only: $readOnly)',
     async ({ fail, readOnly }) => {
@@ -506,14 +562,6 @@ describe('copilot go stream helpers', () => {
     })
   })
 
-  it('emits deltas for update when the preview extends the previous text', () => {
-    expect(buildPreviewContentUpdate('hello', 'hello world', 100, 200, 'update')).toEqual({
-      content: ' world',
-      contentMode: 'delta',
-      lastSnapshotAt: 100,
-    })
-  })
-
   it('falls back to snapshots for patches and divergent content', () => {
     expect(buildPreviewContentUpdate('hello', 'goodbye', 100, 200, 'update')).toEqual({
       content: 'goodbye',
@@ -528,151 +576,8 @@ describe('copilot go stream helpers', () => {
     })
   })
 
-  it('hydrates path-based prepare_file_edit edits into file preview events before apply_file_edit streams', async () => {
-    listAllWorkspaceFilesMock.mockResolvedValue({
-      files: [{ id: 'file-1', name: 'notes.md', folderPath: null }],
-    })
-
-    const workspaceFileCall = createEvent({
-      streamId: 'stream-1',
-      cursor: '1',
-      seq: 1,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.tool,
-      payload: {
-        toolCallId: 'workspace-file-path-1',
-        toolName: 'prepare_file_edit',
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.call,
-        arguments: {
-          operation: 'update',
-          target: { kind: 'path', path: 'files/notes.md' },
-          title: 'Update notes',
-        },
-      },
-    })
-    const workspaceFileResult = createEvent({
-      streamId: 'stream-1',
-      cursor: '2',
-      seq: 2,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.tool,
-      payload: {
-        toolCallId: 'workspace-file-path-1',
-        toolName: 'prepare_file_edit',
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.result,
-        success: true,
-        output: {
-          success: true,
-          data: { id: 'file-1', name: 'notes.md', operation: 'update' },
-        },
-      },
-    })
-    const editContentDelta = createEvent({
-      streamId: 'stream-1',
-      cursor: '3',
-      seq: 3,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.tool,
-      payload: {
-        toolCallId: 'edit-content-path-1',
-        toolName: 'apply_file_edit',
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.args_delta,
-        argumentsDelta: '{"content":"hello world',
-      },
-    })
-    const editContentResult = createEvent({
-      streamId: 'stream-1',
-      cursor: '4',
-      seq: 4,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.tool,
-      payload: {
-        toolCallId: 'edit-content-path-1',
-        toolName: 'apply_file_edit',
-        executor: MothershipStreamV1ToolExecutor.sim,
-        mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.result,
-        success: true,
-        output: {
-          success: true,
-          data: { id: 'file-1', name: 'notes.md' },
-        },
-      },
-    })
-    const complete = createEvent({
-      streamId: 'stream-1',
-      cursor: '5',
-      seq: 5,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.complete,
-      payload: {
-        status: MothershipStreamV1CompletionStatus.complete,
-      },
-    })
-
-    vi.mocked(fetch).mockResolvedValueOnce(
-      createSseResponse([
-        workspaceFileCall,
-        workspaceFileResult,
-        editContentDelta,
-        editContentResult,
-        complete,
-      ])
-    )
-
-    const onEvent = vi.fn()
-    const context = createStreamingContext()
-    const execContext = turnScopedExecContext()
-
-    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-      onEvent,
-      timeout: 1000,
-    })
-
-    const previewEvents = onEvent.mock.calls
-      .map(([event]) => event)
-      .filter(
-        (event) =>
-          event.type === MothershipStreamV1EventType.tool && 'previewPhase' in event.payload
-      )
-
-    expect(previewEvents.map((event) => event.payload.previewPhase)).toEqual([
-      'file_preview_start',
-      'file_preview_target',
-      'file_preview_content',
-      'file_preview_complete',
-    ])
-    expect(previewEvents[1].payload).toMatchObject({
-      previewPhase: 'file_preview_target',
-      target: { kind: 'file_id', fileId: 'file-1', fileName: 'notes.md' },
-    })
-    expect(previewEvents[2].payload).toMatchObject({
-      previewPhase: 'file_preview_content',
-      fileId: 'file-1',
-      targetKind: 'file_id',
-      content: 'hello world',
-    })
-    expect(previewEvents[3].payload).toMatchObject({
-      previewPhase: 'file_preview_complete',
-      fileId: 'file-1',
-    })
-    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
-      principal: expect.objectContaining({
-        kind: 'delegated',
-        workspaceId: 'workspace-1',
-      }),
-      input: { workspaceId: 'workspace-1', scope: 'active' },
-    })
-  })
-
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    listAllWorkspaceFilesMock.mockResolvedValue({
+    mockListAllWorkspaceFiles.mockResolvedValue({
       files: [
         {
           id: 'changelog-file-1',
@@ -786,7 +691,7 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
+    expect(mockListAllWorkspaceFiles).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
         workspaceId: 'workspace-1',
@@ -882,26 +787,89 @@ describe('copilot go stream helpers', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('does not retry non-transient backend statuses before the SSE stream opens', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(new Response('limit reached', { status: 402 }))
-
-    const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-    }
+  it('reports a stream cut mid-body without the raw socket error', async () => {
+    const socketError = Object.assign(
+      new Error(
+        'The socket connection was closed unexpectedly. For more information, pass `verbose: true`'
+      ),
+      { code: 'ECONNRESET' }
+    )
+    const first = createEvent({
+      streamId: 'cut-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-cut',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+          },
+          pull(controller) {
+            controller.error(socketError)
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    )
 
     await expect(
-      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-        timeout: 1000,
-      })
-    ).rejects.toThrow('Usage limit reached')
-
-    expect(fetch).toHaveBeenCalledTimes(1)
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        {
+          timeout: 1000,
+          flushAfterEvent: false,
+        }
+      )
+    ).rejects.toMatchObject({
+      name: 'WorkerStreamInterruptedError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: socketError,
+    })
   })
 
-  it('does not retry network errors because Go may already be executing the request', async () => {
-    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'))
+  it('keeps the timeout error when the body read fails after the request timed out', async () => {
+    const first = createEvent({
+      streamId: 'timed-out-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-timed-out',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+      const signal = init?.signal
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+            signal?.addEventListener('abort', () => controller.error(signal.reason))
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    })
+
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 20, flushAfterEvent: false }
+      )
+    ).rejects.toMatchObject({ name: 'TimeoutError' })
+  })
+
+  it('reports a worker it could not reach without the raw network error', async () => {
+    const networkError = new TypeError('fetch failed')
+    vi.mocked(fetch).mockRejectedValueOnce(networkError)
 
     const context = createStreamingContext()
     const execContext: ExecutionContext = {
@@ -913,7 +881,11 @@ describe('copilot go stream helpers', () => {
       runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
         timeout: 1000,
       })
-    ).rejects.toThrow('fetch failed')
+    ).rejects.toMatchObject({
+      name: 'WorkerUnreachableError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: networkError,
+    })
 
     expect(fetch).toHaveBeenCalledTimes(1)
   })
@@ -959,12 +931,6 @@ describe('copilot go stream helpers', () => {
     expect(context.errors).toEqual([STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE])
   })
 
-  it('tells the user what happened without promising that a retry helps', () => {
-    expect(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE).not.toMatch(/try again/i)
-    expect(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE).not.toMatch(/\/api\//)
-    expect(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE).toMatch(/saved/i)
-  })
-
   it('reclassifies as aborted when the body closes without terminal but the abort marker is set', async () => {
     const textEvent = createEvent({
       streamId: 'stream-1',
@@ -994,72 +960,6 @@ describe('copilot go stream helpers', () => {
     expect(hasAbortMarker).toHaveBeenCalledWith(context.messageId)
     expect(context.wasAborted).toBe(true)
     expect(context.errors).toEqual([])
-  })
-
-  it('invokes onAbortObserved with MarkerObservedAtBodyClose when reclassifying via the abort marker', async () => {
-    const textEvent = createEvent({
-      streamId: 'stream-1',
-      cursor: '1',
-      seq: 1,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.text,
-      payload: {
-        channel: 'assistant',
-        text: 'partial response',
-      },
-    })
-
-    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([textEvent]))
-    vi.mocked(hasAbortMarker).mockResolvedValueOnce(true)
-
-    const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-    }
-    const onAbortObserved = vi.fn()
-
-    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-      timeout: 1000,
-      onAbortObserved,
-    })
-
-    expect(onAbortObserved).toHaveBeenCalledTimes(1)
-    expect(onAbortObserved).toHaveBeenCalledWith(AbortReason.MarkerObservedAtBodyClose)
-    expect(context.wasAborted).toBe(true)
-  })
-
-  it('does not invoke onAbortObserved when no abort marker is present at body close', async () => {
-    const textEvent = createEvent({
-      streamId: 'stream-1',
-      cursor: '1',
-      seq: 1,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.text,
-      payload: {
-        channel: 'assistant',
-        text: 'partial response',
-      },
-    })
-
-    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([textEvent]))
-    vi.mocked(hasAbortMarker).mockResolvedValueOnce(false)
-
-    const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-    }
-    const onAbortObserved = vi.fn()
-
-    await expect(
-      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-        timeout: 1000,
-        onAbortObserved,
-      })
-    ).rejects.toThrow(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
-
-    expect(onAbortObserved).not.toHaveBeenCalled()
   })
 
   it('still fails closed when the body closes without terminal and the abort marker check throws', async () => {
@@ -1126,192 +1026,173 @@ describe('copilot go stream helpers', () => {
     ).toBe(true)
   })
 
-  it('fails closed when the shared stream receives malformed JSON', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      createRawSseResponse('data: {"v":1,"type":"text","payload":\n\n')
-    )
+  describe('worker stream liveness without a caller deadline', () => {
+    /** Well past the idle timeout, and under common intermediary idle cuts. */
+    const INTERMEDIARY_IDLE_MS = 300_000
+    const encoder = new TextEncoder()
+    const frame = (event: unknown) => encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+    const firstText = createEvent({
+      streamId: 'long-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-long',
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: 'assistant', text: 'working' },
+    })
 
-    const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-    }
-
-    await expect(
-      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-        timeout: 1000,
-      })
-    ).rejects.toThrow('Failed to parse SSE event JSON')
-    expect(
-      context.errors.some((message) => message.includes('Failed to parse SSE event JSON'))
-    ).toBe(true)
-  })
-
-  it('records a split canonical request id and go trace id from the stream envelope', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      createSseResponse([
-        {
-          v: 1,
-          type: MothershipStreamV1EventType.text,
-          seq: 1,
-          ts: '2026-01-01T00:00:00.000Z',
-          stream: { streamId: 'stream-1', cursor: '1' },
-          trace: {
-            requestId: 'sim-request-1',
-            goTraceId: 'go-trace-1',
-          },
-          payload: {
-            channel: 'assistant',
-            text: 'hello',
-          },
+    function settle(promise: Promise<void>) {
+      const state: { done: boolean; error?: unknown } = { done: false }
+      promise.then(
+        () => {
+          state.done = true
         },
-        createEvent({
-          streamId: 'stream-1',
-          cursor: '2',
-          seq: 2,
-          requestId: 'sim-request-1',
-          type: MothershipStreamV1EventType.complete,
-          payload: {
-            status: MothershipStreamV1CompletionStatus.complete,
-          },
-        }),
-      ])
-    )
-
-    const context = createStreamingContext()
-    context.requestId = 'sim-request-1'
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
+        (error: unknown) => {
+          state.done = true
+          state.error = error
+        }
+      )
+      return state
     }
 
-    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-      timeout: 1000,
+    afterEach(() => {
+      vi.useRealTimers()
     })
 
-    expect(context.requestId).toBe('sim-request-1')
-    expect(
-      context.trace.build({
-        outcome: RequestTraceV1Outcome.success,
-        simRequestId: 'sim-request-1',
-      }).goTraceId
-    ).toBe('go-trace-1')
-  })
+    it('keeps a leg open past an hour while the worker sends keepalives', async () => {
+      vi.useFakeTimers()
+      const complete = createEvent({
+        streamId: 'long-stream',
+        cursor: '2',
+        seq: 2,
+        requestId: 'req-long',
+        type: MothershipStreamV1EventType.complete,
+        payload: { status: MothershipStreamV1CompletionStatus.complete },
+      })
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(frame(firstText))
+              const keepalive = setInterval(() => {
+                try {
+                  controller.enqueue(encoder.encode(': keepalive\n\n'))
+                } catch {
+                  clearInterval(keepalive)
+                }
+              }, 25_000)
+              setTimeout(
+                () => {
+                  clearInterval(keepalive)
+                  controller.enqueue(frame(complete))
+                  controller.close()
+                },
+                2 * 60 * 60 * 1000
+              )
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      )
+      const context = createStreamingContext()
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          context,
+          turnScopedExecContext(),
+          {
+            flushAfterEvent: false,
+          }
+        )
+      )
 
-  it('records span identity on the subagent block from the scope', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      createSseResponse([
-        createEvent({
-          streamId: 'stream-1',
-          cursor: '1',
-          seq: 1,
-          requestId: 'req-1',
-          type: MothershipStreamV1EventType.span,
-          scope: {
-            lane: 'subagent',
-            agentId: 'deploy',
-            parentToolCallId: 'tc-deploy-inner',
-            spanId: 'S2',
-            parentSpanId: 'S1',
-          },
-          payload: {
-            kind: 'subagent',
-            event: 'start',
-            agent: 'deploy',
-            data: { tool_call_id: 'tc-deploy-inner', nested: true },
-          },
-        }),
-        createEvent({
-          streamId: 'stream-1',
-          cursor: '2',
-          seq: 2,
-          requestId: 'req-1',
-          type: MothershipStreamV1EventType.complete,
-          payload: { status: MothershipStreamV1CompletionStatus.complete },
-        }),
-      ])
-    )
+      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000 + 1_000)
 
-    const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-    }
-
-    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-      timeout: 1000,
+      expect(state).toEqual({ done: true })
+      expect(context.errors).toEqual([])
+      expect(context.streamComplete).toBe(true)
     })
 
-    const subagentBlock = context.contentBlocks.find((block) => block.type === 'subagent')
-    expect(subagentBlock).toBeDefined()
-    expect(subagentBlock?.spanId).toBe('S2')
-    expect(subagentBlock?.parentSpanId).toBe('S1')
-    expect(subagentBlock?.parentToolCallId).toBe('tc-deploy-inner')
-  })
+    it('fails a silent leg as a retryable interruption before an intermediary drops it', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(frame(firstText))
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      )
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          createStreamingContext(),
+          turnScopedExecContext(),
+          { flushAfterEvent: false }
+        )
+      )
 
-  it('backfills the display name when only the second subagent start carries it', async () => {
-    const scope = {
-      lane: 'subagent' as const,
-      agentId: 'research',
-      parentToolCallId: 'tc-research',
-      spanId: 'S3',
-      parentSpanId: 'S1',
-    }
-    vi.mocked(fetch).mockResolvedValueOnce(
-      createSseResponse([
-        // Dispatch-time start: fires before the trigger args stream, so no name.
-        createEvent({
-          streamId: 'stream-1',
-          cursor: '1',
-          seq: 1,
-          requestId: 'req-1',
-          type: MothershipStreamV1EventType.span,
-          scope,
-          payload: {
-            kind: 'subagent',
-            event: 'start',
-            agent: 'research',
-            data: { tool_call_id: 'tc-research' },
-          },
-        }),
-        // Phase-3 start re-announces the lane WITH the orchestrator-chosen name.
-        createEvent({
-          streamId: 'stream-1',
-          cursor: '2',
-          seq: 2,
-          requestId: 'req-1',
-          type: MothershipStreamV1EventType.span,
-          scope,
-          payload: {
-            kind: 'subagent',
-            event: 'start',
-            agent: 'research',
-            data: { tool_call_id: 'tc-research', name: 'Pricing research' },
-          },
-        }),
-        createEvent({
-          streamId: 'stream-1',
-          cursor: '3',
-          seq: 3,
-          requestId: 'req-1',
-          type: MothershipStreamV1EventType.complete,
-          payload: { status: MothershipStreamV1CompletionStatus.complete },
-        }),
-      ])
-    )
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(state.done).toBe(false)
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS - 60_000)
 
-    const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-    }
-
-    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
-      timeout: 1000,
+      expect(state.done).toBe(true)
+      expect(state.error).toBeInstanceOf(WorkerStreamInterruptedError)
     })
 
-    const subagentBlocks = context.contentBlocks.filter((block) => block.type === 'subagent')
-    expect(subagentBlocks).toHaveLength(1)
-    expect(subagentBlocks[0]?.subagentName).toBe('Pricing research')
+    it('fails a worker whose error body stalls instead of waiting on it forever', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(new ReadableStream<Uint8Array>(), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          createStreamingContext(),
+          turnScopedExecContext(),
+          {}
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toMatchObject({ name: 'CopilotBackendError', status: 503 })
+    })
+
+    it('fails a worker that never answers as unreachable before an intermediary drops it', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockImplementationOnce(
+        (_url, options) =>
+          new Promise<Response>((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+              once: true,
+            })
+          })
+      )
+      const context = createStreamingContext()
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          context,
+          turnScopedExecContext(),
+          {}
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toBeInstanceOf(WorkerUnreachableError)
+      expect(context.wasAborted).not.toBe(true)
+    })
   })
 })

@@ -130,6 +130,17 @@ export const DesktopContextSchema = z.object({
 });
 export type DesktopContext = z.infer<typeof DesktopContextSchema>;
 
+/**
+ * Capabilities Sim computes for a turn's owner from organization flags, plan and ownership.
+ * The worker hides a gated command, skill or prompt section when its entitlement is absent.
+ * This only controls what the agent is told about: Sim re-checks every operation, because
+ * the list travels in a forgeable payload. The wire accepts any name, so Sim can add one
+ * before the worker learns it.
+ */
+export const ENTITLEMENTS = { dashboards: "dashboards" } as const;
+export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
+export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
+
 export const ChatPayloadSchema = z
   .strictObject({
     desktop: DesktopContextSchema.optional(),
@@ -152,6 +163,7 @@ export const ChatPayloadSchema = z
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
     workflowId: z.string().optional(),
     integrationCatalog: IntegrationCatalogContext.optional(),
+    entitlements: Entitlements.default([]),
     /** Accepted for wire compatibility with current sim builds; unused — the CLI now
      * executes on the sim side under sim's own authentication, so no credential crosses. */
     delegationToken: z.string().optional(),
@@ -262,6 +274,8 @@ export interface ChatRequest extends StreamResponseReceipt {
   workflowId?: string | undefined;
   /** Authorized discovery selectors; schemas stay in Sim's catalog. */
   integrationCatalog?: IntegrationCatalogContext | undefined;
+  /** Capabilities Sim computed for this turn's owner; see {@link ENTITLEMENTS}. */
+  entitlements?: string[] | undefined;
   /** Deprecated: unused since the CLI moved to sim-side in-process execution (no
    * credential crosses the wire); accepted so current senders keep validating. */
   delegationToken?: string | undefined;
@@ -335,6 +349,39 @@ export interface ResumeResult {
 /** POST /api/streams/explicit-abort */
 export const AbortRequest = z.strictObject({ messageId: z.uuid() });
 export type AbortRequest = z.infer<typeof AbortRequest>;
+
+/**
+ * POST /api/streams/replay (sim's inbound key only): the run's response rebuilt from the
+ * durable log for a reader whose cursor fell off sim's replay ring. Read-only: the owner,
+ * its emitter, its lease and its parked calls are untouched. The SSE leg restores what
+ * the receipt lacks, follows the log, and ends with `complete` at a terminal or with one
+ * `run` frame of kind `replay_end` otherwise.
+ */
+export const StreamReplayRequest = z.strictObject({
+  streamId: z.uuid(),
+  chatId: z.uuid(),
+  /** The chat's user; a mismatch answers 404 like an unknown run. */
+  userId: z.string().min(1),
+  ...ResponseReceiptSchema.shape,
+});
+export type StreamReplayRequest = z.infer<typeof StreamReplayRequest>;
+
+/**
+ * A replay leg that ended before the run's terminal. `parked`: the run waits on tool
+ * results the owner's leg handed sim. `cap`: the connection reached its length cap;
+ * replay again. `stalled`: no instance drives the run (stale heartbeat, not parked);
+ * replay again later, once a takeover can have resumed it.
+ * `textLength` is the main text this leg's log reached — diagnostic only. A later
+ * replay sends sim's OWN received length as `receivedTextChars`, never this value: the
+ * log trails live text, and resending from the durable end is what exposes divergence.
+ * Replayed tool activity is presentation only (`replay: true`) and never authorizes
+ * execution.
+ */
+export interface StreamReplayEnd extends StreamTextCompletion {
+  kind: "replay_end";
+  reason: "parked" | "cap" | "stalled";
+  textLength: number;
+}
 
 /** Accepted Stop intent is distinct from an observed terminal worker run. */
 export interface AbortResponse {

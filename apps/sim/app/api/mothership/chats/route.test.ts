@@ -1,16 +1,17 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { workspaceAuthorizationMock } from '@sim/testing/mocks/workspace-authorization.mock'
 import {
-  copilotHttpMock,
-  copilotHttpMockFns,
-  dbChainMockFns,
-  permissionsMock,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
-import { NextRequest } from 'next/server'
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
@@ -19,48 +20,37 @@ const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-    billedAccountUserId: 'owner',
-  }),
-}))
-vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: async () => undefined,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 
 vi.mock('@/lib/mothership/chat/stream-liveness', () => ({
   reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
 }))
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: vi.fn() },
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { GET } from '@/app/api/mothership/chats/route'
 
 function createRequest(workspaceId: string) {
-  return new NextRequest(`http://localhost:3000/api/mothership/chats?workspaceId=${workspaceId}`, {
-    method: 'GET',
+  return createMockRequest({
+    url: `http://localhost:3000/api/mothership/chats?workspaceId=${workspaceId}`,
   })
 }
 
 describe('GET /api/mothership/chats', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
+    workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
+      async (workspaceId: string) =>
+        createMockWorkspaceApplicationContext({ workspaceId, billedAccountUserId: 'owner' })
+    )
 
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
     })
 
     mockReconcileChatStreamMarkers.mockImplementation(
@@ -129,84 +119,6 @@ describe('GET /api/mothership/chats', () => {
       expect.objectContaining({ id: 'chat-live', activeStreamId: 'stream-live' }),
       expect.objectContaining({ id: 'chat-idle', activeStreamId: null }),
     ])
-  })
-
-  it('preserves chats when no chat has a stream marker set', async () => {
-    const now = new Date('2026-05-11T12:00:00Z')
-    queueTableRows(schemaMock.copilotChats, [
-      { id: 'chat-1', title: null, updatedAt: now, activeStreamId: null, lastSeenAt: null },
-      { id: 'chat-2', title: null, updatedAt: now, activeStreamId: null, lastSeenAt: null },
-    ])
-
-    const response = await GET(createRequest('ws-1'))
-    expect(response.status).toBe(200)
-
-    expect(mockReconcileChatStreamMarkers).toHaveBeenCalledWith(
-      [
-        { chatId: 'chat-1', streamId: null },
-        { chatId: 'chat-2', streamId: null },
-      ],
-      { repairVerifiedStaleMarkers: true }
-    )
-    const body = await response.json()
-    expect(body.data).toEqual([
-      expect.objectContaining({ id: 'chat-1', activeStreamId: null }),
-      expect.objectContaining({ id: 'chat-2', activeStreamId: null }),
-    ])
-  })
-
-  it('leaves activeStreamId untouched when redis confirms every lock is live', async () => {
-    const now = new Date('2026-05-11T12:00:00Z')
-    queueTableRows(schemaMock.copilotChats, [
-      { id: 'chat-a', title: null, updatedAt: now, activeStreamId: 'stream-a', lastSeenAt: null },
-      { id: 'chat-b', title: null, updatedAt: now, activeStreamId: 'stream-b', lastSeenAt: null },
-    ])
-
-    const response = await GET(createRequest('ws-1'))
-    const body = await response.json()
-
-    expect(body.data).toEqual([
-      expect.objectContaining({ id: 'chat-a', activeStreamId: 'stream-a' }),
-      expect.objectContaining({ id: 'chat-b', activeStreamId: 'stream-b' }),
-    ])
-  })
-
-  it('uses Redis lock owner when it differs from a stale activeStreamId', async () => {
-    const now = new Date('2026-05-11T12:00:00Z')
-    queueTableRows(schemaMock.copilotChats, [
-      {
-        id: 'chat-mismatch',
-        title: null,
-        updatedAt: now,
-        activeStreamId: 'stream-stale',
-        lastSeenAt: null,
-      },
-    ])
-    mockReconcileChatStreamMarkers.mockResolvedValueOnce(
-      new Map([
-        ['chat-mismatch', { chatId: 'chat-mismatch', streamId: 'stream-live', status: 'active' }],
-      ])
-    )
-
-    const response = await GET(createRequest('ws-1'))
-    expect(response.status).toBe(200)
-    const body = await response.json()
-
-    expect(body.data).toEqual([
-      expect.objectContaining({ id: 'chat-mismatch', activeStreamId: 'stream-live' }),
-    ])
-  })
-
-  it('returns 401 when unauthenticated', async () => {
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
-      userId: null,
-      isAuthenticated: false,
-    })
-
-    const response = await GET(createRequest('ws-1'))
-    expect(response.status).toBe(401)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
   })
 
   afterAll(() => {

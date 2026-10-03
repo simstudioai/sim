@@ -668,6 +668,10 @@ export type LocalFilesystemResponse =
 /** Outcome of an OAuth connect handoff, pushed when the browser flow finishes. */
 export interface DesktopOAuthConnectResult {
   ok: boolean
+  /** Source request correlated by the shell, never taken from the browser callback. */
+  sourceRequestId?: string
+  /** A GitHub setup selection; consumers verify current access before using it. */
+  credentialId?: string
   /** OAuth error slug forwarded from the provider callback, when the flow failed. */
   error?: string
   /**
@@ -1086,6 +1090,11 @@ export interface SimDesktopApi {
    * browser could not be opened.
    */
   beginOAuthConnect(providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean>
+  /** Starts an opaque source request in the browser without moving the desktop page. */
+  prepareSourceConnect?(): Promise<string | null>
+  beginSourceConnect?(requestId: string): Promise<boolean>
+  /** Cancels only the matching pending source handoff. */
+  cancelSourceConnect?(requestId: string): Promise<boolean>
   /**
    * Subscribe to connect-handoff completions (the app is refocused just
    * before this fires). Returns an unsubscribe function.

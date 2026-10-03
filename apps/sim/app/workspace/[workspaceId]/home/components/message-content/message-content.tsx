@@ -624,8 +624,15 @@ export function parseBlocks(blocks: ContentBlock[], isStreaming = false): Messag
   )
 }
 
-function joinRenderableText(parts: string[]): string {
-  return parts.filter(Boolean).join('\n\n')
+/** Returns independently rendered text segments, excluding agent groups and other UI segments. */
+export function getOrchestratorMessageTextSegments(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): string[] {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  if (parsed.length === 0) return [fallbackContent]
+
+  return parsed.map((segment) => (segment.type === 'text' ? segment.content : '')).filter(Boolean)
 }
 
 /** Returns only top-level orchestrator text, excluding agent groups and other UI segments. */
@@ -633,12 +640,7 @@ export function getOrchestratorMessageText(
   blocks: ContentBlock[],
   fallbackContent: string
 ): string {
-  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
-  if (parsed.length === 0) return fallbackContent
-
-  return joinRenderableText(
-    parsed.map((segment) => (segment.type === 'text' ? segment.content : ''))
-  )
+  return getOrchestratorMessageTextSegments(blocks, fallbackContent).join('\n\n')
 }
 
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
@@ -929,13 +931,13 @@ export function deriveThinkingLabel(blocks: ContentBlock[]): string {
   const last = blocks[blocks.length - 1]
   switch (last?.type) {
     case 'subagent_end':
-      return 'Returning…'
+      return 'Returning'
     case 'tool_call':
       return last.toolCall && DISPATCH_TOOL_NAMES.has(last.toolCall.name)
-        ? 'Dispatching…'
-        : 'Thinking…'
+        ? 'Dispatching'
+        : 'Thinking'
     default:
-      return 'Thinking…'
+      return 'Thinking'
   }
 }
 
@@ -987,7 +989,7 @@ function MessageContentInner({
   onPhaseChange,
   actions,
 }: MessageContentProps) {
-  const { onWorkspaceResourceSelect } = useChatSurface()
+  const { onWorkspaceResourceSelect, onViewSources } = useChatSurface()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
   const cited = useMemo(
     () => resolveMessageCitations(blocks, fallbackContent, requestMode === 'assistant'),
@@ -1103,13 +1105,26 @@ function MessageContentInner({
   const actionsRow = (
     <div className='flex items-center gap-0.5'>
       {actions}
-      {sources.length > 0 && <MessageSources sources={sources} />}
+      {sources.length > 0 && (
+        <MessageSources
+          sources={sources}
+          onViewAll={
+            messageId && onViewSources ? () => onViewSources(messageId, imageRequestId) : undefined
+          }
+        />
+      )}
     </div>
   )
 
   return (
     <div>
-      <div className='space-y-[10px] [&>[data-agent-group]:has(+[data-agent-group])]:mb-4'>
+      <div
+        className={cn(
+          '[&>:empty]:hidden [&>:has(~:not(:empty))]:mb-4',
+          '[&>[data-chat-activity]:has(+[data-chat-activity],+:empty+[data-chat-activity])]:mb-2',
+          '[&>[data-agent-group]:has(>div:last-child>div:last-child>[data-interaction-card]:last-child):has(~:not(:empty))]:mb-4'
+        )}
+      >
         {segments.map((segment, i) => {
           switch (segment.type) {
             case 'text':
@@ -1149,6 +1164,7 @@ function MessageContentInner({
                 <div
                   key={segment.id}
                   data-agent-group
+                  data-chat-activity
                   className={isStreaming ? 'animate-stream-fade-in' : undefined}
                 >
                   <AgentGroup

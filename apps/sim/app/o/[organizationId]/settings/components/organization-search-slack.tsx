@@ -74,7 +74,7 @@ export function OrganizationSearchSlack() {
               variant='inline'
             />
           ) : !installations.data ? (
-            <SettingsEmptyState variant='inline'>Loading Slack connection…</SettingsEmptyState>
+            <SettingsEmptyState variant='inline'>Loading Slack connection</SettingsEmptyState>
           ) : (
             <div className={RESOURCE_LIST_STACK}>
               {installations.data.installations.length === 0 ? (
@@ -196,7 +196,7 @@ export function OrganizationSearchSlack() {
         )}
         {configure.isPending && (
           <p role='status' className='text-[var(--text-muted)] text-caption'>
-            Updating the Slack connection…
+            Updating the Slack connection
           </p>
         )}
       </div>
@@ -211,7 +211,7 @@ export function OrganizationSearchSlack() {
           confirm={{
             label: 'Remove',
             pending: remove.isPending,
-            pendingLabel: 'Removing…',
+            pendingLabel: 'Removing',
             onClick: () =>
               remove.mutate(
                 { organizationId: organization.id, installationId: removeTarget.id },

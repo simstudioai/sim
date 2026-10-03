@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cascadeLockKey, withCascadeLock } from '@/lib/table/cascade-lock'
@@ -11,7 +8,6 @@ const OWNER_ID = 'exec-1'
 
 describe('withCascadeLock', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
     redisConfigMockFns.mockExtendLock.mockResolvedValue(true)

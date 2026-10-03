@@ -152,6 +152,14 @@ describe('document processing commit lock scope', () => {
     expect(await db.select().from(document).where(eq(document.id, file.documentId))).toMatchObject([
       { processingStatus: 'completed', chunkCount: 3 },
     ])
+    for (const projection of ['embedding_search']) {
+      expect(
+        await db.$client.unsafe(
+          `SELECT count(*)::int AS count FROM ${projection} WHERE document_id = $1`,
+          [file.documentId]
+        )
+      ).toEqual([{ count: 3 }])
+    }
   })
 
   it.each([
@@ -208,7 +216,7 @@ describe('document processing commit lock scope', () => {
             .from(embedding)
             .where(eq(embedding.documentId, file.documentId))
         ).toEqual([])
-        for (const projection of ['embedding_search', 'embedding_keyword_search']) {
+        for (const projection of ['embedding_search']) {
           expect(
             await db.$client.unsafe(`SELECT id FROM ${projection} WHERE document_id = $1`, [
               file.documentId,

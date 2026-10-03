@@ -3,7 +3,7 @@ import { envMockFns, mockEnvObject } from './env.mock'
 import { envFlagsMock } from './env-flags.mock'
 
 /** Mirrors the real `LOCALHOST_HOSTNAMES` from `@/lib/core/utils/urls`. */
-export const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
+const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
   'localhost',
   '127.0.0.1',
   '[::1]',
@@ -11,7 +11,7 @@ export const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
 ])
 
 /** Mirrors the real `CANONICAL_SITE_HOST` from `@/lib/core/utils/urls`. */
-export const CANONICAL_SITE_HOST_MOCK = 'www.sim.ai'
+const CANONICAL_SITE_HOST_MOCK = 'www.sim.ai'
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434'

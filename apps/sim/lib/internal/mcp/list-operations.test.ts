@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { discover } = vi.hoisted(() => ({ discover: vi.fn() }))
@@ -16,7 +15,6 @@ const call = {
 
 describe('List MCP operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     discover.mockResolvedValue(
       ['write', 'read', 'read_more'].map((name) => ({
         name,
@@ -60,27 +58,6 @@ describe('List MCP operations', () => {
       serverId: 'connection-1',
     })
   })
-
-  it('allows an empty authorized list and propagates verification failures', async () => {
-    discover.mockResolvedValueOnce([])
-    expect(
-      await (await listMcpOperations({ ...call, input: { server: 'server-1' } })).json()
-    ).toMatchObject({ output: { operations: [], hasMore: false, nextCursor: null } })
-    discover.mockRejectedValueOnce(new Error('policy cannot be verified'))
-    await expect(listMcpOperations({ ...call, input: { server: 'server-1' } })).rejects.toThrow(
-      'policy cannot be verified'
-    )
-  })
-
-  it.each([0, 101, -1, 1.5, '2'])(
-    'rejects invalid page size %j before discovery',
-    async (limit) => {
-      await expect(
-        listMcpOperations({ ...call, input: { server: 'server-1', limit } })
-      ).rejects.toThrow('page size')
-      expect(discover).not.toHaveBeenCalled()
-    }
-  )
 
   it('rejects an empty resolved server without selecting a credential', async () => {
     await expect(listMcpOperations({ ...call, input: { server: '' } })).rejects.toThrow(

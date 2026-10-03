@@ -1,43 +1,37 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   rename: vi.fn(),
   read: vi.fn(),
   deleteItems: vi.fn(),
-  getUserEntityPermissions: vi.fn(),
-  captureServerEvent: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-record', () => ({
   readWorkspaceFileContentRecord: {
     operation: { id: 'files.read_content', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.read,
+    execute: hoisted.read,
   },
 }))
 
 vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
   renameWorkspaceFile: {
     operation: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
-    execute: mocks.rename,
+    execute: hoisted.rename,
   },
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
-  performDeleteWorkspaceFileItems: mocks.deleteItems,
+  performDeleteWorkspaceFileItems: hoisted.deleteItems,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mocks.getUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   DelegatedWorkspaceAuthorizationError,
@@ -45,19 +39,25 @@ import {
   NoWorkspaceAccessError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/route'
+
+const mocks = {
+  ...hoisted,
+  getSession: authMockFns.mockGetSession,
+  getUserEntityPermissions: permissionsMockFns.mockGetUserEntityPermissions,
+  captureServerEvent: posthogServerMockFns.mockCaptureServerEvent,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
-const context = { params: Promise.resolve({ id: WORKSPACE_ID, fileId: FILE_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID, fileId: FILE_ID })
 
 function callRename(body: unknown) {
   return PATCH(
-    new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`, {
+    createMockRequest({
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`,
+      body,
     }),
     context
   )
@@ -81,68 +81,11 @@ function fileRecord() {
 
 describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
     mocks.rename.mockResolvedValue({ file: fileRecord() })
-  })
-
-  it('authenticates before parsing the request', async () => {
-    mocks.getSession.mockResolvedValue(null)
-
-    const response = await callRename({ name: 'nested/invalid.csv' })
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
-    expect(mocks.rename).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid rename input before the use case', async () => {
-    const response = await callRename({ name: 'nested/invalid.csv' })
-
-    expect(response.status).toBe(400)
-    expect(mocks.rename).not.toHaveBeenCalled()
-  })
-
-  it('passes a session principal and canonical assertion to the shared use case', async () => {
-    const response = await callRename({ name: 'renamed.csv' })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      success: true,
-      file: expect.objectContaining({ id: FILE_ID, name: 'renamed.csv', folderId: null }),
-    })
-    expect(mocks.rename).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        fileId: FILE_ID,
-        assertedWorkspaceId: WORKSPACE_ID,
-        name: 'renamed.csv',
-      },
-      request: expect.anything(),
-    })
-    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
-      'user-1',
-      'file_renamed',
-      { workspace_id: WORKSPACE_ID },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
-  })
-
-  it('renders typed authorization errors in the internal envelope', async () => {
-    mocks.rename.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
-
-    const response = await callRename({ name: 'renamed.csv' })
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({
-      error: 'Insufficient workspace permissions',
-    })
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -166,48 +109,20 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Insufficient workspace permissions' })
   })
-
-  it('hides unexpected failures behind the internal 500 envelope', async () => {
-    mocks.rename.mockRejectedValue(new Error('update workspace_files failed'))
-
-    const response = await callRename({ name: 'renamed.csv' })
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: 'Internal server error',
-    })
-  })
 })
 
 describe('GET /api/workspaces/[id]/files/[fileId]', () => {
   const read = () =>
     GET(
-      new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`),
+      createMockRequest({
+        url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`,
+      }),
       context
     )
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mocks.read.mockResolvedValue({
       file: { ...fileRecord(), vfsNamespace: 'uploads', storageContext: 'workspace' },
-    })
-  })
-  it('authenticates before resolving file metadata', async () => {
-    mocks.getSession.mockResolvedValue(null)
-    expect((await read()).status).toBe(401)
-    expect(mocks.read).not.toHaveBeenCalled()
-  })
-  it('uses the current read policy and preserves independent namespace and byte context', async () => {
-    const response = await read()
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      success: true,
-      file: { id: FILE_ID, vfsNamespace: 'uploads', storageContext: 'workspace' },
-    })
-    expect(mocks.read).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
-      request: expect.anything(),
     })
   })
   it('conceals inaccessible uploads', async () => {

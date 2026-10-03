@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/server/routes'
 import { withRequestId } from '@/lib/api/server/routes/request-id'
 import {
+  admitBrowserDownloadSave,
   readBrowserUploadFile,
   saveBrowserDownload,
 } from '@/lib/browser-agent/application/browser-file-transfer'
@@ -52,8 +53,9 @@ export const POST = defineInternalBinaryRoute({
  * PUT /api/desktop/tool/file?toolCallId=…&name=…
  *
  * Raw `withRouteHandler`: the body is the download's bytes, so it is admitted by declared length
- * and read under a byte ceiling only after the session is authenticated, then handed to the
- * application use case that binds it to its claimed `browser_save_download` call.
+ * and read under a byte ceiling only after the session is authenticated and the application has
+ * admitted the caller's claimed `browser_save_download` call, then handed to the use case that
+ * re-validates and claims that call.
  */
 export const PUT = withRouteHandler(async (request: NextRequest) => {
   let principal
@@ -73,6 +75,13 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
   }
   const parsed = await parseRequest(saveBrowserDownloadContract, request, {})
   if (!parsed.success) return parsed.response
+  const { toolCallId, name } = parsed.data.query
+
+  try {
+    await admitBrowserDownloadSave(principal, { toolCallId, name })
+  } catch (error) {
+    return saveErrorResponse(error)
+  }
 
   let content: Buffer
   try {
@@ -93,16 +102,21 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
   try {
     const { file } = await saveBrowserDownload.execute({
       principal,
-      input: { toolCallId: parsed.data.query.toolCallId, name: parsed.data.query.name, content },
+      input: { toolCallId, name, content },
       request,
     })
     return NextResponse.json({ path: workspaceFileVfsPath(file), name: file.name, size: file.size })
   } catch (error) {
-    const response = internalFileErrorPolicies.concealContentAuthorization.project(error)
-    if (!response) throw error
-    return NextResponse.json(withRequestId(response.body), {
-      status: response.status,
-      headers: response.headers,
-    })
+    return saveErrorResponse(error)
   }
 })
+
+/** Projects a typed download-save failure, rethrowing anything the policy does not classify. */
+function saveErrorResponse(error: unknown): NextResponse {
+  const response = internalFileErrorPolicies.concealContentAuthorization.project(error)
+  if (!response) throw error
+  return NextResponse.json(withRequestId(response.body), {
+    status: response.status,
+    headers: response.headers,
+  })
+}
