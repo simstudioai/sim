@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  nonEmptyIdSchema,
+  versionNumberSchema,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspaceSchema } from '@/lib/api/contracts/workspaces'
 import { WORKFLOW_RESOURCE_KINDS } from '@/lib/workflows/references/types'
@@ -314,13 +319,55 @@ export const forkUnmappedReferenceSchema = z.object({
   blockName: z.string().optional(),
 })
 
-export const forkWorkflowChangeSchema = z.object({
-  action: z.enum(['update', 'create', 'archive']),
+const forkSourceVersionSchema = z.object({
+  id: nonEmptyIdSchema.describe('Exact source deployment snapshot identifier.'),
+  version: versionNumberSchema.describe('Saved version number in the source workflow.'),
+})
+
+export const forkWorkflowComparisonSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('available').describe('Both exact source snapshots are available.'),
+    base: forkSourceVersionSchema.describe(
+      'Source deployment last successfully synced to this destination.'
+    ),
+    target: forkSourceVersionSchema.describe('Pinned source deployment that this sync would copy.'),
+  }),
+  z.object({
+    status: z.literal('unavailable').describe('The source baseline cannot be compared.'),
+    reason: z
+      .enum(['new_workflow', 'no_baseline', 'missing_baseline'])
+      .describe(
+        'New destination workflow, no recorded successful sync, or deleted baseline snapshot.'
+      ),
+    target: forkSourceVersionSchema.describe('Pinned source deployment that this sync would copy.'),
+  }),
+])
+export type ForkWorkflowComparison = z.output<typeof forkWorkflowComparisonSchema>
+
+const forkSourceVersionAssertionSchema = z
+  .object({
+    workflowId: workflowIdSchema,
+    deploymentVersionId: nonEmptyIdSchema,
+  })
+  .strict()
+
+const forkWorkflowNamesSchema = z.object({
   /** Workflow name in the workspace the modal is open in. */
   currentName: z.string(),
   /** Workflow name in the sync-partner workspace (differs from `currentName` after a rename). */
   otherName: z.string(),
 })
+export const forkWorkflowChangeSchema = z.discriminatedUnion('action', [
+  forkWorkflowNamesSchema.extend({
+    action: z.enum(['update', 'create']),
+    sourceWorkflowId: workflowIdSchema,
+    comparison: forkWorkflowComparisonSchema,
+  }),
+  forkWorkflowNamesSchema.extend({
+    action: z.literal('archive'),
+    targetWorkflowId: workflowIdSchema,
+  }),
+])
 
 /**
  * A configured selector field (Gmail label, Slack channel, KB document, ...) that
@@ -588,6 +635,7 @@ export const getForkDiffContract = defineRouteContract({
     schema: z.object({
       sourceWorkspaceId: z.string(),
       targetWorkspaceId: z.string(),
+      sourceVersions: z.array(forkSourceVersionAssertionSchema).max(1000),
       willUpdate: z.number().int(),
       willCreate: z.number().int(),
       willArchive: z.number().int(),
@@ -693,6 +741,8 @@ export type PromoteCopyResources = z.input<typeof promoteCopyResourcesSchema>
 export const promoteForkBodySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
+  mappings: updateForkMappingBodySchema.shape.entries.optional(),
+  expectedSourceVersions: z.array(forkSourceVersionAssertionSchema).max(1000).optional(),
   /**
    * The full stored mapping of dependent-field values; persisted to
    * `workspace_fork_dependent_value` and applied to the target blocks verbatim. Omitting the

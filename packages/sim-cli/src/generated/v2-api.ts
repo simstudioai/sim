@@ -1706,6 +1706,7 @@ export type CreateCredentialConnectionBody =
         | 'microsoft-dataverse'
         | 'microsoft-excel'
         | 'microsoft-planner'
+        | 'microsoft-powerbi'
         | 'microsoft-teams'
         | 'microsoft-word'
         | 'outlook'
@@ -6340,6 +6341,9 @@ export type GetSelectorBody = {
     | 'webflow.collections'
     | 'webflow.items'
     | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
@@ -9140,6 +9144,9 @@ export type ListSelectorBody = {
     | 'webflow.collections'
     | 'webflow.items'
     | 'planetscale.databases'
+    | 'powerbi.workspaces'
+    | 'powerbi.datasets'
+    | 'powerbi.reports'
     | 'planetscale.branches'
     | 'planetscale.backups'
     | 'planetscale.deployRequests'
@@ -10481,6 +10488,26 @@ type PreviewWorkspacePullResponseRef0 = {
     sourceWorkflowId?: string
     targetWorkflowId?: string
     name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
   }>
   unresolvedBindings: Array<{
     kind: string
@@ -10611,6 +10638,26 @@ type PreviewWorkspacePushResponseRef0 = {
     sourceWorkflowId?: string
     targetWorkflowId?: string
     name: string
+    comparison?:
+      | {
+          status: 'available'
+          base: {
+            id: string
+            version: number
+          }
+          target: {
+            id: string
+            version: number
+          }
+        }
+      | {
+          status: 'unavailable'
+          reason: 'new_workflow' | 'no_baseline' | 'missing_baseline'
+          target: {
+            id: string
+            version: number
+          }
+        }
   }>
   unresolvedBindings: Array<{
     kind: string
@@ -17114,6 +17161,9 @@ export const V2_OPERATIONS = {
           'webflow.collections',
           'webflow.items',
           'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
@@ -19201,6 +19251,9 @@ export const V2_OPERATIONS = {
           'webflow.collections',
           'webflow.items',
           'planetscale.databases',
+          'powerbi.workspaces',
+          'powerbi.datasets',
+          'powerbi.reports',
           'planetscale.branches',
           'planetscale.backups',
           'planetscale.deployRequests',
@@ -20263,7 +20316,8 @@ export const V2_OPERATIONS = {
       },
       offset: {
         kind: 'integer',
-        describe: 'First line to return, 1-based. Absent starts at the first line.',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',
@@ -20287,7 +20341,8 @@ export const V2_OPERATIONS = {
       },
       offset: {
         kind: 'integer',
-        describe: 'First line to return, 1-based. Absent starts at the first line.',
+        describe:
+          'First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.',
       },
       limit: {
         kind: 'integer',

@@ -310,7 +310,7 @@ When several fields are mutually exclusive alternatives, mark them all `required
 other paths ever get a chance to supply the value.
 
 **Constraints (block-wide):**
-- `canonicalParamId` must not equal any subblock `id` in the block.
+- `canonicalParamId` may equal only the `id` of a member of its own group, as `channel` does in the canonicalParamId Pattern below; it must never equal any other subblock's `id`. (`blocks.test.ts` enforces the case of a subblock with no `canonicalParamId`.)
 - One canonical id links exactly one basic/advanced pair for one logical parameter. Groups are keyed by canonical id across every subblock and hold one `basicId`, so two operations that each need a pair need two canonical ids.
 - All members of a group share the same `required` status.
 
@@ -561,6 +561,11 @@ Enables AI-assisted field generation.
 Use `wandConfig` on fields that are hard to fill by hand — timestamps (`generationType: 'timestamp'` injects the current date), comma-separated ID lists, complex query strings. Keep the prompt specific about the return format (e.g. 'Return ONLY the ISO 8601 timestamp string').
 
 ## Tools Configuration
+
+**Write operation ids and tool ids as string literals** in the `operation` dropdown `options` and
+`tools.access`, never through constants (`id: SEARCH`, `access: [SEARCH]`). `scripts/generate-docs.ts`
+reads them from source with regexes, so a constant parses as empty: the docs page loses its whole
+Actions section and the integration catalog ships blank operation descriptions, with no check failing.
 
 **Preferred:** Use tool names directly as dropdown option IDs to avoid switch cases:
 ```typescript

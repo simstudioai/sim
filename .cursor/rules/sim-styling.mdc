@@ -95,7 +95,7 @@ Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inse
 - **Errors** → `error` prop. Never `className={cn(err && 'border-[var(--text-error)]')}`.
 - **Leading icon** → `icon` prop (rendered 14px in `--text-icon`).
 - **Trailing buttons** (reveal/copy/fetch) → `endAdornment`.
-- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field.tsx`.
+- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `ee/whitelabeling/components/whitelabeling-settings.tsx`.
 - **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx`.
 
 ### What className MAY carry

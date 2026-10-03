@@ -190,7 +190,7 @@ function importResolves(spec: string, packages: Map<string, WorkspacePackage>): 
     if (tail === undefined) return key === subpath && moduleResolves(pkg.dir, target)
     if (!subpath.startsWith(head) || !subpath.endsWith(tail)) return false
     const matched = subpath.slice(head.length, subpath.length - tail.length)
-    return moduleResolves(pkg.dir, target.replace('*', matched))
+    return moduleResolves(pkg.dir, target.replaceAll('*', matched))
   })
 }
 

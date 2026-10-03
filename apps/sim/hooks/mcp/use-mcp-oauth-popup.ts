@@ -125,13 +125,12 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   )
 
   useEffect(() => {
-    const pending = pendingFlows
     return () => {
-      for (const { timeout, poll } of pending.values()) {
+      for (const { timeout, poll } of pendingFlows.values()) {
         window.clearTimeout(timeout)
         if (poll !== undefined) window.clearInterval(poll)
       }
-      pending.clear()
+      pendingFlows.clear()
     }
   }, [])
 

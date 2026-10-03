@@ -283,19 +283,39 @@ export function findViolations({ root, forbidden }: GuardedRoot): GraphViolation
   return violations
 }
 
+/** A module a runtime import can resolve to: not a test, integration test, or declaration file. */
+const RUNTIME_MODULE = /(?<!\.(?:test|spec|integration|d))\.tsx?$/
+
+/** Test-support directories: nothing in them satisfies a runtime import. */
+const TEST_SUPPORT_DIRS = new Set(['__fixtures__', '__mocks__', '__tests__', '__integration__'])
+
+/** Whether `dir` holds a runtime module at any depth. */
+function containsRuntimeModule(dir: string): boolean {
+  return readdirSync(dir, { withFileTypes: true }).some((entry) =>
+    entry.isDirectory()
+      ? !TEST_SUPPORT_DIRS.has(entry.name) && containsRuntimeModule(resolve(dir, entry.name))
+      : RUNTIME_MODULE.test(entry.name)
+  )
+}
+
 /**
  * Whether `prefix` names a directory or an importable module under `apps/sim`. A prefix that
  * matches nothing guards nothing: the tree was renamed, and the audit would keep passing over it.
- * A test file left behind does not count, because no runtime import resolves to it.
+ * A test or declaration file left behind does not count, because no runtime import resolves to it.
  */
 function prefixMatchesAnything(prefix: string): boolean {
-  if (prefix.endsWith('/')) return existsSync(resolve(APP_ROOT, prefix))
+  if (prefix.endsWith('/')) {
+    const dir = resolve(APP_ROOT, prefix)
+    return existsSync(dir) && containsRuntimeModule(dir)
+  }
   const dir = resolve(APP_ROOT, dirname(prefix))
   if (!existsSync(dir)) return false
   return readdirSync(dir, { withFileTypes: true }).some(
     (entry) =>
       entry.name.startsWith(basename(prefix)) &&
-      (entry.isDirectory() || /(?<!\.test)\.tsx?$/.test(entry.name))
+      (entry.isDirectory()
+        ? containsRuntimeModule(resolve(dir, entry.name))
+        : RUNTIME_MODULE.test(entry.name))
   )
 }
 

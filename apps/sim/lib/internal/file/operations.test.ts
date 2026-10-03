@@ -808,6 +808,21 @@ describe('file manage operations', () => {
       },
     })
   })
+  it('reads offset 0 as the first line of each selected file', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'content',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        offset: 0,
+        limit: 1,
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      data: { contents: ['content:file-1.txt'], lineRanges: [{ offset: 1, lineCount: 1 }] },
+    })
+  })
   it('does not bypass complete extraction limits with a raw-text fallback', async () => {
     vi.mocked(isSupportedFileType).mockReturnValueOnce(true)
     vi.mocked(parseBuffer).mockRejectedValueOnce(

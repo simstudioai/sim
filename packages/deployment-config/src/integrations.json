@@ -846,8 +846,13 @@
       "bgColor": "#6366F1",
       "iconName": "AirweaveIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airweave",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Airweave Search",
+          "description": "Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -3734,8 +3739,13 @@
       "bgColor": "#181C1E",
       "iconName": "BrowserUseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/browser_use",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Browser Use",
+          "description": "Runs a browser automation task using BrowserUse"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4366,8 +4376,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "ClayIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clay",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Clay Populate",
+          "description": "Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7617,8 +7632,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "DuckDuckGoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/duckduckgo",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "DuckDuckGo Search",
+          "description": "Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, and related topics for your query. Free to use without an API key."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -8129,8 +8149,33 @@
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "OpenAI Embeddings",
+          "description": "Generate embeddings from text using OpenAI's embedding models"
+        },
+        {
+          "name": "OpenRouter Embeddings",
+          "description": "Generate embeddings through OpenRouter"
+        },
+        {
+          "name": "Gemini Embeddings",
+          "description": "Generate embeddings from text using Google's Gemini embedding models"
+        },
+        {
+          "name": "Cohere Embeddings",
+          "description": "Generate embeddings from text using Cohere's embedding models"
+        },
+        {
+          "name": "Mistral Embeddings",
+          "description": "Generate embeddings from text using Mistral's embedding models"
+        },
+        {
+          "name": "Ollama Embeddings",
+          "description": "Generate embeddings on a self-hosted Ollama server"
+        }
+      ],
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8360,8 +8405,13 @@
       "bgColor": "#000000",
       "iconName": "ExtendIcon",
       "docsUrl": "https://docs.sim.ai/integrations/extend",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Extend Document Parser",
+          "description": "Parse and extract content from documents using Extend AI"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -10449,8 +10499,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GooglePagespeedIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_pagespeed",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google PageSpeed Analyze",
+          "description": "Analyze a webpage for performance, accessibility, SEO, and best practices using Google PageSpeed Insights."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -10467,8 +10522,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GoogleIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_search",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google Search",
+          "description": "Search the web with the Custom Search API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11835,8 +11895,13 @@
       "bgColor": "#0B0F19",
       "iconName": "HuggingFaceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/huggingface",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Hugging Face Chat",
+          "description": "Generate completions using Hugging Face Inference API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -14435,8 +14500,13 @@
       "bgColor": "#D6D3C7",
       "iconName": "LinkupIcon",
       "docsUrl": "https://docs.sim.ai/integrations/linkup",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Linkup Search",
+          "description": "Search the web for information using Linkup"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16037,8 +16107,13 @@
       "bgColor": "#000000",
       "iconName": "MistralIcon",
       "docsUrl": "https://docs.sim.ai/integrations/mistral_parse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Mistral PDF Parser",
+          "description": "Parse PDF documents using Mistral OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -16419,8 +16494,81 @@
       "bgColor": "#FFFFFF",
       "iconName": "NotionIcon",
       "docsUrl": "https://docs.sim.ai/integrations/notion",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Read Page",
+          "description": "Read content from a Notion page"
+        },
+        {
+          "name": "Read Database",
+          "description": "Read database information and structure from Notion"
+        },
+        {
+          "name": "Create Page",
+          "description": "Create a new page in Notion"
+        },
+        {
+          "name": "Update Page Properties",
+          "description": "Update properties of a Notion page"
+        },
+        {
+          "name": "Create Database",
+          "description": "Create a new database in Notion with custom properties"
+        },
+        {
+          "name": "Add Database Row",
+          "description": "Add a new row to a Notion database with specified properties"
+        },
+        {
+          "name": "Append Content",
+          "description": "Append content to a Notion page"
+        },
+        {
+          "name": "Append Block Children",
+          "description": "Append new block children (content) to a Notion page or block"
+        },
+        {
+          "name": "Retrieve Block",
+          "description": "Retrieve a single Notion block by its UUID, including its type-specific content"
+        },
+        {
+          "name": "Retrieve Block Children",
+          "description": "Retrieve the block children (content) of a Notion page or block"
+        },
+        {
+          "name": "Update Block",
+          "description": "Update the content or archived state of a single Notion block"
+        },
+        {
+          "name": "Delete Block",
+          "description": "Delete (move to trash) a single Notion block"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Create a comment on a Notion page or within an existing discussion thread"
+        },
+        {
+          "name": "List Comments",
+          "description": "List unresolved comments on a Notion page or block"
+        },
+        {
+          "name": "List Users",
+          "description": "List all users (members and bots) in the Notion workspace"
+        },
+        {
+          "name": "Retrieve User",
+          "description": "Retrieve a single Notion user by their UUID"
+        },
+        {
+          "name": "Query Database",
+          "description": "Query and filter Notion database entries with advanced filtering"
+        },
+        {
+          "name": "Search Workspace",
+          "description": "Search across all pages and databases in Notion workspace"
+        }
+      ],
+      "operationCount": 18,
       "triggers": [
         {
           "id": "notion_page_created",
@@ -18454,6 +18602,58 @@
       "tags": ["data-analytics", "monitoring", "feature-flags"]
     },
     {
+      "type": "powerbi",
+      "slug": "power-bi",
+      "name": "Power BI",
+      "description": "Query semantic models and manage reports and refreshes",
+      "longDescription": "Connect a home-tenant organizational account through the Power BI Microsoft connection to list named workspaces, inspect reports and semantic models, execute DAX queries, request standard refreshes, and read refresh history. Microsoft Graph connections cannot substitute for this delegated OAuth connection. Self-hosted installations use the shared Microsoft app registration and register /api/auth/oauth2/callback/microsoft-powerbi as a Web redirect URI. Workspace listing supports a result limit, offset, and OData filter; reports and semantic models return flat lists. Read-only models may contain only their ID and name, and paginated reports may omit their semantic-model ID. Missing optional fields are null and do not establish permission or feature availability. Keep results small with summaries or TOPN: provider JSON reads are limited to 20 MiB, and workflow tool responses have a stricter 10 MiB inline budget. My Workspace, cross-tenant guest configuration, Credential Groups, service principals, impersonation, enhanced refresh, report exports, dashboards, and triggers are outside this version.",
+      "bgColor": "#FFFFFF",
+      "iconName": "PowerBIIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/powerbi",
+      "operations": [
+        {
+          "name": "List Workspaces",
+          "description": "List accessible Power BI workspaces with optional OData filtering and pagination."
+        },
+        {
+          "name": "List Reports",
+          "description": "List reports in a Power BI workspace, including paginated reports."
+        },
+        {
+          "name": "Get Report",
+          "description": "Get report metadata from a Power BI workspace."
+        },
+        {
+          "name": "List Semantic Models",
+          "description": "List semantic models in a Power BI workspace; available metadata depends on permissions."
+        },
+        {
+          "name": "Get Semantic Model",
+          "description": "Get semantic model metadata from a Power BI workspace."
+        },
+        {
+          "name": "Execute DAX Query",
+          "description": "Execute one DAX query returning one table. Requires workspace access, Read/Build permissions, and the tenant Execute Queries setting. Reported errors fail the action even with HTTP 200. Direct tool responses retain partial rows and typed errors; failed workflows expose only the standard error output. Sim limits workflow tool responses to 10 MiB; use summaries or TOPN for larger results."
+        },
+        {
+          "name": "Refresh Semantic Model",
+          "description": "Request a standard asynchronous semantic model refresh and return acceptance immediately. Acceptance does not mean completion; use Get Refresh History separately to inspect status. Shared capacity allows eight refresh requests per day, including scheduled refreshes."
+        },
+        {
+          "name": "Get Refresh History",
+          "description": "Get recent semantic model refresh history; requires Write permission on the model. Unknown can mean a refresh is in progress or its completion state is unknown."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-powerbi",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "microsoft-365", "automation"]
+    },
+    {
       "type": "profound",
       "slug": "profound",
       "name": "Profound",
@@ -18628,8 +18828,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "PulseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pulse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Pulse Document Parser",
+          "description": "Parse documents (PDF, images, Office docs) using Pulse OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -19729,8 +19934,13 @@
       "bgColor": "#5c0c5c",
       "iconName": "ReductoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/reducto",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Reducto PDF Parser",
+          "description": "Parse PDF documents using Reducto OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -22151,8 +22361,13 @@
       "bgColor": "#2B3543",
       "iconName": "SerperIcon",
       "docsUrl": "https://docs.sim.ai/integrations/serper",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Web Search",
+          "description": "A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, images, videos, and shopping. Returns comprehensive results including organic results, knowledge graph, answer box, people also ask, related searches, and top stories."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -23305,8 +23520,13 @@
       "bgColor": "#2D3748",
       "iconName": "SmtpIcon",
       "docsUrl": "https://docs.sim.ai/integrations/smtp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "SMTP Send Mail",
+          "description": "Send emails via SMTP server"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -26070,8 +26290,13 @@
       "bgColor": "#F22F46",
       "iconName": "TwilioIcon",
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Twilio Send SMS",
+          "description": "Send text messages to single or multiple recipients using the Twilio API."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [
         {
           "id": "twilio_sms_received",
@@ -27498,6 +27723,57 @@
       "category": "tools",
       "integrationType": "communication",
       "tags": ["marketing", "messaging"]
+    },
+    {
+      "type": "youcom",
+      "slug": "you-com",
+      "name": "You.com",
+      "description": "Search, read, and research the web with You.com",
+      "longDescription": "Integrate You.com into the workflow. Search the web and news with query-relevant highlights or full page content, fetch page contents, get cited answers, run deep or financial research, search images, and check API credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "YouComIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/youcom",
+      "operations": [
+        {
+          "name": "Search",
+          "description": "Search the web and news with You.com, returning LLM-ready results with optional query-relevant highlights or full page content."
+        },
+        {
+          "name": "Get Contents",
+          "description": "Fetch the HTML, Markdown, and page metadata of one or more web pages with You.com."
+        },
+        {
+          "name": "Answer",
+          "description": "Get a synthesized answer to a question with numbered citations and the web results used to write it."
+        },
+        {
+          "name": "Research",
+          "description": "Run multi-step web research on a question and get a thorough, cited answer, or start it as a background task."
+        },
+        {
+          "name": "Get Research Task",
+          "description": "Get the status of a background research task and, once completed, its cited answer and sources."
+        },
+        {
+          "name": "Finance Research",
+          "description": "Research a financial question across earnings reports, SEC filings, analyst coverage, and market news, and get a cited answer."
+        },
+        {
+          "name": "Search Images",
+          "description": "Find image URLs for a query with You.com. Beta, and limited to You.com early-access API keys."
+        },
+        {
+          "name": "Get Account Balance",
+          "description": "Get the remaining You.com API credit balance for the account or organization that owns the API key."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "llm", "agentic"]
     },
     {
       "type": "youtube",

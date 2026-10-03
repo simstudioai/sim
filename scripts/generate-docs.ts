@@ -1951,6 +1951,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 
     const triggerRegistry = await buildTriggerRegistry()
     const { desc: toolDescMap, name: toolNameMap } = await buildToolDescriptionMap()
+    const toolMetadataById = await loadToolMetadata()
 
     // Hand-authored, integration-specific landing content (install walkthrough,
     // privacy blurb), keyed by slug. Imported as pure data — its only import is
@@ -2046,6 +2047,15 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 
           return { name: label, description: opDesc }
         })
+        // A block with no operation dropdown (single-tool blocks, provider pickers)
+        // exposes its tools directly, so list them from the client-safe tool metadata.
+        if (operations.length === 0) {
+          for (const toolId of toolsAccess) {
+            const tool = toolMetadataById[toolId]
+            if (!tool?.name) continue
+            operations.push({ name: tool.name, description: tool.description ?? '' })
+          }
+        }
 
         const triggerIds: string[] = (config as any).triggerIds || []
         const triggers: TriggerInfo[] = triggerIds
@@ -2225,6 +2235,26 @@ function extractSpreadBase(blockContent: string): string | null {
   return spreadMatch ? spreadMatch[1] : null
 }
 
+/**
+ * Operations a block inherits by spreading a same-file block's fields array
+ * (`subBlocks: [...NotionBlock.subBlocks, ...]`) rather than the whole config.
+ * Only a plain spread counts: a transformed one (`...XBlock.subBlocks.map(...)`) may rewrite the
+ * operations, so it falls through to the block's own `tools.access`.
+ */
+function extractSpreadSubBlocksOperations(
+  blockContent: string,
+  fileContent: string | undefined
+): { label: string; id: string }[] {
+  if (!fileContent) return []
+  const declarations = blockDeclarations(fileContent)
+  for (const match of blockContent.matchAll(/\.\.\.(\w+Block)\.subBlocks\s*[,\]]/g)) {
+    const declaration = declarations.find((candidate) => candidate.name === match[1])
+    const operations = declaration ? extractOperationsFromContent(declaration.content) : []
+    if (operations.length > 0) return operations
+  }
+  return []
+}
+
 /** Resolves a block's category through local spread ancestry without loading its registry. */
 export function extractInheritedBlockCategory(
   blockContent: string,
@@ -2325,7 +2355,14 @@ function extractBlockConfigFromContent(
       }
     }
 
-    const operations = extractOperationsFromContent(blockContent)
+    const ownOperations = extractOperationsFromContent(blockContent)
+    const baseOperations = baseConfig?.operations ?? []
+    const operations =
+      ownOperations.length > 0
+        ? ownOperations
+        : baseOperations.length > 0
+          ? baseOperations
+          : extractSpreadSubBlocksOperations(blockContent, fileContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
     const supplied = extractBlockSuppliedParamIds(blockContent, blockName)
     /**
@@ -2415,7 +2452,7 @@ function extractBlockConfigFromContent(
       tools: {
         access: finalToolsAccess.length > 0 ? finalToolsAccess : baseConfig?.tools?.access || [],
       },
-      operations: operations.length > 0 ? operations : (baseConfig as any)?.operations || [],
+      operations,
       userSettableParamIds,
       triggerIds: triggerIds.length > 0 ? triggerIds : (baseConfig as any)?.triggerIds || [],
       docsLink,
@@ -3113,9 +3150,14 @@ function parseConstFieldContent(
 /**
  * Extract outputs from a tool content block by trying:
  * 1. Const reference (e.g., `outputs: GIT_REF_OUTPUT_PROPERTIES,`)
- * 2. Inline object (e.g., `outputs: { id: { type: 'string', ... } }`)
+ * 2. Inline object (e.g., `outputs: { id: { type: 'string', ... } }`), with `...sharedConst`
+ *    spreads inlined by `expandSpreads` when the caller can resolve them
  */
-function extractOutputsFromToolContent(content: string, toolPrefix: string): Record<string, any> {
+function extractOutputsFromToolContent(
+  content: string,
+  toolPrefix: string,
+  expandSpreads: (body: string) => string = (body) => body
+): Record<string, any> {
   const constMatch = content.match(/(?<![a-zA-Z_])outputs\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|\}|$)/)
   if (constMatch) {
     const resolved = resolveConstReference(constMatch[1], toolPrefix)
@@ -3131,7 +3173,7 @@ function extractOutputsFromToolContent(content: string, toolPrefix: string): Rec
       const closePos = findMatchingClose(content, openBracePos)
       if (closePos !== -1) {
         const outputsContent = content.substring(openBracePos + 1, closePos - 1).trim()
-        return parseToolOutputsField(outputsContent, toolPrefix)
+        return parseToolOutputsField(expandSpreads(outputsContent), toolPrefix)
       }
     }
   }
@@ -3479,7 +3521,9 @@ export function extractToolInfo(
 
     const toolPrefix = getToolPrefixFromName(toolName)
 
-    let outputs = extractOutputsFromToolContent(toolContent, toolPrefix)
+    const expandOutputSpreads = (body: string) =>
+      expandSpreadConsts(body, fileContent, toolFilePath, rootDir)
+    let outputs = extractOutputsFromToolContent(toolContent, toolPrefix, expandOutputSpreads)
 
     // If no outputs found, check for spread inheritance (e.g., "...extendParserTool")
     // toolContent may be narrowed past the spread line, so reconstruct the full block
@@ -3513,7 +3557,11 @@ export function extractToolInfo(
           const endIdx = findMatchingClose(fileContent, baseStart)
           if (endIdx !== -1) {
             const baseToolContent = fileContent.substring(baseStart, endIdx)
-            outputs = extractOutputsFromToolContent(baseToolContent, toolPrefix)
+            outputs = extractOutputsFromToolContent(
+              baseToolContent,
+              toolPrefix,
+              expandOutputSpreads
+            )
           }
         }
       }

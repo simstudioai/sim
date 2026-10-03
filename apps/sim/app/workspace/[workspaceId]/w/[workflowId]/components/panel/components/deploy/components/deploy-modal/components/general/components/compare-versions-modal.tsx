@@ -1,21 +1,12 @@
 'use client'
 
-import { useId, useMemo, useState } from 'react'
-import {
-  ChipDropdown,
-  type ChipDropdownOption,
-  ChipModal,
-  ChipModalBody,
-  ChipModalHeader,
-} from '@sim/emcn'
+import { useMemo, useState } from 'react'
+import { ChipDropdown, type ChipDropdownOption } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useDraftWorkflowState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state'
-import {
-  WorkflowDiffSkeleton,
-  WorkflowDiffView,
-} from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
+import { WorkflowComparisonModal } from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
 import { useDeploymentVersionState } from '@/hooks/queries/workflows'
 
 /** One side of a comparison: the editor draft or a numbered deployment version. */
@@ -61,7 +52,6 @@ export function CompareVersionsModal({
   initialBase,
   initialTarget,
 }: CompareVersionsModalProps) {
-  const descriptionId = useId()
   const [base, setBase] = useState<CompareSide>(initialBase)
   const [target, setTarget] = useState<CompareSide>(initialTarget)
   /* Subscribed only while the modal is open, and only if a side is the draft. */
@@ -103,15 +93,10 @@ export function CompareVersionsModal({
   const loadError = baseQuery.error ?? targetQuery.error
 
   return (
-    <ChipModal
+    <WorkflowComparisonModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle='Compare versions'
-      aria-describedby={descriptionId}
-      size='full'
-      className='h-[84vh] [&>div]:h-full'
-    >
-      <ChipModalHeader onClose={() => onOpenChange(false)}>
+      header={
         <div className='flex items-center gap-2'>
           <span>Compare</span>
           <ChipDropdown
@@ -130,26 +115,12 @@ export function CompareVersionsModal({
             aria-label={`Compare to ${optionLabel(options, sideToValue(target))}`}
           />
         </div>
-      </ChipModalHeader>
-      <ChipModalBody fullBleed>
-        <p id={descriptionId} className='sr-only'>
-          Blocks, fields and connections that differ between the two selected versions.
-        </p>
-        {loadError ? (
-          <div className='flex h-full items-center justify-center text-[var(--text-error)] text-small'>
-            {loadError.message || 'Could not load one of the versions.'}
-          </div>
-        ) : isLoading || !baseState || !targetState ? (
-          <WorkflowDiffSkeleton />
-        ) : (
-          /* One view per picked pair, so selection and folds start fresh when either side changes. */
-          <WorkflowDiffView
-            key={`${sideToValue(base)}:${sideToValue(target)}`}
-            baseState={baseState}
-            targetState={targetState}
-          />
-        )}
-      </ChipModalBody>
-    </ChipModal>
+      }
+      baseState={baseState}
+      targetState={targetState}
+      isLoading={isLoading}
+      error={loadError}
+      comparisonKey={`${sideToValue(base)}:${sideToValue(target)}`}
+    />
   )
 }

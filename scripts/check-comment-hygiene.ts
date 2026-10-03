@@ -153,8 +153,16 @@ function firstCodeSpan(run: LineComment[], jsx: boolean): LineComment | undefine
   return undefined
 }
 
+/**
+ * A superset of every hit: a separator right after a comment opener, or a `//` line holding a
+ * {@link CODE_PUNCTUATION} token. Files without one skip the parse, which dominates the run.
+ */
+const MAY_VIOLATE =
+  /\/[/*][*\s]*(?:={3}|-{3}|─{3}|━{3}|\*{3}|~{3})|\/\/[^\n]*(?:[;{}]|=>|\b(?:const|let|return|await|import|export)\b|\w\.\w+\()/
+
 /** Every banner and commented-out-code hit in one source file. */
 export function findViolations(file: string, source: string): Violation[] {
+  if (!MAY_VIOLATE.test(source)) return []
   const jsx = /\.[jt]sx$/.test(file)
   let comments
   try {
@@ -213,12 +221,27 @@ export function findViolations(file: string, source: string): Violation[] {
 }
 
 function sourceFiles(): string[] {
-  return execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.mts', '*.cts', '*.mjs', '*.cjs'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    // The listing is already ~1 MB, the default execFileSync ceiling.
-    maxBuffer: 64 * 1024 * 1024,
-  })
+  return execFileSync(
+    'git',
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '*.ts',
+      '*.tsx',
+      '*.mts',
+      '*.cts',
+      '*.mjs',
+      '*.cjs',
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+      // The listing is already ~1 MB, the default execFileSync ceiling.
+      maxBuffer: 64 * 1024 * 1024,
+    }
+  )
     .split('\n')
     .filter((file) => file && !EXCLUDED.some((pattern) => pattern.test(file)))
 }

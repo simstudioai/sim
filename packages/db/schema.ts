@@ -2244,6 +2244,51 @@ export const workspaceForkPromoteRun = pgTable(
   })
 )
 
+/** Source provenance survives deployment-operation retention and deleted source snapshots. */
+export const workspaceForkWorkflowSync = pgTable(
+  'workspace_fork_workflow_sync',
+  {
+    deploymentOperationId: text('deployment_operation_id').primaryKey(),
+    childWorkspaceId: text('child_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    sourceWorkflowId: text('source_workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    targetWorkflowId: text('target_workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    sourceDeploymentVersionId: text('source_deployment_version_id').notNull(),
+    sequence: bigint('sequence', { mode: 'number' }).generatedAlwaysAsIdentity(),
+    promoteRunId: text('promote_run_id').notNull(),
+    activatedAt: timestamp('activated_at'),
+    rollbackOperationId: text('rollback_operation_id'),
+    rolledBackAt: timestamp('rolled_back_at'),
+  },
+  (table) => ({
+    baselineIdx: index('workspace_fork_workflow_sync_baseline_idx')
+      .on(
+        table.childWorkspaceId,
+        table.sourceWorkflowId,
+        table.targetWorkflowId,
+        table.sequence.desc()
+      )
+      .where(sql`${table.activatedAt} IS NOT NULL AND ${table.rolledBackAt} IS NULL`),
+    runIdx: index('workspace_fork_workflow_sync_run_idx').on(
+      table.promoteRunId,
+      table.targetWorkflowId
+    ),
+    rollbackIdx: index('workspace_fork_workflow_sync_rollback_idx')
+      .on(table.rollbackOperationId)
+      .where(sql`${table.rollbackOperationId} IS NOT NULL`),
+    sourceIdx: index('workspace_fork_workflow_sync_source_idx').on(table.sourceWorkflowId),
+    targetIdx: index('workspace_fork_workflow_sync_target_idx').on(table.targetWorkflowId),
+    childWorkspaceIdx: index('workspace_fork_workflow_sync_child_workspace_idx').on(
+      table.childWorkspaceId
+    ),
+  })
+)
+
 export const backgroundWorkKindEnum = pgEnum('background_work_kind', [
   'deployment_side_effects',
   'fork_content_copy',

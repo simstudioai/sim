@@ -179,7 +179,7 @@ export async function getActiveDeploymentVersionNumbers(
 export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promise<{
   deployedWorkflows: DeployedWorkflowSummary[]
   sourceStates: Map<string, WorkflowState>
-  sourceVersionIds: Map<string, { id: string; digest: string }>
+  sourceVersionIds: Map<string, { id: string; version: number; digest: string }>
 }> {
   const deployedWorkflows = await listDeployedWorkflows(db, sourceWorkspaceId)
   // Fail fast on the cheap count before loading any heavy state into memory.
@@ -216,6 +216,7 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
         .select({
           id: workflowDeploymentVersion.id,
           workflowId: workflowDeploymentVersion.workflowId,
+          version: workflowDeploymentVersion.version,
           bytes: sql<number>`octet_length(${workflowDeploymentVersion.state}::text)`,
           digest: sql<string>`md5(${workflowDeploymentVersion.state}::text)`,
         })
@@ -233,7 +234,10 @@ export async function loadSourceDeployedStates(sourceWorkspaceId: string): Promi
   if (versions.reduce((total, row) => total + Number(row.bytes), 0) > MAX_FORK_STATE_BYTES)
     throw new ForkError('Deployed workflow states exceed the aggregate byte limit', 413)
   const sourceVersionIds = new Map(
-    versions.map((version) => [version.workflowId, { id: version.id, digest: version.digest }])
+    versions.map((version) => [
+      version.workflowId,
+      { id: version.id, version: version.version, digest: version.digest },
+    ])
   )
   if (
     sourceVersionIds.size !== deployedWorkflows.length ||

@@ -87,9 +87,8 @@ export function TableFilter({
       if (deferredRule && !isCompleteRule(deferredRule)) {
         const previouslyAppliedRule = currentRules.find((rule) => rule.id === deferredRule.id)
         if (previouslyAppliedRule && isCompleteRule(previouslyAppliedRule)) {
-          const deferredRules = deferredAppliedRules
-          if (!deferredRules.has(deferredRule.id)) {
-            deferredRules.set(deferredRule.id, previouslyAppliedRule)
+          if (!deferredAppliedRules.has(deferredRule.id)) {
+            deferredAppliedRules.set(deferredRule.id, previouslyAppliedRule)
           }
         }
       }
