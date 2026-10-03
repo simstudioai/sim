@@ -1,13 +1,8 @@
-/**
- * @vitest-environment node
- */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { dbChainMock } from '@sim/testing/mocks/database.mock'
+import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -27,10 +22,11 @@ const {
   mockCleanupWebhooksForWorkflow,
   mockActivateWebhookRegistrations,
   mockCleanupRetiredWebhookRegistrations,
-  mockRecordAudit,
   mockEmitWorkflowDeployedEvent,
-  mockCaptureServerEvent,
-  mockTx,
+  mockCleanupInactiveDeploymentWebhooks,
+  mockDeleteInactiveDeploymentSchedules,
+  mockGetProtectedDeploymentVersionId,
+  mockIsDeploymentVersionActive,
 } = vi.hoisted(() => ({
   mockPrepareWebhooks: vi.fn(),
   mockGetDeploymentOperation: vi.fn(),
@@ -48,35 +44,22 @@ const {
   mockCleanupWebhooksForWorkflow: vi.fn(),
   mockActivateWebhookRegistrations: vi.fn(),
   mockCleanupRetiredWebhookRegistrations: vi.fn(),
-  mockRecordAudit: vi.fn(),
   mockEmitWorkflowDeployedEvent: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockTx: { select: vi.fn(), update: vi.fn(), execute: vi.fn() },
+  mockCleanupInactiveDeploymentWebhooks: vi.fn(),
+  mockDeleteInactiveDeploymentSchedules: vi.fn(),
+  mockGetProtectedDeploymentVersionId: vi.fn(),
+  mockIsDeploymentVersionActive: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_DEPLOYED: 'WORKFLOW_DEPLOYED',
-    WORKFLOW_DEPLOYMENT_ACTIVATED: 'WORKFLOW_DEPLOYMENT_ACTIVATED',
-  },
-  AuditResourceType: { WORKFLOW: 'WORKFLOW' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: vi.fn(),
-  processOutboxEventById: vi.fn(),
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 vi.mock('@/lib/mcp/server-locks', () => ({
   setWorkflowMcpTransactionLockTimeout: mockSetWorkflowMcpTransactionLockTimeout,
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
   notifyMcpToolServers: mockNotifyMcpToolServers,
@@ -85,6 +68,7 @@ vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
 }))
 
 vi.mock('@/lib/webhooks/deploy', () => ({
+  cleanupInactiveDeploymentWebhooks: mockCleanupInactiveDeploymentWebhooks,
   cleanupWebhooksForWorkflow: mockCleanupWebhooksForWorkflow,
   prepareStableTriggerWebhooksForDeploy: vi.fn(),
   saveTriggerWebhooksForDeploy: vi.fn(),
@@ -102,7 +86,9 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   activateDeploymentOperation: mockActivateDeploymentOperation,
   beginDeploymentOperationActivation: mockBeginDeploymentOperationActivation,
   getDeploymentOperation: mockGetDeploymentOperation,
+  getProtectedDeploymentVersionId: mockGetProtectedDeploymentVersionId,
   isDeploymentOperationCurrent: mockIsDeploymentOperationCurrent,
+  isDeploymentVersionActive: mockIsDeploymentVersionActive,
   isDeploymentVersionProtectedByCurrentOperation:
     mockIsDeploymentVersionProtectedByCurrentOperation,
   markDeploymentComponentReadiness: mockMarkDeploymentComponentReadiness,
@@ -113,6 +99,7 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
 
 vi.mock('@/lib/workflows/schedules', () => ({
   createSchedulesForDeploy: mockCreateSchedulesForDeploy,
+  deleteInactiveDeploymentSchedules: mockDeleteInactiveDeploymentSchedules,
   deleteSchedulesForWorkflow: vi.fn(),
 }))
 
@@ -127,6 +114,12 @@ import {
   type PrepareDeploymentV2Payload,
   WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS,
 } from '@/lib/workflows/deployment-outbox'
+
+const mockTx = dbChainMock.db
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const NOW = new Date('2026-07-14T08:00:00.000Z')
 
@@ -195,7 +188,6 @@ afterAll(() => {
 
 describe('versioned deployment preparation outbox', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     /**
      * These handlers only reach db.transaction in deferred cleanup helpers the
@@ -219,6 +211,10 @@ describe('versioned deployment preparation outbox', () => {
     })
     mockIsDeploymentOperationCurrent.mockResolvedValue(false)
     mockIsDeploymentVersionProtectedByCurrentOperation.mockResolvedValue(false)
+    mockIsDeploymentVersionActive.mockResolvedValue(false)
+    mockGetProtectedDeploymentVersionId.mockResolvedValue(null)
+    mockDeleteInactiveDeploymentSchedules.mockResolvedValue({ status: 'deleted', count: 0 })
+    mockCleanupInactiveDeploymentWebhooks.mockResolvedValue({ hasMore: false })
   })
 
   it('activates only after every preparation component is ready', async () => {
@@ -558,28 +554,10 @@ describe('versioned deployment preparation outbox', () => {
     await expect(handler()(payload(), context(new AbortController(), 3))).resolves.toBeUndefined()
 
     expect(mockCleanupRetiredWebhookRegistrations).not.toHaveBeenCalled()
+    expect(mockDeleteInactiveDeploymentSchedules).not.toHaveBeenCalled()
+    expect(mockCleanupInactiveDeploymentWebhooks).not.toHaveBeenCalled()
     expect(mockMarkDeploymentOperationFailed).not.toHaveBeenCalled()
     expect(mockRecordDeploymentOperationRetry).not.toHaveBeenCalled()
-  })
-
-  /**
-   * `isDeploymentOperationCurrent` goes false the moment any newer generation
-   * row exists, including one still `preparing` or already `failed`. This
-   * activation is the live cutover in that window and no newer attempt will
-   * adopt its notifications, so the fence must cost it only the cleanup.
-   */
-  it('still notifies when the newer generation has not activated', async () => {
-    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
-    queueTableRows(schemaMock.workflow, [
-      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
-    ])
-
-    await expect(handler()(payload(), context())).resolves.toBeUndefined()
-
-    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
-    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
-    expect(mockEmitWorkflowDeployedEvent).toHaveBeenCalledTimes(1)
-    expect(mockCleanupRetiredWebhookRegistrations).not.toHaveBeenCalled()
   })
 
   it('resumes post-activation work while the activated attempt is still current', async () => {
@@ -589,11 +567,35 @@ describe('versioned deployment preparation outbox', () => {
       { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
     ])
 
-    await handler()(payload(), context())
+    const outboxContext = context()
+
+    await expect(handler()(payload(), outboxContext)).resolves.toBeUndefined()
 
     expect(mockCleanupRetiredWebhookRegistrations).toHaveBeenCalledTimes(1)
     expect(mockRecordAudit).toHaveBeenCalledTimes(1)
     expect(mockEmitWorkflowDeployedEvent).toHaveBeenCalledTimes(1)
+    expect(mockDeleteInactiveDeploymentSchedules).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      operationFence: {
+        workflowId: 'workflow-1',
+        operationId: 'operation-1',
+        generation: 2,
+        deploymentVersionId: 'version-2',
+        statuses: ['active'],
+      },
+    })
+    expect(mockCleanupInactiveDeploymentWebhooks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        protectedDeploymentVersionId: null,
+        limit: 20,
+      })
+    )
+    expect(outboxContext.checkpointPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpoints: expect.objectContaining({ inactiveCleanupCompleted: true }),
+      })
+    )
   })
 
   /**
@@ -619,29 +621,115 @@ describe('versioned deployment preparation outbox', () => {
     )
   })
 
-  it('keeps v1 cleanup from deleting a candidate owned by the current v2 operation', async () => {
+  it('continues through the outbox while stale webhooks remain, then checkpoints the cleanup', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
     ])
-    queueTableRows(schemaMock.workflowDeploymentVersion, [{ isActive: false }])
+    mockCleanupInactiveDeploymentWebhooks.mockResolvedValueOnce({ hasMore: true })
+    const outboxContext = context()
+
+    await expect(handler()(payload(), outboxContext)).resolves.toEqual({
+      outcome: 'deferred',
+      reason: expect.any(String),
+      consumeAttempt: false,
+    })
+    expect(outboxContext.checkpointPayload).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpoints: expect.objectContaining({ inactiveCleanupCompleted: true }),
+      })
+    )
+
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    await expect(handler()(payload(), outboxContext)).resolves.toBeUndefined()
+
+    expect(mockDeleteInactiveDeploymentSchedules).toHaveBeenCalledTimes(2)
+    expect(mockCleanupInactiveDeploymentWebhooks).toHaveBeenCalledTimes(2)
+    expect(outboxContext.checkpointPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpoints: expect.objectContaining({ inactiveCleanupCompleted: true }),
+      })
+    )
+  })
+
+  it('stops legacy inactive cleanup as soon as its lease is aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const cleanupHandler =
+      createWorkflowDeploymentOutboxHandlers()[
+        WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS.CLEANUP_INACTIVE_SIDE_EFFECTS
+      ]
+
+    await expect(
+      cleanupHandler(
+        { workflowId: 'workflow-1', activeDeploymentVersionId: 'version-2', userId: 'user-1' },
+        context(controller)
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(mockDeleteInactiveDeploymentSchedules).not.toHaveBeenCalled()
+    expect(mockCleanupInactiveDeploymentWebhooks).not.toHaveBeenCalled()
+  })
+
+  it('retires undeployed side effects by row and shields the candidate owned by the current v2 operation', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
     queueTableRows(schemaMock.workflow, [{ isDeployed: true }])
-    mockIsDeploymentVersionProtectedByCurrentOperation.mockResolvedValue(true)
+    mockGetProtectedDeploymentVersionId.mockResolvedValue('version-2')
     const cleanupHandler =
       createWorkflowDeploymentOutboxHandlers()[
         WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS.CLEANUP_UNDEPLOYED_SIDE_EFFECTS
       ]
 
-    await cleanupHandler(
-      {
-        workflowId: 'workflow-1',
-        deploymentVersionIds: ['version-2'],
-        userId: 'user-1',
-        requestId: 'request-1',
-      },
-      context()
-    )
+    await expect(
+      cleanupHandler(
+        {
+          workflowId: 'workflow-1',
+          deploymentVersionIds: ['version-2'],
+          userId: 'user-1',
+          requestId: 'request-1',
+        },
+        context()
+      )
+    ).resolves.toBeUndefined()
 
+    expect(mockDeleteInactiveDeploymentSchedules).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      operationFence: undefined,
+    })
+    expect(mockCleanupInactiveDeploymentWebhooks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        protectedDeploymentVersionId: 'version-2',
+        limit: 20,
+      })
+    )
     expect(mockCleanupWebhooksForWorkflow).not.toHaveBeenCalled()
     expect(mockCreateSchedulesForDeploy).not.toHaveBeenCalled()
+  })
+
+  it('continues undeploy cleanup through the outbox before touching MCP tools', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    mockCleanupInactiveDeploymentWebhooks.mockResolvedValueOnce({ hasMore: true })
+    const cleanupHandler =
+      createWorkflowDeploymentOutboxHandlers()[
+        WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS.CLEANUP_UNDEPLOYED_SIDE_EFFECTS
+      ]
+
+    await expect(
+      cleanupHandler({ workflowId: 'workflow-1', userId: 'user-1' }, context())
+    ).resolves.toEqual({
+      outcome: 'deferred',
+      reason: expect.any(String),
+      consumeAttempt: false,
+    })
+
+    expect(mockNotifyMcpToolServers).not.toHaveBeenCalled()
   })
 })

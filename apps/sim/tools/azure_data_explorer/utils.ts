@@ -1,11 +1,10 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   AzureDataExplorerBaseParams,
   AzureDataExplorerTable,
 } from '@/tools/azure_data_explorer/types'
 
-export const AZURE_DATA_EXPLORER_PROXY_URL = '/api/tools/azure_data_explorer/proxy'
-
-export function azureDataExplorerAuthBody(params: AzureDataExplorerBaseParams) {
+export function azureDataExplorerAuthInput(params: AzureDataExplorerBaseParams) {
   return {
     clusterUri: params.clusterUri,
     tenantId: params.tenantId,
@@ -17,6 +16,7 @@ export function azureDataExplorerAuthBody(params: AzureDataExplorerBaseParams) {
 
 /** A name Kusto accepts bare, matching the form every documented example uses. */
 const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
+const ENTITY_NAME = /^[\p{L}\p{N}_ .-]{1,1024}$/u
 
 /**
  * Renders a Kusto entity name for a command string.
@@ -24,12 +24,16 @@ const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
  * A plain identifier is emitted bare, exactly as the reference commands are
  * written. A name carrying a space, dot, or dash — the other characters Kusto
  * permits in an identifier — is wrapped in `["..."]`, the documented quoting for
- * names with special characters. The proxy contract restricts names to Kusto's
- * documented character set, so neither form can carry a quote or bracket and no
- * escaping is needed.
+ * names with special characters. This helper restricts names to Kusto's
+ * documented character set, so neither form can carry a quote or bracket.
  */
 export function renderEntityName(name: string): string {
   const trimmed = name.trim()
+  if (!ENTITY_NAME.test(trimmed)) {
+    throw new Error(
+      `Invalid entity name "${name}": may contain only letters, digits, underscores, spaces, dots, and dashes`
+    )
+  }
   return PLAIN_IDENTIFIER.test(trimmed) ? trimmed : `["${trimmed}"]`
 }
 
@@ -123,8 +127,6 @@ const KUSTO_SCALAR_TYPES = new Set([
   'time',
 ])
 
-const COLUMN_NAME = /^[\p{L}\p{N}_ .-]+$/u
-
 /**
  * Renders a CSL column schema — `Timestamp:datetime, Level:string` — for a
  * create command.
@@ -157,7 +159,7 @@ export function renderColumnSchema(schema: string): string {
         .trim()
         .toLowerCase()
 
-      if (!COLUMN_NAME.test(name)) {
+      if (!ENTITY_NAME.test(name)) {
         throw new Error(
           `Invalid column name "${name}": may contain only letters, digits, underscores, spaces, dots, and dashes`
         )
@@ -212,14 +214,14 @@ export function renderOperationId(operationId: string): string {
   return trimmed
 }
 
-interface ProxyEnvelope {
+interface OperationResponse {
   success?: boolean
   output?: AzureDataExplorerTable
   error?: string
 }
 
-async function readProxyEnvelope(response: Response): Promise<AzureDataExplorerTable> {
-  const data = (await response.json().catch(() => ({}))) as ProxyEnvelope
+async function readOperationResponse(response: Response): Promise<AzureDataExplorerTable> {
+  const data = (await response.json().catch(() => ({}))) as OperationResponse
 
   if (!response.ok || data.success === false) {
     throw new Error(data.error || `Azure Data Explorer request failed: HTTP ${response.status}`)
@@ -239,7 +241,7 @@ async function readProxyEnvelope(response: Response): Promise<AzureDataExplorerT
 }
 
 export async function transformAzureDataExplorerResponse(response: Response) {
-  return { success: true as const, output: await readProxyEnvelope(response) }
+  return { success: true as const, output: await readOperationResponse(response) }
 }
 
 /**
@@ -253,7 +255,7 @@ export async function transformAzureDataExplorerResponse(response: Response) {
  */
 export function transformColumnListResponse<K extends string>(columnName: string, outputKey: K) {
   return async (response: Response) => {
-    const output = await readProxyEnvelope(response)
+    const output = await readOperationResponse(response)
     const values = output.records
       .map((record) => record[columnName])
       .filter((value): value is string => typeof value === 'string')
@@ -264,25 +266,21 @@ export function transformColumnListResponse<K extends string>(columnName: string
   }
 }
 
-function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 /**
  * Projects `.show table ... cslschema`, whose single row carries the documented
  * TableName, Schema, DatabaseName, Folder, and DocString columns.
  */
 export async function transformTableSchemaResponse(response: Response) {
-  const output = await readProxyEnvelope(response)
+  const output = await readOperationResponse(response)
   const record = output.records[0] ?? {}
   return {
     success: true as const,
     output: {
-      tableName: stringOrNull(record.TableName),
-      schema: stringOrNull(record.Schema),
-      databaseName: stringOrNull(record.DatabaseName),
-      folder: stringOrNull(record.Folder),
-      docString: stringOrNull(record.DocString),
+      tableName: toStringOrNull(record.TableName),
+      schema: toStringOrNull(record.Schema),
+      databaseName: toStringOrNull(record.DatabaseName),
+      folder: toStringOrNull(record.Folder),
+      docString: toStringOrNull(record.DocString),
     },
   }
 }

@@ -1,31 +1,27 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '@/lib/api/client/errors'
 
-const { mockGetFullOrganization, mockRequestJson } = vi.hoisted(() => ({
-  mockGetFullOrganization: vi.fn(),
-  mockRequestJson: vi.fn(),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    organization: {
-      getFullOrganization: mockGetFullOrganization,
-    },
-    subscription: {
-      list: vi.fn(),
-    },
-  },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import {
   getOrganizationRosterContract,
@@ -36,23 +32,16 @@ import {
   type OrganizationBillingApiResponse,
 } from '@/lib/api/contracts/subscription'
 import {
+  organizationKeys,
   useOrganization,
   useOrganizationBilling,
   useOrganizationRoster,
 } from '@/hooks/queries/organization'
+import { shouldRetryOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 
-interface Deferred<T> {
-  promise: Promise<T>
-  resolve: (value: T) => void
-}
+const { getFullOrganization: mockGetFullOrganization } = authClientMockFns.mockClient.organization
 
-function createDeferred<T>(): Deferred<T> {
-  let resolvePromise: (value: T) => void = () => undefined
-  const promise = new Promise<T>((resolve) => {
-    resolvePromise = resolve
-  })
-  return { promise, resolve: resolvePromise }
-}
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const ORGANIZATION_A = {
   id: 'org-a',
@@ -71,6 +60,7 @@ const ROSTER_A: { success: true; data: OrganizationRoster } = {
         name: 'Member A',
         email: 'member-a@example.com',
         image: null,
+        suspendedAt: null,
         workspaces: [],
       },
     ],
@@ -131,6 +121,7 @@ describe('organization identity transitions', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
+    setEnvFlags({ isOrganizationsEnabled: true })
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -142,7 +133,19 @@ describe('organization identity transitions', () => {
     act(() => root.unmount())
     queryClient.clear()
     container.remove()
-    vi.clearAllMocks()
+  })
+
+  it('treats Better Auth failures as errors rather than a missing organization', async () => {
+    mockGetFullOrganization.mockResolvedValue({ data: null, error: { message: 'Access revoked' } })
+    mockRequestJson.mockResolvedValue(ROSTER_A)
+    renderOrganization('org-a')
+    await flushQueries()
+
+    expect(queryClient.getQueryState(organizationKeys.detail('org-a'))?.status).toBe('error')
+    expect(queryClient.getQueryState(organizationKeys.detail('org-a'))?.error?.message).toBe(
+      'Access revoked'
+    )
+    expect(container.textContent).not.toContain('Manage organization')
   })
 
   it('clears organization detail, roster, billing, and actions while the next org loads', async () => {
@@ -194,14 +197,21 @@ describe('organization identity transitions', () => {
     )
   })
 
-  it('forwards the query signal so an in-flight org fetch can be cancelled', async () => {
-    mockGetFullOrganization.mockResolvedValue({ data: ORGANIZATION_A })
+  it('retries one transient billing-summary failure without retrying authorization errors', () => {
+    const serverError = new ApiClientError({
+      status: 503,
+      message: 'Unavailable',
+      body: null,
+    })
+    const forbiddenError = new ApiClientError({
+      status: 403,
+      message: 'Forbidden',
+      body: null,
+    })
 
-    renderOrganization('org-a')
-
-    await flushQueries()
-
-    const [args] = mockGetFullOrganization.mock.calls[0]
-    expect(args.fetchOptions?.signal).toBeInstanceOf(AbortSignal)
+    expect(shouldRetryOrganizationBillingSummary(0, serverError)).toBe(true)
+    expect(shouldRetryOrganizationBillingSummary(1, serverError)).toBe(false)
+    expect(shouldRetryOrganizationBillingSummary(0, forbiddenError)).toBe(false)
+    expect(shouldRetryOrganizationBillingSummary(0, new TypeError('Network error'))).toBe(true)
   })
 })

@@ -2,9 +2,9 @@ import type {
   SecretsManagerUntagResourceParams,
   SecretsManagerUntagResourceResponse,
 } from '@/tools/secrets_manager/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const untagResourceTool: ToolConfig<
+export const untagResourceTool: InternalToolConfig<
   SecretsManagerUntagResourceParams,
   SecretsManagerUntagResourceResponse
 > = {
@@ -46,11 +46,8 @@ export const untagResourceTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/secrets_manager/untag-resource',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

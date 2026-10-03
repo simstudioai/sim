@@ -1,12 +1,9 @@
 import type { NetSuiteBatchWriteParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  buildBatchWriteRequest,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteBatchUpdateRecordsTool: ToolConfig<
+export const netsuiteBatchUpdateRecordsTool: InternalToolConfig<
   NetSuiteBatchWriteParams,
   NetSuiteResponse
 > = {
@@ -36,9 +33,9 @@ export const netsuiteBatchUpdateRecordsTool: ToolConfig<
       description: 'Optional unique idempotency key for retrying the batch',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(params, () => buildBatchWriteRequest('PATCH', params), signal),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

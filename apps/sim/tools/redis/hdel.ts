@@ -1,7 +1,7 @@
 import type { RedisHDelParams, RedisHDelResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisHDelTool: ToolConfig<RedisHDelParams, RedisHDelResponse> = {
+export const redisHDelTool: InternalToolConfig<RedisHDelParams, RedisHDelResponse> = {
   id: 'redis_hdel',
   name: 'Redis HDEL',
   description: 'Delete a field from a hash stored at a key in Redis.',
@@ -28,11 +28,8 @@ export const redisHDelTool: ToolConfig<RedisHDelParams, RedisHDelResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'HDEL',
       args: [params.key, params.field],

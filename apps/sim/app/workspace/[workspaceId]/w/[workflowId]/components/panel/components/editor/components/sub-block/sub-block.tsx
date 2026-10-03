@@ -11,6 +11,7 @@ import {
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
+import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
 import {
   CheckboxList,
   Code,
@@ -32,6 +33,7 @@ import {
   McpServerSelector,
   McpToolSelector,
   MessagesInput,
+  ModelFallbackList,
   ResponseFormat,
   ScheduleInfo,
   SelectorInput,
@@ -47,7 +49,10 @@ import {
   TimeInput,
   ToolInput,
   VariablesInput,
+  WorkflowInputMapper,
+  WorkflowOutputSelector,
   WorkflowSelectorInput,
+  WorkspaceFolderSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/modal-registry'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -261,7 +266,7 @@ const renderLabel = (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
-                  <TriangleAlert className='size-3 flex-shrink-0 cursor-pointer text-destructive' />
+                  <TriangleAlert className='size-3 shrink-0 cursor-pointer text-destructive' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
@@ -297,7 +302,7 @@ const renderLabel = (
             {!wandState.isSearchActive ? (
               <Button
                 variant='active'
-                className='-my-1 h-5 px-2 py-0 text-xs'
+                className='-my-1 h-5 py-0 text-xs'
                 onClick={wandState.onSearchClick}
               >
                 Generate
@@ -335,6 +340,7 @@ const renderLabel = (
                   placeholder='Generate with AI...'
                 />
                 <Button
+                  aria-label='Generate'
                   variant='primary'
                   disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
                   onMouseDown={(e: React.MouseEvent) => {
@@ -345,7 +351,7 @@ const renderLabel = (
                     e.stopPropagation()
                     wandState.onSearchSubmit()
                   }}
-                  className='size-[20px] flex-shrink-0 p-0'
+                  className='size-[20px] shrink-0 p-0'
                 >
                   <ArrowUp className='size-[12px]' />
                 </Button>
@@ -358,11 +364,11 @@ const renderLabel = (
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
+                className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0'
                 onClick={externalLink?.onClick}
                 aria-label={externalLink?.tooltip}
               >
-                <SquareArrowUpRight className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+                <SquareArrowUpRight className='h-[12px]! w-[12px]! text-[var(--text-secondary)]' />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -375,7 +381,7 @@ const renderLabel = (
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+                className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
                 onClick={canonicalToggle?.onToggle}
                 disabled={canonicalToggleDisabledResolved}
                 aria-label={
@@ -386,7 +392,7 @@ const renderLabel = (
               >
                 <ArrowLeftRight
                   className={cn(
-                    '!h-[12px] !w-[12px]',
+                    'h-[12px]! w-[12px]!',
                     canonicalToggle?.mode === 'advanced'
                       ? 'text-[var(--text-primary)]'
                       : 'text-[var(--text-secondary)]'
@@ -482,6 +488,7 @@ function SubBlockComponent({
     triggerId: undefined,
     isPreview,
     useWebhookUrl: config.useWebhookUrl,
+    providerWebhookUrl: config.providerWebhookUrl,
   })
 
   const handleMouseDown = (e: MouseEvent<HTMLDivElement>): void => {
@@ -906,6 +913,7 @@ function SubBlockComponent({
             multiple={config.multiple === true}
             maxSize={config.maxSize}
             requiresCloudStorage={config.requiresCloudStorage === true}
+            folderScope={config.folderScope}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -943,6 +951,18 @@ function SubBlockComponent({
         )
 
       case 'folder-selector':
+        if (config.resourceType) {
+          return (
+            <WorkspaceFolderSelector
+              blockId={blockId}
+              subBlock={config}
+              disabled={isDisabled}
+              required={isFieldRequired(config, subBlockValues)}
+              isPreview={isPreview}
+              previewValue={previewValue}
+            />
+          )
+        }
         return (
           <SelectorInput
             blockId={blockId}
@@ -1027,6 +1047,18 @@ function SubBlockComponent({
           />
         )
 
+      case 'workflow-input-mapper':
+        return (
+          <WorkflowInputMapper
+            blockId={blockId}
+            subBlock={config}
+            isPreview={isPreview}
+            previewValue={previewValue as string | null | undefined}
+            disabled={isDisabled}
+            contextValues={contextValues}
+          />
+        )
+
       case 'variables-input':
         return (
           <VariablesInput
@@ -1097,6 +1129,18 @@ function SubBlockComponent({
           />
         )
 
+      case 'workflow-output-selector':
+        return (
+          <WorkflowOutputSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as string[] | null | undefined}
+            disabled={isDisabled}
+            placeholder={config.placeholder}
+          />
+        )
+
       case 'mcp-server-selector':
         return (
           <McpServerSelector
@@ -1155,6 +1199,27 @@ function SubBlockComponent({
         }
         return <ModalComponent blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
       }
+      case 'model-fallback-list':
+        return (
+          <ModelFallbackList
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as FallbackModelEntry[] | null | undefined}
+            previewPrimary={
+              isPreview
+                ? {
+                    model: subBlockValues?.model?.value,
+                    reasoningEffort: subBlockValues?.reasoningEffort?.value,
+                    thinkingLevel: subBlockValues?.thinkingLevel?.value,
+                    verbosity: subBlockValues?.verbosity?.value,
+                  }
+                : undefined
+            }
+            disabled={isDisabled}
+          />
+        )
+
       case 'messages-input':
         return (
           <MessagesInput
@@ -1202,7 +1267,9 @@ function SubBlockComponent({
         canonicalToggle,
         Boolean(canonicalToggle?.disabled || disabled || isPreview),
         {
-          showCopyButton: Boolean(config.showCopyButton && config.useWebhookUrl),
+          showCopyButton: Boolean(
+            config.showCopyButton && (config.useWebhookUrl || config.providerWebhookUrl)
+          ),
           copied,
           onCopy: handleCopy,
         },

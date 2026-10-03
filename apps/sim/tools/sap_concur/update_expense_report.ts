@@ -1,15 +1,14 @@
-import type { SapConcurProxyResponse, UpdateExpenseReportParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, UpdateExpenseReportParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateExpenseReportTool: ToolConfig<
+export const updateExpenseReportTool: InternalToolConfig<
   UpdateExpenseReportParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_update_expense_report',
   name: 'SAP Concur Update Expense Report',
@@ -86,23 +85,20 @@ export const updateExpenseReportTool: ToolConfig<
         'Fields to update on the report. `reportSource` is REQUIRED by Concur on every update — one of "EA", "MOB", "OTHER", "SE", "TR", "UI" (use "OTHER" if unknown). Other updatable fields: businessPurpose, comment, country, countryCode, countrySubDivisionCode, customData, endDate, isCopyDownInherited, isPaperReceiptsReceived, name, policy, policyId, redirectFund, reportDate, startDate.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = trimRequired(params.contextType, 'contextType')
       const reportId = trimRequired(params.reportId, 'reportId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}`,
         method: 'PATCH',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: { type: 'json', description: 'Empty (204 No Content)' },

@@ -1,10 +1,10 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   WorkdayTerminateWorkerParams,
   WorkdayTerminateWorkerResponse,
 } from '@/tools/workday/types'
 
-export const terminateWorkerTool: ToolConfig<
+export const terminateWorkerTool: InternalToolConfig<
   WorkdayTerminateWorkerParams,
   WorkdayTerminateWorkerResponse
 > = {
@@ -71,13 +71,8 @@ export const terminateWorkerTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/workday/terminate',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

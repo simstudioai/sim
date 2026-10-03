@@ -4,7 +4,7 @@ import type {
   ListDowntimesParams,
   ListDowntimesResponse,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage } from '@/tools/datadog/utils'
+import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesResponse> = {
@@ -55,7 +55,7 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       const queryParams = new URLSearchParams()
 
       if (params.currentOnly) queryParams.set('current_only', 'true')

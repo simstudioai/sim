@@ -242,7 +242,7 @@ export async function readNodeStreamToBufferWithLimit(
 
     const onAbort = () => {
       if ('destroy' in stream && typeof stream.destroy === 'function') {
-        stream.destroy(toError(options.signal?.reason ?? new Error('Aborted')))
+        stream.destroy()
       }
       finish(() => reject(toError(options.signal?.reason ?? new Error('Aborted'))))
     }

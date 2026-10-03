@@ -1,7 +1,7 @@
 import type { ClickHouseQueryParams, ClickHouseQueryResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<ClickHouseQueryParams, ClickHouseQueryResponse> = {
+export const queryTool: InternalToolConfig<ClickHouseQueryParams, ClickHouseQueryResponse> = {
   id: 'clickhouse_query',
   name: 'ClickHouse Query',
   description: 'Execute a SELECT query on a ClickHouse database',
@@ -52,13 +52,8 @@ export const queryTool: ToolConfig<ClickHouseQueryParams, ClickHouseQueryRespons
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

@@ -1,19 +1,13 @@
-import { LOOP, PARALLEL } from '@/executor/constants'
+import { isPlainRecord } from '@sim/utils/object'
+import { normalizeName } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
-
-/**
- * Builds the sentinel-start node ID for a loop.
- */
-function buildLoopSentinelStartId(loopId: string): string {
-  return `${LOOP.SENTINEL.PREFIX}${loopId}${LOOP.SENTINEL.START_SUFFIX}`
-}
-
-/**
- * Builds the sentinel-start node ID for a parallel.
- */
-function buildParallelSentinelStartId(parallelId: string): string {
-  return `${PARALLEL.SENTINEL.PREFIX}${parallelId}${PARALLEL.SENTINEL.START_SUFFIX}`
-}
+import type { SerializableExecutionState } from '@/executor/execution/types'
+import type { NormalizedBlockOutput } from '@/executor/types'
+import {
+  buildLoopSentinelStartId,
+  buildParallelSentinelStartId,
+} from '@/executor/utils/subflow-node-id-codec'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 /**
  * Checks if a block ID is a loop or parallel container and returns the sentinel-start ID if so.
@@ -35,6 +29,19 @@ export function resolveContainerToSentinelStart(blockId: string, dag: DAG): stri
 export interface RunFromBlockValidation {
   valid: boolean
   error?: string
+}
+
+/**
+ * A run-from-block start the executor refused before running anything: the block is
+ * missing, sits inside a loop or parallel, or has an upstream dependency the source
+ * snapshot never executed. Its own class so the application layer can hand the reason
+ * to the caller as a validation failure instead of the generic system-error fallback.
+ */
+export class RunFromBlockValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RunFromBlockValidationError'
+  }
 }
 
 /**
@@ -254,4 +261,63 @@ function findParentParallel(blockId: string, dag: DAG): string | undefined {
     }
   }
   return undefined
+}
+
+/**
+ * Overlays caller-provided mock outputs onto a run-from-block snapshot so a
+ * block can run in isolation: each entry (keyed by block name or id) becomes
+ * that block's state, marked executed, overriding whatever the snapshot holds.
+ * Name matching uses the executor's own normalization — the same rule reference
+ * resolution applies — and an unknown key fails fast with the names that do
+ * exist, since a silently dropped mock would just resurface as an unresolved
+ * reference deeper in the run.
+ */
+export function overlayVariableInputs(
+  workflow: SerializedWorkflow,
+  snapshot: SerializableExecutionState,
+  variableInputs: Record<string, unknown>
+): SerializableExecutionState {
+  const idsByName = new Map<string, string>()
+  for (const block of workflow.blocks) {
+    if (block.metadata?.name) idsByName.set(normalizeName(block.metadata.name), block.id)
+  }
+  const blockIds = new Set(workflow.blocks.map((block) => block.id))
+
+  const blockStates = { ...snapshot.blockStates }
+  const executedBlocks = [...snapshot.executedBlocks]
+  for (const [key, value] of Object.entries(variableInputs)) {
+    const blockId = blockIds.has(key) ? key : idsByName.get(normalizeName(key))
+    if (!blockId) {
+      const known = workflow.blocks
+        .map((block) => block.metadata?.name)
+        .filter((name): name is string => Boolean(name))
+      throw new Error(
+        `variableInputs: no block named "${key}" in this workflow. Blocks: ${known.join(', ')}`
+      )
+    }
+    if (!isPlainRecord(value)) {
+      throw new Error(
+        `variableInputs["${key}"] must be an object shaped like that block's output (references read paths off it).`
+      )
+    }
+    blockStates[blockId] = {
+      output: value as NormalizedBlockOutput,
+      executed: true,
+      executionTime: 0,
+    }
+    if (!executedBlocks.includes(blockId)) executedBlocks.push(blockId)
+  }
+  return { ...snapshot, blockStates, executedBlocks }
+}
+
+/** The empty prior-state a pure-mock isolated run starts from. */
+export function emptyRunFromBlockSnapshot(): SerializableExecutionState {
+  return {
+    blockStates: {},
+    executedBlocks: [],
+    blockLogs: [],
+    decisions: { router: {}, condition: {} },
+    completedLoops: [],
+    activeExecutionPath: [],
+  }
 }

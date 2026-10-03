@@ -4,9 +4,9 @@ import {
   PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
 import { createPublishTransform } from '@/tools/instagram/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const instagramPublishVideoTool: ToolConfig<
+export const instagramPublishVideoTool: InternalToolConfig<
   InstagramPublishVideoParams,
   InstagramPublishResponse
 > = {
@@ -54,13 +54,8 @@ export const instagramPublishVideoTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/publish-video',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: InstagramPublishVideoParams) => ({
+  operation: {
+    input: (params: InstagramPublishVideoParams) => ({
       accessToken: params.accessToken,
       igUserId: params.igUserId,
       video: params.video,

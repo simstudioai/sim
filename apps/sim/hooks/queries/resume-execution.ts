@@ -102,16 +102,17 @@ interface ResumeContextVariables {
   input?: unknown
 }
 
+export function shouldRetryResumeExecutionDetail(failureCount: number, error: unknown): boolean {
+  if (isApiClientError(error) && error.status >= 400 && error.status < 500) return false
+  return failureCount < 1
+}
+
 /**
  * Loads the paused execution detail (all pause points for an execution). The
  * contract models pause points loosely (`z.record`); the resume UI works against
  * the richer `PausedExecutionDetail` interface, hence the bridging cast.
  */
-export function useResumeExecutionDetail(
-  workflowId: string,
-  executionId: string,
-  initialData?: PausedExecutionDetail
-) {
+export function useResumeExecutionDetail(workflowId: string, executionId: string) {
   return useQuery({
     queryKey: resumeKeys.execution(workflowId, executionId),
     queryFn: async ({ signal }): Promise<PausedExecutionDetail> => {
@@ -124,7 +125,7 @@ export function useResumeExecutionDetail(
     },
     enabled: Boolean(workflowId && executionId),
     staleTime: RESUME_EXECUTION_DETAIL_STALE_TIME,
-    initialData,
+    retry: shouldRetryResumeExecutionDetail,
   })
 }
 

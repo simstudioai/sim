@@ -1,12 +1,8 @@
-import type { CreateListItemParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
-import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
-} from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { CreateListItemParams, SapConcurResponse } from '@/tools/sap_concur/types'
+import { baseSapConcurInput, transformSapConcurResponse } from '@/tools/sap_concur/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createListItemTool: ToolConfig<CreateListItemParams, SapConcurProxyResponse> = {
+export const createListItemTool: InternalToolConfig<CreateListItemParams, SapConcurResponse> = {
   id: 'sap_concur_create_list_item',
   name: 'SAP Concur Create List Item',
   description: 'Create a list item (POST /list/v4/items).',
@@ -62,18 +58,15 @@ export const createListItemTool: ToolConfig<CreateListItemParams, SapConcurProxy
         'List item payload. Required: listId, shortCode, value. Optional: parentId or parentCode (mutually exclusive). Note: Concur rejects shortCode/value containing hyphens.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: '/list/v4/items',
       method: 'POST',
       body: params.body,
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

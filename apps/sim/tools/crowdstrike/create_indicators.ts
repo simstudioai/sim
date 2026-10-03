@@ -2,9 +2,9 @@ import type {
   CrowdStrikeCreateIndicatorsParams,
   CrowdStrikeCreateIndicatorsResponse,
 } from '@/tools/crowdstrike/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const crowdstrikeCreateIndicatorsTool: ToolConfig<
+export const crowdstrikeCreateIndicatorsTool: InternalToolConfig<
   CrowdStrikeCreateIndicatorsParams,
   CrowdStrikeCreateIndicatorsResponse
 > = {
@@ -60,13 +60,8 @@ export const crowdstrikeCreateIndicatorsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/crowdstrike/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,

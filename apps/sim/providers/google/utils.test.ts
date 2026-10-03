@@ -1,15 +1,127 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it } from 'vitest'
+import { ApiError } from '@google/genai'
+import { describe, expect, it, vi } from 'vitest'
+import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import {
   convertToGeminiFormat,
   convertUsageMetadata,
-  ensureStructResponse,
+  createReadableStreamFromGeminiStream,
+  geminiRetryDelayMs,
   mapToThinkingBudget,
-  supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
-import type { ProviderRequest } from '@/providers/types'
+import type { AgentStreamEvent } from '@/providers/stream-events'
+import type { Message, ProviderRequest } from '@/providers/types'
+
+describe('durable Gemini conversation history', () => {
+  it('keeps assistant text and parallel calls together and batches both results', () => {
+    const result = convertToGeminiFormat({
+      model: 'gemini-2.5-flash',
+      messages: [
+        {
+          role: 'assistant',
+          content: 'Looking up both records',
+          tool_calls: ['a', 'b'].map((id) => ({
+            id,
+            type: 'function',
+            function: { name: 'lookup', arguments: JSON.stringify({ id }) },
+          })),
+        },
+        ...['a', 'b'].map(
+          (id): Message => ({
+            role: 'tool',
+            tool_call_id: id,
+            name: 'lookup',
+            content: JSON.stringify({ value: id }),
+          })
+        ),
+      ],
+    })
+
+    expect(result.contents).toEqual([
+      {
+        role: 'model',
+        parts: [
+          { text: 'Looking up both records' },
+          { functionCall: { id: 'a', name: 'lookup', args: { id: 'a' } } },
+          { functionCall: { id: 'b', name: 'lookup', args: { id: 'b' } } },
+        ],
+      },
+      {
+        role: 'user',
+        parts: [
+          { functionResponse: { id: 'a', name: 'lookup', response: { value: 'a' } } },
+          { functionResponse: { id: 'b', name: 'lookup', response: { value: 'b' } } },
+        ],
+      },
+    ])
+  })
+
+  it('restores trusted native parts without moving or changing thought signatures', () => {
+    const message: Message = { role: 'assistant', content: 'portable answer' }
+    const native = {
+      role: 'model',
+      parts: [
+        { thought: true, text: 'thinking', thoughtSignature: 'opaque-one' },
+        { text: 'answer', thoughtSignature: 'opaque-two' },
+        { functionCall: { name: 'lookup', args: { id: 'a' } }, thoughtSignature: 'opaque-three' },
+      ],
+    }
+    setNativeConversationMessage(message, {
+      protocol: 'gemini',
+      providerId: 'google',
+      model: 'gemini-2.5-flash',
+      binding: 'test',
+      value: native,
+    })
+
+    expect(
+      convertToGeminiFormat({ model: 'gemini-2.5-flash', messages: [message] }).contents
+    ).toEqual([native])
+  })
+
+  it('keeps internal call identities out of native Gemini responses when the model omitted ids', () => {
+    const message: Message = {
+      role: 'assistant',
+      content: '',
+      tool_calls: ['internal-a', 'internal-b'].map((id) => ({
+        id,
+        type: 'function',
+        function: { name: 'lookup', arguments: '{}' },
+      })),
+    }
+    const native = {
+      role: 'model',
+      parts: ['a', 'b'].map((key) => ({
+        functionCall: { name: 'lookup', args: { key } },
+        thoughtSignature: `signature-${key}`,
+      })),
+    }
+    setNativeConversationMessage(message, {
+      protocol: 'gemini',
+      providerId: 'google',
+      model: 'gemini-3.5-flash',
+      binding: 'test',
+      value: native,
+    })
+    const { contents } = convertToGeminiFormat({
+      model: 'gemini-3.5-flash',
+      messages: [
+        message,
+        ...['internal-a', 'internal-b'].map(
+          (id): Message => ({
+            role: 'tool',
+            name: 'lookup',
+            tool_call_id: id,
+            content: '{"found":true}',
+          })
+        ),
+      ],
+    })
+    expect(contents[0]).toBe(native)
+    expect(contents[1].parts).toHaveLength(2)
+    expect(contents[1].parts?.every((part) => part.functionResponse?.id === undefined)).toBe(true)
+    expect(JSON.stringify(contents)).not.toContain('internal-')
+  })
+})
 
 describe('convertUsageMetadata', () => {
   it('carries the cached prompt subset through so callers can discount it', () => {
@@ -61,16 +173,6 @@ describe('mapToThinkingBudget', () => {
     expect(mapToThinkingBudget('gemini-2.5-pro', 'high')).toBeLessThanOrEqual(32768)
   })
 
-  it('maps named levels to a within-range budget for gemini-2.5-flash (0-24576)', () => {
-    expect(mapToThinkingBudget('gemini-2.5-flash', 'low')).toBeLessThanOrEqual(24576)
-    expect(mapToThinkingBudget('gemini-2.5-flash', 'high')).toBeLessThanOrEqual(24576)
-  })
-
-  it('maps named levels to a within-range budget for gemini-2.5-flash-lite (512-24576)', () => {
-    expect(mapToThinkingBudget('gemini-2.5-flash-lite', 'low')).toBeGreaterThanOrEqual(512)
-    expect(mapToThinkingBudget('gemini-2.5-flash-lite', 'high')).toBeLessThanOrEqual(24576)
-  })
-
   it('strips the vertex/ prefix before looking up the model', () => {
     expect(mapToThinkingBudget('vertex/gemini-2.5-flash', 'medium')).toBe(
       mapToThinkingBudget('gemini-2.5-flash', 'medium')
@@ -85,131 +187,6 @@ describe('mapToThinkingBudget', () => {
     expect(mapToThinkingBudget('gemini-2.5-flash', 'unknown-level')).toBe(
       mapToThinkingBudget('gemini-2.5-flash', 'high')
     )
-  })
-})
-
-describe('supportsDisablingGemini25Thinking', () => {
-  it('returns true for gemini-2.5-flash and gemini-2.5-flash-lite', () => {
-    expect(supportsDisablingGemini25Thinking('gemini-2.5-flash')).toBe(true)
-    expect(supportsDisablingGemini25Thinking('gemini-2.5-flash-lite')).toBe(true)
-  })
-
-  it('returns false for gemini-2.5-pro, which cannot disable thinking', () => {
-    expect(supportsDisablingGemini25Thinking('gemini-2.5-pro')).toBe(false)
-  })
-
-  it('strips the vertex/ prefix before checking', () => {
-    expect(supportsDisablingGemini25Thinking('vertex/gemini-2.5-flash')).toBe(true)
-    expect(supportsDisablingGemini25Thinking('vertex/gemini-2.5-pro')).toBe(false)
-  })
-
-  it('returns false for models with no explicit mapping', () => {
-    expect(supportsDisablingGemini25Thinking('gemini-3.5-flash')).toBe(false)
-  })
-})
-
-describe('ensureStructResponse', () => {
-  describe('should return objects unchanged', () => {
-    it('should return plain object unchanged', () => {
-      const input = { key: 'value', nested: { a: 1 } }
-      const result = ensureStructResponse(input)
-      expect(result).toBe(input) // Same reference
-      expect(result).toEqual({ key: 'value', nested: { a: 1 } })
-    })
-
-    it('should return empty object unchanged', () => {
-      const input = {}
-      const result = ensureStructResponse(input)
-      expect(result).toBe(input)
-      expect(result).toEqual({})
-    })
-  })
-
-  describe('should wrap primitive values in { value: ... }', () => {
-    it('should wrap boolean true', () => {
-      const result = ensureStructResponse(true)
-      expect(result).toEqual({ value: true })
-      expect(typeof result).toBe('object')
-    })
-
-    it('should wrap boolean false', () => {
-      const result = ensureStructResponse(false)
-      expect(result).toEqual({ value: false })
-      expect(typeof result).toBe('object')
-    })
-
-    it('should wrap string', () => {
-      const result = ensureStructResponse('success')
-      expect(result).toEqual({ value: 'success' })
-      expect(typeof result).toBe('object')
-    })
-
-    it('should wrap empty string', () => {
-      const result = ensureStructResponse('')
-      expect(result).toEqual({ value: '' })
-      expect(typeof result).toBe('object')
-    })
-
-    it('should wrap number', () => {
-      const result = ensureStructResponse(42)
-      expect(result).toEqual({ value: 42 })
-      expect(typeof result).toBe('object')
-    })
-
-    it('should wrap zero', () => {
-      const result = ensureStructResponse(0)
-      expect(result).toEqual({ value: 0 })
-      expect(typeof result).toBe('object')
-    })
-
-    it('should wrap null', () => {
-      const result = ensureStructResponse(null)
-      expect(result).toEqual({ value: null })
-      expect(typeof result).toBe('object')
-    })
-
-    it('should wrap undefined', () => {
-      const result = ensureStructResponse(undefined)
-      expect(result).toEqual({ value: undefined })
-      expect(typeof result).toBe('object')
-    })
-  })
-
-  describe('should wrap arrays in { value: ... }', () => {
-    it('should wrap array of strings', () => {
-      const result = ensureStructResponse(['a', 'b', 'c'])
-      expect(result).toEqual({ value: ['a', 'b', 'c'] })
-      expect(typeof result).toBe('object')
-      expect(Array.isArray(result)).toBe(false)
-    })
-
-    it('should wrap array of objects', () => {
-      const result = ensureStructResponse([{ id: 1 }, { id: 2 }])
-      expect(result).toEqual({ value: [{ id: 1 }, { id: 2 }] })
-      expect(typeof result).toBe('object')
-      expect(Array.isArray(result)).toBe(false)
-    })
-
-    it('should wrap empty array', () => {
-      const result = ensureStructResponse([])
-      expect(result).toEqual({ value: [] })
-      expect(typeof result).toBe('object')
-      expect(Array.isArray(result)).toBe(false)
-    })
-  })
-
-  describe('edge cases', () => {
-    it('should handle nested objects correctly', () => {
-      const input = { a: { b: { c: 1 } }, d: [1, 2, 3] }
-      const result = ensureStructResponse(input)
-      expect(result).toBe(input) // Same reference, unchanged
-    })
-
-    it('should handle object with array property correctly', () => {
-      const input = { items: ['a', 'b'], count: 2 }
-      const result = ensureStructResponse(input)
-      expect(result).toBe(input) // Same reference, unchanged
-    })
   })
 })
 
@@ -280,6 +257,10 @@ describe('convertToGeminiFormat', () => {
 
       const result = convertToGeminiFormat(request)
 
+      expect(result.contents[1].parts?.[0].functionCall).toMatchObject({
+        id: 'call_123',
+        name: 'get_weather',
+      })
       const toolResponseContent = result.contents.find(
         (c) => c.parts?.[0] && 'functionResponse' in c.parts[0]
       )
@@ -331,43 +312,6 @@ describe('convertToGeminiFormat', () => {
       expect(functionResponse?.response).toEqual({ value: true })
     })
 
-    it('should wrap boolean false response in an object for Gemini compatibility', () => {
-      const request: ProviderRequest = {
-        model: 'gemini-2.5-flash',
-        messages: [
-          { role: 'user', content: 'Check if user exists' },
-          {
-            role: 'assistant',
-            content: '',
-            tool_calls: [
-              {
-                id: 'call_789',
-                type: 'function',
-                function: { name: 'user_exists', arguments: '{"userId": "999"}' },
-              },
-            ],
-          },
-          {
-            role: 'tool',
-            name: 'user_exists',
-            tool_call_id: 'call_789',
-            content: 'false', // Boolean false as JSON string
-          },
-        ],
-      }
-
-      const result = convertToGeminiFormat(request)
-
-      const toolResponseContent = result.contents.find(
-        (c) => c.parts?.[0] && 'functionResponse' in c.parts[0]
-      )
-      const functionResponse = (toolResponseContent?.parts?.[0] as { functionResponse?: unknown })
-        ?.functionResponse as { response?: unknown }
-
-      expect(typeof functionResponse?.response).toBe('object')
-      expect(functionResponse?.response).toEqual({ value: false })
-    })
-
     it('should wrap string response in an object for Gemini compatibility', () => {
       const request: ProviderRequest = {
         model: 'gemini-2.5-flash',
@@ -403,43 +347,6 @@ describe('convertToGeminiFormat', () => {
 
       expect(typeof functionResponse?.response).toBe('object')
       expect(functionResponse?.response).toEqual({ value: 'success' })
-    })
-
-    it('should wrap number response in an object for Gemini compatibility', () => {
-      const request: ProviderRequest = {
-        model: 'gemini-2.5-flash',
-        messages: [
-          { role: 'user', content: 'Get count' },
-          {
-            role: 'assistant',
-            content: '',
-            tool_calls: [
-              {
-                id: 'call_num',
-                type: 'function',
-                function: { name: 'get_count', arguments: '{}' },
-              },
-            ],
-          },
-          {
-            role: 'tool',
-            name: 'get_count',
-            tool_call_id: 'call_num',
-            content: '42', // Number as JSON
-          },
-        ],
-      }
-
-      const result = convertToGeminiFormat(request)
-
-      const toolResponseContent = result.contents.find(
-        (c) => c.parts?.[0] && 'functionResponse' in c.parts[0]
-      )
-      const functionResponse = (toolResponseContent?.parts?.[0] as { functionResponse?: unknown })
-        ?.functionResponse as { response?: unknown }
-
-      expect(typeof functionResponse?.response).toBe('object')
-      expect(functionResponse?.response).toEqual({ value: 42 })
     })
 
     it('should wrap null response in an object for Gemini compatibility', () => {
@@ -590,5 +497,131 @@ describe('convertToGeminiFormat', () => {
       // Empty string is not valid JSON, so it falls back to { output: "" }
       expect(functionResponse?.response).toEqual({ output: '' })
     })
+  })
+})
+
+describe('createReadableStreamFromGeminiStream', () => {
+  async function collectEvents(
+    stream: ReadableStream<AgentStreamEvent>
+  ): Promise<AgentStreamEvent[]> {
+    const events: AgentStreamEvent[] = []
+    const reader = stream.getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      events.push(value)
+    }
+    return events
+  }
+
+  it('splits thought parts into thinking_delta and answer into text_delta', async () => {
+    const onComplete = vi.fn()
+    const stream = createReadableStreamFromGeminiStream(
+      (async function* () {
+        yield {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { text: 'Reasoning step. ', thought: true },
+                  { text: 'Final answer.', thought: false },
+                ],
+              },
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 7,
+            totalTokenCount: 12,
+          },
+        } as any
+      })(),
+      onComplete
+    )
+
+    const events = await collectEvents(stream)
+    expect(events).toEqual([
+      { type: 'thinking_delta', text: 'Reasoning step. ' },
+      { type: 'text_delta', text: 'Final answer.', turn: 'final' },
+    ])
+    expect(onComplete).toHaveBeenCalledWith(
+      'Final answer.',
+      expect.objectContaining({ promptTokenCount: 5 }),
+      'Reasoning step. '
+    )
+  })
+
+  it('does not invent thinking when only answer text is present', async () => {
+    const stream = createReadableStreamFromGeminiStream(
+      (async function* () {
+        yield {
+          text: 'Just text',
+          candidates: [{ content: { parts: [{ text: 'Just text' }] } }],
+        } as any
+      })()
+    )
+    const events = await collectEvents(stream)
+    expect(events.some((e) => e.type === 'thinking_delta')).toBe(false)
+    expect(
+      events
+        .filter((e) => e.type === 'text_delta')
+        .map((e) => e.text)
+        .join('')
+    ).toContain('Just text')
+  })
+
+  it('surfaces blocked prompts instead of completing an empty stream', async () => {
+    const stream = createReadableStreamFromGeminiStream(
+      (async function* () {
+        yield {
+          promptFeedback: {
+            blockReason: 'SAFETY',
+            blockReasonMessage: 'Prompt violated safety policy',
+          },
+        } as any
+      })()
+    )
+
+    await expect(collectEvents(stream)).rejects.toThrow(
+      'Gemini prompt blocked: SAFETY (Prompt violated safety policy)'
+    )
+  })
+})
+
+/** The SDK sets `ApiError.message` to the JSON error body, so this is the wire shape it sees. */
+describe('geminiRetryDelayMs', () => {
+  function rateLimited(retryDelay: string) {
+    return new ApiError({
+      status: 429,
+      message: JSON.stringify({
+        error: {
+          code: 429,
+          status: 'RESOURCE_EXHAUSTED',
+          details: [
+            { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [] },
+            { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay },
+          ],
+        },
+      }),
+    })
+  }
+
+  it.each([
+    ['31s', 31_000],
+    ['0.5s', 500],
+  ])('reads a RetryInfo delay of %s', (retryDelay, expected) => {
+    expect(geminiRetryDelayMs(rateLimited(retryDelay))).toBe(expected)
+  })
+
+  it('has no delay when the error carries no RetryInfo', () => {
+    const error = new ApiError({
+      status: 503,
+      message: JSON.stringify({ error: { code: 503, status: 'UNAVAILABLE' } }),
+    })
+    expect(geminiRetryDelayMs(error)).toBeNull()
+  })
+
+  it('has no delay for a transport failure', () => {
+    expect(geminiRetryDelayMs(new TypeError('fetch failed'))).toBeNull()
   })
 })

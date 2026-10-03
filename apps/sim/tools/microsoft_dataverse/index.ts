@@ -1,9 +1,12 @@
+export {
+  dataverseDownloadFileTool,
+  dataverseDownloadFileV2Tool,
+} from '@/tools/microsoft_dataverse/download_file'
 export { dataverseAssociateTool } from './associate'
 export { dataverseCreateMultipleTool } from './create_multiple'
 export { dataverseCreateRecordTool } from './create_record'
 export { dataverseDeleteRecordTool } from './delete_record'
 export { dataverseDisassociateTool } from './disassociate'
-export { dataverseDownloadFileTool } from './download_file'
 export { dataverseExecuteActionTool } from './execute_action'
 export { dataverseExecuteFunctionTool } from './execute_function'
 export { dataverseFetchXmlQueryTool } from './fetchxml_query'

@@ -3,9 +3,9 @@ import type {
   DocuSignListTemplatesResponse,
 } from '@/tools/docusign/types'
 import { TEMPLATES_ARRAY_OUTPUT } from '@/tools/docusign/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const docusignListTemplatesTool: ToolConfig<
+export const docusignListTemplatesTool: InternalToolConfig<
   DocuSignListTemplatesParams,
   DocuSignListTemplatesResponse
 > = {
@@ -40,13 +40,9 @@ export const docusignListTemplatesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/docusign',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
-      operation: 'list_templates',
       searchText: params.searchText,
       count: params.count,
     }),

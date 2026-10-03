@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { saveBlob } from '@/lib/uploads/client/download'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 import type { ChatMessage, ChatState } from './types'
 import { MAX_CHAT_HEIGHT, MAX_CHAT_WIDTH, MIN_CHAT_HEIGHT, MIN_CHAT_WIDTH } from './utils'
 
@@ -21,6 +22,27 @@ const MAX_MESSAGES = 50
 const DEFAULT_WIDTH = 305
 const DEFAULT_HEIGHT = 286
 
+function createInitialState() {
+  return {
+    isChatOpen: false,
+    chatPosition: null,
+    chatWidth: DEFAULT_WIDTH,
+    chatHeight: DEFAULT_HEIGHT,
+    messages: [],
+    selectedWorkflowOutputs: {},
+    conversationIds: {},
+  } satisfies Pick<
+    ChatState,
+    | 'isChatOpen'
+    | 'chatPosition'
+    | 'chatWidth'
+    | 'chatHeight'
+    | 'messages'
+    | 'selectedWorkflowOutputs'
+    | 'conversationIds'
+  >
+}
+
 /**
  * Floating chat store
  * Manages the open/close state, position, messages, and all chat functionality
@@ -29,10 +51,7 @@ export const useChatStore = create<ChatState>()(
   devtools(
     persist(
       (set, get) => ({
-        isChatOpen: false,
-        chatPosition: null,
-        chatWidth: DEFAULT_WIDTH,
-        chatHeight: DEFAULT_HEIGHT,
+        ...createInitialState(),
 
         setIsChatOpen: (open) => {
           set({ isChatOpen: open })
@@ -52,10 +71,6 @@ export const useChatStore = create<ChatState>()(
         resetChatPosition: () => {
           set({ chatPosition: null })
         },
-
-        messages: [],
-        selectedWorkflowOutputs: {},
-        conversationIds: {},
 
         addMessage: (message) => {
           set((state) => {
@@ -218,6 +233,8 @@ export const useChatStore = create<ChatState>()(
             return { messages: newMessages }
           })
         },
+
+        reset: () => set(createInitialState()),
       }),
       {
         name: 'chat-store',
@@ -262,3 +279,5 @@ export const useChatStore = create<ChatState>()(
     )
   )
 )
+
+registerUserDataReset('chat', () => useChatStore.getState().reset())

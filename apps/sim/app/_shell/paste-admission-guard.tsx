@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useToast } from '@sim/emcn'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
-import { readSelectionContextFromClipboard } from '@/lib/copilot/chat/selection-clipboard'
+import { readSelectionContextFromClipboard } from '@/lib/mothership/chat/selection-clipboard'
 
 const EDITABLE_TARGET_SELECTOR =
   'input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="hidden"]), textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor, .xterm'
@@ -43,7 +43,15 @@ export function PasteAdmissionGuard() {
       }
 
       const acceptsSelectionContext = event.target.closest('[data-paste-selection-context]')
-      if (acceptsSelectionContext && readSelectionContextFromClipboard(event.clipboardData)) return
+      const destinationWorkspaceId = acceptsSelectionContext?.getAttribute(
+        'data-paste-selection-context'
+      )
+      if (
+        destinationWorkspaceId &&
+        readSelectionContextFromClipboard(event.clipboardData, destinationWorkspaceId)
+      ) {
+        return
+      }
 
       const handlesImageFiles = event.target.closest('[data-paste-handles-images="true"]')
       if (handlesImageFiles && clipboardHasImageFile(event.clipboardData)) return

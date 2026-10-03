@@ -135,6 +135,7 @@ async function zendeskApiGet(
   const response = await secureFetchWithRetry(
     url,
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: {
         Authorization: `Basic ${Buffer.from(`${email}/token:${accessToken}`, 'utf8').toString('base64')}`,

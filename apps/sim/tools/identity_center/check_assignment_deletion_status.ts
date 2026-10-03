@@ -2,9 +2,9 @@ import type {
   IdentityCenterAssignmentStatusResponse,
   IdentityCenterCheckAssignmentStatusParams,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const checkAssignmentDeletionStatusTool: ToolConfig<
+export const checkAssignmentDeletionStatusTool: InternalToolConfig<
   IdentityCenterCheckAssignmentStatusParams,
   IdentityCenterAssignmentStatusResponse
 > = {
@@ -46,11 +46,8 @@ export const checkAssignmentDeletionStatusTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/check-assignment-deletion-status',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

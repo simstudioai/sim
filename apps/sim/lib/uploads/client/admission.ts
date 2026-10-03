@@ -34,6 +34,7 @@ interface UploadAdmissionFile {
 
 interface MultiFileUploadAdmissionOptions {
   existingFiles?: ArrayLike<UploadAdmissionFile>
+  maxFiles?: number
   maxFileBytes?: number
   maxTotalBytes?: number
 }
@@ -48,9 +49,13 @@ export function assertMultiFileUploadAdmission(
   options: MultiFileUploadAdmissionOptions = {}
 ): void {
   const existingFiles = options.existingFiles
+  const maxFiles = options.maxFiles ?? MULTI_FILE_UPLOAD_MAX_FILES
   const maxFileBytes = options.maxFileBytes ?? MULTI_FILE_UPLOAD_MAX_FILE_BYTES
   const maxTotalBytes =
     options.maxTotalBytes ?? MULTI_FILE_UPLOAD_MAX_TOTAL_FILE_EQUIVALENTS * maxFileBytes
+  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1) {
+    throw new Error('Invalid upload file count limit')
+  }
   if (!Number.isSafeInteger(maxFileBytes) || maxFileBytes < 1) {
     throw new Error('Invalid per-file upload limit')
   }
@@ -59,9 +64,9 @@ export function assertMultiFileUploadAdmission(
   }
   const existingCount = existingFiles?.length ?? 0
   const totalCount = existingCount + files.length
-  if (totalCount > MULTI_FILE_UPLOAD_MAX_FILES) {
+  if (totalCount > maxFiles) {
     throw new MultiFileUploadAdmissionError(
-      `Select up to ${MULTI_FILE_UPLOAD_MAX_FILES} files at a time.`,
+      `Select up to ${maxFiles} files at a time.`,
       'UPLOAD_FILE_COUNT_EXCEEDED'
     )
   }

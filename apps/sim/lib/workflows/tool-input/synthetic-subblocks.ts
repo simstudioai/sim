@@ -1,3 +1,5 @@
+import { encodeToolParamValue } from '@/tools/param-shape'
+
 const TOOL_SUBBLOCK_INFIX = '-tool-'
 const SYNTHETIC_TOOL_SUBBLOCK_RE = new RegExp(`${TOOL_SUBBLOCK_INFIX}\\d+-`)
 
@@ -48,12 +50,7 @@ export function resolveToolParamSync(
 ): ToolParamSyncAction {
   if (storeValue === undefined) return { action: 'reproject' }
 
-  const stringified =
-    storeValue === null
-      ? ''
-      : typeof storeValue === 'string'
-        ? storeValue
-        : JSON.stringify(storeValue)
+  const stringified = encodeToolParamValue(storeValue)
 
   if (stringified === syncedValue) return { action: 'noop' }
   return { action: 'mirror', value: stringified }

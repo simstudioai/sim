@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ChipTag } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -32,7 +33,11 @@ export function CustomBlocks() {
   const canAdmin = canMutateWorkspaceSettingsSection('custom-blocks', workspacePermissions)
   const permissionsLoading = workspacePermissions.isLoading
 
-  const { data: canManage = false, isLoading } = useCanPublishCustomBlock(workspaceId)
+  const {
+    data: canManage,
+    isLoading,
+    error: entitlementError,
+  } = useCanPublishCustomBlock(workspaceId)
   const { data: blocks = [] } = useCustomBlocks(workspaceId)
   const { data: workspaces = [] } = useWorkspacesQuery()
 
@@ -74,6 +79,14 @@ export function CustomBlocks() {
    * the list before jumping to it. A dead id still falls back to the list.
    */
   if (isLoading || (selectedBlockId !== null && permissionsLoading)) return null
+
+  if (entitlementError && canManage === undefined) {
+    return (
+      <SettingsEmptyState tone='error'>
+        {getErrorMessage(entitlementError, 'Failed to load custom block access')}
+      </SettingsEmptyState>
+    )
+  }
 
   if (!canManage) {
     return (

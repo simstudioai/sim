@@ -16,13 +16,13 @@ export interface SapBaseParams {
   password?: string
 }
 
-interface ProxyOutput {
+interface SapS4HanaOutput {
   status: number
   data: unknown
 }
 
-export interface SapProxyResponse extends ToolResponse {
-  output: ProxyOutput
+export interface SapS4HanaResponse extends ToolResponse {
+  output: SapS4HanaOutput
 }
 
 export interface ListBusinessPartnersParams extends SapBaseParams {

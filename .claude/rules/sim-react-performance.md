@@ -1,3 +1,7 @@
+---
+description: Behavior-preserving React render-performance idioms
+---
+
 # React & Render Performance
 
 Behavior-preserving performance idioms for components, hooks, and hot render paths. These are safe defaults — apply them freely. For the render-causing *effect/state* anti-patterns (derived state in effects, effect chains, state synced to a prop), use the dedicated skills: `/you-might-not-need-an-effect`, `/you-might-not-need-state`, `/you-might-not-need-a-memo`, `/you-might-not-need-a-callback`. Those refactors change render timing — verify them against the running UI, never mass-apply blind.
@@ -73,7 +77,7 @@ return items.sort(compare)
 return [...items].sort(compare)
 ```
 
-**Do NOT reach for `toSorted()` / `toReversed()` / `with()` / `toSpliced()` on client render paths.** They are ES2023 *runtime* methods — and a tsconfig `"lib": ["ES2023"]` only makes them **type-check**, it does not make them **run**. Next/SWC compiles syntax but does **not** polyfill prototype methods, and the default browserslist still includes browsers without them (`toSorted` landed in Safari 16 / iOS 16, so any device capped at iOS 15 throws `TypeError: x.toSorted is not a function` and crashes the page). The perf difference vs `[...arr].sort()` is negligible (both allocate one array), so the copy-then-sort form is the correct default everywhere client code runs. Only consider the immutable methods in Node-only code (server routes, scripts) on Node ≥20, where the runtime is known.
+**Do NOT use `toSorted()` / `toReversed()` / `with()` / `toSpliced()`.** They are ES2023 *runtime* methods — and a tsconfig `"lib": ["ES2023"]` only makes them **type-check**, it does not make them **run**. Next/SWC compiles syntax but does **not** polyfill prototype methods, and the default browserslist still includes browsers without them (`toSorted` landed in Safari 16 / iOS 16, so any device capped at iOS 15 throws `TypeError: x.toSorted is not a function` and crashes the page). The perf difference vs `[...arr].sort()` is negligible (both allocate one array), so the copy-then-sort form is used everywhere: whether a module reaches the browser is not visible from its path. Every tsconfig keeps `"lib"` at or below ES2022 so `tsc` rejects these at each call site on a typed receiver (and still accepts OpenTelemetry's `context.with`, which it tells apart by type); `check:utils` fails if a tsconfig raises `lib` past ES2022, which is how they shipped in #5340, and also matches `toSorted`/`toReversed`/`toSpliced` in source, since tsc accepts any method on an `any` receiver. `.with` on an `any` receiver is caught by neither, so type a parsed array before copying from it. Never raise it to make one type-check.
 
 ## Run independent awaits in parallel
 
@@ -90,6 +94,15 @@ const [{ id }, { kbName }] = await Promise.all([params, searchParams])
 
 Only keep awaits sequential when a later call genuinely uses an earlier result, or when the ordering is deliberate (rate-limited batches, retry loops, write-then-read).
 
+## Carry exact lifecycle ownership across async boundaries
+
+When asynchronous work can outlive an execution, session, or resource instance, capture its
+opaque ownership token before the first `await` and pass that exact token through completion and
+error cleanup. Never re-adopt the current owner from delayed cleanup: a replacement may now own
+the same scope. End the lifecycle by exact-token match, and clear shared state only when that end
+succeeds. Current-owner adoption is reserved for synchronous user actions that explicitly stop
+the current lifecycle.
+
 ## Prefetch dynamic destination lists on intent
 
 For long lists of dynamic destinations, do not viewport-prefetch every row and do not assume
@@ -98,6 +111,12 @@ For long lists of dynamic destinations, do not viewport-prefetch every row and d
 server state with the consumer's shared React Query options. A short, cancelable hover dwell
 avoids drive-by downloads. Do not treat `touchstart` as intent because it also begins scrolling;
 let the actual unmodified click start the data request.
+
+A speculative failure must not poison a later visit when the app default disables
+`retryOnMount`: remove only that exact failed query while it is inactive, keep failures visible
+to mounted consumers, and set the shared options to `retryOnMount: true` so a quick-click failure
+can recover after the user leaves and returns. Never carry placeholder data between protected
+resource keys (for example, workspace A to workspace B); an explicit loading state is truthful.
 
 If a continuity-focused surface intentionally omits `loading.tsx` so the current view remains
 mounted until its peer is ready, the intent path must warm both the full route and its critical

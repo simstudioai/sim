@@ -1,30 +1,33 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { beginOAuthConnect, oauthLink } = vi.hoisted(() => ({
-  beginOAuthConnect: vi.fn(),
-  oauthLink: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({ requestJson: vi.fn() }))
-vi.mock('@/lib/auth/auth-client', () => ({ client: { oauth2: { link: oauthLink } } }))
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () => ({ beginOAuthConnect }),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/lib/oauth', () => ({ OAUTH_PROVIDERS: {} }))
 
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
+
+const beginOAuthConnect = vi.fn()
+const oauthLink = authClientMockFns.mockClient.oauth2.link
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
+  beginOAuthConnect.getMockName() === 'desktop' ? { beginOAuthConnect } : undefined
+)
 
 describe('useConnectOAuthService', () => {
   let unmount = () => {}
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    beginOAuthConnect.mockName('desktop')
     beginOAuthConnect.mockResolvedValue(true)
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   })

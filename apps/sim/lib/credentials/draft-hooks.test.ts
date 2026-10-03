@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   auditMockFns,
@@ -9,6 +6,7 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,16 +15,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/oauth/terminal-errors', () => ({ clearDeadFlag: mocks.clearDeadFlag }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import {
   handleCreateCredentialFromDraft,
   handleReconnectCredential,
 } from '@/lib/credentials/draft-hooks'
+import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 
 describe('handleCreateCredentialFromDraft', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -55,7 +53,9 @@ describe('handleCreateCredentialFromDraft', () => {
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credential)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ updatedAt: now })
-    expect(mocks.clearDeadFlag).toHaveBeenCalledWith('account-1')
+    expect(mocks.clearDeadFlag).toHaveBeenCalledWith(
+      getOAuthRefreshCoordinationIdentity('account-1')
+    )
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'credential.reconnected',
@@ -91,7 +91,6 @@ describe('handleCreateCredentialFromDraft', () => {
 
 describe('handleReconnectCredential', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -100,6 +99,7 @@ describe('handleReconnectCredential', () => {
       { id: 'credential-1', accountId: null, displayName: 'Renamed Gmail' },
     ])
     queueTableRows(schemaMock.credential, [])
+    queueTableRows(schemaMock.account, [{ providerId: 'gmail', accountId: 'subject-new' }])
 
     await handleReconnectCredential({
       draft: { credentialId: 'credential-1' },
@@ -109,6 +109,18 @@ describe('handleReconnectCredential', () => {
       now: new Date('2026-08-14T18:00:00.000Z'),
     })
 
+    expect(mocks.clearDeadFlag).toHaveBeenCalledWith(
+      getOAuthRefreshCoordinationIdentity('account-new')
+    )
+    /** Connectors the rejected credential had unscheduled are due again. */
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'active',
+        lastSyncError: null,
+        consecutiveFailures: 0,
+        nextSyncAt: new Date('2026-08-14T18:00:00.000Z'),
+      })
+    )
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         resourceId: 'credential-1',

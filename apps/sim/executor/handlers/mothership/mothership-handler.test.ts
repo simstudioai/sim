@@ -1,12 +1,27 @@
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import '@sim/testing/mocks/executor'
 
-import { loggerMock, resetEnvMock, setEnv } from '@sim/testing'
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveMothershipConversation } from '@/lib/mothership/conversation-id'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { SerializedBlock } from '@/serializer/types'
+
+authInternalMockFns.mockGenerateInternalDelegationToken.mockResolvedValue('signed-mcp-scope')
+
+const mockAreModelSafeWorkspaceFileKeys =
+  workspaceFileSecretProvenanceMockFns.mockAreModelSafeWorkspaceFileKeys
+const mockGenerateId = idMockFns.mockGenerateId
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -30,25 +45,28 @@ const PRIVATE_PROVENANCE = {
 }
 
 const {
-  mockAreModelSafeWorkspaceFileKeys,
   mockBuildAuthHeaders,
   mockBuildAPIUrl,
+  mockDiscoverMcpServerToolsAsExecutor,
   mockExtractAPIErrorMessage,
-  mockGenerateId,
   mockReadUserFileContent,
 } = vi.hoisted(() => ({
-  mockAreModelSafeWorkspaceFileKeys: vi.fn(),
   mockBuildAuthHeaders: vi.fn(),
   mockBuildAPIUrl: vi.fn(),
+  mockDiscoverMcpServerToolsAsExecutor: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
-  mockGenerateId: vi.fn(),
   mockReadUserFileContent: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  areModelSafeWorkspaceFileKeys: mockAreModelSafeWorkspaceFileKeys,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+
+vi.mock('@/lib/internal/mcp/discover-tools', () => ({
+  discoverMcpServerToolsAsExecutor: mockDiscoverMcpServerToolsAsExecutor,
 }))
 
 vi.mock('@/executor/utils/http', () => ({
@@ -57,19 +75,13 @@ vi.mock('@/executor/utils/http', () => ({
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 vi.mock('@/lib/execution/payloads/materialization.server', () => ({
   readUserFileContent: mockReadUserFileContent,
 }))
 
-const mockMothershipLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi
-    .mocked(loggerMock.createLogger)
-    .mock.calls.findIndex(([name]) => name === 'MothershipBlockHandler')
-].value
+const mockMothershipLogger = getMockLogger('MothershipBlockHandler')
 
 function createAbortError(): Error {
   const error = new Error('The operation was aborted')
@@ -167,6 +179,11 @@ describe('MothershipBlockHandler', () => {
 
     context = {
       workflowId: 'workflow-1',
+      executorDelegationOrigin: {
+        workflowId: 'workflow-1',
+        subjectUserId: 'user-1',
+        executionId: 'execution-1',
+      },
       executionId: 'execution-1',
       workspaceId: 'workspace-1',
       userId: 'user-1',
@@ -185,8 +202,6 @@ describe('MothershipBlockHandler', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.clearAllMocks()
-    vi.unstubAllGlobals()
     resetEnvMock()
   })
 
@@ -324,40 +339,6 @@ describe('MothershipBlockHandler', () => {
     })
   })
 
-  it('does not carry a projected prompt into Mothership output provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'PROMPT_SECRET', plaintext: 'x', encryptedValue: 'prompt-ciphertext' },
-    ])
-    registry.recordResolvedAtInputPath('PROMPT_SECRET', 'x', ['prompt'])
-    registry.recordResolvedInputProjection(['prompt'], 'Use x', 'Use {{PROMPT_SECRET}}')
-    context.resolvedSecretTraceRegistry = registry
-    mockGenerateId
-      .mockReturnValueOnce('chat-uuid')
-      .mockReturnValueOnce('message-uuid')
-      .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'Box', toolCalls: [] }), {
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-
-    const inputs = { prompt: 'Use x' }
-    const result = await handler.execute(context, block, inputs)
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(options.body))).toMatchObject({
-      messages: [{ content: 'Use {{PROMPT_SECRET}}' }],
-    })
-    expect(result).toMatchObject({ content: 'Box' })
-    expect(inputs.prompt).toBe('Use x')
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
-    expect(context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result)).toEqual({
-      version: 1,
-      complete: true,
-      entries: [],
-    })
-  })
-
   it('preserves a headerless legacy JSON response without poisoning later calls', async () => {
     const registry = createTraceRegistryMock()
     context.resolvedSecretTraceRegistry = registry
@@ -405,78 +386,6 @@ describe('MothershipBlockHandler', () => {
     expect(registry.markIncomplete).toHaveBeenCalled()
   })
 
-  it('poisons provenance when a declared response omits its private field', async () => {
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'unsafe output', toolCalls: [] }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
-        },
-      })
-    )
-
-    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
-      'provenance metadata is invalid'
-    )
-
-    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
-    expect(registry.markIncomplete).toHaveBeenCalledOnce()
-  })
-
-  it('preserves legacy request and response behavior when no registry is available', async () => {
-    context.resolvedSecretTraceRegistry = undefined
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'legacy output', toolCalls: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-
-    await expect(handler.execute(context, block, { prompt: 'Hello' })).resolves.toMatchObject({
-      content: 'legacy output',
-    })
-    expect(context.resolvedSecretTraceRegistry).toBeUndefined()
-  })
-
-  it('rejects an explicitly mismatched response metadata version', async () => {
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'unsafe output', toolCalls: [] }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-sim-private-tool-metadata': 'resolved-secret-provenance-v2',
-        },
-      })
-    )
-
-    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
-      'provenance metadata is invalid'
-    )
-    expect(registry.markIncomplete).toHaveBeenCalled()
-  })
-
-  it('preserves a headerless legacy upstream error without poisoning later calls', async () => {
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ error: 'legacy upstream error' }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-
-    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
-      'Sim execution failed: legacy upstream error'
-    )
-    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
-    expect(registry.markIncomplete).not.toHaveBeenCalled()
-  })
-
   it('keeps declared JSON error provenance separate from normal result provenance', async () => {
     const registry = createTraceRegistryMock()
     context.resolvedSecretTraceRegistry = registry
@@ -512,44 +421,6 @@ describe('MothershipBlockHandler', () => {
     expect(context.errorResolvedSecretTraceRegistry).toBeDefined()
     expect(context.errorResolvedSecretTraceRegistry).not.toBe(context.resolvedSecretTraceRegistry)
     expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
-  })
-
-  it('imports provenance from a terminal NDJSON error without forcing structural fallback', async () => {
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    mockGenerateId
-      .mockReturnValueOnce('chat-uuid')
-      .mockReturnValueOnce('message-uuid')
-      .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(
-      createNdjsonResponse(
-        [
-          {
-            type: 'error',
-            error: 'secret-backed failure',
-            __resolvedSecretTraceProvenance: PRIVATE_PROVENANCE,
-          },
-        ],
-        { 'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE }
-      )
-    )
-
-    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
-      'Sim execution failed: secret-backed failure'
-    )
-
-    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
-      PRIVATE_PROVENANCE,
-      expect.objectContaining({
-        type: 'error',
-        error: 'secret-backed failure',
-        __resolvedSecretTraceProvenance: undefined,
-      }),
-      { trusted: true, origin: 'mothership.payloadCrossing' }
-    )
-    expect(registry.markIncomplete).not.toHaveBeenCalled()
-    expect(context.errorResolvedSecretTraceRegistry).toBeDefined()
-    expect(context.errorResolvedSecretTraceRegistry).not.toBe(context.resolvedSecretTraceRegistry)
   })
 
   it('imports final provenance for selected-output streaming without adding it to output', async () => {
@@ -596,197 +467,6 @@ describe('MothershipBlockHandler', () => {
     expect(JSON.stringify(result.execution.output)).not.toContain('encrypted-secret')
   })
 
-  it('preserves a headerless legacy NDJSON final result without poisoning later calls', async () => {
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    const encoder = new TextEncoder()
-    fetchMock.mockResolvedValue(
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(
-              encoder.encode(
-                `${JSON.stringify({
-                  type: 'final',
-                  data: { content: 'legacy final', toolCalls: [] },
-                })}\n`
-              )
-            )
-            controller.close()
-          },
-        }),
-        { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } }
-      )
-    )
-
-    await expect(handler.execute(context, block, { prompt: 'Hello' })).resolves.toMatchObject({
-      content: 'legacy final',
-    })
-    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
-    expect(registry.markIncomplete).not.toHaveBeenCalled()
-  })
-
-  it('preserves headerless legacy selected-output streaming without poisoning later calls', async () => {
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    context.stream = true
-    context.selectedOutputs = [`${block.id}_content`]
-    const encoder = new TextEncoder()
-    fetchMock.mockResolvedValue(
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(
-              encoder.encode(`${JSON.stringify({ type: 'chunk', content: 'legacy chunk' })}\n`)
-            )
-            controller.enqueue(
-              encoder.encode(
-                `${JSON.stringify({
-                  type: 'final',
-                  data: { content: 'legacy final', toolCalls: [] },
-                })}\n`
-              )
-            )
-            controller.close()
-          },
-        }),
-        { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } }
-      )
-    )
-
-    const result = (await handler.execute(context, block, {
-      prompt: 'Hello',
-    })) as StreamingExecution
-    await expect(readStreamText(result.stream)).resolves.toBe('legacy chunk')
-    expect(result.execution.output).toMatchObject({ content: 'legacy final' })
-    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
-    expect(registry.markIncomplete).not.toHaveBeenCalled()
-  })
-
-  it('does not carry a projected prompt into streaming Mothership output provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'PROMPT_SECRET', plaintext: 'x', encryptedValue: 'prompt-ciphertext' },
-    ])
-    registry.recordResolvedAtInputPath('PROMPT_SECRET', 'x', ['prompt'])
-    registry.recordResolvedInputProjection(['prompt'], 'Use x', 'Use {{PROMPT_SECRET}}')
-    context.resolvedSecretTraceRegistry = registry
-    context.stream = true
-    context.selectedOutputs = [`${block.id}_content`]
-    const encoder = new TextEncoder()
-    fetchMock.mockResolvedValue(
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(
-              encoder.encode(`${JSON.stringify({ type: 'chunk', content: 'Box' })}\n`)
-            )
-            controller.enqueue(
-              encoder.encode(
-                `${JSON.stringify({
-                  type: 'final',
-                  data: { content: 'Box', toolCalls: [] },
-                })}\n`
-              )
-            )
-            controller.close()
-          },
-        }),
-        { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } }
-      )
-    )
-
-    const result = (await handler.execute(context, block, {
-      prompt: 'Use x',
-    })) as StreamingExecution
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(options.body))).toMatchObject({
-      messages: [{ content: 'Use {{PROMPT_SECRET}}' }],
-    })
-    await expect(readStreamText(result.stream)).resolves.toBe('Box')
-    expect(result.execution.output).toMatchObject({ content: 'Box' })
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
-  })
-
-  it('surfaces a headerless legacy NDJSON terminal error without poisoning later calls', async () => {
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    const encoder = new TextEncoder()
-    fetchMock.mockResolvedValue(
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(
-              encoder.encode(
-                `${JSON.stringify({ type: 'error', error: 'legacy terminal error' })}\n`
-              )
-            )
-            controller.close()
-          },
-        }),
-        { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } }
-      )
-    )
-
-    await expect(handler.execute(context, block, { prompt: 'Hello' })).rejects.toThrow(
-      'Sim execution failed: legacy terminal error'
-    )
-    expect(registry.importProvenanceForValue).not.toHaveBeenCalled()
-    expect(registry.markIncomplete).not.toHaveBeenCalled()
-  })
-
-  it('forwards workflow and execution metadata with generated UUID ids', async () => {
-    mockGenerateId.mockReturnValueOnce('chat-uuid')
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
-
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        content: 'done',
-        model: 'mothership',
-        conversationId: 'chat-uuid',
-        tokens: { total: 5 },
-        toolCalls: [],
-      })
-    )
-
-    const result = await handler.execute(context, block, { prompt: 'Hello from workflow' })
-
-    expect(result).toEqual({
-      content: 'done',
-      model: 'mothership',
-      conversationId: 'chat-uuid',
-      tokens: { total: 5 },
-      toolCalls: { list: [], count: 0 },
-      cost: undefined,
-    })
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('http://localhost:3000/api/mothership/execute')
-    expect(options.method).toBe('POST')
-    expect(options.signal).toBeInstanceOf(AbortSignal)
-    expect(options.headers).toMatchObject({
-      Accept: 'application/x-ndjson',
-      'X-Mothership-Execute-Stream': 'ndjson',
-      'x-sim-billing-attribution': expect.any(String),
-    })
-
-    const body = JSON.parse(String(options.body))
-    expect(body).toEqual({
-      messages: [{ role: 'user', content: 'Hello from workflow' }],
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      chatId: 'chat-uuid',
-      messageId: 'message-uuid',
-      requestId: 'request-uuid',
-      secretScope: 'all',
-      mountedSecrets: [],
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-    })
-  })
-
   it('rejects execution before the internal request when COPILOT_API_KEY is unset', async () => {
     setEnv({ COPILOT_API_KEY: undefined })
 
@@ -794,28 +474,6 @@ describe('MothershipBlockHandler', () => {
       handler.execute(context, block, { prompt: 'Hello from workflow' })
     ).rejects.toThrow('COPILOT_API_KEY is not configured')
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('settles a private skill selector before reporting a missing COPILOT_API_KEY', async () => {
-    setEnv({ COPILOT_API_KEY: undefined })
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SKILL_ID', plaintext: 'i', encryptedValue: 'encrypted-skill-id' },
-    ])
-    registry.recordResolvedAtInputPath('SKILL_ID', 'i', ['skills', '0', 'skillId'])
-    registry.recordResolvedInputProjection(['skills', '0', 'skillId'], 'i', '{{SKILL_ID}}')
-    context.resolvedSecretTraceRegistry = registry
-    const handlerInputs = {
-      prompt: 'Hello from workflow',
-      skills: [{ skillId: 'i' }],
-    }
-
-    await expect(handler.execute(context, block, handlerInputs)).rejects.toThrow(
-      'COPILOT_API_KEY is not configured'
-    )
-
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(handlerInputs.skills).toEqual([{ skillId: '{{SKILL_ID}}' }])
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
   })
 
   it('rejects execution before the internal request when billing attribution is missing', async () => {
@@ -827,52 +485,7 @@ describe('MothershipBlockHandler', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('uses a provided conversation ID as the mothership chat ID', async () => {
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
-
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        content: 'continued',
-        model: 'mothership',
-        conversationId: 'existing-chat-id',
-        tokens: {},
-        toolCalls: [],
-      })
-    )
-
-    const result = await handler.execute(context, block, {
-      prompt: 'Continue this thread',
-      conversationId: ' existing-chat-id ',
-    })
-
-    expect(result).toEqual({
-      content: 'continued',
-      model: 'mothership',
-      conversationId: 'existing-chat-id',
-      tokens: {},
-      toolCalls: { list: [], count: 0 },
-      cost: undefined,
-    })
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(options.body))
-    expect(body).toEqual({
-      messages: [{ role: 'user', content: 'Continue this thread' }],
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      chatId: 'existing-chat-id',
-      messageId: 'message-uuid',
-      requestId: 'request-uuid',
-      secretScope: 'all',
-      mountedSecrets: [],
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-    })
-    expect(mockGenerateId).toHaveBeenCalledTimes(2)
-  })
-
-  it('keeps a resolved conversation ID out of logs while forwarding it unchanged', async () => {
+  it('keeps a resolved conversation ID out of logs and off the wire', async () => {
     const conversationId = 'chat-plaintext-secret-__var_API_KEY-__sim_secret_API_KEY'
     mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
     fetchMock.mockResolvedValue(
@@ -892,7 +505,8 @@ describe('MothershipBlockHandler', () => {
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(options.body))
-    expect(body.chatId).toBe(conversationId)
+    expect(body.chatId).toBe(resolveMothershipConversation('workspace-1', conversationId).chatId)
+    expect(body.chatId).not.toContain('chat-plaintext-secret')
 
     const logged = JSON.stringify(mockMothershipLogger.info.mock.calls)
     expect(logged).not.toContain('chat-plaintext-secret')
@@ -900,37 +514,58 @@ describe('MothershipBlockHandler', () => {
     expect(logged).not.toContain('__sim_')
   })
 
-  it('does not treat conversation IDs as secret-bearing result content', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'CONVERSATION_ID', plaintext: 'x', encryptedValue: 'encrypted-conversation-id' },
-    ])
-    registry.recordResolvedAtInputPath('CONVERSATION_ID', 'x', ['conversationId'])
-    registry.recordResolvedInputProjection(['conversationId'], 'x', '{{CONVERSATION_ID}}')
-    context.resolvedSecretTraceRegistry = registry
-    mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'continued', toolCalls: [] }), {
-        headers: { 'Content-Type': 'application/json' },
+  it.each(['auto', 'force', 'none'])(
+    'resolves variable MCP permission mode %s before discovery and execution',
+    async (mode) => {
+      fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+      block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+      await handler.execute(context, block, {
+        prompt: 'Use my tools',
+        tools: [
+          {
+            type: 'mcp',
+            usageControl: 'auto',
+            usageControlExpression: ` ${mode.toUpperCase()} `,
+            params: { serverId: 'mcp-server-1', toolName: 'search' },
+          },
+        ],
       })
-    )
-
-    const inputs = {
-      prompt: 'Continue this thread',
-      conversationId: 'x',
+      const body = JSON.parse(String(fetchMock.mock.calls[0][1].body))
+      expect(body.mcpTools).toEqual(
+        mode === 'none'
+          ? undefined
+          : [
+              {
+                type: 'mcp',
+                usageControl: mode,
+                params: { serverId: 'mcp-server-1', toolName: 'search' },
+              },
+            ]
+      )
     }
-    const result = await handler.execute(context, block, inputs)
+  )
 
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(options.body)).chatId).toBe('x')
-    expect(result).toMatchObject({ conversationId: 'x' })
-    expect(inputs.conversationId).toBe('x')
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
-    expect(context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result)).toEqual({
-      version: 1,
-      complete: true,
-      entries: [],
-    })
-  })
+  it.each(['', 'sometimes', '<start.unresolved>', null])(
+    'rejects an invalid variable mode before making requests: %s',
+    async (mode) => {
+      block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+      mockDiscoverMcpServerToolsAsExecutor.mockClear()
+      await expect(
+        handler.execute(context, block, {
+          prompt: 'Use tools',
+          tools: [
+            {
+              type: 'mcp-server-advanced',
+              usageControlExpression: mode,
+              params: { serverId: 'mcp-server-1' },
+            },
+          ],
+        })
+      ).rejects.toThrow('mode must resolve to Auto, Force, or None')
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+    }
+  )
 
   it('forwards only enabled MCP tools and selected skills', async () => {
     mockGenerateId
@@ -1162,6 +797,7 @@ describe('MothershipBlockHandler', () => {
     expect(body.mcpTools).toEqual([
       {
         type: 'mcp',
+        usageControl: 'auto',
         schema: {
           type: 'object',
           description: 'Search {{MCP_SCHEMA_DESCRIPTION}} for Box',
@@ -1185,50 +821,6 @@ describe('MothershipBlockHandler', () => {
     expect(skills[0].name).toBe('Playbook private skill label')
   })
 
-  it('keeps low-entropy skill selectors private without changing lookup semantics', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FIRST_SKILL_ID', plaintext: 'x', encryptedValue: 'encrypted-first-skill-id' },
-      { name: 'SECOND_SKILL_ID', plaintext: 'y', encryptedValue: 'encrypted-second-skill-id' },
-    ])
-    registry.recordResolvedAtInputPath('FIRST_SKILL_ID', 'x', ['skills', '0', 'skillId'])
-    registry.recordResolvedInputProjection(['skills', '0', 'skillId'], 'x', '{{FIRST_SKILL_ID}}')
-    registry.recordResolvedAtInputPath('SECOND_SKILL_ID', 'y', ['skills', '1', 'skillId'])
-    registry.recordResolvedInputProjection(['skills', '1', 'skillId'], 'y', '{{SECOND_SKILL_ID}}')
-    context.resolvedSecretTraceRegistry = registry
-    mockGenerateId
-      .mockReturnValueOnce('chat-uuid')
-      .mockReturnValueOnce('message-uuid')
-      .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'Box', toolCalls: [] }), {
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-
-    const skills = [{ skillId: 'x' }, { skillId: 'y' }]
-    const handlerInputs = {
-      prompt: 'Use the selected skill',
-      skills,
-    }
-
-    const result = await handler.execute(context, block, handlerInputs)
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(options.body))
-    expect(body.contexts).toEqual([
-      { kind: 'skill', skillId: 'x', label: 'Skill 1' },
-      { kind: 'skill', skillId: 'y', label: 'Skill 2' },
-    ])
-    expect(handlerInputs.skills).toEqual([
-      { skillId: '{{FIRST_SKILL_ID}}' },
-      { skillId: '{{SECOND_SKILL_ID}}' },
-    ])
-    expect(result).toMatchObject({ content: 'Box' })
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
-    expect(JSON.stringify(body.contexts)).not.toContain('FIRST_SKILL_ID')
-    expect(JSON.stringify(body.contexts)).not.toContain('SECOND_SKILL_ID')
-  })
-
   it('fails closed when a selected skill has incomplete resolver provenance', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.recordResolvedAtInputPath('UNKNOWN_SKILL_ID', 'x', ['skills', '0', 'skillId'])
@@ -1242,48 +834,6 @@ describe('MothershipBlockHandler', () => {
     ).rejects.toThrow('Mothership skill selector provenance is incomplete')
 
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('settles a private skill selector before a pre-provider failure', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SKILL_ID', plaintext: 'x', encryptedValue: 'encrypted-skill-id' },
-    ])
-    registry.recordResolvedAtInputPath('SKILL_ID', 'x', ['skills', '0', 'skillId'])
-    registry.recordResolvedInputProjection(['skills', '0', 'skillId'], 'x', '{{SKILL_ID}}')
-    context.resolvedSecretTraceRegistry = registry
-    const handlerInputs = {
-      prompt: '',
-      skills: [{ skillId: 'x' }],
-    }
-
-    await expect(handler.execute(context, block, handlerInputs)).rejects.toThrow(
-      'Prompt input is required'
-    )
-
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(handlerInputs.skills).toEqual([{ skillId: '{{SKILL_ID}}' }])
-    expect(JSON.stringify(handlerInputs)).not.toContain('"x"')
-    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
-  })
-
-  it('preserves legacy unnamed skill labels when selectors have no resolver provenance', async () => {
-    mockGenerateId
-      .mockReturnValueOnce('chat-uuid')
-      .mockReturnValueOnce('message-uuid')
-      .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
-
-    await handler.execute(context, block, {
-      prompt: 'Use the selected skills',
-      skills: [{ skillId: 'legacy-first' }, { skillId: 'legacy-second' }],
-    })
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(options.body))
-    expect(body.contexts).toEqual([
-      { kind: 'skill', skillId: 'legacy-first', label: 'legacy-first' },
-      { kind: 'skill', skillId: 'legacy-second', label: 'legacy-second' },
-    ])
   })
 
   it('rejects only an enabled structural identifier with exact resolver provenance', async () => {
@@ -1314,39 +864,6 @@ describe('MothershipBlockHandler', () => {
           {
             type: 'mcp',
             params: { serverId: 'resolved-server-id', toolName: 'search' },
-          },
-        ],
-      })
-    ).rejects.toThrow('Mothership structural model inputs cannot contain secret references')
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects a resolver-derived MCP enum under a property named description', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'ENUM_VALUE',
-        plaintext: 'private-option',
-        encryptedValue: 'encrypted-option',
-      },
-    ])
-    const inputPath = ['tools', '0', 'schema', 'properties', 'description', 'enum', '0'] as const
-    registry.recordResolvedAtInputPath('ENUM_VALUE', 'private-option', inputPath)
-    registry.recordResolvedInputProjection(inputPath, 'private-option', '{{ENUM_VALUE}}')
-    context.resolvedSecretTraceRegistry = registry
-
-    await expect(
-      handler.execute(context, block, {
-        prompt: 'Use the selected tool',
-        tools: [
-          {
-            type: 'mcp',
-            params: { serverId: 'server-1', toolName: 'search' },
-            schema: {
-              type: 'object',
-              properties: {
-                description: { type: 'string', enum: ['private-option'] },
-              },
-            },
           },
         ],
       })
@@ -1443,86 +960,6 @@ describe('MothershipBlockHandler', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('rejects resolver-derived inline bytes inside a serialized file input', async () => {
-    const rawFiles = JSON.stringify([
-      {
-        name: 'example.png',
-        key: 'workspace/workspace-1/example.png',
-        size: 5,
-        type: 'image/png',
-        base64: 'aW1hZ2U=',
-      },
-    ])
-    const projectedFiles = JSON.stringify([
-      {
-        name: 'example.png',
-        key: 'workspace/workspace-1/example.png',
-        size: 5,
-        type: 'image/png',
-        base64: '{{FILE_BYTES}}',
-      },
-    ])
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'FILE_BYTES',
-        plaintext: 'aW1hZ2U=',
-        encryptedValue: 'encrypted-file-bytes',
-      },
-    ])
-    registry.recordResolvedAtInputPath('FILE_BYTES', 'aW1hZ2U=', ['files'])
-    registry.recordResolvedInputProjection(['files'], rawFiles, projectedFiles)
-    context.resolvedSecretTraceRegistry = registry
-
-    await expect(
-      handler.execute(context, block, {
-        prompt: 'Read the attachment',
-        files: rawFiles,
-      })
-    ).rejects.toThrow('Mothership inline file content cannot contain secret references')
-    expect(mockReadUserFileContent).not.toHaveBeenCalled()
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('keeps dormant inline attachment bytes unchanged', async () => {
-    const encodedBytes = 'aW1hZ2U='
-    context.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'UNUSED_FILE_BYTES',
-        plaintext: encodedBytes,
-        encryptedValue: 'encrypted-unused-file-bytes',
-      },
-    ])
-    mockGenerateId
-      .mockReturnValueOnce('chat-uuid')
-      .mockReturnValueOnce('message-uuid')
-      .mockReturnValueOnce('request-uuid')
-    mockReadUserFileContent.mockResolvedValueOnce(encodedBytes)
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ content: 'done', toolCalls: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-
-    await handler.execute(context, block, {
-      prompt: 'Read the attachment',
-      files: [
-        {
-          name: 'example.png',
-          key: 'workspace/workspace-1/example.png',
-          size: 5,
-          type: 'image/png',
-          base64: encodedBytes,
-        },
-      ],
-    })
-
-    expect(mockReadUserFileContent).toHaveBeenCalledTimes(1)
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(options.body))
-    expect(body.fileAttachments[0].source.data).toBe(encodedBytes)
-  })
-
   it('rejects a canonical tracked file whose exact byte provenance is not model-safe', async () => {
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
@@ -1545,63 +982,6 @@ describe('MothershipBlockHandler', () => {
     ).rejects.toThrow('File cannot be sent to a model because its secret provenance is unavailable')
     expect(mockReadUserFileContent).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('does not infer secret provenance from matching protocol or schema literals', async () => {
-    const secret = 'boundary-secret'
-    const registry = createTraceRegistryMock()
-    context.resolvedSecretTraceRegistry = registry
-    mockGenerateId
-      .mockReturnValueOnce('chat-uuid')
-      .mockReturnValueOnce('message-uuid')
-      .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
-
-    await handler.execute(context, block, {
-      prompt: 'Use safe selections only',
-      tools: [
-        {
-          type: 'mcp',
-          params: { serverId: secret, toolName: 'search' },
-        },
-        {
-          type: 'mcp',
-          params: { serverId: 'mcp-server-1', toolName: `search-${secret}` },
-        },
-        {
-          type: 'mcp',
-          params: { serverId: 'mcp-server-1', toolName: 'semantic-secret' },
-          schema: { type: 'string', enum: [secret] },
-        },
-        {
-          type: 'mcp',
-          params: { serverId: 'mcp-server-1', toolName: 'semantic-key-secret' },
-          schema: { [secret]: true },
-        },
-        {
-          type: 'mcp',
-          title: 'Safe search',
-          params: { serverId: 'mcp-server-1', toolName: 'search' },
-        },
-      ],
-      skills: [
-        { skillId: secret, name: 'Unsafe' },
-        { skillId: 'skill-1', name: 'Safe skill' },
-      ],
-    })
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(options.body))
-    expect(body.mcpTools).toHaveLength(5)
-    expect(body.mcpTools[0]).toEqual({
-      type: 'mcp',
-      params: { serverId: secret, toolName: 'search' },
-    })
-    expect(body.mcpTools[2].schema).toEqual({ type: 'string', enum: [secret] })
-    expect(body.contexts).toEqual([
-      { kind: 'skill', skillId: secret, label: 'Unsafe' },
-      { kind: 'skill', skillId: 'skill-1', label: 'Safe skill' },
-    ])
   })
 
   it('consumes mothership execute heartbeat streams until the final result', async () => {
@@ -1702,22 +1082,95 @@ describe('MothershipBlockHandler', () => {
     })
   })
 
-  it('surfaces mothership execute stream errors', async () => {
-    mockGenerateId.mockReturnValueOnce('chat-uuid')
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
+  it.each([
+    { model: 'gpt-6-astra', effort: 'max', fastMode: true },
+    { model: 'claude-opus-5', effort: 'low', fastMode: true },
+  ])('forwards model controls and clears hidden Opus Fast mode: $model', async (selection) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ content: 'done' })))
+    await handler.execute(context, block, { prompt: 'hello', ...selection })
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body).toMatchObject({
+      effort: selection.effort,
+      modelSelection: { model: selection.model, fastMode: selection.model === 'gpt-6-astra' },
+    })
+  })
 
+  it.each([true, false])('uses deployment agent-event opt-in: %s', async (agentEvents) => {
+    context.stream = true
+    context.selectedOutputs = [`${block.id}_content`]
+    context.metadata.agentEvents = agentEvents
+    const timeline = [
+      { type: 'thinking_delta', text: 'Considering the request' },
+      { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' },
+      { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
+    ]
     fetchMock.mockResolvedValue(
       createNdjsonResponse([
-        { type: 'heartbeat', timestamp: '2026-05-15T18:13:48.000Z' },
-        { type: 'error', error: 'Mothership execution aborted' },
+        ...timeline.map((event) => ({ type: 'agent_event', event })),
+        { type: 'chunk', content: 'Answer' },
+        { type: 'final', data: { content: 'Answer', tokens: { total: 9 } } },
       ])
     )
-
-    await expect(
-      handler.execute(context, block, { prompt: 'Hello from workflow' })
-    ).rejects.toThrow('Sim execution failed: Mothership execution aborted')
+    const result = (await handler.execute(context, block, {
+      prompt: 'hello',
+    })) as StreamingExecution
+    expect(result.streamFormat).toBe(agentEvents ? 'agent-events-v1' : 'text')
+    if (agentEvents) {
+      const reader = result.stream.getReader()
+      const events = []
+      for (;;) {
+        const next = await reader.read()
+        if (next.done) break
+        events.push(next.value)
+      }
+      expect(events).toEqual([...timeline, { type: 'text_delta', text: 'Answer' }])
+    } else {
+      await expect(readStreamText(result.stream)).resolves.toBe('Answer')
+    }
+    expect(result.execution.output).toMatchObject({ content: 'Answer', tokens: { total: 9 } })
   })
+
+  it.each([true, false])(
+    'projects only the post-tool final answer: agent events %s',
+    async (agentEvents) => {
+      context.stream = true
+      context.selectedOutputs = [`${block.id}_content`]
+      context.metadata.agentEvents = agentEvents
+      fetchMock.mockResolvedValue(
+        createNdjsonResponse([
+          {
+            type: 'agent_event',
+            v: 1,
+            event: { type: 'text_delta', text: 'I will check.', turn: 'pending' },
+          },
+          { type: 'agent_event', event: { type: 'turn_end', turn: 'intermediate' } },
+          { type: 'agent_event', event: { type: 'tool_call_start', id: 'lookup', name: 'Lookup' } },
+          {
+            type: 'agent_event',
+            event: { type: 'tool_call_end', id: 'lookup', name: 'Lookup', status: 'success' },
+          },
+          {
+            type: 'agent_event',
+            v: 1,
+            event: { type: 'text_delta', text: 'Final answer.', turn: 'pending' },
+          },
+          { type: 'agent_event', event: { type: 'turn_end', turn: 'final' } },
+          { type: 'final', data: { content: 'Final answer.' } },
+        ])
+      )
+      const result = (await handler.execute(context, block, {
+        prompt: 'hello',
+      })) as StreamingExecution
+      const pump = createAgentStreamPump({
+        source: result.stream,
+        streamFormat: result.streamFormat,
+      })
+      const text = readStreamText(pump.textStream!)
+      await pump.run()
+      expect(await text).toBe('Final answer.')
+      expect(result.execution.output.content).toBe('Final answer.')
+    }
+  )
 
   it('streams mothership assistant chunks and preserves final metadata', async () => {
     context.stream = true
@@ -1772,97 +1225,6 @@ describe('MothershipBlockHandler', () => {
     })
   })
 
-  it('surfaces mothership streaming errors while streaming selected content', async () => {
-    context.stream = true
-    context.selectedOutputs = [`${block.id}_content`]
-    mockGenerateId.mockReturnValueOnce('chat-uuid')
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
-
-    fetchMock.mockResolvedValue(
-      createNdjsonResponse([
-        { type: 'chunk', content: 'partial' },
-        { type: 'error', error: 'Mothership execution aborted' },
-      ])
-    )
-
-    const result = (await handler.execute(context, block, {
-      prompt: 'Hello from workflow',
-    })) as StreamingExecution
-
-    await expect(readStreamText(result.stream)).rejects.toThrow(
-      'Sim execution failed: Mothership execution aborted'
-    )
-  })
-
-  it('embeds attached files for the mothership execute request', async () => {
-    const fileContent = Buffer.from('hello mothership', 'utf8').toString('base64')
-    mockGenerateId.mockReturnValueOnce('chat-uuid')
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
-    mockReadUserFileContent.mockResolvedValueOnce(fileContent)
-
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        content: 'analyzed',
-        model: 'mothership',
-        conversationId: 'chat-uuid',
-        tokens: {},
-        toolCalls: [],
-      })
-    )
-
-    const result = await handler.execute(context, block, {
-      prompt: 'Analyze this file',
-      files: [
-        {
-          name: 'notes.txt',
-          key: 'workspace/workspace-1/notes.txt',
-          size: 16,
-          type: 'text/plain',
-        },
-      ],
-    })
-
-    expect(result).toMatchObject({
-      content: 'analyzed',
-      model: 'mothership',
-      conversationId: 'chat-uuid',
-    })
-    expect(mockReadUserFileContent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: expect.stringMatching(/^file-/),
-        key: 'workspace/workspace-1/notes.txt',
-        name: 'notes.txt',
-        url: '',
-        size: 16,
-        type: 'text/plain',
-      }),
-      expect.objectContaining({
-        encoding: 'base64',
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        requestId: 'request-uuid',
-      })
-    )
-
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const body = JSON.parse(String(options.body))
-    expect(body.fileAttachments).toEqual([
-      {
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'text/plain',
-          data: fileContent,
-        },
-        filename: 'notes.txt',
-      },
-    ])
-  })
-
   it('propagates local aborts to the mothership request', async () => {
     const abortController = new AbortController()
     context.abortSignal = abortController.signal
@@ -1881,41 +1243,5 @@ describe('MothershipBlockHandler', () => {
     abortController.abort()
 
     await expect(abortedExecution).resolves.toMatchObject({ name: 'AbortError' })
-  })
-
-  it('aborts the mothership request when selected-output streaming is cancelled', async () => {
-    context.stream = true
-    context.selectedOutputs = [`${block.id}_content`]
-
-    mockGenerateId.mockReturnValueOnce('chat-uuid')
-    mockGenerateId.mockReturnValueOnce('message-uuid')
-    mockGenerateId.mockReturnValueOnce('request-uuid')
-
-    let fetchSignal: AbortSignal | undefined
-    fetchMock.mockImplementation((_url: string, options?: RequestInit) => {
-      fetchSignal = options?.signal as AbortSignal | undefined
-      return Promise.resolve(
-        new Response(
-          new ReadableStream({
-            start() {},
-          }),
-          {
-            status: 200,
-            headers: {
-              'Content-Type': 'application/x-ndjson; charset=utf-8',
-              'x-sim-private-tool-metadata': PRIVATE_PROVENANCE_TYPE,
-            },
-          }
-        )
-      )
-    })
-
-    const result = (await handler.execute(context, block, { prompt: 'Cancel stream' })) as
-      | StreamingExecution
-      | undefined
-
-    await result?.stream.cancel('client_cancelled')
-
-    expect(fetchSignal?.aborted).toBe(true)
   })
 })

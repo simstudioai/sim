@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3CreateBucketTool: ToolConfig = {
+export const s3CreateBucketTool: InternalToolConfig = {
   id: 's3_create_bucket',
   name: 'S3 Create Bucket',
   description: 'Create a new AWS S3 bucket in the specified region',
@@ -39,13 +39,8 @@ export const s3CreateBucketTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/create-bucket',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

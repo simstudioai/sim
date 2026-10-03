@@ -18,28 +18,40 @@
  */
 import {
   BROWSER_DATA_KINDS,
+  BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS,
+  BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
+  BROWSER_UPLOAD_MAX_FILES,
   type BrowserDataKind,
   type BrowserKnownSessionsState,
   type BrowserPageState,
   type BrowserPanelAction,
   type BrowserTabsState,
   type BrowserToolName,
+  normalizeBrowserWaitForTimeoutMs,
 } from '@sim/browser-protocol'
 import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike, omit, toRecord } from '@sim/utils/object'
+import { isRecordLike, omit, toArray, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { steppedZoomFactor, zoomPercentOf } from '@/main/browser-agent/context-menu'
 import { ToolError } from '@/main/browser-agent/errors'
 import {
+  discardStagedUploads,
+  type LocalFileSource,
+  saveDownloadToWorkspace,
+  stageUploadFiles,
+} from '@/main/browser-agent/file-transfer'
+import {
+  cdpModifiers,
   comboTouchesClipboard,
   dispatchKeyCombo,
   KeyDispatchError,
   parseKeyCombo,
+  parseModifiers,
 } from '@/main/browser-agent/keyboard'
 import { BrowserKnownSessionRegistry } from '@/main/browser-agent/known-sessions'
 import {
@@ -49,30 +61,40 @@ import {
   describeFocusedEditable,
   describePointTarget,
   focusElementForTyping,
+  getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
+  readCheckableElementState,
   readChildFrameElementState,
+  readFormFieldState,
   readPageActionState,
   readPageText,
   readSelectElementState,
+  resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
+  serializePageCall,
+  setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
+import { isPanelVisible, panelWindow } from '@/main/browser-agent/panel'
+import {
+  withFailedPostActionObservation,
+  withPostActionObservation,
+} from '@/main/browser-agent/post-action-observation'
 import * as session from '@/main/browser-agent/session'
 import { checkAgentUrl } from '@/main/browser-agent/url-guard'
 import { clearCredentials, fillCoordinator, initFillCoordinator } from '@/main/browser-credentials'
 import type { ConfigStore } from '@/main/config'
+import { trackInputActivity } from '@/main/input-activity'
 
 const logger = createLogger('BrowserAgentDriver')
 
 const NAVIGATION_TIMEOUT_MS = 25_000
 const NAVIGATION_SETTLE_MS = 400
-const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10_000
-const MAX_WAIT_FOR_TIMEOUT_MS = 120_000
 const TAKEOVER_POLL_MS = 1_500
 /**
  * Hard ceiling on any single tool execution (takeover excepted): whatever
@@ -80,14 +102,165 @@ const TAKEOVER_POLL_MS = 1_500
  * legitimate tool (browser_wait_for caps at 120s).
  */
 const DEFAULT_TOOL_WATCHDOG_MS = 20_000
-const NAVIGATION_TOOL_WATCHDOG_MS = 30_000
+const MAX_FORM_FIELDS = 8
+const MAX_FORM_FIELD_TEXT = 4_096
+const MAX_FORM_TEXT = 16_384
 const WAIT_FOR_TOOL_WATCHDOG_GRACE_MS = 5_000
+/** Retained native tool calls: generous for normal serial use, finite under a wedged caller. */
+export const BROWSER_TOOL_ADMISSION_LIMITS = Object.freeze({
+  perScope: 16,
+  process: 64,
+})
 const MAX_CROSS_ORIGIN_SNAPSHOT_FRAMES = 8
 const MAX_CROSS_ORIGIN_SCAN_FRAMES = 32
 const COMBINED_SNAPSHOT_LINE_CAP = 900
-const BROWSER_AGENT_ISOLATED_WORLD_ID = 1001
+const BROWSER_WAIT_ELEMENT_STATES = [
+  'attached',
+  'detached',
+  'visible',
+  'hidden',
+  'enabled',
+  'disabled',
+  'checked',
+  'unchecked',
+  'expanded',
+  'collapsed',
+  'selected',
+  'unselected',
+] as const
+const BROWSER_WAIT_ELEMENT_STATE_SET: ReadonlySet<string> = new Set(BROWSER_WAIT_ELEMENT_STATES)
+
+type BrowserWaitElementState = (typeof BROWSER_WAIT_ELEMENT_STATES)[number]
+
+function isBrowserWaitElementState(value: string): value is BrowserWaitElementState {
+  return BROWSER_WAIT_ELEMENT_STATE_SET.has(value)
+}
 
 type PageExecutionTarget = WebContents | WebFrameMain
+
+type BrowserActionOutcome = { status: 'pending' } | { status: 'acknowledged'; result: unknown }
+
+type FormField =
+  | { elementId: number; kind: 'text'; text: string }
+  | { elementId: number; kind: 'select'; value: string }
+  | { elementId: number; kind: 'checked'; checked: boolean }
+
+const MAX_BATCH_ACTIONS = 8
+/** Single-page interactions a batch may run; navigation, observation, and file tools stay separate. */
+const BATCH_ACTION_TOOLS: ReadonlySet<BrowserToolName> = new Set([
+  'browser_click',
+  'browser_click_at',
+  'browser_type',
+  'browser_insert_text',
+  'browser_press_key',
+  'browser_scroll',
+  'browser_select_option',
+  'browser_set_checked',
+  'browser_hover',
+])
+
+interface BatchAction {
+  tool: BrowserToolName
+  args: Record<string, unknown>
+}
+
+function isBatchActionTool(value: unknown): value is BrowserToolName {
+  return BATCH_ACTION_TOOLS.has(value as BrowserToolName)
+}
+
+function parseBatchActions(params: Record<string, unknown>): BatchAction[] {
+  if (Object.keys(params).some((key) => key !== 'actions')) {
+    throw new ToolError('A batch accepts only actions; pass observe on the batch itself.')
+  }
+  if (
+    !Array.isArray(params.actions) ||
+    params.actions.length < 2 ||
+    params.actions.length > MAX_BATCH_ACTIONS
+  ) {
+    throw new ToolError(`A batch requires between 2 and ${MAX_BATCH_ACTIONS} actions.`)
+  }
+  return params.actions.map((action, index): BatchAction => {
+    if (!isRecordLike(action) || !isBatchActionTool(action.tool) || !isRecordLike(action.args)) {
+      throw new ToolError(
+        `Batch action ${index} must be {tool, args} with tool one of ${[...BATCH_ACTION_TOOLS].join(', ')}.`
+      )
+    }
+    if ('observe' in action.args) {
+      throw new ToolError(`Batch action ${index} cannot observe; pass observe on the batch itself.`)
+    }
+    if (num(action.args, 'holdMs')) {
+      throw new ToolError(`Batch action ${index} cannot press and hold; run it as its own click.`)
+    }
+    if ('via' in action.args || 'durationMs' in action.args) {
+      throw new ToolError(
+        `Batch action ${index} cannot follow a timed pointer path; run it as its own action.`
+      )
+    }
+    return { tool: action.tool, args: action.args }
+  })
+}
+
+function parseFormFields(params: Record<string, unknown>): FormField[] {
+  if (Object.keys(params).some((key) => key !== 'fields')) {
+    throw new ToolError('Form filling accepts only fields; submitting is not supported.')
+  }
+  if (
+    !Array.isArray(params.fields) ||
+    params.fields.length === 0 ||
+    params.fields.length > MAX_FORM_FIELDS
+  ) {
+    throw new ToolError(`Form filling requires between 1 and ${MAX_FORM_FIELDS} fields.`)
+  }
+  const ids = new Set<number>()
+  let totalText = 0
+  return params.fields.map((field): FormField => {
+    if (
+      !isRecordLike(field) ||
+      typeof field.elementId !== 'number' ||
+      !Number.isSafeInteger(field.elementId) ||
+      field.elementId < 0 ||
+      ids.has(field.elementId)
+    ) {
+      throw new ToolError('Every form field requires a unique nonnegative integer elementId.')
+    }
+    ids.add(field.elementId)
+    const valueKey =
+      field.kind === 'text'
+        ? 'text'
+        : field.kind === 'select'
+          ? 'value'
+          : field.kind === 'checked'
+            ? 'checked'
+            : null
+    if (
+      !valueKey ||
+      Object.keys(field).some((key) => !['elementId', 'kind', valueKey].includes(key))
+    ) {
+      throw new ToolError(
+        'Each form field must specify text, select, or checked and only its matching value parameter.'
+      )
+    }
+    if (field.kind === 'checked' && typeof field.checked === 'boolean') {
+      return { elementId: field.elementId, kind: 'checked', checked: field.checked }
+    }
+    const value = field[valueKey]
+    if (
+      typeof value !== 'string' ||
+      value.length > MAX_FORM_FIELD_TEXT ||
+      field.kind === 'checked'
+    ) {
+      throw new ToolError(
+        `Text and selection values must be strings of at most ${MAX_FORM_FIELD_TEXT} characters; checked must be boolean.`
+      )
+    }
+    totalText += value.length
+    if (totalText > MAX_FORM_TEXT)
+      throw new ToolError(`Form field text cannot exceed ${MAX_FORM_TEXT} characters in total.`)
+    return field.kind === 'text'
+      ? { elementId: field.elementId, kind: 'text', text: value }
+      : { elementId: field.elementId, kind: 'select', value }
+  })
+}
 
 export type BrowserSessionPersistence = session.BrowserSessionPersistence
 
@@ -102,6 +275,9 @@ export interface DriverCallbacks {
 }
 
 let driverCallbacks: DriverCallbacks | null = null
+/** The app origin and authenticated session file transfers use; absent in headless tests. */
+let driverAppSession: session.BrowserAppSession | undefined
+let driverLocalFiles: LocalFileSource | undefined
 let knownSessions: BrowserKnownSessionRegistry | null = null
 /** Kept so teardown can force its erasures past the settings write debounce. */
 let configStore: ConfigStore | null = null
@@ -112,7 +288,11 @@ let configStore: ConfigStore | null = null
  * actually happened on the page.
  */
 interface DriverScopeState {
+  /** Unique state generation so teardown cannot suffer an epoch ABA race. */
+  generation: number
   pendingNotices: string[]
+  /** Answer for JavaScript dialogs from the running action's target tab only. */
+  dialogResponse: { contents: WebContents; response: cdp.DialogResponse } | null
   takeoverActive: boolean
   takeoverDone: boolean
   takeoverResponse: string | null
@@ -128,6 +308,10 @@ interface DriverScopeState {
   toolQueueCancellationEpoch: number
   lastTabsStateFingerprint: string | null
   toolQueue: Promise<unknown>
+  /** Admissions held by queued and in-flight tools for this scope. */
+  toolAdmissions: Set<symbol>
+  /** Prevents detached queue entries from running after their scope is torn down. */
+  disposed: boolean
   /** True while activation is the only operation that has touched this scope. */
   activationOnly: boolean
   /** Tab whose latest monotonic element refs are valid for element actions. */
@@ -145,12 +329,22 @@ interface DriverScopeState {
 /** Captures the native queue boundary before an async authorization round trip. */
 export interface BrowserToolQueueBoundary {
   scopeId: string
-  cancellationEpoch: number
+  /** Invalidates authorization captured before a process-wide browser teardown. */
+  lifecycleEpoch: number
+  /** Present only when the scope already existed at capture time. */
+  generation: number | null
+  cancellationEpoch: number | null
+  cancelled: boolean
 }
+
+let nextDriverScopeGeneration = 1
+let browserToolQueueLifecycleEpoch = 0
 
 function createDriverScopeState(): DriverScopeState {
   return {
+    generation: nextDriverScopeGeneration++,
     pendingNotices: [],
+    dialogResponse: null,
     takeoverActive: false,
     takeoverDone: false,
     takeoverResponse: null,
@@ -161,6 +355,8 @@ function createDriverScopeState(): DriverScopeState {
     toolQueueCancellationEpoch: 0,
     lastTabsStateFingerprint: null,
     toolQueue: Promise.resolve(),
+    toolAdmissions: new Set(),
+    disposed: false,
     activationOnly: true,
     snapshotTabId: null,
     snapshotTargets: new Map(),
@@ -173,6 +369,14 @@ function createDriverScopeState(): DriverScopeState {
 function invalidateSnapshot(state = driverScopeState()): void {
   state.snapshotTabId = null
   state.snapshotTargets.clear()
+  cancelPendingSnapshotCapture(state)
+}
+
+/**
+ * Keeps the current refs but stops any in-flight capture from committing its own. A capture
+ * clears the refs when it starts, so this is all a failed action with a pending observation needs.
+ */
+function cancelPendingSnapshotCapture(state: DriverScopeState): void {
   state.snapshotCaptureEpoch++
 }
 
@@ -201,6 +405,8 @@ function frameNavigationEpoch(contents: WebContents, frame: WebFrameMain): numbe
 
 const driverScopeStates = new Map<string, DriverScopeState>()
 const driverScopeAliases = new Map<string, string>()
+const activeBrowserToolAdmissions = new Set<symbol>()
+const pendingBrowserToolQueueBoundaries = new Set<BrowserToolQueueBoundary>()
 const CANCELLED_TOOL_TTL_MS = 5 * 60_000
 const MAX_CANCELLED_TOOL_TOMBSTONES = 256
 const cancelledToolCallIds = new Map<string, number>()
@@ -238,17 +444,98 @@ function driverScopeState(scopeId = session.getBrowserScopeId()): DriverScopeSta
   return state
 }
 
-export function captureBrowserToolQueueBoundary(scopeId: string): BrowserToolQueueBoundary {
+function reserveBrowserToolAdmission(state: DriverScopeState): symbol {
+  const admission = Symbol('browser-tool-admission')
+  state.toolAdmissions.add(admission)
+  activeBrowserToolAdmissions.add(admission)
+  return admission
+}
+
+function releaseBrowserToolAdmission(state: DriverScopeState, admission: symbol): void {
+  state.toolAdmissions.delete(admission)
+  activeBrowserToolAdmissions.delete(admission)
+}
+
+function retireDriverScopeState(state: DriverScopeState): void {
+  state.disposed = true
+  state.toolQueueCancellationEpoch++
+  state.toolInvocationEpoch++
+  state.toolExecutionEpoch++
+  state.activeToolCancel?.()
+  state.takeoverActive = false
+  state.takeoverDone = false
+  state.takeoverResponse = null
+  state.takeoverInvocationEpoch = null
+  for (const admission of state.toolAdmissions) {
+    activeBrowserToolAdmissions.delete(admission)
+  }
+  state.toolAdmissions.clear()
+}
+
+function retireAllDriverScopeStates(): void {
+  browserToolQueueLifecycleEpoch++
+  for (const state of driverScopeStates.values()) retireDriverScopeState(state)
+  for (const boundary of pendingBrowserToolQueueBoundaries) boundary.cancelled = true
+  driverScopeStates.clear()
+  activeBrowserToolAdmissions.clear()
+  driverScopeAliases.clear()
+}
+
+export function captureBrowserToolQueueBoundary(scopeId: string): BrowserToolQueueBoundary | null {
   const resolvedScopeId = resolveDriverScopeId(scopeId)
-  return {
+  const state = driverScopeStates.get(resolvedScopeId)
+  if (
+    activeBrowserToolAdmissions.size + pendingBrowserToolQueueBoundaries.size >=
+      BROWSER_TOOL_ADMISSION_LIMITS.process ||
+    (state?.toolAdmissions.size ?? 0) +
+      [...pendingBrowserToolQueueBoundaries].filter(
+        (boundary) => resolveDriverScopeId(boundary.scopeId) === resolvedScopeId
+      ).length >=
+      BROWSER_TOOL_ADMISSION_LIMITS.perScope
+  ) {
+    return null
+  }
+  const boundary: BrowserToolQueueBoundary = {
     scopeId: resolvedScopeId,
-    cancellationEpoch: driverScopeState(resolvedScopeId).toolQueueCancellationEpoch,
+    lifecycleEpoch: browserToolQueueLifecycleEpoch,
+    generation: state?.generation ?? null,
+    cancellationEpoch: state?.toolQueueCancellationEpoch ?? null,
+    cancelled: false,
+  }
+  pendingBrowserToolQueueBoundaries.add(boundary)
+  return boundary
+}
+
+export function releaseBrowserToolQueueBoundary(boundary: BrowserToolQueueBoundary): void {
+  pendingBrowserToolQueueBoundaries.delete(boundary)
+}
+
+function cancelPendingBrowserToolQueueBoundaries(scopeId: string): boolean {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  let cancelled = false
+  for (const boundary of pendingBrowserToolQueueBoundaries) {
+    if (resolveDriverScopeId(boundary.scopeId) !== resolvedScopeId) continue
+    boundary.cancelled = true
+    cancelled = true
+  }
+  return cancelled
+}
+
+function cancelBrowserToolQueueBoundaries(boundaries: readonly BrowserToolQueueBoundary[]): void {
+  for (const boundary of boundaries) {
+    boundary.cancelled = true
   }
 }
 
 function isBrowserToolQueueBoundaryCurrent(boundary: BrowserToolQueueBoundary): boolean {
+  if (boundary.cancelled) return false
+  if (boundary.lifecycleEpoch !== browserToolQueueLifecycleEpoch) return false
+  if (boundary.generation === null) return true
   const state = driverScopeStates.get(resolveDriverScopeId(boundary.scopeId))
-  return state?.toolQueueCancellationEpoch === boundary.cancellationEpoch
+  return (
+    state?.generation === boundary.generation &&
+    state.toolQueueCancellationEpoch === boundary.cancellationEpoch
+  )
 }
 
 function recordNotice(notice: string): void {
@@ -305,20 +592,28 @@ function pushTabsState(): void {
 
 /** Instruments a fresh tab: CDP dialog handling + page-state pushes. */
 function instrumentTab(contents: WebContents): void {
+  trackInputActivity(contents)
   const scopeId = session.browserScopeIdForContents(contents) ?? session.getBrowserScopeId()
   const inScope =
     <Args extends unknown[]>(fn: (...args: Args) => void) =>
     (...args: Args) =>
       session.withBrowserScope(scopeId, () => fn(...args))
 
-  const callbacks = {
+  const callbacks: cdp.CdpCallbacks = {
     onDialog: inScope((dialog: cdp.PageDialog) => {
       recordNotice(
-        dialog.handled
-          ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which was auto-dismissed.`
-          : `The page showed a ${dialog.type} dialog ("${dialog.message}") which could not be dismissed and may still be blocking the page.`
+        !dialog.handled
+          ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which could not be answered and may still be blocking the page.`
+          : dialog.accepted
+            ? `The page showed a ${dialog.type} dialog ("${dialog.message}") which was accepted as requested.`
+            : `The page showed a ${dialog.type} dialog ("${dialog.message}") which was dismissed. If the task needs it accepted, repeat the same action with dialog: {"accept": true}.`
       )
     }),
+    dialogResponse: () =>
+      session.withBrowserScope(scopeId, () => {
+        const requested = driverScopeState().dialogResponse
+        return requested?.contents === contents ? requested.response : null
+      }),
   }
   void (async () => {
     let lastError: unknown
@@ -407,23 +702,56 @@ export function initDriver(
   getMainWindow: () => BrowserWindow | null,
   config?: ConfigStore,
   persistence?: BrowserSessionPersistence,
-  downloadSettings?: session.BrowserDownloadSettings
+  downloadSettings?: session.BrowserDownloadSettings,
+  appSession?: session.BrowserAppSession,
+  localFiles?: LocalFileSource
 ): void {
   driverCallbacks = callbacks
+  driverAppSession = appSession
+  driverLocalFiles = localFiles
+  void discardStagedUploads().catch(() => {})
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
   configStore = config ?? null
   // The rest of this module's state is per-session too. Left behind, a new
   // session inherits the previous one's pending notices, a takeover still
   // waiting on a user who is gone, and a fingerprint that suppresses its very
   // first tab push as a duplicate.
-  driverScopeStates.clear()
-  driverScopeAliases.clear()
+  retireAllDriverScopeStates()
   cancelledToolCallIds.clear()
   // The serialization chain, too. A takeover from the previous session can sit
   // unresolved indefinitely, and its `takeoverDone` flag is reset above — so
   // leaving the old chain head in place would queue the new session's first
   // tool call behind a promise nothing can ever settle.
   initFillCoordinator({
+    pickerHost: (contents, bounds) => {
+      const scopeId = session.getActiveBrowserScopeId()
+      const window = panelWindow()
+      if (!scopeId || !window || window.isDestroyed() || !window.isVisible() || !isPanelVisible())
+        return null
+      return session.withBrowserScope(scopeId, () => {
+        const tab = session.activeTab()
+        if (!tab || tab.view.webContents !== contents || !tab.view.getVisible()) return null
+        const panel = tab.view.getBounds()
+        const content = window.getContentBounds()
+        const zoom = contents.getZoomFactor()
+        if (
+          bounds.x + bounds.width <= 0 ||
+          bounds.y + bounds.height <= 0 ||
+          bounds.x * zoom >= panel.width ||
+          bounds.y * zoom >= panel.height
+        )
+          return null
+        return {
+          window,
+          anchor: {
+            x: content.x + panel.x + bounds.x * zoom,
+            y: content.y + panel.y + bounds.y * zoom,
+            width: bounds.width * zoom,
+            height: bounds.height * zoom,
+          },
+        }
+      })
+    },
     getActiveContents: (scopeId) => {
       const activeScopeId = session.getActiveBrowserScopeId()
       if (!activeScopeId) return null
@@ -445,6 +773,7 @@ export function initDriver(
   })
   session.initSession(
     {
+      onPanelGeometryChanged: () => fillCoordinator()?.dismissPicker(),
       onSessionClosed: () => {
         driverCallbacks?.onSessionStatus(false, session.getBrowserScopeId())
       },
@@ -471,7 +800,8 @@ export function initDriver(
     },
     getMainWindow,
     persistence,
-    downloadSettings
+    downloadSettings,
+    appSession
   )
 }
 
@@ -546,6 +876,14 @@ export function showToolbarMenu(
       ],
     },
     { type: 'separator' },
+    {
+      label: 'Fill Saved Password',
+      enabled: pageAvailable,
+      click: () => {
+        void fillCoordinator()?.showChooser(ownerWindow, anchor, resolved)
+      },
+    },
+    { label: 'Passwords', click: () => sendCommand('passwords') },
     { label: 'Import Passwords', click: () => sendCommand('import') },
     { type: 'separator' },
     { label: 'Browser Settings', click: () => sendCommand('browser-settings') },
@@ -590,10 +928,13 @@ export function restoreBrowserScope(scopeId: string): BrowserTabsState {
     return session.withBrowserScope(resolved, () => session.peekTabsState())
   }
   const state = driverScopeState(resolved)
-  state.activationOnly = false
   return session.withBrowserScope(resolved, () => {
     session.restoreBrowserSession()
-    return session.peekTabsState()
+    const tabs = session.peekTabsState()
+    // Only a scope that actually holds pages is material; one restored empty
+    // stays adoptable by a pending chat migrating onto its id.
+    if (tabs.tabs.length > 0) state.activationOnly = false
+    return tabs
   })
 }
 
@@ -604,9 +945,20 @@ export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boo
   if (from === to) return true
   const state = driverScopeStates.get(from)
   const destinationState = driverScopeStates.get(to)
+  const sourceBoundaries = [...pendingBrowserToolQueueBoundaries].filter(
+    (boundary) => resolveDriverScopeId(boundary.scopeId) === from
+  )
+  const destinationBoundaries = [...pendingBrowserToolQueueBoundaries].filter(
+    (boundary) => resolveDriverScopeId(boundary.scopeId) === to
+  )
   if (destinationState && !destinationState.activationOnly) return false
   if (!session.migrateBrowserScope(from, to)) return false
-  if (destinationState) driverScopeStates.delete(to)
+  for (const boundary of sourceBoundaries) boundary.scopeId = to
+  cancelBrowserToolQueueBoundaries(destinationBoundaries)
+  if (destinationState) {
+    retireDriverScopeState(destinationState)
+    driverScopeStates.delete(to)
+  }
   if (state) {
     driverScopeStates.delete(from)
     driverScopeStates.set(to, state)
@@ -620,11 +972,14 @@ export function disposeBrowserScope(scopeId: string): void {
   const resolved = resolveDriverScopeId(scopeId)
   session.disposeBrowserScope(scopeId)
   if (wasAlias) {
-    driverScopeAliases.delete(scopeId)
     return
   }
 
+  cancelPendingBrowserToolQueueBoundaries(resolved)
+  const state = driverScopeStates.get(resolved)
+  if (state) retireDriverScopeState(state)
   driverScopeStates.delete(resolved)
+  void discardStagedUploads(resolved).catch(() => {})
   for (const [alias, target] of driverScopeAliases) {
     if (alias === resolved || resolveDriverScopeId(target) === resolved) {
       driverScopeAliases.delete(alias)
@@ -640,6 +995,9 @@ export function disposeBrowserScope(scopeId: string): void {
 export function suspendBrowserScope(scopeId: string): boolean {
   const resolved = resolveDriverScopeId(scopeId)
   if (!session.suspendBrowserScope(resolved)) return false
+  cancelPendingBrowserToolQueueBoundaries(resolved)
+  const state = driverScopeStates.get(resolved)
+  if (state) retireDriverScopeState(state)
   driverScopeStates.delete(resolved)
   return true
 }
@@ -682,9 +1040,10 @@ export interface ClearBrowserProfileOptions {
 export async function clearBrowserProfile(
   options: ClearBrowserProfileOptions = { settingsPersistence: 'required' }
 ): Promise<void> {
+  retireAllDriverScopeStates()
   const settingsCleared = knownSessions?.clear() !== false
   const outcomes = await Promise.allSettled([session.clearProfileStorage(), clearCredentials()])
-  // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
+  // Last, covering the saved tab list `clearProfileStorage` just emptied.
   // Settings writes coalesce, and an erasure that is still sitting in that
   // window when the process dies leaves the previous account's data on disk
   // after sign-out already told the user it was gone.
@@ -700,6 +1059,13 @@ export async function clearBrowserProfile(
   if (failures.length > 0) {
     throw new AggregateError(failures, 'Browser profile teardown was incomplete.')
   }
+}
+
+/** Stops every authorized or queued browser action before closing its live pages. */
+export function closeBrowserSession(): void {
+  retireAllDriverScopeStates()
+  session.closeSession()
+  void discardStagedUploads().catch(() => {})
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -718,10 +1084,9 @@ function num(params: Record<string, unknown>, key: string): number | undefined {
 }
 
 /**
- * Native execution must time out before the renderer gives up (30s default,
- * 45s navigation, requested wait + 15s). Otherwise the abandoned native
- * promise keeps owning the serialized queue and every later browser action
- * times out behind it.
+ * Bounds native execution after a call reaches the head of its serialized
+ * scope queue. The renderer separately budgets authorization, queueing, and
+ * bridge delivery around this watchdog.
  */
 export function browserToolWatchdogMs(
   tool: BrowserToolName,
@@ -733,15 +1098,17 @@ export function browserToolWatchdogMs(
     tool === 'browser_open_url' ||
     tool === 'browser_go_back' ||
     tool === 'browser_go_forward' ||
-    tool === 'browser_open_tab'
+    tool === 'browser_reload' ||
+    tool === 'browser_open_tab' ||
+    tool === 'browser_switch_tab' ||
+    tool === 'browser_upload_file' ||
+    tool === 'browser_save_download' ||
+    tool === 'browser_batch'
   ) {
-    return NAVIGATION_TOOL_WATCHDOG_MS
+    return BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
   }
   if (tool === 'browser_wait_for') {
-    const requested = Math.min(
-      num(params, 'timeoutMs') ?? DEFAULT_WAIT_FOR_TIMEOUT_MS,
-      MAX_WAIT_FOR_TIMEOUT_MS
-    )
+    const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
     return requested + WAIT_FOR_TOOL_WATCHDOG_GRACE_MS
   }
   return DEFAULT_TOOL_WATCHDOG_MS
@@ -759,12 +1126,202 @@ function requireNum(params: Record<string, unknown>, key: string): number {
   return value
 }
 
+const POINTER_BUTTONS: ReadonlySet<string> = new Set(['left', 'right', 'middle'])
+/** Enough to walk a slider or list by keyboard in one call without flooding the page. */
+const MAX_KEY_REPEAT = 50
+
+/** Longest press-and-hold a click may request; well inside the click tool's watchdog. */
+const MAX_POINTER_HOLD_MS = 10_000
+
+/** The optional click gesture shared by `browser_click` and `browser_click_at`. */
+function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
+  const button = str(params, 'button') ?? 'left'
+  if (!POINTER_BUTTONS.has(button)) throw new ToolError('button must be left, right, or middle.')
+  const clickCount = num(params, 'clickCount') ?? 1
+  if (clickCount !== 1 && clickCount !== 2 && clickCount !== 3) {
+    throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
+  }
+  const names = params.modifiers ?? []
+  if (!Array.isArray(names) || names.length > 4 || names.some((name) => typeof name !== 'string')) {
+    throw new ToolError('modifiers must be a list of modifier names such as ["Shift"] or ["Mod"].')
+  }
+  const holdMs = num(params, 'holdMs') ?? 0
+  if (!Number.isInteger(holdMs) || holdMs < 0 || holdMs > MAX_POINTER_HOLD_MS) {
+    throw new ToolError(
+      `holdMs must be a whole number of milliseconds from 0 to ${MAX_POINTER_HOLD_MS}.`
+    )
+  }
+  if (holdMs > 0 && clickCount !== 1) {
+    throw new ToolError('holdMs applies to a single press; use clickCount 1.')
+  }
+  return {
+    button: button as cdp.PointerClick['button'],
+    clickCount,
+    modifiers: cdpModifiers(parseModifiers(names)),
+    holdMs,
+  }
+}
+
+const NOTHING_RENDERED_AT_POINT =
+  "Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin."
+
+const MAX_POINTER_PATH_POINTS = 20
+/** Longest timed pointer movement; well inside the pointer tools' watchdog. */
+const MAX_POINTER_PATH_MS = 10_000
+
+/** The optional pointer route shared by `browser_drag` and coordinate `browser_hover`. */
+function pointerPath(params: Record<string, unknown>): cdp.PointerPath {
+  const rawVia = params.via ?? []
+  if (!Array.isArray(rawVia) || rawVia.length > MAX_POINTER_PATH_POINTS) {
+    throw new ToolError(
+      `via must be a list of at most ${MAX_POINTER_PATH_POINTS} {x, y} viewport points.`
+    )
+  }
+  const via = rawVia.map((point) => {
+    const x = isRecordLike(point) ? point.x : undefined
+    const y = isRecordLike(point) ? point.y : undefined
+    if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x + y)) {
+      throw new ToolError('Each via point must be {x, y} in CSS viewport pixels.')
+    }
+    return { x, y }
+  })
+  const durationMs = params.durationMs ?? null
+  if (
+    durationMs !== null &&
+    (typeof durationMs !== 'number' ||
+      !Number.isInteger(durationMs) ||
+      durationMs < 0 ||
+      durationMs > MAX_POINTER_PATH_MS)
+  ) {
+    throw new ToolError(
+      `durationMs must be a whole number of milliseconds from 0 to ${MAX_POINTER_PATH_MS}.`
+    )
+  }
+  return { via, durationMs }
+}
+
+/** The exact client tool call executing now; the app binds file transfers to it. */
+function requireActiveToolCallId(): string {
+  const toolCallId = driverScopeState().activeToolCallId
+  if (!toolCallId) throw new ToolError('This browser action has no tool call to authorize it.')
+  return toolCallId
+}
+
+function uploadPaths(params: Record<string, unknown>): string[] {
+  const paths = params.paths
+  if (
+    !Array.isArray(paths) ||
+    paths.length === 0 ||
+    paths.length > BROWSER_UPLOAD_MAX_FILES ||
+    paths.some((path) => typeof path !== 'string' || path.trim() === '' || path.length > 1024)
+  ) {
+    throw new ToolError(
+      `paths must list 1 to ${BROWSER_UPLOAD_MAX_FILES} file paths (files/…, uploads/…, or user-local/…).`
+    )
+  }
+  return paths as string[]
+}
+
+function isPrimaryClick(click: cdp.PointerClick): boolean {
+  return (
+    click.button === 'left' && click.clickCount === 1 && click.modifiers === 0 && click.holdMs === 0
+  )
+}
+
+const DIALOG_ANSWERING_TOOLS: ReadonlySet<BrowserToolName> = new Set([
+  'browser_click',
+  'browser_click_at',
+  'browser_press_key',
+  'browser_type',
+])
+
+/** The optional answer for JavaScript dialogs an action opens; absent means dismiss. */
+function dialogResponse(
+  tool: BrowserToolName,
+  params: Record<string, unknown>
+): cdp.DialogResponse | null {
+  const value = params.dialog
+  if (value === undefined) return null
+  if (
+    !DIALOG_ANSWERING_TOOLS.has(tool) ||
+    !isRecordLike(value) ||
+    typeof value.accept !== 'boolean' ||
+    Object.keys(value).some((key) => key !== 'accept')
+  ) {
+    throw new ToolError(
+      'dialog must be {accept: boolean} on browser_click, browser_click_at, browser_press_key, or browser_type.'
+    )
+  }
+  return { accept: value.accept }
+}
+
+function browserElementStateMatches(
+  targetState: Record<string, unknown>,
+  requestedState: BrowserWaitElementState
+): boolean {
+  const present = targetState.present === true
+  const rendered = targetState.rendered === true
+  const checked =
+    targetState.checked === 'mixed' || targetState.ariaChecked === 'mixed'
+      ? undefined
+      : typeof targetState.checked === 'boolean'
+        ? targetState.checked
+        : targetState.ariaChecked === 'true' || targetState.ariaPressed === 'true'
+          ? true
+          : targetState.ariaChecked === 'false' || targetState.ariaPressed === 'false'
+            ? false
+            : undefined
+  const expanded =
+    typeof targetState.open === 'boolean'
+      ? targetState.open
+      : targetState.ariaExpanded === 'true'
+        ? true
+        : targetState.ariaExpanded === 'false'
+          ? false
+          : undefined
+  const selected =
+    typeof targetState.selected === 'boolean'
+      ? targetState.selected
+      : targetState.ariaSelected === 'true'
+        ? true
+        : targetState.ariaSelected === 'false'
+          ? false
+          : undefined
+
+  switch (requestedState) {
+    case 'attached':
+      return present
+    case 'detached':
+      return !present
+    case 'visible':
+      return present && rendered
+    case 'hidden':
+      return !present || !rendered || targetState.hidden === true
+    case 'enabled':
+      return present && targetState.disabled !== true
+    case 'disabled':
+      return present && targetState.disabled === true
+    case 'checked':
+      return present && checked === true
+    case 'unchecked':
+      return present && checked === false
+    case 'expanded':
+      return present && expanded === true
+    case 'collapsed':
+      return present && expanded === false
+    case 'selected':
+      return present && selected === true
+    case 'unselected':
+      return present && selected === false
+  }
+}
+
 /**
  * Serializes a self-contained page function with JSON-encoded arguments.
- * WebContents runs it in a persistent isolated world so page scripts cannot
- * replace the ref registry or built-ins. Child WebFrameMain targets use a CDP
- * isolated world mapped to that exact Chromium frame; test doubles without a
- * frameTreeNodeId alone retain the legacy executeJavaScript fallback.
+ * Root and child frames share a persistent CDP isolated world, so snapshot refs
+ * and retained DOM handles have the same execution context. Page scripts cannot
+ * replace its registry or built-ins. Test doubles without an immutable frame id
+ * retain the executeJavaScript fallback.
  */
 async function execInPage<Args extends unknown[], Result>(
   target: PageExecutionTarget,
@@ -774,30 +1331,20 @@ async function execInPage<Args extends unknown[], Result>(
   notAfter?: number
 ): Promise<Result> {
   const url = 'getURL' in target ? target.getURL() : target.url
-  if (url === '' || url === 'about:blank') {
+  if ('getURL' in target && (url === '' || url === 'about:blank')) {
     throw new ToolError(
       'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
     )
   }
-  const invocation = `(${String(fn)}).apply(null, ${JSON.stringify(args)})`
+  const invocation = serializePageCall(fn as (...args: never[]) => unknown, args)
   const expression =
     typeof notAfter === 'number'
       ? `(Date.now() >= ${Math.floor(notAfter)} ? ({error: "expired"}) : ${invocation})`
       : invocation
   try {
-    if (
-      'executeJavaScriptInIsolatedWorld' in target &&
-      typeof target.executeJavaScriptInIsolatedWorld === 'function'
-    ) {
-      return (await target.executeJavaScriptInIsolatedWorld(
-        BROWSER_AGENT_ISOLATED_WORLD_ID,
-        [{ code: expression }],
-        userGesture
-      )) as Result
-    }
-    if ('frameTreeNodeId' in target && typeof target.frameTreeNodeId === 'number') {
-      const contents = session.automationTab()?.view.webContents
-      const frame = target as WebFrameMain
+    const frame = 'getURL' in target ? target.mainFrame : target
+    if (frame && typeof frame.frameTreeNodeId === 'number') {
+      const contents = 'getURL' in target ? target : session.automationTab()?.view.webContents
       if (
         !contents ||
         contents.isDestroyed() ||
@@ -807,8 +1354,7 @@ async function execInPage<Args extends unknown[], Result>(
       }
       return (await cdp.evaluateInIsolatedFrame(contents, frame, expression, userGesture)) as Result
     }
-    // Unit-test WebFrame mocks omit Electron's immutable frameTreeNodeId. Real
-    // WebFrameMain instances always take the isolated CDP branch above.
+    /** Unit-test frame doubles omit Electron's immutable frameTreeNodeId. */
     return (await target.executeJavaScript(expression, userGesture)) as Result
   } catch (error) {
     const message = getErrorMessage(error)
@@ -889,14 +1435,16 @@ function sanitizeBrowserResult(
 
 /**
  * Covers focusing, clicking, and typing: the agent has no legitimate reason to
- * reach a credential field, and takeover is the sanctioned path when a task
- * needs one.
+ * reach a credential field. The user can enter credentials directly in the
+ * visible embedded browser before the agent resumes from a fresh snapshot.
  */
 const PASSWORD_REFUSAL =
-  'Refusing to act on a password field. Call browser_request_takeover so the user ' +
-  'can enter their credentials themselves.'
+  'Refusing to act on a password field. Ask the user to enter their credentials in the visible browser, then take a fresh browser_snapshot.'
 
 /** Maps sentinel `{ error: ... }` results from injected functions to ToolErrors. */
+const FILE_INPUT_REFUSAL =
+  'Clicking a file input opens a native file chooser the browser agent cannot complete. Use browser_upload_file with this element and the files to attach.'
+
 function unwrapPageResult(result: unknown): unknown {
   if (isRecordLike(result) && 'error' in result) {
     const code = (result as { error: string }).error
@@ -913,8 +1461,16 @@ function unwrapPageResult(result: unknown): unknown {
       throw new ToolError(PASSWORD_REFUSAL)
     }
     if (code === 'file-input') {
+      throw new ToolError(FILE_INPUT_REFUSAL)
+    }
+    if (code === 'no-file-input') {
       throw new ToolError(
-        'Refusing to click a file input because it opens a native chooser the browser agent cannot inspect or complete. Ask the user to upload the file themselves.'
+        'No file input belongs to that element. Target the file input, its label, or the upload button or drop zone that contains it.'
+      )
+    }
+    if (code === 'ambiguous-file-input') {
+      throw new ToolError(
+        'That element contains several file inputs. Target the specific upload control or its file input.'
       )
     }
     if (code === 'expired') {
@@ -927,14 +1483,23 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'obstructed') {
       const blocker = String((result as { blocker?: unknown }).blocker || 'another element')
+      const controls = toArray((result as { blockerControls?: unknown }).blockerControls)
+        .map(toRecord)
+        .filter((control) => typeof control.id === 'number')
+        .map((control) => `[ref=${control.id}] "${String(control.name ?? '')}"`)
       throw new ToolError(
-        `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
+        controls.length > 0
+          ? `That element is covered by ${blocker}. The overlay's controls in the current snapshot: ${controls.join(', ')}. Dismiss it with one of those, then retry the same id.`
+          : `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
       )
     }
     if (code === 'nested-control') {
       const blocker = String((result as { blocker?: unknown }).blocker || 'a nested control')
+      const controlId = (result as { controlId?: unknown }).controlId
       throw new ToolError(
-        `The point you targeted lands on ${blocker}, which is its own control inside that element — nothing is covering it. Take a fresh browser_snapshot and use the id of the control you actually want.`
+        typeof controlId === 'number'
+          ? `The point you targeted lands on ${blocker} [ref=${controlId}], which is its own control inside that element — nothing is covering it. Use id ${controlId} if that is the control you want; otherwise target the element through a part that is not a separate control.`
+          : `The point you targeted lands on ${blocker}, which is its own control inside that element — nothing is covering it. Take a fresh browser_snapshot and use the id of the control you actually want.`
       )
     }
     if (code === 'suggestions-open') {
@@ -954,7 +1519,7 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'outside-viewport') {
       throw new ToolError(
-        'That point is outside the visible viewport. Coordinates are CSS pixels within the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale, and scroll the target into view first.'
+        "That point is outside the visible viewport. Coordinates are CSS pixels within the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin, and scroll the target into view first."
       )
     }
     if (code === 'ambiguous-editable') {
@@ -982,12 +1547,33 @@ function unwrapPageResult(result: unknown): unknown {
     if (code === 'not-select') {
       throw new ToolError('That element is not a <select> dropdown.')
     }
+    if (code === 'not-checkable') {
+      throw new ToolError(
+        'That element is not a checkbox, radio button, switch, or checkable menu item.'
+      )
+    }
+    if (code === 'framed-screenshot') {
+      throw new ToolError(
+        'Element screenshots are limited to the top page. Use browser_screenshot without elementId for framed content.'
+      )
+    }
+    if (code === 'framed-wait') {
+      throw new ToolError(
+        'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
+      )
+    }
+    if (code === 'framed-snapshot') {
+      throw new ToolError(
+        'Scoped snapshots require a top-page element. Omit elementId to capture framed content.'
+      )
+    }
     if (code === 'no-option') {
       const options = (result as { options?: string[] }).options ?? []
       throw new ToolError(
         `No option matched that label or value. Available options: ${options.join(', ')}`
       )
     }
+    throw new ToolError(String(code))
   }
   return result
 }
@@ -1055,36 +1641,58 @@ async function navigationResult(
   completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
 ): Promise<Record<string, unknown>> {
   await completion
+  const target = session.navigationTarget(contents)
+  if (target !== contents) {
+    contents = target
+    await waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
+  }
   await sleep(NAVIGATION_SETTLE_MS)
   if (contents.isDestroyed()) throw new ToolError('The tab was closed during navigation.')
+  const issue = session.pageIssueForContents(contents)
+  if (issue?.kind === 'load-error') {
+    throw new ToolError(`The page failed to load (${issue.description || issue.code}).`)
+  }
   return { url: contents.getURL(), title: contents.getTitle() }
 }
 
-async function loadUrlAndGetResult(
+async function loadAgentCheckedUrlAndGetResult(
   contents: WebContents,
   url: string
 ): Promise<Record<string, unknown>> {
+  contents = session.tabForNavigation(contents, url, { agentOwned: true })
+  session.prepareExplicitNavigation(contents)
+  if (contents.isDestroyed()) {
+    throw new ToolError('The tab was closed before navigation could start.')
+  }
   const beforeUrl = contents.getURL()
+  let loadCompleted = false
   try {
     await contents.loadURL(url)
+    loadCompleted = true
   } catch (error) {
     const candidate = error as { code?: unknown; errno?: unknown }
     const routineAbort =
       candidate.code === 'ERR_ABORTED' ||
       candidate.errno === -3 ||
       /ERR_ABORTED/i.test(getErrorMessage(error))
-    if (!routineAbort) {
+    if (!routineAbort && session.navigationTarget(contents) === contents) {
       throw new ToolError(`The page failed to load (${getErrorMessage(error)}).`)
     }
     // Redirect/client-abort races can reject the initiating promise even
     // though a replacement navigation committed. Accept only concrete URL
     // progress; an unchanged URL is a real failure, not a successful load.
     await sleep(100)
+    contents = session.navigationTarget(contents)
+    if (!contents.getURL() && contents.isLoading())
+      await waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
     if (!contents.getURL() || contents.getURL() === beforeUrl) {
       throw new ToolError(`The navigation was aborted (${getErrorMessage(error)}).`)
     }
   }
-  return await navigationResult(contents)
+  return await navigationResult(
+    contents,
+    loadCompleted && !contents.isLoading() ? Promise.resolve() : undefined
+  )
 }
 
 /**
@@ -1130,7 +1738,7 @@ function requireSnapshotForElementAction(): void {
   )
 }
 
-function pageTargetForElement(contents: WebContents, elementId: number): PageExecutionTarget {
+function pageTargetForElement(elementId: number): PageExecutionTarget {
   requireSnapshotForElementAction()
   const target = driverScopeState().snapshotTargets.get(elementId)
   if (!target || ('isDestroyed' in target && target.isDestroyed())) {
@@ -1463,6 +2071,11 @@ function pageEffect(
   }
 }
 
+/** Inline sandboxed previews are real browser frames even though they have no HTTP URL. */
+function isInspectableFrameUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url) || /^about:(?:srcdoc|blank)(?:[?#]|$)/i.test(url)
+}
+
 function crossOriginBoundaryFrames(contents: WebContents): WebFrameMain[] {
   const mainFrame = contents.mainFrame
   if (!mainFrame) return []
@@ -1470,8 +2083,8 @@ function crossOriginBoundaryFrames(contents: WebContents): WebFrameMain[] {
     if (sameWebFrame(frame, mainFrame) || frame.detached || frame.isDestroyed() || !frame.parent) {
       return false
     }
-    if (!/^https?:\/\//i.test(frame.url)) return false
-    return frame.origin !== frame.parent.origin
+    if (!isInspectableFrameUrl(frame.url)) return false
+    return frame.origin === 'null' || frame.origin !== frame.parent.origin
   })
 }
 
@@ -1584,7 +2197,7 @@ async function visibleFrameTargets(
         !frame.detached &&
         !frame.isDestroyed() &&
         Boolean(frame.parent) &&
-        /^https?:\/\//i.test(frame.url)
+        isInspectableFrameUrl(frame.url)
     )
     .slice(0, MAX_CROSS_ORIGIN_SCAN_FRAMES)
   const targets: WebFrameMain[] = []
@@ -1724,13 +2337,24 @@ function validateSnapshotRefs(
  * Captures the top page plus each cross-origin boundary frame in its own
  * isolated world. CDP is the privileged bridge the top document's same-origin
  * policy intentionally lacks; password redaction still runs inside every frame
- * before any result crosses back to the driver.
+ * before any result crosses back to the driver. `markNew` is false for reads the
+ * model never sees as an outline, so they neither carry nor consume `new` markers.
  */
-async function captureSnapshot(contents: WebContents, notAfter?: number): Promise<unknown> {
+async function captureSnapshot(
+  contents: WebContents,
+  notAfter?: number,
+  elementId?: number,
+  markNew = true
+): Promise<unknown> {
   const state = driverScopeState()
   const tab = session.requireAutomationTab()
   if (tab.view.webContents !== contents) {
     throw new ToolError('The active tab changed before the snapshot started. Try again.')
+  }
+  if (elementId !== undefined && pageTargetForElement(elementId) !== contents) {
+    throw new ToolError(
+      'Scoped snapshots require a top-page element. Omit elementId to capture framed content.'
+    )
   }
   invalidateSnapshot(state)
   const captureEpoch = state.snapshotCaptureEpoch
@@ -1752,12 +2376,14 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
   }
 
   const mainStartingElementId = state.nextElementRefId
-  const mainSnapshot = await execInPage(
-    contents,
-    collectSnapshot,
-    [mainStartingElementId],
-    false,
-    notAfter
+  const mainSnapshot = unwrapPageResult(
+    await execInPage(
+      contents,
+      collectSnapshot,
+      [mainStartingElementId, elementId ?? null, markNew],
+      false,
+      notAfter
+    )
   )
   if (!stillCurrent()) {
     throw new ToolError('The tab changed while its snapshot was being captured. Try again.')
@@ -1787,7 +2413,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
   let capturedCrossOriginFrames = 0
   let unreadableCrossOriginFrames = 0
   let hiddenCrossOriginFrames = 0
-  const boundaryFrames = crossOriginBoundaryFrames(contents)
+  const boundaryFrames = elementId === undefined ? crossOriginBoundaryFrames(contents) : []
   const frames = boundaryFrames.slice(0, MAX_CROSS_ORIGIN_SCAN_FRAMES)
   if (boundaryFrames.length > frames.length) truncated = true
 
@@ -1811,7 +2437,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
       const frameSnapshot = await execInPage(
         frame,
         collectSnapshot,
-        [frameStartingElementId],
+        [frameStartingElementId, null, markNew],
         false,
         notAfter
       )
@@ -1844,6 +2470,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 120)
+        .replace(/\[ref=/g, '[ref\u200b=')
       const frameLines = outline.split('\n')
       const sectionStartLine = combinedLineCount
       sections.push(
@@ -1914,13 +2541,13 @@ async function runTakeover(purpose: string | undefined, invocationEpoch: number)
   try {
     for (;;) {
       await sleep(TAKEOVER_POLL_MS)
+      if (state.toolInvocationEpoch !== invocationEpoch) {
+        throw new ToolError('The browser takeover was superseded by a newer browser action.')
+      }
       if (!session.hasSession() || contents.isDestroyed()) {
         throw new ToolError(
           'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
         )
-      }
-      if (state.toolInvocationEpoch !== invocationEpoch) {
-        throw new ToolError('The browser takeover was superseded by a newer browser action.')
       }
       if (state.takeoverDone) {
         if (purpose === 'sign_in') {
@@ -1955,7 +2582,9 @@ async function executeToolInner(
   params: Record<string, unknown>,
   assertCurrentExecution: () => void,
   executionDeadline: number | undefined,
-  invocationEpoch: number
+  invocationEpoch: number,
+  signal?: AbortSignal,
+  onActionOutcome?: (outcome: BrowserActionOutcome) => void
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -1974,7 +2603,7 @@ async function executeToolInner(
       const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
-      return await loadUrlAndGetResult(contents, url)
+      return await loadAgentCheckedUrlAndGetResult(contents, url)
     }
 
     case 'browser_open_url': {
@@ -1991,11 +2620,14 @@ async function executeToolInner(
       const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
-      const nav = await loadUrlAndGetResult(contents, url)
+      const nav = await loadAgentCheckedUrlAndGetResult(contents, url)
       // A failed snapshot (browser-internal page, injection error) should not
       // fail the open itself — the page is on screen either way.
       assertCurrentExecution()
-      const snapshot = await captureSnapshot(contents, executionDeadline).catch(() => null)
+      const snapshot = await captureSnapshot(
+        session.requireAutomationTab().view.webContents,
+        executionDeadline
+      ).catch(() => null)
       return snapshot === null
         ? { ...nav, note: 'The page loaded but a snapshot could not be captured.' }
         : { ...nav, snapshot }
@@ -2023,6 +2655,15 @@ async function executeToolInner(
       return await navigationResult(contents, completion)
     }
 
+    case 'browser_reload': {
+      invalidateSnapshot()
+      const contents = session.requireAutomationTab().view.webContents
+      const completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
+      assertCurrentExecution()
+      session.reloadPage(contents)
+      return await navigationResult(contents, completion)
+    }
+
     case 'browser_open_tab': {
       invalidateSnapshot()
       const url = str(params, 'url')
@@ -2033,13 +2674,12 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      // The agent chose to open this page to work in, so the panel follows it.
-      const tab = session.addAutomationTab({ reveal: true })
+      const tab = session.addAutomationTab(url)
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
-        const result = await loadUrlAndGetResult(contents, url)
-        return { tabId: tab.id, ...result }
+        const result = await loadAgentCheckedUrlAndGetResult(contents, url)
+        return { tabId: session.requireAutomationTab().id, ...result }
       }
       return { tabId: tab.id, url: '', title: '' }
     }
@@ -2047,7 +2687,17 @@ async function executeToolInner(
     case 'browser_switch_tab': {
       invalidateSnapshot()
       const tab = session.switchAutomationTab(requireStr(params, 'tabId'))
+      const restored = await session.waitForPendingTabRestore(tab)
+      assertCurrentExecution()
       const contents = tab.view.webContents
+      if (contents.isDestroyed() || session.automationTab()?.id !== tab.id) {
+        throw new ToolError('The tab was closed or replaced while it was being restored.')
+      }
+      if (!restored) {
+        throw new ToolError(
+          'The saved tab did not finish loading. Retry browser_switch_tab, or navigate it to the saved URL from browser_list_tabs.'
+        )
+      }
       return { tabId: tab.id, url: contents.getURL(), title: contents.getTitle() }
     }
 
@@ -2067,91 +2717,393 @@ async function executeToolInner(
       return await getKnownSessions()
     }
 
+    case 'browser_list_downloads': {
+      return session.getBrowserDownloadsState(session.getBrowserScopeId())
+    }
+
+    case 'browser_save_download': {
+      const download = session.completedBrowserDownload(
+        session.getBrowserScopeId(),
+        requireStr(params, 'downloadId')
+      )
+      if (!download) {
+        throw new ToolError(
+          'That download is not a completed file. Check browser_list_downloads for its id and state.'
+        )
+      }
+      assertCurrentExecution()
+      return saveDownloadToWorkspace({
+        appSession: driverAppSession,
+        toolCallId: requireActiveToolCallId(),
+        filePath: download.savePath,
+        filename: download.filename,
+        signal,
+      })
+    }
+
+    case 'browser_upload_file': {
+      const contents = session.requireAutomationTab().view.webContents
+      const elementId = requireNum(params, 'elementId')
+      const paths = uploadPaths(params)
+      const target = pageTargetForElement(elementId)
+      assertCurrentExecution()
+      const frame = 'getURL' in target ? target.mainFrame : target
+      const expression = `(${String(resolveFileInputTarget)})(${elementId})`
+      const input = await cdp.resolveFileInput(contents, frame, expression)
+      let attachment: Awaited<ReturnType<typeof cdp.setFileInputFiles>>
+      try {
+        assertCurrentExecution()
+        if (!input.multiple && paths.length > 1) {
+          throw new ToolError('That file input accepts one file. Upload the files one at a time.')
+        }
+        const files = await stageUploadFiles({
+          scopeId: session.getBrowserScopeId(),
+          toolCallId: requireActiveToolCallId(),
+          paths,
+          appSession: driverAppSession,
+          localFiles: driverLocalFiles,
+          signal,
+        })
+        assertCurrentExecution()
+        assertActiveContents(contents)
+        attachment = await cdp.setFileInputFiles(contents, input, files, signal, (status) => {
+          onActionOutcome?.(
+            status === 'pending' ? { status } : { status, result: { dispatched: true } }
+          )
+        })
+      } finally {
+        await cdp.releaseFileInput(contents, input)
+      }
+      if ('readbackError' in attachment) {
+        return withFailedPostActionObservation({ dispatched: true }, attachment.readbackError)
+      }
+      const result = {
+        dispatched: true,
+        uploaded: attachment.files,
+        effectObserved: attachment.files.length === paths.length,
+        ...(input.accept ? { accept: input.accept } : {}),
+      }
+      try {
+        await sleep(150)
+        const afterPage = await pageActionState(contents)
+        return {
+          ...result,
+          dialogs: Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : [],
+        }
+      } catch (error) {
+        return withFailedPostActionObservation(result, error)
+      }
+    }
+
     case 'browser_wait_for': {
       const text = str(params, 'text')
-      const timeoutMs = Math.min(
-        num(params, 'timeoutMs') ?? DEFAULT_WAIT_FOR_TIMEOUT_MS,
-        MAX_WAIT_FOR_TIMEOUT_MS
-      )
+      const urlContains = str(params, 'urlContains')
+      const elementId = num(params, 'elementId')
+      const requestedState = str(params, 'state')
+      if ((elementId === undefined) !== (requestedState === undefined)) {
+        throw new ToolError('browser_wait_for requires elementId and state together.')
+      }
+      const elementState =
+        requestedState && isBrowserWaitElementState(requestedState) ? requestedState : undefined
+      if (requestedState && !elementState) {
+        throw new ToolError(`Unsupported element state "${requestedState}".`)
+      }
+      const timeoutMs = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
       const startedAt = Date.now()
-      if (!text) {
+      if (!text && !urlContains && elementId === undefined) {
         await sleep(timeoutMs)
         return { waitedMs: timeoutMs }
       }
       const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
+      const elementTarget = elementId === undefined ? undefined : pageTargetForElement(elementId)
+      if (elementTarget && elementTarget !== contents) {
+        throw new ToolError(
+          'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
+        )
+      }
+      const waitedNavigationEpoch = navigationEpoch(contents)
+      const waitedUrl = contents.getURL()
+      const assertWaitTargetIsCurrent = (): void => {
+        assertCurrentExecution()
+        if (
+          elementTarget &&
+          (navigationEpoch(contents) !== waitedNavigationEpoch || contents.getURL() !== waitedUrl)
+        ) {
+          throw new ToolError(
+            'The page changed while waiting for an element. Take a fresh browser_snapshot.'
+          )
+        }
+      }
       while (Date.now() - startedAt < timeoutMs) {
+        assertCurrentExecution()
         const active = session.automationTab()
         if (active?.id !== waitedTab.id || active.view.webContents !== contents) {
           throw new ToolError(
             'The active tab changed while waiting. Start browser_wait_for again on the tab you want to inspect.'
           )
         }
-        const foundTop = await execInPage(
-          contents,
-          pageContainsText,
-          [text],
-          false,
-          executionDeadline
-        ).catch(() => false)
-        if (foundTop) return { found: true, elapsedMs: Date.now() - startedAt }
-        const frames = await visibleFrameTargets(contents, executionDeadline)
+        let textFound = !text
         let foundInFrame = false
-        for (const frame of frames.targets) {
-          foundInFrame = await execInPage(
-            frame,
+        if (text) {
+          textFound = await execInPage(
+            contents,
             pageContainsText,
             [text],
             false,
             executionDeadline
           ).catch(() => false)
-          if (foundInFrame) break
+          if (!textFound) {
+            const frames = await visibleFrameTargets(contents, executionDeadline)
+            for (const frame of frames.targets) {
+              foundInFrame = await execInPage(
+                frame,
+                pageContainsText,
+                [text],
+                false,
+                executionDeadline
+              ).catch(() => false)
+              if (foundInFrame) break
+            }
+            textFound = foundInFrame
+          }
         }
-        if (foundInFrame) {
-          return { found: true, elapsedMs: Date.now() - startedAt, foundInFrame: true }
+        const urlMatched = !urlContains || contents.getURL().includes(urlContains)
+        let elementMatched = elementId === undefined
+        if (elementId !== undefined && elementState && elementTarget) {
+          assertWaitTargetIsCurrent()
+          const state = toRecord(
+            unwrapPageResult(
+              await execInPage(
+                elementTarget,
+                readPageActionState,
+                [false, elementId, 'registered'],
+                false,
+                executionDeadline
+              )
+            )
+          )
+          assertWaitTargetIsCurrent()
+          elementMatched = browserElementStateMatches(toRecord(state.targetState), elementState)
+        }
+        if (textFound && urlMatched && elementMatched) {
+          return {
+            found: true,
+            elapsedMs: Date.now() - startedAt,
+            matched: [
+              ...(text ? ['text'] : []),
+              ...(urlContains ? ['url'] : []),
+              ...(elementId !== undefined ? ['element'] : []),
+            ],
+            ...(foundInFrame ? { foundInFrame: true } : {}),
+          }
         }
         await sleep(300)
       }
       return {
         found: false,
         elapsedMs: Date.now() - startedAt,
-        note: 'Text did not appear before the timeout. Take a browser_snapshot to see the current page state.',
+        note: 'The requested conditions were not all met before the timeout. Take a browser_snapshot to inspect the current page state.',
       }
     }
 
     case 'browser_snapshot': {
       const contents = session.requireAutomationTab().view.webContents
       assertCurrentExecution()
-      return await captureSnapshot(contents, executionDeadline)
+      return await captureSnapshot(contents, executionDeadline, num(params, 'elementId'))
+    }
+
+    case 'browser_find': {
+      const query = requireStr(params, 'query')
+      if (query.length > 4096) throw new ToolError('Search text must not exceed 4096 characters.')
+      const requestedMax = num(params, 'maxResults')
+      const maxResults = Math.min(50, Math.max(1, Math.floor(requestedMax ?? 20)))
+      const contents = session.requireAutomationTab().view.webContents
+      const snapshot = toRecord(
+        await captureSnapshot(contents, executionDeadline, num(params, 'elementId'), false)
+      )
+      const outline = typeof snapshot.outline === 'string' ? snapshot.outline : ''
+      const needle = query.toLowerCase()
+      const matches = outline.split('\n').flatMap((line) => {
+        const ref = line.match(/\[ref=(\d+)\]/)
+        return ref && line.toLowerCase().includes(needle)
+          ? [{ elementId: Number(ref[1]), line }]
+          : []
+      })
+      return {
+        query,
+        matches: matches.slice(0, maxResults),
+        totalMatches: matches.length,
+        truncated: snapshot.truncated === true || matches.length > maxResults,
+        url: snapshot.url,
+        title: snapshot.title,
+        ...(snapshot.scoped === true ? { scoped: true } : {}),
+      }
     }
 
     case 'browser_read_text': {
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       if (elementId === undefined) return await readWholePageText(contents, executionDeadline)
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       return unwrapPageResult(
         await execInPage(target, readPageText, [elementId], false, executionDeadline)
       )
     }
 
     case 'browser_screenshot': {
-      const contents = session.requireAutomationTab().view.webContents
-      const shot = await cdp.captureScreenshot(contents).catch(() => null)
-      if (shot === null) {
-        throw new ToolError(
-          'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
+      const capturedTab = session.requireAutomationTab()
+      const contents = capturedTab.view.webContents
+      const capturedNavigationEpoch = navigationEpoch(contents)
+      const capturedUrl = contents.getURL()
+      const capturedTitle = contents.getTitle()
+      const elementId = num(params, 'elementId')
+      let elementClip: Record<string, unknown> | undefined
+      if (elementId !== undefined) {
+        const target = pageTargetForElement(elementId)
+        if (target !== contents) {
+          throw new ToolError(
+            'Element screenshots are limited to the top page. Use browser_screenshot without elementId for framed content.'
+          )
+        }
+        elementClip = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              contents,
+              getElementScreenshotRect,
+              [elementId],
+              false,
+              executionDeadline
+            )
+          )
         )
+      }
+      const capturedViewportUrl = capturedUrl.slice(0, 4096)
+      const capturedViewportTitle = capturedTitle.slice(0, 500)
+      const captureIsCurrent = (): boolean => {
+        assertCurrentExecution()
+        const activeTab = session.automationTab()
+        return (
+          activeTab?.id === capturedTab.id &&
+          activeTab.view.webContents === contents &&
+          !contents.isDestroyed() &&
+          navigationEpoch(contents) === capturedNavigationEpoch &&
+          contents.getURL() === capturedUrl &&
+          contents.getTitle() === capturedTitle
+        )
+      }
+      const assertCaptureIsCurrent = (): void => {
+        if (captureIsCurrent()) return
+        throw new ToolError(
+          'The page changed while its screenshot was being captured. Retry browser_screenshot before using image coordinates.'
+        )
+      }
+      const clip =
+        elementClip &&
+        typeof elementClip.x === 'number' &&
+        typeof elementClip.y === 'number' &&
+        typeof elementClip.width === 'number' &&
+        typeof elementClip.height === 'number'
+          ? {
+              x: elementClip.x,
+              y: elementClip.y,
+              width: elementClip.width,
+              height: elementClip.height,
+            }
+          : undefined
+      assertCaptureIsCurrent()
+      const shot = await cdp.captureScreenshot(contents, clip, signal).catch((error) => {
+        throw new ToolError(
+          `Could not capture the page: ${getErrorMessage(error)}. Use browser_snapshot or browser_read_text instead.`
+        )
+      })
+      assertCaptureIsCurrent()
+      if (elementId !== undefined && elementClip) {
+        const currentClip = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              contents,
+              getElementScreenshotRect,
+              [elementId],
+              false,
+              executionDeadline
+            )
+          )
+        )
+        assertCaptureIsCurrent()
+        if (['x', 'y', 'width', 'height'].some((key) => currentClip[key] !== elementClip[key])) {
+          throw new ToolError(
+            'The element moved while its screenshot was being captured. Retry browser_screenshot before using image coordinates.'
+          )
+        }
       }
       if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
         )
       }
-      const viewport = await execInPage(contents, getViewportInfo, []).catch(() => null)
-      // scale maps image pixels back to CSS viewport pixels for the
-      // coordinate tools: cssX = imageX / scale.
-      return { dataUrl: shot.dataUrl, viewport, scale: shot.scale }
+      const viewport = shot.viewport
+        ? {
+            url: capturedViewportUrl,
+            title: capturedViewportTitle,
+            ...shot.viewport,
+          }
+        : await execInPage(contents, getViewportInfo, []).catch(() => null)
+      assertCaptureIsCurrent()
+      if (
+        !shot.viewport &&
+        isRecordLike(viewport) &&
+        (viewport.url !== capturedViewportUrl || viewport.title !== capturedViewportTitle)
+      ) {
+        throw new ToolError(
+          'The page changed while its screenshot viewport was being verified. Retry browser_screenshot before using image coordinates.'
+        )
+      }
+      let scale = shot.scale
+      const viewportWidth =
+        isRecordLike(viewport) && typeof viewport.width === 'number' ? viewport.width : 0
+      const viewportHeight =
+        isRecordLike(viewport) && typeof viewport.height === 'number' ? viewport.height : 0
+      if (
+        !Number.isFinite(viewportWidth) ||
+        !Number.isFinite(viewportHeight) ||
+        viewportWidth <= 0 ||
+        viewportHeight <= 0
+      ) {
+        throw new ToolError(
+          'Could not verify the page viewport for this screenshot. Retry browser_screenshot or use browser_snapshot instead.'
+        )
+      }
+      if (!shot.viewport) {
+        const widthScale = shot.imageSize.width / viewportWidth
+        const heightScale = shot.imageSize.height / viewportHeight
+        const scaleDelta = Math.abs(widthScale - heightScale)
+        if (
+          !Number.isFinite(widthScale) ||
+          !Number.isFinite(heightScale) ||
+          widthScale <= 0 ||
+          heightScale <= 0 ||
+          scaleDelta > Math.max(widthScale, heightScale) * 0.02
+        ) {
+          throw new ToolError(
+            'The page viewport changed while the screenshot was captured. Retry browser_screenshot before using image coordinates.'
+          )
+        }
+        scale = widthScale
+      }
+      return {
+        dataUrl: shot.dataUrl,
+        imageSize: shot.imageSize,
+        viewport,
+        scale,
+        ...(clip
+          ? {
+              element: elementClip?.element,
+              refRecovered: elementClip?.refRecovered === true,
+              clip: shot.clip ?? clip,
+            }
+          : {}),
+      }
     }
 
     case 'browser_extract': {
@@ -2165,7 +3117,8 @@ async function executeToolInner(
       const clickedTab = session.requireAutomationTab()
       const contents = clickedTab.view.webContents
       const elementId = requireNum(params, 'elementId')
-      const target = pageTargetForElement(contents, elementId)
+      const click = pointerClick(params)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let trusted = false
       let activation = 'synthetic-pointer'
@@ -2323,7 +3276,10 @@ async function executeToolInner(
         try {
           assertCurrentExecution()
           assertElementActionCurrent(contents, elementId, target)
-          await cdp.clickAt(contents, x, y, false)
+          // A hold keeps the press in flight for seconds; cancelling it mid-gesture must read as
+          // an outcome that may have acted, never as a click that did not start.
+          if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
+          await cdp.clickAt(contents, x, y, false, click, signal)
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
@@ -2363,7 +3319,8 @@ async function executeToolInner(
           try {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
-            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false)
+            if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
+            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click, signal)
             trusted = true
             activation = 'native-pointer'
             prepared = finalSurface
@@ -2378,6 +3335,11 @@ async function executeToolInner(
             )
           }
         } else {
+          if (!isPrimaryClick(click)) {
+            throw new ToolError(
+              'This framed control has no reliable pointer position, so only a plain left click can activate it. Use browser_screenshot and browser_click_at for other buttons, click counts, holds, or modifiers.'
+            )
+          }
           const activationKey = prepared.activationKey
           if (prepared.focusSucceeded === true && typeof activationKey === 'string') {
             // Observation probes above give the app time to open a modal, move a
@@ -2551,12 +3513,250 @@ async function executeToolInner(
       }
     }
 
+    case 'browser_batch': {
+      const actions = parseBatchActions(params)
+      const results: { index: number; tool: BrowserToolName; result: unknown }[] = []
+      const stopped = (
+        stoppedIndex: number,
+        stoppedBy: 'failure' | 'page-change',
+        error: string
+      ) => ({
+        completed: false,
+        completedCount: results.length,
+        stoppedIndex,
+        stoppedBy,
+        error,
+        results,
+      })
+      for (const [index, action] of actions.entries()) {
+        let tab: ReturnType<typeof session.requireAutomationTab>
+        let epoch: number
+        let url: string
+        let snapshotValid: boolean
+        let result: unknown
+        // An action may dispatch input before it returns, so a cancelled or timed-out batch must
+        // never read as not started once any action has begun.
+        onActionOutcome?.({ status: 'pending' })
+        try {
+          tab = session.requireAutomationTab()
+          epoch = navigationEpoch(tab.view.webContents)
+          url = tab.view.webContents.getURL()
+          snapshotValid = driverScopeState().snapshotTabId === tab.id
+          result = await executeToolInner(
+            action.tool,
+            action.args,
+            assertCurrentExecution,
+            executionDeadline,
+            invocationEpoch,
+            signal
+          )
+        } catch (error) {
+          return stopped(
+            index,
+            'failure',
+            `Action ${index} (${action.tool}) failed: ${getErrorMessage(error)} Earlier actions already took effect.`
+          )
+        }
+        results.push({ index, tool: action.tool, result })
+        if (index === actions.length - 1) break
+        if (
+          session.automationTab()?.id !== tab.id ||
+          navigationEpoch(tab.view.webContents) !== epoch ||
+          tab.view.webContents.getURL() !== url ||
+          (snapshotValid && driverScopeState().snapshotTabId !== tab.id)
+        ) {
+          return stopped(
+            index + 1,
+            'page-change',
+            `Action ${index} (${action.tool}) changed the page, so the remaining actions did not run. Inspect the page before continuing.`
+          )
+        }
+      }
+      return { completed: true, completedCount: results.length, results }
+    }
+
+    case 'browser_fill_form': {
+      const fields = parseFormFields(params)
+      const contents = session.requireAutomationTab().view.webContents
+      const epoch = navigationEpoch(contents)
+      const url = contents.getURL()
+      const state = driverScopeState()
+      const tabIds = session
+        .getTabsState()
+        .tabs.map((tab) => tab.tabId)
+        .join(',')
+      const downloadIds = session
+        .getBrowserDownloadsState(session.getBrowserScopeId())
+        .downloads.map((download) => download.id)
+        .join(',')
+      const noticeCount = state.pendingNotices.length
+      const deadline = Math.min(executionDeadline ?? Number.POSITIVE_INFINITY, Date.now() + 18_000)
+      const results: Record<string, unknown>[] = []
+      let stoppedIndex = 0
+      let dispatchStarted = false
+      const readField = async (field: FormField) => {
+        const target = pageTargetForElement(field.elementId)
+        if (target !== contents)
+          throw new ToolError(
+            'Form batches require top-page fields; use individual tools for framed fields.'
+          )
+        const readback = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              contents,
+              readFormFieldState,
+              [
+                field.elementId,
+                field.kind,
+                field.kind === 'text'
+                  ? field.text
+                  : field.kind === 'select'
+                    ? field.value
+                    : field.checked,
+              ],
+              false,
+              deadline
+            )
+          )
+        )
+        if (typeof readback.error === 'string') throw new ToolError(readback.error)
+        if (typeof readback.matchesRequested !== 'boolean')
+          throw new ToolError('The form field could not be verified.')
+        return readback
+      }
+      const readBoundary = async () => {
+        const boundary = toRecord(
+          await execInPage(contents, readPageActionState, [], false, deadline)
+        )
+        if (
+          !Array.isArray(boundary.dialogs) ||
+          !Array.isArray(boundary.popups) ||
+          boundary.observationTruncated === true
+        ) {
+          throw new ToolError(
+            'The page state could not be fully verified for form filling. Use individual field tools.'
+          )
+        }
+        return JSON.stringify([boundary.url, boundary.dialogs, boundary.popups])
+      }
+      const assertBoundary = () => {
+        assertCurrentExecution()
+        if (Date.now() >= deadline) throw new ToolError('Form filling reached its time limit.')
+        assertActiveContents(contents, epoch)
+        if (
+          contents.getURL() !== url ||
+          session
+            .getTabsState()
+            .tabs.map((tab) => tab.tabId)
+            .join(',') !== tabIds ||
+          state.pendingNotices.length !== noticeCount ||
+          session
+            .getBrowserDownloadsState(session.getBrowserScopeId())
+            .downloads.map((download) => download.id)
+            .join(',') !== downloadIds
+        ) {
+          throw new ToolError(
+            'The page, tabs, dialogs, or downloads changed during form filling. Inspect the page before continuing.'
+          )
+        }
+      }
+      try {
+        assertBoundary()
+        const initialBoundary = await readBoundary()
+        for (const [index, field] of fields.entries()) {
+          stoppedIndex = index
+          await readField(field)
+          assertBoundary()
+        }
+        for (const [index, field] of fields.entries()) {
+          stoppedIndex = index
+          assertBoundary()
+          if ((await readBoundary()) !== initialBoundary)
+            throw new ToolError('A dialog, popup, or page transition interrupted form filling.')
+          const before = await readField(field)
+          assertBoundary()
+          if (before.matchesRequested !== true) {
+            dispatchStarted = true
+            await executeToolInner(
+              field.kind === 'text'
+                ? 'browser_type'
+                : field.kind === 'select'
+                  ? 'browser_select_option'
+                  : 'browser_set_checked',
+              field.kind === 'text'
+                ? { elementId: field.elementId, text: field.text }
+                : field.kind === 'select'
+                  ? { elementId: field.elementId, value: field.value }
+                  : { elementId: field.elementId, checked: field.checked },
+              assertBoundary,
+              deadline,
+              invocationEpoch
+            )
+          }
+          assertBoundary()
+          const readback = await readField(field)
+          results.push({
+            index,
+            elementId: field.elementId,
+            kind: field.kind,
+            verified: readback.matchesRequested === true,
+            ...omit(readback, ['matchesRequested', 'focused']),
+          })
+          if (readback.matchesRequested !== true)
+            throw new ToolError(
+              'The field did not retain the requested value. Inspect its readback before continuing.'
+            )
+          if (
+            field.kind === 'text' &&
+            before.matchesRequested !== true &&
+            readback.focused !== true
+          )
+            throw new ToolError(
+              'Focus moved away from the typed field. Inspect the page before continuing.'
+            )
+          if ((await readBoundary()) !== initialBoundary)
+            throw new ToolError('A dialog, popup, or page transition interrupted form filling.')
+          assertBoundary()
+        }
+        for (const [index, field] of fields.entries()) {
+          stoppedIndex = index
+          const readback = await readField(field)
+          results[index] = {
+            ...results[index],
+            verified: readback.matchesRequested === true,
+            ...omit(readback, ['matchesRequested', 'focused']),
+          }
+          assertBoundary()
+          if (readback.matchesRequested !== true)
+            throw new ToolError(
+              'A previously filled field changed. Inspect the partial result before continuing.'
+            )
+        }
+        if ((await readBoundary()) !== initialBoundary)
+          throw new ToolError('A dialog, popup, or page transition interrupted form filling.')
+        assertBoundary()
+        return { completed: true, completedCount: fields.length, results }
+      } catch (error) {
+        assertCurrentExecution()
+        return {
+          completed: false,
+          completedCount: results.filter((result) => result.verified === true).length,
+          stoppedIndex,
+          results,
+          error: getErrorMessage(error),
+          doNotRetry: dispatchStarted,
+          note: 'Earlier fields may already have taken effect. Inspect the readbacks and take a fresh snapshot before deciding which remaining fields to fill. Form filling is not atomic.',
+        }
+      }
+    }
+
     case 'browser_type': {
       const elementId = requireNum(params, 'elementId')
-      const text = requireStr(params, 'text')
+      const text = params.text
+      if (typeof text !== 'string') throw new ToolError('Missing required parameter "text"')
       const submit = params.submit === true
       const contents = session.requireAutomationTab().view.webContents
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
 
       // Native path: focus + select current content, then insert through the
@@ -2590,16 +3790,19 @@ async function executeToolInner(
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
       }
-      let trusted = true
+      const valueInput = initialSurface.valueInput === true
+      let trusted = !valueInput
       let nativeInserted = false
       let nativeInsertAttempted = false
       try {
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
-        await dispatchKeyCombo(
-          contents,
-          parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
-        )
+        if (!valueInput) {
+          await dispatchKeyCombo(
+            contents,
+            parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
+          )
+        }
         // The guard above vetted the element we asked to focus, but the insert
         // below goes wherever focus actually is now, a round trip later. Login
         // forms that auto-advance from username to password move it in exactly
@@ -2652,8 +3855,32 @@ async function executeToolInner(
         }
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
+        if ((finalSurface.valueInput === true) !== valueInput) {
+          throw new ToolError('The field type changed before input. Take a fresh browser_snapshot.')
+        }
         nativeInsertAttempted = true
-        await cdp.insertText(contents, text)
+        if (valueInput) {
+          const written = unwrapPageResult(
+            await execInPage(
+              target,
+              setFocusedInputValue,
+              [elementId, text],
+              false,
+              executionDeadline
+            ).catch((error) => {
+              throw new ToolError(
+                `The structured field write did not acknowledge completion (${getErrorMessage(error)}). It may have reached the field and was not retried; inspect the page before continuing.`
+              )
+            })
+          )
+          if (!isRecordLike(written) || written.dispatched !== true) {
+            throw new ToolError(
+              'The field did not acknowledge the value write. Inspect it before retrying.'
+            )
+          }
+        } else {
+          await cdp.insertText(contents, text)
+        }
         nativeInserted = true
 
         let submitted = false
@@ -2876,6 +4103,10 @@ async function executeToolInner(
     case 'browser_press_key': {
       const requestedKey = requireStr(params, 'key')
       const combo = parseKeyCombo(requestedKey)
+      const repeat = num(params, 'repeat') ?? 1
+      if (!Number.isInteger(repeat) || repeat < 1 || repeat > MAX_KEY_REPEAT) {
+        throw new ToolError(`repeat must be a whole number from 1 to ${MAX_KEY_REPEAT}.`)
+      }
       const contents = session.requireAutomationTab().view.webContents
       const pressedNavigationEpoch = navigationEpoch(contents)
       let target: PageExecutionTarget = focusedPageTarget(contents)
@@ -2928,18 +4159,34 @@ async function executeToolInner(
       if (secrecy === 'opaque' && !safeForOpaqueFocus) {
         throw new ToolError(
           'Focus is inside a cross-origin frame whose contents cannot be inspected, so this ' +
-            'keystroke could mutate or activate a password field. Call browser_request_takeover if the ' +
-            'user needs to type here.'
+            'keystroke could mutate or activate a password field. Ask the user to type in the visible ' +
+            'browser, then take a fresh browser_snapshot.'
         )
       }
       let trusted = true
       let fallbackState: Record<string, unknown> = {}
+      let pressesDispatched = 0
       try {
-        assertCurrentExecution()
-        assertActiveContents(contents, pressedNavigationEpoch)
-        assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
-        await dispatchKeyCombo(contents, combo)
+        for (; pressesDispatched < repeat; pressesDispatched++) {
+          // A repeated key must never carry on into a credential field focus has reached.
+          if (
+            pressesDispatched > 0 &&
+            (await execInPage(target, activeElementSecrecy, []).catch(() => 'opaque')) === 'secret'
+          ) {
+            throw new ToolError(PASSWORD_REFUSAL)
+          }
+          assertCurrentExecution()
+          assertActiveContents(contents, pressedNavigationEpoch)
+          assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
+          await dispatchKeyCombo(contents, combo)
+        }
       } catch (error) {
+        if (pressesDispatched > 0) {
+          throw new ToolError(
+            `Pressed ${requestedKey} ${pressesDispatched} of ${repeat} times before the page stopped accepting it (${getErrorMessage(error)}). Inspect the page before continuing.`
+          )
+        }
+        if (error instanceof ToolError) throw error
         if (error instanceof KeyDispatchError && error.keyDownDispatched) {
           throw new ToolError(
             'The key-down may have reached the page but dispatch did not complete. The keystroke was not retried to avoid a duplicate action; inspect the page before continuing.'
@@ -3039,6 +4286,7 @@ async function executeToolInner(
       return {
         ...fallbackState,
         pressed: requestedKey,
+        ...(repeat > 1 ? { repeat: trusted ? repeat : 1 } : {}),
         primaryModifier: process.platform === 'darwin' ? 'Cmd' : 'Control',
         trusted,
         ...state,
@@ -3051,12 +4299,14 @@ async function executeToolInner(
     }
 
     case 'browser_scroll': {
+      const direction = requireStr(params, 'direction')
+      if (!['up', 'down', 'left', 'right'].includes(direction)) {
+        throw new ToolError('Scroll direction must be "up", "down", "left", or "right".')
+      }
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       const target =
-        elementId !== undefined
-          ? pageTargetForElement(contents, elementId)
-          : focusedPageTarget(contents)
+        elementId !== undefined ? pageTargetForElement(elementId) : focusedPageTarget(contents)
       const targetFrame = frameExecutionTarget(target, contents)
       assertCurrentExecution()
       if (elementId !== undefined) assertElementActionCurrent(contents, elementId, target)
@@ -3071,7 +4321,7 @@ async function executeToolInner(
         await execInPage(
           target,
           scrollPage,
-          [requireStr(params, 'direction'), num(params, 'amount'), elementId],
+          [direction, num(params, 'amount'), elementId],
           false,
           executionDeadline
         )
@@ -3087,9 +4337,22 @@ async function executeToolInner(
     }
 
     case 'browser_select_option': {
+      const values = params.values
+      if (values !== undefined && params.value !== undefined) {
+        throw new ToolError('Provide value or values, not both.')
+      }
+      if (
+        values !== undefined &&
+        (!Array.isArray(values) ||
+          values.length > 100 ||
+          values.some((value) => typeof value !== 'string'))
+      ) {
+        throw new ToolError('values must be an array of at most 100 strings.')
+      }
+      const selection = values === undefined ? requireStr(params, 'value') : (values as string[])
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       assertCurrentExecution()
       assertElementActionCurrent(contents, elementId, target)
@@ -3122,7 +4385,7 @@ async function executeToolInner(
         await execInPage(
           target,
           selectOptionInElement,
-          [elementId, requireStr(params, 'value')],
+          [elementId, selection],
           false,
           executionDeadline
         )
@@ -3136,10 +4399,22 @@ async function executeToolInner(
       }
       await sleep(50)
       const state = unwrapPageResult(await execInPage(target, readSelectElementState, [elementId]))
+      const selectedValues = selected.values
+      const readbackValues = isRecordLike(state) ? state.values : undefined
+      const selectedLabels = selected.labels
+      const readbackLabels = isRecordLike(state) ? state.labels : undefined
       const effectObserved =
         isRecordLike(state) &&
         selected.selected === state.selected &&
-        selected.value === state.value
+        selected.value === state.value &&
+        (!Array.isArray(selectedValues) ||
+          (Array.isArray(readbackValues) &&
+            selectedValues.length === readbackValues.length &&
+            selectedValues.every((value, index) => value === readbackValues[index]) &&
+            Array.isArray(selectedLabels) &&
+            Array.isArray(readbackLabels) &&
+            selectedLabels.length === readbackLabels.length &&
+            selectedLabels.every((label, index) => label === readbackLabels[index])))
       return {
         ...selected,
         effectObserved,
@@ -3150,10 +4425,140 @@ async function executeToolInner(
       }
     }
 
+    case 'browser_set_checked': {
+      const elementId = requireNum(params, 'elementId')
+      if (typeof params.checked !== 'boolean') {
+        throw new ToolError('Missing required boolean parameter "checked"')
+      }
+      const checked = params.checked
+      const target = pageTargetForElement(elementId)
+      const before = toRecord(
+        unwrapPageResult(
+          await execInPage(target, readCheckableElementState, [elementId], false, executionDeadline)
+        )
+      )
+      if (before.checked === checked) {
+        return {
+          checked,
+          changed: false,
+          dispatched: false,
+          element: before.kind,
+          refRecovered: before.refRecovered === true,
+        }
+      }
+      if (before.disabled === true) throw new ToolError('That control is disabled.')
+      if (before.readOnly === true) throw new ToolError('That control is read-only.')
+      if (
+        !checked &&
+        (before.kind === 'input:radio' ||
+          before.kind === 'role:radio' ||
+          before.kind === 'role:menuitemradio')
+      ) {
+        throw new ToolError('Radio buttons cannot be unchecked directly. Select another option.')
+      }
+
+      const clickResult = toRecord(
+        await executeToolInner(
+          'browser_click',
+          { elementId },
+          assertCurrentExecution,
+          executionDeadline,
+          invocationEpoch
+        )
+      )
+      const readbackDeadline = Math.min(
+        Date.now() + SETTLE_GRACE_MS,
+        executionDeadline ?? Number.POSITIVE_INFINITY
+      )
+      let after: Record<string, unknown>
+      for (;;) {
+        assertCurrentExecution()
+        after = toRecord(
+          unwrapPageResult(
+            await execInPage(
+              target,
+              readCheckableElementState,
+              [elementId],
+              false,
+              executionDeadline
+            )
+          )
+        )
+        if (after.checked === checked) break
+        if (Date.now() + SETTLE_PROBE_INTERVAL_MS > readbackDeadline) {
+          throw new ToolError(
+            'The control did not reach the requested checked state. Take a fresh browser_snapshot and inspect the page.'
+          )
+        }
+        await sleep(SETTLE_PROBE_INTERVAL_MS)
+      }
+      return {
+        checked,
+        changed: true,
+        dispatched: clickResult.dispatched === true,
+        trusted: clickResult.trusted === true,
+        element: after.kind,
+        refRecovered: before.refRecovered === true || after.refRecovered === true,
+      }
+    }
+
     case 'browser_hover': {
       const contents = session.requireAutomationTab().view.webContents
+      if (params.elementId === undefined) {
+        const hoverNavigationEpoch = navigationEpoch(contents)
+        const x = requireNum(params, 'x')
+        const y = requireNum(params, 'y')
+        const path = pointerPath(params)
+        if (path.via.length === 0 && path.durationMs !== null) {
+          throw new ToolError(
+            'durationMs paces a hover route; pass via points for the pointer to travel through.'
+          )
+        }
+        assertCurrentExecution()
+        assertActiveContents(contents, hoverNavigationEpoch)
+        const pointTarget = unwrapPageResult(
+          await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
+        )
+        if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
+          throw new ToolError(NOTHING_RENDERED_AT_POINT)
+        }
+        const beforePage = await pageActionState(contents, true)
+        const beforeElement = await activeElementState(contents)
+        assertCurrentExecution()
+        assertActiveContents(contents, hoverNavigationEpoch)
+        await cdp.movePointer(contents, path, { x, y }, signal)
+        await sleep(150)
+        const afterElement = await activeElementState(contents)
+        const afterPage = await pageActionState(contents)
+        const observation = pageEffect(beforePage, afterPage, beforeElement, afterElement)
+        const effectObserved =
+          observation.effect.urlChanged ||
+          observation.effect.dialogChanged ||
+          observation.effect.popupChanged
+        return {
+          hovered: true,
+          x,
+          y,
+          trusted: true,
+          effect: observation.effect,
+          possibleEffectObserved: observation.possibleEffectObserved,
+          effectObserved,
+          ...(!effectObserved
+            ? {
+                note: observation.possibleEffectObserved
+                  ? 'The page changed while the pointer moved; confirm the intended effect with browser_snapshot or browser_screenshot.'
+                  : 'No tooltip, menu, or other strong hover effect was observed.',
+              }
+            : {}),
+        }
+      }
+      if ('via' in params || 'durationMs' in params) {
+        throw new ToolError(
+          'via and durationMs apply to a coordinate hover; pass x and y instead of elementId.'
+        )
+      }
       const elementId = requireNum(params, 'elementId')
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let beforePage = await pageActionState(target, true, elementId)
       let beforeElement = await activeElementState(target)
@@ -3323,10 +4728,7 @@ async function executeToolInner(
       const contents = clickedTab.view.webContents
       const x = requireNum(params, 'x')
       const y = requireNum(params, 'y')
-      const clickCount = num(params, 'clickCount') ?? 1
-      if (![1, 2, 3].includes(clickCount)) {
-        throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
-      }
+      const click = pointerClick(params)
       const clickNavigationEpoch = navigationEpoch(contents)
       const urlAtDispatch = contents.getURL()
       assertCurrentExecution()
@@ -3335,21 +4737,18 @@ async function executeToolInner(
         await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
       )
       if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
-        throw new ToolError(
-          'Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.'
-        )
+        throw new ToolError(NOTHING_RENDERED_AT_POINT)
       }
       if (pointTarget.fileInput === true) {
-        throw new ToolError(
-          'Refusing to click a file input because it opens a native chooser the browser agent cannot inspect or complete. Ask the user to upload the file themselves.'
-        )
+        throw new ToolError(FILE_INPUT_REFUSAL)
       }
       const beforePage = await pageActionState(contents, true)
       const beforeElement = await activeElementState(contents)
       assertCurrentExecution()
       assertActiveContents(contents, clickNavigationEpoch)
+      if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
       try {
-        await cdp.clickAt(contents, x, y, true, clickCount)
+        await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
         const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
           trusted: true,
@@ -3379,7 +4778,7 @@ async function executeToolInner(
       const notes: string[] = []
       if (pointTarget.secret === true) {
         notes.push(
-          'The point resolves to a password field. Focusing it is fine, but typing there is refused — call browser_request_takeover for credentials.'
+          'The point resolves to a password field. Focusing it is fine, but typing there is refused — ask the user to enter credentials in the visible browser, then take a fresh browser_snapshot.'
         )
       }
       if (pointTarget.crossOriginFrame === true) {
@@ -3399,7 +4798,7 @@ async function executeToolInner(
         trusted: true,
         activation: 'native-pointer',
         clickedAt: { x, y },
-        clickCount,
+        clickCount: click.clickCount,
         target: pointTarget.element,
         targetCursor: pointTarget.cursor,
         effectObserved,
@@ -3424,7 +4823,8 @@ async function executeToolInner(
       if (secrecy === 'opaque') {
         throw new ToolError(
           'Focus is inside a cross-origin frame whose contents cannot be inspected, so this ' +
-            'insertion could reach a password field. Call browser_request_takeover if the user needs to type here.'
+            'insertion could reach a password field. Ask the user to type in the visible browser, then ' +
+            'take a fresh browser_snapshot.'
         )
       }
       const focusState = unwrapPageResult(
@@ -3491,15 +4891,15 @@ async function executeToolInner(
       const topObservation = insertInFrame
         ? pageEffect(beforeTopPage, await pageActionState(contents, true), beforeElement, state)
         : observation
+      const effect: Record<string, boolean> = {
+        ...observation.effect,
+        urlChanged: observation.effect.urlChanged || topObservation.effect.urlChanged,
+        dialogChanged: observation.effect.dialogChanged || topObservation.effect.dialogChanged,
+      }
       // targetChanged is deliberately absent: this tool has no elementId, so
       // pageActionState captures no targetState and the term could only ever
       // be false. Listing it read as coverage this tool does not have.
-      const effectObserved =
-        observation.effect.fieldChanged ||
-        observation.effect.urlChanged ||
-        observation.effect.dialogChanged ||
-        topObservation.effect.urlChanged ||
-        topObservation.effect.dialogChanged
+      const effectObserved = effect.fieldChanged || effect.urlChanged || effect.dialogChanged
       return {
         dispatched: true,
         trusted: true,
@@ -3507,8 +4907,9 @@ async function executeToolInner(
         insertedChars: text.length,
         ...state,
         effectObserved,
-        possibleEffectObserved: observation.possibleEffectObserved,
-        effect: observation.effect,
+        possibleEffectObserved:
+          observation.possibleEffectObserved || topObservation.possibleEffectObserved,
+        effect,
         submitRequested: submit,
         submitDispatched,
         ...(focusState.kind === 'canvas' || focusState.kind === 'textbox-role'
@@ -3527,13 +4928,14 @@ async function executeToolInner(
       const draggedTab = session.requireAutomationTab()
       const contents = draggedTab.view.webContents
       const dragNavigationEpoch = navigationEpoch(contents)
+      const path = pointerPath(params)
 
       const resolveEndpoint = async (
         which: 'from' | 'to'
       ): Promise<{ x: number; y: number; element?: string }> => {
         const elementId = num(params, `${which}ElementId`)
         if (elementId !== undefined) {
-          const target = pageTargetForElement(contents, elementId)
+          const target = pageTargetForElement(elementId)
           if (frameExecutionTarget(target, contents)) {
             throw new ToolError(
               `Dragging elements inside embedded frames is not supported. Use ${which}X/${which}Y viewport coordinates instead.`
@@ -3578,7 +4980,7 @@ async function executeToolInner(
         )
         if (!isRecordLike(probe) || probe.found !== true) {
           throw new ToolError(
-            `Nothing is rendered at the ${which} point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.`
+            `Nothing is rendered at the ${which} point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin.`
           )
         }
         return {
@@ -3592,7 +4994,7 @@ async function executeToolInner(
       assertActiveContents(contents)
       const from = await resolveEndpoint('from')
       const to = await resolveEndpoint('to')
-      if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
+      if (path.via.length === 0 && Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
         throw new ToolError('The drag source and target are the same point; nothing to drag.')
       }
       const beforePage = await pageActionState(contents, true)
@@ -3601,7 +5003,7 @@ async function executeToolInner(
       assertActiveContents(contents, dragNavigationEpoch)
       let interception: { nativeDragIntercepted: boolean }
       try {
-        interception = await cdp.dragPointer(contents, from, to)
+        interception = await cdp.dragPointer(contents, from, to, path, signal)
       } catch (error) {
         throw new ToolError(
           `Native drag dispatch failed (${getErrorMessage(error)}). The pointer may have been mid-drag; take a fresh snapshot to see the page's current state before retrying.`
@@ -3637,6 +5039,23 @@ async function executeToolInner(
             }
           : {}),
       }
+    }
+
+    case 'browser_zoom': {
+      const action = requireStr(params, 'action')
+      if (action !== 'in' && action !== 'out' && action !== 'reset') {
+        throw new ToolError('Zoom action must be "in", "out", or "reset".')
+      }
+      const contents = session.requireAutomationTab().view.webContents
+      const current = contents.getZoomFactor()
+      const next =
+        action === 'reset'
+          ? session.getBrowserDefaultZoomFactor()
+          : steppedZoomFactor(current, action === 'in' ? 1 : -1)
+      invalidateSnapshot()
+      contents.setZoomFactor(next)
+      await sleep(100)
+      return { action, zoomPercent: zoomPercentOf(contents.getZoomFactor()) }
     }
 
     case 'browser_request_takeover': {
@@ -3677,88 +5096,222 @@ export async function executeTool(
   authorizationBoundary?: BrowserToolQueueBoundary
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   const resolvedScopeId = resolveDriverScopeId(scopeId)
+  if (authorizationBoundary) {
+    releaseBrowserToolQueueBoundary(authorizationBoundary)
+    if (!isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) {
+      return {
+        ok: false,
+        error: 'This browser action was cancelled before it started.',
+      }
+    }
+  }
   if (session.isBrowserScopeSuspended(resolvedScopeId)) {
     return {
       ok: false,
       error: 'This task browser is suspended until the task is reopened.',
     }
   }
-  const state = driverScopeState(resolvedScopeId)
-  state.activationOnly = false
-  const invocationEpoch = ++state.toolInvocationEpoch
-  const queueCancellationEpoch = state.toolQueueCancellationEpoch
-  const run = async () => {
-    if (
-      (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
-      queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
-      isToolCallCancelled(toolCallId)
-    ) {
-      throw new ToolError('This browser action was cancelled before it started.')
+  if (activeBrowserToolAdmissions.size >= BROWSER_TOOL_ADMISSION_LIMITS.process) {
+    return {
+      ok: false,
+      error: 'Sim already has too many browser actions queued. Wait for earlier actions to finish.',
     }
-    state.activeToolCallId = toolCallId ?? null
-    let cancelActiveExecution: () => void = () => {}
-    const cancellation = new Promise<never>((_resolve, reject) => {
-      cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
-    })
-    state.activeToolCancel = cancelActiveExecution
-    return await session.withBrowserScope(resolvedScopeId, async () => {
-      logger.info('Executing browser tool', { tool, scopeId: resolvedScopeId })
-      const keepHiddenPageActive = tool !== 'browser_request_takeover'
-      if (keepHiddenPageActive) {
-        session.setAutomationActive(true)
+  }
+  const state = driverScopeState(resolvedScopeId)
+  if (state.toolAdmissions.size >= BROWSER_TOOL_ADMISSION_LIMITS.perScope) {
+    return {
+      ok: false,
+      error:
+        'This task browser already has too many actions queued. Wait for earlier actions to finish.',
+    }
+  }
+  const admission = reserveBrowserToolAdmission(state)
+  let admissionReleased = false
+  const releaseAdmission = () => {
+    if (admissionReleased) return
+    admissionReleased = true
+    releaseBrowserToolAdmission(state, admission)
+  }
+  const queuedAt = Date.now()
+  let queueWaitExpired = false
+  let queueWaitTimeoutId: ReturnType<typeof setTimeout> | undefined
+  const queueWaitTimeout = new Promise<never>((_resolve, reject) => {
+    queueWaitTimeoutId = setTimeout(() => {
+      queueWaitExpired = true
+      reject(
+        new ToolError(
+          'This browser action waited too long for earlier browser work and was cancelled before it started.'
+        )
+      )
+    }, BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS)
+  })
+  try {
+    state.activationOnly = false
+    const invocationEpoch = ++state.toolInvocationEpoch
+    const queueCancellationEpoch = state.toolQueueCancellationEpoch
+    const run = async () => {
+      clearTimeout(queueWaitTimeoutId)
+      const queueWaitMs = Date.now() - queuedAt
+      const executionStartedAt = Date.now()
+      if (
+        queueWaitExpired ||
+        state.disposed ||
+        (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
+        queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
+        isToolCallCancelled(toolCallId)
+      ) {
+        throw new ToolError('This browser action was cancelled before it started.')
       }
-      try {
-        const executionEpoch = ++state.toolExecutionEpoch
-        const watchdogMs = browserToolWatchdogMs(tool, params)
-        const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
-        const assertCurrentExecution = () => {
-          if (state.toolExecutionEpoch !== executionEpoch) {
-            throw new ToolError('This browser action expired before it could dispatch input.')
+      state.activeToolCallId = toolCallId ?? null
+      const executionController = new AbortController()
+      let cancelActiveExecution: () => void = () => {}
+      const cancellation = new Promise<never>((_resolve, reject) => {
+        cancelActiveExecution = () => {
+          executionController.abort()
+          reject(new ToolError('This browser action was cancelled.'))
+        }
+      })
+      state.activeToolCancel = cancelActiveExecution
+      return await session.withBrowserScope(resolvedScopeId, async () => {
+        logger.info('Executing browser tool', {
+          tool,
+          toolCallId,
+          scopeId: resolvedScopeId,
+          queueWaitMs,
+        })
+        const keepHiddenPageActive = tool !== 'browser_request_takeover'
+        if (keepHiddenPageActive) {
+          session.setAutomationActive(true)
+        }
+        try {
+          const response = dialogResponse(tool, params)
+          state.dialogResponse = response
+            ? { contents: session.requireAutomationTab().view.webContents, response }
+            : null
+          const executionEpoch = ++state.toolExecutionEpoch
+          const watchdogMs = browserToolWatchdogMs(tool, params)
+          const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
+          const assertCurrentExecution = () => {
+            if (state.toolExecutionEpoch !== executionEpoch) {
+              throw new ToolError('This browser action expired before it could dispatch input.')
+            }
+          }
+          let actionOutcome: BrowserActionOutcome | undefined
+          const execution = withPostActionObservation(
+            tool,
+            params,
+            async (actionParams) => {
+              const result = await executeToolInner(
+                tool,
+                actionParams,
+                assertCurrentExecution,
+                executionDeadline,
+                invocationEpoch,
+                executionController.signal,
+                (outcome) => {
+                  actionOutcome = outcome
+                }
+              )
+              if (params.observe !== undefined) actionOutcome = { status: 'acknowledged', result }
+              return result
+            },
+            (query) =>
+              executeToolInner(
+                query === undefined ? 'browser_snapshot' : 'browser_find',
+                query === undefined ? {} : { query },
+                assertCurrentExecution,
+                executionDeadline,
+                invocationEpoch,
+                executionController.signal
+              ),
+            assertCurrentExecution
+          )
+          const cancellableExecution = Promise.race([execution, cancellation])
+          const guardedExecution =
+            watchdogMs === null
+              ? cancellableExecution
+              : raceAgainstWatchdog(cancellableExecution, watchdogMs, () => {
+                  executionController.abort()
+                  if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
+                  if (
+                    tool === 'browser_snapshot' ||
+                    tool === 'browser_open_url' ||
+                    tool === 'browser_find' ||
+                    params.observe !== undefined
+                  ) {
+                    invalidateSnapshot(state)
+                  }
+                })
+          let observedResult: unknown
+          try {
+            observedResult = await guardedExecution
+          } catch (error) {
+            if (!actionOutcome) {
+              if (params.observe !== undefined) cancelPendingSnapshotCapture(state)
+              throw error
+            }
+            invalidateSnapshot(state)
+            observedResult =
+              actionOutcome.status === 'pending'
+                ? {
+                    outcomeUnknown: true,
+                    doNotRetry: true,
+                    error: getErrorMessage(error),
+                    note: 'The action may already have run. Inspect the page before repeating it.',
+                  }
+                : withFailedPostActionObservation(actionOutcome.result, error)
+          }
+          const result = withNotices(observedResult)
+          logger.info('Browser tool completed', {
+            tool,
+            toolCallId,
+            scopeId: resolvedScopeId,
+            queueWaitMs,
+            executionMs: Date.now() - executionStartedAt,
+          })
+          return result
+        } finally {
+          state.dialogResponse = null
+          executionController.abort()
+          if (keepHiddenPageActive && !state.disposed) {
+            session.setAutomationActive(false)
+          }
+          if (state.activeToolCancel === cancelActiveExecution) {
+            state.activeToolCallId = null
+            state.activeToolCancel = null
           }
         }
-        const execution = executeToolInner(
-          tool,
-          params,
-          assertCurrentExecution,
-          executionDeadline,
-          invocationEpoch
-        )
-        const guardedExecution =
-          watchdogMs === null
-            ? execution
-            : raceAgainstWatchdog(execution, watchdogMs, () => {
-                if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
-                if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
-                  invalidateSnapshot(state)
-                }
-              })
-        return withNotices(await Promise.race([guardedExecution, cancellation]))
-      } finally {
-        if (keepHiddenPageActive) {
-          session.setAutomationActive(false)
-        }
-        if (state.activeToolCancel === cancelActiveExecution) {
-          state.activeToolCallId = null
-          state.activeToolCancel = null
-        }
-      }
-    })
-  }
-
-  const settled = state.toolQueue.then(run, run)
-  state.toolQueue = settled.catch(() => {})
-  try {
-    return { ok: true, result: sanitizeBrowserResult(await settled) }
-  } catch (error) {
-    // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
-    // capture token before releasing the queue so a late snapshot cannot
-    // overwrite refs belonging to a newer tab or snapshot.
-    if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
-      invalidateSnapshot(state)
+      })
     }
-    const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))
-    logger.warn('Browser tool failed', { tool, error: message })
-    return { ok: false, error: message }
+
+    const settled = state.toolQueue.then(run, run)
+    state.toolQueue = settled.catch(() => {})
+    settled.then(releaseAdmission, releaseAdmission)
+    try {
+      return {
+        ok: true,
+        result: sanitizeBrowserResult(await Promise.race([settled, queueWaitTimeout])),
+      }
+    } catch (error) {
+      // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
+      // capture token before releasing the queue so a late snapshot cannot
+      // overwrite refs belonging to a newer tab or snapshot.
+      if (tool === 'browser_snapshot' || tool === 'browser_open_url' || tool === 'browser_find') {
+        invalidateSnapshot(state)
+      }
+      const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))
+      logger.warn('Browser tool failed', {
+        tool,
+        toolCallId,
+        scopeId: resolvedScopeId,
+        totalMs: Date.now() - queuedAt,
+        error: message,
+      })
+      return { ok: false, error: message }
+    }
+  } finally {
+    clearTimeout(queueWaitTimeoutId)
+    if (!queueWaitExpired) releaseAdmission()
   }
 }
 
@@ -3789,11 +5342,12 @@ export function cancelTool(scopeId: string, toolCallId: string): boolean {
 /** Cancels the active tool and every older invocation already queued for this scope. */
 export function cancelActiveTool(scopeId: string): boolean {
   const resolvedScopeId = resolveDriverScopeId(scopeId)
+  const cancelledPendingAuthorization = cancelPendingBrowserToolQueueBoundaries(resolvedScopeId)
   const state = driverScopeStates.get(resolvedScopeId)
-  if (!state) return false
+  if (!state) return cancelledPendingAuthorization
   state.toolQueueCancellationEpoch++
   const toolCallId = state.activeToolCallId
-  return toolCallId ? cancelTool(resolvedScopeId, toolCallId) : false
+  return toolCallId ? cancelTool(resolvedScopeId, toolCallId) : cancelledPendingAuthorization
 }
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
@@ -3824,30 +5378,30 @@ export async function handlePanelAction(
       }
       return
     }
+    if (action.action === 'respond-site-permission') {
+      /** Older renderers can still send a response to the retired task-navigation prompt. */
+      return
+    }
     // Navigate bootstraps the session: the user can open the panel manually
     // (before the agent ever touched the browser) and drive it from the URL
     // bar. The other chrome actions need an existing page.
     if (action.action === 'navigate') {
       if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
         session.claimActiveTabForUser()
-        const contents = session.ensureTab().view.webContents
+        const contents = session.tabForNavigation(
+          session.ensureTab().view.webContents,
+          action.url,
+          { agentOwned: false }
+        )
+        session.prepareExplicitNavigation(contents)
         void contents.loadURL(action.url).catch(() => {})
-      }
-      return
-    }
-    if (action.action === 'new-tab') {
-      session.addTab()
-      return
-    }
-    if (action.action === 'duplicate-tab') {
-      if (typeof action.tabId === 'string') {
-        session.duplicateTab(action.tabId)
+        session.focusPageForUser(contents)
       }
       return
     }
     if (action.action === 'switch-tab') {
       if (typeof action.tabId === 'string') {
-        session.switchTab(action.tabId)
+        session.switchTab(action.tabId, { claim: action.claim !== false })
       }
       return
     }

@@ -9,7 +9,6 @@ import {
   activeDeploymentSummarySchema,
   deployedWorkflowStateSchema,
   deploymentOperationSummarySchema,
-  deploymentVersionNumberSchema,
   deploymentVersionOrActiveParamsSchema,
   deploymentVersionParamsSchema,
   deploymentVersionSchema,
@@ -21,6 +20,7 @@ import {
   missingFieldError,
   noInputSchema,
   runIdSchema,
+  versionNumberSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -50,6 +50,16 @@ import {
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
+import { v2OperationReportSchema } from '@/lib/api/contracts/v2/workspace-operations'
+import {
+  compareWorkflowVersionsDataSchema,
+  compareWorkflowVersionsQuerySchema,
+} from '@/lib/api/contracts/workflow-comparison'
+import {
+  portableResourceKindSchema,
+  referenceOccurrenceSchema,
+  workflowReferenceManifestSchema,
+} from '@/lib/api/contracts/workflow-references'
 import {
   cancelWorkflowExecutionReasonSchema,
   workflowExecutionPausedDetailSchema,
@@ -60,6 +70,7 @@ import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
+import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
@@ -69,15 +80,12 @@ export const v2WorkflowRunIdSchema = runIdSchema
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
 
 /**
- * `X-Run-Id` is a **one-shot uniqueness claim, not an idempotency key.** The
- * first request to claim a value starts a run; every later request reusing it
- * is rejected with a `409` carrying `error.details.code: "RUN_ID_CONFLICT"`, and
- * the original result is never
- * replayed. Retry logic written against idempotency-key semantics either
- * double-executes (fresh id per attempt) or hard-fails (same id per attempt).
+ * `X-Run-Id` reserves an execution ID without guaranteeing a retrievable run.
+ * Claims can survive uncertain execution outcomes; a missing run does not make
+ * a claimed ID reusable. Reusing a claimed ID returns a conflict, never a replay.
  */
 const X_RUN_ID_DESCRIPTION =
-  'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.'
+  'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.'
 
 const X_SIM_VIA_DESCRIPTION =
   'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.'
@@ -205,27 +213,24 @@ export const v2WorkflowListItemSchema = z
     /**
      * A monotonic column on the workflow row, not an aggregate over the run
      * list. `updateWorkflowRunCounts` is called from exactly one place —
-     * `executeWorkflowCore`'s post-execution hook, under
-     * `result.success && result.status !== 'paused'` — and nothing ever
-     * decrements it, so the two ways it disagrees with
-     * `GET /workflows/{workflowId}/runs` point in opposite directions and both are
-     * reachable at once. The description is what makes that legible; the
-     * counter itself is left alone because its stored values already carry the
-     * narrow meaning and no backfill can recover runs whose logs retention has
-     * already deleted.
+     * `executeWorkflowCore`'s finalization, for every settled outcome — and
+     * nothing ever decrements it, so it can only exceed the size of
+     * `GET /workflows/{workflowId}/runs` as runs age out of log retention.
+     * Runs that settled before failures and cancellations were counted are not
+     * backfilled; their logs may already be gone.
      */
     runCount: z
       .number()
       .int()
       .nonnegative()
       .describe(
-        'Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction.'
+        'Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List Workflow Runs.'
       ),
     lastRunAt: z
       .string()
       .nullable()
       .describe(
-        'ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.'
+        'ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.'
       )
       .meta({ format: 'date-time' }),
     createdAt: z
@@ -363,6 +368,40 @@ export const v2DeploymentStateSchema = z
   })
 
 /**
+ * One public URL a live deployment receives events on.
+ *
+ * The block's own `webhookUrlDisplay` field is computed client-side and reads
+ * back as `null` through the API, so until this was published a caller that
+ * deployed a webhook-triggered workflow had no way to learn where to point the
+ * sender.
+ */
+export const v2DeployedWebhookSchema = z
+  .object({
+    blockId: z
+      .string()
+      .nullable()
+      .describe('Trigger block the URL delivers to, or null for a legacy row that recorded none.'),
+    provider: z
+      .string()
+      .nullable()
+      .describe(
+        'Webhook provider the endpoint verifies inbound requests against, e.g. `generic`, `github`, or `slack`.'
+      ),
+    url: z
+      .string()
+      .url()
+      .describe('Absolute URL for the external system to send events to.')
+      .meta({ examples: ['https://www.sim.ai/api/webhooks/trigger/leads'] }),
+  })
+  .strict()
+  .meta({
+    id: 'WorkflowDeploymentWebhook',
+    title: 'Deployed webhook',
+    description: 'The public delivery URL of one webhook the live deployment registered.',
+  })
+export type V2DeployedWebhook = z.output<typeof v2DeployedWebhookSchema>
+
+/**
  * Read-only deployment state. Extends the shared state with `needsRedeployment`,
  * which the mutation responses cannot carry: it compares the live graph against
  * the draft, and immediately after a deploy or rollback the two are equal by
@@ -379,7 +418,12 @@ export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
     isPublicApi: z
       .boolean()
       .describe(
-        'Whether the deployed workflow accepts unauthenticated public API execution. While true, anyone holding the execution URL can run the workflow — and be billed for it — without an API key, so this is the field an audit of what a deployment exposes reads. Changed with `PATCH /workflows/{workflowId}/deployment`.'
+        'Whether anyone with the execution URL can run the deployed workflow and consume billed usage without an API key. Change this with Update Workflow Public API Access.'
+      ),
+    webhooks: z
+      .array(v2DeployedWebhookSchema)
+      .describe(
+        'Public delivery URL of every webhook the live version registered, one per trigger block. Read URLs here: the editor computes the block URL field, which reads empty through the API. Empty while nothing is deployed; triggers using a shared endpoint without a per-workflow URL are omitted.'
       ),
   })
   .meta({
@@ -404,16 +448,37 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
     id: 'DeployResult',
     title: 'Deploy result',
     description:
-      'Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned by every deployment mutation as well as this read. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{workflowId}/versions`.',
+      'Deployment attempt accepted for asynchronous activation. `latestDeploymentAttempt` identifies the attempt. Poll Get Workflow Deployment for `isDeployed` and `deployedAt`, or List Workflow Versions for `isActive`.',
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
-export const v2UndeployWorkflowDataSchema = v2DeploymentStateSchema.extend({}).meta({
-  id: 'UndeployResult',
-  title: 'Undeploy result',
-  description:
-    'Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active.',
-})
+export const v2ArchivedWorkflowMcpToolSchema = z
+  .object({
+    serverId: z.string().describe('Workflow-MCP server the tool is published on.'),
+    toolName: z.string().describe('Name MCP clients called the tool by.'),
+  })
+  .meta({
+    id: 'ArchivedWorkflowMcpTool',
+    title: 'Archived workflow MCP tool',
+    description: 'A workflow-MCP tool registration an undeploy took inactive.',
+  })
+export type V2ArchivedWorkflowMcpTool = z.output<typeof v2ArchivedWorkflowMcpToolSchema>
+
+export const v2UndeployWorkflowDataSchema = v2DeploymentStateSchema
+  .extend({
+    archivedMcpTools: z
+      .array(v2ArchivedWorkflowMcpToolSchema)
+      .describe(
+        'MCP tool registrations this undeploy archived. Each appears in its server’s tool list with `status: "inactive"` until the workflow is deployed again, which restores it; unpublishing one while it is inactive removes it for good. Empty when no server published the workflow.'
+      ),
+  })
+  .meta({
+    id: 'UndeployResult',
+    title: 'Undeploy result',
+    description:
+      'Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active. Undeploying also takes every MCP tool that published the workflow inactive; `archivedMcpTools` names them so the effect is not silent.',
+  })
+
 export type V2UndeployWorkflowData = z.output<typeof v2UndeployWorkflowDataSchema>
 
 export const v2RollbackWorkflowDataSchema = v2DeploymentStateSchema
@@ -559,7 +624,7 @@ export const v2DeleteWorkflowDataSchema = z
     archived: z
       .literal(true)
       .describe(
-        'The workflow was archived, not erased. Its schedules, webhooks, MCP tools, and chats were archived with it, and `POST /workflows/{workflowId}/restore` brings all of them back.'
+        'Whether the workflow was archived. Restore Workflow recovers it and the schedules, webhooks, MCP tools, and chats archived with it.'
       ),
   })
   .meta({
@@ -759,7 +824,7 @@ export type V2ListWorkflowVersionsQuery = z.output<typeof v2ListWorkflowVersions
  */
 export const v2WorkflowVersionCursorSchema = z
   .object({
-    version: deploymentVersionNumberSchema.describe('Version at which the next page begins.'),
+    version: versionNumberSchema.describe('Version at which the next page begins.'),
   })
   .strict()
 export type V2WorkflowVersionCursor = z.output<typeof v2WorkflowVersionCursorSchema>
@@ -785,7 +850,7 @@ export const v2WorkflowVersionDetailSchema = z
       .describe('ISO 8601 timestamp when this version was created.')
       .meta({ format: 'date-time' }),
     state: deployedWorkflowStateSchema.describe(
-      'Deployed workflow graph snapshot pinned by this version, with credential-bearing values redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata.'
+      'Workflow graph saved with this deployment version. Sensitive values are redacted to null.'
     ),
   })
   .meta({
@@ -1177,7 +1242,7 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
  * `stream`, `executionTimeoutSeconds`, `includeThinking`, or `includeToolCalls`.
  */
 export const EXECUTE_OPTION_CONSTRAINTS =
-  'Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.'
+  'Input descriptions specify compatible modes; invalid combinations return `400`.'
 
 export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
   z
@@ -1223,7 +1288,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
                 .string()
                 .min(1, 'run.entry.sourceRunId cannot be empty')
                 .describe(
-                  'Exact prior run whose persisted execution snapshot supplies upstream block state.'
+                  'Run ID supplying upstream block results when starting from a selected block.'
                 ),
             })
             .strict(),
@@ -1257,14 +1322,14 @@ export const v2ExecuteWorkflowBodySchema = z
     run: v2WorkflowRunSelectionSchema
       .optional()
       .describe(
-        'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires a personal API key with write access and supports synchronous or streamed runs only.'
+        'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.'
       ),
     async: z
       .boolean()
       .optional()
       .default(false)
       .describe(
-        'Queue the run and return a 202 receipt when true. Requires an API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).'
+        'Queue the run and return a 202 receipt when true. Requires an OAuth access token or API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).'
       ),
     /**
      * An upper bound on the request, not the effective timeout: the server
@@ -1279,7 +1344,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
       .optional()
       .describe(
-        "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true."
+        "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`."
       ),
     stream: z
       .boolean()
@@ -1293,7 +1358,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(100)
       .optional()
       .describe(
-        'Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.'
+        'Select `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>` using normalized block reference names. Child selectors cover every invocation. Synchronous results use selector strings verbatim as `blockOutputs` keys; streaming selections shape the envelope. Unknown block names or IDs return `400` with available blocks before execution. Unexecuted blocks and absent paths are omitted. Incompatible with `async`; select outputs from the finished run resource instead.'
       ),
     includeThinking: z
       .boolean()
@@ -1365,6 +1430,12 @@ export const v2ExecuteWorkflowDataSchema = z
       .enum(['completed', 'failed', 'paused', 'cancelled'])
       .describe('Terminal or paused run status.'),
     output: z.unknown().describe('Workflow output, including partial output on failure.'),
+    blockOutputs: z
+      .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
+      .nullable()
+      .describe(
+        'Outputs of the blocks named by `selectedOutputs`, keyed by those selector strings exactly as sent, or null when none were requested. `output` stays the final workflow output regardless. Selectors whose block did not run or whose path is absent are omitted (an unknown block is a `400` instead); failed runs include the outputs of the blocks that did run.'
+      ),
     error: v2ExecutionErrorSchema
       .nullable()
       .describe('Structured execution failure, or null when none occurred.'),
@@ -1857,7 +1928,11 @@ export const v2GetWorkflowRunContract = defineRouteContract({
 
 export const v2CancelWorkflowRunDataSchema = z
   .object({
-    success: z.boolean().describe('Whether cancellation was accepted.'),
+    success: z
+      .boolean()
+      .describe(
+        'Whether this request cancelled anything. `false` with an `already_*` reason means the run had already reached that terminal state, so there was nothing to cancel — still `200`, because a no-op is not an error. `false` with any other reason identifies a degraded or incomplete cancellation step.'
+      ),
     runId: v2WorkflowRunIdSchema,
     redisAvailable: z
       .boolean()
@@ -1869,22 +1944,17 @@ export const v2CancelWorkflowRunDataSchema = z
       ),
     locallyAborted: z.boolean().describe('Whether an in-process execution was aborted.'),
     pausedCancelled: z.boolean().describe('Whether a paused execution was cancelled.'),
-    /**
-     * Always emitted by the cancellation service — it is not a partial-failure
-     * marker. `recorded` is the full-success value; the `already_*` values name
-     * a terminal no-op; the rest name the step that degraded.
-     */
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
       .describe(
-        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
+        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` and `queue_cancelled` are successful cancellation values. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. The remaining values identify a degraded or incomplete cancellation step.'
       ),
   })
   .meta({
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
     description:
-      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed.',
+      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state is a `200` no-op, reported as `success: false` and `durablyRecorded: false` with an `already_*` reason naming the state observed.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 
@@ -1901,6 +1971,11 @@ export const v2CancelWorkflowRunContract = defineRouteContract({
 
 export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema
   .extend({
+    referenceManifest: workflowReferenceManifestSchema
+      .optional()
+      .describe(
+        'Versioned non-secret identifiers and registered source field occurrences for mapped import.'
+      ),
     version: v1WorkflowExportPayloadSchema.shape.version.describe(
       'Workflow export format version.'
     ),
@@ -1943,7 +2018,7 @@ export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema
       'Portable, secret-sanitized workflow export. Workspace-scoped bindings must be selected again after import.',
   })
 
-export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
+export const v2ImportWorkflowBaseBodySchema = v1ImportWorkflowBodySchema
   .omit({ folderId: true, name: true, description: true })
   .extend({
     workspaceId: v1ImportWorkflowBodySchema.shape.workspaceId.describe(
@@ -1986,6 +2061,79 @@ export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
       .optional()
       .describe('Override for the imported workflow description.'),
   })
+  .extend({
+    mappings: z
+      .array(
+        z
+          .object({
+            kind: portableResourceKindSchema.describe('Resource or operation kind.'),
+            sourceId: z
+              .string()
+              .min(1)
+              .max(4096)
+              .describe(
+                'Untrusted source reference label; imports never use it to authorize or query a source workspace.'
+              ),
+            targetId: z
+              .string()
+              .min(1)
+              .max(4096)
+              .nullable()
+              .describe('Authorized destination identifier, or null to clear the mapping.'),
+          })
+          .strict()
+      )
+      .max(5000)
+      .optional()
+      .describe('Mappings keyed by resource type and source identifier.'),
+    bindings: z
+      .array(
+        referenceOccurrenceSchema
+          .extend({
+            kind: portableResourceKindSchema.describe('Resource or operation kind.'),
+            targetId: z
+              .string()
+              .min(1)
+              .max(4096)
+              .nullable()
+              .describe('Authorized destination identifier, or null to clear the mapping.'),
+            valuePath: referenceOccurrenceSchema.shape.valuePath.default([]),
+            encoding: referenceOccurrenceSchema.shape.encoding.default('scalar'),
+          })
+          .strict()
+      )
+      .max(5000)
+      .optional()
+      .describe('Resolved and unresolved source occurrences with their destination selections.'),
+    dependentValues: z
+      .array(
+        z
+          .object({
+            blockId: z
+              .string()
+              .min(1)
+              .max(256)
+              .describe('Source block identifier before graph ID regeneration.'),
+            subBlockKey: z
+              .string()
+              .min(1)
+              .max(256)
+              .describe(
+                'Registered source field key, including the tool index for nested Agent fields.'
+              ),
+            value: z
+              .string()
+              .max(16 * 1024)
+              .describe('Destination value for the registered dependent field.'),
+          })
+          .strict()
+      )
+      .max(2000)
+      .optional()
+      .describe(
+        'Destination-dependent choices keyed by source workflow, block, and field identities.'
+      ),
+  })
   .strict()
   .meta({
     id: 'ImportWorkflowRequest',
@@ -2000,12 +2148,205 @@ export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
     ],
   })
 
+export const v2ImportWorkflowBodySchema = v2ImportWorkflowBaseBodySchema
+  .extend({
+    requestId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/)
+      .optional()
+      .describe(
+        'Stable client-generated retry ID. Reuse it after uncertain completion; never submit a fresh ID to retry.'
+      )
+      .describe('Stable client request ID for reconciliation and identical retries.'),
+    previewFingerprint: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional()
+      .describe('Fingerprint returned by the last import preview.')
+      .describe('Fingerprint of the reviewed preview and its choices.'),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (
+      [
+        body.mappings,
+        body.bindings,
+        body.dependentValues,
+        body.requestId,
+        body.previewFingerprint,
+      ].some((value) => value !== undefined)
+    ) {
+      if (!body.requestId)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['requestId'],
+          message: 'Mapped imports require requestId',
+        })
+      if (!body.previewFingerprint)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['previewFingerprint'],
+          message: 'Mapped imports require previewFingerprint',
+        })
+    }
+  })
+
+export const v2ImportBindingResolutionSchema = z.object({
+  kind: portableResourceKindSchema.describe('Resource or operation kind.'),
+  sourceId: z
+    .string()
+    .max(4096)
+    .describe(
+      'Untrusted source reference label; imports never use it to authorize or query a source workspace.'
+    ),
+  targetId: z
+    .string()
+    .max(4096)
+    .nullable()
+    .describe('Authorized destination identifier, or null to clear the mapping.'),
+  required: z
+    .boolean()
+    .describe('Whether the reference or configuration is required for this operation.'),
+  occurrence: referenceOccurrenceSchema.describe(
+    'Registered source field occurrence addressed by this binding.'
+  ),
+})
+export const v2ImportConfigurationFieldSchema = z.object({
+  blockId: z
+    .string()
+    .min(1)
+    .max(256)
+    .describe('Source block identifier before graph ID regeneration.'),
+  subBlockKey: z
+    .string()
+    .min(1)
+    .max(1024)
+    .describe('Registered source field key, including the tool index for nested Agent fields.'),
+  title: z.string().max(1024).describe('Human-readable configuration field label.'),
+  required: z
+    .boolean()
+    .describe('Whether the reference or configuration is required for this operation.'),
+  configured: z
+    .boolean()
+    .describe('Whether this destination field currently has a nonempty value.'),
+  multiSelect: z
+    .boolean()
+    .optional()
+    .describe('Whether the field accepts comma-separated selections.'),
+  selectorKey: z
+    .string()
+    .max(256)
+    .optional()
+    .describe('Registered selector key for discovering this field’s destination options.'),
+  context: z
+    .record(z.string().max(256), z.string().max(16384))
+    .describe('Allowlisted selector dependencies scoped to the destination workspace.'),
+  requiresAuthentication: z
+    .boolean()
+    .describe('Whether a human must connect the provider before choices can be discovered.'),
+})
+export const v2PreviewWorkflowImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/import/preview',
+  query: noInputSchema,
+  body: v2ImportWorkflowBaseBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(
+      z
+        .object({
+          previewFingerprint: z
+            .string()
+            .length(64)
+            .describe('Fingerprint of the reviewed preview and its choices.'),
+          ready: z
+            .boolean()
+            .describe(
+              'Whether the operation passes its current apply or deployment readiness checks.'
+            ),
+          bindings: z
+            .array(v2ImportBindingResolutionSchema)
+            .max(10000)
+            .describe(
+              'Resolved and unresolved source occurrences with their destination selections.'
+            ),
+          unresolvedBindings: z
+            .array(v2ImportBindingResolutionSchema)
+            .max(10000)
+            .describe(
+              'Source references that still require destination mappings or explicit copy choices.'
+            ),
+          configuration: z
+            .array(v2ImportConfigurationFieldSchema)
+            .max(10000)
+            .describe('Dependent fields that may need destination-specific values.'),
+          unresolvedConfiguration: z
+            .array(v2ImportConfigurationFieldSchema)
+            .max(10000)
+            .describe('Required destination configuration that remains empty.'),
+          discovery: z
+            .array(
+              z.object({
+                kind: z.string().max(256).describe('Resource or operation kind.'),
+                command: z
+                  .string()
+                  .max(1024)
+                  .describe('CLI command to enumerate destination candidates.'),
+                humanAuthorizationMayBeRequired: z
+                  .boolean()
+                  .describe('Whether discovery may require a human OAuth authorization step.'),
+              })
+            )
+            .max(32)
+            .describe('CLI operations for discovering suitable destination resources.'),
+        })
+        .meta({
+          id: 'PreviewWorkflowImportResult',
+          title: 'PreviewWorkflowImportResult',
+          description: 'The PreviewWorkflowImportResult result.',
+        })
+    ),
+  },
+})
+export type V2ImportWorkflowBody = z.input<typeof v2ImportWorkflowBodySchema>
+export type V2PreviewWorkflowImportBody = z.input<typeof v2ImportWorkflowBaseBodySchema>
+
+const v2ImportedBlockSchema = z
+  .object({
+    id: z.string().describe('Block identifier.'),
+    type: z.string().describe('Registered block type.'),
+    name: z.string().describe('Block display name.'),
+  })
+  .strict()
+  .meta({
+    id: 'ImportedWorkflowBlock',
+    title: 'Imported workflow block',
+    description: 'A block the import created in the new workflow.',
+  })
+
+/**
+ * Import result. Carries the created blocks as a summary — the same shape the
+ * create result uses for its seeded blocks — so a caller can confirm what
+ * landed without reading the whole graph back. An import that reported no
+ * blocks was indistinguishable from one that imported an empty payload.
+ */
 export const v2ImportWorkflowDataSchema = z
   .object({
-    id: z.string().describe('Identifier of the imported workflow.'),
-    name: z.string().describe('Imported workflow name.'),
+    id: z
+      .string()
+      .describe('Identifier of the imported workflow.')
+      .describe('Resource identifier.'),
+    name: z
+      .string()
+      .describe('Imported workflow name.')
+      .describe('Display name of the workflow or workspace.'),
     description: z.string().nullable().describe('Imported workflow description.'),
-    workspaceId: z.string().describe('Workspace that owns the imported workflow.'),
+    workspaceId: z
+      .string()
+      .describe('Workspace that owns the imported workflow.')
+      .describe('Explicit current workspace scope.'),
     folderPath: v2FolderPathSchema.describe('Canonical containing-folder path.'),
     createdAt: z
       .string()
@@ -2015,18 +2356,54 @@ export const v2ImportWorkflowDataSchema = z
       .string()
       .describe('ISO 8601 timestamp when the workflow was last updated.')
       .meta({ format: 'date-time' }),
+    blocks: z
+      .array(v2ImportedBlockSchema)
+      .optional()
+      .describe(
+        'Blocks the import created, in payload order. Omitted only when replaying an older receipt that did not record this summary. The workflow state read returns the current full graph.'
+      ),
+    warnings: z
+      .array(z.string())
+      .describe(
+        'One line per required workspace binding — a table, knowledge base, document, or other selector — that the payload carried empty, as `<block name>: <field> was stripped by export; set it before running`. Export clears those bindings unless `includeWorkspaceBindings=true` was sent, so a round-tripped workflow arrives unable to run until they are set again. Empty when nothing is missing.'
+      ),
   })
+  .extend(v2OperationReportSchema.omit({ workspaceId: true }).partial().shape)
   .meta({
     id: 'ImportedWorkflow',
     title: 'Imported workflow',
-    description: 'Workflow created by an import operation.',
+    description:
+      'Workflow created by an import operation, with the required workspace bindings it arrived without.',
   })
+
+export const v2ExportWorkflowQuerySchema = z
+  .object({
+    includeReferences: booleanQueryFlagSchema
+      .optional()
+      .describe(
+        'Include non-secret resource identifiers and source field occurrences for mapped imports.'
+      ),
+    includeWorkspaceBindings: booleanQueryFlagSchema
+      .describe(
+        'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.'
+      )
+      .optional()
+      .default(false),
+  })
+  .strict()
+  .meta({
+    id: 'ExportWorkflowQuery',
+    title: 'Export workflow query',
+    description: 'Whether the export keeps workspace-scoped bindings.',
+  })
+export type V2ExportWorkflowQuery = z.output<typeof v2ExportWorkflowQuerySchema>
 
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[workflowId]/export',
-  query: noInputSchema,
+  query: v2ExportWorkflowQuerySchema,
   params: v2WorkflowIdParamsSchema,
+
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowExportPayloadSchema),
@@ -2429,7 +2806,7 @@ const v2WorkflowGraphWriteResultSchema = z
     needsRedeployment: z
       .boolean()
       .describe(
-        'Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it.'
+        'Whether the live deployment differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it. On a dry run, this describes the state before the proposed write.'
       ),
   })
   .meta({
@@ -2520,13 +2897,23 @@ const v2WorkflowLintSchema = z
             .union([z.string(), z.array(z.string())])
             .describe('The reference, or references, that did not resolve.'),
           kind: z
-            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill'])
+            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
             .describe('What kind of entity the reference was expected to name.'),
           reason: z.string().describe('Why the reference does not resolve.'),
         })
       )
       .describe(
         'Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped.'
+      ),
+    tableFieldIssues: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          field: z.string().describe('The filter or sort field that names no column.'),
+          tableName: z.string().describe('Display name of the table the block is bound to.'),
+        })
+      )
+      .describe(
+        "Table block `filter` and `order` fields checked against the bound table's live schema that name no column (nor the implicit `id`, `createdAt`, `updatedAt`). Such a run fails inside the block's error edge. A filter holding a `<block.output>` reference, or one that is not JSON, is not checked."
       ),
     notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
   })
@@ -2552,7 +2939,7 @@ const v2GraphWriteDryRunQuerySchema = z
     dryRun: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.'
+        'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.'
       ),
   })
   .strict()
@@ -2636,17 +3023,21 @@ export type V2WorkflowSkippedItem = z.output<typeof v2WorkflowSkippedItemSchema>
  * not describe it differently.
  */
 const WORKFLOW_OPERATION_PARAM_ENVELOPE =
-  "`inputs` carries the block's own configuration keyed by sub-block id, for example " +
-  '`inputs: { model: "gpt-4o", systemPrompt: "..." }` — never wrapped in `subBlocks`. ' +
-  'Block-level settings sit beside `inputs`, never inside it: `retry`, `triggerMode`, ' +
-  '`advancedMode`. `connections` is keyed by source handle and each value is a target ' +
-  'block id, `{ block, handle }`, or an array of either; `success` is accepted as an ' +
-  'alias for the `source` handle.'
+  '`inputs` maps sub-block ids directly to values, never through `subBlocks`. Keep `retry`, ' +
+  '`triggerMode`, and `advancedMode` beside `inputs`. `connections` maps source handles to ' +
+  'target ids, `{ block, handle }`, or arrays; `success` aliases `source`.'
 
 const v2AgentToolUsageControlSchema = z
   .enum(['auto', 'force', 'none'])
   .describe(
-    'When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`.'
+    'Selector Permission Mode: `auto` lets the model decide, `force` requires a call, and `none` disables it. Supply this property and omit `usageControlExpression` to select or switch to Selector mode; do not send null or set `canonicalModes` or block-level `advancedMode`. With neither property, the default is `auto`.'
+  )
+
+const v2AgentToolUsageControlExpressionSchema = z
+  .string()
+  .max(2048, 'Agent tool mode expression must be at most 2048 characters')
+  .describe(
+    'Variable Permission Mode: a reference such as `<start.toolMode>` or a literal such as `none`, resolving to `auto`, `force`, or `none` at execution time. Supply this property and omit `usageControl` to select or switch to Variable mode; do not send null or set `canonicalModes` or block-level `advancedMode`.'
   )
 
 const v2AgentToolParamsSchema = z
@@ -2664,8 +3055,8 @@ export const v2AgentIntegrationToolSchema = z
       .min(1, 'Agent integration tool type cannot be empty')
       .max(255, 'Agent integration tool type must be at most 255 characters')
       .regex(
-        /^(?!(?:custom-tool|mcp)$).+$/,
-        'Agent integration tool type must be a catalog block id, not `custom-tool` or `mcp`'
+        /^(?!(?:custom-tool|mcp|mcp-server-advanced)$).+$/,
+        'Agent integration tool type must be a catalog block id, not a reserved custom or MCP type'
       )
       .describe(
         'Catalog block id, such as `cloudwatch` or `slack`. Use the block id, never an underlying tool id.'
@@ -2677,9 +3068,10 @@ export const v2AgentIntegrationToolSchema = z
       .max(255, 'Agent integration tool operation must be at most 255 characters')
       .optional()
       .describe(
-        'Operation id from `GET /api/v2/blocks/{blockId}`. Required when the block exposes multiple operations; it may differ from the underlying tool id.'
+        'Operation ID from Get Block. Required when the block exposes multiple operations; it may differ from the tool ID.'
       ),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
     params: v2AgentToolParamsSchema.optional(),
   })
   .catchall(
@@ -2710,8 +3102,9 @@ const v2AgentCustomToolReferenceSchema = z
       .trim()
       .min(1, 'Agent customToolId cannot be empty')
       .max(255, 'Agent customToolId must be at most 255 characters')
-      .describe('Custom tool id returned by `GET /api/v2/custom-tools`.'),
+      .describe('Custom tool ID from List Custom Tools.'),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
   })
   .catchall(
     z
@@ -2748,6 +3141,7 @@ const v2AgentInlineCustomToolSchema = z
       .describe('Inline OpenAI-style function declaration.'),
     code: z.string().describe('Inline tool implementation executed by the Function runtime.'),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
   })
   .catchall(
     z
@@ -2762,7 +3156,7 @@ export const v2AgentCustomToolSchema = z
     id: 'AgentCustomTool',
     title: 'Agent custom tool',
     description:
-      'A workspace custom tool. Reference `customToolId` is the preferred shape; the inline declaration is retained for legacy workflow round trips.',
+      'A workspace custom tool. Prefer `customToolId`; inline declarations are also accepted.',
     examples: [
       {
         type: 'custom-tool',
@@ -2808,6 +3202,7 @@ export const v2AgentMcpToolSchema = z
         'MCP server and tool identity plus any tool arguments fixed by the workflow author.'
       ),
     usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
   })
   .catchall(
     z.unknown().describe('Forward-compatible MCP tool metadata preserved by the workflow editor.')
@@ -2825,9 +3220,54 @@ export const v2AgentMcpToolSchema = z
     ],
   })
 
+/** Every tool currently available through one workspace MCP server. */
+export const v2AgentMcpServerAdvancedSchema = z
+  .object({
+    type: z.literal('mcp-server-advanced').describe('Server-wide MCP binding discriminator.'),
+    operationPolicy: mcpOperationPolicySchema.optional(),
+    params: z
+      .object({
+        serverId: z
+          .string()
+          .trim()
+          .min(1, 'Agent MCP serverId cannot be empty')
+          .max(MAX_ID_LENGTH, `Agent MCP serverId must be at most ${MAX_ID_LENGTH} characters`)
+          .describe(
+            'Workspace MCP server ID or explicit credential-group managed MCP connection ID.'
+          ),
+      })
+      .strict()
+      .describe(
+        'Executable server or connection identity for authorized operation discovery and execution.'
+      ),
+    usageControl: v2AgentToolUsageControlSchema.optional(),
+    usageControlExpression: v2AgentToolUsageControlExpressionSchema.optional(),
+  })
+  .catchall(
+    z.unknown().describe('Forward-compatible MCP server metadata preserved by the workflow editor.')
+  )
+  .meta({
+    id: 'AgentMcpServerAdvanced',
+    title: 'Agent MCP server (advanced)',
+    description:
+      'Dynamically discovered operations permitted by the authorized credential and saved block policy.',
+    examples: [
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: 'mcp_01J9X2ABCDEF' },
+        usageControl: 'auto',
+      },
+    ],
+  })
+
 /** One callable tool attached directly to an Agent block. */
 export const v2AgentToolSchema = z
-  .xor([v2AgentIntegrationToolSchema, v2AgentCustomToolSchema, v2AgentMcpToolSchema])
+  .xor([
+    v2AgentIntegrationToolSchema,
+    v2AgentCustomToolSchema,
+    v2AgentMcpToolSchema,
+    v2AgentMcpServerAdvancedSchema,
+  ])
   .meta({
     id: 'AgentTool',
     title: 'Agent tool',
@@ -2899,12 +3339,9 @@ const v2WorkflowOperationParamsSchema = z
     )
   )
   .describe(
-    'Fields to change on the target block. Send only what changes. Accepted keys: `inputs`, ' +
-      '`name`, `connections`, `removeEdges`, `nestedNodes`, `retry`, `triggerMode`, ' +
-      `\`advancedMode\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} Re-sending \`connections\` ` +
-      "replaces that block's outgoing edges, so use `removeEdges` — " +
-      '`[{ targetBlockId, sourceHandle? }]`, `sourceHandle` defaulting to `source` — to drop ' +
-      'one edge without restating the rest.'
+    'Patch only supplied fields: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, ' +
+      `\`retry\`, \`triggerMode\`, and \`advancedMode\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} ` +
+      'Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges.'
   )
 
 const v2AddWorkflowBlockParamsSchema = z
@@ -2921,8 +3358,8 @@ const v2AddWorkflowBlockParamsSchema = z
   })
   .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
   .describe(
-    'Block type and name, plus any block-specific configuration. Beyond `type` and `name` the ' +
-      'accepted keys are `inputs`, `connections`, `retry`, `triggerMode`, and `advancedMode`. ' +
+    'Block `type`, `name`, and optional `inputs`, `connections`, `retry`, `triggerMode`, or ' +
+      '`advancedMode`. ' +
       WORKFLOW_OPERATION_PARAM_ENVELOPE
   )
 
@@ -2954,8 +3391,7 @@ const v2InsertIntoSubflowParamsSchema = z
   })
   .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
   .describe(
-    'Container, block type and name, plus any block-specific configuration. Takes the same ' +
-      'keys as an `add`: `inputs`, `connections`, `retry`, `triggerMode`, `advancedMode`. ' +
+    'Container, block `type`, `name`, and the same optional fields as `add`. ' +
       WORKFLOW_OPERATION_PARAM_ENVELOPE
   )
 
@@ -3118,7 +3554,7 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
     deferred: z
       .array(v2WorkflowSkippedItemSchema)
       .describe(
-        'Forward-referencing edges the engine recorded rather than applied. These are NOT failures: the engine wires each one as soon as its target block exists, in this batch or a later one. Do not re-issue them.'
+        'Edges waiting for target blocks. They apply automatically when their targets exist, in this batch or a later one. Do not resubmit them.'
       ),
     inputValidationErrors: z
       .array(v2WorkflowInputValidationErrorSchema)
@@ -3128,7 +3564,13 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
     mintedBlockIds: z
       .record(z.string(), z.string().describe('The id the block was actually given.'))
       .describe(
-        'The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive.'
+        'Assigned IDs keyed by requested `block_id`, including only changed IDs. `add` and `insert_into_subflow` replace non-UUID labels with minted UUIDs. References within the batch are remapped automatically; later requests must use the minted IDs. Supply UUIDs to preserve your chosen IDs. Empty on dry runs, which return provisional IDs in `previewBlockIds` instead.'
+      ),
+    previewBlockIds: z
+      .record(z.string(), z.string().describe('The provisional id the dry run assigned.'))
+      .optional()
+      .describe(
+        'Dry run only: the provisional id the evaluation assigned to each block whose `block_id` was not already a UUID, keyed by the `block_id` you asked for. These are not the ids a committed apply produces — the real apply mints new ones — so never wire a later request against them. Wire edges by `block_id` within one batch, or by the `mintedBlockIds` the real apply returns.'
       ),
     lint: v2WorkflowLintSchema,
     dryRun: z
@@ -3350,4 +3792,12 @@ export const v2MoveWorkflowsContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2MoveWorkflowsDataSchema),
   },
+})
+
+export const v2CompareWorkflowVersionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/versions/compare',
+  params: v2WorkflowIdParamsSchema,
+  query: compareWorkflowVersionsQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(compareWorkflowVersionsDataSchema) },
 })

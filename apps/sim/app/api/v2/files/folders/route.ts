@@ -13,7 +13,7 @@ import {
   listWorkspaceFileFoldersOperation,
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
-import { toV2Folder } from '@/app/api/v2/files/folders/utils'
+import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -30,9 +30,14 @@ export const GET = defineV2JsonRoute({
     search: query.search,
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
+    recursive: query.recursive,
+    depth: query.depth,
   }),
   useCase: listWorkspaceFileFoldersOperation,
-  present: ({ folders }) => ({ data: folders.map(toV2Folder), nextCursor: null }),
+  present: ({ folders }) => ({
+    data: folders.map(toWorkspaceFileFolderPathView),
+    nextCursor: null,
+  }),
 })
 
 export const POST = defineV2JsonRoute({
@@ -43,7 +48,7 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
   useCase: createWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: toV2Folder(folder) }),
+  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -58,7 +63,7 @@ export const PATCH = defineV2JsonRoute({
     destinationPath: body.destinationPath,
   }),
   useCase: updateWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: toV2Folder(folder) }),
+  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
 })
 
 export const DELETE = defineV2JsonRoute({

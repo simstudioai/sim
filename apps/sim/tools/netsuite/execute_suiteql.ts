@@ -1,13 +1,12 @@
 import type { NetSuiteResponse, NetSuiteSuiteQLParams } from '@/tools/netsuite/types'
-import {
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  normalizePagination,
-  requiredTrim,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteExecuteSuiteQLTool: ToolConfig<NetSuiteSuiteQLParams, NetSuiteResponse> = {
+export const netsuiteExecuteSuiteQLTool: InternalToolConfig<
+  NetSuiteSuiteQLParams,
+  NetSuiteResponse
+> = {
   id: 'netsuite_execute_suiteql',
   name: 'NetSuite Execute SuiteQL',
   description: 'Execute one page of a SuiteQL query through SuiteTalk REST web services.',
@@ -37,20 +36,9 @@ export const netsuiteExecuteSuiteQLTool: ToolConfig<NetSuiteSuiteQLParams, NetSu
         'Zero-based result offset; must be divisible by limit and stay within the first 100,000 results and 1,000 pages',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'POST',
-        path: '/services/rest/query/v1/suiteql',
-        success: { status: 200, body: 'object', validator: 'suiteql-page' },
-        query: normalizePagination(params.limit, params.offset),
-        headers: { Prefer: 'transient' },
-        body: { q: requiredTrim(params.query, 'SuiteQL query') },
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

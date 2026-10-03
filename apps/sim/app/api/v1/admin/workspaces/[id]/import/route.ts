@@ -45,6 +45,7 @@ import {
   extractWorkflowsFromZip,
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -347,23 +348,18 @@ async function importSingleWorkflow(
     }
 
     const workflowId = generateId()
-    const now = new Date()
     const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
 
-    await db.insert(workflow).values({
-      id: workflowId,
-      userId: ownerId,
-      workspaceId,
-      folderId: targetFolderId,
-      name: dedupedName,
-      description: workflowData.metadata?.description || 'Imported via Admin API',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
+    await db.insert(workflow).values(
+      await buildNewWorkflowRow(db, {
+        id: workflowId,
+        userId: ownerId,
+        workspaceId,
+        folderId: targetFolderId,
+        name: dedupedName,
+        description: workflowData.metadata?.description || 'Imported via Admin API',
+      })
+    )
 
     /**
      * Same normalization the editor, the v1 import API and the single-workflow
@@ -377,10 +373,23 @@ async function importSingleWorkflow(
       logger.warn(`Admin API: normalized "${dedupedName}" with warnings`, { warnings })
     }
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
-      ...workflowData,
-      ...preparedState,
-    })
+    const saveResult = await saveWorkflowToNormalizedTables(
+      workflowId,
+      {
+        ...workflowData,
+        ...preparedState,
+      },
+      {
+        /**
+         * Actorless. This is the platform-admin surface: the caller is a Sim
+         * operator restoring data, not a member of the target workspace, so no
+         * member's permission group governs the write. `check-capability-subject`
+         * excludes `v1/admin` for the same reason.
+         */
+        workspaceId: null,
+        subjectUserId: null,
+      }
+    )
 
     if (!saveResult.success) {
       await db.delete(workflow).where(eq(workflow.id, workflowId))

@@ -3,9 +3,9 @@ import {
   type BufferPostResponse,
   POST_OUTPUT_PROPERTIES,
 } from '@/tools/buffer/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const bufferEditPostTool: ToolConfig<BufferEditPostParams, BufferPostResponse> = {
+export const bufferEditPostTool: InternalToolConfig<BufferEditPostParams, BufferPostResponse> = {
   id: 'buffer_edit_post',
   name: 'Buffer Edit Post',
   description:
@@ -79,11 +79,8 @@ export const bufferEditPostTool: ToolConfig<BufferEditPostParams, BufferPostResp
     },
   },
 
-  request: {
-    url: '/api/tools/buffer/edit-post',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       apiKey: params.apiKey,
       postId: params.postId,
       text: params.text,

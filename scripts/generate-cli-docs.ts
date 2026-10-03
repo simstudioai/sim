@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Generates the CLI command reference into `apps/docs/content/docs/en/cli`,
+ * Generates the CLI command reference into `apps/docs/content/docs/cli`,
  * alongside that section's hand-written guides, and owns the section's
  * `meta.json` because the sidebar lists one entry per command group.
  *
@@ -24,7 +24,7 @@ import { V2_OPERATIONS } from '../packages/sim-cli/src/generated/v2-api'
 import { buildProgram } from '../packages/sim-cli/src/program'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-export const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/en/cli')
+export const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/cli')
 
 /** Commander's synthetic help command is not part of the documented surface. */
 const HELP_COMMAND = 'help'
@@ -44,7 +44,9 @@ export const GUIDE_PAGES = [
   'configuration',
   'output',
   'scripting',
+  'workflow-sync',
   'troubleshooting',
+  'usage-data',
 ] as const
 
 /** Generated page holding the global options and the commands that take no resource. */
@@ -61,6 +63,7 @@ const GROUP_TITLES: Record<string, string> = {
   'audit-logs': 'Audit Logs',
   'custom-tools': 'Custom Tools',
   'mcp-servers': 'MCP Servers',
+  'workflow-mcp-servers': 'Workflow MCP Servers',
   cli: 'CLI',
 }
 
@@ -509,16 +512,16 @@ function renderIndexPage(
   globals: DocumentedCommand[]
 ): string {
   const lines = [
-    ...frontmatter('Overview', 'Global options, and every sim command group'),
+    ...frontmatter('CLI Commands', 'Global options, and every sim command group'),
     'Every `sim` command follows the same shape:',
     '',
     '```bash',
     'sim <resource> [sub-resource] <verb> [arguments] [options]',
     '```',
     '',
-    'Resource groups are plural, and each one also accepts its singular spelling —',
-    '`sim workflow get` and `sim workflows get` are the same command. `knowledge`',
-    'additionally answers to `kb`.',
+    'Some resource groups also accept a singular alias: `sim workflow get` and',
+    '`sim workflows get` are the same command. `knowledge` also answers to `kb`.',
+    'Each group’s reference lists its supported aliases.',
     '',
     '## Global options',
     '',

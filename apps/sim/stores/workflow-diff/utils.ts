@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {

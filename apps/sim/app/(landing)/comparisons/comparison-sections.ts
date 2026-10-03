@@ -55,7 +55,7 @@ function defineSection<G extends keyof ComparisonFacts>(section: {
 export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
   defineSection({
     group: 'platform',
-    title: 'Platform',
+    title: 'Platform & deployment',
     rows: [
       { key: 'builderType', label: 'Builder type' },
       { key: 'learningCurve', label: 'Learning curve' },

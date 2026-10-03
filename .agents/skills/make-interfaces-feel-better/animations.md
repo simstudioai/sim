@@ -1,5 +1,7 @@
 # Animations
 
+> In this repo: `import { motion, AnimatePresence } from 'framer-motion'`; never `motion/react`.
+
 Interruptible animations, enter/exit transitions, and contextual icon animations.
 
 ## Interruptible Animations
@@ -189,7 +191,7 @@ When icons appear or disappear contextually (on hover, on state change), animate
 ### Motion Example
 
 ```tsx
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion } from "framer-motion";
 
 function IconButton({ isActive, icon: Icon }) {
   return (
@@ -259,7 +261,7 @@ The non-absolute icon (InactiveIcon) defines the layout size. The absolute icon 
 | **Enter animation** | Yes | Yes |
 | **Exit animation** | Yes (via `AnimatePresence`) | Yes (cross-fade — icon never unmounts) |
 | **Spring physics** | Yes | No — use `cubic-bezier(0.2, 0, 0, 1)` as approximation |
-| **When to use** | Project already uses `motion/react` | No motion dependency, or keeping bundle small |
+| **When to use** | Project already uses `framer-motion` (or `motion/react`) | No motion dependency, or keeping bundle small |
 
 **Rule:** Check the project's `package.json` for `motion` or `framer-motion`. If present, use the Motion approach. If not, use the CSS cross-fade pattern — don't add a dependency just for icon transitions.
 
@@ -272,15 +274,11 @@ The non-absolute icon (InactiveIcon) defines the layout size. The absolute icon 
 | Icons in contextual toolbars | Icons that are always visible |
 | Loading/success state indicators | Icon labels (text next to icon) |
 
-**Important:** Always use exactly these values for contextual icon animations — do not deviate:
-- `scale`: `0.25` → `1` (never use `0.5` or `0.6`)
-- `opacity`: `0` → `1`
-- `filter`: `"blur(4px)"` → `"blur(0px)"`
-- `transition`: `{ type: "spring", duration: 0.3, bounce: 0 }` — **bounce must always be `0`**, never `0.1` or any other value
+Default values: scale 0.25→1, opacity 0→1, blur 4px→0, `{ type: "spring", duration: 0.3, bounce: 0 }`.
 
 ## Scale on Press
 
-A subtle scale-down on click gives buttons tactile feedback. Always use `scale(0.96)`. Never use a value smaller than `0.95` — anything below feels exaggerated. Use CSS transitions for interruptibility — if the user releases mid-press, it should smoothly return.
+A subtle scale-down on click (about 0.96-0.97) gives buttons tactile feedback. Use CSS transitions for interruptibility — if the user releases mid-press, it should smoothly return.
 
 Not every button needs this. Add a `static` prop to your button component that disables the scale effect when the motion would be distracting.
 

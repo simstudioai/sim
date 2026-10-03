@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
+import { escapeRegExp } from '@sim/utils/string'
+import { isWorkspaceOwnedContext } from '@/lib/mothership/chat/context-ownership'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
-} from '@/lib/copilot/chat/selection-clipboard'
+} from '@/lib/mothership/chat/selection-clipboard'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
   chipDisplayToken,
@@ -27,13 +30,14 @@ import {
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
-  escapeRegex,
+  areContextsEqual,
   filterContextsPresentInMessage,
   prepareContextForInsert,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
+  uniqueContextLabel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
-import { type McpServer, useMcpServers } from '@/hooks/queries/mcp'
+import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import type { ChatContext } from '@/stores/panel'
 
@@ -110,8 +114,12 @@ export interface PromptEditorKeyPolicy {
 }
 
 export interface UsePromptEditorProps {
+  /** Whether this surface accepts workspace context, skills and attachments. */
+  contextsEnabled?: boolean
   /** Workspace whose resources, integrations, and skills the editor mentions. */
   workspaceId: string
+  /** Keeps organization chat context references explicitly workspace-addressed. */
+  organizationId?: string
   /** Initial text. Chipified (`@`-mentions / `/`-skills converted) on mount. */
   initialValue?: string
   /**
@@ -122,6 +130,7 @@ export interface UsePromptEditorProps {
    * post-mount `setContexts` would clobber those auto-registered contexts.
    */
   initialContexts?: ChatContext[]
+  availableSkills?: (SkillDefinition & { workspaceName?: string })[]
   /**
    * Notified when a context is added through an interactive path — a mention
    * pick, a resource drop, or a skill pick. Paste re-registration is
@@ -158,14 +167,24 @@ export type PromptEditorInstance = ReturnType<typeof usePromptEditor>
  * ```
  */
 export function usePromptEditor({
+  contextsEnabled = true,
   workspaceId,
+  organizationId,
   initialValue = '',
   initialContexts,
+  availableSkills,
   onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
-  const { data: skills = [] } = useSkills(workspaceId)
-  const { data: allMcpServers = [] } = useMcpServers(workspaceId)
+  const contextsEnabledRef = useRef(contextsEnabled)
+  contextsEnabledRef.current = contextsEnabled
+  const { data: queriedSkills = [], isPlaceholderData: skillsAreStale } = useSkills(
+    contextsEnabled ? workspaceId : ''
+  )
+  const skills = availableSkills ?? (organizationId && skillsAreStale ? [] : queriedSkills)
+  const { data: allMcpServers = [] } = useMcpToolServers(
+    contextsEnabled && !organizationId ? workspaceId : ''
+  )
   const mcpServers = useMemo(
     () => allMcpServers.filter((server) => server.enabled && server.workspaceId === workspaceId),
     [allMcpServers, workspaceId]
@@ -174,6 +193,8 @@ export function usePromptEditor({
   const [value, setValueState] = useState(initialValue)
   const valueRef = useRef(value)
   valueRef.current = value
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
 
   /**
    * Commits a new text value, keeping {@link valueRef} in lockstep with state so
@@ -196,14 +217,16 @@ export function usePromptEditor({
 
   /**
    * Start offset of a mention/slash token most recently dismissed by the user
-   * (outside click or Escape) without a following keystroke — suppresses a
-   * single reopen of the menu for that exact token when the caret's own
-   * selection-change handler runs immediately after.
+   * (outside click or Escape). Mention dismissal lasts until the caret leaves
+   * that query; slash dismissal lasts until the next edit.
    */
-  const dismissedMentionStartRef = useRef<number | null>(null)
+  const dismissedMentionRef = useRef<{ start: number; triggerSelected: boolean } | null>(null)
   const dismissedSlashStartRef = useRef<number | null>(null)
 
-  const contextManagement = useContextManagement({ message: value, initialContexts })
+  const contextManagement = useContextManagement({
+    message: value,
+    initialContexts: contextsEnabled ? initialContexts : undefined,
+  })
   const contextManagementRef = useRef(contextManagement)
   contextManagementRef.current = contextManagement
 
@@ -213,6 +236,7 @@ export function usePromptEditor({
   onPasteFilesRef.current = onPasteFiles
 
   const addContextNotified = useCallback((context: ChatContext) => {
+    if (!contextsEnabledRef.current) return
     contextManagementRef.current.addContext(context)
     onContextAddRef.current?.(context)
   }, [])
@@ -224,6 +248,17 @@ export function usePromptEditor({
   })
 
   const textareaRef = mentionMenu.textareaRef
+
+  // Commit the inserted token's caret with its controlled value. Waiting for
+  // Radix's delayed close autofocus can rewind past a character already typed.
+  useLayoutEffect(() => {
+    const position = pendingCursorRef.current
+    const textarea = textareaRef.current
+    if (position === null || !textarea) return
+    textarea.setSelectionRange(position, position)
+    // Keep the target until the menu has returned focus. Some browsers restore
+    // the pre-menu caret on focus; a later input invalidates this target below.
+  }, [value, textareaRef])
 
   const mentionTokens = useMentionTokens({
     message: value,
@@ -239,6 +274,8 @@ export function usePromptEditor({
   const skillAutoMention = useSkillAutoMention({
     skills,
     mcpServers,
+    workspaceId: organizationId ? workspaceId : undefined,
+    organizationScoped: Boolean(organizationId),
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
@@ -250,7 +287,10 @@ export function usePromptEditor({
    * fully converted text and registers both context kinds.
    */
   const applyAutoMentions = useCallback(
-    (text: string) => skillAutoMention.applyToText(integrationAutoMention.applyToText(text)),
+    (text: string) =>
+      contextsEnabledRef.current
+        ? skillAutoMention.applyToText(integrationAutoMention.applyToText(text))
+        : text,
     [skillAutoMention.applyToText, integrationAutoMention.applyToText]
   )
   const applyAutoMentionsRef = useRef(applyAutoMentions)
@@ -297,6 +337,16 @@ export function usePromptEditor({
    */
   const setValue = useCallback((text: string, options?: { chipify?: boolean }) => {
     const next = options?.chipify === false ? text : applyAutoMentionsRef.current(text)
+    atInsertPosRef.current = null
+    pendingCursorRef.current = null
+    mentionRangeRef.current = null
+    dismissedMentionRef.current = null
+    setMentionQuery(null)
+    plusMenuRef.current?.close()
+    slashRangeRef.current = null
+    dismissedSlashStartRef.current = null
+    setSlashQuery(null)
+    skillsMenuRef.current?.close()
     valueRef.current = next
     setValueState(next)
   }, [])
@@ -315,10 +365,12 @@ export function usePromptEditor({
   /** Contexts whose tokens still exist in the latest synchronous editor value. */
   const getActiveContexts = useCallback(
     () =>
-      filterContextsPresentInMessage(
-        contextManagementRef.current.selectedContexts,
-        valueRef.current
-      ),
+      contextsEnabledRef.current
+        ? filterContextsPresentInMessage(
+            contextManagementRef.current.selectedContexts,
+            valueRef.current
+          )
+        : [],
     []
   )
 
@@ -351,7 +403,7 @@ export function usePromptEditor({
 
       const labelIsUsed = (candidate: string): boolean => {
         if (selectedContexts.some((selected) => selected.label === candidate)) return true
-        return new RegExp(`(^|\\s)@${escapeRegex(candidate)}(?![A-Za-z0-9_])`).test(currentValue)
+        return new RegExp(`(^|\\s)@${escapeRegExp(candidate)}(?![A-Za-z0-9_])`).test(currentValue)
       }
 
       while (labelIsUsed(label)) {
@@ -368,7 +420,7 @@ export function usePromptEditor({
       atInsertPosRef.current = null
       mentionRangeRef.current = null
       setMentionQuery(null)
-      dismissedMentionStartRef.current = null
+      dismissedMentionRef.current = null
       plusMenuRef.current?.close()
       slashRangeRef.current = null
       setSlashQuery(null)
@@ -396,7 +448,7 @@ export function usePromptEditor({
     plusMenuRef.current?.close()
     mentionRangeRef.current = null
     setMentionQuery(null)
-    dismissedMentionStartRef.current = null
+    dismissedMentionRef.current = null
     skillsMenuRef.current?.close()
     slashRangeRef.current = null
     setSlashQuery(null)
@@ -406,8 +458,19 @@ export function usePromptEditor({
     }
   }, [textareaRef])
 
-  const insertResource = useCallback(
-    (resource: MothershipResource) => {
+  /**
+   * Inserts a picked context as an `@label` chip, replacing the `@query` being typed
+   * when there is one and the caret otherwise. Organization chats and folders reuse
+   * an existing chip for the same target rather than adding a duplicate.
+   */
+  const insertMention = useCallback(
+    (candidate: ChatContext, selected: ChatContext[]) => {
+      const context =
+        organizationId || candidate.kind === 'folder' || candidate.kind === 'filefolder'
+          ? (selected.find(
+              (current) => current.kind === candidate.kind && areContextsEqual(current, candidate)
+            ) ?? { ...candidate, label: uniqueContextLabel(candidate.label, selected) })
+          : candidate
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
@@ -422,12 +485,12 @@ export function usePromptEditor({
           after = currentValue.slice(range.end)
           const needsSpaceBefore =
             range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
           newPos = before.length + insertText.length
         } else {
           const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
           const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
           before = currentValue.slice(0, insertAt)
           after = currentValue.slice(insertAt)
           newPos = before.length + insertText.length
@@ -439,14 +502,40 @@ export function usePromptEditor({
         atInsertPosRef.current = newPos
         mentionRangeRef.current = null
         setMentionQuery(null)
-        dismissedMentionStartRef.current = null
+        dismissedMentionRef.current = null
         setValueState(newValue)
       }
 
-      const context = mapResourceToContext(resource)
       addContextNotified(context)
+      return context
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addContextNotified, organizationId]
+  )
+
+  const insertResource = useCallback(
+    (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
+      const mapped = mapResourceToContext(resource)
+      if (!mapped) return
+      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
+      return insertMention(
+        organizationId && ownerWorkspaceId && isWorkspaceOwnedContext(mapped)
+          ? { ...mapped, workspaceId: ownerWorkspaceId }
+          : mapped,
+        selected
+      )
+    },
+    [insertMention, organizationId]
+  )
+
+  /** Tags a whole workspace in an organization chat: "I'm working in this one". */
+  const insertWorkspace = useCallback(
+    (workspace: { id: string; name: string }) => {
+      insertMention(
+        { kind: 'workspace', workspaceId: workspace.id, label: workspace.name },
+        contextManagementRef.current.selectedContexts
+      )
+    },
+    [insertMention]
   )
 
   /**
@@ -455,8 +544,10 @@ export function usePromptEditor({
    */
   const insertResources = useCallback(
     (resources: MothershipResource[]) => {
+      let selected = contextManagementRef.current.selectedContexts
       for (const resource of resources) {
-        insertResource(resource)
+        const context = insertResource(resource, selected)
+        if (context) selected = [...selected, context]
       }
       atInsertPosRef.current = null
     },
@@ -464,7 +555,18 @@ export function usePromptEditor({
   )
 
   const handleSkillSelect = useCallback(
-    (skill: SkillDefinition) => {
+    (skill: SkillDefinition, ownerWorkspaceId?: string) => {
+      const owner = isBuiltinSkillId(skill.id)
+        ? undefined
+        : (ownerWorkspaceId ?? skill.workspaceId ?? workspaceIdRef.current)
+      const selected = contextManagementRef.current.selectedContexts
+      const existing = selected.find(
+        (context) =>
+          context.kind === 'skill' &&
+          context.skillId === skill.id &&
+          context.workspaceId === (organizationId ? owner : undefined)
+      )
+      const label = existing?.label ?? uniqueContextLabel(skill.name, selected)
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
@@ -479,12 +581,12 @@ export function usePromptEditor({
           after = currentValue.slice(range.end)
           const needsSpaceBefore =
             range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${skill.name} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${label} `
           newPos = before.length + insertText.length
         } else {
           const insertAt = textarea.selectionStart ?? currentValue.length
           const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${skill.name} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${label} `
           before = currentValue.slice(0, insertAt)
           after = currentValue.slice(insertAt)
           newPos = before.length + insertText.length
@@ -499,9 +601,14 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({ kind: 'skill', skillId: skill.id, label: skill.name })
+      addContextNotified({
+        kind: 'skill',
+        skillId: skill.id,
+        label,
+        ...(organizationId && owner ? { workspaceId: owner } : {}),
+      })
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addContextNotified, organizationId]
   )
 
   const handleMcpSelect = useCallback(
@@ -525,7 +632,12 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({ kind: 'mcp', serverId: server.id, label: server.name })
+      addContextNotified({
+        kind: 'mcp',
+        serverId: server.id,
+        label: server.name,
+        ...(server.managedConnectorId ? { managedConnectorId: server.managedConnectorId } : {}),
+      })
     },
     [textareaRef, addContextNotified]
   )
@@ -590,7 +702,9 @@ export function usePromptEditor({
    * `onOpenChange` and never call this.
    */
   const handlePlusMenuClose = useCallback(() => {
-    dismissedMentionStartRef.current = mentionRangeRef.current?.start ?? null
+    dismissedMentionRef.current = mentionRangeRef.current
+      ? { start: mentionRangeRef.current.start, triggerSelected: false }
+      : null
     atInsertPosRef.current = null
     mentionRangeRef.current = null
     setMentionQuery(null)
@@ -604,30 +718,33 @@ export function usePromptEditor({
 
   const syncMentionState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
+      if (!contextsEnabledRef.current) return
+      const dismissed = dismissedMentionRef.current
+      if (dismissed) {
+        dismissed.triggerSelected =
+          textarea.selectionStart <= dismissed.start && textarea.selectionEnd > dismissed.start
+        if (dismissed.triggerSelected) return
+      }
       const active = getActiveMentionAtRef.current(caret, text)
-      // Any word-boundary character inside the query — whitespace, sentence
-      // punctuation, or brackets — dismisses the menu. The mention token
-      // is "complete" the moment the user types a non-word character, so
-      // there's nothing more to query. Mirrors the boundary set the
-      // integration auto-detector uses for symmetry.
-      const isOpenable = active && !/[\s.,;:!?(){}[\]"'`/\\<>]/.test(active.query)
+      const isOpenable = active && !/[\r\n]/.test(active.query)
       if (!isOpenable) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
           setMentionQuery(null)
           plusMenuRef.current?.close()
         }
-        dismissedMentionStartRef.current = null
+        dismissedMentionRef.current = null
         return
       }
 
-      if (active.start === dismissedMentionStartRef.current) {
+      if (active.start === dismissedMentionRef.current?.start) {
         if (mentionRangeRef.current !== null) {
           mentionRangeRef.current = null
           setMentionQuery(null)
         }
         return
       }
+      dismissedMentionRef.current = null
 
       const wasActive = mentionRangeRef.current !== null
       mentionRangeRef.current = { start: active.start, end: active.end }
@@ -643,6 +760,7 @@ export function usePromptEditor({
 
   const syncSlashState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
+      if (!contextsEnabledRef.current) return
       const active = getActiveSlashAtRef.current(caret, text)
       // Any word-boundary character inside the query dismisses the menu. The
       // boundary set intentionally excludes `/` so the slash itself doesn't
@@ -711,16 +829,25 @@ export function usePromptEditor({
    * viewport position — the toolbar `+` button flow.
    */
   const openResourceMenu = useCallback((anchor: { left: number; top: number }) => {
-    plusMenuRef.current?.open(anchor)
+    if (contextsEnabledRef.current) plusMenuRef.current?.open(anchor)
   }, [])
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      // A newer edit owns the caret; delayed menu cleanup must not rewind it.
+      pendingCursorRef.current = null
       const previousValue = valueRef.current
       const nextValue = e.target.value
+      const hasMentionQuery =
+        mentionRangeRef.current !== null || dismissedMentionRef.current !== null
+      if (dismissedMentionRef.current?.triggerSelected) dismissedMentionRef.current = null
 
       let finalValue = nextValue
-      if (nextValue.length === previousValue.length + 1) {
+      if (
+        contextsEnabledRef.current &&
+        !hasMentionQuery &&
+        nextValue.length === previousValue.length + 1
+      ) {
         // Single-char keystroke — synchronous, boundary-triggered.
         finalValue = integrationAutoMention.processChange({
           textarea: e.target,
@@ -736,6 +863,7 @@ export function usePromptEditor({
           nextValue: finalValue,
         })
       } else if (
+        !hasMentionQuery &&
         nextValue.length > previousValue.length + 1 &&
         nextValue.length <= PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS
       ) {
@@ -760,7 +888,6 @@ export function usePromptEditor({
       const caret = e.target.selectionStart ?? finalValue.length
       valueRef.current = finalValue
       setValueState(finalValue)
-      dismissedMentionStartRef.current = null
       dismissedSlashStartRef.current = null
       syncMentionState(e.target, finalValue, caret)
       syncSlashState(e.target, finalValue, caret)
@@ -929,11 +1056,16 @@ export function usePromptEditor({
   const prevSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
 
   useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+    let lastTextarea = textareaRef.current
     let last = { start: 0, end: 0 }
     const onSelectionChange = () => {
-      if (document.activeElement !== textarea) return
+      const textarea = textareaRef.current
+      if (!textarea || document.activeElement !== textarea) return
+      // Mode changes can replace the node without replacing the shared editor.
+      if (textarea !== lastTextarea) {
+        lastTextarea = textarea
+        last = { start: textarea.selectionStart, end: textarea.selectionEnd }
+      }
       prevSelectionRef.current = last
       last = { start: textarea.selectionStart ?? 0, end: textarea.selectionEnd ?? 0 }
     }
@@ -1000,7 +1132,9 @@ export function usePromptEditor({
     // is already attached there is nothing to add, and claiming the event anyway
     // would swallow the keystroke entirely — no chip and no text. Falling through
     // pastes the selection's plain text, which is what the user asked for.
-    const selectionContext = readSelectionContextFromClipboard(e.clipboardData)
+    const selectionContext = contextsEnabledRef.current
+      ? readSelectionContextFromClipboard(e.clipboardData, workspaceIdRef.current)
+      : null
     const preparedSelection = selectionContext
       ? prepareContextForInsert(selectionContext, contextManagementRef.current.selectedContexts)
       : null
@@ -1044,7 +1178,7 @@ export function usePromptEditor({
     // space is REQUIRED so useContextManagement's sync effect doesn't purge the
     // freshly-added context) and register the contexts directly.
     const pastedText = pastedPlainText
-    const links = parseChipLinks(pastedText)
+    const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
     if (links.length > 0) {
       e.preventDefault()
 
@@ -1151,7 +1285,11 @@ export function usePromptEditor({
       if (soleSelectionChip) {
         e.preventDefault()
         e.clipboardData.setData('text/plain', selected)
-        attachSelectionContextToClipboard(e.clipboardData, selectionChips[0])
+        attachSelectionContextToClipboard(
+          e.clipboardData,
+          selectionChips[0],
+          workspaceIdRef.current
+        )
         return true
       }
       const serialized = serializeSelectionForClipboard(selected, contexts)
@@ -1210,6 +1348,8 @@ export function usePromptEditor({
 
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
     workspaceId,
+    organizationId,
+    contextsEnabled,
     /** @internal */
     skills,
     /** @internal */
@@ -1226,6 +1366,8 @@ export function usePromptEditor({
     pendingCursorRef,
     /** @internal */
     insertResource,
+    /** @internal */
+    insertWorkspace,
     /** @internal */
     handleSkillSelect,
     /** @internal */

@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -202,63 +201,5 @@ export interface StagehandAgentResponse extends ToolResponse {
     structuredOutput?: Record<string, any>
     liveViewUrl?: string | null
     sessionId?: string | null
-  }
-}
-
-export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
-  if (!jsonSchema) {
-    throw new Error('Invalid schema: Schema is required')
-  }
-
-  // Handle different schema types
-  switch (jsonSchema.type) {
-    case 'object': {
-      if (!jsonSchema.properties) {
-        return z.object({})
-      }
-
-      const shape: Record<string, z.ZodTypeAny> = {}
-      const requiredFields = new Set(jsonSchema.required || [])
-
-      for (const [key, propSchema] of Object.entries(jsonSchema.properties)) {
-        // Create the base schema for this property
-        let fieldSchema = jsonSchemaToZod(propSchema as Record<string, any>)
-
-        // Make it optional if not in required fields
-        if (!requiredFields.has(key)) {
-          fieldSchema = fieldSchema.optional()
-        }
-
-        // Add description if available
-        if ((propSchema as Record<string, any>).description) {
-          fieldSchema = fieldSchema.describe((propSchema as Record<string, any>).description)
-        }
-
-        shape[key] = fieldSchema
-      }
-
-      return z.object(shape)
-    }
-
-    case 'array':
-      if (!jsonSchema.items) {
-        return z.array(z.any())
-      }
-      return z.array(jsonSchemaToZod(jsonSchema.items as Record<string, any>))
-
-    case 'string':
-      return z.string()
-
-    case 'number':
-      return z.number()
-
-    case 'boolean':
-      return z.boolean()
-
-    case 'null':
-      return z.null()
-
-    default:
-      return z.any()
   }
 }

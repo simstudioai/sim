@@ -2,9 +2,9 @@ import type {
   SecretsManagerUpdateSecretParams,
   SecretsManagerUpdateSecretResponse,
 } from '@/tools/secrets_manager/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateSecretTool: ToolConfig<
+export const updateSecretTool: InternalToolConfig<
   SecretsManagerUpdateSecretParams,
   SecretsManagerUpdateSecretResponse
 > = {
@@ -52,11 +52,8 @@ export const updateSecretTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/secrets_manager/update-secret',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

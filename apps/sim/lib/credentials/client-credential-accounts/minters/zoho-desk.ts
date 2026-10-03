@@ -242,10 +242,8 @@ export async function mintZohoDeskServiceAccountToken(
   const apiDomain = reportedDeskBase ?? dataCenter.deskBase
   if (reportedDeskBase && reportedDeskBase !== dataCenter.deskBase) {
     logger.warn('Zoho api_domain disagrees with the selected data center', {
-      soid,
       selectedDataCenter: dataCenter.id,
-      selectedDeskBase: dataCenter.deskBase,
-      reportedDeskBase,
+      usedProviderReportedDomain: true,
     })
   }
   const expiresInSeconds =

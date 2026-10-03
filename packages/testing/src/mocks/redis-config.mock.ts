@@ -31,6 +31,7 @@ function resolveTlsOptionsImpl(url: string | undefined): { servername: string } 
 function getRedisConnectionDefaultsImpl(url?: string): {
   keepAlive: number
   connectTimeout: number
+  disconnectTimeout: number
   enableOfflineQueue: boolean
   tls?: { servername: string }
 } {
@@ -38,8 +39,30 @@ function getRedisConnectionDefaultsImpl(url?: string): {
   return {
     keepAlive: 1000,
     connectTimeout: 10000,
+    disconnectTimeout: 2000,
     enableOfflineQueue: true,
     ...(tls ? { tls } : {}),
+  }
+}
+
+/**
+ * Mirrors the real `describeRedisConnection` under its Redis-unavailable
+ * default: no client, no lifecycle history, and nothing derivable from an
+ * unset REDIS_URL.
+ */
+function describeRedisConnectionImpl() {
+  return {
+    status: 'no-client',
+    clientAgeMs: null,
+    readyAgeMs: null,
+    msSinceLastPingOk: null,
+    connects: 0,
+    reconnects: 0,
+    errors: 0,
+    lastErrorMessage: null,
+    hostKind: 'unknown' as const,
+    tls: false,
+    sniOverride: false,
   }
 }
 
@@ -69,6 +92,9 @@ export const redisConfigMockFns = {
   mockExtendLock: vi.fn().mockResolvedValue(true),
   mockCloseRedisConnection: vi.fn().mockResolvedValue(undefined),
   mockResetForTesting: vi.fn(),
+  mockDescribeRedisConnection: vi.fn(describeRedisConnectionImpl),
+  mockWarmRedisConnection: vi.fn().mockResolvedValue(false),
+  mockSharedReconnectDelayMs: vi.fn().mockReturnValue(1_000),
 }
 
 /**
@@ -86,6 +112,11 @@ export function resetRedisConfigMock(): void {
   redisConfigMockFns.mockExtendLock.mockReset().mockResolvedValue(true)
   redisConfigMockFns.mockCloseRedisConnection.mockReset().mockResolvedValue(undefined)
   redisConfigMockFns.mockResetForTesting.mockReset()
+  redisConfigMockFns.mockWarmRedisConnection.mockReset().mockResolvedValue(false)
+  redisConfigMockFns.mockSharedReconnectDelayMs.mockReset().mockReturnValue(1_000)
+  redisConfigMockFns.mockDescribeRedisConnection
+    .mockReset()
+    .mockImplementation(describeRedisConnectionImpl)
 }
 
 /**
@@ -98,6 +129,9 @@ export function resetRedisConfigMock(): void {
  * ```
  */
 export const redisConfigMock = {
+  CONNECT_TIMEOUT_MS: 10_000,
+  DISCONNECT_TIMEOUT_MS: 2_000,
+  SHARED_COMMAND_TIMEOUT_MS: 5_000,
   getConfiguredRedisUrl: redisConfigMockFns.mockGetConfiguredRedisUrl,
   getRedisClient: redisConfigMockFns.mockGetRedisClient,
   getRedisConnectionDefaults: redisConfigMockFns.mockGetRedisConnectionDefaults,
@@ -107,4 +141,7 @@ export const redisConfigMock = {
   extendLock: redisConfigMockFns.mockExtendLock,
   closeRedisConnection: redisConfigMockFns.mockCloseRedisConnection,
   resetForTesting: redisConfigMockFns.mockResetForTesting,
+  describeRedisConnection: redisConfigMockFns.mockDescribeRedisConnection,
+  warmRedisConnection: redisConfigMockFns.mockWarmRedisConnection,
+  sharedReconnectDelayMs: redisConfigMockFns.mockSharedReconnectDelayMs,
 }

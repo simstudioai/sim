@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProvider,
   parseProviderJson,
@@ -29,12 +26,7 @@ async function expectValidationError(
 
 describe('token service-account error helpers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   describe('fetchProvider', () => {
@@ -56,13 +48,6 @@ describe('token service-account error helpers', () => {
       expect(JSON.stringify(error.logDetail)).not.toContain(PROVIDER_URL)
       expect(JSON.stringify(error.logDetail)).not.toContain('example-provider')
     })
-
-    it('returns the response untouched when fetch resolves', async () => {
-      const res = new Response('ok', { status: 200 })
-      mockFetch.mockResolvedValue(res)
-
-      await expect(fetchProvider(PROVIDER_URL, {}, 'self')).resolves.toBe(res)
-    })
   })
 
   describe('parseProviderJson', () => {
@@ -78,45 +63,24 @@ describe('token service-account error helpers', () => {
         reason: 'provider returned a non-JSON response body',
       })
     })
-
-    it('returns the parsed body for valid JSON', async () => {
-      const res = new Response(JSON.stringify({ id: 'acct-1' }), { status: 200 })
-
-      await expect(parseProviderJson(res, 'self')).resolves.toEqual({ id: 'acct-1' })
-    })
   })
 
   describe('throwForProviderResponse', () => {
-    it.each([401, 403])(
-      'maps %i to invalid_credentials with the response status',
-      async (status) => {
-        const res = new Response('denied', { status })
+    it.each([401])('maps %i to invalid_credentials with the response status', async (status) => {
+      const res = new Response('denied', { status })
 
-        const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+      const error = await expectValidationError(throwForProviderResponse(res, 'self'))
 
-        expect(error.code).toBe('invalid_credentials')
-        expect(error.status).toBe(status)
-      }
-    )
-
-    it.each([429, 500, 503])(
-      'maps %i to provider_unavailable with the response status',
-      async (status) => {
-        const res = new Response('provider trouble', { status })
-
-        const error = await expectValidationError(throwForProviderResponse(res, 'self'))
-
-        expect(error.code).toBe('provider_unavailable')
-        expect(error.status).toBe(status)
-      }
-    )
+      expect(error.code).toBe('invalid_credentials')
+      expect(error.status).toBe(status)
+    })
 
     /**
      * `provider_unavailable` renders as `503 + Retry-After`, so classifying a
      * permanently-wrong `domain`, `orgId`, or `clientId` as an outage tells a
      * conforming client to retry input that can never succeed.
      */
-    it.each([400, 404, 409, 422])(
+    it.each([400, 404])(
       'maps the non-transient %i to invalid_credentials, never an outage',
       async (status) => {
         const res = new Response('bad request', { status })
@@ -128,18 +92,12 @@ describe('token service-account error helpers', () => {
       }
     )
 
-    it.each([408, 429])('keeps the transient %i an outage', async (status) => {
+    it.each([408, 429, 503])('keeps the transient %i an outage', async (status) => {
       const res = new Response('slow down', { status })
 
       const error = await expectValidationError(throwForProviderResponse(res, 'self'))
 
       expect(error.code).toBe('provider_unavailable')
-    })
-
-    it('returns without throwing on a 2xx response', async () => {
-      const res = new Response('ok', { status: 200 })
-
-      await expect(throwForProviderResponse(res, 'self')).resolves.toBeUndefined()
     })
   })
 

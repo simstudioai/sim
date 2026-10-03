@@ -1,8 +1,10 @@
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryResponse> = {
+export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQueryResponse> = {
   id: 'table_query_rows',
   name: 'Query Rows',
   description: 'Query rows from a table with filtering, sorting, and pagination',
@@ -15,12 +17,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     filter: {
       type: 'object',
       required: false,
@@ -49,55 +46,37 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     },
   },
 
-  request: {
-    internal: true,
+  operation: {
     secretProvenance: { response: { incomplete: 'propagate' } },
-    url: (params: TableRowQueryParams) => {
+    input: (params: TableRowQueryParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
-      const searchParams = new URLSearchParams({
+      return {
+        tableId: params.tableId,
         workspaceId,
-      })
-
-      if (params.filter) {
-        searchParams.append('filter', JSON.stringify(params.filter))
+        ...(params.filter ? { filter: JSON.stringify(params.filter) } : {}),
+        ...(params.sort ? { sort: JSON.stringify(params.sort) } : {}),
+        ...(params.limit !== undefined ? { limit: String(params.limit) } : {}),
+        ...(params.offset !== undefined ? { offset: String(params.offset) } : {}),
       }
-      if (params.sort) {
-        searchParams.append('sort', JSON.stringify(params.sort))
-      }
-      if (params.limit !== undefined) {
-        searchParams.append('limit', String(params.limit))
-      }
-      if (params.offset !== undefined) {
-        searchParams.append('offset', String(params.offset))
-      }
-
-      return `/api/table/${encodeURIComponent(params.tableId)}/rows?${searchParams.toString()}`
     },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
   },
 
   transformResponse: async (response): Promise<TableQueryResponse> => {
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        rows: data.rows,
-        rowCount: data.rowCount,
-        totalCount: data.totalCount,
-        limit: data.limit,
-        offset: data.offset,
-        nextCursor: data.nextCursor ?? null,
-      },
-    }
+    return tableSuccess({
+      rows: data.rows,
+      rowCount: data.rowCount,
+      totalCount: data.totalCount,
+      limit: data.limit,
+      offset: data.offset,
+      nextCursor: data.nextCursor ?? null,
+    })
   },
 
   outputs: {

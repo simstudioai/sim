@@ -1,15 +1,19 @@
 import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChipTag, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Ban, Lock, Repeat, Split } from '@sim/emcn/icons'
+import { getWorkflowTypeAccent } from '@sim/workflow-renderer/workflow-type'
+import {
+  getWorkflowSubflowHandleIds,
+  WORKFLOW_TARGET_HANDLE_ID,
+} from '@sim/workflow-types/workflow'
 import {
   Handle,
-  internalsSymbol,
   Position,
   type ReactFlowState,
   useStore as useReactFlowStore,
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
-} from 'reactflow'
+} from '@xyflow/react'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { DiffStatus } from '../types'
@@ -26,10 +30,9 @@ import {
   type WorkflowBorderCursorHandle,
   type WorkflowBorderPort,
 } from '../workflow-block/workflow-block-border'
-import { getWorkflowTypeAccent } from '../workflow-block/workflow-block-view'
 
 /** Data attached to loop/parallel container nodes. */
-export interface SubflowNodeData {
+export interface SubflowNodeData extends Record<string, unknown> {
   width?: number
   height?: number
   parentId?: string
@@ -108,11 +111,11 @@ const getCursorHandleSize = (side: WorkflowBorderCursorHandle['edgeSide']) =>
 /** Invisible React Flow handles aligned with the painted connection knobs. */
 const getHandleClasses = (position: 'left' | 'right') => {
   const baseClasses =
-    '!z-20 !h-[38px] !w-[14px] !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+    'z-20! h-[38px]! w-[14px]! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
 
   const positionClasses = {
-    left: '!left-[-7px]',
-    right: '!right-[-7px]',
+    left: 'left-[-7px]!',
+    right: 'right-[-7px]!',
   }
 
   return cn(baseClasses, positionClasses[position])
@@ -131,10 +134,10 @@ function SubflowStateIndicator({ label, Icon }: SubflowStateIndicatorProps) {
         <ChipTag
           variant='workflow'
           tone='neutral'
-          className='size-5 flex-shrink-0 justify-center p-0'
+          className='size-5 shrink-0 justify-center p-0'
           aria-label={label}
         >
-          <Icon className='size-[12px] flex-shrink-0' />
+          <Icon className='size-[12px] shrink-0' />
         </ChipTag>
       </Tooltip.Trigger>
       <Tooltip.Content side='top'>
@@ -158,7 +161,7 @@ export function SubflowStartView({
   isPreview = false,
   isHighlighted = false,
 }: SubflowStartViewProps) {
-  const startHandleId = kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+  const startHandleId = getWorkflowSubflowHandleIds(kind).start
   /*
    * The swell's temporary handle carries the branch-cursor form of the start
    * id. The plain cursor id normalizes by block type — for a container that is
@@ -176,7 +179,7 @@ export function SubflowStartView({
   )
 
   const getConnectionNodeId = useCallback(
-    () => reactFlowStore.getState().connectionNodeId,
+    () => reactFlowStore.getState().connection.fromNode?.id ?? null,
     [reactFlowStore]
   )
 
@@ -207,7 +210,7 @@ export function SubflowStartView({
     if (!handleElement || !nodeElement) return
 
     const state = reactFlowStore.getState()
-    const sourceBounds = state.nodeInternals.get(parentId)?.[internalsSymbol]?.handleBounds?.source
+    const sourceBounds = state.nodeLookup.get(parentId)?.internals.handleBounds?.source
     const handleId = handleElement.dataset.handleid
     const handlePosition = handleElement.dataset.handlepos as Position | undefined
     const zoom = state.transform[2]
@@ -218,6 +221,8 @@ export function SubflowStartView({
     const [originX, originY] = state.nodeOrigin
     const nextBounds = {
       id: handleId,
+      nodeId: parentId,
+      type: 'source' as const,
       position: handlePosition,
       x: (handleBounds.left - nodeBounds.left - nodeBounds.width * originX) / zoom,
       y: (handleBounds.top - nodeBounds.top - nodeBounds.height * originY) / zoom,
@@ -290,7 +295,7 @@ export function SubflowStartView({
           type='source'
           position={getCursorSourceHandlePosition(cursorSourceHandle.edgeSide)}
           id={cursorHandleId}
-          className='!z-50 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+          className='z-50! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
           style={{
             right: 'auto',
             bottom: 'auto',
@@ -341,7 +346,7 @@ export function SubflowNodeView({
   const isPreview = data?.isPreview || false
   const isPreviewSelected = data?.isPreviewSelected || false
 
-  const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+  const endHandleId = getWorkflowSubflowHandleIds(data.kind).end
   const showFixedEndPort = useReactFlowStore(
     useMemo(() => {
       let previousEdges: ReactFlowState['edges'] | undefined
@@ -366,7 +371,7 @@ export function SubflowNodeView({
   const height = data.height ?? 300
 
   const getConnectionNodeId = useCallback(
-    () => reactFlowStore.getState().connectionNodeId,
+    () => reactFlowStore.getState().connection.fromNode?.id ?? null,
     [reactFlowStore]
   )
 
@@ -399,7 +404,7 @@ export function SubflowNodeView({
     if (!handleElement || !nodeElement) return
 
     const state = reactFlowStore.getState()
-    const sourceBounds = state.nodeInternals.get(id)?.[internalsSymbol]?.handleBounds?.source
+    const sourceBounds = state.nodeLookup.get(id)?.internals.handleBounds?.source
     const handleId = handleElement.dataset.handleid
     const handlePosition = handleElement.dataset.handlepos as Position | undefined
     const zoom = state.transform[2]
@@ -410,6 +415,8 @@ export function SubflowNodeView({
     const [originX, originY] = state.nodeOrigin
     const nextBounds = {
       id: handleId,
+      nodeId: id,
+      type: 'source' as const,
       position: handlePosition,
       x: (handleBounds.left - nodeBounds.left - nodeBounds.width * originX) / zoom,
       y: (handleBounds.top - nodeBounds.top - nodeBounds.height * originY) / zoom,
@@ -582,7 +589,7 @@ export function SubflowNodeView({
             type='source'
             position={getCursorSourceHandlePosition(cursorSourceHandle.edgeSide)}
             id={cursorSourceHandle.handleId}
-            className='!z-50 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+            className='z-50! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
             style={{
               right: 'auto',
               bottom: 'auto',
@@ -603,7 +610,6 @@ export function SubflowNodeView({
         <div
           role='button'
           tabIndex={0}
-          aria-label={`Select ${blockName}`}
           onClick={onSelect}
           onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
           className='workflow-drag-handle relative z-20 flex cursor-grab items-center justify-between px-2 [&:active]:cursor-grabbing'
@@ -618,22 +624,22 @@ export function SubflowNodeView({
           >
             <OverflowSpan
               value={blockName}
-              className={cn('truncate text-[17px]', !isEnabled && 'text-[var(--text-muted)]')}
+              className={cn('text-[17px]', !isEnabled && 'text-[var(--text-muted)]')}
             />
           </div>
-          <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
+          <div className='relative z-10 flex shrink-0 items-center gap-1'>
             {!isEnabled && <SubflowStateIndicator label='Disabled' Icon={Ban} />}
             {isLocked && <SubflowStateIndicator label='Locked' Icon={Lock} />}
             <ChipTag
               variant={blockTypeAccent.variant}
               tone={blockTypeAccent.tone}
               className={cn(
-                'flex-shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+                'shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
                 !isEnabled && 'opacity-50'
               )}
               data-subflow-type-tag={data.kind}
             >
-              <BlockIcon className='size-[14px] flex-shrink-0' />
+              <BlockIcon className='size-[14px] shrink-0' />
               {blockTypeLabel}
             </ChipTag>
           </div>
@@ -688,7 +694,7 @@ export function SubflowNodeView({
         <Handle
           type='target'
           position={Position.Left}
-          id='target'
+          id={WORKFLOW_TARGET_HANDLE_ID}
           className={getHandleClasses('left')}
           style={{
             ...HANDLE_STYLE,

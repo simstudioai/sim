@@ -1,7 +1,7 @@
 import type { MySQLInsertParams, MySQLResponse } from '@/tools/mysql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const insertTool: ToolConfig<MySQLInsertParams, MySQLResponse> = {
+export const insertTool: InternalToolConfig<MySQLInsertParams, MySQLResponse> = {
   id: 'mysql_insert',
   name: 'MySQL Insert',
   description: 'Insert new record into MySQL database',
@@ -58,13 +58,8 @@ export const insertTool: ToolConfig<MySQLInsertParams, MySQLResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mysql/insert',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

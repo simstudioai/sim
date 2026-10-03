@@ -119,7 +119,11 @@ export const ViewsMenu = memo(function ViewsMenu({
           onMouseLeave={scheduleClose}
           className={cn(chipVariants(), 'max-w-[220px]')}
         >
-          <span className={chipContentLabelClass}>{label}</span>
+          <OverflowText
+            label={label}
+            className={cn('flex-1', chipContentLabelClass)}
+            focusTarget='nearest-interactive'
+          />
           <ChipChevronDown />
         </button>
       </PopoverAnchor>
@@ -133,7 +137,7 @@ export const ViewsMenu = memo(function ViewsMenu({
         border
         className={cn(
           POPOVER_ANIMATION_CLASSES,
-          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-xs'
         )}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}

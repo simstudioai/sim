@@ -22,7 +22,6 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-  RefreshCw,
   toast,
 } from '@sim/emcn'
 import { Download, Workflow } from '@sim/emcn/icons'
@@ -53,24 +52,27 @@ import {
 } from '@/lib/logs/search-suggestions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type { ResourceAction } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import type {
   FilterTag,
-  ResourceAction,
-  ResourceColumn,
-  ResourceRow,
   SearchConfig,
   SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
+import type {
+  ResourceColumn,
+  ResourceRow,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
 import {
-  isResourceListEmpty,
   Resource,
   type ResourceTableHandle,
-} from '@/app/workspace/[workspaceId]/components'
-import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
 import {
   SnapshotBoundary,
   SnapshotModalFallback,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
+import { getLogsRefreshAction } from '@/app/workspace/[workspaceId]/logs/components/log-refresh-action'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -92,7 +94,9 @@ import {
   useDashboardStats,
   useLogByExecutionId,
   useLogDetail,
-  useLogsList,
+  useLogSnapshotUpdates,
+  useLogsSnapshot,
+  useNewLogCount,
   useRetryExecution,
 } from '@/hooks/queries/logs'
 import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
@@ -128,7 +132,6 @@ const ExecutionSnapshot = lazy(() =>
 )
 
 const LOGS_PER_PAGE = 50 as const
-const REFRESH_SPINNER_DURATION_MS = 1000 as const
 const LIVE_REFRESH_INTERVAL_MS = 10_000 as const
 const ACTIVE_RUN_DETAIL_REFRESH_MS = 3_000 as const
 
@@ -195,7 +198,7 @@ function getColorIcon(color: string): React.ComponentType<{ className?: string }
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'flex-shrink-0 rounded-[3px]')}
+      className={cn(className, 'shrink-0 rounded-[3px]')}
       style={{
         backgroundColor: color,
         width: 10,
@@ -209,7 +212,7 @@ function getColorIcon(color: string): React.ComponentType<{ className?: string }
 }
 
 function WorkflowOptionIcon({ className }: { className?: string }) {
-  return <Workflow className={cn(className, 'flex-shrink-0 text-[var(--text-icon)]')} />
+  return <Workflow className={cn(className, 'shrink-0 text-[var(--text-icon)]')} />
 }
 
 function getTriggerIcon(
@@ -220,14 +223,17 @@ function getTriggerIcon(
   if (!block?.icon) return undefined
   const BlockIcon = block.icon
   const TriggerIcon = ({ className }: { className?: string }) => (
-    <BlockIcon className={cn(className, 'flex-shrink-0')} style={{ width: 12, height: 12 }} />
+    <BlockIcon className={cn(className, 'shrink-0')} style={{ width: 12, height: 12 }} />
   )
   TriggerIcon.displayName = `TriggerIcon(${triggerType})`
   return TriggerIcon
 }
 
-function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
-  return <RefreshCw {...props} animate />
+function activeRunRefetchInterval(query: { state: { data?: WorkflowLogDetail } }) {
+  const status = query.state.data?.status
+  return status === 'running' || status === 'pending' || status === 'redacting'
+    ? ACTIVE_RUN_DETAIL_REFRESH_MS
+    : false
 }
 
 /**
@@ -255,7 +261,6 @@ export default function Logs() {
     setFolderIds,
     setTriggers,
     setTimeRange,
-    setDateRange,
     clearDateRange,
   } = useLogFilters()
 
@@ -289,17 +294,14 @@ export default function Logs() {
    */
   const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS).trim()
 
-  const isLive = true
-  const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
-  const refreshTimersRef = useRef(new Set<number>())
   const logsRef = useRef<WorkflowLogSummary[]>([])
   const selectedLogIndexRef = useRef(-1)
   const selectedLogIdRef = useRef<string | null>(null)
   const isSidebarOpenRef = useRef(false)
   const shouldScrollIntoViewRef = useRef(false)
   const resourceTableRef = useRef<ResourceTableHandle>(null)
-  const activeViewRefetchRef = useRef<() => void>(() => {})
+  const activeViewRefetchRef = useRef<() => Promise<unknown>>(async () => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
@@ -326,24 +328,13 @@ export default function Logs() {
 
   const queryClient = useQueryClient()
 
-  const refetchInterval = useCallback(
-    (query: { state: { data?: WorkflowLogDetail } }) => {
-      if (!isLive) return false
-      const status = query.state.data?.status
-      return status === 'running' || status === 'pending' || status === 'redacting'
-        ? ACTIVE_RUN_DETAIL_REFRESH_MS
-        : false
-    },
-    [isLive]
-  )
-
   const selectedDetailQuery = useLogDetail(selectedLogId ?? undefined, workspaceId, {
     enabled: isSidebarOpen,
-    refetchInterval,
+    refetchInterval: activeRunRefetchInterval,
   })
 
   const previewDetailQuery = useLogDetail(previewLogId ?? undefined, workspaceId, {
-    refetchInterval,
+    refetchInterval: activeRunRefetchInterval,
   })
 
   const logFilters = useMemo(
@@ -374,10 +365,23 @@ export default function Logs() {
     ]
   )
 
-  const logsQuery = useLogsList(workspaceId, logFilters, {
+  const logsQuery = useLogsSnapshot(workspaceId, logFilters, {
     enabled: !isDashboardView || isSidebarOpen,
-    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
+  const newLogsQuery = useNewLogCount(
+    workspaceId,
+    logFilters,
+    logsQuery.isPlaceholderData ? undefined : logsQuery.data?.pages[0]?.snapshotAt,
+    { enabled: !isDashboardView }
+  )
+  const newLogCount = newLogsQuery.data ?? 0
+  const hasChangedPage = logsQuery.data?.pages.some((page) => page.snapshotChanged) === true
+  const snapshotUpdatesQuery = useLogSnapshotUpdates(
+    workspaceId,
+    logsQuery.isPlaceholderData ? undefined : logsQuery.data?.pages[0],
+    { enabled: !isDashboardView && newLogCount === 0 && !hasChangedPage }
+  )
+  const hasSnapshotUpdates = snapshotUpdatesQuery.data || hasChangedPage
 
   const dashboardFilters = useMemo(
     () => ({
@@ -395,7 +399,7 @@ export default function Logs() {
 
   const dashboardStatsQuery = useDashboardStats(workspaceId, dashboardFilters, {
     enabled: isDashboardView,
-    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
+    refetchInterval: LIVE_REFRESH_INTERVAL_MS,
   })
 
   const logs = useMemo(() => {
@@ -419,14 +423,11 @@ export default function Logs() {
   selectedLogIndexRef.current = selectedLogIndex
   selectedLogIdRef.current = selectedLogId
   isSidebarOpenRef.current = isSidebarOpen
-  activeViewRefetchRef.current = () => {
-    if (isDashboardView) {
-      void dashboardStatsQuery.refetch()
-    }
-    if (!isDashboardView || isSidebarOpen) {
-      void logsQuery.refetch()
-    }
-  }
+  activeViewRefetchRef.current = () =>
+    Promise.all([
+      ...(isDashboardView ? [dashboardStatsQuery.refetch({ throwOnError: true })] : []),
+      ...(!isDashboardView || isSidebarOpen ? [logsQuery.refetch({ throwOnError: true })] : []),
+    ])
   activeLogRefetchRef.current = selectedDetailQuery.refetch
   logsQueryRef.current = {
     isFetching: logsQuery.isFetching,
@@ -446,14 +447,6 @@ export default function Logs() {
       setPendingExecutionId(null)
     }
   }, [pendingExecutionId, deepLinkQuery.data, deepLinkQuery.isError])
-
-  useEffect(() => {
-    const timers = refreshTimersRef.current
-    return () => {
-      timers.forEach((id) => window.clearTimeout(id))
-      timers.clear()
-    }
-  }, [])
 
   /**
    * The single write path for user-driven `executionId` changes. Cancels any
@@ -662,36 +655,20 @@ export default function Logs() {
   const effectiveSidebarOpen =
     isSidebarOpen && (selectedLogIndex !== -1 || !!selectedDetailQuery.data)
 
-  const triggerVisualRefresh = useCallback(() => {
-    setIsVisuallyRefreshing(true)
-    const timerId = window.setTimeout(() => {
-      setIsVisuallyRefreshing(false)
-      refreshTimersRef.current.delete(timerId)
-    }, REFRESH_SPINNER_DURATION_MS)
-    refreshTimersRef.current.add(timerId)
-  }, [])
-
-  const handleRefresh = useCallback(() => {
-    triggerVisualRefresh()
-    activeViewRefetchRef.current()
+  const handleRefresh = useCallback(async () => {
     if (selectedLogIdRef.current && isSidebarOpenRef.current) {
       activeLogRefetchRef.current()
     }
-  }, [triggerVisualRefresh])
+    try {
+      await activeViewRefetchRef.current()
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to refresh logs'))
+    }
+  }, [])
 
-  const activeViewIsFetching = isDashboardView
+  const isVisuallyRefreshing = isDashboardView
     ? dashboardStatsQuery.isFetching || (isSidebarOpen && logsQuery.isFetching)
     : logsQuery.isFetching
-  const prevIsFetchingRef = useRef(activeViewIsFetching)
-  useEffect(() => {
-    const wasFetching = prevIsFetchingRef.current
-    const isFetching = activeViewIsFetching
-    prevIsFetchingRef.current = isFetching
-
-    if (isLive && !wasFetching && isFetching) {
-      triggerVisualRefresh()
-    }
-  }, [activeViewIsFetching, isLive, triggerVisualRefresh])
 
   const handleExport = useCallback(async () => {
     setIsExporting(true)
@@ -1167,7 +1144,6 @@ export default function Logs() {
     ]
   )
 
-  const refreshIcon = isVisuallyRefreshing ? SpinningRefreshCw : RefreshCw
   const hasExportableLogs = isDashboardView
     ? !dashboardStatsQuery.isPlaceholderData && (dashboardStatsQuery.data?.totalRuns ?? 0) > 0
     : !logsQuery.isPlaceholderData && logs.length > 0
@@ -1180,12 +1156,12 @@ export default function Logs() {
         onSelect: handleExport,
         disabled: !userPermissions.canEdit || isExporting || !hasExportableLogs,
       },
-      {
-        text: 'Refresh',
-        icon: refreshIcon,
-        onSelect: handleRefresh,
-        disabled: isVisuallyRefreshing,
-      },
+      getLogsRefreshAction({
+        newLogCount: isDashboardView ? 0 : newLogCount,
+        hasUpdates: !isDashboardView && hasSnapshotUpdates,
+        isRefreshing: isVisuallyRefreshing,
+        onRefresh: handleRefresh,
+      }),
       {
         text: 'Logs',
         onSelect: () => setViewMode('logs'),
@@ -1200,7 +1176,8 @@ export default function Logs() {
     [
       isDashboardView,
       setViewMode,
-      refreshIcon,
+      newLogCount,
+      hasSnapshotUpdates,
       isVisuallyRefreshing,
       handleRefresh,
       handleExport,
@@ -1228,8 +1205,8 @@ export default function Logs() {
           filterTags={filterTags}
         />
         {isDashboardView ? (
-          <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
-            <div className='flex min-h-0 flex-1 flex-col px-6'>
+          <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6'>
               <Dashboard
                 stats={dashboardStatsQuery.data}
                 isLoading={dashboardStatsQuery.isLoading}
@@ -1469,15 +1446,11 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedStatusColor && (
                 <div
-                  className='flex-shrink-0 rounded-[3px]'
+                  className='shrink-0 rounded-[3px]'
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}
-              <OverflowText
-                label={statusDisplayLabel}
-                className='block flex-1'
-                tooltipEnabled={false}
-              />
+              <span className='min-w-0 flex-1'>{statusDisplayLabel}</span>
             </span>
           }
           showAllOption
@@ -1498,13 +1471,9 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           overlayContent={
             <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedWorkflow && (
-                <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               )}
-              <OverflowText
-                label={workflowDisplayLabel}
-                className='block flex-1'
-                tooltipEnabled={false}
-              />
+              <span className='min-w-0 flex-1'>{workflowDisplayLabel}</span>
             </span>
           }
           searchable
@@ -1524,13 +1493,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={setFolderIds}
           placeholder='All folders'
           overlayLabel={folderDisplayLabel}
-          overlayContent={
-            <OverflowText
-              label={folderDisplayLabel}
-              className='block w-full text-[var(--text-primary)]'
-              tooltipEnabled={false}
-            />
-          }
+          overlayContent={folderDisplayLabel}
           searchable
           searchPlaceholder='Search folders...'
           showAllOption
@@ -1548,13 +1511,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={setTriggers}
           placeholder='All triggers'
           overlayLabel={triggerDisplayLabel}
-          overlayContent={
-            <OverflowText
-              label={triggerDisplayLabel}
-              className='block w-full text-[var(--text-primary)]'
-              tooltipEnabled={false}
-            />
-          }
+          overlayContent={triggerDisplayLabel}
           searchable
           searchPlaceholder='Search triggers...'
           showAllOption
@@ -1572,13 +1529,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             onChange={handleTimeRangeChange}
             placeholder='All time'
             overlayLabel={timeDisplayLabel}
-            overlayContent={
-              <OverflowText
-                label={timeDisplayLabel}
-                className='block w-full text-[var(--text-primary)]'
-                tooltipEnabled={false}
-              />
-            }
+            overlayContent={timeDisplayLabel}
             className='w-full'
             maxHeight={320}
           />

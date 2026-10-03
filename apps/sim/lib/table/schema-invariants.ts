@@ -11,6 +11,7 @@
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
+import { validateColumnTypeLimits } from '@/lib/table/column-types'
 import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
 
 /**
@@ -19,7 +20,7 @@ import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
  * etc. Returns a list of human-readable errors (empty if valid).
  */
 export function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
-  const errors: string[] = []
+  const errors = validateColumnTypeLimits(schema.columns)
   // Group refs and columnOrder hold stable column ids (not display names).
   const columnsById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
   const groups = schema.workflowGroups ?? []

@@ -93,31 +93,6 @@ export type FilterCondition =
   | BooleanFilterCondition
 
 /**
- * Filter group with logical operator
- */
-interface FilterGroup {
-  operator: LogicalOperator
-  conditions: FilterCondition[]
-}
-
-/**
- * Complete filter query structure
- * Supports nested groups with AND/OR logic
- */
-interface TagFilter {
-  rootOperator: LogicalOperator
-  groups: FilterGroup[]
-}
-
-/**
- * Simplified flat filter structure for simple use cases
- */
-interface SimpleTagFilter {
-  operator: LogicalOperator
-  conditions: FilterCondition[]
-}
-
-/**
  * Operator metadata for UI display
  */
 export interface OperatorInfo {

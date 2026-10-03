@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleSheetsConnectorMeta } from '@/connectors/google-sheets/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
+  ConnectorListingScopeUnavailableError,
+  isListingScopeUnavailableError,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
@@ -172,7 +175,15 @@ async function fetchSpreadsheetMetadata(
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch spreadsheet metadata: ${response.status}`)
+    const message = `Failed to fetch spreadsheet metadata: ${response.status}`
+    /**
+     * The Sheets API answers a spreadsheet that is not shared with the caller
+     * with 403, and one they cannot see at all with 404: either way the
+     * configured spreadsheet is out of this caller's reach.
+     */
+    throw response.status === 403 || response.status === 404
+      ? new ConnectorListingScopeUnavailableError(message, response.status)
+      : new Error(message)
   }
 
   return (await response.json()) as SpreadsheetMetadata
@@ -402,6 +413,8 @@ async function sheetToDocument(
 export const googleSheetsConnector: ConnectorConfig = {
   ...googleSheetsConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -478,7 +491,7 @@ export const googleSheetsConnector: ConnectorConfig = {
 
   getDocument: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>,
+    _sourceConfig: Record<string, unknown>,
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {

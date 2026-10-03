@@ -1,7 +1,10 @@
 import type { AsanaGetProjectsParams, AsanaGetProjectsResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaGetProjectsTool: ToolConfig<AsanaGetProjectsParams, AsanaGetProjectsResponse> = {
+export const asanaGetProjectsTool: InternalToolConfig<
+  AsanaGetProjectsParams,
+  AsanaGetProjectsResponse
+> = {
   id: 'asana_get_projects',
   name: 'Asana Get Projects',
   description: 'Retrieve all projects from an Asana workspace',
@@ -27,13 +30,8 @@ export const asanaGetProjectsTool: ToolConfig<AsanaGetProjectsParams, AsanaGetPr
     },
   },
 
-  request: {
-    url: '/api/tools/asana/get-projects',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       workspace: params.workspace,
     }),

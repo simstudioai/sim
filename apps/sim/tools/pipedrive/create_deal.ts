@@ -17,6 +17,11 @@ export const pipedriveCreateDealTool: ToolConfig<
   description: 'Create a new deal in Pipedrive',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',

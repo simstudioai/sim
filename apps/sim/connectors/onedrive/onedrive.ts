@@ -1,10 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import {
-  fetchWithRetry,
-  readBoundedHttpErrorBody,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { readBoundedHttpErrorBody, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -18,10 +15,13 @@ import {
   extractConnectorText,
   hasIndexablePayload,
   isIndexableConnectorFile,
+  isListingScopeUnavailableError,
   isMicrosoftGraphDriveItem,
+  isSkippableMicrosoftGraphFolderError,
   isSkippedDocument,
   type MicrosoftGraphTraversalState,
   markSkipped,
+  microsoftGraphListingError,
   parseMicrosoftGraphDriveItemList,
   parseOptionalUnlimitedSafeInteger,
   parseTagDate,
@@ -218,6 +218,8 @@ function decodeCursor(cursor: string): OneDriveTraversalState {
 export const onedriveConnector: ConnectorConfig = {
   ...onedriveConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -263,7 +265,20 @@ export const onedriveConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        throw new Error(`Failed to list OneDrive files: ${response.status}`)
+        const error = microsoftGraphListingError('Failed to list OneDrive files', response.status)
+        const isRootFolder = state.currentFolder === undefined
+        if (!isSkippableMicrosoftGraphFolderError(error, syncContext, isRootFolder)) throw error
+        logger.warn('Skipping a OneDrive folder the member cannot reach', {
+          folderId: state.currentFolder,
+          status: response.status,
+        })
+        if (state.folderStack.length === 0) {
+          done = true
+          break
+        }
+        state.currentFolder = state.folderStack.pop()!
+        state.nextLink = undefined
+        continue
       }
 
       const data = parseMicrosoftGraphDriveItemList(await response.json(), 'OneDrive')

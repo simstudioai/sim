@@ -19,6 +19,25 @@ export function encodeSandboxId(sandboxId: string): string {
 }
 
 /**
+ * The sandbox identifier as it should read back in a tool's output, for the
+ * lifecycle responses that return no body of their own.
+ *
+ * `sandboxId` is declared `type: 'string'`, but the value arrives unvalidated
+ * from an LLM tool call or stored workflow state and a numeric-looking id can
+ * land as a JSON number — the same widening {@link safeUrlPathSegment} accepts.
+ * This runs inside `transformResponse`, so the request has *already* been sent:
+ * a bare `.trim()` here would throw an unnamed `TypeError` after the sandbox was
+ * started, stopped, or irreversibly deleted. Stringifying keeps the call's
+ * result reportable.
+ *
+ * Only reached for a value {@link encodeSandboxId} already accepted, so the
+ * rejection of unusable shapes stays where it belongs — before the request.
+ */
+export function resolveSandboxId(sandboxId: string | number | bigint): string {
+  return String(sandboxId).trim()
+}
+
+/**
  * Builds a toolbox API URL for a sandbox-scoped endpoint.
  */
 export function daytonaToolboxUrl(sandboxId: string, path: string): string {

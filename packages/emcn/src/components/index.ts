@@ -1,8 +1,12 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
-export { Badge, type BadgeProps } from './badge/badge'
+export { Badge, type BadgeProps, badgeVariants } from './badge/badge'
 export { Banner } from './banner/banner'
+export {
+  BulkActionButton,
+  type BulkActionButtonProps,
+  bulkActionButtonVariants,
+} from './bulk-action-button/bulk-action-button'
 export { Button, buttonVariants } from './button/button'
-export { ButtonGroup, ButtonGroupItem } from './button-group/button-group'
 export {
   CalendarDayCell,
   type CalendarDayCellProps,
@@ -30,11 +34,21 @@ export {
   chipFilledFillTokens,
   chipFilledSurfaceTokens,
   chipGeometryClass,
+  chipGeometryUnroundedClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
   chipPrimaryFillTokens,
+  chipRadiusClass,
   disclosureChevronClass,
 } from './chip/chip-chrome'
+export {
+  ChipButtonGroup,
+  ChipButtonGroupItem,
+  type ChipButtonGroupItemProps,
+  type ChipButtonGroupProps,
+  chipButtonGroupItemVariants,
+  chipButtonGroupVariants,
+} from './chip-button-group/chip-button-group'
 export { ChipCombobox } from './chip-combobox/chip-combobox'
 export {
   ChipCopyInput,
@@ -61,11 +75,14 @@ export {
   ChipModal,
   ChipModalBody,
   type ChipModalBodyProps,
+  ChipModalDescription,
+  type ChipModalDescriptionProps,
   type ChipModalDropdownOption,
   type ChipModalEmailsFieldProps,
   ChipModalError,
   type ChipModalErrorProps,
   ChipModalField,
+  type ChipModalFieldAria,
   type ChipModalFieldProps,
   ChipModalFooter,
   type ChipModalFooterAction,
@@ -79,9 +96,11 @@ export {
   type ChipModalPromptBodyProps,
   type ChipModalProps,
   ChipModalSeparator,
+  ChipModalSurface,
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
+  focusChipModalContent,
 } from './chip-modal/chip-modal'
 export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
 export {
@@ -107,12 +126,20 @@ export {
   type ComboboxOptionGroup,
 } from './combobox/combobox'
 export {
+  ComposerActionButton,
+  type ComposerActionButtonProps,
+  composerActionButtonVariants,
+} from './composer-action-button/composer-action-button'
+export { DetailsPanel, type DetailsPanelProps } from './details-panel/details-panel'
+export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuItemAction,
+  DropdownMenuItemLabel,
+  type DropdownMenuItemLabelProps,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
@@ -140,6 +167,7 @@ export {
 export { Input, type InputProps } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
+export { Lightbox, type LightboxProps } from './lightbox/lightbox'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
 export {
   MODAL_SIZES,
@@ -166,8 +194,11 @@ export {
 export {
   OverflowText,
   type OverflowTextProps,
+  overflowFadeSizeClass,
+  overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
+export { pageHeadingClassName } from './page-heading/page-heading'
 export {
   Popover,
   PopoverAnchor,
@@ -184,13 +215,23 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export { RowActions, type RowActionsProps, rowActionsGroupClass } from './row-actions/row-actions'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
+export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'
+export { SimWordmark, type SimWordmarkProps } from './sim-wordmark/sim-wordmark'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider } from './slider/slider'
+export {
+  LogoPage,
+  type LogoPageProps,
+  PAGE_CONTENT_WIDTH,
+  PAGE_GUTTER,
+  StatusPageContent,
+  type StatusPageContentProps,
+} from './status-page/status-page'
 export { Switch } from './switch/switch'
 export {
-  isTabTitleTruncated,
   TabStrip,
   type TabStripDragContext,
   type TabStripItem,
@@ -201,6 +242,7 @@ export {
   tabStripItemSelector,
   tabStripWheelPosition,
 } from './tab-strip/tab-strip'
+export { TabStripAction, type TabStripActionProps } from './tab-strip/tab-strip-action'
 export {
   Table,
   TableBody,
@@ -227,4 +269,8 @@ export {
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'
+export {
+  UploadPreviewButton,
+  type UploadPreviewButtonProps,
+} from './upload-preview-button/upload-preview-button'
 export { Wizard } from './wizard/wizard'

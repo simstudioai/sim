@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import {
+  Dashboard,
   Database,
   Folder as FolderIcon,
   Globe,
@@ -8,9 +9,11 @@ import {
   Task,
   TerminalWindow,
   Workflow,
+  Workspaces,
 } from '@sim/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -77,6 +80,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'Table selection',
     renderIcon: ({ className }) => <TableIcon className={className} />,
   },
+  dashboard: {
+    label: 'Dashboard',
+    renderIcon: ({ className }) => <Dashboard className={className} />,
+  },
   file: {
     label: 'File',
     renderIcon: ({ context, className }) => {
@@ -101,6 +108,10 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
   },
+  workspace: {
+    label: 'Workspace',
+    renderIcon: ({ className }) => <Workspaces className={className} />,
+  },
   past_chat: {
     label: 'Past chat',
     renderIcon: ({ className }) => <Task className={className} />,
@@ -118,6 +129,12 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   },
   mcp: {
     label: 'MCP server',
-    renderIcon: ({ className }) => <McpIcon className={className} />,
+    renderIcon: ({ context, className }) => {
+      const McpServerIcon =
+        context.kind === 'mcp' && context.managedConnectorId
+          ? getManagedMcpConnectorIcon(context.managedConnectorId)
+          : McpIcon
+      return <McpServerIcon className={className} />
+    },
   },
 }

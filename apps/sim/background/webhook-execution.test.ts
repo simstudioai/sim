@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   dbChainMockFns,
   environmentUtilsMockFns,
@@ -11,53 +7,60 @@ import {
   loggerMock,
   loggingSessionMock,
   loggingSessionMockFns,
+  redisConfigMockFns,
+  resetEnvFlagsMock,
   resetEnvironmentUtilsMock,
+  setEnvFlags,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
+import { triggersMock, triggersMockFns } from '@sim/testing/mocks/triggers.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import type { Mock } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import { getBlock } from '@/blocks'
 
 const {
+  mockWithResourceOutboundScope,
   mockResolveWebhookRecordProviderConfig,
   mockExecuteWorkflowCore,
   mockWasExecutionFinalizedByCore,
   mockExecuteWithIdempotency,
-  mockRefreshExecutionSlotExpiry,
-  mockReleaseExecutionSlot,
-  mockLoadDeploymentVersionState,
   mockGetProviderHandler,
   mockSetResolvedSecretTraceRegistry,
   mockExecutionSnapshot,
-  mockEnqueue,
-  mockGetJobQueue,
 } = vi.hoisted(() => {
-  const mockEnqueue = vi.fn()
   return {
+    mockWithResourceOutboundScope: vi.fn(),
     mockResolveWebhookRecordProviderConfig: vi.fn(),
     mockExecuteWorkflowCore: vi.fn(),
     mockWasExecutionFinalizedByCore: vi.fn(),
     mockExecuteWithIdempotency: vi.fn(),
-    mockRefreshExecutionSlotExpiry: vi.fn().mockResolvedValue(true),
-    mockReleaseExecutionSlot: vi.fn(),
     mockGetProviderHandler: vi.fn(() => ({})),
     mockSetResolvedSecretTraceRegistry: vi.fn(),
     mockExecutionSnapshot: vi.fn(),
-    mockLoadDeploymentVersionState: vi.fn(
-      async (_workflowId: string, deploymentVersionId: string) => ({
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        deploymentVersionId,
-      })
-    ),
-    mockEnqueue,
-    mockGetJobQueue: vi.fn(async () => ({ enqueue: mockEnqueue })),
   }
 })
 
-const mockGetEffectiveEnvironmentSnapshot =
-  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
+/**
+ * The execution path resolves two identities (workflow owner for personal
+ * variables, run actor for workspace ones), so it goes through
+ * `getExecutionEnvironment` rather than the single-identity snapshot reader.
+ */
+const mockGetExecutionEnvironment = environmentUtilsMockFns.mockGetExecutionEnvironment
 
 afterAll(resetEnvironmentUtilsMock)
+
+vi.mock('@/lib/core/network/resource-scope.server', () => ({
+  withResourceOutboundScope: mockWithResourceOutboundScope,
+}))
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
@@ -66,14 +69,16 @@ vi.mock('@/lib/webhooks/env-resolver', () => ({
   resolveWebhookRecordProviderConfig: mockResolveWebhookRecordProviderConfig,
 }))
 
+const { mockCreateSlackStreamController } = vi.hoisted(() => ({
+  mockCreateSlackStreamController: vi.fn(),
+}))
+vi.mock('@/lib/webhooks/slack-execution-stream', () => ({
+  SlackExecutionStreamController: { create: mockCreateSlackStreamController },
+}))
+
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
   executeWorkflowCore: mockExecuteWorkflowCore,
   wasExecutionFinalizedByCore: mockWasExecutionFinalizedByCore,
-}))
-
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  refreshExecutionSlotExpiry: mockRefreshExecutionSlotExpiry,
-  releaseExecutionSlot: mockReleaseExecutionSlot,
 }))
 
 vi.mock('@/lib/core/idempotency', () => ({
@@ -83,16 +88,7 @@ vi.mock('@/lib/core/idempotency', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: vi.fn(async () => ({
-    blocks: {},
-    edges: [],
-    loops: {},
-    parallels: {},
-    deploymentVersionId: 'deployment-1',
-  })),
-  loadWorkflowDeploymentVersionState: mockLoadDeploymentVersionState,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/providers', () => ({ getProviderHandler: mockGetProviderHandler }))
 
@@ -100,26 +96,9 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: vi.fn(() => ({ traceSpans: [] })),
 }))
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  capExecutionTimeoutMs: vi.fn((policyTimeoutMs, requestedTimeoutMs) =>
-    requestedTimeoutMs === undefined ? policyTimeoutMs : requestedTimeoutMs
-  ),
-  createTimeoutAbortController: vi.fn(() => ({
-    signal: new AbortController().signal,
-    cleanup: vi.fn(),
-    isTimedOut: () => false,
-    timeoutMs: 120_000,
-  })),
-  getAsyncExecutionTimeoutForBillingAttribution: vi.fn(() => 120_000),
-  getExecutionDeadlineAt: vi.fn(() => new Date(Date.now() + 120_000)),
-  getTimeoutErrorMessage: vi.fn(() => 'timed out'),
-  RESERVATION_TTL_BUFFER_MS: 300_000,
-  toTriggerMaxDurationSeconds: vi.fn(() => undefined),
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: mockGetJobQueue,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
 vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
   handlePostExecutionPauseState: vi.fn(),
@@ -129,9 +108,7 @@ vi.mock('@/lib/webhooks/attachment-processor', () => ({
   WebhookAttachmentProcessor: class {},
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveOAuthAccountId: vi.fn(),
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: mockExecutionSnapshot,
@@ -139,19 +116,61 @@ vi.mock('@/executor/execution/snapshot', () => ({
 
 vi.mock('@/tools/safe-assign', () => ({ safeAssign: vi.fn() }))
 
-vi.mock('@/blocks', () => ({ getBlock: vi.fn(() => null) }))
+vi.mock('@/triggers', () => triggersMock)
 
-vi.mock('@/triggers', () => ({
-  getTrigger: vi.fn(),
-  isTriggerValid: vi.fn(() => false),
+import * as usageReservation from '@/lib/billing/calculations/usage-reservation'
+import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
+import { executeWebhookJob, type WebhookExecutionPayload } from '@/background/webhook-execution'
+
+const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
+triggersMockFns.mockGetTrigger.mockReturnValue(undefined)
+executionLimitsMockFns.mockCapExecutionTimeoutMs.mockImplementation(
+  (policyTimeoutMs: number, requestedTimeoutMs?: number) =>
+    requestedTimeoutMs === undefined ? policyTimeoutMs : requestedTimeoutMs
+)
+executionLimitsMockFns.mockCreateTimeoutAbortController.mockImplementation(
+  (_timeoutMs?: number, signal?: AbortSignal) => ({
+    signal: signal ?? new AbortController().signal,
+    cleanup: vi.fn(),
+    abort: vi.fn(),
+    isTimedOut: () => false,
+    timeoutMs: 120_000,
+  })
+)
+executionLimitsMockFns.mockGetAsyncExecutionTimeoutForBillingAttribution.mockReturnValue(120_000)
+executionLimitsMockFns.mockGetExecutionDeadlineAt.mockImplementation(
+  () => new Date(Date.now() + 120_000)
+)
+executionLimitsMockFns.mockGetTimeoutErrorMessage.mockReturnValue('timed out')
+executionLimitsMockFns.mockToTriggerMaxDurationSeconds.mockReturnValue(undefined)
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockReturnValue(null)
+
+const mockLoadDeploymentVersionState =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
+mockLoadDeploymentVersionState.mockImplementation(
+  async (_workflowId: string, deploymentVersionId: string) => ({
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+    deploymentVersionId,
+  })
+)
+workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockImplementation(async () => ({
+  blocks: {},
+  edges: [],
+  loops: {},
+  parallels: {},
+  deploymentVersionId: 'deployment-1',
 }))
 
-import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
-import {
-  executeWebhookJob,
-  resolveWebhookExecutionProviderConfig,
-  type WebhookExecutionPayload,
-} from './webhook-execution'
+const actualRefreshExecutionSlotExpiry = usageReservation.refreshExecutionSlotExpiry
+let mockRefreshExecutionSlotExpiry: MockInstance<typeof usageReservation.refreshExecutionSlotExpiry>
+let mockReleaseExecutionSlot: MockInstance<typeof usageReservation.releaseExecutionSlot>
+
+afterAll(resetEnvFlagsMock)
 
 const webhookExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'TriggerWebhookExecution'
@@ -161,59 +180,6 @@ const webhookExecutionLogger =
 if (!webhookExecutionLogger) {
   throw new Error('TriggerWebhookExecution logger mock was not initialized')
 }
-
-describe('resolveWebhookExecutionProviderConfig', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns the resolved webhook record when provider config resolution succeeds', async () => {
-    const webhookRecord = {
-      id: 'webhook-1',
-      providerConfig: {
-        botToken: '{{SLACK_BOT_TOKEN}}',
-      },
-    }
-    const resolvedWebhookRecord = {
-      ...webhookRecord,
-      providerConfig: {
-        botToken: 'xoxb-resolved',
-      },
-    }
-
-    mockResolveWebhookRecordProviderConfig.mockResolvedValue(resolvedWebhookRecord)
-
-    await expect(
-      resolveWebhookExecutionProviderConfig(webhookRecord, 'slack', 'user-1', 'workspace-1')
-    ).resolves.toEqual(resolvedWebhookRecord)
-
-    expect(mockResolveWebhookRecordProviderConfig).toHaveBeenCalledWith(
-      webhookRecord,
-      'user-1',
-      'workspace-1'
-    )
-  })
-
-  it('throws a contextual error when provider config resolution fails', async () => {
-    mockResolveWebhookRecordProviderConfig.mockRejectedValue(new Error('env lookup failed'))
-
-    await expect(
-      resolveWebhookExecutionProviderConfig(
-        {
-          id: 'webhook-1',
-          providerConfig: {
-            botToken: '{{SLACK_BOT_TOKEN}}',
-          },
-        },
-        'slack',
-        'user-1',
-        'workspace-1'
-      )
-    ).rejects.toThrow(
-      'Failed to resolve webhook provider config for slack webhook webhook-1: env lookup failed'
-    )
-  })
-})
 
 describe('executeWebhookJob fault vs error handling', () => {
   const billingAttribution = {
@@ -267,7 +233,6 @@ describe('executeWebhookJob fault vs error handling', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     LoggingSessionMock.mockImplementation(function LoggingSession() {
       return {
         safeStart: loggingSessionMockFns.mockSafeStart,
@@ -280,8 +245,15 @@ describe('executeWebhookJob fault vs error handling', () => {
         projectDiagnosticError: loggingSessionMockFns.mockProjectDiagnosticError,
       }
     })
+    mockWithResourceOutboundScope.mockReset().mockImplementation((_owner, run) => run())
+    mockRefreshExecutionSlotExpiry = vi
+      .spyOn(usageReservation, 'refreshExecutionSlotExpiry')
+      .mockResolvedValue(true)
+    mockReleaseExecutionSlot = vi
+      .spyOn(usageReservation, 'releaseExecutionSlot')
+      .mockResolvedValue(undefined)
     mockGetProviderHandler.mockReturnValue({})
-    mockEnqueue.mockResolvedValue('run_retry')
+    mockEnqueue.mockReset().mockResolvedValue('run_retry')
     mockExecuteWithIdempotency.mockImplementation(
       (_provider: string, _key: string, operation: () => Promise<unknown>) => operation()
     )
@@ -299,7 +271,7 @@ describe('executeWebhookJob fault vs error handling', () => {
       executionTimeout: { async: 120_000 },
     })
     mockResolveWebhookRecordProviderConfig.mockImplementation(async (record) => record)
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: {},
       personalDecrypted: {},
@@ -309,6 +281,59 @@ describe('executeWebhookJob fault vs error handling', () => {
     })
     dbChainMockFns.limit.mockResolvedValue([{ id: 'webhook-1' }])
   })
+
+  it.each([true, false])(
+    'enables the shared Agent/Sim Chat event stream and honors tool visibility: %s',
+    async (includeToolCalls) => {
+      const config = {
+        enabled: true,
+        outputConfigs: [{ blockId: 'mship', path: 'content' }],
+        includeToolCalls,
+        includeThinking: false,
+        taskDisplayMode: 'timeline',
+        taskTitle: 'Running',
+      }
+      dbChainMockFns.limit.mockResolvedValue([
+        {
+          id: 'webhook-1',
+          providerConfig: { credentialId: 'bot-1', streamResponseConfig: config },
+        },
+      ])
+      const calls: string[] = []
+      const controller = {
+        selectedOutputs: ['mship_content'],
+        callbacks: { onStream: vi.fn() },
+        finalize: vi.fn(async () => {
+          calls.push('delivery')
+        }),
+        assertSucceeded: vi.fn(() => {
+          calls.push('receipt')
+        }),
+      }
+      mockCreateSlackStreamController.mockResolvedValue(controller)
+      mockExecuteWorkflowCore.mockImplementationOnce(async (options) => {
+        const result = {
+          success: true,
+          status: 'completed',
+          output: { content: 'Complete answer' },
+          logs: [],
+        }
+        expect(options.callbacks).toBe(controller.callbacks)
+        await options.finalizeDelivery(result)
+        calls.push('workflow-result')
+        return result
+      })
+      await executeWebhookJob({ ...legacyPayload, provider: 'slack' })
+      expect(mockExecutionSnapshot.mock.calls[0]?.[0]).toMatchObject({
+        agentEvents: true,
+        includeThinking: false,
+        includeToolCalls,
+      })
+      expect(mockExecutionSnapshot.mock.calls[0]?.[4]).toEqual(['mship_content'])
+      expect(controller.finalize).toHaveBeenCalledTimes(1)
+      expect(calls).toEqual(['delivery', 'receipt', 'workflow-result'])
+    }
+  )
 
   it('restores a legacy queued webhook as its canonical system principal', async () => {
     mockExecuteWorkflowCore.mockResolvedValueOnce({
@@ -344,6 +369,51 @@ describe('executeWebhookJob fault vs error handling', () => {
       expect.any(Object),
       expect.any(Array)
     )
+  })
+
+  it('restores the exact serialized webhook principal without substituting the billing actor', async () => {
+    const serializedPrincipal = {
+      version: 1 as const,
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        webhookId: 'webhook-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user' as const,
+          provider: 'slack',
+          tenantId: 'team-1',
+          subjectId: 'slack-user-1',
+        },
+      },
+    }
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob({
+      ...payload,
+      provider: 'slack',
+      principal: serializedPrincipal,
+    })
+
+    const executionMetadata = mockExecutionSnapshot.mock.calls[0]?.[0]
+    expect(executionMetadata.userId).toBe('user-1')
+    expect(executionMetadata.principal).toEqual(serializedPrincipal.principal)
+    expect(executionMetadata.principal).not.toHaveProperty('userId')
   })
 
   it('persists the reconstructed legacy principal on setup retries', async () => {
@@ -451,7 +521,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('does not pass provider-config provenance absent from the trigger input', async () => {
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: { WEBHOOK_SECRET: 'personal-ciphertext' },
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: { WEBHOOK_SECRET: 'personal-value' },
@@ -504,59 +574,10 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(mockSetResolvedSecretTraceRegistry).toHaveBeenCalledOnce()
   })
 
-  it('passes provider-config provenance when its value crosses in the trigger input', async () => {
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
-      personalEncrypted: {},
-      workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
-      personalDecrypted: {},
-      workspaceDecrypted: { WEBHOOK_SECRET: 'workspace-value' },
-      conflicts: [],
-      decryptionFailures: [],
-    })
-    mockResolveWebhookRecordProviderConfig.mockImplementation(
-      async (record, _userId, _workspaceId, options) => {
-        options.onResolved('WEBHOOK_SECRET', options.envVars.WEBHOOK_SECRET)
-        return record
-      }
-    )
-    mockGetProviderHandler.mockReturnValue({
-      formatInput: vi.fn().mockResolvedValue({
-        input: { authorization: 'Bearer workspace-value' },
-      }),
-    })
-    mockExecuteWorkflowCore.mockResolvedValue({
-      success: true,
-      status: 'completed',
-      output: {},
-      logs: [],
-      executionState: {
-        blockStates: {},
-        executedBlocks: [],
-        blockLogs: [],
-        decisions: {},
-        completedLoops: [],
-        activeExecutionPath: [],
-      },
-    })
-
-    await executeWebhookJob(payload)
-
-    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
-      expect.objectContaining({
-        trustedInitialResolvedSecretTraceProvenance: {
-          version: 1,
-          complete: true,
-          entries: [{ name: 'WEBHOOK_SECRET', encryptedValue: 'workspace-ciphertext' }],
-          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-        },
-      })
-    )
-  })
-
   it('installs provenance before a post-resolution webhook setup failure', async () => {
     const rawMessage = 'Webhook handler exposed activated-secret-value'
     const rawError = new Error(rawMessage)
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: {},
@@ -621,17 +642,6 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
   })
 
-  it('releases the reservation when background preprocessing fails', async () => {
-    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
-      success: false,
-      error: { message: 'workflow archived', statusCode: 404 },
-    })
-
-    await expect(executeWebhookJob(payload)).rejects.toThrow('workflow archived')
-
-    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
-  })
-
   it('rejects queued webhook work without an immutable attribution snapshot', async () => {
     await expect(
       executeWebhookJob({
@@ -684,16 +694,119 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
   })
 
-  it('requeues on retryable infrastructure errors thrown by setup reads', async () => {
-    dbChainMockFns.limit.mockRejectedValueOnce(
-      Object.assign(new Error('write CONNECT_TIMEOUT'), { code: 'CONNECT_TIMEOUT' })
-    )
+  it('recovers from the uncoded Redis command timeout without running the first attempt', async () => {
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    const timeoutError = new Error('Command timed out')
+    const redisGet = vi.fn().mockRejectedValueOnce(timeoutError)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ get: redisGet })
+    mockRefreshExecutionSlotExpiry.mockImplementationOnce(actualRefreshExecutionSlotExpiry)
 
     const result = await executeWebhookJob(payload)
 
+    expect(redisGet).toHaveBeenCalledWith('usage:reservation:execution-1')
     expect(result).toMatchObject({ success: false, requeued: true })
-    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+    expect(mockExecuteWithIdempotency).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+    expect(mockReleaseExecutionSlot.mock.invocationCallOrder[0]).toBeLessThan(
+      mockEnqueue.mock.invocationCallOrder[0]
+    )
+    const [jobType, retryPayload, options] = mockEnqueue.mock.calls[0]
+    expect(jobType).toBe('webhook-execution')
+    expect(retryPayload).toMatchObject({ ...payload, infraRetryCount: 1 })
+    expect(options.delayMs).toBeGreaterThan(0)
+    expect(options.delayMs).toBeLessThanOrEqual(300_000)
+
+    mockRefreshExecutionSlotExpiry.mockResolvedValueOnce(false)
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+    })
+
+    await expect(executeWebhookJob(retryPayload)).resolves.toMatchObject({ success: true })
+
+    expect(executionPreprocessingMockFns.mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'execution-1', skipUsageLimits: false })
+    )
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledTimes(1)
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+  })
+
+  it('records a terminal refresh failure when the retry budget is exhausted', async () => {
+    const cause = new Error('Command timed out')
+    const error = new usageReservation.UsageReservationUnavailableError(
+      'Usage reservation refresh is temporarily unavailable. Please retry.',
+      cause
+    )
+    mockRefreshExecutionSlotExpiry.mockRejectedValueOnce(error)
+
+    await expect(executeWebhookJob({ ...payload, infraRetryCount: 5 })).rejects.toMatchObject({
+      name: 'RetryableSetupError',
+      cause: error,
+    })
+
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockExecuteWithIdempotency).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
+    expect(loggingSessionMockFns.mockSafeStart).toHaveBeenCalledTimes(1)
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: error.message }) })
+    )
+  })
+
+  it('does not requeue a refresh failure when the attempt was cancelled', async () => {
+    const controller = new AbortController()
+    const error = new usageReservation.UsageReservationUnavailableError('Redis unavailable')
+    mockRefreshExecutionSlotExpiry.mockImplementationOnce(async () => {
+      controller.abort()
+      throw error
+    })
+
+    await expect(executeWebhookJob(payload, controller.signal)).rejects.toMatchObject({
+      cause: error,
+    })
+
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not requeue a non-transient refresh failure', async () => {
+    const error = new TypeError('Invalid Redis configuration')
+    mockRefreshExecutionSlotExpiry.mockRejectedValueOnce(error)
+
+    await expect(executeWebhookJob(payload)).rejects.toBe(error)
+
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledExactlyOnceWith('execution-1')
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockExecuteWithIdempotency).not.toHaveBeenCalled()
+  })
+
+  it('does not treat an ambiguous idempotency claim timeout as a safe setup retry', async () => {
+    const error = new Error('Command timed out')
+    mockExecuteWithIdempotency.mockRejectedValueOnce(error)
+
+    await expect(executeWebhookJob(payload)).rejects.toBe(error)
+
+    expect(mockEnqueue).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('requeues transient organization ownership failures before any workflow block starts', async () => {
+    mockWithResourceOutboundScope.mockRejectedValueOnce(
+      Object.assign(new Error('Connection terminated unexpectedly'), { code: 'ECONNRESET' })
+    )
+
+    await expect(executeWebhookJob(payload)).resolves.toMatchObject({
+      requeued: true,
+    })
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockEnqueue).toHaveBeenCalledOnce()
     expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
   })
 
@@ -732,19 +845,23 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
-  it('never reclassifies infrastructure errors after the workflow core started', async () => {
-    const infraError = Object.assign(new Error('Connection terminated unexpectedly'), {
+  it.each([
+    new Error('Command timed out'),
+    Object.assign(new Error('Connection terminated unexpectedly'), {
       code: 'CONNECTION_CLOSED',
-    })
-    mockExecuteWorkflowCore.mockRejectedValue(infraError)
-    mockWasExecutionFinalizedByCore.mockReturnValue(false)
+    }),
+  ])(
+    'never reclassifies infrastructure errors after the workflow core started: %s',
+    async (infraError) => {
+      mockExecuteWorkflowCore.mockRejectedValue(infraError)
+      mockWasExecutionFinalizedByCore.mockReturnValue(false)
 
-    await expect(executeWebhookJob(payload)).rejects.toBe(infraError)
+      await expect(executeWebhookJob(payload)).rejects.toBe(infraError)
 
-    expect(mockEnqueue).not.toHaveBeenCalled()
-    // Post-core failures keep recording the terminal row.
-    expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
-  })
+      expect(mockEnqueue).not.toHaveBeenCalled()
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
+    }
+  )
 
   it('faults the run and restores the terminal log row when the requeue enqueue itself fails', async () => {
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({

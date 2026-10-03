@@ -11,11 +11,11 @@ import { client } from '@/lib/auth/auth-client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
+import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
 export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
-export const OAUTH_CONNECTED_ACCOUNTS_STALE_TIME = 60 * 1000
 
 /**
  * Query key factory for OAuth connection queries.
@@ -188,14 +188,27 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
+      if (providerId === 'quickbooks') {
+        if (!draftId) {
+          throw new Error('QuickBooks authorization requires a credential connection draft.')
+        }
+        const authorizeUrl = new URL('/api/auth/oauth2/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('draftId', draftId)
+        authorizeUrl.searchParams.set('callbackURL', callbackURL)
+        window.location.href = authorizeUrl.toString()
+        return { success: true }
+      }
+
       const stateCallbackUrl = new URL(callbackURL)
       if (draftId) {
         stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
       }
 
+      const scopes = getPerRequestOAuthLinkScopes(providerId)
       await client.oauth2.link({
         providerId,
         callbackURL: stateCallbackUrl.toString(),
+        ...(scopes && { scopes }),
       })
 
       return { success: true }

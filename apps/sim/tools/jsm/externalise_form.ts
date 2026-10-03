@@ -1,7 +1,7 @@
 import type { JsmExternaliseFormParams, JsmExternaliseFormResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmExternaliseFormTool: ToolConfig<
+export const jsmExternaliseFormTool: InternalToolConfig<
   JsmExternaliseFormParams,
   JsmExternaliseFormResponse
 > = {
@@ -42,11 +42,8 @@ export const jsmExternaliseFormTool: ToolConfig<
       description: 'Form instance UUID',
     },
   },
-  request: {
-    url: '/api/tools/jsm/forms/externalise',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

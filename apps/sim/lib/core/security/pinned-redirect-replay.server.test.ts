@@ -1,8 +1,6 @@
 /**
  * Pins both outbound redirect contracts: historical replay for persisted workflows and
  * standards-compatible behavior for newly created API blocks.
- *
- * @vitest-environment node
  */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -11,12 +9,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: vi.fn(async () => ({ addresses: ['127.0.0.1'] })),
   preferIpv4: (addresses: string[]) => addresses[0],
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  isPrivateDatabaseHostsAllowed: false,
-  getProxyUrl: () => undefined,
 }))
 
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
@@ -55,43 +47,109 @@ async function startRecordingServer(hops: RecordedHop[]): Promise<string> {
   })
 }
 
+/** Answers every request with a redirect to `location`. */
+function startRedirectServer(status: number, location: string): Promise<string> {
+  return startServer((req, res) => {
+    req.resume()
+    res.writeHead(status, { location })
+    res.end()
+  })
+}
+
 describe('secureFetchWithPinnedIP redirect replay', () => {
-  it('preserves historical replay when no redirect policy is present', async () => {
+  it('rejects a redirect target before following it', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
+    const origin = await startRedirectServer(302, `${target}/after`)
+    const assertRedirectTarget = vi.fn((url: string) => {
+      if (url === `${target}/after`) throw new Error('redirect target rejected')
     })
 
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        profile: 'configuredEndpoint',
+        assertRedirectTarget,
+      })
+    ).rejects.toThrow('redirect target rejected')
+
+    expect(assertRedirectTarget).toHaveBeenCalledWith(`${target}/after`)
+    expect(hops).toEqual([])
+  })
+
+  it('returns a 305 Use Proxy rather than following it', async () => {
+    const hops: RecordedHop[] = []
+    const target = await startRecordingServer(hops)
+    const origin = await startRedirectServer(305, `${target}/after`)
+
     const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
-      method: 'POST',
-      body: '{"message":"legacy"}',
+      profile: 'configuredEndpoint',
+    })
+
+    // 305 is the one redirect a guard must never follow (it names a proxy); it
+    // is handed back to the caller, not chased.
+    expect(response.status).toBe(305)
+    expect(hops).toEqual([])
+  })
+
+  it("re-judges a redirect hop under the request's own policy and refuses metadata", async () => {
+    const origin = await startRedirectServer(302, 'http://169.254.169.254/latest/meta-data/')
+
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        profile: 'requestTarget',
+      })
+    ).rejects.toThrow(/Redirect blocked/i)
+  })
+
+  it('drops every header on a cross-origin hop when no policy is supplied', async () => {
+    const hops: RecordedHop[] = []
+    const target = await startRecordingServer(hops)
+    const origin = await startRedirectServer(303, `${target}/after`)
+
+    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+      method: 'GET',
       headers: {
         Authorization: 'Bearer legacy-token',
-        'Content-Type': 'application/json',
+        'Private-Token': 'glpat-secret',
+        'X-Trace': 'keep-me',
         Host: 'legacy.example',
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
     expect(hops).toHaveLength(1)
-    expect(hops[0].method).toBe('POST')
-    expect(hops[0].body).toBe('{"message":"legacy"}')
-    expect(hops[0].headers.authorization).toBe('Bearer legacy-token')
-    expect(hops[0].headers.host).toBe('legacy.example')
+    // Without a policy declaring which headers are sensitive, none survive the
+    // cross-origin hop — a custom credential header cannot leak.
+    expect(hops[0].headers.authorization).toBeUndefined()
+    expect(hops[0].headers['private-token']).toBeUndefined()
+    expect(hops[0].headers['x-trace']).toBeUndefined()
+    expect(hops[0].headers.host).not.toBe('legacy.example')
+  })
+
+  it('refuses to replay a body to another origin', async () => {
+    const hops: RecordedHop[] = []
+    const target = await startRecordingServer(hops)
+    // 307 preserves the method and body verbatim, which is exactly the case
+    // that would hand an Agiloft-style `$password` form to the redirect target.
+    const origin = await startRedirectServer(307, `${target}/after`)
+
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        method: 'POST',
+        body: '$login=admin&$password=hunter2',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        profile: 'configuredEndpoint',
+      })
+    ).rejects.toThrow('cross-origin redirect would forward a request body')
+
+    expect(hops).toHaveLength(0)
   })
 
   it('lets a legacy block withhold credentials without changing its replay semantics', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(303, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -105,9 +163,10 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'legacy',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
         sensitiveHeaders: ['x-api-key'],
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -122,11 +181,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('uses Fetch-compatible POST handling for a standard 303', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(303, `${target}/after`)
 
     const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -141,9 +196,10 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
         sensitiveHeaders: ['x-api-key'],
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
@@ -162,11 +218,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('changes a standard POST to a bodyless GET on 301', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(301, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(301, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -178,8 +230,9 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -192,19 +245,16 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('keeps HEAD as HEAD on a standard 303', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(303, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(303, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'HEAD',
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -214,11 +264,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('preserves a standard 307 body while withholding cross-origin credentials', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(307, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(307, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -231,13 +277,16 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
     expect(hops[0].method).toBe('POST')
     expect(hops[0].body).toBe('{"payload":"keep"}')
+    expect(hops[0].headers['content-length']).toBe(String(Buffer.byteLength(hops[0].body)))
+    expect(hops[0].headers['transfer-encoding']).toBeUndefined()
     expect(hops[0].headers.authorization).toBeUndefined()
     expect(hops[0].headers['content-type']).toBe('application/json')
     expect(hops[0].headers['x-trace']).toBe('keep-me')
@@ -246,11 +295,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
   it('allows an explicit standard-policy credential opt-in', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
-    const origin = await startServer((req, res) => {
-      req.resume()
-      res.writeHead(307, { location: `${target}/after` })
-      res.end()
-    })
+    const origin = await startRedirectServer(307, `${target}/after`)
 
     await secureFetchWithPinnedIP(origin, '127.0.0.1', {
       method: 'POST',
@@ -259,8 +304,9 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: true,
+        allowCrossOriginBody: true,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -297,14 +343,17 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
     expect(hops).toHaveLength(1)
     expect(hops[0].method).toBe('POST')
     expect(hops[0].body).toBe('{"keep":"me"}')
+    expect(hops[0].headers['content-length']).toBe(String(Buffer.byteLength(hops[0].body)))
+    expect(hops[0].headers['transfer-encoding']).toBeUndefined()
     expect(hops[0].headers.authorization).toBe('Bearer same-origin-ok')
   })
 
@@ -331,7 +380,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       method: 'GET',
       headers: { Authorization: 'Bearer strip-me', 'X-Trace': 'keep-me' },
       stripAuthOnRedirect: true,
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)

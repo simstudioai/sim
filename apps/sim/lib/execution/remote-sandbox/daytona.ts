@@ -16,6 +16,7 @@ import {
   isNonRetryableExecutionError,
   SandboxLaunchIndeterminateError,
 } from '@/lib/execution/non-retryable-error'
+import { processCodeFailure } from '@/lib/execution/remote-sandbox/code-failure'
 import {
   appendStreamedSandboxOutput,
   assertSandboxProcessOutputWithinLimit,
@@ -27,11 +28,13 @@ import {
   SandboxProcessOutputBudget,
   tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type {
   CreateSandboxOptions,
   RunCommandOptions,
   SandboxCodeResult,
   SandboxCommandResult,
+  SandboxDirectoryEntry,
   SandboxHandle,
   SandboxKind,
   SandboxProvider,
@@ -40,6 +43,11 @@ import type {
 const logger = createLogger('DaytonaSandboxProvider')
 const DAYTONA_DEFAULT_SANDBOX_TTL_MS = 24 * 60 * 60 * 1000
 const DAYTONA_STREAM_READY_MARKER = '__SIM_DAYTONA_STREAM_READY__'
+
+/** Daytona expresses sandbox TTLs as whole minutes. */
+export function resolveDaytonaSandboxLifetimeMs(lifetimeMs: number): number {
+  return Math.max(1, Math.ceil(lifetimeMs / 60_000)) * 60_000
+}
 
 /** Daytona expresses every timeout in seconds; the rest of Sim works in milliseconds. */
 function toSeconds(timeoutMs: number): number {
@@ -63,28 +71,6 @@ function assertSafeProcessEnvironment(envs: Record<string, string> | undefined):
     if (value.includes('\0')) {
       throw new Error('Sandbox environment variable values may not contain null bytes')
     }
-  }
-}
-
-function processCodeFailure(result: SandboxCommandResult): SandboxCodeResult {
-  const traceback = result.stderr || result.stdout
-  const errorLine = traceback
-    .split('\n')
-    .reverse()
-    .find((line) => /^[A-Za-z_$][\w.$]*(?:Error|Exception|Interrupt|Exit)?:\s*/.test(line.trim()))
-    ?.trim()
-  const separator = errorLine?.indexOf(':') ?? -1
-  const parsedErrorLine = errorLine ?? ''
-  const name = separator > 0 ? parsedErrorLine.slice(0, separator) : 'Error'
-  const value =
-    separator > 0
-      ? parsedErrorLine.slice(separator + 1).trim()
-      : parsedErrorLine || 'Execution failed'
-  return {
-    text: '',
-    stdout: result.stdout,
-    stderr: result.stderr,
-    error: { name, value, traceback },
   }
 }
 
@@ -294,6 +280,7 @@ class DaytonaSandboxHandle implements SandboxHandle {
     // must never have.
     const finalStdout = () => (retainStdout ? stdout : tailStreamedSandboxOutput(stdout))
     const finalStderr = () => (retainStderr ? stderr : tailStreamedSandboxOutput(stderr))
+    let commandDispatched = false
     try {
       await this.sandbox.process.createSession(sessionId)
       sessionCreated = true
@@ -332,6 +319,7 @@ class DaytonaSandboxHandle implements SandboxHandle {
       if (typeof commandId !== 'string' || commandId.length === 0) {
         throw new SandboxLaunchIndeterminateError('Daytona')
       }
+      commandDispatched = true
       // Accumulate the streamed chunks as well as forwarding them: callers read
       // markers out of stdout (the Pi cloud flow parses __BASE_SHA__/__CHANGED__)
       // and format failures from stderr, so returning empty strings here would
@@ -653,7 +641,14 @@ class DaytonaSandboxHandle implements SandboxHandle {
       }
 
       const finished = await this.sandbox.process.getSessionCommand(sessionId, commandId)
-      const exitCode = finished.exitCode ?? 0
+      if (options.atMostOnce && !releaseRequested) {
+        throw new SandboxLaunchIndeterminateError('Daytona')
+      }
+      const exitCode = finished.exitCode
+      if (typeof exitCode !== 'number' || !Number.isFinite(exitCode)) {
+        if (options.atMostOnce) throw new SandboxLaunchIndeterminateError('Daytona')
+        return { stdout: finalStdout(), stderr: finalStderr(), exitCode: 0 }
+      }
       return { stdout: finalStdout(), stderr: finalStderr(), exitCode }
     } catch (error) {
       if (isSandboxOutputLimitError(error)) {
@@ -673,6 +668,12 @@ class DaytonaSandboxHandle implements SandboxHandle {
           exitCode: 124,
           timedOut: true,
         }
+      }
+      if (options.atMostOnce) {
+        if (commandDispatched) {
+          throw new SandboxLaunchIndeterminateError('Daytona', { cause: error })
+        }
+        throw error
       }
       if (operation === 'code') throw error
       return { stdout: finalStdout(), stderr: finalStderr() || getErrorMessage(error), exitCode: 1 }
@@ -742,6 +743,28 @@ class DaytonaSandboxHandle implements SandboxHandle {
     await this.sandbox.fs.uploadFile(buffer, path)
   }
 
+  async removeFile(path: string): Promise<void> {
+    await this.sandbox.fs.deleteFile(path, false)
+  }
+
+  async listFiles(path: string, options?: { depth?: number }): Promise<SandboxDirectoryEntry[]> {
+    const entries = await this.sandbox.fs.listFiles(path, {
+      ...(options?.depth !== undefined ? { depth: options.depth } : {}),
+    })
+
+    const files: SandboxDirectoryEntry[] = []
+    for (const entry of entries) {
+      const resolved = resolveSandboxDirectoryEntryPath(path, entry.path ?? entry.name)
+      if (!resolved) continue
+      files.push({
+        ...resolved,
+        kind: entry.isDir ? 'directory' : 'file',
+        size: entry.size,
+      })
+    }
+    return files
+  }
+
   async kill(): Promise<void> {
     if (this.killed) return
     if (!this.killPromise) {
@@ -775,6 +798,7 @@ function shellQuote(value: string): string {
 export const daytonaProvider: SandboxProvider = {
   id: 'daytona',
   dependencyStrategy: 'runtime',
+  resolveLifetimeMs: resolveDaytonaSandboxLifetimeMs,
   async create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle> {
     const apiKey = env.DAYTONA_API_KEY
     if (!apiKey) {
@@ -790,11 +814,11 @@ export const daytonaProvider: SandboxProvider = {
       snapshot,
       language: toDaytonaLanguage(language),
       ephemeral: true,
-      ttlMinutes: Math.max(
-        1,
-        Math.ceil((options?.lifetimeMs ?? DAYTONA_DEFAULT_SANDBOX_TTL_MS) / 60_000)
-      ),
+      ttlMinutes:
+        resolveDaytonaSandboxLifetimeMs(options?.lifetimeMs ?? DAYTONA_DEFAULT_SANDBOX_TTL_MS) /
+        60_000,
     }
+    options?.onProviderRequestStarted?.(Date.now())
     const sandbox = await daytona.create(createOptions)
 
     return new DaytonaSandboxHandle(sandbox, language)

@@ -20,7 +20,7 @@ import {
 } from '@sim/emcn'
 import { SelectAll } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -109,7 +109,11 @@ export const WorkflowControls = memo(function WorkflowControls() {
             <PopoverTrigger asChild>
               <div className='flex cursor-pointer items-center gap-1'>
                 <Tooltip.Trigger asChild>
-                  <Button className='size-[28px] rounded-sm p-0' variant='active'>
+                  <Button
+                    aria-label={mode === 'hand' ? 'Mover' : 'Pointer'}
+                    className='size-[28px] rounded-sm p-0'
+                    variant='active'
+                  >
                     {mode === 'hand' ? (
                       <Hand className='size-[14px]' />
                     ) : (
@@ -118,6 +122,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                   </Button>
                 </Tooltip.Trigger>
                 <Button
+                  aria-label='Change canvas mode'
                   variant='ghost'
                   className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
                 >
@@ -156,6 +161,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
+              aria-label='Undo'
               variant='ghost'
               className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
               onClick={undo}
@@ -172,6 +178,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
+              aria-label='Redo'
               variant='ghost'
               className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
               onClick={redo}
@@ -190,6 +197,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
+              aria-label='Fit to View'
               variant='ghost'
               className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
               onClick={handleFitToView}

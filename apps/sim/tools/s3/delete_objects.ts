@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3DeleteObjectsTool: ToolConfig = {
+export const s3DeleteObjectsTool: InternalToolConfig = {
   id: 's3_delete_objects',
   name: 'S3 Delete Objects',
   description: 'Delete multiple objects from an AWS S3 bucket in a single batch request',
@@ -45,13 +45,8 @@ export const s3DeleteObjectsTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/delete-objects',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

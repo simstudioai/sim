@@ -14,6 +14,11 @@ export const googleSheetsConnectorMeta: ConnectorMeta = {
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
   },
 
+  /**
+   * The listing is one configured spreadsheet's tabs: a member who can read
+   * the file lists every tab, one who cannot lists nothing. Nothing caps it.
+   */
+  permissionScopedListing: { capFieldIds: [] },
   configFields: [
     {
       id: 'spreadsheetSelector',

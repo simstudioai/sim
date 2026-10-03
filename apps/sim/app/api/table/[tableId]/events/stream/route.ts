@@ -32,7 +32,7 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const access = await checkAccess(tableId, auth.userId, 'read')
+  const access = await checkAccess(tableId, { kind: 'user', userId: auth.userId }, 'read')
   if (!access.ok) return accessError(access, requestId, tableId)
 
   return createEventStreamResponse({

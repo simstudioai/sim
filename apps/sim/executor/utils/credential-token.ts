@@ -1,67 +1,138 @@
 import { createLogger } from '@sim/logger'
-import { generateInternalToken } from '@/lib/auth/internal'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { AuthType } from '@/lib/auth/hybrid'
+import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
+import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
+import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
+import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
+import { resolveCopilotOrganizationPersonalToken } from '@/lib/mothership/application/resolve-organization-personal-token'
+import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
+import type { CopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
+import {
+  type CredentialTokenPayload,
+  resolveCredentialAccessToken,
+} from '@/lib/oauth/token-resolution'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('ExecutorCredentialToken')
 
-/**
- * Fetches a credential's access token from the app rather than resolving it here.
- *
- * Refreshing an OAuth token needs the provider's client id and secret, read through
- * `requireOAuthClientCapability`, which THROWS when they are absent. Only the app
- * container loads those (from `SIM_ENV_SECRET_ID`); workflow execution runs in a
- * Trigger.dev worker whose environment does not carry them. Resolving in-process there
- * turns every credential whose access token has expired into a refresh failure, and a
- * still-valid token hides it until the token lapses.
- *
- * See `.claude/rules/sim-architecture.md`, "The app/worker runtime boundary".
- *
- * The route authorizes the credential itself, so this never widens access.
- */
-export async function fetchCredentialAccessToken(params: {
+export interface ResolveExecutorCredentialTokenParams {
   requestId: string
   credentialId: string
-  userId: string
+  userId?: string
   workflowId?: string
-}): Promise<string> {
-  const { requestId, credentialId, userId, workflowId } = params
+  /** Tool consuming the token; required by the managed-OAuth scope policy. */
+  toolId?: string
+  /** Display label for the thrown failure ("Failed to obtain credential for X: ..."). */
+  toolLabel?: string
+  scopes?: string[]
+  impersonateEmail?: string
+  /** Asserts the acting user alongside the credential lookup, mirroring the HTTP surface. */
+  enforceCredentialAccess?: boolean
+  /** Proves managed-credential delegations in-process when the run carries one. */
+  executorDelegationOrigin?: ExecutorDelegationOrigin
+  /**
+   * The trusted Chat tool call this token is for, when there is no workflow
+   * run: it proves the signed-in user's own Credential Group credential.
+   */
+  copilotExecutionContext?: CopilotExecutionContext
+}
 
-  const url = new URL('/api/auth/oauth/token', getInternalApiBaseUrl())
-  if (workflowId) url.searchParams.set('workflowId', workflowId)
+/**
+ * Resolves a credential's access token in-process for server-side workflow
+ * execution, through the same authorized application dispatch as
+ * `POST /api/auth/oauth/token` (`resolveCredentialAccessToken`). Both runtimes
+ * hold the OAuth client config the refresh branch needs, so authorization,
+ * refresh, and audit run identically to the route.
+ */
+export async function resolveExecutorCredentialToken(
+  params: ResolveExecutorCredentialTokenParams
+): Promise<CredentialTokenPayload> {
+  const {
+    requestId,
+    credentialId,
+    userId,
+    workflowId,
+    toolId,
+    executorDelegationOrigin,
+    copilotExecutionContext,
+  } = params
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  try {
-    headers.Authorization = `Bearer ${await generateInternalToken(userId)}`
-  } catch (_e) {
-    // Swallow mint errors; the request then fails authentication and reports upstream.
+  if (copilotExecutionContext?.requestMode === 'assistant') {
+    if (!userId || userId !== copilotExecutionContext.userId || executorDelegationOrigin) {
+      throw new Error('Assistant credential use requires the authenticated person for this turn.')
+    }
+    const original = toolId ? getToolMetadata(toolId) : undefined
+    const tool = original ? projectAssistantConnectedAccountTool(original) : undefined
+    if (
+      !tool?.oauth?.required ||
+      (!copilotExecutionContext.workspaceId && !copilotExecutionContext.organizationId) ||
+      params.impersonateEmail
+    ) {
+      throw new Error(
+        'Assistant requires your own connected account and cannot impersonate another user.'
+      )
+    }
+    if (copilotExecutionContext.organizationId) {
+      return resolveCopilotOrganizationPersonalToken(copilotExecutionContext, {
+        credentialId,
+        expectedProviderId: tool.oauth.provider,
+        requiredScopes: params.scopes ?? [],
+        toolId: tool.id,
+      })
+    }
+    if (!copilotExecutionContext.workspaceId)
+      throw new Error('Workspace credential scope is required')
+    await executeCopilotCredentialUseCase(copilotExecutionContext, authorizePersonalCredential, {
+      workspaceId: copilotExecutionContext.workspaceId,
+      credentialId,
+      expectedProviderId: tool.oauth.provider,
+    })
   }
 
-  // boundary-raw-fetch: same-origin token route, authenticated by the internal JWT minted above
-  const response = await fetch(url.toString(), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ credentialId, ...(workflowId ? { workflowId } : {}) }),
+  if (executorDelegationOrigin && !executorDelegationOrigin.currentWorkflow) {
+    throw new Error('Managed credential delegation is missing current workflow authority')
+  }
+
+  /**
+   * A Chat proof needs the per-call id the delegation is minted under; a
+   * context that lacks it is not a Chat tool call and leaves managed
+   * credentials unproven, so the resolver answers with its own refusal.
+   */
+  const resolveManagedPrincipal = executorDelegationOrigin
+    ? (managedCredentialId: string) =>
+        bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId)
+    : copilotExecutionContext?.copilotToolExecution && copilotExecutionContext.toolCallId
+      ? async (managedCredentialId: string) =>
+          createCopilotManagedOAuthPrincipal(copilotExecutionContext, managedCredentialId)
+      : undefined
+
+  const result = await resolveCredentialAccessToken({
+    requestId,
+    credentialId,
+    workflowId,
+    toolId,
+    scopes: params.scopes,
+    impersonateEmail: params.impersonateEmail,
+    callerUserId: userId && params.enforceCredentialAccess ? userId : undefined,
+    authenticate: () => ({
+      success: true,
+      userId,
+      authType: AuthType.INTERNAL_JWT,
+    }),
+    resolveManagedPrincipal,
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error(`[${requestId}] Credential token request failed`, {
-      status: response.status,
+  if (!result.ok) {
+    logger.error(`[${requestId}] Credential token resolution failed`, {
+      status: result.status,
       credentialId,
+      code: result.code,
     })
-    let message = errorText
-    try {
-      const parsed = JSON.parse(errorText)
-      if (parsed.error) message = parsed.error
-    } catch {
-      // Use raw text
-    }
-    throw new Error(message)
+    throw new Error(
+      `Failed to obtain credential for ${params.toolLabel ?? credentialId}: ${result.error}`
+    )
   }
 
-  const { accessToken } = (await response.json()) as { accessToken?: string }
-  if (!accessToken) {
-    throw new Error('Credential token response carried no access token')
-  }
-  return accessToken
+  return result.token
 }

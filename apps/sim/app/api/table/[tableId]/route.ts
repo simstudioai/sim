@@ -1,14 +1,25 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getTableQuerySchema, updateTableContract } from '@/lib/api/contracts/tables'
+import {
+  getTableContract,
+  getTableQuerySchema,
+  updateTableContract,
+} from '@/lib/api/contracts/tables'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalRateLimits,
+} from '@/lib/api/server/routes'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
-import { getTableById, TableConflictError, type TableSchema } from '@/lib/table'
-import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { getTableById, TableConflictError } from '@/lib/table'
+import { internalTableErrorPolicies, internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { tableOperations } from '@/lib/table/application/operations'
+import { readTableDetailsUseCase } from '@/lib/table/application/tables'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   performDeleteTable,
@@ -16,7 +27,7 @@ import {
   performRenameTable,
   performUpdateTableLocks,
 } from '@/lib/table/orchestration'
-import { normalizeColumn } from '@/lib/table/wire'
+import { normalizeColumn, toWireTimestamp } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
@@ -31,79 +42,50 @@ interface TableRouteParams {
 }
 
 /** GET /api/table/[tableId] - Retrieves a single table's details. */
-export const GET = withRouteHandler(async (request: NextRequest, { params }: TableRouteParams) => {
-  const requestId = generateRequestId()
-  const { tableId } = await params
-
-  try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized table access attempt`)
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const validated = getTableQuerySchema.parse({
-      workspaceId: searchParams.get('workspaceId'),
-    })
-
-    const result = await checkAccess(tableId, authResult.userId, 'read')
-    if (!result.ok) return accessError(result, requestId, tableId)
-
-    const { table } = result
-
-    if (table.workspaceId !== validated.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    logger.info(`[${requestId}] Retrieved table ${tableId} for user ${authResult.userId}`)
-
-    const schemaData = table.schema as TableSchema
-
-    // Source the row cap from the workspace's live plan, not the value stored on
-    // the table at creation time (which goes stale when the plan changes).
-    const { maxRowsPerTable } = await getWorkspaceTableLimits(table.workspaceId)
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        table: {
-          id: table.id,
-          name: table.name,
-          description: table.description,
-          schema: {
-            columns: schemaData.columns.map(normalizeColumn),
-            ...(schemaData.workflowGroups ? { workflowGroups: schemaData.workflowGroups } : {}),
-          },
-          metadata: table.metadata ?? null,
-          rowCount: table.rowCount,
-          maxRows: maxRowsPerTable,
-          folderId: table.folderId ?? null,
-          locks: table.locks,
-          createdAt:
-            table.createdAt instanceof Date
-              ? table.createdAt.toISOString()
-              : String(table.createdAt),
-          updatedAt:
-            table.updatedAt instanceof Date
-              ? table.updatedAt.toISOString()
-              : String(table.updatedAt),
-          jobStatus: table.jobStatus ?? null,
-          jobId: table.jobId ?? null,
-          jobType: table.jobType ?? null,
-          jobError: table.jobError ?? null,
-          jobRowsProcessed: table.jobRowsProcessed ?? 0,
+export const GET = defineInternalJsonRoute({
+  contract: getTableContract,
+  operation: tableOperations.read,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal table detail behavior',
+  }),
+  errorPolicy: {
+    ...internalTableErrorPolicies.concealTableAuthorization,
+    unhandled: () => internalErrorResponse(500, { error: 'Failed to get table' }),
+  },
+  mapInput: ({ params, query }, { principal }) => ({
+    tableId: params.tableId,
+    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+  }),
+  useCase: readTableDetailsUseCase,
+  present: ({ table, maxRows }) => ({
+    success: true as const,
+    data: {
+      table: {
+        id: table.id,
+        name: table.name,
+        description: table.description,
+        schema: {
+          columns: table.schema.columns.map(normalizeColumn),
+          ...(table.schema.workflowGroups ? { workflowGroups: table.schema.workflowGroups } : {}),
         },
+        metadata: table.metadata ?? null,
+        rowCount: table.rowCount,
+        maxRows,
+        folderId: table.folderId ?? null,
+        locks: table.locks,
+        workspaceId: table.workspaceId,
+        createdBy: table.createdBy,
+        createdAt: toWireTimestamp(table.createdAt),
+        updatedAt: toWireTimestamp(table.updatedAt),
+        jobStatus: table.jobStatus ?? null,
+        jobId: table.jobId ?? null,
+        jobType: table.jobType ?? null,
+        jobError: table.jobError ?? null,
+        jobRowsProcessed: table.jobRowsProcessed ?? 0,
       },
-    })
-  } catch (error) {
-    if (isZodError(error)) {
-      return validationErrorResponse(error)
-    }
-
-    logger.error(`[${requestId}] Error getting table:`, error)
-    return NextResponse.json({ error: 'Failed to get table' }, { status: 500 })
-  }
+    },
+  }),
 })
 
 /** PATCH /api/table/[tableId] - Renames a table. */
@@ -133,7 +115,11 @@ export const PATCH = withRouteHandler(
 
       // `write` is the floor for either operation; a `locks` change additionally
       // requires `admin` (checked below), matching the workflow-lock precedent.
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result
@@ -143,7 +129,11 @@ export const PATCH = withRouteHandler(
       }
 
       if (validated.locks !== undefined) {
-        const adminResult = await checkAccess(tableId, authResult.userId, 'admin')
+        const adminResult = await checkAccess(
+          tableId,
+          { kind: 'user', userId: authResult.userId },
+          'admin'
+        )
         if (!adminResult.ok) {
           return NextResponse.json(
             { error: 'Admin access required to change table locks' },
@@ -251,7 +241,11 @@ export const DELETE = withRouteHandler(
         workspaceId: searchParams.get('workspaceId'),
       })
 
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result

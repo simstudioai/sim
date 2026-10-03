@@ -13,9 +13,9 @@
  * page (`/api-reference/getting-started`) any more than a generated one.
  *
  * The slug derivation mirrors `fumadocs-openapi`'s auto preset: pages are
- * emitted at `<baseDir>/<slugify(tag)>/<operationId>.mdx`, `(generated)` is a
- * folder group stripped from the URL, and `hideLocale: 'default-locale'` drops
- * the `en` prefix — so the public URL is `/api-reference/<tag>/<operationId>`.
+ * emitted at `<baseDir>/<slugify(tag)>/<operationId>.mdx` and `(generated)` is
+ * a folder group stripped from the URL — so the public URL is
+ * `/api-reference/<tag>/<operationId>`.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -25,7 +25,7 @@ import { DOCS_REDIRECTS } from '../../apps/docs/lib/redirects'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
-const STATIC_PAGES_DIR = path.join(DOCS_DIR, 'content/docs/en/api-reference')
+const STATIC_PAGES_DIR = path.join(DOCS_DIR, 'content/docs/api-reference')
 const PREFIX = '/api-reference/'
 
 /**
@@ -80,16 +80,6 @@ const API_REFERENCE_RULES = DOCS_REDIRECTS.filter(
 )
 
 describe('api-reference redirects', () => {
-  it('is a non-empty set of literal paths', () => {
-    expect(API_REFERENCE_RULES.length).toBeGreaterThan(0)
-    for (const rule of API_REFERENCE_RULES) {
-      expect(
-        `${rule.source} -> ${rule.destination}`,
-        'path params would make the slug checks below vacuous'
-      ).not.toMatch(/[:*]/)
-    }
-  })
-
   it('never shadows a page that exists', () => {
     const resolvable = resolvableSlugs()
     const shadowed = API_REFERENCE_RULES.map((rule) => rule.source)

@@ -32,21 +32,14 @@ describe('sanitizeRenderedHyperlinks', () => {
     return container
   }
 
-  it('strips javascript: hrefs from a docx-preview hyperlink rendering', () => {
-    const container = containerWithAnchor(
-      "javascript:document.body.setAttribute('data-xss-fired','1')"
-    )
+  it.each([
+    "javascript:document.body.setAttribute('data-xss-fired','1')",
+    'data:text/html,<script>alert(1)</script>',
+    'vbscript:msgbox(1)',
+  ])('strips the scriptable href %s', (href) => {
+    const container = containerWithAnchor(href)
     sanitizeRenderedHyperlinks(container)
-    const anchor = container.querySelector('a')
-    expect(anchor?.hasAttribute('href')).toBe(false)
-  })
-
-  it('strips data: and vbscript: hrefs', () => {
-    for (const href of ['data:text/html,<script>alert(1)</script>', 'vbscript:msgbox(1)']) {
-      const container = containerWithAnchor(href)
-      sanitizeRenderedHyperlinks(container)
-      expect(container.querySelector('a')?.hasAttribute('href')).toBe(false)
-    }
+    expect(container.querySelector('a')?.hasAttribute('href')).toBe(false)
   })
 
   it('preserves same-document bookmark anchors', () => {

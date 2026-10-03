@@ -1,7 +1,7 @@
-import type { MemoryResponse } from '@/tools/memory/types'
-import type { ToolConfig } from '@/tools/types'
+import type { MemoryGetAllParams, MemoryResponse } from '@/tools/memory/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
+export const memoryGetAllTool: InternalToolConfig<MemoryGetAllParams, MemoryResponse> = {
   id: 'memory_get_all',
   name: 'Get All Memories',
   description: 'Retrieve all memories from the database',
@@ -9,21 +9,9 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
 
   params: {},
 
-  request: {
-    internal: true,
-    url: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-
-      return `/api/memory?workspaceId=${encodeURIComponent(workspaceId)}`
-    },
-    method: 'GET',
+  operation: {
+    input: () => ({}),
     secretProvenance: { response: { incomplete: 'reject' } },
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
   },
 
   transformResponse: async (response): Promise<MemoryResponse> => {

@@ -275,116 +275,65 @@ export async function deleteWorkspaceCustomTool(params: {
   return deleted.length > 0
 }
 
+export type AvailableCustomToolLookup = 'id' | 'id_or_title'
+
+export async function getAvailableCustomTool(params: {
+  identifier: string
+  userId?: string
+  workspaceId: string
+  lookup: AvailableCustomToolLookup
+}) {
+  const identifierCondition =
+    params.lookup === 'id'
+      ? eq(customTools.id, params.identifier)
+      : or(eq(customTools.id, params.identifier), eq(customTools.title, params.identifier))
+
+  const workspaceTool = await db
+    .select()
+    .from(customTools)
+    .where(and(eq(customTools.workspaceId, params.workspaceId), identifierCondition))
+    .limit(1)
+  if (workspaceTool[0]) return workspaceTool[0]
+  if (!params.userId) return null
+
+  const legacyTool = await db
+    .select()
+    .from(customTools)
+    .where(
+      and(
+        isNull(customTools.workspaceId),
+        eq(customTools.userId, params.userId),
+        identifierCondition
+      )
+    )
+    .limit(1)
+  return legacyTool[0] || null
+}
+
 export async function getCustomToolById(params: {
   toolId: string
   userId: string
   workspaceId?: string
 }) {
-  const { toolId, userId, workspaceId } = params
-
-  if (workspaceId) {
-    const workspaceTool = await db
+  if (!params.workspaceId) {
+    const [legacyTool] = await db
       .select()
       .from(customTools)
-      .where(and(eq(customTools.id, toolId), eq(customTools.workspaceId, workspaceId)))
+      .where(
+        and(
+          eq(customTools.id, params.toolId),
+          isNull(customTools.workspaceId),
+          eq(customTools.userId, params.userId)
+        )
+      )
       .limit(1)
-    if (workspaceTool[0]) return workspaceTool[0]
+    return legacyTool ?? null
   }
 
-  const legacyTool = await db
-    .select()
-    .from(customTools)
-    .where(
-      and(
-        eq(customTools.id, toolId),
-        isNull(customTools.workspaceId),
-        eq(customTools.userId, userId)
-      )
-    )
-    .limit(1)
-  return legacyTool[0] || null
-}
-
-export async function getCustomToolByIdOrTitle(params: {
-  identifier: string
-  userId: string
-  workspaceId?: string
-}) {
-  const { identifier, userId, workspaceId } = params
-
-  const conditions = [or(eq(customTools.id, identifier), eq(customTools.title, identifier))]
-
-  if (workspaceId) {
-    const workspaceTool = await db
-      .select()
-      .from(customTools)
-      .where(and(eq(customTools.workspaceId, workspaceId), ...conditions))
-      .limit(1)
-    if (workspaceTool[0]) return workspaceTool[0]
-  }
-
-  const legacyTool = await db
-    .select()
-    .from(customTools)
-    .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions))
-    .limit(1)
-  return legacyTool[0] || null
-}
-
-export async function updateCustomTool(params: {
-  toolId: string
-  userId: string
-  workspaceId: string
-  title: string
-  schema: unknown
-  code: string
-}) {
-  const workspaceTool = await updateWorkspaceCustomTool(params)
-  if (workspaceTool) return workspaceTool
-
-  const [legacyTool] = await db
-    .update(customTools)
-    .set({
-      title: params.title,
-      schema: params.schema,
-      code: params.code,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(customTools.id, params.toolId),
-        isNull(customTools.workspaceId),
-        eq(customTools.userId, params.userId)
-      )
-    )
-    .returning()
-  return legacyTool ?? null
-}
-
-export async function deleteCustomTool(params: {
-  toolId: string
-  userId: string
-  workspaceId?: string
-}): Promise<boolean> {
-  const { toolId, userId, workspaceId } = params
-
-  if (workspaceId) {
-    const workspaceDelete = await db
-      .delete(customTools)
-      .where(and(eq(customTools.id, toolId), eq(customTools.workspaceId, workspaceId)))
-      .returning({ id: customTools.id })
-    if (workspaceDelete.length > 0) return true
-  }
-
-  const legacyDelete = await db
-    .delete(customTools)
-    .where(
-      and(
-        eq(customTools.id, toolId),
-        isNull(customTools.workspaceId),
-        eq(customTools.userId, userId)
-      )
-    )
-    .returning({ id: customTools.id })
-  return legacyDelete.length > 0
+  return getAvailableCustomTool({
+    identifier: params.toolId,
+    userId: params.userId,
+    workspaceId: params.workspaceId,
+    lookup: 'id',
+  })
 }

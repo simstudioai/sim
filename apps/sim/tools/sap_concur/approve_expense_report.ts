@@ -1,15 +1,14 @@
-import type { ApproveExpenseReportParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ApproveExpenseReportParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const approveExpenseReportTool: ToolConfig<
+export const approveExpenseReportTool: InternalToolConfig<
   ApproveExpenseReportParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_approve_expense_report',
   name: 'SAP Concur Approve Expense Report',
@@ -73,21 +72,18 @@ export const approveExpenseReportTool: ToolConfig<
         'Optional request body. All fields are optional: `comment` (e.g., { "comment": "Approved" }), `expenseRejectedComment` (required only if the report contains rejected expenses), `expectedStepCode`, `expectedStepSequence`, `statusId` (defaults to "A_APPR").',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const reportId = trimRequired(params.reportId, 'reportId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/reports/${encodeURIComponent(reportId)}/approve`,
         method: 'PATCH',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: { type: 'json', description: 'Empty (204 No Content)' },

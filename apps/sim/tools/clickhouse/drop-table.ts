@@ -1,7 +1,10 @@
 import type { ClickHouseDropTableParams, ClickHouseMessageResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const dropTableTool: ToolConfig<ClickHouseDropTableParams, ClickHouseMessageResponse> = {
+export const dropTableTool: InternalToolConfig<
+  ClickHouseDropTableParams,
+  ClickHouseMessageResponse
+> = {
   id: 'clickhouse_drop_table',
   name: 'ClickHouse Drop Table',
   description: 'Drop a table from a ClickHouse database',
@@ -52,13 +55,8 @@ export const dropTableTool: ToolConfig<ClickHouseDropTableParams, ClickHouseMess
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/drop-table',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

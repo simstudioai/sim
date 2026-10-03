@@ -1,6 +1,6 @@
 import { embeddingsOpenAITool } from '@/tools/embeddings/openai'
 import type { EmbeddingsParams, EmbeddingsResponse } from '@/tools/embeddings/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Legacy tool id retained for the sunset `openai` Embeddings block and for
@@ -9,7 +9,7 @@ import type { ToolConfig } from '@/tools/types'
  * shape only gains fields (`provider`, `dimensions`, and the internal
  * `__embeddingTokens`) relative to the original.
  */
-export const embeddingsTool: ToolConfig<EmbeddingsParams, EmbeddingsResponse> = {
+export const embeddingsTool: InternalToolConfig<EmbeddingsParams, EmbeddingsResponse> = {
   ...embeddingsOpenAITool,
   id: 'openai_embeddings',
   name: 'OpenAI Embeddings',

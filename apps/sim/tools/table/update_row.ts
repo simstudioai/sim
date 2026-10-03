@@ -1,9 +1,11 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableRowResponse, TableRowUpdateParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowResponse> = {
+export const tableUpdateRowTool: InternalToolConfig<TableRowUpdateParams, TableRowResponse> = {
   id: 'table_update_row',
   name: 'Update Row',
   description:
@@ -17,12 +19,7 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     rowId: {
       type: 'string',
       required: true,
@@ -37,26 +34,20 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
+  operation: {
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowUpdateParams) =>
-      `/api/table/${encodeURIComponent(params.tableId)}/rows/${encodeURIComponent(params.rowId)}`,
-    method: 'PATCH',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableRowUpdateParams) => {
+    input: (params: TableRowUpdateParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
+        rowId: params.rowId,
         data: params.data,
         workspaceId,
       }
@@ -67,13 +58,10 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        row: data.row,
-        message: data.message || 'Row updated successfully',
-      },
-    }
+    return tableSuccess({
+      row: data.row,
+      message: data.message || 'Row updated successfully',
+    })
   },
 
   outputs: {

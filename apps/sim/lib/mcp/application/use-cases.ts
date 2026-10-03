@@ -1,11 +1,25 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
-import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
+import {
+  mcpServerDelegationPolicy,
+  requireMcpCredentialUserId,
+} from '@/lib/mcp/application/authorization'
+import {
+  type McpServerContext,
+  type McpWorkspaceContext,
+  resolveMcpServerContext,
+  resolveMcpWorkspaceContext,
+  resolveOrganizationMcpServerContext,
+} from '@/lib/mcp/application/context'
+import {
+  loadMcpOperationAccess,
+  type McpOperationAccess,
+} from '@/lib/mcp/application/operation-access'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   applyMcpServerMutationEffects,
@@ -16,45 +30,17 @@ import {
 } from '@/lib/mcp/orchestration'
 import {
   getMcpServerIdState,
-  getWorkspaceMcpServer,
   listWorkspaceMcpServers,
   type McpServerRow,
   type McpServerSortBy,
 } from '@/lib/mcp/queries'
 import { mcpService } from '@/lib/mcp/service'
+import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
 import type { McpAuthType } from '@/lib/mcp/types'
 import { generateMcpServerId } from '@/lib/mcp/utils'
-import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 
 type McpServerTransport = McpServerRow['transport']
 type McpWriteSource = 'api' | 'settings' | 'tool_input'
-
-interface McpWorkspaceContext {
-  workspaceId: string
-  workspaceOrganizationId: string | null
-  allowPersonalApiKeys: boolean
-  billedAccountUserId: string
-}
-
-interface McpServerContext extends McpWorkspaceContext {
-  server: McpServerRow
-}
-
-async function resolveWorkspaceContext(workspaceId: string): Promise<McpWorkspaceContext> {
-  const context = await loadActiveWorkspaceContext(workspaceId)
-  if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
-  return context
-}
-
-async function resolveServerContext(
-  workspaceId: string,
-  serverId: string
-): Promise<McpServerContext> {
-  const workspace = await resolveWorkspaceContext(workspaceId)
-  const server = await getWorkspaceMcpServer({ workspaceId: workspace.workspaceId, serverId })
-  if (!server) throw new OrchestrationError('not_found', 'MCP server not found')
-  return { ...workspace, server }
-}
 
 function requireSuccessfulResult(
   result: PerformMcpServerResult,
@@ -96,7 +82,7 @@ export interface ListMcpServersInput {
 export const listMcpServersUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.list,
   resolveContext: ({ input }: { input: ListMcpServersInput }) =>
-    resolveWorkspaceContext(input.workspaceId),
+    resolveMcpWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ input, context }) {
     const page = await listWorkspaceMcpServers({ ...input, workspaceId: context.workspaceId })
@@ -117,11 +103,11 @@ export interface DiscoverMcpToolsInput {
 export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.discoverTools,
   resolveContext: ({ input }: { input: DiscoverMcpToolsInput }) =>
-    resolveWorkspaceContext(input.workspaceId),
+    resolveMcpWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
     const tools = await mcpService.discoverTools(
-      requirePrincipalSubjectUserId(principal),
+      requireMcpCredentialUserId(principal),
       context.workspaceId,
       /**
        * A public `refresh` skips the positive cache but keeps the failure
@@ -130,7 +116,20 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
        */
       input.refresh ? 'skip-cache' : 'cache-aside'
     )
-    return { tools }
+    const accessByServer = new Map<string, McpOperationAccess>()
+    for (const serverId of new Set(tools.map((tool) => tool.serverId))) {
+      const canonical = await resolveMcpServerContext(context.workspaceId, serverId)
+      accessByServer.set(
+        serverId,
+        await loadMcpOperationAccess(principal, {
+          workspaceId: context.workspaceId,
+          serverId: canonical.server.id,
+        })
+      )
+    }
+    const authorized = tools.filter((tool) => accessByServer.get(tool.serverId)?.allows(tool.name))
+    for (const tool of authorized) compileMcpToolSchema(tool.inputSchema)
+    return { tools: authorized }
   },
 })
 
@@ -138,6 +137,8 @@ export interface DiscoverMcpServerToolsInput {
   workspaceId: string
   serverId: string
   refresh?: boolean
+  signal?: AbortSignal
+  requireComplete?: boolean
 }
 
 /**
@@ -146,7 +147,7 @@ export interface DiscoverMcpServerToolsInput {
  * Shares `mcp_servers.tools.discover` with the workspace-wide discovery: both
  * resolve the acting user's own OAuth credentials against a third-party server,
  * which is why that operation denies workspace API keys. Resolving the server
- * through {@link resolveServerContext} first is what makes an id from another
+ * through {@link resolveMcpServerContext} first is what makes an id from another
  * workspace a not-found rather than an upstream connection attempt.
  *
  * The pass is also the only thing that writes the server row's
@@ -156,9 +157,10 @@ export interface DiscoverMcpServerToolsInput {
 export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.discoverTools,
   resolveContext: ({ input }: { input: DiscoverMcpServerToolsInput }) =>
-    resolveServerContext(input.workspaceId, input.serverId),
+    resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    input.signal?.throwIfAborted()
     /**
      * `enabled: false` is a documented registration value, but discovery loads
      * its configuration through a query that filters on `enabled`, so a
@@ -172,31 +174,52 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
         'The MCP server is disabled; enable it before listing its tools'
       )
     }
+    if (context.server.credentialGroupId) {
+      throw new OrchestrationError(
+        'conflict',
+        'Credential Group MCP servers require an explicit managed connection ID'
+      )
+    }
 
-    const tools = await mcpService.discoverServerTools(
-      requirePrincipalSubjectUserId(principal),
-      context.server.id,
-      context.workspaceId,
-      /**
-       * A public `refresh` skips the positive cache but keeps the failure
-       * cooldown; only an explicit user action on their own server may bypass
-       * both. See {@link McpDiscoveryRefresh}.
-       */
-      input.refresh ? 'skip-cache' : 'cache-aside'
-    )
-    return { tools }
+    const userId = requireMcpCredentialUserId(principal)
+    const allowed = await loadMcpOperationAccess(principal, {
+      workspaceId: context.workspaceId,
+      serverId: context.server.id,
+    })
+    const refresh = input.refresh ? 'skip-cache' : 'cache-aside'
+    const tools =
+      input.signal || input.requireComplete
+        ? await mcpService.discoverServerTools(
+            userId,
+            context.server.id,
+            context.workspaceId,
+            refresh,
+            undefined,
+            { signal: input.signal, requireComplete: input.requireComplete }
+          )
+        : await mcpService.discoverServerTools(
+            userId,
+            context.server.id,
+            context.workspaceId,
+            refresh
+          )
+    const authorized = tools.filter((tool) => allowed.allows(tool.name))
+    for (const tool of authorized) compileMcpToolSchema(tool.inputSchema)
+    return { tools: authorized }
   },
 })
 
-export interface GetMcpServerInput {
-  workspaceId: string
-  serverId: string
-}
+export type GetMcpServerInput = { serverId: string } & (
+  | { workspaceId: string; organizationId?: never }
+  | { workspaceId?: never; organizationId: string }
+)
 
 export const getMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.read,
   resolveContext: ({ input }: { input: GetMcpServerInput }) =>
-    resolveServerContext(input.workspaceId, input.serverId),
+    input.organizationId
+      ? resolveOrganizationMcpServerContext(input.organizationId, input.serverId)
+      : resolveMcpServerContext(input.workspaceId!, input.serverId),
   authorizationOptions,
   async execute({ context }) {
     return { server: context.server }
@@ -283,7 +306,7 @@ function createAudit(
 export const createMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.create,
   resolveContext: ({ input }: { input: SaveMcpServerInput }) =>
-    resolveWorkspaceContext(input.workspaceId),
+    resolveMcpWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
     const serverId = generateMcpServerId(context.workspaceId, input.url)
@@ -327,7 +350,7 @@ export const createMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
 export const registerMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.register,
   resolveContext: ({ input }: { input: SaveMcpServerInput }) =>
-    resolveWorkspaceContext(input.workspaceId),
+    resolveMcpWorkspaceContext(input.workspaceId),
   authorizationOptions,
   execute: ({ principal, input, context }) => saveMcpServer({ principal, input, context }),
   projectAudit: ({ input, result }) => createAudit(input, result),
@@ -357,6 +380,12 @@ async function updateMcpServer(args: {
   input: UpdateMcpServerInput
   context: McpServerContext
 }): Promise<PerformMcpServerResult & { server: McpServerRow }> {
+  if (args.context.server.managedConnectorId) {
+    throw new OrchestrationError(
+      'conflict',
+      'This MCP server is managed from its Credential Group settings'
+    )
+  }
   const attribution = resolvePrincipalAttribution(args.principal, {
     workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
@@ -404,7 +433,7 @@ function updateAudit(
 export const updateMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.update,
   resolveContext: ({ input }: { input: UpdateMcpServerInput }) =>
-    resolveServerContext(input.workspaceId, input.serverId),
+    resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
     if (input.url !== undefined && input.url !== context.server.url) {
@@ -423,7 +452,7 @@ export const updateMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
 export const reconfigureMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.reconfigure,
   resolveContext: ({ input }: { input: UpdateMcpServerInput }) =>
-    resolveServerContext(input.workspaceId, input.serverId),
+    resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
   execute: ({ principal, input, context }) => updateMcpServer({ principal, input, context }),
   projectAudit: ({ input, result }) => updateAudit(input, result),
@@ -440,9 +469,15 @@ export interface DeleteMcpServerInput {
 export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.delete,
   resolveContext: ({ input }: { input: DeleteMcpServerInput }) =>
-    resolveServerContext(input.workspaceId, input.serverId),
+    resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
-  async execute({ principal, input, context }) {
+  async execute({ principal, context }) {
+    if (context.server.managedConnectorId) {
+      throw new OrchestrationError(
+        'conflict',
+        'This MCP server is managed from its Credential Group settings'
+      )
+    }
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })

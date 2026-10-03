@@ -1,29 +1,39 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Button,
   cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuSearchInput,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
+  TabStripAction,
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import {
-  BROWSER_SESSION_RESOURCE_ID,
-  TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
-  type AvailableItem,
+  type AvailableItemsByType,
+  type AvailableResources,
+  BROWSER_LAUNCHER_ID,
+  type StructureFolders,
+  TERMINAL_LAUNCHER_ID,
+  useAvailableResources,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
+import {
+  mergeOrganizationResourceInventories,
+  OrganizationResourceInventory,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
+import {
   buildResourceFolderTree,
   type ResourceTreeNode,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
@@ -32,30 +42,17 @@ import {
   byResourceMenuOrder,
   getResourceConfig,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import {
-  RESOURCE_TAB_ICON_BUTTON_CLASS,
-  RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
-import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
-import { useFolders } from '@/hooks/queries/folders'
-import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useLogsList } from '@/hooks/queries/logs'
-import { useMothershipChats } from '@/hooks/queries/mothership-chats'
-import { useTablesList } from '@/hooks/queries/tables'
-import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 
 export interface AddResourceDropdownProps {
-  workspaceId: string
-  existingKeys: Set<string>
+  workspaceId?: string
+  organizationId?: string
   onAdd: (resource: MothershipResource) => void
-  onOpenExisting?: (resource: MothershipResource) => void
   /**
    * Resource types to hide from the dropdown. Must be referentially stable
    * (a module constant) — it keys the underlying group memo.
@@ -67,56 +64,6 @@ export interface AddResourceDropdownProps {
   onClose?: () => Promise<void>
 }
 
-interface AvailableItemsByType {
-  type: MothershipResourceType
-  items: AvailableItem[]
-}
-
-/**
- * Folder hierarchies that exist purely to structure the browse menus. Unlike
- * workflow (`folder`) and workspace-file (`filefolder`) folders these are not
- * attachable resources, so they stay out of `groups` — which also feeds the
- * flat search results, where a non-attachable row would be a dead end.
- */
-interface StructureFolders {
-  table: AvailableItem[]
-  knowledgebase: AvailableItem[]
-}
-
-interface AvailableResources {
-  groups: AvailableItemsByType[]
-  structureFolders: StructureFolders
-  /**
-   * True while enabled and at least one list has yet to produce data. Callers
-   * that act on "no candidates" must check this first — an empty result during
-   * hydration means "not known yet", not "no match".
-   */
-  isHydrating: boolean
-}
-
-interface UseAvailableResourcesOptions {
-  /**
-   * Skips the underlying list queries and the group construction they feed
-   * while `false`, returning a stable empty result. Menus pass their own open
-   * state so a closed one costs nothing; the lists fetch on first open.
-   *
-   * Note this only defers the lists nothing else on the surface already needs —
-   * the mothership tab bar independently resolves tab names from the workflow,
-   * table, file, knowledge-base, and folder lists, so those stay warm there.
-   */
-  enabled?: boolean
-  /**
-   * Resource types to omit from the result. Must be referentially stable
-   * (a module constant) — it keys the group memo.
-   */
-  excludeTypes?: readonly MothershipResourceType[]
-}
-
-/** Stable identity for the disabled result, so downstream memos never bust. */
-const NO_RESOURCE_GROUPS: AvailableItemsByType[] = []
-
-const LOG_DROPDOWN_LIMIT = 50
-
 /** Hide Radix's still-mounted exit surface before a full-screen effect paints. */
 function hideMountedMenuSurfaces(): void {
   for (const menu of document.querySelectorAll<HTMLElement>(
@@ -126,243 +73,16 @@ function hideMountedMenuSurfaces(): void {
   }
 }
 
-const LOG_DROPDOWN_FILTERS = {
-  timeRange: 'All time' as const,
-  level: 'all',
-  workflowIds: [] as string[],
-  folderIds: [] as string[],
-  triggers: [] as string[],
-  searchQuery: '',
-  limit: LOG_DROPDOWN_LIMIT,
-  sortBy: 'date' as const,
-  sortOrder: 'desc' as const,
-}
-
-export function useAvailableResources(
-  workspaceId: string,
-  options?: UseAvailableResourcesOptions
-): AvailableResources {
-  const enabled = options?.enabled ?? true
-  const excludeTypes = options?.excludeTypes
-  // Destructured without `= []` defaults on purpose: a literal default allocates a
-  // fresh array every render while `data` is undefined (exactly the disabled state),
-  // which would bust the group memo below on every render. Undefined is stable.
-  const { data: workflows, isPending: workflowsPending } = useWorkflows(workspaceId, { enabled })
-  const { data: tables, isPending: tablesPending } = useTablesList(workspaceId, 'active', {
-    enabled,
-  })
-  const { data: files, isPending: filesPending } = useWorkspaceFiles(workspaceId, 'active', {
-    enabled,
-  })
-  const { data: knowledgeBases, isPending: knowledgeBasesPending } = useKnowledgeBasesQuery(
-    workspaceId,
-    { enabled }
-  )
-  const { data: folders, isPending: foldersPending } = useFolders(workspaceId, { enabled })
-  // Folder lists exist only to shape their family's submenu, so they skip the
-  // fetch entirely when that family is excluded.
-  const { data: tableFolders } = useFolders(workspaceId, {
-    enabled: enabled && !excludeTypes?.includes('table'),
-    resourceType: 'table',
-  })
-  const { data: knowledgeBaseFolders } = useFolders(workspaceId, {
-    enabled: enabled && !excludeTypes?.includes('knowledgebase'),
-    resourceType: 'knowledge_base',
-  })
-  const { data: fileFolders, isPending: fileFoldersPending } = useWorkspaceFileFolders(
-    workspaceId,
-    'active',
-    { enabled }
-  )
-  const { data: tasks, isPending: tasksPending } = useMothershipChats(workspaceId, { enabled })
-  const { data: logsData, isPending: logsPending } = useLogsList(
-    workspaceId,
-    LOG_DROPDOWN_FILTERS,
-    { enabled }
-  )
-  const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
-
-  /**
-   * Keyed off `isPending` rather than `data === undefined` so a failed list
-   * settles to "not hydrating" — an errored query must not block the caller
-   * forever.
-   *
-   * Only the lists feeding `groups` count. The table and knowledge-base folder
-   * lists shape submenus but never add candidates, so gating on them would
-   * swallow an `@`-mention Enter behind two round-trips that cannot change the
-   * answer.
-   */
-  const isHydrating =
-    enabled &&
-    (workflowsPending ||
-      tablesPending ||
-      filesPending ||
-      knowledgeBasesPending ||
-      foldersPending ||
-      fileFoldersPending ||
-      tasksPending ||
-      logsPending)
-
-  const groups = useMemo(() => {
-    if (!enabled) return NO_RESOURCE_GROUPS
-    const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
-    const groups: AvailableItemsByType[] = [
-      {
-        type: 'workflow' as const,
-        items: (workflows ?? []).map((w) => ({
-          id: w.id,
-          name: w.name,
-          folderId: w.folderId ?? null,
-          sortOrder: w.sortOrder,
-        })),
-      },
-      {
-        type: 'folder' as const,
-        items: (folders ?? []).map((f) => ({
-          id: f.id,
-          name: f.name,
-          parentId: f.parentId ?? null,
-          sortOrder: f.sortOrder,
-        })),
-      },
-      {
-        type: 'table' as const,
-        items: (tables ?? []).map((t) => ({
-          id: t.id,
-          name: t.name,
-          folderId: t.folderId ?? null,
-        })),
-      },
-      {
-        type: 'file' as const,
-        items: (files ?? []).map((f) => ({ id: f.id, name: f.name, folderId: f.folderId ?? null })),
-      },
-      {
-        type: 'filefolder' as const,
-        items: (fileFolders ?? []).map((f) => ({
-          id: f.id,
-          name: f.name,
-          parentId: f.parentId ?? null,
-        })),
-      },
-      {
-        type: 'knowledgebase' as const,
-        items: (knowledgeBases ?? []).map((kb) => ({
-          id: kb.id,
-          name: kb.name,
-          folderId: kb.folderId ?? null,
-        })),
-      },
-      {
-        type: 'integration' as const,
-        items: listIntegrationsByPopularity().map((integration) => ({
-          id: integration.blockType,
-          name: integration.name,
-          iconComponent: integration.icon,
-          bgColor: integration.bgColor,
-        })),
-      },
-      {
-        type: 'task' as const,
-        items: (tasks ?? []).map((t) => ({ id: t.id, name: t.name })),
-      },
-      /**
-       * The chip's `name` keeps the absolute timestamp because it is persisted
-       * with the chat, where "2m ago" would age into a lie; the row renders the
-       * relative form, which is what reads at a glance. `mentionFamily` is what
-       * lets `@logs` reach rows named after their workflow.
-       */
-      {
-        type: 'log' as const,
-        items: logs.map((log) => {
-          const workflowName = log.workflow?.name ?? log.workflowId ?? 'Unknown'
-          const when = formatDate(log.createdAt)
-          return {
-            id: log.id,
-            name: `${workflowName} · ${when.compact}`,
-            mentionFamily: getResourceConfig('log').label,
-            executionId: log.executionId ?? undefined,
-            workflowName,
-            time: when.relative,
-            status: log.status,
-          }
-        }),
-      },
-    ]
-    // The live browser panel — desktop app only (needs the agent-browser
-    // bridge). There is one top-level panel; repeated launches open inner tabs.
-    if (isBrowserAgentAvailable()) {
-      groups.push({
-        type: 'browser' as const,
-        items: [
-          {
-            id: BROWSER_SESSION_RESOURCE_ID,
-            name: 'Browser',
-          },
-        ],
-      })
-    }
-    // The live terminal — desktop app only (needs the PTY bridge), and a
-    // single top-level panel like the browser.
-    if (isTerminalAvailable()) {
-      groups.push({
-        type: 'terminal' as const,
-        items: [
-          {
-            id: TERMINAL_SESSION_RESOURCE_ID,
-            name: 'Terminal',
-          },
-        ],
-      })
-    }
-    return groups.filter((g) => !excluded.has(g.type)).sort(byResourceMenuOrder)
-  }, [
-    enabled,
-    workflows,
-    folders,
-    fileFolders,
-    tables,
-    files,
-    knowledgeBases,
-    tasks,
-    logs,
-    excludeTypes,
-  ])
-
-  /**
-   * Left in source order: `buildResourceFolderTree` orders each level by name,
-   * interleaved with the items, matching the Tables and Knowledge pages. These
-   * folders carry no user-defined ordering the way workflow folders do.
-   */
-  const structureFolders = useMemo<StructureFolders>(() => {
-    const toFolderItems = (source: typeof tableFolders): AvailableItem[] =>
-      (source ?? []).map((f) => ({ id: f.id, name: f.name, parentId: f.parentId ?? null }))
-    return {
-      table: toFolderItems(tableFolders),
-      knowledgebase: toFolderItems(knowledgeBaseFolders),
-    }
-  }, [tableFolders, knowledgeBaseFolders])
-
-  // `groups` and `structureFolders` keep their own stable identities so the
-  // consumers' downstream memos still key on them; only this wrapper changes
-  // when hydration settles.
-  return useMemo(
-    () => ({ groups, structureFolders, isHydrating }),
-    [groups, structureFolders, isHydrating]
-  )
-}
-
 interface ResourceFolderTreeItemsProps {
   nodes: ResourceTreeNode[]
   /** Resource type of the leaf items. */
   type: MothershipResourceType
   /**
-   * Set when the folder is itself an attachable resource (workspace files): the
-   * folder is then offered as the first entry of its own submenu. Omitted for
-   * folders that only provide structure (workflows, tables, knowledge bases).
+   * Offers the folder itself as the first entry of its submenu when selectable.
    */
   folderType?: MothershipResourceType
   onSelect: (resource: MothershipResource) => void
+  subContentClassName?: string
 }
 
 /** Renders a {@link buildResourceFolderTree} result as nested dropdown submenus. */
@@ -371,6 +91,7 @@ export function ResourceFolderTreeItems({
   type,
   folderType,
   onSelect,
+  subContentClassName,
 }: ResourceFolderTreeItemsProps) {
   const config = getResourceConfig(type)
   return (
@@ -387,15 +108,15 @@ export function ResourceFolderTreeItems({
           <DropdownMenuSub key={node.id}>
             <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
-              <span>{node.name}</span>
+              <DropdownMenuItemLabel label={node.name} />
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className={subContentClassName}>
               {folderType && (
                 <DropdownMenuItem
                   onClick={() => onSelect({ type: folderType, id: node.id, title: node.name })}
                 >
                   <Folder className='size-[14px]' />
-                  <span>{node.name}</span>
+                  <DropdownMenuItemLabel label={node.name} />
                 </DropdownMenuItem>
               )}
               <ResourceFolderTreeItems
@@ -403,6 +124,7 @@ export function ResourceFolderTreeItems({
                 type={type}
                 folderType={folderType}
                 onSelect={onSelect}
+                subContentClassName={subContentClassName}
               />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -415,10 +137,6 @@ export function ResourceFolderTreeItems({
 interface FolderedSectionSpec {
   /** Leaf resource type — also supplies the submenu's label and icon. */
   type: MothershipResourceType
-  /**
-   * Where this family's folders come from: another entry in `groups` when the
-   * folders are attachable resources, or `structureFolders` when they are not.
-   */
   folders:
     | { kind: 'group'; type: MothershipResourceType }
     | { kind: 'structure'; key: keyof StructureFolders }
@@ -469,22 +187,25 @@ export interface ResourceTreeSection {
 export function useResourceTreeSections({
   groups,
   structureFolders,
-}: Pick<AvailableResources, 'groups' | 'structureFolders'>): ResourceTreeSection[] {
+  selectFolders = false,
+}: Pick<AvailableResources, 'groups' | 'structureFolders'> & {
+  selectFolders?: boolean
+}): ResourceTreeSection[] {
   return useMemo(() => {
     const itemsOf = (type: MothershipResourceType) =>
       groups.find((group) => group.type === type)?.items ?? []
     return FOLDERED_SECTION_SPECS.map((spec) => ({
       type: spec.type,
-      folderType: spec.folderType,
+      folderType: spec.folderType ?? (selectFolders ? 'folder' : undefined),
       nodes: buildResourceFolderTree(
         itemsOf(spec.type),
         spec.folders.kind === 'group'
           ? itemsOf(spec.folders.type)
           : structureFolders[spec.folders.key],
-        { orderBySortOrder: spec.orderBySortOrder, pruneEmpty: !spec.folderType }
+        { orderBySortOrder: spec.orderBySortOrder, pruneEmpty: !selectFolders && !spec.folderType }
       ),
     })).filter((section) => section.nodes.length > 0)
-  }, [groups, structureFolders])
+  }, [groups, structureFolders, selectFolders])
 }
 
 interface ResourceMenuSectionsProps {
@@ -528,14 +249,18 @@ export function ResourceMenuSections({
         const Icon = config.icon
         const section = sectionByType.get(type)
 
-        // Browser and terminal each have one top-level panel — a flat launcher
-        // here creates inner tabs when that panel already exists.
-        if (!section && (type === 'browser' || type === 'terminal')) {
+        // The Browser and Terminal launchers are flat rows that open a new page
+        // or shell. Live pages and shells offered as context are an ordinary
+        // picker submenu.
+        if (
+          !section &&
+          (items[0]?.id === BROWSER_LAUNCHER_ID || items[0]?.id === TERMINAL_LAUNCHER_ID)
+        ) {
           const item = items[0]
           return (
             <DropdownMenuItem key={type} onClick={() => onSelect(resourceFromItem(type, item))}>
               <Icon className='size-[14px]' />
-              <span>{config.label}</span>
+              <DropdownMenuItemLabel label={config.label} />
             </DropdownMenuItem>
           )
         }
@@ -544,7 +269,7 @@ export function ResourceMenuSections({
           <DropdownMenuSub key={type}>
             <DropdownMenuSubTrigger>
               <Icon className='size-[14px]' />
-              <span>{config.label}</span>
+              <DropdownMenuItemLabel label={config.label} />
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={subContentClassName}>
               {section ? (
@@ -553,14 +278,20 @@ export function ResourceMenuSections({
                   type={section.type}
                   folderType={section.folderType}
                   onSelect={onSelect}
+                  subContentClassName={subContentClassName}
                 />
               ) : (
                 items.map((item) => (
                   <DropdownMenuItem
-                    key={item.id}
+                    key={`${item.workspaceId ?? ''}:${item.id}`}
                     onClick={() => onSelect(resourceFromItem(type, item))}
                   >
                     {config.renderDropdownItem({ item })}
+                    {typeof item.workspaceName === 'string' && (
+                      <span className='ml-auto text-[var(--text-muted)] text-xs'>
+                        {item.workspaceName}
+                      </span>
+                    )}
                   </DropdownMenuItem>
                 ))
               )}
@@ -572,30 +303,248 @@ export function ResourceMenuSections({
   )
 }
 
-export function AddResourceDropdown({
+interface ResourceMenuSearchProps {
+  groups: AvailableItemsByType[]
+  isHydrating?: boolean
+  children: ReactNode
+  onSelect: (resource: MothershipResource) => void
+}
+
+function ResourceMenuSearch({
+  groups: available,
+  isHydrating,
+  children,
+  onSelect: select,
+}: ResourceMenuSearchProps) {
+  const [search, setSearch] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    if (!q) return null
+    return available.flatMap(({ type, items }) =>
+      items
+        .filter(
+          (item) =>
+            item.name.toLowerCase().includes(q) ||
+            (typeof item.workspaceName === 'string' && item.workspaceName.toLowerCase().includes(q))
+        )
+        .map((item) => ({ type, item }))
+    )
+  }, [search, available])
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!filtered) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex((prev) => Math.min(prev + 1, filtered.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex((prev) => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+      if (filtered.length > 0 && filtered[activeIndex]) {
+        e.preventDefault()
+        const { type, item } = filtered[activeIndex]
+        select(resourceFromItem(type, item))
+      }
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenuSearchInput
+        placeholder='Search resources'
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          setActiveIndex(0)
+        }}
+        onKeyDown={handleSearchKeyDown}
+      />
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        {filtered ? (
+          filtered.length > 0 ? (
+            filtered.map(({ type, item }, index) => {
+              const config = getResourceConfig(type)
+              /* The search box keeps focus, so rows never take DOM focus and the menu's
+                   own `focus:` highlight never fires — `activeIndex` is this list's
+                   cursor, so it paints the hover surface rather than the selected one. */
+              return (
+                <DropdownMenuItem
+                  key={`${type}:${item.workspaceId ?? ''}:${item.id}`}
+                  className={cn(index === activeIndex && 'bg-[var(--surface-hover)]')}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => select(resourceFromItem(type, item))}
+                >
+                  {config.renderDropdownItem({ item })}
+                  {typeof item.workspaceName === 'string' && (
+                    <span className='ml-auto text-[var(--text-muted)] text-xs'>
+                      {item.workspaceName}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              )
+            })
+          ) : (
+            <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
+              {isHydrating ? 'Loading resources' : 'No results'}
+            </div>
+          )
+        ) : (
+          children
+        )}
+      </div>
+    </>
+  )
+}
+
+interface WorkspaceResourceMenuContentProps {
+  workspaceId: string
+  enabled: boolean
+  excludeTypes?: readonly MothershipResourceType[]
+  searchable?: boolean
+  /** Offers every folder as an attachable entry, as chat does. */
+  selectFolders?: boolean
+  onSelect: (resource: MothershipResource) => void
+  subContentClassName?: string
+}
+
+function WorkspaceResourceMenuContent({
   workspaceId,
-  existingKeys,
+  enabled,
+  excludeTypes,
+  searchable = true,
+  selectFolders,
+  onSelect,
+  subContentClassName,
+}: WorkspaceResourceMenuContentProps) {
+  const { groups, structureFolders, isHydrating } = useAvailableResources(workspaceId, {
+    enabled,
+    excludeTypes,
+  })
+  const sections = useResourceTreeSections({ groups, structureFolders, selectFolders })
+  const select = (resource: MothershipResource) =>
+    onSelect(
+      resource.type === 'browser' || resource.type === 'terminal'
+        ? resource
+        : { ...resource, workspaceId }
+    )
+  /** Lists fill in as they load, so a trailing row keeps a loading workspace from reading as empty. */
+  const menu = (
+    <>
+      <ResourceMenuSections
+        sections={sections}
+        groups={groups}
+        onSelect={select}
+        subContentClassName={subContentClassName}
+      />
+      {isHydrating && <DropdownMenuItem disabled>Loading resources</DropdownMenuItem>}
+    </>
+  )
+  return searchable ? (
+    <ResourceMenuSearch groups={groups} isHydrating={isHydrating} onSelect={select}>
+      {menu}
+    </ResourceMenuSearch>
+  ) : (
+    menu
+  )
+}
+
+interface WorkspaceResourceSubmenuProps {
+  workspace: Pick<Workspace, 'id' | 'name' | 'logoUrl'>
+  /** Must be referentially stable (a module constant) — it keys the group memo. */
+  excludeTypes?: readonly MothershipResourceType[]
+  selectFolders?: boolean
+  onSelect: (resource: MothershipResource) => void
+  /**
+   * Offers the workspace itself as the first entry, the way a folder submenu
+   * offers its folder, for pickers that can attach a whole workspace.
+   */
+  onSelectWorkspace?: (workspace: Pick<Workspace, 'id' | 'name'>) => void
+  subContentClassName?: string
+}
+
+/**
+ * One workspace of an organization-wide picker: its own foldered resource menu,
+ * fetched when the submenu first opens. Selections carry the workspace as owner.
+ */
+export function WorkspaceResourceSubmenu({
+  workspace,
+  excludeTypes,
+  selectFolders,
+  onSelect,
+  onSelectWorkspace,
+  subContentClassName,
+}: WorkspaceResourceSubmenuProps) {
+  const [open, setOpen] = useState(false)
+  const icon = (
+    <IdentityTile initial={getWorkspaceInitial(workspace.name)} logoUrl={workspace.logoUrl} />
+  )
+  return (
+    <DropdownMenuSub open={open} onOpenChange={setOpen}>
+      <DropdownMenuSubTrigger>
+        {icon}
+        <DropdownMenuItemLabel label={workspace.name} />
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent
+        className={cn('flex w-[320px] flex-col overflow-hidden', subContentClassName)}
+      >
+        {onSelectWorkspace && (
+          <DropdownMenuItem onClick={() => onSelectWorkspace(workspace)}>
+            {icon}
+            <DropdownMenuItemLabel label={workspace.name} />
+          </DropdownMenuItem>
+        )}
+        <WorkspaceResourceMenuContent
+          workspaceId={workspace.id}
+          enabled={open}
+          excludeTypes={excludeTypes}
+          searchable={false}
+          selectFolders={selectFolders}
+          onSelect={onSelect}
+          subContentClassName={subContentClassName}
+        />
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
+
+const WORKSPACE_FLYOUT_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['browser', 'terminal']
+
+export function AddResourceDropdown({
+  workspaceId: suppliedWorkspaceId,
+  organizationId,
   onAdd,
-  onOpenExisting,
   excludeTypes,
   onRequestOpen,
   onClose,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
+  const { data: allWorkspaces = [] } = useOrderedWorkspacesQuery(open && Boolean(organizationId))
+  const workspaces = allWorkspaces.filter(
+    (workspace) => workspace.organizationId === organizationId
+  )
+  const flyoutExcludedTypes = useMemo(
+    () => [...(excludeTypes ?? []), ...WORKSPACE_FLYOUT_EXCLUDED_TYPES],
+    [excludeTypes]
+  )
+  const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
+  const receiveInventory = useCallback((workspaceId: string, inventory: AvailableResources) => {
+    setInventories((current) =>
+      current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
+    )
+  }, [])
+  const organizationInventory = mergeOrganizationResourceInventories(workspaces, inventories)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [search, setSearch] = useState('')
-  const [activeIndex, setActiveIndex] = useState(0)
-  // Gated on `open` so an idle tab bar never fetches the workspace lists.
-  const { groups: available, structureFolders } = useAvailableResources(workspaceId, {
-    enabled: open,
+  const { groups } = useAvailableResources('', {
+    enabled: open && !suppliedWorkspaceId,
     excludeTypes,
   })
-  const treeSections = useResourceTreeSections({ groups: available, structureFolders })
+  const nativeGroups = groups.filter(
+    (group) => group.type === 'browser' || group.type === 'terminal'
+  )
   const hasNativeResourceSurface = isBrowserAgentAvailable() || isTerminalAvailable()
   const closeMenu = useCallback(() => {
     setOpen(false)
-    setSearch('')
-    setActiveIndex(0)
     return onClose?.() ?? Promise.resolve()
   }, [onClose])
 
@@ -625,52 +574,26 @@ export function AddResourceDropdown({
   }
 
   const select = (resource: MothershipResource) => {
-    void closeMenu().then(() => {
-      if (onOpenExisting && existingKeys.has(`${resource.type}:${resource.id}`)) {
-        onOpenExisting(resource)
-      } else {
-        onAdd(resource)
-      }
-    })
-  }
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim()
-    if (!q) return null
-    return available.flatMap(({ type, items }) =>
-      items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
-    )
-  }, [search, available])
-
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!filtered) return
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setActiveIndex((prev) => Math.min(prev + 1, filtered.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setActiveIndex((prev) => Math.max(prev - 1, 0))
-    } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
-      if (filtered.length > 0 && filtered[activeIndex]) {
-        e.preventDefault()
-        const { type, item } = filtered[activeIndex]
-        select(resourceFromItem(type, item))
-      }
-    }
+    void closeMenu().then(() => onAdd(resource))
   }
 
   return (
     <DropdownMenu open={open} onOpenChange={handleOpenChange} modal={false}>
+      {open &&
+        organizationId &&
+        workspaces.map((workspace) => (
+          <OrganizationResourceInventory
+            key={workspace.id}
+            workspaceId={workspace.id}
+            onChange={receiveInventory}
+          />
+        ))}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant='subtle'
-              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-              aria-label='Add resource tab'
-            >
+            <TabStripAction variant='subtle' aria-label='Add resource tab'>
               <Plus className={RESOURCE_TAB_ICON_CLASS} />
-            </Button>
+            </TabStripAction>
           </DropdownMenuTrigger>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
@@ -684,43 +607,38 @@ export function AddResourceDropdown({
         className='flex w-[320px] flex-col overflow-hidden'
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <DropdownMenuSearchInput
-          placeholder='Search resources...'
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setActiveIndex(0)
-          }}
-          onKeyDown={handleSearchKeyDown}
-        />
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          {filtered ? (
-            filtered.length > 0 ? (
-              filtered.map(({ type, item }, index) => {
-                const config = getResourceConfig(type)
-                /* The search box keeps focus, so rows never take DOM focus and the menu's
-                   own `focus:` highlight never fires — `activeIndex` is this list's
-                   cursor, so it paints the hover surface rather than the selected one. */
-                return (
-                  <DropdownMenuItem
-                    key={`${type}:${item.id}`}
-                    className={cn(index === activeIndex && 'bg-[var(--surface-hover)]')}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => select(resourceFromItem(type, item))}
-                  >
-                    {config.renderDropdownItem({ item })}
-                  </DropdownMenuItem>
-                )
-              })
-            ) : (
-              <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
-                No results
-              </div>
-            )
-          ) : (
-            <ResourceMenuSections sections={treeSections} groups={available} onSelect={select} />
-          )}
-        </div>
+        {suppliedWorkspaceId ? (
+          <WorkspaceResourceMenuContent
+            workspaceId={suppliedWorkspaceId}
+            enabled={open}
+            excludeTypes={excludeTypes}
+            onSelect={select}
+          />
+        ) : (
+          <ResourceMenuSearch
+            groups={[
+              ...organizationInventory.groups.filter(
+                (group) => !excludeTypes?.includes(group.type)
+              ),
+              ...nativeGroups,
+            ]}
+            isHydrating={organizationInventory.isHydrating}
+            onSelect={select}
+          >
+            {workspaces.map((workspace) => (
+              <WorkspaceResourceSubmenu
+                key={workspace.id}
+                workspace={workspace}
+                excludeTypes={flyoutExcludedTypes}
+                onSelect={select}
+              />
+            ))}
+            {!workspaces.length && (
+              <DropdownMenuItem disabled>No accessible workspaces</DropdownMenuItem>
+            )}
+            <ResourceMenuSections sections={[]} groups={nativeGroups} onSelect={select} />
+          </ResourceMenuSearch>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

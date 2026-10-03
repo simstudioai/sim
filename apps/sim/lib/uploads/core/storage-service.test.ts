@@ -1,6 +1,12 @@
-/**
- * @vitest-environment node
- */
+import {
+  setUploadsConfig,
+  uploadsConfigMock,
+  uploadsConfigMockFns,
+} from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -9,7 +15,8 @@ const {
   mockComplete,
   mockAbort,
   mockUploadToS3,
-  mockInsertFileMetadata,
+  mockDeleteFromS3,
+  mockCleanupUnboundKnowledgeUpload,
   mockGetSignedUrl,
   mockHeadS3Object,
   mockPutObjectCommand,
@@ -21,7 +28,8 @@ const {
   mockComplete: vi.fn(),
   mockAbort: vi.fn(),
   mockUploadToS3: vi.fn(),
-  mockInsertFileMetadata: vi.fn(),
+  mockDeleteFromS3: vi.fn(),
+  mockCleanupUnboundKnowledgeUpload: vi.fn(),
   mockGetSignedUrl: vi.fn(),
   mockHeadS3Object: vi.fn(),
   mockPutObjectCommand: vi.fn().mockImplementation(class {}),
@@ -37,12 +45,7 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: mockGetSignedUrl,
 }))
 
-vi.mock('@/lib/uploads/config', () => ({
-  USE_S3_STORAGE: true,
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({ bucket: 'b', region: 'r' }),
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   initiateS3MultipartUpload: mockInitiate,
@@ -50,21 +53,30 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   completeS3MultipartUpload: mockComplete,
   abortS3MultipartUpload: mockAbort,
   uploadToS3: mockUploadToS3,
+  deleteFromS3: mockDeleteFromS3,
   getS3Client: () => mockS3Client,
   headS3Object: mockHeadS3Object,
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertFileMetadata: mockInsertFileMetadata,
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+
+vi.mock('@/lib/uploads/core/knowledge-upload-cleanup', () => ({
+  cleanupUnboundKnowledgeUpload: mockCleanupUnboundKnowledgeUpload,
 }))
 
 import { createMultipartUpload, uploadFile } from '@/lib/uploads/core/storage-service'
+
+setUploadsConfig({ USE_S3_STORAGE: true })
+uploadsConfigMockFns.mockGetStorageConfig.mockReturnValue({ bucket: 'b', region: 'r' })
+
+const mockInsertFileMetadata = uploadsMetadataMockFns.mockInsertFileMetadata
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+const mockInsertImmutableFileMetadata = uploadsMetadataMockFns.mockInsertImmutableFileMetadata
 
 const PART_SIZE = 8 * 1024 * 1024
 
 describe('createMultipartUpload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     partBodies.length = 0
     mockInitiate.mockResolvedValue({ uploadId: 'up1', key: 'k' })
     mockUploadPart.mockImplementation((_key, _uploadId, partNumber: number, body: Buffer) => {
@@ -75,39 +87,214 @@ describe('createMultipartUpload', () => {
     mockAbort.mockResolvedValue(undefined)
     mockUploadToS3.mockResolvedValue({ key: 'k', path: 'p', name: 'k', size: 0, type: 'text/csv' })
     mockInsertFileMetadata.mockResolvedValue({ id: 'file-1' })
+    mockDeleteFileMetadata.mockResolvedValue(undefined)
+    mockDeleteFromS3.mockResolvedValue(undefined)
+    mockInsertImmutableFileMetadata.mockResolvedValue({ id: 'file-1' })
+    mockCleanupUnboundKnowledgeUpload.mockResolvedValue(undefined)
     mockGetSignedUrl.mockResolvedValue('https://s3.example/create-only')
     mockHeadS3Object.mockResolvedValue(null)
   })
 
-  it('can upload an object without persisting generic metadata', async () => {
+  it('preserves a pre-reserved create-only identity without registering metadata again', async () => {
     await uploadFile({
-      file: Buffer.from('hello'),
-      fileName: 'k',
+      file: Buffer.from('reserved content'),
+      fileName: 'reserved.txt',
+      customKey: 'kb/reserved.txt',
       contentType: 'text/plain',
-      context: 'workspace',
+      context: 'knowledge-base',
+      preserveKey: true,
       metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
       persistMetadata: false,
+      createOnlyUploadId: 'reserved-upload-1',
     })
-
-    expect(mockUploadToS3).toHaveBeenCalledTimes(1)
-    expect(mockInsertFileMetadata).not.toHaveBeenCalled()
+    expect(mockUploadToS3.mock.calls[0][6]).toMatchObject({ uploadId: 'reserved-upload-1' })
+    expect(mockUploadToS3.mock.calls[0][7]).toBe(true)
+    expect(mockInsertImmutableFileMetadata).not.toHaveBeenCalled()
   })
 
-  it('takes the single-shot PutObject path for a payload smaller than one part', async () => {
-    const handle = await createMultipartUpload({
-      key: 'k',
-      context: 'execution',
-      contentType: 'text/csv',
-      completionPolicy: 'replace',
+  it('persists connector caches with an immutable organization binding', async () => {
+    await uploadFile({
+      file: Buffer.from('hello'),
+      fileName: 'kb/file.txt',
+      contentType: 'text/plain',
+      context: 'knowledge-base',
+      metadata: { userId: 'user-1', organizationId: 'org-1' },
     })
-    await handle.write('hello')
-    const result = await handle.complete()
+    expect(mockInsertFileMetadata).not.toHaveBeenCalled()
+    expect(mockInsertImmutableFileMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        workspaceId: null,
+        folderId: null,
+        context: 'knowledge-base',
+      })
+    )
+    expect(mockUploadToS3.mock.calls[0][6]).toMatchObject({
+      organizationId: 'org-1',
+      uploadId: expect.any(String),
+    })
+    expect(mockUploadToS3.mock.calls[0][7]).toBe(true)
+  })
 
-    expect(mockInitiate).not.toHaveBeenCalled()
-    expect(mockUploadPart).not.toHaveBeenCalled()
-    expect(mockUploadToS3).toHaveBeenCalledTimes(1)
-    expect((mockUploadToS3.mock.calls[0][0] as Buffer).toString('utf8')).toBe('hello')
-    expect(result).toEqual({ key: 'k', size: 5 })
+  it('cleans up the exact upload attempt when cache metadata persistence fails', async () => {
+    const failure = new Error('organization foreign key failed')
+    mockInsertImmutableFileMetadata.mockRejectedValueOnce(failure)
+
+    await expect(
+      uploadFile({
+        file: Buffer.from('hello'),
+        fileName: 'kb/new.txt',
+        contentType: 'text/plain',
+        context: 'knowledge-base',
+        metadata: { userId: 'user-1', organizationId: 'org-1', uploadId: 'caller-supplied' },
+      })
+    ).rejects.toBe(failure)
+
+    const uploadId = mockUploadToS3.mock.calls[0][6].uploadId
+    expect(uploadId).not.toBe('caller-supplied')
+    expect(mockCleanupUnboundKnowledgeUpload).toHaveBeenCalledExactlyOnceWith('k', uploadId)
+  })
+
+  it('does not compensate a failed create-only write that may belong to a prior upload', async () => {
+    const conflict = new Error('object already exists')
+    mockUploadToS3.mockRejectedValueOnce(conflict)
+
+    await expect(
+      uploadFile({
+        file: Buffer.from('hello'),
+        fileName: 'kb/existing.txt',
+        contentType: 'text/plain',
+        context: 'knowledge-base',
+        metadata: { userId: 'user-1', organizationId: 'org-1' },
+      })
+    ).rejects.toBe(conflict)
+
+    expect(mockInsertImmutableFileMetadata).not.toHaveBeenCalled()
+    expect(mockCleanupUnboundKnowledgeUpload).not.toHaveBeenCalled()
+  })
+
+  it('leaves replacement uploads and caller-managed metadata outside cache compensation', async () => {
+    const failure = new Error('metadata unavailable')
+    mockInsertFileMetadata.mockRejectedValueOnce(failure)
+
+    await expect(
+      uploadFile({
+        file: Buffer.from('hello'),
+        fileName: 'workspace/existing.txt',
+        contentType: 'text/plain',
+        context: 'workspace',
+        preserveKey: true,
+        metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+      })
+    ).rejects.toBe(failure)
+    expect(mockUploadToS3.mock.calls[0][7]).toBe(false)
+
+    await uploadFile({
+      file: Buffer.from('hello'),
+      fileName: 'kb/admitted.txt',
+      contentType: 'text/plain',
+      context: 'knowledge-base',
+      persistMetadata: false,
+      metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    expect(mockUploadToS3.mock.calls[1][7]).toBe(false)
+    expect(mockInsertImmutableFileMetadata).not.toHaveBeenCalled()
+    expect(mockCleanupUnboundKnowledgeUpload).not.toHaveBeenCalled()
+  })
+
+  it.each(['execution', 'copilot'] as const)(
+    'removes an owned new %s object if metadata persistence fails, even after cancellation',
+    async (context) => {
+      const key = `${context}/new-file-id/file.txt`
+      const failure = new Error('metadata unavailable')
+      const controller = new AbortController()
+      mockUploadToS3.mockResolvedValueOnce({ key })
+      mockInsertFileMetadata.mockImplementationOnce(async () => {
+        controller.abort(new Error('cancelled'))
+        throw failure
+      })
+
+      await expect(
+        uploadFile({
+          file: Buffer.from('hello'),
+          fileName: 'file.txt',
+          customKey: key,
+          preserveKey: true,
+          cleanupOnMetadataFailure: true,
+          contentType: 'text/plain',
+          context,
+          metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+          signal: controller.signal,
+        })
+      ).rejects.toBe(failure)
+
+      expect(mockDeleteFromS3).toHaveBeenCalledExactlyOnceWith(
+        key,
+        { bucket: 'b', region: 'r' },
+        undefined
+      )
+      expect(mockDeleteFileMetadata).toHaveBeenCalledExactlyOnceWith(key)
+    }
+  )
+
+  it('preserves the metadata error when cleanup of an owned object also fails', async () => {
+    const failure = new Error('metadata unavailable')
+    mockInsertFileMetadata.mockRejectedValueOnce(failure)
+    mockDeleteFromS3.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await expect(
+      uploadFile({
+        file: Buffer.from('hello'),
+        fileName: 'file.txt',
+        customKey: 'execution/new-file-id/file.txt',
+        preserveKey: true,
+        cleanupOnMetadataFailure: true,
+        contentType: 'text/plain',
+        context: 'execution',
+        metadata: { workspaceId: 'workspace-1' },
+      })
+    ).rejects.toBe(failure)
+    expect(mockDeleteFromS3).toHaveBeenCalledOnce()
+    expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it.each(['workspace', 'execution', 'copilot'] as const)(
+    'leaves existing %s replacement keys untouched without explicit new-key ownership',
+    async (context) => {
+      const failure = new Error('metadata unavailable')
+      mockInsertFileMetadata.mockRejectedValueOnce(failure)
+      await expect(
+        uploadFile({
+          file: Buffer.from('hello'),
+          fileName: 'existing.txt',
+          customKey: `${context}/existing.txt`,
+          preserveKey: true,
+          contentType: 'text/plain',
+          context,
+          metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
+        })
+      ).rejects.toBe(failure)
+      expect(mockDeleteFromS3).not.toHaveBeenCalled()
+      expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { context: 'workspace', customKey: 'workspace/file.txt', preserveKey: true },
+    { context: 'execution', customKey: undefined, preserveKey: true },
+    { context: 'copilot', customKey: 'copilot/file.txt', preserveKey: false },
+  ] as const)('rejects cleanup without an explicitly owned ephemeral key: %j', async (scope) => {
+    await expect(
+      uploadFile({
+        ...scope,
+        file: Buffer.from('hello'),
+        fileName: 'file.txt',
+        contentType: 'text/plain',
+        cleanupOnMetadataFailure: true,
+        metadata: { userId: 'user-1' },
+      })
+    ).rejects.toThrow('newly allocated execution or Copilot key')
+    expect(mockUploadToS3).not.toHaveBeenCalled()
   })
 
   it('splits into parts and reassembles byte-for-byte over one part boundary', async () => {

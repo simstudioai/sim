@@ -2,32 +2,28 @@ import { copilotChats, db, mothershipInboxTask, user, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
-} from '@/lib/copilot/chat/persisted-message'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { chatPubSub } from '@/lib/copilot/chat-status'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
-import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
-import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
-import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+  type PersistedFileAttachment,
+} from '@/lib/mothership/chat/persisted-message'
+import { chatPubSub } from '@/lib/mothership/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
+import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
-import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
-import { uploadFile } from '@/lib/uploads/core/storage-service'
-import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestChatTitle } from '@/lib/mothership/request/lifecycle/start'
+import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import {
   checkWorkspaceAccess,
   getUserEntityPermissions,
@@ -167,7 +163,17 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       })
         .then(async (title) => {
           if (title && chatId) {
-            await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
+            // Only stamp the generated title while the chat has none. This
+            // resolves asynchronously, so a user could rename the chat in the
+            // meantime; the `isNull` guard makes the write lose that race
+            // instead of clobbering the explicit rename.
+            const stamped = await db
+              .update(copilotChats)
+              .set({ title })
+              .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.title)))
+              .returning({ id: copilotChats.id })
+            // The rename won — do not announce a title the row no longer holds.
+            if (stamped.length === 0) return
             chatPubSub?.publishStatusChanged({
               workspaceId: ws.id,
               chatId,
@@ -197,6 +203,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       })
     }
 
+    const attachmentChatId = chatId
     const fetchAttachments = async () => {
       let attachments: AgentMailAttachment[] = []
       if (inboxTask.hasAttachments && ws.inboxProviderId && inboxTask.agentmailMessageId) {
@@ -210,13 +217,16 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           logger.warn('Failed to fetch attachment metadata', { taskId, attachErr })
         }
       }
-      const downloaded = await downloadAttachmentContents(
+      const downloaded = await prepareInboxAttachments({
         attachments,
-        ws.inboxProviderId,
-        inboxTask.agentmailMessageId,
+        inboxProviderId: ws.inboxProviderId,
+        messageId: inboxTask.agentmailMessageId,
         taskId,
-        userId
-      )
+        userId,
+        workspaceId: ws.id,
+        chatId: attachmentChatId,
+        userMessageId,
+      })
       return { attachments, ...downloaded }
     }
 
@@ -226,15 +236,11 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       secretScope: ws.inboxSecretScope,
       mountedSecrets: ws.inboxMountedSecrets,
     })
-    const [attachmentResult, workspaceContext, integrationTools, billingAttribution, entitlements] =
-      await Promise.all([
-        fetchAttachments(),
-        generateWorkspaceContext(ws.id, userId, { workspaceAccess, secretMountPolicy }),
-        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-        resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
-        computeWorkspaceEntitlements(ws.id, userId),
-      ])
-    const { attachments, fileAttachments, storedAttachments } = attachmentResult
+    const [attachmentResult, billingAttribution] = await Promise.all([
+      fetchAttachments(),
+      resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
+    ])
+    const { attachments, context, storedAttachments } = attachmentResult
 
     const truncatedTask = {
       ...inboxTask,
@@ -243,26 +249,23 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
     const messageContent = formatEmailAsMessage(truncatedTask, attachments)
 
+    /** Inbox attachments use the same chat-owned uploads and CLI paths as chat.
+     * Ingestion binds server-fetched bytes; it does not change the model's tool authority. */
     const requestPayload: Record<string, unknown> = {
       message: messageContent,
       userId,
+      protocolVersion: PROTOCOL_VERSION,
+      workspaceId: ws.id,
       chatId,
-      mode: 'agent',
       messageId: userMessageId,
-      isHosted,
-      workspaceContext,
-      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-      ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(userPermission ? { userPermission } : {}),
-      ...(entitlements.length > 0 ? { entitlements } : {}),
-      ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
+      ...(context.length > 0 ? { context } : {}),
     }
 
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,
-      goRoute: '/api/mothership/execute',
+      goRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       billingAttribution,
@@ -423,7 +426,7 @@ async function persistChatMessages(
   userMessageId: string,
   userContent: string,
   result: OrchestratorResult,
-  storedAttachments: StoredAttachment[] = []
+  storedAttachments: PersistedFileAttachment[] = []
 ): Promise<void> {
   try {
     const userMessage = buildPersistedUserMessage({
@@ -474,106 +477,4 @@ async function markTaskFailed(taskId: string, errorMessage: string): Promise<voi
       completedAt: new Date(),
     })
     .where(eq(mothershipInboxTask.id, taskId))
-}
-
-const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
-
-interface StoredAttachment {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
-
-interface DownloadedAttachments {
-  fileAttachments: Array<MessageContent & { filename: string }>
-  storedAttachments: StoredAttachment[]
-}
-
-/**
- * Download attachment content from AgentMail, convert to file content objects
- * for the LLM, and upload to copilot storage for chat display.
- */
-async function downloadAttachmentContents(
-  attachments: AgentMailAttachment[],
-  inboxProviderId: string | null,
-  messageId: string | null,
-  taskId: string,
-  userId: string
-): Promise<DownloadedAttachments> {
-  if (!inboxProviderId || !messageId || attachments.length === 0) {
-    return { fileAttachments: [], storedAttachments: [] }
-  }
-
-  const eligible = attachments.filter((a) => {
-    if (a.size > MAX_ATTACHMENT_SIZE) {
-      logger.info('Skipping large attachment', { taskId, filename: a.filename, size: a.size })
-      return false
-    }
-    return true
-  })
-
-  const settled = await Promise.allSettled(
-    eligible.map(async (attachment) => {
-      const arrayBuffer = await agentmail.getAttachment(
-        inboxProviderId,
-        messageId,
-        attachment.attachment_id
-      )
-      const buffer = Buffer.from(arrayBuffer)
-      const fileContent = createFileContent(buffer, attachment.content_type)
-      if (!fileContent) return null
-
-      const storageKey = `copilot/${buildStorageKeySegment(
-        `${Date.now()}-${attachment.attachment_id}-`,
-        attachment.filename
-      )}`
-      const uploaded = await uploadFile({
-        file: buffer,
-        fileName: attachment.filename,
-        contentType: attachment.content_type,
-        context: 'copilot',
-        customKey: storageKey,
-        preserveKey: true,
-        metadata: { userId, originalName: attachment.filename },
-      })
-
-      const stored: StoredAttachment = {
-        id: attachment.attachment_id,
-        key: uploaded.key,
-        filename: attachment.filename,
-        media_type: attachment.content_type,
-        size: buffer.length,
-      }
-
-      return { fileContent: { ...fileContent, filename: attachment.filename }, stored }
-    })
-  )
-
-  const fileAttachments: Array<MessageContent & { filename: string }> = []
-  const storedAttachments: StoredAttachment[] = []
-  for (let i = 0; i < settled.length; i++) {
-    const outcome = settled[i]
-    if (outcome.status === 'fulfilled' && outcome.value) {
-      fileAttachments.push(outcome.value.fileContent)
-      storedAttachments.push(outcome.value.stored)
-    } else if (outcome.status === 'rejected') {
-      const attachment = eligible[i]
-      logger.warn('Failed to download attachment', {
-        taskId,
-        attachmentId: attachment.attachment_id,
-        filename: attachment.filename,
-        error: getErrorMessage(outcome.reason, 'Unknown error'),
-      })
-    }
-  }
-
-  logger.info('Downloaded attachment contents', {
-    taskId,
-    total: attachments.length,
-    downloaded: fileAttachments.length,
-  })
-
-  return { fileAttachments, storedAttachments }
 }

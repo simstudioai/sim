@@ -10,12 +10,14 @@ import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import {
   buildBranchNodeId,
   extractBaseBlockId,
   extractBranchIndex,
   isBranchNodeId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
+import { CONDITION_READS_ENVIRONMENT_KEY } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ToolResponse } from '@/tools/types'
@@ -28,6 +30,8 @@ interface ConditionEntry {
   id: string
   title: string
   value: string
+  /** Set by the resolver from the author's pre-resolution expression. */
+  [CONDITION_READS_ENVIRONMENT_KEY]?: boolean
 }
 
 /** Verdict for a whole condition list evaluated in one function execution. */
@@ -89,6 +93,50 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
 }
 
 /**
+ * Narrows the secrets a condition evaluation can read to the ones its script names.
+ *
+ * A condition reaches a secret by writing `{{NAME}}`, which the execution-boundary compiler
+ * binds. Nothing else in the script needs the workspace's other secrets, so handing the
+ * sandbox the full environment only widens what a future defect in this path could reach —
+ * the whole map was readable as the `environmentVariables` global.
+ *
+ * Neither signal is read from the built script, which also carries the source block's output as
+ * data. Reading that data would let it decide what the sandbox holds — a payload containing
+ * `{{SECRET}}` would mount that secret and have the compiler expand it beside the payload.
+ * Placeholders are therefore read from the expressions, which is where every legitimate route
+ * to a secret passes, including a workflow variable holding `{{NAME}}`: the resolver inlines
+ * that value into the expression before this runs.
+ *
+ * A direct read of the environment map is not read from the resolved expression either, for the
+ * same reason one step further in: resolved data is quoted inside it, so a payload containing
+ * the word would be indistinguishable from the author reaching for the map. The resolver
+ * records the answer from the author's pre-resolution text instead. When that record is absent
+ * — a caller that did not resolve through it — the expression is scanned as a fallback, because
+ * narrowing a read this missed would route the run down a branch the author did not write,
+ * silently, while matching too widely only costs the narrowing.
+ */
+function scopeConditionSecrets(conditions: ConditionEntry[]): {
+  secretScope: 'all' | 'selected'
+  mountedSecrets: string[]
+} {
+  const readsEnvironment = conditions.some((condition) => {
+    const recorded = condition[CONDITION_READS_ENVIRONMENT_KEY]
+    return recorded ?? /\benvironmentVariables\b/.test(condition.value)
+  })
+  if (readsEnvironment) {
+    return { secretScope: 'all', mountedSecrets: [] }
+  }
+
+  const named = new Set<string>()
+  for (const condition of conditions) {
+    for (const match of String(condition.value ?? '').matchAll(createEnvVarPattern())) {
+      named.add(String(match[1]).trim())
+    }
+  }
+  return { secretScope: 'selected', mountedSecrets: [...named] }
+}
+
+/**
  * Runs condition code through the shared function execution boundary.
  *
  * `blockData` is deliberately empty: the resolver already inlines every
@@ -100,15 +148,19 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
 async function runConditionCode(
   ctx: ExecutionContext,
   code: string,
+  conditions: ConditionEntry[],
   currentNodeId?: string
 ): Promise<ToolResponse> {
   const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx, currentNodeId)
+  const { secretScope, mountedSecrets } = scopeConditionSecrets(conditions)
 
   return executeTool(
     'function_execute',
     {
       code,
       timeout: CONDITION_TIMEOUT_MS,
+      secretScope,
+      mountedSecrets,
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData: {},
@@ -143,13 +195,15 @@ function isTimeoutFailure(error: string | undefined): boolean {
 /** Evaluates the whole condition list in a single function execution. */
 async function evaluateConditionList(
   ctx: ExecutionContext,
-  expressions: string[],
+  conditions: ConditionEntry[],
   evalContext: Record<string, unknown>,
   currentNodeId?: string
 ): Promise<ConditionEvaluation> {
+  const expressions = conditions.map((condition) => String(condition.value || ''))
   const result = await runConditionCode(
     ctx,
     buildConditionScript(expressions, evalContext),
+    conditions,
     currentNodeId
   )
 
@@ -229,12 +283,13 @@ async function evaluateConditionList(
  */
 async function evaluateSingleCondition(
   ctx: ExecutionContext,
-  expression: string,
+  condition: ConditionEntry,
   evalContext: Record<string, unknown>,
   currentNodeId?: string
 ): Promise<boolean> {
+  const expression = String(condition.value || '')
   const code = `const context = ${JSON.stringify(evalContext)};\nreturn ${buildBooleanTest(expression)}`
-  const result = await runConditionCode(ctx, code, currentNodeId)
+  const result = await runConditionCode(ctx, code, [condition], currentNodeId)
 
   if (!result.success) {
     if (result.retryable === false) {
@@ -287,13 +342,14 @@ export class ConditionBlockHandler implements BlockHandler {
       (conn) => conn.source === baseBlockId
     )
 
-    const { selectedConnection, selectedCondition } = await this.evaluateConditions(
-      conditions,
-      outgoingConnections || [],
-      evalContext,
-      ctx,
-      block.id
-    )
+    const { selectedConnection, selectedCondition, conditionResult } =
+      await this.evaluateConditions(
+        conditions,
+        outgoingConnections || [],
+        evalContext,
+        ctx,
+        block.id
+      )
 
     if (!selectedCondition) {
       return {
@@ -301,6 +357,7 @@ export class ConditionBlockHandler implements BlockHandler {
         conditionResult: false,
         selectedPath: null,
         selectedOption: null,
+        selectedTitle: null,
       }
     }
 
@@ -309,9 +366,10 @@ export class ConditionBlockHandler implements BlockHandler {
       ctx.decisions.condition.set(decisionKey, selectedCondition.id)
       return {
         ...((sourceOutput as any) || {}),
-        conditionResult: true,
+        conditionResult,
         selectedPath: null,
         selectedOption: selectedCondition.id,
+        selectedTitle: selectedCondition.title,
       }
     }
 
@@ -325,13 +383,14 @@ export class ConditionBlockHandler implements BlockHandler {
 
     return {
       ...((sourceOutput as any) || {}),
-      conditionResult: true,
+      conditionResult,
       selectedPath: {
         blockId: targetBlock.id,
         blockType: targetBlock.metadata?.id || DEFAULTS.BLOCK_TYPE,
         blockTitle: targetBlock.metadata?.name || DEFAULTS.BLOCK_TITLE,
       },
       selectedOption: selectedCondition.id,
+      selectedTitle: selectedCondition.title,
     }
   }
 
@@ -391,6 +450,13 @@ export class ConditionBlockHandler implements BlockHandler {
   ): Promise<{
     selectedConnection: { target: string; sourceHandle?: string } | null
     selectedCondition: ConditionEntry | null
+    /**
+     * The chosen branch's own test. Only a matched expression is a truthy test:
+     * the else branch fires precisely because every test was false, so reporting
+     * it as `true` inverted a downstream `<gate.conditionResult>` on the else
+     * path — and persisted the inversion into the trace.
+     */
+    conditionResult: boolean
   }> {
     const elseIndex = conditions.findIndex((condition) => isElseConditionTitle(condition.title))
     const testable = elseIndex === -1 ? conditions : conditions.slice(0, elseIndex)
@@ -400,13 +466,14 @@ export class ConditionBlockHandler implements BlockHandler {
     const selectedCondition = matched ?? elseCondition
 
     if (!selectedCondition) {
-      return { selectedConnection: null, selectedCondition: null }
+      return { selectedConnection: null, selectedCondition: null, conditionResult: false }
     }
 
     return {
       selectedConnection:
         this.findConnectionForCondition(outgoingConnections, selectedCondition.id) ?? null,
       selectedCondition,
+      conditionResult: matched !== null,
     }
   }
 
@@ -418,11 +485,9 @@ export class ConditionBlockHandler implements BlockHandler {
   ): Promise<ConditionEntry | null> {
     if (conditions.length === 0) return null
 
-    const expressions = conditions.map((condition) => String(condition.value || ''))
-
     let evaluation: ConditionEvaluation
     try {
-      evaluation = await evaluateConditionList(ctx, expressions, evalContext, currentNodeId)
+      evaluation = await evaluateConditionList(ctx, conditions, evalContext, currentNodeId)
     } catch (error) {
       if (isNonRetryableExecutionError(error)) throw error
       evaluation = {
@@ -474,7 +539,7 @@ export class ConditionBlockHandler implements BlockHandler {
       try {
         const conditionMet = await evaluateSingleCondition(
           ctx,
-          String(condition.value || ''),
+          condition,
           evalContext,
           currentNodeId
         )

@@ -8,7 +8,7 @@ import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import type {
@@ -57,17 +57,14 @@ export const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
 /**
  * Normalizes a value for consistent comparison by:
  * - Sorting object keys recursively
- * - Filtering out null/undefined values from objects (treats them as equivalent to missing)
+ * - Filtering out undefined object properties; explicit JSON null remains meaningful
  * - Recursively normalizing array elements
  *
  * @param value - The value to normalize
- * @returns A normalized version of the value with sorted keys and no null/undefined fields
+ * @returns A normalized version of the value with sorted keys and no undefined properties
  */
 export function normalizeValue(value: unknown): unknown {
-  // Treat null and undefined as equivalent - both become undefined (omitted from objects)
-  if (value === null || value === undefined) {
-    return undefined
-  }
+  if (value === null || value === undefined) return value
 
   if (typeof value !== 'object') {
     return value
@@ -77,10 +74,9 @@ export function normalizeValue(value: unknown): unknown {
     return value.map(normalizeValue)
   }
 
-  const sorted: Record<string, unknown> = {}
+  const sorted: Record<string, unknown> = Object.create(null)
   for (const key of Object.keys(value as Record<string, unknown>).sort()) {
     const normalized = normalizeValue((value as Record<string, unknown>)[key])
-    // Only include non-null/undefined values
     if (normalized !== undefined) {
       sorted[key] = normalized
     }
@@ -300,11 +296,11 @@ export function sanitizeInputFormat(inputFormat: unknown[] | undefined): Record<
 }
 
 /** Normalized edge with only connection-relevant fields */
-interface NormalizedEdge {
+export interface NormalizedEdge {
   source: string
-  sourceHandle?: string | null
+  sourceHandle?: string
   target: string
-  targetHandle?: string | null
+  targetHandle?: string
 }
 
 /**

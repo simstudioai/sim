@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 
 /** Selector subblock types that can be validated */
 export const SELECTOR_TYPES = new Set([
@@ -166,6 +166,8 @@ export interface ApplyOperationsResult {
 }
 
 export interface OperationContext {
+  /** Enforce the internal tool attachment contract on newly authored inputs. */
+  enforceToolBindingContract?: boolean
   modifiedState: any
   skippedItems: SkippedItem[]
   validationErrors: ValidationError[]

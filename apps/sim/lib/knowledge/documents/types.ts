@@ -27,11 +27,11 @@ export const MAX_PROCESSING_ATTEMPTS = 5
  * `STALE_PROCESSING_MINUTES` bounds a run that has already begun, derived from
  * the task's own duration and retry budget. Queue *wait* is a different
  * quantity: it is backlog / concurrency, not run duration.
- * `document-processing-queue` has a global concurrency shared by every
- * workspace, so a corpus large enough to approach
- * `CONNECTOR_SYNC_MAX_DURATION_SECONDS` enqueues thousands of documents that
- * drain in waves of that width — at roughly a minute of occupancy each, a few
- * hours, and longer while other workspaces hold slots.
+ * Backfill drains through a per-tenant copy of the backfill queue, so a corpus
+ * large enough to approach `CONNECTOR_SYNC_MAX_DURATION_SECONDS` enqueues
+ * thousands of documents that drain in waves of that concurrency — at roughly a
+ * minute of occupancy each, a few hours. Another tenant's corpus no longer
+ * extends that wait, but the shared environment concurrency limit still can.
  *
  * Four hours is chosen against three bounds that are all constants in this
  * repository rather than any one deployment's corpus: it is well above that
@@ -46,6 +46,9 @@ export const MAX_PROCESSING_ATTEMPTS = 5
  * added to close.
  */
 export const QUEUED_DISPATCH_GRACE_MS = 240 * 60 * 1000
+
+/** How long after a document's upload, or a deferred retry, automatic recovery still acts on it. */
+export const RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 /** Worst-case wall clock for one processing run across its retry budget. */
 export function worstCaseProcessingMinutes(
@@ -95,6 +98,17 @@ export const DOCUMENT_PROCESSING_STATUSES = [
 
 export type DocumentProcessingStatus = (typeof DOCUMENT_PROCESSING_STATUSES)[number]
 
+/** An intentional source omission, separate from the backward-compatible processing state. */
+export type DocumentProcessingOutcome = 'skipped' | null
+
+/** Displays an intentional source outcome while accepting responses from older servers. */
+export function getDocumentIndexingStatus(document: {
+  processingStatus: string
+  processingOutcome?: DocumentProcessingOutcome
+}): string {
+  return document.processingOutcome ?? document.processingStatus
+}
+
 /**
  * Narrows a stored `processing_status` onto the union.
  *
@@ -115,19 +129,3 @@ export type DocumentSortField =
   | 'processingStatus'
   | 'enabled'
 export type SortOrder = 'asc' | 'desc'
-
-interface DocumentSortOptions {
-  sortBy?: DocumentSortField
-  sortOrder?: SortOrder
-}
-
-interface HeaderInfo {
-  /** Header text */
-  text: string
-  /** Header level (1-6) */
-  level: number
-  /** Anchor link */
-  anchor: string
-  /** Position in document */
-  position: number
-}

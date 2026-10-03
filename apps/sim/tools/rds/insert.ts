@@ -1,7 +1,7 @@
 import type { RdsInsertParams, RdsInsertResponse } from '@/tools/rds/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const insertTool: ToolConfig<RdsInsertParams, RdsInsertResponse> = {
+export const insertTool: InternalToolConfig<RdsInsertParams, RdsInsertResponse> = {
   id: 'rds_insert',
   name: 'RDS Insert',
   description: 'Insert data into an Amazon RDS table using the Data API',
@@ -59,13 +59,8 @@ export const insertTool: ToolConfig<RdsInsertParams, RdsInsertResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/rds/insert',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

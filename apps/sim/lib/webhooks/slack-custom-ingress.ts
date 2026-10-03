@@ -1,11 +1,19 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { findWebhooksByRoutingKey, type WebhookDispatchResult } from '@/lib/webhooks/processor'
 import { verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
+import { setSlackAgentSessionStatus } from '@/lib/webhooks/slack-agent-api'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
 import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
+import {
+  listSlackStreamSessions,
+  resolveStoppedSlackSession,
+  unregisterSlackStreamSession,
+} from '@/lib/webhooks/slack-stream-sessions'
 
 const logger = createLogger('SlackCustomBotIngress')
 
@@ -39,12 +47,7 @@ interface DispatchSlackCustomBotOptions {
 export function getLegacySlackCustomBotCredentialId(
   foundWebhook: LegacySlackPathWebhook
 ): string | null {
-  const providerConfig =
-    foundWebhook.providerConfig !== null &&
-    typeof foundWebhook.providerConfig === 'object' &&
-    !Array.isArray(foundWebhook.providerConfig)
-      ? (foundWebhook.providerConfig as Record<string, unknown>)
-      : {}
+  const providerConfig = toRecord(foundWebhook.providerConfig)
 
   if (providerConfig.ingressMode !== LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE) {
     return null
@@ -80,6 +83,22 @@ export async function verifySlackCustomBotCredentialRequest({
   rawBody,
   requestId,
 }: SlackCustomBotRequestOptions): Promise<NextResponse | null> {
+  const result = await authenticateSlackCustomBotRequest({
+    credentialId,
+    request,
+    rawBody,
+    requestId,
+  })
+  return result instanceof Response ? result : null
+}
+
+/** Captures the exact credential version that authenticated this delivery. */
+export async function authenticateSlackCustomBotRequest({
+  credentialId,
+  request,
+  rawBody,
+  requestId,
+}: SlackCustomBotRequestOptions): Promise<NextResponse | { credentialVersion: string }> {
   const botCredential = await getSlackBotCredential(credentialId)
   if (!botCredential) {
     logger.warn(`[${requestId}] Unknown Slack bot credential ${credentialId}`)
@@ -90,7 +109,14 @@ export async function verifySlackCustomBotCredentialRequest({
     return new NextResponse(null, { status: 404 })
   }
 
-  return verifySlackRequestSignature(botCredential.signingSecret, request, rawBody, requestId)
+  const error = await verifySlackRequestSignature(
+    botCredential.signingSecret,
+    request,
+    rawBody,
+    requestId
+  )
+  if (error) return error
+  return { credentialVersion: botCredential.credentialVersion }
 }
 
 export async function dispatchSlackCustomBotCredential({
@@ -109,4 +135,33 @@ export async function dispatchSlackCustomBotCredential({
   }
 
   return dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
+}
+
+/** Cancels every workflow currently associated with Slack's stopped agent session. */
+export async function handleSlackAgentSessionStopped(
+  credentialId: string,
+  body: unknown
+): Promise<void> {
+  const target = resolveStoppedSlackSession(body)
+  if (!target) return
+
+  const executions = await listSlackStreamSessions(credentialId, target)
+  if (executions.length === 0) return
+  await Promise.all(
+    executions.map(async (execution) => {
+      await cancelWorkflowExecution({
+        executionId: execution.executionId,
+        workflowId: execution.workflowId,
+        attributedUserId: execution.userId,
+        workspaceId: execution.workspaceId,
+      })
+      await unregisterSlackStreamSession(credentialId, target, execution.executionId)
+    })
+  )
+
+  const credential = await getSlackBotCredential(credentialId)
+  if (!credential) {
+    throw new Error('Slack agent session stop credential is unavailable')
+  }
+  await setSlackAgentSessionStatus(credential.botToken, target, 'active')
 }

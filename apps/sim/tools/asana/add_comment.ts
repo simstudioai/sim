@@ -1,7 +1,10 @@
 import type { AsanaAddCommentParams, AsanaAddCommentResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaAddCommentTool: ToolConfig<AsanaAddCommentParams, AsanaAddCommentResponse> = {
+export const asanaAddCommentTool: InternalToolConfig<
+  AsanaAddCommentParams,
+  AsanaAddCommentResponse
+> = {
   id: 'asana_add_comment',
   name: 'Asana Add Comment',
   description: 'Add a comment (story) to an Asana task',
@@ -33,13 +36,8 @@ export const asanaAddCommentTool: ToolConfig<AsanaAddCommentParams, AsanaAddComm
     },
   },
 
-  request: {
-    url: '/api/tools/asana/add-comment',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       taskGid: params.taskGid,
       text: params.text,

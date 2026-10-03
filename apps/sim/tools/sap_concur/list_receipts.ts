@@ -1,13 +1,12 @@
-import type { ListReceiptsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListReceiptsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listReceiptsTool: ToolConfig<ListReceiptsParams, SapConcurProxyResponse> = {
+export const listReceiptsTool: InternalToolConfig<ListReceiptsParams, SapConcurResponse> = {
   id: 'sap_concur_list_receipts',
   name: 'SAP Concur List Receipts',
   description:
@@ -63,20 +62,17 @@ export const listReceiptsTool: ToolConfig<ListReceiptsParams, SapConcurProxyResp
       description: 'Concur user UUID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/receipts/v4/users/${encodeURIComponent(userId)}`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

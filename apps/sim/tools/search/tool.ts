@@ -1,7 +1,7 @@
 import type { SearchParams, SearchResponse } from '@/tools/search/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
+export const searchTool: InternalToolConfig<SearchParams, SearchResponse> = {
   id: 'search_tool',
   name: 'Web Search',
   description:
@@ -17,18 +17,12 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
   },
 
-  request: {
-    internal: true,
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ query: params.query }),
     },
-    url: () => '/api/tools/search',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+    input: (params) => ({
       query: params.query,
     }),
   },

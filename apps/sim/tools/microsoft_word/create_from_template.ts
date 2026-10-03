@@ -3,9 +3,9 @@ import type {
   MicrosoftWordCreateFromTemplateResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createFromTemplateTool: ToolConfig<
+export const createFromTemplateTool: InternalToolConfig<
   MicrosoftWordToolParams,
   MicrosoftWordCreateFromTemplateResponse
 > = {
@@ -70,11 +70,8 @@ export const createFromTemplateTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft_word/create-from-template',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       templateDocumentId: params.templateDocumentId,
       name: params.name,

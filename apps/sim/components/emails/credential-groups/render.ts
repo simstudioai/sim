@@ -3,10 +3,11 @@ import { CredentialGroupInvitationEmail } from '@/components/emails/credential-g
 
 export async function renderCredentialGroupInvitationEmail(params: {
   recipientEmail: string
-  inviterName: string
+  inviterName?: string
   workspaceName: string
   credentialGroupName: string
   invitationLink: string
+  searchProviderName?: string
 }): Promise<string> {
   return await render(CredentialGroupInvitationEmail(params))
 }

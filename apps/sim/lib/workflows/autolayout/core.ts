@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
+import { HANDLE_POSITIONS } from '@sim/workflow-renderer/dimensions'
 import {
   CONTAINER_LAYOUT_OPTIONS,
   DEFAULT_LAYOUT_OPTIONS,

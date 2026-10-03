@@ -75,14 +75,15 @@ export async function secureBitbucketRead(
     signal?: AbortSignal
   } = {}
 ): Promise<Response> {
-  const validation = await validateUrlWithDNS(url, 'bitbucketUrl')
-  if (!validation.isValid || !validation.resolvedIP) {
+  const validation = await validateUrlWithDNS(url, 'bitbucketUrl', 'configuredEndpoint')
+  if (!validation.isValid) {
     throw new Error(`Invalid Bitbucket URL: ${validation.error ?? 'DNS resolution failed'}`)
   }
 
   for (let attempt = 1; attempt <= BITBUCKET_READ_MAX_ATTEMPTS; attempt++) {
     try {
       const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+        profile: 'configuredEndpoint',
         method: 'GET',
         headers,
         maxResponseBytes,
@@ -137,16 +138,18 @@ export async function resolveBitbucketPullRequestRedirect(
     targetQuery?: Record<string, string>
   } = {}
 ): Promise<string> {
-  const initialValidation = await validateUrlWithDNS(initialUrl, 'bitbucketPullRequestUrl')
-  if (!initialValidation.isValid || !initialValidation.resolvedIP) {
-    throw new Error(
-      `Invalid Bitbucket pull request URL: ${initialValidation.error ?? 'DNS resolution failed'}`
-    )
+  const initialValidation = await validateUrlWithDNS(
+    initialUrl,
+    'bitbucketPullRequestUrl',
+    'configuredEndpoint'
+  )
+  if (!initialValidation.isValid) {
+    throw new Error(`Invalid Bitbucket pull request URL: ${initialValidation.error}`)
   }
 
   const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(
     initialValidation.resolvedIP,
-    { maxResponseSize: 64 * 1024 }
+    { profile: 'configuredEndpoint', maxResponseSize: 64 * 1024 }
   )
   let initial: Response | null = null
   let initialStatus: number | null = null

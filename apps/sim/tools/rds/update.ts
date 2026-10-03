@@ -1,7 +1,7 @@
 import type { RdsUpdateParams, RdsUpdateResponse } from '@/tools/rds/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<RdsUpdateParams, RdsUpdateResponse> = {
+export const updateTool: InternalToolConfig<RdsUpdateParams, RdsUpdateResponse> = {
   id: 'rds_update',
   name: 'RDS Update',
   description: 'Update data in an Amazon RDS table using the Data API',
@@ -65,13 +65,8 @@ export const updateTool: ToolConfig<RdsUpdateParams, RdsUpdateResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/rds/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

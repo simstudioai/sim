@@ -13,7 +13,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, ChipInput, ChipLink, cn, Search, Tooltip } from '@sim/emcn'
+import { Chip, ChipInput, ChipLink, cn, Tooltip } from '@sim/emcn'
+import { Search } from '@sim/emcn/icons'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -48,6 +49,7 @@ export interface SettingsHeaderSearch {
   onChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  maxLength?: number
 }
 
 export interface SettingsBackAction {
@@ -110,7 +112,12 @@ function computeSignature(config: SettingsHeaderConfig | null): string {
       action.onPrefetch ? 1 : 0,
     ]),
     search: config.search
-      ? [config.search.value, config.search.placeholder ?? '', config.search.disabled ?? false]
+      ? [
+          config.search.value,
+          config.search.placeholder ?? '',
+          config.search.disabled ?? false,
+          config.search.maxLength ?? null,
+        ]
       : null,
   })
 }
@@ -196,7 +203,7 @@ export function SettingsActionChip({
   if (!action.tooltip) return chip
   return (
     <Tooltip.Root>
-      <Tooltip.Trigger asChild>
+      <Tooltip.Trigger asChild tabIndex={action.disabled ? 0 : undefined}>
         <span className='inline-flex'>{chip}</span>
       </Tooltip.Trigger>
       <Tooltip.Content>{action.tooltip}</Tooltip.Content>
@@ -274,7 +281,7 @@ export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps
    * field-by-field: a body that registers an explicit `title` and no `description` is
    * deliberately suppressing the meta description, so the two must never be merged — and a
    * body that registers an empty config is deliberately asking for no heading at all, which
-   * is how a surface that renders its own (`SettingsUnavailable`) opts out.
+   * is how a surface that renders its own heading opts out.
    */
   const config: SettingsHeaderConfig = registered ?? meta ?? EMPTY_CONFIG
   const { title, description, docsLink, back, actions, search, scrollContainerRef } = config
@@ -333,6 +340,7 @@ export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps
               value={search.value}
               onChange={(event) => configRef?.current?.search?.onChange(event.target.value)}
               disabled={search.disabled}
+              maxLength={search.maxLength}
               autoComplete='off'
               className='w-full'
             />

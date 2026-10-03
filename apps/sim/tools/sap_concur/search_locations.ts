@@ -1,15 +1,11 @@
-import type { SapConcurProxyResponse, SearchLocationsParams } from '@/tools/sap_concur/types'
-import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
-} from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { SapConcurResponse, SearchLocationsParams } from '@/tools/sap_concur/types'
+import { baseSapConcurInput, transformSapConcurResponse } from '@/tools/sap_concur/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
 /** Localities v5 requires at least one of these selectors per request. */
 const SELECTOR_PARAMS = ['searchText', 'locCode', 'locationNameId', 'locationNameKey'] as const
 
-export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurProxyResponse> = {
+export const searchLocationsTool: InternalToolConfig<SearchLocationsParams, SapConcurResponse> = {
   id: 'sap_concur_search_locations',
   name: 'SAP Concur Search Locations',
   description: 'Search Concur location reference data (GET /localities/v5/locations).',
@@ -105,11 +101,8 @@ export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurPro
       description: 'Administrative region ID. Only valid together with searchText.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const query: Record<string, string | number> = {}
       const searchText = params.searchText?.trim()
       if (searchText) query.searchText = searchText
@@ -137,14 +130,14 @@ export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurPro
       if (params.subdivisionCode) query.subdivisionCode = params.subdivisionCode
       if (params.adminRegionId) query.adminRegionId = params.adminRegionId
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: '/localities/v5/locations',
         method: 'GET',
         query,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

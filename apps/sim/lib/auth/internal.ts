@@ -5,7 +5,7 @@ import {
   type WorkflowExecutionAuthority,
   type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { type JWTPayload, jwtVerify, SignJWT } from 'jose'
@@ -28,6 +28,7 @@ export interface GenerateInternalDelegationTokenInput {
   executionId?: string
   principal?: WorkflowExecutionPrincipal
   currentWorkflow?: WorkflowExecutionAuthority
+  mcpBlockId?: string
 }
 
 export interface VerifiedInternalDelegation {
@@ -37,6 +38,7 @@ export interface VerifiedInternalDelegation {
   executionId?: string
   principal?: WorkflowExecutionPrincipal
   currentWorkflow?: WorkflowExecutionAuthority
+  mcpBlockId?: string
   delegationId: string
   issuedAt: Date
   expiresAt: Date
@@ -138,8 +140,8 @@ export async function generateInternalDelegationToken(
     ? requireNonEmptyDelegationClaim(input.subjectUserId, 'subjectUserId')
     : undefined
   const principalSubject = input.principal ? resolvePrincipalSubject(input.principal) : null
-  if (principalSubject?.kind === 'external_user' && suppliedSubjectUserId) {
-    throw new Error('External workflow subjects cannot be represented as Sim users')
+  if (principalSubject && principalSubject.kind !== 'sim_user' && suppliedSubjectUserId) {
+    throw new Error('Non-Sim workflow subjects cannot be represented as Sim users')
   }
   if (!principalSubject && input.principal && suppliedSubjectUserId) {
     throw new Error('Actorless workflow principals cannot be represented as Sim users')
@@ -170,6 +172,9 @@ export async function generateInternalDelegationToken(
 
   let token = new SignJWT({
     type: 'internal_delegation',
+    ...(input.mcpBlockId
+      ? { mcpBlockId: requireNonEmptyDelegationClaim(input.mcpBlockId, 'mcpBlockId') }
+      : {}),
     serviceId: 'executor',
     workflowId,
     ...(input.principal ? { principal: serializePrincipal(input.principal) } : {}),
@@ -212,6 +217,8 @@ export async function verifyInternalDelegationToken(
   const workflowId = readVerifiedDelegationClaim(payload.workflowId)
   const executionId =
     payload.executionId === undefined ? undefined : readVerifiedDelegationClaim(payload.executionId)
+  const mcpBlockId =
+    payload.mcpBlockId === undefined ? undefined : readVerifiedDelegationClaim(payload.mcpBlockId)
   const delegationId = readVerifiedDelegationClaim(payload.jti)
   const nowSeconds = Math.floor(Date.now() / 1000)
   let principal: WorkflowExecutionPrincipal | undefined
@@ -232,6 +239,7 @@ export async function verifyInternalDelegationToken(
     payload.serviceId !== 'executor' ||
     !workflowId ||
     executionId === null ||
+    mcpBlockId === null ||
     (currentWorkflow !== undefined && executionId === undefined) ||
     !delegationId ||
     typeof payload.iat !== 'number' ||
@@ -247,13 +255,14 @@ export async function verifyInternalDelegationToken(
   if (
     (!principal && !subjectUserId) ||
     (principalSubject?.kind === 'sim_user' && principalSubject.userId !== subjectUserId) ||
-    (principalSubject?.kind === 'external_user' && subjectUserId) ||
+    (principalSubject && principalSubject.kind !== 'sim_user' && subjectUserId) ||
     (principal && !principalSubject && subjectUserId)
   ) {
     throw new InvalidInternalDelegationTokenError()
   }
 
   return {
+    ...(mcpBlockId ? { mcpBlockId } : {}),
     serviceId: 'executor',
     ...(subjectUserId ? { subjectUserId } : {}),
     workflowId,
@@ -286,6 +295,7 @@ export async function verifyInternalToken(
       if (payload.sandboxProfile !== undefined && payload.sandboxProfile !== 'mothership') {
         return { valid: false }
       }
+      setRequestAuth({ kind: 'internal_jwt' }, { preserveExisting: true })
       return {
         valid: true,
         userId: typeof payload.userId === 'string' ? payload.userId : undefined,
@@ -296,7 +306,7 @@ export async function verifyInternalToken(
     }
 
     return { valid: false }
-  } catch (error) {
+  } catch {
     // Token verification failed
     return { valid: false }
   }

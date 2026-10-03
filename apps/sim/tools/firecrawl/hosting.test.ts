@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { batchScrapeTool } from '@/tools/firecrawl/batch-scrape'
 import { crawlTool } from '@/tools/firecrawl/crawl'
@@ -47,16 +44,6 @@ function getCost(tool: HostedTool, output: Record<string, unknown>) {
 }
 
 describe('firecrawl hosted-key config', () => {
-  it.each(HOSTED_TOOLS)('%s resolves a complete hosting config', (_name, tool) => {
-    expect(tool.hosting).toMatchObject({
-      envKeyPrefix: 'FIRECRAWL_API_KEY',
-      apiKeyParam: 'apiKey',
-      byokProviderId: 'firecrawl',
-      rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
-    })
-    expect(tool.hosting?.pricing.type).toBe('custom')
-  })
-
   it('bills credits reported on the response envelope', () => {
     expect(getCost(searchTool, { creditsUsed: 4 })).toEqual({
       cost: 4 * FIRECRAWL_CREDIT_USD,

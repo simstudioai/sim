@@ -1,6 +1,7 @@
 import { v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
@@ -9,6 +10,10 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/v2/files/[fileId]/text — extract a file's text.
  *
+ * `[fileId]` is a file id or the file's VFS path, so a Chat upload — absent from
+ * every listing — is readable by the `uploads/<name>` path its upload notice
+ * names. The response echoes the canonical path that was read.
+ *
  * Runs on the existing `files.read_content` operation: extracting text reads
  * exactly the bytes that operation already authorizes.
  *
@@ -16,6 +21,10 @@ export const dynamic = 'force-dynamic'
  * text may be incomplete or synthesized from raw bytes. The legacy `doc` and
  * `ppt` parsers deliberately return best-effort content instead of throwing,
  * so the flag — not an error — is how that is reported.
+ *
+ * `offset` and `limit` narrow the response to a line window, reported back as
+ * `lineRange`. `totalLines` there is what separates a file that ended from a
+ * window that stopped early, so a caller can tell whether to read further.
  *
  * Head-safe: no audit is projected and nothing is written. The read does pull
  * bytes from object storage, but so does the metadata read beside it, and a
@@ -28,22 +37,12 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
-    fileId: params.fileId,
-    assertedWorkspaceId: query.workspaceId,
+    workspaceId: query.workspaceId,
+    reference: params.fileId,
     maxBytes: query.maxBytes,
+    offset: query.offset,
+    limit: query.limit,
   }),
   useCase: readWorkspaceFileText,
-  present: ({ file, text, truncated, degraded, degradedReason, byteCount }) => ({
-    data: {
-      fileId: file.id,
-      name: file.name,
-      type: file.type,
-      text,
-      truncated,
-      degraded,
-      degradedReason,
-      charCount: text.length,
-      byteCount,
-    },
-  }),
+  present: presentWorkspaceFileText,
 })

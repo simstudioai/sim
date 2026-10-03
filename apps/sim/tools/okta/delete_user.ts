@@ -30,7 +30,7 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID to delete',
+      description: 'User ID or login (email) to delete',
     },
     sendEmail: {
       type: 'boolean',

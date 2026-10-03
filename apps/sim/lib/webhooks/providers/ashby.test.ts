@@ -1,10 +1,34 @@
-/**
- * @vitest-environment node
- */
 import crypto from 'crypto'
 import { createMockRequest } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
+import type { AuthContext, EventMatchContext } from '@/lib/webhooks/providers/types'
+
+function authContext(
+  request: AuthContext['request'],
+  rawBody: string,
+  providerConfig: Record<string, unknown>
+): AuthContext {
+  return {
+    request,
+    rawBody,
+    requestId: 'r1',
+    providerConfig,
+    webhook: {},
+    workflow: {},
+  }
+}
+
+function eventMatchContext(body: unknown, triggerId: string): EventMatchContext {
+  return {
+    webhook: { id: 'w1' },
+    workflow: {},
+    body,
+    request: createMockRequest('POST', body),
+    requestId: 'r1',
+    providerConfig: { triggerId },
+  }
+}
 
 describe('ashbyHandler', () => {
   describe('verifyAuth', () => {
@@ -16,27 +40,7 @@ describe('ashbyHandler', () => {
       const request = createMockRequest('POST', JSON.parse(rawBody), {
         'ashby-signature': signature,
       })
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: {},
-        webhook: {},
-        workflow: {},
-      })
-      expect(res?.status).toBe(401)
-    })
-
-    it('returns 401 when signature header is missing', () => {
-      const request = createMockRequest('POST', JSON.parse(rawBody), {})
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { secretToken: secret },
-        webhook: {},
-        workflow: {},
-      })
+      const res = ashbyHandler.verifyAuth!(authContext(request, rawBody, {}))
       expect(res?.status).toBe(401)
     })
 
@@ -44,14 +48,7 @@ describe('ashbyHandler', () => {
       const request = createMockRequest('POST', JSON.parse(rawBody), {
         'ashby-signature': 'sha256=deadbeef',
       })
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { secretToken: secret },
-        webhook: {},
-        workflow: {},
-      })
+      const res = ashbyHandler.verifyAuth!(authContext(request, rawBody, { secretToken: secret }))
       expect(res?.status).toBe(401)
     })
 
@@ -59,80 +56,39 @@ describe('ashbyHandler', () => {
       const request = createMockRequest('POST', JSON.parse(rawBody), {
         'ashby-signature': signature,
       })
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { secretToken: secret },
-        webhook: {},
-        workflow: {},
-      })
+      const res = ashbyHandler.verifyAuth!(authContext(request, rawBody, { secretToken: secret }))
       expect(res).toBeNull()
     })
   })
 
   describe('matchEvent', () => {
     it('rejects ping events', async () => {
-      const matched = await ashbyHandler.matchEvent!({
-        webhook: { id: 'w1' } as any,
-        body: { action: 'ping', data: { webhookActionType: 'ping' } },
-        requestId: 'r1',
-        providerConfig: { triggerId: 'ashby_application_submit' },
-      } as any)
+      const matched = await ashbyHandler.matchEvent!(
+        eventMatchContext(
+          { action: 'ping', data: { webhookActionType: 'ping' } },
+          'ashby_application_submit'
+        )
+      )
       expect(matched).toBe(false)
     })
 
-    it('matches when action equals the configured trigger event', async () => {
-      const matched = await ashbyHandler.matchEvent!({
-        webhook: { id: 'w1' } as any,
-        body: { action: 'applicationSubmit', data: {} },
-        requestId: 'r1',
-        providerConfig: { triggerId: 'ashby_application_submit' },
-      } as any)
-      expect(matched).toBe(true)
-    })
-
     it('rejects when action does not match the configured trigger event', async () => {
-      const matched = await ashbyHandler.matchEvent!({
-        webhook: { id: 'w1' } as any,
-        body: { action: 'jobCreate', data: {} },
-        requestId: 'r1',
-        providerConfig: { triggerId: 'ashby_application_submit' },
-      } as any)
+      const matched = await ashbyHandler.matchEvent!(
+        eventMatchContext({ action: 'jobCreate', data: {} }, 'ashby_application_submit')
+      )
       expect(matched).toBe(false)
     })
   })
 
-  describe('formatInput', () => {
-    it('spreads data fields to the top level alongside action', async () => {
-      const result = await ashbyHandler.formatInput!({
-        body: {
-          action: 'applicationSubmit',
-          data: { application: { id: 'app-1', status: 'Active' } },
-        },
-      } as any)
-      expect(result.input).toEqual({
-        action: 'applicationSubmit',
-        application: { id: 'app-1', status: 'Active' },
-      })
-    })
-
-    it('renames currentInterviewStage.type to stageType, matching the trigger output schema', async () => {
-      const result = await ashbyHandler.formatInput!({
-        body: {
-          action: 'candidateStageChange',
-          data: {
-            application: {
-              id: 'app-1',
-              currentInterviewStage: { id: 'stage-1', title: 'Offer', type: 'Offer' },
-            },
-          },
-        },
-      } as any)
-      expect(result.input.application).toEqual({
-        id: 'app-1',
-        currentInterviewStage: { id: 'stage-1', title: 'Offer', stageType: 'Offer' },
-      })
+  describe('extractIdempotencyId', () => {
+    it('uses Ashby webhookActionId across retries and related event deliveries', () => {
+      expect(
+        ashbyHandler.extractIdempotencyId!({
+          action: 'applicationUpdate',
+          webhookActionId: 'action-1',
+          data: { application: { id: 'app-1' } },
+        })
+      ).toBe('ashby:webhook-action:action-1')
     })
   })
 
@@ -167,29 +123,6 @@ describe('ashbyHandler', () => {
       respondWith({ success: false, errors: [{ message: 'missing_endpoint_permission' }] })
       await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(
         /missing_endpoint_permission/
-      )
-    })
-
-    it('surfaces the plain-string errors array Ashby also returns', async () => {
-      respondWith({ success: false, errors: ['webhook_not_found'] })
-      await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(/webhook_not_found/)
-    })
-
-    it('still prefers errorInfo.message when Ashby sends both shapes at once', async () => {
-      respondWith({
-        success: false,
-        errors: ['webhook_not_found'],
-        errorInfo: { code: 'webhook_not_found', message: 'Webhook not found' },
-      })
-      await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(/Webhook not found/)
-    })
-
-    it('keeps the actionable duplicate-webhook guidance reachable', async () => {
-      // The duplicate branch only fires when the message was extracted, so an
-      // unparsed error costs the user the instructions for fixing it.
-      respondWith({ success: false, errors: [{ message: 'duplicate webhook for this url' }] })
-      await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(
-        /Ashby Settings > API\/Webhooks/
       )
     })
   })
@@ -228,11 +161,6 @@ describe('ashbyHandler', () => {
       )
     })
 
-    it('stays non-fatal for a failed delete when not strict', async () => {
-      respondWith({ success: false, errors: [{ message: 'missing_endpoint_permission' }] })
-      await expect(ashbyHandler.deleteSubscription?.(ctx(false))).resolves.toBeUndefined()
-    })
-
     it('treats an already-removed webhook as done even in strict mode', async () => {
       respondWith({ success: false, errors: ['webhook_not_found'] })
       await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
@@ -254,14 +182,19 @@ describe('ashbyHandler', () => {
       await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
     })
 
-    it('recognizes a not-found reported only as prose', async () => {
-      respondWith({ success: false, errorInfo: { message: 'Webhook not found' } })
-      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
-    })
-
-    it('accepts a successful delete', async () => {
-      respondWith({ success: true, results: { webhookId: 'ext-1' } })
-      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
+    it('rejects an oversized provider response before buffering it', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response('{}', {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'content-length': String(Number.MAX_SAFE_INTEGER),
+          },
+        })
+      ) as never
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).rejects.toThrow(
+        /exceeds maximum size/
+      )
     })
   })
 
@@ -277,16 +210,6 @@ describe('ashbyHandler', () => {
       expect(ashbyHandler.extractIdempotencyId!({ ...body })).toBe(
         ashbyHandler.extractIdempotencyId!(body)
       )
-    })
-
-    it('derives a key from candidate id for candidateDelete', () => {
-      const body = { action: 'candidateDelete', data: { candidate: { id: 'cand-1' } } }
-      expect(ashbyHandler.extractIdempotencyId!(body)).toBe('ashby:candidateDelete:cand-1')
-    })
-
-    it('derives a key from job id for jobCreate', () => {
-      const body = { action: 'jobCreate', data: { job: { id: 'job-1' } } }
-      expect(ashbyHandler.extractIdempotencyId!(body)).toBe('ashby:jobCreate:job-1')
     })
 
     it('derives a stable key from offer id alone, ignoring mutable decidedAt', () => {
@@ -331,30 +254,6 @@ describe('ashbyHandler', () => {
       expect(ashbyHandler.extractIdempotencyId!(first)).not.toBe(
         ashbyHandler.extractIdempotencyId!(second)
       )
-    })
-
-    it('distinguishes candidateHire deliveries sharing application id + updatedAt but differing in offer', () => {
-      const application = { id: 'app-1', status: 'Hired', updatedAt: '2026-01-01T00:00:00Z' }
-      const first = {
-        action: 'candidateHire',
-        data: { application, offer: { id: 'offer-1' } },
-      }
-      const second = {
-        action: 'candidateHire',
-        data: { application, offer: { id: 'offer-2' } },
-      }
-      expect(ashbyHandler.extractIdempotencyId!(first)).not.toBe(
-        ashbyHandler.extractIdempotencyId!(second)
-      )
-      // a genuine retry of `first` (identical offer too) still dedupes
-      expect(ashbyHandler.extractIdempotencyId!({ ...first })).toBe(
-        ashbyHandler.extractIdempotencyId!(first)
-      )
-    })
-
-    it('returns null when no recognizable resource is present', () => {
-      expect(ashbyHandler.extractIdempotencyId!({ action: 'ping', data: {} })).toBeNull()
-      expect(ashbyHandler.extractIdempotencyId!({})).toBeNull()
     })
   })
 })

@@ -6,14 +6,17 @@ import {
   member,
   organization,
   permissions,
+  tableRunDispatches,
+  uploadSession,
   user,
   workspaceFile,
   workspaceFiles,
+  workspaceFileVersion,
   workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { formatQuotedNameList } from '@sim/utils/string'
-import { and, eq, gt, inArray, isNotNull, ne, notExists, or, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
   AccountDeletionBlocker,
   AccountDeletionPlan,
@@ -22,6 +25,11 @@ import type {
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { isSoleOwnerOfPaidOrganization } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { appendTableEvent, type TableEvent } from '@/lib/table/events'
+import {
+  type CancelledCellMarker,
+  cancelPendingMarkersForGovernedSubject,
+} from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import {
@@ -409,7 +417,7 @@ export function extractProfilePictureKey(image: string | null): string | null {
 }
 
 /**
- * Collects every stored object held by workspaces that go with the account.
+ * Collects the account's private images and stored objects in workspaces that go with it.
  *
  * This has to run *before* the rows are deleted: they disappear with the
  * workspace through `ON DELETE CASCADE`, and the retention sweep that normally
@@ -423,6 +431,27 @@ async function collectAccountStorageKeys(
   workspaceIds: string[]
 ): Promise<StorageKeyBatch[]> {
   const batches: StorageKeyBatch[] = []
+
+  await collectPages(
+    (afterId) =>
+      db
+        .select({ id: uploadSession.id, key: uploadSession.finalKey })
+        .from(uploadSession)
+        .where(
+          and(
+            eq(uploadSession.userId, userId),
+            eq(uploadSession.purpose, 'mothership_attachment'),
+            isNull(uploadSession.workspaceId),
+            eq(uploadSession.status, 'completed'),
+            gt(uploadSession.id, afterId)
+          )
+        )
+        .orderBy(uploadSession.id)
+        .limit(STORAGE_PAGE_SIZE),
+    batches,
+    () => 'mothership'
+  )
+
   if (!isUsingCloudStorage()) return batches
 
   const [profile] = await db
@@ -466,6 +495,23 @@ async function collectAccountStorageKeys(
   await collectPages(
     (afterId) =>
       db
+        .select({ id: workspaceFileVersion.id, key: workspaceFileVersion.key })
+        .from(workspaceFileVersion)
+        .where(
+          and(
+            inArray(workspaceFileVersion.workspaceId, workspaceIds),
+            gt(workspaceFileVersion.id, afterId)
+          )
+        )
+        .orderBy(workspaceFileVersion.id)
+        .limit(STORAGE_PAGE_SIZE),
+    batches,
+    () => 'workspace'
+  )
+
+  await collectPages(
+    (afterId) =>
+      db
         .select({ id: document.id, key: document.storageKey })
         .from(document)
         .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
@@ -491,7 +537,7 @@ async function collectAccountStorageKeys(
  * failure for work that cannot be undone. An orphaned object is recoverable from
  * the log; a deletion the caller believes failed is not.
  */
-async function purgeStorageObjects(batches: StorageKeyBatch[]): Promise<void> {
+async function purgeStorageObjects(userId: string, batches: StorageKeyBatch[]): Promise<void> {
   for (const { context, keys } of batches) {
     if (keys.length === 0) continue
     try {
@@ -503,9 +549,95 @@ async function purgeStorageObjects(batches: StorageKeyBatch[]): Promise<void> {
           error,
         })
       }
+
+      if (context === 'mothership') {
+        const failedKeys = new Set(failed.map(({ key }) => key))
+        const deletedImageKeys = keys.filter(
+          (key) => key.startsWith('assistant/') && !failedKeys.has(key)
+        )
+        if (deletedImageKeys.length > 0) {
+          /**
+           * Keep ownership records while a signed PUT can recreate the object.
+           * The upload-session sweep retries these and failed object deletions
+           * after the deleted uploader and transfer expiry are confirmed.
+           */
+          await db
+            .delete(uploadSession)
+            .where(
+              and(
+                eq(uploadSession.userId, userId),
+                eq(uploadSession.purpose, 'mothership_attachment'),
+                isNull(uploadSession.workspaceId),
+                eq(uploadSession.status, 'completed'),
+                lte(uploadSession.expiresAt, new Date()),
+                inArray(uploadSession.finalKey, deletedImageKeys)
+              )
+            )
+        }
+      }
     } catch (error) {
-      logger.error('Storage batch deletion failed during account deletion', { context, error })
+      logger.error('Storage cleanup failed during account deletion', { context, error })
     }
+  }
+}
+
+/** One dispatch the deletion stopped, in the shape its terminal event needs. */
+interface CancelledDispatch {
+  id: string
+  tableId: string
+  scope: unknown
+  cursor: number
+  mode: string
+  isManualRun: boolean
+}
+
+/**
+ * Publishes the terminal events for work the deletion cancelled.
+ *
+ * The cancels above are direct writes rather than the ordinary cancel path, so
+ * nothing had announced them: a collaborator in a surviving workspace kept
+ * watching a dispatch that will never advance and cells stuck on their in-flight
+ * pill. These are the same two events `markActiveDispatchesCancelled` and the
+ * cell writers publish, so the client reconciles exactly as it does for a Stop.
+ *
+ * After the commit, never inside it: an event announcing a rollback would be a
+ * lie, and the SSE log is not transactional. Failures are logged rather than
+ * raised — the account is already gone, and the periodic refetch is the backstop.
+ */
+async function announceCancelledTableWork(
+  dispatches: CancelledDispatch[],
+  markers: CancelledCellMarker[]
+): Promise<void> {
+  const events = [
+    ...dispatches.map((dispatch) =>
+      appendTableEvent({
+        kind: 'dispatch' as const,
+        tableId: dispatch.tableId,
+        dispatchId: dispatch.id,
+        status: 'cancelled' as const,
+        scope: (dispatch.scope ?? undefined) as Extract<TableEvent, { kind: 'dispatch' }>['scope'],
+        cursor: dispatch.cursor,
+        mode: dispatch.mode as 'all' | 'incomplete' | 'new',
+        isManualRun: dispatch.isManualRun,
+      })
+    ),
+    ...markers.map((marker) =>
+      appendTableEvent({
+        kind: 'cell' as const,
+        tableId: marker.tableId,
+        rowId: marker.rowId,
+        groupId: marker.groupId,
+        status: 'cancelled' as const,
+        executionId: null,
+        jobId: null,
+        error: 'Cancelled',
+      })
+    ),
+  ]
+  const results = await Promise.allSettled(events)
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed > 0) {
+    logger.warn('Some cancellation events were not published during account deletion', { failed })
   }
 }
 
@@ -544,6 +676,9 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   const doomedWorkspaceIds = plan.workspacesToDelete.map((workspace) => workspace.id)
   const doomed = new Set(doomedWorkspaceIds)
   const storageKeys = await collectAccountStorageKeys(userId, doomedWorkspaceIds)
+
+  let cancelledDispatches: CancelledDispatch[] = []
+  let cancelledMarkers: CancelledCellMarker[] = []
 
   await db.transaction(async (tx) => {
     if (doomedWorkspaceIds.length > 0) {
@@ -604,10 +739,77 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ])
     }
 
+    /**
+     * Take the departing account's own row before cancelling anything it
+     * governs.
+     *
+     * Both cancels below are `WHERE capability_governed_user_id = userId`, so
+     * they only stop work that already exists. A dispatcher that read its
+     * status as active a moment earlier goes on to pre-stamp cells, and that
+     * insert's foreign key needs a `FOR KEY SHARE` on this very row — which
+     * `FOR UPDATE` conflicts with. Taking it first therefore splits every
+     * concurrent stamp cleanly in two: one that committed before us, which the
+     * marker cancel below then sees, and one that blocks until we commit and is
+     * refused by the (now absent) foreign key. Without the barrier a stamp
+     * landing between the marker cancel and the `user` delete is nulled by
+     * `ON DELETE SET NULL` and drained by a sibling worker as actorless — the
+     * ungated run this whole passage exists to prevent.
+     *
+     * The lock is held for the rest of the transaction, so a dispatcher holding
+     * a marker row we are about to cancel can deadlock with us; Postgres aborts
+     * one side and the deletion is retried by the person, which is the right
+     * trade against a silently ungated run.
+     */
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update')
+
+    /**
+     * Cancel every table run this account still governs before the `user` row
+     * goes away.
+     *
+     * `capability_governed_user_id` is `ON DELETE SET NULL`, and a nulled
+     * subject is indistinguishable from a legitimately actorless run — the
+     * worker would read the surviving dispatch as "no acting person, no
+     * per-tool gate" and keep executing its remaining windows ungated, for as
+     * long as the scope takes (the in-process dispatcher has no time ceiling).
+     * `RESTRICT` would trade that for blocking account deletion behind
+     * background work, which is the failure mode the billed-account foreign key
+     * already demonstrates. Going terminal instead is the honest reading: a
+     * deleted person's runs should stop, not silently lose their gate.
+     */
+    cancelledDispatches = await tx
+      .update(tableRunDispatches)
+      .set({ status: 'cancelled', cancelledAt: new Date() })
+      .where(
+        and(
+          eq(tableRunDispatches.capabilityGovernedUserId, userId),
+          inArray(tableRunDispatches.status, ['pending', 'dispatching'])
+        )
+      )
+      .returning({
+        id: tableRunDispatches.id,
+        tableId: tableRunDispatches.tableId,
+        scope: tableRunDispatches.scope,
+        cursor: tableRunDispatches.cursor,
+        mode: tableRunDispatches.mode,
+        isManualRun: tableRunDispatches.isManualRun,
+      })
+
+    /**
+     * The dispatch cancel alone leaves the cells it already pre-stamped. Those
+     * markers are drained by whoever holds the row's cascade lock, and that
+     * worker's guard reads its own dispatch — so an unrelated active dispatch
+     * runs the departing account's marker, whose nulled subject then reads as
+     * "actorless, no gate". Same transaction as the dispatch cancel: both are
+     * the same stop.
+     */
+    cancelledMarkers = await cancelPendingMarkersForGovernedSubject(tx, userId)
+
     await tx.delete(user).where(eq(user.id, userId))
   })
 
-  await purgeStorageObjects(storageKeys)
+  await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
+
+  await purgeStorageObjects(userId, storageKeys)
 
   logger.info('Deleted account', {
     userId,

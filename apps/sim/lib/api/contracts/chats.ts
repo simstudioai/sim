@@ -1,5 +1,7 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 
 export const chatAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])
 export type ChatAuthType = z.output<typeof chatAuthTypeSchema>
@@ -38,12 +40,22 @@ export const chatIdentifierParamsSchema = z.object({
   identifier: z.string().min(1),
 })
 
-export const chatOutputConfigSchema = z.object({
-  blockId: z.string().min(1),
-  path: z.string().min(1),
-})
+export const chatOutputConfigSchema = z
+  .object({
+    workflowId: z.string().min(1).optional(),
+    blockId: z.string().min(1),
+    path: z.string().min(1),
+  })
+  .superRefine((config, ctx) => {
+    try {
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
+    } catch (error) {
+      ctx.addIssue({ code: 'custom', message: getErrorMessage(error, 'Invalid output config') })
+    }
+  })
 
 export const deployedChatOutputConfigSchema = z.object({
+  workflowId: z.string().optional(),
   blockId: z.string(),
   path: z.string().optional(),
 })

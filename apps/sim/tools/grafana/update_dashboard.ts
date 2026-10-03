@@ -1,7 +1,7 @@
 import type { GrafanaUpdateDashboardParams } from '@/tools/grafana/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolResponse> = {
+export const updateDashboardTool: InternalToolConfig<GrafanaUpdateDashboardParams, ToolResponse> = {
   id: 'grafana_update_dashboard',
   name: 'Grafana Update Dashboard',
   description:
@@ -84,12 +84,8 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/grafana/update_dashboard',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       apiKey: params.apiKey,
       baseUrl: params.baseUrl,
       organizationId: params.organizationId,

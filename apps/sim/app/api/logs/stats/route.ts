@@ -9,8 +9,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import { logQuerySelectsCost } from '@/lib/logs/log-projection'
 import { buildDashboardStats, resolveLogStatsWindow } from '@/lib/logs/stats'
 import { readLogStatsBounds, readLogStatsSegments } from '@/lib/logs/stats-queries'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsStatsAPI')
@@ -57,6 +60,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           } satisfies DashboardStatsResponse,
           { status: 200 }
         )
+      }
+
+      /**
+       * permission-group-enforced: logs.cost — this response carries no spend at
+       * all, but `costOperator`/`costValue` reach the same indexed column the
+       * list filters on, and the run counts it answers with are a bisection
+       * oracle over exactly the figure the group withholds. Refused rather than
+       * ignored, for the reason given on {@link assertLogCostQueryAllowed}; the
+       * workspace access check above has already passed, so the caller is a
+       * member learning about their own group.
+       */
+      if (
+        logQuerySelectsCost(params) &&
+        (await isWorkspaceCapabilityWithheld(userId, params.workspaceId, 'logs.cost'))
+      ) {
+        return capabilityRefusalResponse('logs.cost')
       }
 
       const workspaceFilter = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
