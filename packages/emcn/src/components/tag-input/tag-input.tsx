@@ -93,7 +93,7 @@ export interface TagItem {
 /**
  * Options for enabling file input functionality.
  */
-export interface FileInputOptions {
+interface FileInputOptions {
   /** Whether file input is enabled */
   enabled: boolean
   /** Accepted file types (default: '.csv,.txt,text/csv,text/plain') */
@@ -517,4 +517,4 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
 
 TagInput.displayName = 'TagInput'
 
-export { TagInput, tagInputVariants }
+export { TagInput }

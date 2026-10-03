@@ -27,7 +27,7 @@ import {
   useIsDarkTheme,
 } from '@sim/emcn'
 
-export interface BarChartPoint {
+interface BarChartPoint {
   timestamp: string
   value: number
 }

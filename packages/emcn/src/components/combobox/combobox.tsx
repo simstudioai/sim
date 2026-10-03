@@ -1145,4 +1145,4 @@ const Combobox = memo(
 
 Combobox.displayName = 'Combobox'
 
-export { Combobox, comboboxVariants }
+export { Combobox }

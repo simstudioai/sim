@@ -21,7 +21,7 @@ export const CHART_AXIS_LABEL_GAP = 8
 const CHART_AXIS_GUTTER_STEP = 8
 
 /** Estimate SVG label width before layout, allowing extra space to prevent clipping. */
-export function estimateAxisLabelWidth(text: string): number {
+function estimateAxisLabelWidth(text: string): number {
   let width = 0
   for (const character of text) {
     width += NARROW_GLYPH.test(character) ? 0.3 : 0.58

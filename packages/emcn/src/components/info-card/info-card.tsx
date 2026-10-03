@@ -23,7 +23,7 @@ import * as React from 'react'
 import { Check } from '../../icons'
 import { cn } from '../../lib/cn'
 
-export interface InfoCardProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface InfoCardProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 /**
  * Root container. Owns the chip-input chrome — same tokens as `Input` and
@@ -43,7 +43,7 @@ const InfoCard = React.forwardRef<HTMLDivElement, InfoCardProps>(({ className, .
 
 InfoCard.displayName = 'InfoCard'
 
-export interface InfoCardListProps extends React.HTMLAttributes<HTMLUListElement> {
+interface InfoCardListProps extends React.HTMLAttributes<HTMLUListElement> {
   /**
    * Tailwind class controlling the scrollable region's max height.
    * @default 'max-h-[200px]'
@@ -69,7 +69,7 @@ const InfoCardList = React.forwardRef<HTMLUListElement, InfoCardListProps>(
 
 InfoCardList.displayName = 'InfoCardList'
 
-export interface InfoCardItemProps extends React.LiHTMLAttributes<HTMLLIElement> {
+interface InfoCardItemProps extends React.LiHTMLAttributes<HTMLLIElement> {
   /**
    * Leading glyph. Defaults to `Check`. Pass `null` to omit.
    */

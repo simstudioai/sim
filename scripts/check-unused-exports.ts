@@ -20,7 +20,8 @@
  * `exports` map serves only this monorepo, so an entry export nothing imports is dead. The apps,
  * the published packages, db, and the root turn it off there, since their entries are public or
  * standalone. Exports used only by tests count as used because knip's Vitest plugin makes test
- * files entries.
+ * files entries. An export whose only consumer knip cannot see (a path-based `import()`, or a
+ * helper an audit names as the replacement) carries a `@public` TSDoc tag saying why.
  *
  * Knip is slow, so `run-audits.ts` runs this script and skips `check:dead-code`, which stays
  * available as the human-readable report.
