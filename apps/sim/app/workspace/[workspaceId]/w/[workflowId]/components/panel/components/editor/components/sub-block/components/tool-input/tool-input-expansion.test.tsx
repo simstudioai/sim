@@ -1,4 +1,13 @@
 /** @vitest-environment jsdom */
+import { blocksMock } from '@sim/testing/mocks/blocks.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import {
+  resetWorkflowRegistryMockState,
+  workflowRegistryStoreMock,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { act, type ComponentProps, type ReactNode, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,27 +20,15 @@ const fixture = vi.hoisted(() => ({
   target: null as { subBlockId: string; valuePath: (string | number)[] } | null,
   write: vi.fn(),
   canonical: vi.fn(),
-  blocks: [] as BlockConfig[],
   replace: (_tools: StoredTool[]) => {},
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1', workflowId: 'workflow-1' }),
-}))
-vi.mock('@/blocks', () => ({
-  getAllBlocks: () => fixture.blocks,
-  getBlock: (type: string) => fixture.blocks.find((block) => block.type === type),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/blocks', () => blocksMock)
 vi.mock('@/blocks/custom/client-overlay', () => ({ useCustomBlockOverlayVersion: () => 0 }))
 vi.mock('@/blocks/utils', () => ({ BUILT_IN_TOOL_TYPES: new Set() }))
-vi.mock('@/tools/metadata', () => ({ getToolMetadata: () => undefined }))
-vi.mock('@/providers/models', () => ({
-  supportsForcedToolUse: () => false,
-  supportsToolUsageControl: () => false,
-}))
-vi.mock('@/providers/utils', () => ({
-  getProviderFromModel: () => '',
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/hooks/use-collaborative-workflow', () => ({
   useCollaborativeWorkflow: () => ({
     collaborativeSetBlockCanonicalMode: fixture.canonical,
@@ -117,11 +114,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: (selector: (state: unknown) => unknown) =>
     selector({ blocks: { 'block-1': { type: 'agent' } } }),
 }))
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: Object.assign(() => 'workflow-1', {
-    getState: () => ({ activeWorkflowId: 'workflow-1' }),
-  }),
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: create<{
     workflowValues: Record<string, Record<string, Record<string, unknown>>>
@@ -171,12 +164,12 @@ vi.mock(
 )
 
 vi.mock('@sim/emcn', () => ({
+  ...emcnMock,
   Button: ({ variant: _variant, ...props }: ComponentProps<'button'> & { variant?: string }) => (
     <button {...props} />
   ),
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   TagInput: () => null,
-  cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
   Combobox: ({
     groups,
     disabled,
@@ -224,13 +217,24 @@ const tool = (value: string): StoredTool => ({
 const buttons = () => [...container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')]
 const render = (props: Partial<ComponentProps<typeof ToolInput>> = {}) =>
   act(() => root.render(<ToolInput blockId='block-1' subBlockId='tools' {...props} />))
-const click = (element: HTMLElement) => act(() => element.click())
+const click = (element: HTMLElement | null | undefined) => {
+  if (!element) throw new Error('Expected a tool input control')
+  act(() => element.click())
+}
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.spyOn(blocksMock, 'getAllBlocks').mockReturnValue([])
+  vi.spyOn(blocksMock, 'getBlock').mockReturnValue(undefined)
+  nextNavigationMockFns.mockUseParams.mockReset()
+  nextNavigationMockFns.mockUseParams.mockReturnValue({
+    workspaceId: 'workspace-1',
+    workflowId: 'workflow-1',
+  })
+  providersUtilsMockFns.mockGetProviderFromModel.mockReset()
+  providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('')
+  resetWorkflowRegistryMockState({ activeWorkflowId: 'workflow-1' })
   fixture.tools = [tool('First'), tool('Second')]
   fixture.target = null
-  fixture.blocks = []
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -262,12 +266,12 @@ describe('ToolInput local expansion', () => {
   it('preserves an immediate parameter edit through collapse and real bridge rehydration', () => {
     render()
     click(buttons()[0])
-    const input = container.querySelector('input')!
+    const input = container.querySelector('input')
+    if (!input) throw new Error('Expected the expanded tool parameter input')
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    if (!setValue) throw new Error('Expected the native input value setter')
     act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        input,
-        'Edited'
-      )
+      setValue.call(input, 'Edited')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(fixture.tools[0].params?.query).toBe('Edited')
@@ -281,7 +285,7 @@ describe('ToolInput local expansion', () => {
     fixture.tools[1].toolId = fixture.tools[0].toolId
     render()
     click(buttons()[1])
-    click(container.querySelector<HTMLButtonElement>('button[aria-label="Remove tool"]')!)
+    click(container.querySelector<HTMLButtonElement>('button[aria-label="Remove tool"]'))
     expect(buttons()[0].getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelector('input')?.value).toBe('Second')
   })
@@ -349,12 +353,12 @@ describe('ToolInput local expansion', () => {
     click(
       [...container.querySelectorAll('button')].find(
         (button) => button.textContent === 'Open tools'
-      )!
+      )
     )
     click(
       [...container.querySelectorAll('button')].find(
         (button) => button.textContent === 'Add MCP Server (Advanced)'
-      )!
+      )
     )
     expect(buttons().map((button) => button.getAttribute('aria-expanded'))).toEqual([
       'true',
