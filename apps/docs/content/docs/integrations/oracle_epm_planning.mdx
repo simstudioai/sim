@@ -1,0 +1,972 @@
+---
+title: Oracle EPM Planning & FreeForm
+description: Manage Planning and FreeForm data, jobs, approvals, user variables and IPM insights
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_planning"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an Oracle EPM service-account credential to Planning and FreeForm. Discover applications, cubes and dimensions; manage dynamic members and substitution variables; run rules and configured jobs; transfer data slices, forms and repository files; and perform explicit cube refresh and login-access changes. Run data maps with explicit target clearing, manage user-variable values, inspect owned planning units and perform explicit approval actions, and retrieve or summarize IPM insights. Planning application modules use tenant-configured cubes and rules, not separate integrations. Insight retrieval defaults to existing results; recomputation is explicit and permission-dependent. Job submission and waiting are separate. Inline results are limited to 16 MiB and downloaded Sim files to 100 MiB. Discovery permissions may be broader than execution permissions: manual names remain available.
+
+
+
+## Actions
+
+### Oracle EPM Planning List Applications
+
+List applications available to the service administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applications` | array | Available applications |
+|   ↳ `name` | string | Application name |
+|   ↳ `type` | string | type |
+|   ↳ `appType` | string | appType |
+|   ↳ `appStorage` | string | appStorage |
+|   ↳ `unicode` | boolean | unicode |
+|   ↳ `adminMode` | boolean | adminMode |
+|   ↳ `hybrid` | boolean | hybrid |
+
+### Oracle EPM Planning List Cubes
+
+List the application’s plan types (cubes).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cubes` | array | Application cubes |
+|   ↳ `planTypeName` | string | Cube selector value |
+|   ↳ `planType` | number | Plan type ID |
+|   ↳ `cubeName` | string | Essbase cube name |
+|   ↳ `numDimensions` | number | Dimension count |
+|   ↳ `cubeType` | number | Oracle cube type |
+
+### Oracle EPM Planning List Dimensions
+
+List one bounded page of dimensions for a cube.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `cube` | string | Yes | Cube / plan type name, not its numeric plan type ID. |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `limit` | number | No | Page size, 1–1000 \(default 100\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimensions` | array | One page of dimension summaries |
+|   ↳ `name` | string | Dimension/member name |
+|   ↳ `id` | string | id |
+|   ↳ `path` | string | path |
+|   ↳ `alias` | string | alias |
+|   ↳ `parentName` | string | parentName |
+|   ↳ `dimName` | string | dimName |
+|   ↳ `dimType` | string | dimType |
+|   ↳ `level` | number | Level |
+|   ↳ `generation` | number | Generation |
+| `totalResults` | number | Total dimensions |
+| `hasMore` | boolean | More dimension pages are available |
+
+### Oracle EPM Planning Get Dimension
+
+Read a dimension hierarchy, subject to the 16 MiB response limit.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `cube` | string | Yes | Cube / plan type name, not its numeric plan type ID. |
+| `dimension` | string | Yes | Dimension name. |
+| `aliasTableName` | string | No | Optional alias table name for the dimension hierarchy. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimension` | json | Dimension hierarchy |
+|   ↳ `name` | string | Dimension/member name |
+|   ↳ `id` | string | id |
+|   ↳ `path` | string | path |
+|   ↳ `alias` | string | alias |
+|   ↳ `parentName` | string | parentName |
+|   ↳ `dimName` | string | dimName |
+|   ↳ `dimType` | string | dimType |
+|   ↳ `level` | number | Level |
+|   ↳ `generation` | number | Generation |
+|   ↳ `children` | array | Recursive children with the same dimension/member fields; omitted on leaves |
+|     ↳ `name` | string | Member name |
+|     ↳ `id` | string | Member ID |
+|     ↳ `path` | string | Member path |
+|     ↳ `parentName` | string | Parent name |
+
+### Oracle EPM Planning Get Member
+
+Read a member by its exact name. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `dimension` | string | Yes | Dimension name. |
+| `memberName` | string | Yes | Exact member name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | json | Member metadata |
+|   ↳ `name` | string | Member name |
+|   ↳ `description` | string | Description |
+|   ↳ `parentName` | string | Parent name |
+|   ↳ `dimName` | string | Dimension name |
+|   ↳ `dataType` | string | Data type |
+|   ↳ `dataStorage` | string | Storage type |
+|   ↳ `objectType` | number | Oracle object type |
+|   ↳ `twoPass` | boolean | Two-pass calculation |
+
+### Oracle EPM Planning Add Member
+
+Add a dynamic member. The parent must allow dynamic children and the cube must already have been refreshed. Requires Service Administrator; no implicit refresh.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `dimension` | string | Yes | Dimension name. |
+| `memberName` | string | Yes | Exact member name. |
+| `parentName` | string | Yes | Dynamic-enabled parent member name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | json | Member metadata |
+|   ↳ `name` | string | Member name |
+|   ↳ `description` | string | Description |
+|   ↳ `parentName` | string | Parent name |
+|   ↳ `dimName` | string | Dimension name |
+|   ↳ `dataType` | string | Data type |
+|   ↳ `dataStorage` | string | Storage type |
+|   ↳ `objectType` | number | Oracle object type |
+|   ↳ `twoPass` | boolean | Two-pass calculation |
+
+### Oracle EPM Planning List Substitution Variables
+
+List application or cube substitution variables. Derived values include inherited application values when a cube is specified.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `cube` | string | No | Cube / plan type name, not its numeric plan type ID. |
+| `derivedValues` | boolean | No | Include inherited application variables for a cube \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `variables` | array | Substitution variables |
+|   ↳ `name` | string | Variable name |
+|   ↳ `value` | string | Variable value |
+|   ↳ `planType` | string | ALL or cube name |
+
+### Oracle EPM Planning Get Substitution Variable
+
+Read one application or cube substitution variable.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `variableName` | string | Yes | Substitution variable name. |
+| `cube` | string | No | Cube / plan type name, not its numeric plan type ID. |
+| `derivedValues` | boolean | No | Include inherited application variables for a cube \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `variable` | json | Substitution variable |
+|   ↳ `name` | string | Variable name |
+|   ↳ `value` | string | Variable value |
+|   ↳ `planType` | string | ALL or cube name |
+
+### Oracle EPM Planning Set Substitution Variables
+
+Create or update the supplied substitution variables; other variables are unchanged. Use planType ALL for application scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `variables` | array | Yes | Variables to create or update: \[\{name, value, planType\}\]. Use ALL for application scope. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | All supplied variables were accepted |
+
+### Oracle EPM Planning Delete Substitution Variable
+
+Delete one substitution variable at application or cube scope. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `variableName` | string | Yes | Substitution variable name. |
+| `cube` | string | No | Cube / plan type name, not its numeric plan type ID. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Deletion completed |
+
+### Oracle EPM Planning List Job Definitions
+
+List configured jobs, optionally filtered by job type. Discovery requires Service Administrator; manual job names remain usable.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobType` | string | No | Oracle job type, such as RULES, RULESET, IMPORT_DATA or EXPORT_DATA. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobDefinitions` | array | Configured jobs |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `jobType` | string | Oracle job type |
+
+### Oracle EPM Planning Run Job
+
+Submit a configured Planning job once and return its status snapshot. Use Wait for Job to await completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobType` | string | Yes | Oracle job type, such as RULES, RULESET, IMPORT_DATA or EXPORT_DATA. |
+| `jobName` | string | Yes | Configured job, deployed rule or ruleset name. |
+| `parameters` | json | No | Job-specific parameters or runtime prompts as a JSON object. Parameter names must match Oracle or the deployed job. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Run Rule
+
+Run a deployed business rule with runtime prompts. Requires administrator or the appropriate rule launch permissions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobName` | string | Yes | Configured job, deployed rule or ruleset name. |
+| `parameters` | json | No | Job-specific parameters or runtime prompts as a JSON object. Parameter names must match Oracle or the deployed job. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Run Ruleset
+
+Run a deployed ruleset with runtime prompts. Hidden prompt defaults take precedence over supplied values.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobName` | string | Yes | Configured job, deployed rule or ruleset name. |
+| `parameters` | json | No | Job-specific parameters or runtime prompts as a JSON object. Parameter names must match Oracle or the deployed job. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Get Job
+
+Read a Planning job status snapshot. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobId` | string | Yes | Numeric ID returned when the Planning job was submitted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Wait For Job
+
+Wait within a bounded deadline for a Planning job. Report terminal failures; never resubmit the job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobId` | string | Yes | Numeric ID returned when the Planning job was submitted. |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(1–3600, default 300\); also bounded by the workflow deadline. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Get Job Details
+
+Read one page of data or metadata import/export diagnostics, including processed and rejected record counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobId` | string | Yes | Numeric ID returned when the Planning job was submitted. |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `limit` | number | No | Page size, 1–1000 \(default 100\). |
+| `messageType` | string | No | Diagnostic message filter: INFO, WARNING or ERROR. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobDetails` | array | One page of import/export diagnostics |
+|   ↳ `recordsRead` | number | recordsRead |
+|   ↳ `recordsRejected` | number | recordsRejected |
+|   ↳ `recordsProcessed` | number | recordsProcessed |
+|   ↳ `dimensionName` | string | Dimension name |
+|   ↳ `loadType` | string | Load type |
+
+### Oracle EPM Planning Export Data Slice
+
+Export a bounded cell grid. Missing-cell suppression is configured in gridDefinition. Maximum inline response: 16 MiB.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `cube` | string | Yes | Cube / plan type name, not its numeric plan type ID. |
+| `gridDefinition` | json | Yes | Grid selection: pov \{members: string\[\]\[\]\}, columns and rows arrays of \{members: string\[\]\[\]\}; optional dimensions and missing-cell suppression flags. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dataGrid` | json | Exported cell grid |
+|   ↳ `pov` | array | POV members |
+|   ↳ `columns` | array | Column members |
+|   ↳ `rows` | array | Data rows |
+|     ↳ `headers` | array | Row headers |
+|     ↳ `data` | array | Cell values; strings or numbers |
+
+### Oracle EPM Planning Import Data Slice
+
+Write a cell grid and return accepted, updated, and rejected counts plus rejection details. #missing clears a cell.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `cube` | string | Yes | Cube / plan type name, not its numeric plan type ID. |
+| `dataGrid` | json | Yes | Cell grid: pov string\[\], columns string\[\]\[\], rows \[\{headers: string\[\], data: \(string\|number\)\[\]\}\]. Use #missing to clear a cell. |
+| `importOptions` | json | No | Optional aggregateEssbaseData, cellNotesOption \(Overwrite/Append/Skip\), dateFormat, strictDateValidation. Defaults follow Oracle. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `importResult` | json | Import counts and rejection diagnostics |
+|   ↳ `numAcceptedCells` | number | Accepted cells |
+|   ↳ `numUpdateCells` | number | Updated cells |
+|   ↳ `numRejectedCells` | number | Rejected cells |
+|   ↳ `rejectedCells` | array | Rejected cells \(Oracle reports at most 100\) |
+|   ↳ `rejectedCellsWithDetails` | array | Rejected-cell reasons |
+|     ↳ `memberNames` | array | Cell members |
+|     ↳ `readOnlyReasons` | array | Read-only reasons |
+|     ↳ `otherReasons` | array | Other reasons |
+
+### Oracle EPM Planning Clear Data Slice
+
+Destructively clear the selected Essbase cells and/or Planning details. Returns rejected cells; requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `cube` | string | Yes | Cube / plan type name, not its numeric plan type ID. |
+| `gridDefinition` | json | Yes | Grid selection: pov \{members: string\[\]\[\]\}, columns and rows arrays of \{members: string\[\]\[\]\}; optional dimensions and missing-cell suppression flags. |
+| `clearEssbaseData` | boolean | No | Clear Essbase cell values \(default true\). This is destructive. |
+| `clearPlanningData` | boolean | No | Clear Planning cell details \(default false\). This is destructive. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `clearResult` | json | Clear counts and rejection diagnostics |
+|   ↳ `numClearedCells` | number | Cleared cells |
+|   ↳ `numRejectedCells` | number | Rejected cells |
+|   ↳ `rejectedCells` | array | Rejected cells |
+
+### Oracle EPM Planning Export Form Data
+
+Export a form’s numeric data and dimension layout using the form-specific response contract. Form ID or name is entered manually; page filtering is not exposed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `form` | string | Yes | Exact form name or ID. Form discovery and page filtering are not supported. |
+| `displayMemberAs` | string | No | MEMBER_NAME, MEMBER_NAME_THEN_ALIAS, or ALIAS_THEN_MEMBER_NAME \(default MEMBER_NAME\). |
+| `memberAliasDelimiter` | string | No | Delimiter between a member and alias \(default colon\). |
+| `forceStartExpanded` | boolean | No | Force expandable form rows and columns to start expanded \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formData` | json | Form-specific numeric export |
+|   ↳ `gridInfo` | json | Form layout |
+|     ↳ `pageDimNames` | array | Page dimensions |
+|     ↳ `allowedPageMembersByDim` | object | Dimension names mapped to arrays of allowed member names |
+|     ↳ `rowDimNames` | array | Row dimensions |
+|     ↳ `columnDimNames` | array | Column dimensions |
+|   ↳ `pov` | object | POV dimension names mapped to member names |
+|   ↳ `columns` | array | Column members |
+|   ↳ `rows` | array | Numeric data rows |
+|     ↳ `headers` | array | Row headers |
+|     ↳ `data` | array | Numeric cell values |
+
+### Oracle EPM Planning Export Application Data
+
+Submit an application data export to an Oracle repository ZIP. Use a configured job or provide cube and rowMembers, columnMembers, povMembers. Larger exports remain in Oracle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobName` | string | No | Configured job, deployed rule or ruleset name. |
+| `cube` | string | No | Cube / plan type name, not its numeric plan type ID. |
+| `parameters` | json | No | Job-specific parameters or runtime prompts as a JSON object. Parameter names must match Oracle or the deployed job. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Import Application Data
+
+Submit a repository data import using a configured job or explicit sourceType and file. Configure errorFile to retain up to 1,000 rejected records; inspect job details after completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobName` | string | No | Configured job, deployed rule or ruleset name. |
+| `cube` | string | No | Cube / plan type name, not its numeric plan type ID. |
+| `fileName` | string | No | Oracle repository file name, including any documented repository folder. Download outputs are limited to 100 MiB. |
+| `parameters` | json | No | Job-specific parameters or runtime prompts as a JSON object. Parameter names must match Oracle or the deployed job. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning List Files
+
+List Oracle repository files and snapshots. Snapshot sizes may be unavailable. Requires administrator or Migration Administer permissions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Repository files and snapshots |
+|   ↳ `name` | string | Repository name |
+|   ↳ `type` | string | LCM or EXTERNAL |
+|   ↳ `size` | number | Byte size, unavailable for some snapshots |
+|   ↳ `lastModifiedTime` | number | Oracle last-modified timestamp |
+
+### Oracle EPM Planning Upload File
+
+Upload one authorized Sim file in sequential chunks of at most 50 MiB. Existing files are never overwritten. Sim inputs are limited to 5 GiB; Oracle may impose additional limits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `file` | file | Yes | One authorized Sim UserFile. Maximum Sim input size: 5 GiB; Oracle may impose additional limits. |
+| `fileName` | string | No | Oracle repository file name, including any documented repository folder. Download outputs are limited to 100 MiB. |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(1–3600, default 300\); also bounded by the workflow deadline. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `upload` | json | Completed upload |
+|   ↳ `fileName` | string | Repository file name |
+|   ↳ `size` | number | Uploaded bytes |
+|   ↳ `status` | number | Oracle completion status \(0\) |
+
+### Oracle EPM Planning Download File
+
+Download an Oracle repository file as a Sim UserFile, up to 100 MiB. Larger files must stay in Oracle. Temporary download resources are cleaned up.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Oracle repository file name, including any documented repository folder. Download outputs are limited to 100 MiB. |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds \(1–3600, default 300\); also bounded by the workflow deadline. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Stored Sim UserFile \(at most 100 MiB\) |
+
+### Oracle EPM Planning Delete File
+
+Permanently delete the named Oracle repository file or snapshot. This cannot be undone by the integration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `fileName` | string | Yes | Oracle repository file name, including any documented repository folder. Download outputs are limited to 100 MiB. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Deletion completed |
+
+### Oracle EPM Planning Refresh Cube
+
+Run an existing Cube Refresh job. Optional parameters can log off users or terminate active requests; no administration changes are added implicitly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobName` | string | Yes | Configured job, deployed rule or ruleset name. |
+| `parameters` | json | No | Job-specific parameters or runtime prompts as a JSON object. Parameter names must match Oracle or the deployed job. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Set Administration Mode
+
+Change application login access. Administrators mode logs off Interactive Users and Planners when the job completes. Requires Service Administrator.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `loginLevel` | string | Yes | Administrators or All Users. Administrators mode logs off Interactive Users and Planners. |
+| `jobName` | string | No | Configured job, deployed rule or ruleset name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | -1 processing; 0 success; 1 error; 2 cancel pending; 3 cancelled; 4 invalid parameter; other values are not success |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning Run Data Map
+
+Submit a configured data map once. Service Administrator required. Clearing the target is destructive; clearData must be explicit (Oracle defaults to true). Use Wait for Job separately.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `jobName` | string | Yes | Configured job, deployed rule or ruleset name. |
+| `clearData` | boolean | Yes | Explicitly clear the target region before copying. Destructive when true; Sim defaults to false, while Oracle defaults to true. |
+| `overrideMembersMap` | json | No | Optional dimension-to-member-selection map, for example \{"Period":"ILvl0Descendants\(Q1\)"\}. Values must be strings. |
+| `overrideExclusionMembersMap` | json | No | Optional dimension-to-excluded-member-selection map, for example \{"Period":"Jan"\}. Values must be strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Planning job snapshot |
+|   ↳ `jobId` | number | Job ID |
+|   ↳ `status` | number | Planning status: -1 processing, 0 success, 2 cancel pending; other values are failures |
+|   ↳ `details` | string | Job details |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `descriptiveStatus` | string | Human-readable status |
+|   ↳ `detailedStatus` | number | Detailed Oracle status |
+
+### Oracle EPM Planning List User Variable Values
+
+Read one bounded page of user-variable values. Administrators can read all users; other users can read their own. No completion indicator is provided by Oracle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `limit` | number | No | Page size, 1–1000 \(default 100\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userVariableValues` | array | One page of user-variable values; Oracle provides no completion flag |
+|   ↳ `userName` | string | userName |
+|   ↳ `name` | string | name |
+|   ↳ `dimension` | string | dimension |
+|   ↳ `member` | string | member |
+
+### Oracle EPM Planning Set User Variable Values
+
+Set a batch of user-variable values, distinct from substitution variables. Administrators can update other users; non-administrators can update their own values. Oracle does not guarantee transactional batch behavior.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `userVariableValues` | array | Yes | 1–1000 user-variable values: \[\{userName, name, dimension, member\}\]. Names are tenant-specific; do not assume batch atomicity. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Oracle returned HTTP 204 for the update request; no per-item results or atomicity guarantee |
+
+### Oracle EPM Planning List Planning Units
+
+Read one page of planning units owned by the requesting Service Administrator for a scenario and version. This is not discovery of every user’s units; no completion flag is documented.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `scenario` | string | Yes | Exact scenario member name for the planning units. |
+| `planningVersion` | string | Yes | Exact version member name for the planning units, not the REST API version. |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `limit` | number | No | Page size, 1–1000 \(default 100\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `planningUnits` | array | One page of owned planning units; numeric puId is not a compound identifier |
+|   ↳ `owner` | string | owner |
+|   ↳ `version` | string | version |
+|   ↳ `entity` | string | entity |
+|   ↳ `status` | string | status |
+|   ↳ `scenario` | string | scenario |
+|   ↳ `formattedValue` | string | formattedValue |
+|   ↳ `puName` | string | puName |
+|   ↳ `subStatus` | string | subStatus |
+|   ↳ `puAlias` | string | puAlias |
+|   ↳ `name` | string | name |
+|   ↳ `secMember` | string | secMember |
+|   ↳ `scenarioAlias` | string | scenarioAlias |
+|   ↳ `versionAlias` | string | versionAlias |
+|   ↳ `value` | number | Planning unit value |
+|   ↳ `puId` | number | Numeric unit ID, not the compound REST path identifier |
+
+### Oracle EPM Planning Get Planning Unit Actions
+
+List available approval actions for units owned by the requesting Service Administrator. Does not change ownership or status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `puhIdentifier` | string | Yes | Raw Oracle planning-unit hierarchy identifier for scenario and version, including required quotes and :: separators. Not a numeric puId or a URL. Maximum 255 UTF-8 bytes; do not percent-encode. |
+| `pmMembers` | string | Yes | Oracle PM-member selection \(Entity: Secondary member\), preserving tenant-specific quoting and comma-separated member names. |
+| `approvalOptions` | number | No | 0 for limited approvals or 1 for full approvals \(default 1\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `planningUnitActions` | array | Available actions without performing any transition |
+|   ↳ `actionId` | number | Action ID |
+|   ↳ `name` | string | Action name |
+
+### Oracle EPM Planning Get Planning Unit History
+
+Read a bounded page of history and annotations for an owned planning unit. Any application user can read their own units; use sequence identifiers to request replies explicitly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `puIdentifier` | string | Yes | Raw Oracle compound planning-unit identifier including scenario, version and PM-member context. Not the numeric puId or a URL. Preserve its exact quoting/separators; maximum 255 UTF-8 bytes. Do not percent-encode. |
+| `annotSeq` | number | No | Annotation sequence to retrieve replies; -1 \(default\) with logSeq -1 retrieves parent nodes. |
+| `logSeq` | number | No | History sequence to retrieve replies; -1 \(default\) with annotSeq -1 retrieves parent nodes. |
+| `offset` | number | No | Zero-based page offset \(default 0\). |
+| `limit` | number | No | Page size, 1–1000 \(default 100\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `planningUnitHistory` | array | One page of owned-unit history and annotations |
+|   ↳ `comment` | string | comment |
+|   ↳ `authorImagePath` | string | authorImagePath |
+|   ↳ `commentTitle` | string | commentTitle |
+|   ↳ `commentDate` | string | commentDate |
+|   ↳ `commentSubTitle` | string | commentSubTitle |
+|   ↳ `hasHistory` | boolean | hasHistory |
+|   ↳ `staticImage` | boolean | staticImage |
+|   ↳ `isChildNode` | boolean | isChildNode |
+|   ↳ `logSeq` | number | logSeq |
+|   ↳ `parentAnntSeq` | number | parentAnntSeq |
+|   ↳ `type` | string | Oracle history type |
+
+### Oracle EPM Planning Change Planning Unit Status
+
+Perform one explicitly chosen approval action. Service Administrator required; units must be owned by the caller and have compatible hierarchy levels and statuses. May change status or ownership; no automatic preflight or retry.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `puhIdentifier` | string | Yes | Raw Oracle planning-unit hierarchy identifier for scenario and version, including required quotes and :: separators. Not a numeric puId or a URL. Maximum 255 UTF-8 bytes; do not percent-encode. |
+| `pmMembers` | string | Yes | Oracle PM-member selection \(Entity: Secondary member\), preserving tenant-specific quoting and comma-separated member names. |
+| `actionId` | number | Yes | Explicit action ID returned by Get Planning Unit Actions, such as 6 for Promote. May change status or ownership. |
+| `comments` | string | No | Optional comment for the explicit approval transition. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `planningUnitAction` | json | Oracle confirmation returned in self-link data, not a job snapshot |
+|   ↳ `pmMembers` | string | pmMembers |
+|   ↳ `action` | string | action |
+|   ↳ `comments` | string | comments |
+
+### Oracle EPM Planning Get Insights
+
+Retrieve IPM insights using the insight-specific slice. Defaults to existing insights. Recomputing requires a calendar and Administrator or IPM Manage role. Results may be incomplete; Oracle documents no pagination input.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `cube` | string | Yes | Cube / plan type name, not its numeric plan type ID. |
+| `insightSlice` | json | Yes | IPM slice: pov \{members:string\[\], dimensions:string\[\]\}; rowAxisDefinition and columnAxisDefinition each \{dimensions:string\[\], segments:string\[\]\[\]\[\]\}. Not a Planning data grid. |
+| `retrievalMode` | string | No | USE_EXISTING \(default\) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role. |
+| `calendar` | string | No | Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `insights` | array | IPM insights in this response; inspect hasMore before treating the results as complete |
+|   ↳ `id` | string | Oracle numeric insight ID normalized to a string for summaries |
+|   ↳ `type` | string | Insight category |
+|   ↳ `accountName` | string | accountName |
+|   ↳ `sourceAccountName` | string | sourceAccountName |
+|   ↳ `planType` | string | planType |
+|   ↳ `actualImpact` | string | actualImpact |
+|   ↳ `percentImpact` | string | percentImpact |
+|   ↳ `createdDate` | string | createdDate |
+|   ↳ `description` | string | description |
+|   ↳ `standardVariance` | string | standardVariance |
+|   ↳ `priority` | string | priority |
+|   ↳ `pov` | string | pov |
+|   ↳ `percentageDiff` | string | percentageDiff |
+|   ↳ `percentageDiffFromAnomaly` | string | percentageDiffFromAnomaly |
+|   ↳ `outlierValue` | number | Raw anomaly outlier |
+|   ↳ `actualImpactValue` | number | Raw impact value |
+| `totalResults` | number | Total insight count reported by Oracle |
+| `hasMore` | boolean | Oracle reports incomplete results when true; no pagination request is documented |
+
+### Oracle EPM Planning Summarize Insights
+
+Return an IPM text summary by insight IDs or by slice. Slice mode requires a cube and insight slice. Defaults to existing insights; recomputing requires a calendar and Administrator or IPM Manage role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM service-account credential |
+| `application` | string | Yes | Application name, exactly as configured in Oracle. |
+| `summaryInputMode` | string | Yes | ids summarizes explicit insight IDs; slice summarizes an insight slice and requires cube plus insightSlice. |
+| `insightIds` | array | No | 1–1000 insight ID strings returned by Get Insights; required in ids summary mode. |
+| `cube` | string | No | Cube / plan type name, not its numeric plan type ID. |
+| `insightSlice` | json | No | IPM slice: pov \{members:string\[\], dimensions:string\[\]\}; rowAxisDefinition and columnAxisDefinition each \{dimensions:string\[\], segments:string\[\]\[\]\[\]\}. Not a Planning data grid. |
+| `retrievalMode` | string | No | USE_EXISTING \(default\) reads stored insights. FORCE_RECOMPUTE generates insights and requires a calendar and Administrator or IPM Manage role. |
+| `calendar` | string | No | Tenant calendar name, required only when generating insights with FORCE_RECOMPUTE. |
+| `summarySize` | number | No | Maximum summary length in words \(default 100; Sim range 1–10000\). Output format is always text. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | string | Oracle IPM summary in text format |
+
+
