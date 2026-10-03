@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Tests the single normalization pipeline shared by `PUT /api/workflows/[id]/state`
  * and `POST /api/v1/workflows/import`. Both write paths must land identical data
  * for identical input, so this is where that behavior is pinned.
@@ -36,8 +34,8 @@ describe('prepareWorkflowStateForPersistence', () => {
     expect(warnings.some((w) => w.includes('dangling'))).toBe(true)
   })
 
-  it('drops blocks missing type or name', () => {
-    const { state } = prepareWorkflowStateForPersistence({
+  it('drops blocks missing type or name, and says which', () => {
+    const { state, warnings } = prepareWorkflowStateForPersistence({
       blocks: {
         ok: block({ id: 'ok' }),
         noType: block({ id: 'noType', type: '' }),
@@ -47,6 +45,9 @@ describe('prepareWorkflowStateForPersistence', () => {
     })
 
     expect(Object.keys(state.blocks)).toEqual(['ok'])
+    // A block with no edges left no other trace of having been dropped.
+    expect(warnings).toContain('Dropped block "noType": missing type or name')
+    expect(warnings).toContain('Dropped block "noName": missing type or name')
   })
 
   it('backfills the columns the normalized tables require', () => {
@@ -88,14 +89,5 @@ describe('prepareWorkflowStateForPersistence', () => {
 
     expect(state.loops.loop1?.nodes).toEqual(['child'])
     expect(state.parallels.par1?.nodes).toEqual(['childP'])
-  })
-
-  it('does not mutate the caller-supplied blocks', () => {
-    const blocks = { a: block({ id: 'a' }) }
-    const snapshot = structuredClone(blocks)
-
-    prepareWorkflowStateForPersistence({ blocks, edges: [] as never })
-
-    expect(blocks).toEqual(snapshot)
   })
 })

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelGetTeamParams, VercelGetTeamResponse } from '@/tools/vercel/types'
 
 export const vercelGetTeamTool: ToolConfig<VercelGetTeamParams, VercelGetTeamResponse> = {
@@ -23,7 +24,8 @@ export const vercelGetTeamTool: ToolConfig<VercelGetTeamParams, VercelGetTeamRes
   },
 
   request: {
-    url: (params: VercelGetTeamParams) => `https://api.vercel.com/v2/teams/${params.teamId.trim()}`,
+    url: (params: VercelGetTeamParams) =>
+      `https://api.vercel.com/v2/teams/${safeUrlPathSegment(params.teamId, 'teamId')}`,
     method: 'GET',
     headers: (params: VercelGetTeamParams) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,34 +1,11 @@
-import { createLogger } from '@sim/logger'
-import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type { OktaGroup, OktaUpdateGroupParams, OktaUpdateGroupResponse } from '@/tools/okta/types'
-import { mergeOktaGroupProfile, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { OktaUpdateGroupParams, OktaUpdateGroupResponse } from '@/tools/okta/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-const logger = createLogger('OktaUpdateGroup')
-
-/** Shared by the direct-execution and declarative paths so both emit one shape. */
-async function transformUpdateGroupResponse(response: Response): Promise<OktaUpdateGroupResponse> {
-  if (!response.ok) {
-    await throwOktaError(response, logger, 'Failed to update group in Okta')
-  }
-
-  const group: OktaGroup = await response.json()
-  return {
-    success: true,
-    output: {
-      id: group.id,
-      name: group.profile?.name ?? '',
-      description: group.profile?.description ?? null,
-      type: group.type,
-      created: group.created,
-      lastUpdated: group.lastUpdated,
-      lastMembershipUpdated: group.lastMembershipUpdated ?? null,
-      success: true,
-    },
-  }
-}
-
-export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGroupResponse> = {
+export const oktaUpdateGroupTool: InternalToolConfig<
+  OktaUpdateGroupParams,
+  OktaUpdateGroupResponse
+> = {
   id: 'okta_update_group',
   name: 'Update Group in Okta',
   description:
@@ -78,52 +55,9 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
    * every rename, along with any custom attribute the org had defined. Reading
    * first is the only way an omitted field can mean "leave it alone".
    */
-  directExecution: async (params, signal): Promise<ToolResponse> => {
-    const domain = validateOktaDomain(params.domain)
-    const url = `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
-    const headers = oktaHeaders(params.apiKey)
-
-    const readResponse = await fetch(url, { headers, signal })
-    if (!readResponse.ok) {
-      await throwOktaError(readResponse, logger, 'Failed to load group for update in Okta')
-    }
-    const existing: OktaGroup = await readResponse.json()
-
-    const writeResponse = await fetch(url, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ profile: mergeOktaGroupProfile(existing.profile, params) }),
-      signal,
-    })
-
-    return transformUpdateGroupResponse(writeResponse)
+  operation: {
+    input: createInternalToolOperationInput,
   },
-
-  /**
-   * Unreachable fallback, kept only because `ToolConfig` requires a `request`.
-   *
-   * The executor always prefers `directExecution` for this tool. If that ever
-   * changed, this path could not read the stored profile first, so the `PUT`
-   * would replace an extensible profile with the two fields the caller
-   * supplied — erasing the stored description on a rename and every org-defined
-   * custom attribute. Failing loudly is the only safe behavior; silently
-   * truncating the profile is not.
-   */
-  request: {
-    url: (params) => {
-      const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
-    },
-    method: 'PUT',
-    headers: (params) => oktaHeaders(params.apiKey),
-    body: () => {
-      throw new Error(
-        'Okta update_group requires direct execution: replacing a group profile without reading it first would erase the stored description and every custom attribute'
-      )
-    },
-  },
-
-  transformResponse: (response: Response) => transformUpdateGroupResponse(response),
 
   outputs: {
     id: { type: 'string', description: 'Group ID' },

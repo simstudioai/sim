@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import { HubspotIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('HubSpotPollingTrigger')
 
 export const hubspotPollingTrigger: TriggerConfig = {
   id: 'hubspot_poller',
@@ -66,6 +63,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       description: 'The HubSpot list to watch for new members.',
       placeholder: 'Select a list',
       dependsOn: ['triggerCredentials'],
+      searchable: true,
       required: { field: 'objectType', value: 'list_membership' },
       mode: 'trigger',
       condition: { field: 'objectType', value: 'list_membership' },

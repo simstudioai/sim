@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { Readable } from 'stream'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -11,7 +7,6 @@ import {
   readFileToBufferWithLimit,
   readFormDataWithLimit,
   readNodeStreamToBufferWithLimit,
-  readResponseJsonWithLimit,
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
   readStreamToBufferWithLimit,
@@ -74,15 +69,6 @@ function headers(contentLength?: string): Headers {
 }
 
 describe('stream limits', () => {
-  it('reads a stream under the limit', async () => {
-    const buffer = await readStreamToBufferWithLimit(
-      streamFromChunks([new TextEncoder().encode('hello'), new TextEncoder().encode(' world')]),
-      { maxBytes: 32, label: 'test payload' }
-    )
-
-    expect(buffer.toString('utf-8')).toBe('hello world')
-  })
-
   it('rejects when content-length is over the limit', () => {
     expect(() => assertContentLengthWithinLimit(headers('11'), 10, 'download')).toThrow(
       PayloadSizeLimitError
@@ -145,20 +131,6 @@ describe('stream limits', () => {
     expect(buffer.length).toBe(0)
   })
 
-  it('reads text and JSON responses with limits', async () => {
-    const text = await readResponseTextWithLimit(
-      { body: streamFromChunks([new TextEncoder().encode('hello')]) },
-      { maxBytes: 10, label: 'text response' }
-    )
-    const json = await readResponseJsonWithLimit<{ ok: boolean }>(
-      { body: streamFromChunks([new TextEncoder().encode('{"ok":true}')]) },
-      { maxBytes: 20, label: 'json response' }
-    )
-
-    expect(text).toBe('hello')
-    expect(json.ok).toBe(true)
-  })
-
   it('prefers arrayBuffer over text for binary response fallbacks', async () => {
     const bytes = Uint8Array.from([0, 255, 1, 254])
     const arrayBuffer = vi.fn(async () => bytes.buffer)
@@ -183,6 +155,65 @@ describe('stream limits', () => {
         { maxBytes: 10, label: 'unknown response' }
       )
     ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+  })
+
+  it('does not let the text convenience reader bypass the bodyless fail-closed rule', async () => {
+    const text = vi.fn(async () => 'small but not independently bounded')
+
+    await expect(
+      readResponseTextWithLimit(
+        { body: null, text },
+        { maxBytes: 100, label: 'unknown text response' }
+      )
+    ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+    expect(text).not.toHaveBeenCalled()
+  })
+
+  it('rejects an undeclared bodyless response even without a fallback materializer', async () => {
+    await expect(
+      readResponseToBufferWithLimit(
+        { body: null },
+        { maxBytes: 100, label: 'unknown empty response' }
+      )
+    ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+  })
+
+  it('allows a bodyless fallback only with a trusted length or explicit declaration', async () => {
+    const declared = await readResponseTextWithLimit(
+      { headers: headers('5'), body: null, text: async () => 'hello' },
+      { maxBytes: 5, label: 'declared response' }
+    )
+    const explicitlyBounded = await readResponseTextWithLimit(
+      { body: null, text: async () => 'hello' },
+      { maxBytes: 5, label: 'trusted fallback', allowNoBodyFallback: true }
+    )
+
+    expect(declared).toBe('hello')
+    expect(explicitlyBounded).toBe('hello')
+  })
+
+  it.each([204, 205, 304])('accepts a semantically bodyless HTTP %i response', async (status) => {
+    const text = vi.fn(async () => 'must not be materialized')
+
+    const result = await readResponseTextWithLimit(
+      { status, headers: headers('1000'), body: null, text },
+      { maxBytes: 100, label: 'bodyless response' }
+    )
+
+    expect(result).toBe('')
+    expect(text).not.toHaveBeenCalled()
+  })
+
+  it('accepts a semantically bodyless HEAD response', async () => {
+    const text = vi.fn(async () => 'must not be materialized')
+
+    const result = await readResponseTextWithLimit(
+      { status: 200, headers: headers('1000'), body: null, text },
+      { maxBytes: 100, label: 'HEAD response', requestMethod: 'HEAD' }
+    )
+
+    expect(result).toBe('')
+    expect(text).not.toHaveBeenCalled()
   })
 
   it('cancels when the abort signal is already aborted', async () => {

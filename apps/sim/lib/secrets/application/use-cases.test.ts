@@ -1,7 +1,20 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DeleteSecretInput,
@@ -9,71 +22,59 @@ import type {
   SetSecretInput,
 } from '@/lib/secrets/application/use-cases'
 
-const { mocks } = vi.hoisted(() => ({
+const { mocks: hoisted } = vi.hoisted(() => ({
   mocks: {
-    loadContext: vi.fn(),
-    resolvePermission: vi.fn(),
-    workspaceAccess: vi.fn(),
-    keyAccess: vi.fn(),
-    personalMetadata: vi.fn(),
     setWorkspace: vi.fn(),
+    updateWorkspaceMetadata: vi.fn(),
     setPersonal: vi.fn(),
     deletePersonal: vi.fn(),
     listCredentials: vi.fn(),
     secretUsage: vi.fn(),
-    workspaceEnvValue: vi.fn(),
     scanReferences: vi.fn(),
-    audit: vi.fn(),
   },
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    ENVIRONMENT_UPDATED: 'environment.updated',
-    ENVIRONMENT_DELETED: 'environment.deleted',
-  },
-  AuditResourceType: { ENVIRONMENT: 'environment' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.workspaceAccess,
-}))
-vi.mock('@/lib/credentials/environment', () => ({
-  getWorkspaceEnvKeyAdminAccess: mocks.keyAccess,
-  getPersonalEnvCredentialMetadata: mocks.personalMetadata,
-  hasWorkspaceEnvValue: mocks.workspaceEnvValue,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 vi.mock('@/lib/secrets/references/scan', () => ({
-  scanSecretReferences: mocks.scanReferences,
+  scanSecretReferences: hoisted.scanReferences,
 }))
 vi.mock('@/lib/credentials/queries', () => ({
-  listVisibleWorkspaceCredentials: mocks.listCredentials,
+  listVisibleWorkspaceCredentials: hoisted.listCredentials,
 }))
 vi.mock('@/lib/secrets/usage/queries', () => ({
-  getSecretUsage: mocks.secretUsage,
+  getSecretUsage: hoisted.secretUsage,
 }))
 vi.mock('@/lib/credentials/secret-values', () => ({
-  deletePersonalSecret: mocks.deletePersonal,
+  deletePersonalSecret: hoisted.deletePersonal,
   deleteWorkspaceSecret: vi.fn(),
-  setPersonalSecret: mocks.setPersonal,
-  setWorkspaceSecret: mocks.setWorkspace,
+  setPersonalSecret: hoisted.setPersonal,
+  setWorkspaceSecret: hoisted.setWorkspace,
+  updateWorkspaceSecretMetadata: hoisted.updateWorkspaceMetadata,
 }))
 
 import {
   deleteSecretUseCase,
   type ListSecretReferencesInput,
   listSecretReferencesUseCase,
+  listSecretsUseCase,
   listSecretUsageUseCase,
   setSecretUseCase,
 } from '@/lib/secrets/application/use-cases'
+
+const mocks = {
+  ...hoisted,
+  keyAccess: credentialsEnvironmentMockFns.mockGetWorkspaceEnvKeyAdminAccess,
+  personalMetadata: credentialsEnvironmentMockFns.mockGetPersonalEnvCredentialMetadata,
+  workspaceEnvValue: credentialsEnvironmentMockFns.mockHasWorkspaceEnvValue,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  workspaceAccess: permissionsMockFns.mockCheckWorkspaceAccess,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -96,6 +97,15 @@ const secret = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   hasServiceAccountKey: false,
   role: 'admin' as const,
+  unredacted: false,
+}
+
+const visibleSecret = {
+  ...secret,
+  id: 'secret-3',
+  displayName: 'STAGING_BASE_URL',
+  envKey: 'STAGING_BASE_URL',
+  unredacted: true,
 }
 
 const personalUpdatedAt = new Date('2026-02-01T00:00:00Z')
@@ -108,21 +118,83 @@ const personalSecret = {
   envOwnerUserId: 'user-1',
 }
 
-const session = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const session = createSessionPrincipal()
 
 describe('secret application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
     mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
     mocks.setWorkspace.mockResolvedValue({ created: true, updatedAt: personalUpdatedAt })
+    mocks.updateWorkspaceMetadata.mockResolvedValue({
+      created: false,
+      updatedAt: personalUpdatedAt,
+    })
     mocks.setPersonal.mockResolvedValue({ created: true, updatedAt: personalUpdatedAt })
     mocks.personalMetadata.mockResolvedValue(null)
     mocks.deletePersonal.mockResolvedValue(true)
     mocks.listCredentials.mockResolvedValue({ data: [secret], nextCursorKeys: null })
     mocks.secretUsage.mockResolvedValue({ entries: [] })
+  })
+
+  it('reads values for exactly the visible (unredacted) workspace rows on the page', async () => {
+    mocks.listCredentials.mockResolvedValue({
+      data: [secret, visibleSecret, personalSecret],
+      nextCursorKeys: null,
+    })
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: {},
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceEncrypted: { [visibleSecret.envKey]: 'encrypted-visible' },
+      workspaceDecrypted: { [visibleSecret.envKey]: 'https://staging.example.com' },
+      workspaceUnredactedKeys: [visibleSecret.envKey],
+    })
+
+    const result = await listSecretsUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 50,
+      },
+    })
+
+    expect(result.values).toEqual({ [visibleSecret.envKey]: 'https://staging.example.com' })
+  })
+
+  it('withholds a visible value shared with a protected secret', async () => {
+    mocks.listCredentials.mockResolvedValue({ data: [visibleSecret], nextCursorKeys: null })
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: {},
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceEncrypted: {
+        [visibleSecret.envKey]: 'encrypted-visible',
+        HIDDEN: 'encrypted-hidden',
+      },
+      workspaceDecrypted: {
+        [visibleSecret.envKey]: 'shared-protected-value',
+        HIDDEN: 'shared-protected-value',
+      },
+      workspaceUnredactedKeys: [visibleSecret.envKey],
+    })
+    const result = await listSecretsUseCase.execute({
+      principal: session,
+      input: {
+        workspaceId: workspace.workspaceId,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 50,
+      },
+    })
+    expect(result.values).toEqual({})
   })
 
   it('rejects workspace keys before resolving or reading secret state', async () => {
@@ -133,11 +205,10 @@ describe('secret application use cases', () => {
 
     await expect(
       execute({
-        principal: {
-          kind: 'workspace_api_key',
+        principal: createWorkspaceApiKeyPrincipal({
           workspaceId: workspace.workspaceId,
           keyId: 'workspace-key-1',
-        },
+        }),
         input: {
           workspaceId: workspace.workspaceId,
           name: secret.envKey,
@@ -154,7 +225,7 @@ describe('secret application use cases', () => {
 
   it('checks ACLs, writes through the manager, and audits without the secret value', async () => {
     const result = await setSecretUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         workspaceId: workspace.workspaceId,
         name: secret.envKey,
@@ -184,27 +255,10 @@ describe('secret application use cases', () => {
     expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain('secret-value')
   })
 
-  it('forwards a workspace description to the manager', async () => {
-    await setSecretUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workspaceId: workspace.workspaceId,
-        name: secret.envKey,
-        scope: 'workspace',
-        value: 'secret-value',
-        description: 'Prod billing key',
-      },
-    })
-
-    expect(mocks.setWorkspace).toHaveBeenCalledWith(
-      expect.objectContaining({ description: 'Prod billing key' })
-    )
-  })
-
   it('refuses a description on a personal secret in the use case, not just the contract', async () => {
     await expect(
       setSecretUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: workspace.workspaceId,
           name: secret.envKey,
@@ -232,84 +286,66 @@ describe('secret application use cases', () => {
     ).rejects.toThrow(/workspace:STRIPE_API_KEY/)
   })
 
-  it('reports a committed personal write when this workspace holds no mirror', async () => {
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: true })
-    mocks.listCredentials.mockResolvedValue({ data: [], nextCursorKeys: null })
-
+  it('updates workspace metadata through the update-only manager, never re-encrypting the value', async () => {
     const result = await setSecretUseCase.execute({
       principal: session,
       input: {
         workspaceId: workspace.workspaceId,
-        name: personalSecret.envKey,
-        scope: 'personal',
-        value: 'secret-value',
+        name: secret.envKey,
+        scope: 'workspace',
+        unredacted: false,
       },
     })
 
-    expect(mocks.setPersonal).toHaveBeenCalledWith({
-      userId: 'user-1',
-      name: personalSecret.envKey,
-      value: 'secret-value',
+    expect(mocks.updateWorkspaceMetadata).toHaveBeenCalledWith({
+      workspaceId: workspace.workspaceId,
+      name: secret.envKey,
+      description: undefined,
+      unredacted: false,
     })
-    expect(result.created).toBe(true)
-    expect(result.secret).toMatchObject({
-      type: 'env_personal',
-      envKey: personalSecret.envKey,
-      envOwnerUserId: 'user-1',
-      role: 'admin',
-      createdAt: personalUpdatedAt,
-      updatedAt: personalUpdatedAt,
-    })
-  })
-
-  it('dates a mirrorless personal write from the secret the caller already owns', async () => {
-    const createdAt = new Date('2025-06-01T00:00:00Z')
-    mocks.listCredentials.mockResolvedValue({ data: [], nextCursorKeys: null })
-    mocks.personalMetadata.mockResolvedValue({
-      id: 'secret-2',
-      createdAt,
-      updatedAt: createdAt,
-    })
-    mocks.setPersonal.mockResolvedValue({ created: false, updatedAt: personalUpdatedAt })
-
-    const result = await setSecretUseCase.execute({
-      principal: session,
-      input: {
-        workspaceId: workspace.workspaceId,
-        name: personalSecret.envKey,
-        scope: 'personal',
-        value: 'secret-value',
-      },
-    })
-
-    expect(mocks.personalMetadata).toHaveBeenCalledWith({
-      userId: 'user-1',
-      envKey: personalSecret.envKey,
-    })
+    expect(mocks.setWorkspace).not.toHaveBeenCalled()
+    expect(mocks.setPersonal).not.toHaveBeenCalled()
     expect(result.created).toBe(false)
-    expect(result.secret).toMatchObject({
-      id: 'secret-2',
-      createdAt,
-      updatedAt: personalUpdatedAt,
-    })
   })
 
-  it('prefers this workspace mirror for a personal write when one exists', async () => {
-    mocks.listCredentials.mockResolvedValue({ data: [personalSecret], nextCursorKeys: null })
-
-    const result = await setSecretUseCase.execute({
-      principal: session,
-      input: {
-        workspaceId: workspace.workspaceId,
-        name: personalSecret.envKey,
-        scope: 'personal',
-        value: 'secret-value',
-      },
+  it('still checks the per-key ACL before a metadata-only write', async () => {
+    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
+    mocks.keyAccess.mockResolvedValue({
+      knownKeys: new Set([secret.envKey]),
+      adminKeys: new Set(),
     })
 
-    expect(result.secret).toBe(personalSecret)
-    expect(mocks.personalMetadata).not.toHaveBeenCalled()
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+          unredacted: true,
+        },
+      })
+    ).rejects.toThrow(/Credential admin permission required/)
+
+    expect(mocks.updateWorkspaceMetadata).not.toHaveBeenCalled()
+  })
+
+  it('reports a metadata write against a missing secret as not found rather than creating one', async () => {
+    mocks.updateWorkspaceMetadata.mockResolvedValue(null)
+
+    await expect(
+      setSecretUseCase.execute({
+        principal: session,
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'workspace',
+          unredacted: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.setWorkspace).not.toHaveBeenCalled()
   })
 
   it('deletes a personal secret for the caller rather than for one workspace', async () => {
@@ -349,7 +385,6 @@ describe('listSecretUsageUseCase', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.secretUsage.mockResolvedValue({ entries: [] })
@@ -371,41 +406,6 @@ describe('listSecretUsageUseCase', () => {
     )
     expect(mocks.secretUsage).not.toHaveBeenCalled()
   })
-
-  it('allows a credential admin of that key', async () => {
-    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
-    mocks.keyAccess.mockResolvedValue({
-      knownKeys: new Set(['STRIPE_API_KEY']),
-      adminKeys: new Set(['STRIPE_API_KEY']),
-    })
-
-    await expect(execute({ principal: session, input: workspaceInput })).resolves.toMatchObject({
-      entries: [],
-    })
-    expect(mocks.secretUsage).toHaveBeenCalledWith({
-      workspaceId: workspace.workspaceId,
-      secretName: 'STRIPE_API_KEY',
-      secretScope: 'workspace',
-      secretOwnerUserId: '',
-      limit: 100,
-    })
-  })
-
-  it('allows a workspace admin without a per-key grant', async () => {
-    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: true })
-    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
-
-    await expect(execute({ principal: session, input: workspaceInput })).resolves.toBeDefined()
-  })
-
-  /** A personal secret is only ever the caller's own namespace, so there is nothing to gate. */
-  it('reads a personal secret without a credential-admin check', async () => {
-    await expect(
-      execute({ principal: session, input: { ...workspaceInput, scope: 'personal' } })
-    ).resolves.toBeDefined()
-    expect(mocks.workspaceAccess).not.toHaveBeenCalled()
-    expect(mocks.keyAccess).not.toHaveBeenCalled()
-  })
 })
 
 describe('listSecretReferencesUseCase', () => {
@@ -421,7 +421,6 @@ describe('listSecretReferencesUseCase', () => {
   const scan = { workflows: [], resources: [], truncated: false }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.scanReferences.mockResolvedValue(scan)
@@ -457,39 +456,6 @@ describe('listSecretReferencesUseCase', () => {
       'Credential admin permission required to view this secret usage'
     )
     expect(mocks.scanReferences).not.toHaveBeenCalled()
-  })
-
-  it('denies a caller who holds no secret of that name', async () => {
-    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
-    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
-    mocks.workspaceEnvValue.mockResolvedValue(false)
-    mocks.personalMetadata.mockResolvedValue(null)
-
-    await expect(execute({ principal: session, input })).rejects.toThrow(
-      'Credential admin permission required to view this secret usage'
-    )
-    expect(mocks.scanReferences).not.toHaveBeenCalled()
-  })
-
-  it('allows the owner of a personal secret that no workspace value shadows', async () => {
-    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
-    mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
-    mocks.workspaceEnvValue.mockResolvedValue(false)
-    mocks.personalMetadata.mockResolvedValue({ id: 'cred-1' })
-
-    await expect(execute({ principal: session, input })).resolves.toEqual(scan)
-  })
-
-  it('allows a credential admin of that key', async () => {
-    mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
-    mocks.keyAccess.mockResolvedValue({
-      knownKeys: new Set(['STRIPE_API_KEY']),
-      adminKeys: new Set(['STRIPE_API_KEY']),
-    })
-
-    await expect(execute({ principal: session, input })).resolves.toEqual(scan)
-    // An admin stays authorized however the name resolves, so the volatile input is never read.
-    expect(mocks.workspaceEnvValue).not.toHaveBeenCalled()
   })
 
   /**

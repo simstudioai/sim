@@ -5,6 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 
 const logger = createLogger('TrelloCallback')
 
@@ -48,7 +49,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const returnUrl =
     requestedReturnUrl && isSameOrigin(requestedReturnUrl)
       ? requestedReturnUrl
-      : `${baseUrl}/workspace`
+      : `${baseUrl}${APP_ENTRY_PATH}`
   const queryState = parsed.data.query.state
   const cookieState = request.cookies.get(TRELLO_STATE_COOKIE)?.value
 

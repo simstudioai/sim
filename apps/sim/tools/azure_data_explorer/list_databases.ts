@@ -3,13 +3,12 @@ import type {
   AzureDataExplorerListDatabasesParams,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerListDatabasesTool: ToolConfig<
+export const azureDataExplorerListDatabasesTool: InternalToolConfig<
   AzureDataExplorerListDatabasesParams,
   AzureDataExplorerDatabaseListResponse
 > = {
@@ -50,12 +49,9 @@ export const azureDataExplorerListDatabasesTool: ToolConfig<
       description: 'Token audience override. Defaults to the cluster URI itself',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...azureDataExplorerAuthBody(params),
+  operation: {
+    input: (params) => ({
+      ...azureDataExplorerAuthInput(params),
       endpoint: 'mgmt',
       csl: '.show databases',
     }),

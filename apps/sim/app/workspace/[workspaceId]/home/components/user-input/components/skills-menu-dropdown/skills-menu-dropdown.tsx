@@ -9,6 +9,7 @@ import {
   dropdownMenuRowClass,
 } from '@sim/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import type { McpServer } from '@/hooks/queries/mcp'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 
@@ -30,7 +31,7 @@ export interface SkillsMenuHandle {
 
 interface SkillsMenuDropdownProps {
   /** Skills available in the current workspace. */
-  skills: SkillDefinition[]
+  skills: (SkillDefinition & { workspaceName?: string })[]
   /** Connected MCP servers available in the current workspace. */
   mcpServers: McpServer[]
   /** Called when a skill row is chosen (click / keyboard). */
@@ -79,7 +80,13 @@ export const SkillsMenuDropdown = React.memo(
         ...mcpServers.map((server) => ({ kind: 'mcp' as const, item: server })),
       ]
       if (!q) return items
-      return items.filter(({ item }) => item.name.toLowerCase().includes(q))
+      return items.filter(
+        ({ item }) =>
+          item.name.toLowerCase().includes(q) ||
+          ('workspaceName' in item &&
+            typeof item.workspaceName === 'string' &&
+            item.workspaceName.toLowerCase().includes(q))
+      )
     }, [skills, mcpServers, slashQuery])
 
     const filteredItemsRef = useRef(filteredItems)
@@ -165,11 +172,11 @@ export const SkillsMenuDropdown = React.memo(
       e.preventDefault()
       const textarea = textareaRef.current
       if (!textarea) return
+      textarea.focus()
       if (pendingCursorRef.current !== null) {
         textarea.setSelectionRange(pendingCursorRef.current, pendingCursorRef.current)
         pendingCursorRef.current = null
       }
-      textarea.focus()
     }
 
     // Preventing the mount auto-focus keeps the textarea focused and leaves the
@@ -182,14 +189,8 @@ export const SkillsMenuDropdown = React.memo(
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <div
-            style={{
-              position: 'fixed',
-              left: anchorPos?.left ?? 0,
-              top: anchorPos?.top ?? 0,
-              width: 0,
-              height: 0,
-              pointerEvents: 'none',
-            }}
+            className='pointer-events-none fixed size-0'
+            style={{ left: anchorPos?.left ?? 0, top: anchorPos?.top ?? 0 }}
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -207,9 +208,13 @@ export const SkillsMenuDropdown = React.memo(
             {filteredItems.length > 0 ? (
               filteredItems.map((target, index) => {
                 const isActive = index === activeIndex
+                const McpServerIcon =
+                  target.kind === 'mcp' && target.item.managedConnectorId
+                    ? getManagedMcpConnectorIcon(target.item.managedConnectorId)
+                    : McpIcon
                 return (
                   <button
-                    key={`${target.kind}:${target.item.id}`}
+                    key={`${target.kind}:${target.kind === 'skill' ? target.item.workspaceId : ''}:${target.item.id}`}
                     type='button'
                     role='menuitem'
                     data-filtered-idx={index}
@@ -222,8 +227,13 @@ export const SkillsMenuDropdown = React.memo(
                       isActive && 'bg-[var(--surface-hover)]'
                     )}
                   >
-                    {target.kind === 'skill' ? <AgentSkillsIcon /> : <McpIcon />}
+                    {target.kind === 'skill' ? <AgentSkillsIcon /> : <McpServerIcon />}
                     <span>{target.item.name}</span>
+                    {target.kind === 'skill' && target.item.workspaceName && (
+                      <span className='ml-auto text-[var(--text-muted)] text-xs'>
+                        {target.item.workspaceName}
+                      </span>
+                    )}
                   </button>
                 )
               })

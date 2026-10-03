@@ -1,9 +1,8 @@
 import { ApiIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { RequestResponse } from '@/tools/http/types'
 
-export const ApiBlock: BlockConfig<RequestResponse> = {
+export const ApiBlock: BlockConfig = {
   type: 'api',
   name: 'API',
   description: 'Use any API',
@@ -66,6 +65,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'body',
       title: 'Body',
       type: 'code',
+      language: 'json',
       placeholder: 'Enter JSON...',
       wandConfig: {
         enabled: true,

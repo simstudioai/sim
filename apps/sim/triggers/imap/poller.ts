@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { MailServerIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('ImapPollingTrigger')
 
 export const imapPollingTrigger: TriggerConfig = {
   id: 'imap_poller',

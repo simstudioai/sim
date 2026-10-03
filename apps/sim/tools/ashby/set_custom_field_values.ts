@@ -1,5 +1,6 @@
 import type { AshbyCustomField } from '@/tools/ashby/types'
 import {
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   CUSTOM_FIELDS_OUTPUT,
@@ -10,6 +11,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbySetCustomFieldValuesParams {
   apiKey: string
+  onBehalfOfUserId?: string
   objectId: string
   objectType: string
   values: unknown
@@ -38,6 +40,7 @@ export const setCustomFieldValuesTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     objectId: {
       type: 'string',
       required: true,
@@ -63,7 +66,7 @@ export const setCustomFieldValuesTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/customField.setValues',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     /** Ashby rejects an empty array; fail here with a message naming the field. */
     body: (params) => {
       if (!Array.isArray(params.values) || params.values.length === 0) {

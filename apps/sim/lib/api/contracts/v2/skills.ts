@@ -27,11 +27,11 @@ import {
  *
  * 1. **Single-resource writes.** The internal `POST` takes an array, conflates
  *    create and update, and answers with the whole workspace skill list. v2
- *    splits it into `POST /v2/skills` (201) and `PATCH /v2/skills/[id]`, each
+ *    splits it into `POST /v2/skills` (201) and `PATCH /v2/skills/[skillId]`, each
  *    answering with the one skill that changed.
  * 2. **`content` is detail-only.** A skill body is up to 50 000 characters, so
  *    the list returns summaries and the full body is fetched per skill from
- *    `GET /v2/skills/[id]`.
+ *    `GET /v2/skills/[skillId]`.
  *
  * Field validation lives in `lib/skills/orchestration`, so these schemas and the
  * lib enforce the same limits — the schemas reuse the shared field primitives
@@ -119,7 +119,7 @@ export const v2SkillEditorDeleteDataSchema = z
 export type V2SkillEditorDeleteData = z.output<typeof v2SkillEditorDeleteDataSchema>
 
 export const v2SkillParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe(
+  skillId: nonEmptyIdSchema.describe(
     'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
   ),
 })
@@ -258,7 +258,7 @@ export const v2CreateSkillContract = defineRouteContract({
 
 export const v2GetSkillContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/skills/[id]',
+  path: '/api/v2/skills/[skillId]',
   params: v2SkillParamsSchema,
   query: v2SkillWorkspaceQuerySchema,
   response: {
@@ -269,7 +269,7 @@ export const v2GetSkillContract = defineRouteContract({
 
 export const v2UpdateSkillContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/skills/[id]',
+  path: '/api/v2/skills/[skillId]',
   query: noInputSchema,
   params: v2SkillParamsSchema,
   body: v2UpdateSkillBodySchema,
@@ -281,7 +281,7 @@ export const v2UpdateSkillContract = defineRouteContract({
 
 export const v2DeleteSkillContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/skills/[id]',
+  path: '/api/v2/skills/[skillId]',
   params: v2SkillParamsSchema,
   query: v2SkillWorkspaceQuerySchema,
   response: {
@@ -292,7 +292,7 @@ export const v2DeleteSkillContract = defineRouteContract({
 
 export const v2ListSkillEditorsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/skills/[id]/editors',
+  path: '/api/v2/skills/[skillId]/editors',
   params: v2SkillParamsSchema,
   query: v2ListSkillEditorsQuerySchema,
   response: {
@@ -303,7 +303,7 @@ export const v2ListSkillEditorsContract = defineRouteContract({
 
 export const v2GrantSkillEditorContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/skills/[id]/editors',
+  path: '/api/v2/skills/[skillId]/editors',
   params: v2SkillParamsSchema,
   query: noInputSchema,
   body: v2GrantSkillEditorBodySchema,
@@ -316,7 +316,7 @@ export const v2GrantSkillEditorContract = defineRouteContract({
 
 export const v2RevokeSkillEditorContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/skills/[id]/editors',
+  path: '/api/v2/skills/[skillId]/editors',
   params: v2SkillParamsSchema,
   query: v2RevokeSkillEditorQuerySchema,
   response: {

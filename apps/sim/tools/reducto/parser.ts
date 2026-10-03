@@ -5,9 +5,9 @@ import type {
   ReductoParserOutput,
   ReductoParserV2Input,
 } from '@/tools/reducto/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutput> = {
+export const reductoParserTool: InternalToolConfig<ReductoParserInput, ReductoParserOutput> = {
   id: 'reducto_parser',
   name: 'Reducto PDF Parser',
   description: 'Parse PDF documents using Reducto OCR API',
@@ -42,7 +42,7 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Table output format (html or markdown). Defaults to markdown.',
+      description: 'Table output format (`md` for Markdown or `html` for HTML). Defaults to `md`.',
     },
     apiKey: {
       type: 'string',
@@ -52,17 +52,8 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
     },
   },
 
-  request: {
-    url: '/api/tools/reducto/parse',
-    method: 'POST',
-    headers: (params) => {
-      return {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-    },
-    body: (params) => {
+  operation: {
+    input: (params) => {
       if (!params || typeof params !== 'object') {
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }
@@ -183,12 +174,11 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
   },
 }
 
-export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParserOutput> = {
+export const reductoParserV2Tool: InternalToolConfig<ReductoParserV2Input, ReductoParserOutput> = {
   ...reductoParserTool,
   id: 'reducto_parser_v2',
   name: 'Reducto PDF Parser',
   postProcess: undefined,
-  directExecution: undefined,
   transformResponse: reductoParserTool.transformResponse
     ? (response: Response, params?: ReductoParserV2Input) =>
         reductoParserTool.transformResponse!(response, params)
@@ -204,15 +194,8 @@ export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParser
     tableOutputFormat: reductoParserTool.params.tableOutputFormat,
     apiKey: reductoParserTool.params.apiKey,
   },
-  request: {
-    url: '/api/tools/reducto/parse',
-    method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
-    body: (params: ReductoParserV2Input) => {
+  operation: {
+    input: (params: ReductoParserV2Input) => {
       if (!params || typeof params !== 'object') {
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }

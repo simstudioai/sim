@@ -1,15 +1,15 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import {
-  resolveActiveWorkflowApplicationContext,
-  resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workflows/application/context'
+import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import { applyMappedWorkflowImport } from '@/lib/workflows/application/mapped-import'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   resolveWorkflowFolderPath,
@@ -24,8 +24,13 @@ import {
   type ImportedWorkflow,
   importWorkflowIntoWorkspaceTransition,
 } from '@/lib/workflows/operations/import-workflow'
+import type { MappedImportOptions } from '@/lib/workflows/references/import-plan'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 
-export interface ImportWorkflowInput {
+export interface ImportWorkflowInput extends MappedImportOptions {
+  requestId?: string
+  previewFingerprint?: string
   workspaceId: string
   folderPath?: string
   name?: string
@@ -33,13 +38,28 @@ export interface ImportWorkflowInput {
   workflow: string | Record<string, unknown>
 }
 
-export interface ImportWorkflowResult {
-  workflow: ImportedWorkflow
+export type ImportWorkflowOutcome = {
+  operation?: WorkspaceOperationReport
   folderPath: string
+} & (
+  | { workflow: ImportedWorkflow; replayed?: boolean }
+  | {
+      /** Older durable receipts did not record the committed block summary. */
+      workflow: Omit<ImportedWorkflow, 'blocks'> & { blocks?: undefined }
+      replayed: true
+    }
+)
+
+export type ImportWorkflowResult = ImportWorkflowOutcome & {
+  /** Legacy import warnings; mapped imports validate required bindings before committing. */
+  warnings: string[]
 }
 
 export interface ExportWorkflowInput {
+  includeReferences?: boolean
   workflowId: string
+  /** Keep workspace-scoped bindings for a same-workspace round trip; secrets are cleared either way. */
+  includeWorkspaceBindings?: boolean
 }
 
 export interface ExportWorkflowResult {
@@ -50,6 +70,7 @@ export interface ExportWorkflowResult {
 function importErrorCode(status: number): OrchestrationErrorCode {
   if (status === 400) return 'validation'
   if (status === 404) return 'not_found'
+  if (status === 403) return 'forbidden'
   if (status === 409) return 'conflict'
   if (status === 423) return 'locked'
   return 'internal'
@@ -60,6 +81,16 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: ImportWorkflowInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<ImportWorkflowResult> {
+    if (
+      input.mappings !== undefined ||
+      input.bindings !== undefined ||
+      input.dependentValues !== undefined ||
+      input.previewFingerprint !== undefined ||
+      input.requestId !== undefined
+    ) {
+      const result = await applyMappedWorkflowImport(principal, input, context)
+      return { ...result, warnings: [] }
+    }
     const resolution = await resolveWorkflowFolderPath(context.workspaceId, input.folderPath ?? '/')
 
     const attribution = resolvePrincipalAttribution(principal, {
@@ -72,6 +103,7 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
       description: input.description,
       workflow: input.workflow,
       userId: attribution.attributedUserId,
+      capabilityUserId: capabilityGovernedPrincipalUserId(principal),
       requestId: generateRequestId(),
     })
     if (!result.success) {
@@ -80,9 +112,11 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
     return {
       workflow: result.workflow,
       folderPath: workflowFolderPathForId(resolution.index, result.workflow.folderId),
+      warnings: result.warnings,
     }
   },
   projectAudit({ result }) {
+    if (result.replayed) return []
     return {
       action: AuditAction.WORKFLOW_CREATED,
       resourceType: AuditResourceType.WORKFLOW,
@@ -95,17 +129,23 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
         workspaceId: result.workflow.workspaceId,
         folderId: result.workflow.folderId || undefined,
         sortOrder: result.workflow.sortOrder,
+        blocksCount: result.workflow.blocks.length,
       },
     }
   },
+  afterSuccess: ({ result }) =>
+    result.operation ? undefined : notifyWorkspaceWorkflowsChanged(result.workflow.workspaceId),
 })
 
 export const exportWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.export,
   resolveContext: ({ input }: { input: ExportWorkflowInput }) =>
     resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId }),
-  async execute({ context }): Promise<ExportWorkflowResult> {
-    const payload = await buildWorkflowExportPayload(context.workflow)
+  async execute({ context, input }): Promise<ExportWorkflowResult> {
+    const payload = await buildWorkflowExportPayload(context.workflow, {
+      includeReferences: input.includeReferences,
+      includeWorkspaceBindings: input.includeWorkspaceBindings === true,
+    })
     if (!payload) throw new OrchestrationError('not_found', 'Workflow state not found')
     const folderIndex = await loadActiveFolderPathIndex(
       context.workspaceId,
@@ -118,7 +158,7 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
       folderPath: workflowFolderPathForId(folderIndex, context.workflow.folderId),
     }
   },
-  projectAudit({ context, result }) {
+  projectAudit({ input, context, result }) {
     return {
       action: AuditAction.WORKFLOW_EXPORTED,
       resourceType: AuditResourceType.WORKFLOW,
@@ -130,6 +170,7 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
         folderPath: result.folderPath,
         blocksCount: Object.keys(result.payload.state.blocks).length,
         edgesCount: result.payload.state.edges.length,
+        includeWorkspaceBindings: input.includeWorkspaceBindings === true,
       },
     }
   },

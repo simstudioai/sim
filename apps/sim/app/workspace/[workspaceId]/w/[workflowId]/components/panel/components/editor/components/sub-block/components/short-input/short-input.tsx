@@ -1,8 +1,6 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { cn, Input } from '@sim/emcn'
-import { Wand } from '@sim/emcn/icons'
-import { useReactFlow } from 'reactflow'
-import { Button } from '@/components/ui/button'
+import { useReactFlow } from '@xyflow/react'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   maskSecretText,
@@ -13,6 +11,7 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { WandButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-button'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -52,6 +51,10 @@ interface ShortInputProps {
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
   workflowSearchValuePath?: Array<string | number>
+  /** Whether the env-var and tag reference pickers may open. Defaults to `true`. */
+  allowReferences?: boolean
+  /** Called when the input loses focus. */
+  onBlur?: () => void
 }
 
 /**
@@ -81,6 +84,8 @@ export const ShortInput = memo(function ShortInput({
   wandControlRef,
   hideInternalWand = false,
   workflowSearchValuePath = [],
+  allowReferences = true,
+  onBlur,
 }: ShortInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [localContent, setLocalContent] = useState<string>('')
@@ -94,6 +99,7 @@ export const ShortInput = memo(function ShortInput({
     triggerId: undefined,
     isPreview,
     useWebhookUrl,
+    providerWebhookUrl: config.providerWebhookUrl,
   })
 
   const wandHook = useWand({
@@ -213,11 +219,6 @@ export const ShortInput = memo(function ShortInput({
 
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
 
-  const effectiveValue =
-    useWebhookUrl && webhookManagement.webhookUrl ? webhookManagement.webhookUrl : baseValue
-
-  const value = wandHook?.isStreaming ? localContent : effectiveValue
-
   useEffect(() => {
     if (!wandHook.isStreaming) {
       setLocalContent((prev) => {
@@ -281,7 +282,8 @@ export const ShortInput = memo(function ShortInput({
 
   const handleBlur = useCallback(() => {
     setIsFocused(false)
-  }, [])
+    onBlur?.()
+  }, [onBlur])
 
   // Expose wand control handlers to parent via ref
   useImperativeHandle(
@@ -322,6 +324,7 @@ export const ShortInput = memo(function ShortInput({
           disabled={disabled}
           isStreaming={wandHook.isStreaming}
           previewValue={previewValue}
+          allowReferences={allowReferences}
           shouldForceEnvDropdown={shouldForceEnvDropdown}
           shouldForceTagDropdown={shouldForceTagDropdown}
         >
@@ -336,7 +339,7 @@ export const ShortInput = memo(function ShortInput({
           }) => {
             const actualValue = wandHook.isStreaming
               ? localContent
-              : useWebhookUrl && webhookManagement.webhookUrl
+              : (useWebhookUrl || config.providerWebhookUrl) && webhookManagement.webhookUrl
                 ? webhookManagement.webhookUrl
                 : ctrlValue
             const actualValueString = actualValue ?? ''
@@ -399,18 +402,13 @@ export const ShortInput = memo(function ShortInput({
         {/* Wand Button - only show if not hidden by parent */}
         {isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand && (
           <div className='-translate-y-1/2 absolute top-1/2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-            <Button
-              variant='ghost'
-              size='icon'
+            <WandButton
               onClick={
                 wandHook.isPromptVisible ? wandHook.hidePromptInline : wandHook.showPromptInline
               }
               disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
               aria-label='Generate content with AI'
-              className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
-            >
-              <Wand className='size-4' />
-            </Button>
+            />
           </div>
         )}
       </div>

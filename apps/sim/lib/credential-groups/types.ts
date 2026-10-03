@@ -1,3 +1,4 @@
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 
 interface CredentialGroupOptionInputBase {
@@ -11,22 +12,23 @@ export type CredentialGroupOptionInput =
     })
   | (CredentialGroupOptionInputBase & {
       provider: 'slack'
-      slackBotCredentialId: string
+      slackBotCredentialId?: string
     })
 
 export type CredentialGroupOptionUpdateInput = CredentialGroupOptionInput & { id?: string }
 
-export interface CreateCredentialGroupInput {
-  name: string
-  description?: string
-  options: CredentialGroupOptionInput[]
-}
-
 export interface UpdateCredentialGroupInput {
-  name?: string
-  description?: string | null
   options?: CredentialGroupOptionUpdateInput[]
   status?: 'active' | 'disabled'
+}
+
+export interface CredentialGroupMcpServer {
+  id: string
+  name: string
+  description: string | null
+  authType: string
+  enabled: boolean
+  managedConnectorId: ManagedMcpConnectorId
 }
 
 interface CredentialGroupOptionBase {
@@ -43,16 +45,18 @@ export type CredentialGroupOption =
     })
   | (CredentialGroupOptionBase & {
       provider: 'slack'
-      slackBotCredentialId: string
+      slackBotCredentialId?: string
       configurationStatus: 'not_configured' | 'ready' | 'needs_update'
     })
 
 export interface CredentialGroupRecord {
   id: string
-  workspaceId: string
+  workspaceId: string | null
+  organizationId?: string
   name: string
   description: string | null
   options: CredentialGroupOption[]
+  mcpServers: CredentialGroupMcpServer[]
   status: 'active' | 'disabled'
   createdAt: string
   updatedAt: string
@@ -81,13 +85,20 @@ export interface CredentialGroupEnrollmentRecord {
 }
 
 export interface CredentialGroupEnrollmentConnection {
-  provider: CredentialGroupProvider
+  provider: CredentialGroupProvider | 'gitlab'
   status: 'active' | 'needs_reauth' | 'revoked'
   count: number
 }
 
+export interface CredentialGroupEnrollmentMcpConnection {
+  mcpServerId: string
+  name: string
+  status: 'active' | 'needs_reauth' | 'revoked'
+}
+
 export interface CredentialGroupEnrollmentDetail extends CredentialGroupEnrollmentRecord {
   connections: CredentialGroupEnrollmentConnection[]
+  mcpConnections: CredentialGroupEnrollmentMcpConnection[]
 }
 
 export interface InviteCredentialGroupEnrollmentsInput {

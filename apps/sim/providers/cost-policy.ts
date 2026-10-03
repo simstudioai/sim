@@ -1,5 +1,6 @@
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { getModelPricing, resolveModelTokenPricing } from '@/providers/pricing'
 import type { ModelPricing } from '@/providers/types'
 import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
 
@@ -161,15 +162,42 @@ export function priceModelUsage(
     return notBilledCost()
   }
 
+  const cacheRead = usage.cacheRead ?? 0
+  const cacheWrites = (usage.cacheWrites ?? []).filter((write) => write.tokens > 0)
+  const pricing = getModelPricing(model)
+
+  if (pricing) {
+    const totalInputTokens =
+      usage.input + cacheRead + cacheWrites.reduce((total, write) => total + write.tokens, 0)
+    const tokenPricing = resolveModelTokenPricing(pricing, totalInputTokens)
+    const inputRate = tokenPricing.input / 1_000_000
+    const cachedInputRate = (tokenPricing.cachedInput ?? tokenPricing.input) / 1_000_000
+
+    const uncachedInputCost = usage.input * inputRate
+    const cacheReadCost = cacheRead * cachedInputRate
+    const cacheWriteCost = cacheWrites.reduce(
+      (total, write) => total + write.tokens * inputRate * write.inputRateMultiplier,
+      0
+    )
+    const input = roundCost(
+      (uncachedInputCost + cacheReadCost + cacheWriteCost) * policy.multiplier
+    )
+    const output = roundCost(usage.output * (tokenPricing.output / 1_000_000) * policy.multiplier)
+
+    return {
+      input,
+      output,
+      total: roundCost(input + output),
+      pricing,
+    }
+  }
+
   const multiplier = policy.multiplier
   const base = calculateCost(model, usage.input, usage.output, false, multiplier, multiplier)
-
-  const cacheRead = usage.cacheRead ?? 0
   const read = cacheRead > 0 ? calculateCost(model, cacheRead, 0, true, multiplier, 0) : undefined
 
   let writeInputCost = 0
-  for (const write of usage.cacheWrites ?? []) {
-    if (write.tokens <= 0) continue
+  for (const write of cacheWrites) {
     writeInputCost += calculateCost(
       model,
       write.tokens,
@@ -231,9 +259,9 @@ function billableAmount(value: unknown): number {
 }
 
 /**
- * Reads the cost off a JSON response returned by the `/api/providers` proxy.
+ * Reads the cost off a provider-operation result.
  *
- * The proxy already resolved key provenance and applied the policy, so its cost
+ * The provider boundary already resolved key provenance and applied the policy, so its cost
  * is authoritative and must never be recomputed from token counts — the caller
  * cannot see whether a workspace BYOK key paid for the call. A response with no
  * usable cost carried no billable usage.
@@ -266,12 +294,23 @@ export function resolveProxiedModelCost(cost: unknown): ModelCost {
  */
 export function installStreamingCostPolicy(
   output: NormalizedBlockOutput,
-  policy: ModelCostPolicy
+  policy: ModelCostPolicy,
+  additionalToolCost?: () => number
 ): void {
   let raw = output.cost as ModelCost | undefined
 
   Object.defineProperty(output, 'cost', {
-    get: () => applyModelCostPolicy(raw, policy),
+    get: () => {
+      const projected = applyModelCostPolicy(raw, policy)
+      const additional = additionalToolCost?.() ?? 0
+      if (!Number.isFinite(additional) || additional <= 0) return projected
+
+      return {
+        ...projected,
+        toolCost: roundCost((projected.toolCost ?? 0) + additional),
+        total: roundCost(projected.total + additional),
+      }
+    },
     set: (value: ModelCost | undefined) => {
       raw = value
     },

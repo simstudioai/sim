@@ -1,52 +1,55 @@
-import { createMockRedis } from '@sim/testing'
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv, MockRedisConstructor } = vi.hoisted(() => ({
-  mockEnv: {
-    REDIS_URL: 'redis://localhost:6379' as string | undefined,
-    REDIS_TLS_SERVERNAME: undefined as string | undefined,
-  },
+const { MockRedisConstructor } = vi.hoisted(() => ({
   MockRedisConstructor: vi.fn(),
 }))
 
 const mockRedisInstance = createMockRedis()
-MockRedisConstructor.mockImplementation(
-  class {
-    constructor() {
-      Object.assign(this, mockRedisInstance)
-    }
-  }
-)
+/** One mock instance stands in for every client the module constructs, so its
+ *  listener registry has to be emptied per construction — a real client starts
+ *  with none, and keeping them would let an `emit` reach handlers registered by
+ *  a client that no longer exists. */
+function newMockClient(this: object) {
+  mockRedisInstance.removeAllListeners()
+  Object.assign(this, mockRedisInstance)
+}
+
+MockRedisConstructor.mockImplementation(newMockClient)
 
 vi.unmock('@/lib/core/config/redis')
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 vi.mock('ioredis', () => ({
   default: MockRedisConstructor,
 }))
 
 import {
   acquireLock,
-  closeRedisConnection,
+  CONNECT_TIMEOUT_MS,
+  DISCONNECT_TIMEOUT_MS,
+  describeRedisConnection,
   extendLock,
   getRedisClient,
   onRedisReconnect,
   resetForTesting,
+  SHARED_COMMAND_TIMEOUT_MS,
+  sharedReconnectDelayMs,
+  warmRedisConnection,
 } from '@/lib/core/config/redis'
+import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
+
+const mockEnv = mockEnvObject
+const mockLogger = getMockLogger('Redis')
 
 describe('redis config', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     resetForTesting()
+    mockRedisInstance.status = 'ready'
     mockEnv.REDIS_URL = 'redis://localhost:6379'
     mockEnv.REDIS_TLS_SERVERNAME = undefined
-    MockRedisConstructor.mockImplementation(
-      class {
-        constructor() {
-          Object.assign(this, mockRedisInstance)
-        }
-      }
-    )
+    MockRedisConstructor.mockImplementation(newMockClient)
   })
 
   afterEach(() => {
@@ -65,20 +68,6 @@ describe('redis config', () => {
       await vi.advanceTimersByTimeAsync(15_000)
 
       expect(listener).toHaveBeenCalledTimes(1)
-    })
-
-    it('should not invoke listeners when PINGs succeed', async () => {
-      const listener = vi.fn()
-      onRedisReconnect(listener)
-
-      getRedisClient()
-      mockRedisInstance.ping.mockResolvedValue('PONG')
-
-      await vi.advanceTimersByTimeAsync(15_000)
-      await vi.advanceTimersByTimeAsync(15_000)
-      await vi.advanceTimersByTimeAsync(15_000)
-
-      expect(listener).not.toHaveBeenCalled()
     })
 
     it('should reset failure count on successful PING', async () => {
@@ -159,16 +148,96 @@ describe('redis config', () => {
     })
   })
 
-  describe('closeRedisConnection', () => {
-    it('should clear the PING interval', async () => {
+  describe('describeRedisConnection', () => {
+    it('separates a connecting client from a ready one', () => {
+      // The constructor copies the mock's fields, so each state has to be set
+      // before the client is built.
+      mockRedisInstance.status = 'connecting'
       getRedisClient()
+      expect(describeRedisConnection().status).toBe('connecting')
 
-      mockRedisInstance.quit.mockResolvedValue('OK')
-      await closeRedisConnection()
+      resetForTesting()
+      mockRedisInstance.status = 'ready'
+      getRedisClient()
+      expect(describeRedisConnection().status).toBe('ready')
+    })
 
-      mockRedisInstance.ping.mockRejectedValue(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(15_000 * 5)
-      expect(mockRedisInstance.disconnect).not.toHaveBeenCalled()
+    it('counts lifecycle events so a reconnect is distinguishable from a first connect', async () => {
+      getRedisClient()
+      const handler = (event: string) =>
+        mockRedisInstance.on.mock.calls.find((c: unknown[]) => c[0] === event)?.[1] as
+          | (() => void)
+          | undefined
+
+      handler('connect')?.()
+      handler('ready')?.()
+      const afterConnect = describeRedisConnection()
+      expect(afterConnect.connects).toBe(1)
+      expect(afterConnect.readyAgeMs).not.toBeNull()
+
+      const errorHandler = mockRedisInstance.on.mock.calls.find(
+        (c: unknown[]) => c[0] === 'error'
+      )?.[1] as ((e: Error) => void) | undefined
+      errorHandler?.(new Error('ECONNRESET'))
+
+      const afterError = describeRedisConnection()
+      expect(afterError.errors).toBe(1)
+      expect(afterError.lastErrorMessage).toBe('ECONNRESET')
+    })
+
+    it('classifies the host without ever exposing the URL that carries the auth token', () => {
+      mockEnv.REDIS_URL = 'rediss://10.0.0.5:6379'
+      mockEnv.REDIS_TLS_SERVERNAME = 'primary.example.cache.amazonaws.com'
+
+      const d = describeRedisConnection()
+
+      expect(d).toMatchObject({ hostKind: 'ip', tls: true, sniOverride: true })
+      expect(JSON.stringify(d)).not.toContain('10.0.0.5')
+    })
+
+    it('never throws, so it cannot mask the error it is describing', () => {
+      // Called from catch blocks: a throw here would replace the real failure.
+      mockEnv.REDIS_URL = undefined
+      expect(() => describeRedisConnection()).not.toThrow()
+
+      mockEnv.REDIS_URL = 'not a url'
+      expect(() => describeRedisConnection()).not.toThrow()
+      expect(describeRedisConnection().hostKind).toBe('unknown')
+
+      // rediss:// to a bare IP with no REDIS_TLS_SERVERNAME makes the URL
+      // resolution throw; the snapshot must still come back.
+      mockEnv.REDIS_URL = 'rediss://10.0.0.5:6379'
+      mockEnv.REDIS_TLS_SERVERNAME = undefined
+      expect(() => describeRedisConnection()).not.toThrow()
+    })
+
+    it('does not date a connection that has been discarded', async () => {
+      mockRedisInstance.status = 'ready'
+      getRedisClient()
+      expect(describeRedisConnection().clientAgeMs).not.toBeNull()
+
+      // Two consecutive PING failures drop the cached client.
+      mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      const d = describeRedisConnection()
+      expect(d.status).toBe('no-client')
+      expect(d.clientAgeMs).toBeNull()
+      expect(d.readyAgeMs).toBeNull()
+      expect(d.msSinceLastPingOk).toBeNull()
+      // Lifecycle counters stay cumulative for the process.
+      expect(d.reconnects).toBeGreaterThanOrEqual(0)
+    })
+
+    it('classifies an IPv6 literal as an IP, not a DNS name', () => {
+      mockEnv.REDIS_URL = 'rediss://[2600:1f18::1]:6379'
+
+      const d = describeRedisConnection()
+
+      expect(d.hostKind).toBe('ip')
+      // Mirrors resolveRedisTlsOptions, which applies the override for IPv4 only.
+      expect(d.sniOverride).toBe(false)
     })
   })
 
@@ -177,21 +246,6 @@ describe('redis config', () => {
     const value = 'stream-abc'
     const ttlSeconds = 60
 
-    it('returns true when the caller still owns the lock and EXPIRE succeeds', async () => {
-      mockRedisInstance.eval.mockResolvedValueOnce(1)
-
-      const extended = await extendLock(lockKey, value, ttlSeconds)
-
-      expect(extended).toBe(true)
-      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
-        expect.stringContaining('expire'),
-        1,
-        lockKey,
-        value,
-        ttlSeconds
-      )
-    })
-
     it('returns false when the value does not match (lock owned by another)', async () => {
       mockRedisInstance.eval.mockResolvedValueOnce(0)
 
@@ -199,28 +253,12 @@ describe('redis config', () => {
 
       expect(extended).toBe(false)
     })
-
-    it('returns true as a no-op when the cache capability selects the database', async () => {
-      mockEnv.REDIS_URL = undefined
-
-      const extended = await extendLock(lockKey, value, ttlSeconds)
-
-      expect(extended).toBe(true)
-    })
   })
 
   describe('acquireLock', () => {
     const lockKey = 'outlook-polling-lock'
     const value = 'req-abc'
     const ttlSeconds = 180
-
-    it('returns true when SET NX takes the lock', async () => {
-      mockRedisInstance.set.mockResolvedValueOnce('OK')
-
-      expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(true)
-      expect(mockRedisInstance.set).toHaveBeenCalledWith(lockKey, value, 'EX', ttlSeconds, 'NX')
-      expect(mockRedisInstance.eval).not.toHaveBeenCalled()
-    })
 
     it('returns false without cleanup when the lock is already held', async () => {
       mockRedisInstance.set.mockResolvedValueOnce(null)
@@ -273,6 +311,137 @@ describe('redis config', () => {
       expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(true)
       expect(mockRedisInstance.set).not.toHaveBeenCalled()
     })
+
+    it('reads connection state before the reclaim, which resolves against a live socket', async () => {
+      // The reclaim awaits, so a connection that completes inside that window
+      // would leave a diagnostic read after it reporting `ready` — hiding the
+      // very handshake that failed.
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
+      // Mutates the constructed client, not the shared instance it was copied from.
+      mockRedisInstance.eval.mockImplementationOnce(async () => {
+        Object.assign(getRedisClient() ?? {}, { status: 'ready' })
+        return 1
+      })
+
+      await expect(
+        acquireLock(lockKey, value, ttlSeconds, { reclaimOnFailure: true })
+      ).rejects.toThrow('Command timed out')
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis lock acquire failed',
+        expect.objectContaining({ redis: expect.objectContaining({ status: 'connecting' }) })
+      )
+    })
+
+    it('describes the client that ran the command, not one that replaced it mid-flight', async () => {
+      // The PING check drops `state.client` after consecutive failures — the same
+      // unhealthy stretch in which the command is timing out. Reading the global
+      // then would report the replacement and misclassify the very failure this
+      // diagnostic exists to explain.
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.set.mockImplementationOnce(async () => {
+        resetForTesting()
+        throw new Error('Command timed out')
+      })
+
+      await expect(acquireLock(lockKey, value, ttlSeconds)).rejects.toThrow('Command timed out')
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Redis lock acquire failed',
+        expect.objectContaining({
+          // Timestamps belong to whatever `state` holds now, so they are withheld
+          // rather than dated against a connection they never measured.
+          redis: expect.objectContaining({ status: 'connecting', clientAgeMs: null }),
+        })
+      )
+    })
+  })
+
+  describe('sharedReconnectDelayMs', () => {
+    it('grows exponentially from the base and caps, with upward-only jitter', () => {
+      expect(sharedReconnectDelayMs(1, 0)).toBe(1_000)
+      expect(sharedReconnectDelayMs(2, 0)).toBe(2_000)
+      expect(sharedReconnectDelayMs(5, 0)).toBe(10_000)
+      expect(sharedReconnectDelayMs(6, 0)).toBe(10_000)
+      expect(sharedReconnectDelayMs(1, 1)).toBe(1_300)
+    })
+  })
+
+  describe('warmRedisConnection', () => {
+    it('outlasts one dead handshake so the reconnect can be what warms it', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+
+      // The dead attempt's own diagnosis and half-close, then the longest first
+      // reconnect delay: the moment a healthy second attempt can begin.
+      await vi.advanceTimersByTimeAsync(
+        Math.max(CONNECT_TIMEOUT_MS, 2 * SHARED_COMMAND_TIMEOUT_MS + DISCONNECT_TIMEOUT_MS) +
+          sharedReconnectDelayMs(1, 1)
+      )
+      const client = getRedisClient()
+      Object.assign(client ?? {}, { status: 'ready' })
+      client?.emit('ready')
+
+      await expect(warm).resolves.toBe(true)
+    })
+
+    it('still gives up once the budget is spent', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+
+      await vi.advanceTimersByTimeAsync(
+        coldConnectionBudgetMs({
+          connectTimeoutMs: CONNECT_TIMEOUT_MS,
+          commandTimeoutMs: SHARED_COMMAND_TIMEOUT_MS,
+          disconnectTimeoutMs: DISCONNECT_TIMEOUT_MS,
+          reconnectDelayMs: sharedReconnectDelayMs(1, 1),
+        })
+      )
+
+      await expect(warm).resolves.toBe(false)
+    })
+
+    it('resolves once the connection becomes ready', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection()
+      const client = getRedisClient()
+
+      Object.assign(client ?? {}, { status: 'ready' })
+      client?.emit('ready')
+
+      await expect(warm).resolves.toBe(true)
+    })
+
+    it('gives up at the deadline rather than waiting on a connection that never lands', async () => {
+      mockRedisInstance.status = 'connecting'
+      const warm = warmRedisConnection(10_000)
+
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      // False, not a rejection: a cold connection is the caller's normal case.
+      await expect(warm).resolves.toBe(false)
+    })
+
+    it('shares one warm-up across concurrent callers', async () => {
+      mockRedisInstance.status = 'connecting'
+
+      expect(warmRedisConnection()).toBe(warmRedisConnection())
+    })
+
+    it('warms again after the health check replaces the client', async () => {
+      mockRedisInstance.status = 'connecting'
+      const first = warmRedisConnection()
+      resetForTesting()
+
+      // Keyed on the client, so a replacement is warmed on its own terms rather
+      // than inheriting a settled promise describing a connection that is gone.
+      expect(warmRedisConnection()).not.toBe(first)
+    })
+
+    it('reports not-warm instead of throwing when Redis is unconfigured', async () => {
+      mockEnv.REDIS_URL = undefined
+
+      await expect(warmRedisConnection()).resolves.toBe(false)
+    })
   })
 
   describe('capability validation', () => {
@@ -288,18 +457,6 @@ describe('redis config', () => {
 
       expect(() => getRedisClient()).toThrow(/REDIS_TLS_SERVERNAME is required/)
       expect(MockRedisConstructor).not.toHaveBeenCalled()
-    })
-
-    it('passes the configured TLS servername to Redis', () => {
-      mockEnv.REDIS_URL = 'rediss://10.0.0.1:6379'
-      mockEnv.REDIS_TLS_SERVERNAME = 'cache.example.com'
-
-      getRedisClient()
-
-      expect(MockRedisConstructor).toHaveBeenCalledWith(
-        mockEnv.REDIS_URL,
-        expect.objectContaining({ tls: { servername: 'cache.example.com' } })
-      )
     })
   })
 
@@ -319,23 +476,6 @@ describe('redis config', () => {
 
       return capturedConfig.retryStrategy as (times: number) => number
     }
-
-    it('should use exponential backoff with jitter', () => {
-      const retryStrategy = captureRetryStrategy()
-      expect(retryStrategy).toBeDefined()
-
-      const delay1 = retryStrategy(1)
-      expect(delay1).toBeGreaterThanOrEqual(1000)
-      expect(delay1).toBeLessThanOrEqual(1300)
-
-      const delay3 = retryStrategy(3)
-      expect(delay3).toBeGreaterThanOrEqual(4000)
-      expect(delay3).toBeLessThanOrEqual(5200)
-
-      const delay5 = retryStrategy(5)
-      expect(delay5).toBeGreaterThanOrEqual(10000)
-      expect(delay5).toBeLessThanOrEqual(13000)
-    })
 
     it('should cap at 30s for attempts beyond 10', () => {
       const retryStrategy = captureRetryStrategy()

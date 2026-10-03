@@ -173,6 +173,17 @@ export interface ComparisonFacts {
   }
 }
 
+/**
+ * One run of comparison prose, optionally hyperlinked. Kept as data (rather
+ * than markup or a markdown string) so the data layer stays UI-free while
+ * still expressing the in-sentence citation links that comparison intros
+ * need. A segment object renders `text` as a link to `href`.
+ */
+export type ProseSegment = string | { text: string; href: string }
+
+/** A paragraph of comparison prose, as an ordered run of {@link ProseSegment}s. */
+export type Prose = ProseSegment[]
+
 /** Brand icon + colors for a competitor, sourced from a brand-intelligence lookup rather than the vendor's own docs. */
 export interface CompetitorBrand {
   /** Icon component from @/components/icons rendering this competitor's logo. */
@@ -209,6 +220,24 @@ export interface CompetitorProfile {
   /** One-sentence, neutral description of what the product is. */
   oneLiner: string
   /**
+   * A 2-4 sentence direct answer to "which of these two should I pick", shown
+   * as the page's lead paragraph ahead of the generic intro. Written so an
+   * answer engine can quote it standalone: what each product is, then the
+   * condition under which each one wins.
+   */
+  leadAnswer?: Prose
+  /**
+   * Answer to the "Is Sim better than {name}?" section, phrased the way buyers
+   * ask the question of an AI model. Verdict first, then the condition that
+   * decides it. 3-5 sentences.
+   */
+  betterThanAnswer?: Prose
+  /**
+   * One-sentence lead-in per comparison-table section, stating what that
+   * section covers so the section is quotable without the rest of the page.
+   */
+  sectionIntros?: Partial<Record<keyof ComparisonFacts, Prose>>
+  /**
    * Whether this competitor is, categorically, a visual workflow/automation
    * builder like Sim. Defaults to `true` when omitted. Set `false` for a
    * product that isn't (an interactive desktop agent) or has documented
@@ -216,6 +245,14 @@ export interface CompetitorProfile {
    * can ask a category-clarifying question instead of a peer feature-gap one.
    */
   isWorkflowBuilder?: boolean
+  /**
+   * Phrases that identify this competitor in library article titles and tags,
+   * matched case-sensitively on word boundaries; descriptions also match the
+   * bare `name`. Drives the links between comparison pages and library
+   * articles. Defaults to `[name]`; set it when articles use another name
+   * ("AgentKit") or when the bare name is a common Title Case word ("Make").
+   */
+  mentions?: string[]
   /** Logo icon and brand colors, when available. */
   brand?: CompetitorBrand
   /** Free-text list of standout features, each independently sourced. */
@@ -235,60 +272,4 @@ export interface CompetitorProfile {
     source: FactSource
   }>
   facts: ComparisonFacts
-}
-
-/**
- * Broad grouping for {@link SimFeature} entries. A single feature catalog
- * entry belongs to exactly one category, but can carry additional
- * {@link SimFeature.tags} for cross-cutting filtering (e.g. an "enterprise"
- * tag on a feature that's primarily categorized as "security-compliance").
- */
-export type FeatureCategory =
-  | 'deployment-api'
-  | 'human-in-the-loop'
-  | 'enterprise-governance'
-  | 'knowledge-base-search'
-  | 'data-tables'
-  | 'files'
-  | 'ai-capabilities'
-  | 'collaboration'
-  | 'observability'
-  | 'security-compliance'
-  | 'environments-enterprise'
-  | 'version-control'
-  | 'durability-observability'
-  | 'generative-media'
-  | 'control-flow-execution'
-
-/**
- * One entry in Sim's full feature catalog. Deliberately more granular than
- * {@link ComparisonFacts}, which only covers the small set of rows every
- * competitor page needs. The catalog is the superset a page builder can
- * filter down from (by category or tag) when a given "Sim vs X" page only
- * wants to surface the features relevant to that competitor.
- */
-export interface SimFeature {
-  /** kebab-case identifier, e.g. "streaming-api", "human-in-the-loop-approval". */
-  id: string
-  /** Display name, e.g. "Streaming API responses". */
-  name: string
-  category: FeatureCategory
-  /** Additional cross-cutting labels for filtering (e.g. "enterprise", "beta"). */
-  tags: string[]
-  /** Neutral, factual description of what the feature does. */
-  description: string
-  /** Optional note on why this is differentiated vs. the competitive landscape. Must stay factual, not promotional. */
-  competitiveNote?: string
-  sources: FactSource[]
-}
-
-export function featuresByCategory(
-  features: SimFeature[],
-  category: FeatureCategory
-): SimFeature[] {
-  return features.filter((f) => f.category === category)
-}
-
-export function featuresByTag(features: SimFeature[], tag: string): SimFeature[] {
-  return features.filter((f) => f.tags.includes(tag))
 }

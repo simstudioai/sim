@@ -1,8 +1,9 @@
-import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ASHBY_ON_BEHALF_OF_PARAM, ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyDeleteApplicationParams {
   apiKey: string
+  onBehalfOfUserId?: string
   applicationId: string
 }
 
@@ -29,6 +30,7 @@ export const deleteApplicationTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     applicationId: {
       type: 'string',
       required: true,
@@ -40,7 +42,7 @@ export const deleteApplicationTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/application.delete',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     body: (params) => ({ applicationId: params.applicationId.trim() }),
   },
 

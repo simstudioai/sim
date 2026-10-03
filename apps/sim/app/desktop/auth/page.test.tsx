@@ -1,34 +1,24 @@
-/**
- * @vitest-environment node
- */
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockCreateDesktopHandoffToken, mockRedirect } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockCreateDesktopHandoffToken } = vi.hoisted(() => ({
   mockCreateDesktopHandoffToken: vi.fn(),
-  mockRedirect: vi.fn((url: string) => {
-    throw new Error(`NEXT_REDIRECT:${url}`)
-  }),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: mockGetSession } },
-  getSession: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/desktop-handoff', () => ({
   createDesktopHandoffToken: mockCreateDesktopHandoffToken,
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers()),
 }))
 
 import DesktopAuthPage from '@/app/desktop/auth/page'
+
+const mockGetSession = authMockFns.mockGetSession
 
 const VALID_STATE = 'a'.repeat(32)
 
@@ -38,7 +28,6 @@ function pageProps(params: Record<string, string>) {
 
 describe('DesktopAuthPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'user@example.com' } })
     mockCreateDesktopHandoffToken.mockResolvedValue('tok123456')
   })

@@ -2,9 +2,9 @@ import type {
   CrowdStrikeUpdateAlertsParams,
   CrowdStrikeUpdateAlertsResponse,
 } from '@/tools/crowdstrike/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const crowdstrikeUpdateAlertsTool: ToolConfig<
+export const crowdstrikeUpdateAlertsTool: InternalToolConfig<
   CrowdStrikeUpdateAlertsParams,
   CrowdStrikeUpdateAlertsResponse
 > = {
@@ -114,13 +114,8 @@ export const crowdstrikeUpdateAlertsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/crowdstrike/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       actionParameters: params.actionParameters,
       addTag: params.addTag,
       appendComment: params.appendComment,

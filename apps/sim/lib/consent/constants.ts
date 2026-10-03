@@ -14,6 +14,19 @@
  * Sim's consent instance. Public by construction — the browser calls it
  * directly, so it is a client-visible origin like the GTM and GA container IDs
  * in the root layout, not a credential.
+ *
+ * The browser must keep calling it directly. c15t documents a same-origin
+ * rewrite (`/api/c15t/:path*`) as an optimization, and it would also sidestep
+ * the bot challenge this origin sometimes answers with — but it resolves the
+ * jurisdiction from the address the request arrives from, and proxying makes
+ * every visitor arrive from our servers. Measured against the live instance:
+ * `x-forwarded-for`, `x-real-ip`, `true-client-ip`, `cf-connecting-ip` and
+ * `x-vercel-ip-country` are all ignored, and only c15t's own `x-c15t-country`
+ * override is honored. Sim has no edge that supplies a country header for us to
+ * forward into it, so behind a proxy every visitor would resolve to our region
+ * and no one in the EU would be asked for consent at all. The same dependency
+ * rules out the SSR prefetch, which reads those headers through
+ * `extractRelevantHeaders`. Revisit only alongside an edge that provides geo.
  */
 export const CONSENT_BACKEND_URL = 'https://sim-sim.inth.app'
 
@@ -35,14 +48,3 @@ export type ConsentCategory = (typeof CONSENT_CATEGORIES)[number]
  */
 export const DEV_CONSENT_COUNTRY =
   process.env.NODE_ENV === 'production' ? undefined : process.env.NEXT_PUBLIC_CONSENT_COUNTRY
-
-/**
- * Reopens the consent banner in its expanded state.
- *
- * The consent runtime mounts beside the app rather than wrapping it, so a
- * surface that wants to reopen the banner — the Cookie Policy's "Change your
- * cookie choices" control — cannot reach the store through a React context. A
- * window event keeps that isolation intact and stays a one-shot command rather
- * than state anything has to hold.
- */
-export const OPEN_CONSENT_PREFERENCES_EVENT = 'sim:open-consent-preferences'

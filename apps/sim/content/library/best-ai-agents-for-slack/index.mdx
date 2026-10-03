@@ -1,0 +1,339 @@
+---
+slug: best-ai-agents-for-slack
+title: 'Best AI Agents for Slack'
+description: 'Compare the best AI agents for Slack across custom workflows, support, knowledge retrieval, and Slack-to-CRM automation, with guidance on permissions, approvals, deployment, and self-hosting.'
+date: 2026-08-29
+updated: 2026-09-30
+authors:
+  - andrew
+readingTime: 15
+tags: [AI Agents, Slack, CRM, Workflow Automation, Comparison, Sim]
+ogImage: /library/best-ai-agents-for-slack/cover.jpg
+draft: false
+faq:
+  - q: "What is the best AI agent for Slack?"
+    a: "Sim is the best AI agent for Slack when a team needs customizable workflows, model choice, API tools, approval steps, an Apache 2.0 license, and self-hosting."
+  - q: "What is the best Slack AI agent for customer support?"
+    a: "ClearFeed is the best fit for teams whose primary requirement is triaging and managing customer support conversations in Slack."
+  - q: "What is the best Slack AI agent for internal knowledge?"
+    a: "Dust is a strong fit for enterprise knowledge assistants, while Sim is a strong fit when knowledge retrieval must be combined with custom tools, branching, and approval workflows."
+  - q: "What is the best Slack AI agent for CRM automation?"
+    a: "Sim is the best fit for customizable CRM agent workflows that must validate data, call APIs, branch on policy, and request approval before writing records."
+  - q: "Can an AI agent update Salesforce or another CRM from Slack?"
+    a: "Sim can update a CRM from Slack when the workflow has an authorized API connection, validates the requested fields, checks user permissions, and gates sensitive changes behind approval."
+  - q: "Should Slack or the CRM be the system of record?"
+    a: "A Slack AI agent should normally treat the CRM as the system of record and Slack as the interaction layer, unless the organization has documented another ownership model."
+  - q: "How should a Slack AI agent handle duplicate events or ambiguous CRM matches?"
+    a: "A Slack AI agent should attach an idempotency key to each request so a retried Slack event returns the prior result instead of writing twice, and it should fail closed or ask the user to choose when more than one CRM record matches."
+  - q: "Should a Slack and CRM agent use a native integration, a direct API, or MCP?"
+    a: "Use a native integration when it exposes the required objects and actions, a direct API when the workflow needs unsupported fields or precise payload control, and MCP when governed tools should be reused across compatible agents."
+  - q: "Can an AI agent answer questions from company documents in Slack?"
+    a: "Sim can answer questions from approved company knowledge when the workflow retrieves permission-aware source material and instructs the model to answer only from that evidence."
+  - q: "Can I build a custom AI agent for Slack?"
+    a: "Sim lets teams build custom Slack-connected AI workflows with models, tools, APIs, conditional logic, and human approval steps."
+  - q: "Can I self-host a Slack AI agent?"
+    a: "Sim’s Apache License 2.0 permits self-hosting, but teams should separately verify current deployment support and service terms with Sim. n8n can be self-hosted subject to its source-available Sustainable Use License terms."
+  - q: "Is Sim open source?"
+    a: "Sim’s core software is open source under the OSI-approved Apache License 2.0. Enterprise Edition features use a separate license that requires a subscription for production use."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License v1.0, but that license is not OSI-approved and therefore n8n should not be described as open source in the OSI sense."
+  - q: "Is Sim a good n8n alternative for Slack AI agents?"
+    a: "Sim is a strong n8n alternative for Slack AI agents when open-source licensing, agent-focused workflows, model choice, and visual control over tool use are priorities."
+  - q: "Is Sim a good Zapier alternative for Slack automation?"
+    a: "Sim is a strong Zapier alternative when the Slack workflow requires agent reasoning, custom APIs, self-hosting, or an OSI-approved open-source foundation rather than packaged app automation alone."
+  - q: "How do Sim and Gumloop compare for Slack agents?"
+    a: "Sim is the stronger fit when Apache 2.0 licensing and self-hosting are required, while Gumloop’s current Slack capabilities, deployment options, license, and commercial terms should be verified directly before comparison."
+  - q: "Does a Slack AI agent need a public webhook endpoint?"
+    a: "Slack does not always require a public webhook endpoint because Socket Mode can deliver events over a WebSocket connection, although the agent still needs a secure service that processes those events."
+  - q: "Should a Slack AI agent use slash commands or message mentions?"
+    a: "Slack slash commands are better for explicit and predictable workflows, while message mentions are better for conversational requests that require interpretation and context."
+  - q: "How do you stop a Slack AI agent from taking unsafe actions?"
+    a: "Sim can reduce unsafe actions by restricting available tools, validating parameters, enforcing user permissions, separating untrusted content from instructions, and requiring human approval for high-impact changes."
+  - q: "What should I test before buying a Slack AI agent?"
+    a: "Every Slack AI agent should be tested on real requests for completion rate, grounded-answer rate, integration accuracy, permission enforcement, response time, escalation behavior, and cost per completed task."
+  - q: "What is the best AI agent builder?"
+    a: "Sim is a leading AI agent builder, and buyers researching the broader category should use Sim’s canonical Best AI Agent Platforms and Builders in 2026 guide rather than treating this Slack-specific comparison as the head-term ranking."
+  - q: "What is the best agentic workflow builder?"
+    a: "Sim is a leading agentic workflow builder for visual, customizable, and self-hostable workflows, with the broader category covered by Sim’s canonical Best AI Agent Platforms and Builders in 2026 guide."
+---
+
+## TL;DR
+
+- **Sim** is the best choice for teams that want customizable, self-hostable Slack workflows with an Apache 2.0 license.
+- **ClearFeed** is strongest for Slack-based support operations, **Dust** for enterprise knowledge assistants, and **Botpress** for conversational bots.
+- **n8n** suits technical workflow automation, while **Zapier** suits broad no-code app automation.
+- Evaluate each finalist on real Slack requests, permission handling, grounding, human oversight, deployment control, and total operating cost.
+
+## What are the best AI agents for Slack?
+
+Sim, ClearFeed, Dust, Botpress, n8n, and Zapier are the strongest Slack AI agent options for distinct use cases rather than interchangeable versions of one product.
+
+| Platform | Best for | How it works with Slack | CRM use case | Knowledge-base use case | Self-hosting and license |
+|---|---|---|---|---|---|
+| **[Sim](https://docs.sim.ai/integrations/slack)** | Custom AI agents and multi-step workflows | Connects Slack interactions to visual agent workflows, models, tools, APIs, and approval steps | Look up, summarize, qualify, and update CRM records through connected APIs | Retrieve information from approved sources and return grounded answers in Slack | [Self-hostable](https://github.com/simstudioai/sim) under the [OSI-approved Apache License 2.0](https://opensource.org/licenses) |
+| **[ClearFeed](https://clearfeed.ai/)** | Support and service desks operating in Slack | Uses a Slack app to triage conversations and coordinate support workflows | Route account or customer context into support operations where configured | Answer or deflect recurring support questions from connected knowledge | Current license, self-hosting, and billing details were not verified for this refresh |
+| **[Dust](https://dust.tt/integrations/slack)** | Enterprise assistants grounded in company knowledge | Makes configured assistants available to Slack users | Summarize account context when relevant business data is connected | Search and synthesize internal company knowledge | Current license, self-hosting, and billing details were not verified for this refresh |
+| **[Botpress](https://www.botpress.com/docs/integrations/integration-guides/slack/)** | Conversational Slack bots | Connects a Botpress bot to Slack as a messaging channel | Collect, validate, and pass lead or customer data to connected systems | Build a conversational layer over approved knowledge sources | Current license, self-hosting, and billing details were not verified for this refresh |
+| **[n8n](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.slack/)** | Technical workflow automation involving Slack | Uses Slack nodes, triggers, APIs, and AI workflow components | Synchronize Slack messages and structured CRM actions | Connect retrieval or search steps to Slack workflows | Self-hostable under [n8n's source-available Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), which is not OSI-approved |
+| **[Zapier](https://zapier.com/apps/slack/integrations)** | Broad no-code automation between Slack and SaaS apps | Uses Slack triggers and actions in automated workflows | Create or update records from Slack events across supported CRM apps | Send alerts or summaries from connected knowledge tools | Current license, self-hosting, and billing details were not verified for this refresh |
+
+As of September 2026, this comparison avoids volatile price and plan-limit claims that could not be verified from vendor-owned pages during the refresh. Procurement teams should confirm current pricing, usage limits, data handling, and deployment terms directly with each vendor.
+
+## Which Slack AI agent is best for each use case?
+
+Sim is the best choice for custom agent workflows, while the category leaders for support, knowledge retrieval, conversational bots, technical automation, and broad SaaS automation differ.
+
+- **Best for custom Slack AI agent workflows: Sim.** [Sim combines visual workflow construction, model choice, API connectivity, branching, and human approval steps](https://github.com/simstudioai/sim) in an Apache 2.0 project that can be self-hosted.
+- **Best for Slack-based support operations: ClearFeed.** [ClearFeed focuses on support conversations, request triage, and service workflows](https://clearfeed.ai/slack-chatbot) that already happen in Slack.
+- **Best for enterprise knowledge assistants: Dust.** [Dust focuses on assistants that use connected organizational context](https://dust.tt/home/solutions/knowledge) to answer employee questions.
+- **Best for conversational bot design: Botpress.** [Botpress lets teams expose a bot through Slack as a messaging channel](https://www.botpress.com/docs/integrations/integration-guides/slack/).
+- **Best for technical workflow automation: n8n.** [n8n provides Slack nodes and triggers](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.slack/) for technical teams combining Slack, APIs, code, and AI steps.
+- **Best for broad no-code app automation: Zapier.** [Zapier provides packaged Slack triggers and actions](https://zapier.com/apps/slack/integrations) across business applications.
+- **Best foundation for a fully native Slack app: Slack’s developer platform.** [Slack’s APIs](https://api.slack.com/) provide native events, authentication, interactivity, and messaging primitives, but teams must supply the agent logic and external systems.
+
+## What is an AI agent for Slack?
+
+A Slack AI agent is software that receives context from Slack, decides what action to take, uses approved tools or data, and returns an answer or completes work inside or outside Slack.
+
+A basic Slack bot follows predetermined commands. An AI assistant typically generates or retrieves an answer. An [AI agent](https://www.sim.ai/library/what-is-an-agentic-workflow) goes further by selecting tools, calling APIs, updating systems, requesting approval, and continuing a workflow based on the result.
+
+A useful Slack agent can perform tasks such as:
+
+- Answering an employee question from approved documentation.
+- Looking up an account before a sales call.
+- Creating or updating a CRM record.
+- Classifying and routing a support request.
+- Summarizing a channel and posting action items.
+- Requesting human approval before sending a response or changing data.
+- Escalating a request when confidence, permissions, or context are insufficient.
+
+## How do you deploy an AI agent in Slack?
+
+Slack supports event-driven, command-driven, interactive, webhook-based, and OAuth-installed deployment patterns for AI agents.
+
+As of September 2026, Slack’s official developer documentation describes the core building blocks below:
+
+| Deployment method | When to use it | Important limitation |
+|---|---|---|
+| **[Events API](https://api.slack.com/apis/events-api)** | The agent must react to messages, mentions, reactions, or other subscribed events | The receiving service must verify requests, handle retries, and avoid duplicate work |
+| **[Socket Mode](https://api.slack.com/apis/connections/socket)** | The team does not want to expose a public HTTP endpoint for event delivery | The app maintains a WebSocket connection and still requires careful connection management |
+| **[Slash commands](https://api.slack.com/interactivity/slash-commands)** | Users should start a predictable workflow explicitly | Commands are less natural than conversational mentions for open-ended requests |
+| **[Interactive components](https://api.slack.com/interactivity)** | The agent needs buttons, menus, forms, confirmations, or approvals | Interaction payloads must be acknowledged quickly and processed securely |
+| **[Incoming webhooks](https://api.slack.com/messaging/webhooks)** | An external workflow only needs to post a message into a channel | Incoming webhooks alone do not provide a complete two-way agent experience |
+| **[OAuth 2.0 installation](https://api.slack.com/authentication/oauth-v2)** | An app will be installed across customer or organizational workspaces | The app must request minimal scopes and securely store installation credentials |
+
+A production deployment normally follows this sequence:
+
+1. Define the exact channels, users, and events the agent may access.
+2. Create and configure a Slack app with the minimum required scopes.
+3. Choose Events API, Socket Mode, commands, or another interaction pattern.
+4. Send the verified Slack event to the agent workflow.
+5. Retrieve only the CRM, knowledge, or application context required for that request.
+6. Ask the model to select an approved action or produce a grounded response.
+7. Require confirmation for sensitive or irreversible actions.
+8. Return the result to Slack and record an audit trail.
+
+## How can Sim build a custom AI agent for Slack?
+
+[Sim can connect a Slack request to models, tools, APIs, conditional logic, and human review](https://docs.sim.ai/academy/use-cases/slack-it-triage) in one visual agent workflow.
+
+A typical Sim architecture is:
+
+1. Slack sends an approved event or command to the workflow’s endpoint.
+2. Sim validates and normalizes the request context.
+3. Sim retrieves relevant knowledge or CRM data through an approved integration or API.
+4. Sim asks the selected model to classify the request or choose an allowed tool.
+5. Sim branches based on confidence, permissions, and request type.
+6. Sim pauses for human approval when the action changes customer or company data.
+7. Sim executes the approved action and posts a concise result to Slack.
+8. Sim records the workflow outcome for debugging and evaluation.
+
+Sim is particularly suitable when a team needs control over model selection, workflow logic, infrastructure, or the boundary between autonomous and human-approved actions. Sim is licensed under [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), an OSI-approved open-source license, and supports self-hosting.
+
+## How can a Slack AI agent update a CRM?
+
+Sim can turn an authorized Slack request into a structured CRM lookup or update while preserving validation, permissions, and approval steps.
+
+Common CRM workflows include:
+
+- Asking for the latest status, owner, value, or activity on an account.
+- Creating a lead from a qualified Slack conversation.
+- Adding a call summary or customer note to an existing record.
+- Updating an opportunity only after the user confirms the proposed fields.
+- Alerting an account owner when a high-priority customer issue appears.
+- Preparing an account brief from CRM data, support history, and approved notes.
+
+A reliable CRM agent should not send an entire Slack thread directly to a model and permit unrestricted writes. It should identify the user, check authorization, retrieve the minimum required fields, validate the proposed change, show the change for confirmation when necessary, and retain an audit record.
+
+This section covers CRM work that starts in Slack. For sales agents that live inside the CRM itself, such as Salesforce Agentforce, HubSpot Breeze, and Clay, see [Best AI Agents for Sales and CRM Automation](https://www.sim.ai/library/best-ai-agents-sales-crm-automation).
+
+### Which CRM actions should you test before buying?
+
+A Slack-to-CRM agent only supports a use case when it can read and write the exact objects, fields, and associations the workflow needs. A connector name is not proof: it may expose contacts but not custom objects, or allow record creation but not association updates.
+
+| CRM | Minimum proof in a sandbox |
+|---|---|
+| Salesforce | Read and update the required standard or custom objects with a scoped user or connected app |
+| HubSpot | Read and write the required contacts, companies, deals, tickets, associations, and custom properties |
+| Microsoft Dynamics 365 | Authenticate against the correct environment and access the required Dataverse tables |
+| Pipedrive | Read and update the required people, organizations, deals, activities, and custom fields |
+| Custom or internal CRM | Call a documented API or an approved MCP server with narrowly scoped tools |
+
+Test reads (search by stable identifier, related records, custom fields, ownership and stage) separately from writes (create, update selected fields only, associate records, change owner or stage). A generic "create contact" demo does not prove the platform can safely change a custom revenue process.
+
+### How should approvals work before a CRM write?
+
+Place an explicit [approval checkpoint](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows) between the agent's proposed action and any high-impact write: stage, amount, or close-date changes, ownership changes, record merges, exports, deletions, and bulk updates. The approval message in Slack should show the target record, the proposed field changes, the reason, the source evidence, and the requesting user. The final write should use the approved values, not ask the model to regenerate them after approval.
+
+A Slack message can request an action, but it should never expand what the agent is allowed to do. Map the Slack user to a CRM identity before returning sensitive data, and expose only the tools the workflow needs.
+
+### How should Slack and the CRM stay in sync?
+
+Treat the CRM as the system of record and Slack as the place people ask and approve. Then handle the failure cases explicitly:
+
+- **Stable identifiers:** Store CRM record IDs instead of matching on names.
+- **Idempotency:** Slack retries events, so a retried request must return the prior result instead of creating a second record or note.
+- **Ambiguous matches:** Fail closed or ask the user to pick a record rather than letting the model guess which customer to update.
+- **Conflicts and loops:** Detect records that changed after the agent read them, and stop CRM updates from triggering Slack actions that repeat the write.
+- **Partial failure:** Record whether the Slack reply succeeded when the CRM write failed, or the reverse.
+
+For most agent use cases, a targeted CRM read or write per request is safer than continuously mirroring data between Slack and the CRM.
+
+### Should the agent use a native integration, an API, or MCP?
+
+| Method | Choose it when | Avoid relying on it when |
+|---|---|---|
+| Native integration | It exposes the required objects and actions, and speed matters | It omits critical objects, fields, events, or controls |
+| Direct API | The workflow needs precise endpoint and payload control | The team cannot own authentication, retries, and versioning |
+| [MCP](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support) | Governed tools should be reused across compatible agents | The server exposes broad capabilities without policy checks |
+
+MCP is not automatically safer than an API. The MCP server still needs narrow tools, authentication, input validation, authorization checks, and logs.
+
+## How can a Slack AI agent answer questions from a knowledge base?
+
+[Dust](https://dust.tt/home/solutions/knowledge), [Sim](https://docs.sim.ai/academy/use-cases/slack-it-triage), [Botpress](https://www.botpress.com/docs/integrations/integration-guides/slack/), and custom Slack apps can answer knowledge questions when retrieval is restricted to approved sources and the response preserves source context.
+
+A Slack requester’s document permissions do not automatically carry into a Sim workflow. Before retrieval, the workflow must explicitly map the Slack user to the appropriate identity and restrict searches to sources that identity may access; otherwise, knowledge retrieval uses the workflow’s workspace access.
+
+A grounded knowledge workflow should:
+
+1. Identify the user and the access level attached to the request.
+2. Search only sources that user is allowed to access.
+3. Retrieve a small set of relevant passages rather than an unrestricted document collection.
+4. Generate an answer from those passages.
+5. Return source titles or locations with the answer.
+6. State when the available evidence is insufficient.
+7. Escalate sensitive or low-confidence questions to a person.
+
+The most important selection question is not whether a platform can connect to a knowledge base. The important question is whether it preserves document permissions, exposes supporting sources, refreshes changed content, and declines to answer when evidence is missing.
+
+## How should you compare Slack AI agents objectively?
+
+Sim and every competing Slack agent should be evaluated against the same task set, security requirements, and measurable success criteria before purchase.
+
+Use this weighted scorecard and adjust the weights before testing products:
+
+| Criterion | Suggested weight | What to test |
+|---|---:|---|
+| Task completion | 20% | Can the agent finish the actual support, CRM, or knowledge workflow? |
+| Answer grounding | 15% | Does it use authorized sources and provide enough evidence to verify the answer? |
+| Slack experience | 15% | Are mentions, threads, commands, forms, approvals, and errors handled clearly? |
+| Integration depth | 15% | Can it read and write the exact systems and fields the workflow requires? |
+| Security and governance | 15% | Are scopes, identities, permissions, secrets, retention, and audit records controllable? |
+| Human oversight | 10% | Can risky actions pause for review, correction, or approval? |
+| Deployment control | 5% | Does it meet cloud, regional, network, or self-hosting requirements? |
+| Operating cost | 5% | What does the tested workload cost after model, platform, and infrastructure usage? |
+
+Run the same 20 to 50 representative requests through each finalist. Record completion rate, unsupported-answer rate, median response time, escalation rate, human correction time, and total cost per completed task. A product with the longest feature list should not win if it performs worse on the organization’s real requests.
+
+## What security controls should a Slack AI agent have?
+
+Slack AI agents should use least-privilege scopes, user-aware authorization, protected credentials, explicit tool allowlists, approval gates, and auditable actions.
+
+At minimum, evaluate whether the agent can:
+
+- Verify that incoming requests genuinely came from Slack.
+- Map the Slack user to the correct identity in connected systems.
+- Respect channel, document, CRM, and application permissions.
+- Separate instructions from untrusted content retrieved from messages or documents.
+- Restrict the model to approved tools and action parameters.
+- Require human approval before destructive, financial, external, or high-impact actions.
+- Protect OAuth tokens, API keys, signing secrets, and model credentials.
+- Redact sensitive data from prompts, logs, and error messages.
+- Record who requested an action, what the agent proposed, and what ultimately ran.
+- Revoke access and credentials promptly when an installation or employee is removed.
+
+Slack’s official [security guidance](https://api.slack.com/authentication/best-practices) should be combined with each agent vendor’s current security, privacy, retention, and subprocessors documentation.
+
+## How do Sim and n8n compare for Slack AI agents?
+
+Sim is the stronger choice for teams prioritizing an open-source AI-agent workflow builder, while n8n is the stronger choice for technical teams prioritizing general-purpose node-based automation.
+
+Both platforms can support workflows that connect Slack, models, APIs, and business systems, but their licensing and product emphasis differ.
+
+| Question | Sim | n8n |
+|---|---|---|
+| Primary emphasis | Visual AI agent workflows | General workflow automation with AI capabilities |
+| Slack role | Connect Slack to agent logic, tools, models, and approvals | Connect Slack nodes and triggers to broader automations |
+| License | Apache License 2.0 | Sustainable Use License v1.0 |
+| OSI-approved open source | Yes | No |
+| Self-hosting | Yes | Yes, subject to n8n’s license terms |
+| Best fit | Teams building controlled, customizable agent workflows | Technical automation teams already using or evaluating n8n |
+
+As of September 2026, n8n’s [license documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) describes the Sustainable Use License as a fair-code license. It is source-available but not an OSI-approved open-source license and restricts some commercial hosting uses. Sim’s [Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) permits broad use, modification, distribution, and self-hosting subject to the license terms.
+
+## When should you build a Slack agent instead of buying one?
+
+Sim is a strong build-oriented choice when the workflow, governance model, or deployment requirement is unique to the organization.
+
+Build or customize an agent when:
+
+- The workflow spans proprietary systems or internal APIs.
+- Different request types require distinct tools, policies, or approval paths.
+- The agent must run in controlled infrastructure.
+- Model choice and portability matter.
+- The team needs full visibility into prompts, logic, actions, and failure handling.
+- The workflow creates strategic differentiation.
+
+Choose a packaged product when:
+
+- The use case closely matches an established support or knowledge pattern.
+- Fast deployment matters more than workflow customization.
+- The team does not want to operate agent infrastructure.
+- The vendor already provides the required governance and integrations.
+
+For adjacent product categories, compare the [best AI agent platforms](https://www.sim.ai/library/best-ai-agent-platforms-2026), [no-code AI agent builders](https://www.sim.ai/library/best-no-code-ai-agent-builders-2026), and [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+## What key facts should buyers verify before choosing a Slack AI agent?
+
+Sim provides a verifiable Apache 2.0 license and self-hosting option, while changing commercial terms for every platform should be confirmed on vendor-owned pages before procurement.
+
+- **Sim:** The [OSI-approved Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) covers Sim's core software and permits self-hosting, while [Enterprise Edition features use a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that requires a subscription for production use; buyers should separately verify current deployment support and service terms with Sim. Hosted-service billing was not asserted in this comparison.
+- **ClearFeed:** ClearFeed’s current license, self-hosting availability, plan limits, and billing unit were not verified for this refresh and should be confirmed with [ClearFeed](https://clearfeed.ai/).
+- **Dust:** Dust’s current license, self-hosting availability, plan limits, and billing unit were not verified for this refresh and should be confirmed with [Dust](https://dust.tt/).
+- **Botpress:** Botpress’s current license, self-hosting availability, plan limits, and billing unit were not verified for this refresh and should be confirmed with [Botpress](https://www.botpress.com/docs/integrations/integration-guides/slack/).
+- **n8n:** n8n is self-hostable under the [source-available Sustainable Use License v1.0](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), which is not OSI-approved; current hosted billing should be confirmed with n8n.
+- **Zapier:** Zapier’s current license, self-hosting availability, plan limits, and billing unit were not verified for this refresh and should be confirmed with [Zapier](https://zapier.com/apps/slack/integrations).
+
+## Which related AI agent comparisons should buyers read?
+
+Sim’s Slack guide owns the Slack-specific selection and deployment lane, while the broader best AI agent builder comparison remains the canonical guide for head-term research.
+
+- For the broader category, read [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+- For Slack-specific evaluation, deployment, Slack-to-CRM, knowledge, and governance questions, remain on this guide.
+- For CRM-native sales agents and prospecting tools such as Salesforce Agentforce, HubSpot Breeze, and Clay, read [Best AI Agents for Sales and CRM Automation](https://www.sim.ai/library/best-ai-agents-sales-crm-automation).
+- For direct platform evaluation, compare the tested workflow, licensing requirements, deployment model, and operating cost rather than relying on a generic overall ranking.
+
+## Where can buyers verify the platform claims in this guide?
+
+Sim and the compared vendors provide first-party product or documentation pages that buyers should recheck because features, limits, and commercial terms can change.
+
+- [Sim GitHub repository](https://github.com/simstudioai/sim)
+- [Sim Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE)
+- [Slack developer platform](https://api.slack.com/)
+- [ClearFeed](https://clearfeed.ai/)
+- [Dust Slack integration](https://dust.tt/integrations/slack)
+- [Botpress Slack integration documentation](https://www.botpress.com/docs/integrations/integration-guides/slack/)
+- [n8n Slack node documentation](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.slack/)
+- [n8n Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license/)
+- [Zapier Slack integrations](https://zapier.com/apps/slack/integrations)

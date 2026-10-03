@@ -1,7 +1,7 @@
 import type { Neo4jQueryParams, Neo4jResponse } from '@/tools/neo4j/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
+export const queryTool: InternalToolConfig<Neo4jQueryParams, Neo4jResponse> = {
   id: 'neo4j_query',
   name: 'Neo4j Query',
   description:
@@ -61,13 +61,8 @@ export const queryTool: ToolConfig<Neo4jQueryParams, Neo4jResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/neo4j/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

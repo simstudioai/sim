@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react'
+import { slugify } from '@sim/utils/string'
 import { type ModelCapabilities, PROVIDER_DEFINITIONS } from '@/providers/models'
+import type { ModelPricing } from '@/providers/types'
 
 const PROVIDER_PREFIXES: Record<string, string[]> = {
   'azure-openai': ['azure/'],
@@ -12,6 +14,7 @@ const PROVIDER_PREFIXES: Record<string, string[]> = {
   baseten: ['baseten/'],
   'ollama-cloud': ['ollama-cloud/'],
   groq: ['groq/'],
+  kie: ['kie/'],
   openrouter: ['openrouter/'],
   vllm: ['vllm/'],
 }
@@ -94,12 +97,7 @@ const UPDATED_AT_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
 })
 
-export interface PricingInfo {
-  input: number
-  cachedInput?: number
-  output: number
-  updatedAt: string
-}
+export type PricingInfo = ModelPricing
 
 export interface CatalogFaq {
   question: string
@@ -123,6 +121,8 @@ export interface CatalogModel {
   contextWindow: number | null
   releaseDate: string | null
   deprecated: boolean
+  featured: boolean
+  recommended: boolean
   pricing: PricingInfo
   capabilities: ModelCapabilities
   capabilityTags: string[]
@@ -222,14 +222,6 @@ export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): nu
 
 function trimTrailingZeros(value: string): string {
   return value.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/--+/g, '-')
 }
 
 function getProviderPrefixes(providerId: string): string[] {
@@ -451,6 +443,12 @@ function computeModelRelevanceScore(model: CatalogModel): number {
 }
 
 function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
+  const featuredDifference = Number(b.featured) - Number(a.featured)
+  if (featuredDifference !== 0) return featuredDifference
+
+  const recommendationDifference = Number(b.recommended) - Number(a.recommended)
+  if (recommendationDifference !== 0) return recommendationDifference
+
   return computeModelRelevanceScore(b) - computeModelRelevanceScore(a)
 }
 
@@ -484,6 +482,8 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       contextWindow: model.contextWindow ?? null,
       releaseDate: model.releaseDate ?? null,
       deprecated: !!model.sunset,
+      featured: model.featured ?? false,
+      recommended: model.recommended ?? false,
       pricing: model.pricing,
       capabilities: mergedCapabilities,
       capabilityTags,
@@ -578,6 +578,10 @@ function assertUniqueGeneratedRoutes(providers: CatalogProvider[]): void {
 assertUniqueGeneratedRoutes(rawProviders)
 
 export const MODEL_CATALOG_PROVIDERS: CatalogProvider[] = rawProviders
+/** Every provider with a page: those with a model catalog, resellers included. */
+export const MODEL_PROVIDERS_WITH_MODELS = MODEL_CATALOG_PROVIDERS.filter(
+  (provider) => provider.models.length > 0
+)
 export const MODEL_PROVIDERS_WITH_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
   (provider) => provider.models.length > 0 && !provider.isReseller
 )
@@ -594,13 +598,15 @@ export const TOP_MODEL_PROVIDERS = MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 8).map
 )
 
 export function getPricingBounds(pricing: PricingInfo): { lowPrice: number; highPrice: number } {
+  const prices = [pricing, ...(pricing.tiers ?? [])].flatMap((tokenPricing) => [
+    tokenPricing.input,
+    tokenPricing.output,
+    ...(tokenPricing.cachedInput !== undefined ? [tokenPricing.cachedInput] : []),
+  ])
+
   return {
-    lowPrice: Math.min(
-      pricing.input,
-      pricing.output,
-      ...(pricing.cachedInput !== undefined ? [pricing.cachedInput] : [])
-    ),
-    highPrice: Math.max(pricing.input, pricing.output),
+    lowPrice: Math.min(...prices),
+    highPrice: Math.max(...prices),
   }
 }
 
@@ -715,6 +721,7 @@ export function buildProviderFaqs(provider: CatalogProvider): CatalogFaq[] {
 }
 
 export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): CatalogFaq[] {
+  const pricingTiers = model.pricing.tiers ?? []
   const faqs: CatalogFaq[] = [
     {
       question: `What is ${model.displayName}?`,
@@ -722,7 +729,12 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
     },
     {
       question: `How much does ${model.displayName} cost?`,
-      answer: `${model.displayName} is listed at ${formatPrice(model.pricing.input)}/1M input tokens${model.pricing.cachedInput !== undefined ? `, ${formatPrice(model.pricing.cachedInput)}/1M cached input tokens` : ''}, and ${formatPrice(model.pricing.output)}/1M output tokens.`,
+      answer: `${model.displayName} starts at ${formatPrice(model.pricing.input)}/1M input tokens${model.pricing.cachedInput !== undefined ? `, ${formatPrice(model.pricing.cachedInput)}/1M cached input tokens` : ''}, and ${formatPrice(model.pricing.output)}/1M output tokens.${pricingTiers
+        .map(
+          (tier) =>
+            ` Above ${formatTokenCount(tier.aboveInputTokens)} input tokens, the full request is priced at ${formatPrice(tier.input)}/1M input tokens${tier.cachedInput !== undefined ? `, ${formatPrice(tier.cachedInput)}/1M cached input tokens` : ''}, and ${formatPrice(tier.output)}/1M output tokens.`
+        )
+        .join('')}`,
     },
     {
       question: `What is the context window for ${model.displayName}?`,

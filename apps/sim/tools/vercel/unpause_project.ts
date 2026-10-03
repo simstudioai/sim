@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelUnpauseProjectParams, VercelUnpauseProjectResponse } from '@/tools/vercel/types'
 
 export const vercelUnpauseProjectTool: ToolConfig<
@@ -43,7 +44,7 @@ export const vercelUnpauseProjectTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v1/projects/${params.projectId.trim()}/unpause${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v1/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/unpause${qs ? `?${qs}` : ''}`
     },
     method: 'POST',
     headers: (params: VercelUnpauseProjectParams) => ({

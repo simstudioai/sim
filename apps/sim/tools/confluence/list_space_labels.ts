@@ -1,5 +1,5 @@
 import { LABEL_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListSpaceLabelsParams {
   accessToken: string
@@ -24,7 +24,7 @@ export interface ConfluenceListSpaceLabelsResponse {
   }
 }
 
-export const confluenceListSpaceLabelsTool: ToolConfig<
+export const confluenceListSpaceLabelsTool: InternalToolConfig<
   ConfluenceListSpaceLabelsParams,
   ConfluenceListSpaceLabelsResponse
 > = {
@@ -48,7 +48,7 @@ export const confluenceListSpaceLabelsTool: ToolConfig<
     domain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
     },
     spaceId: {
@@ -72,14 +72,14 @@ export const confluenceListSpaceLabelsTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    url: (params: ConfluenceListSpaceLabelsParams) => {
+  operation: {
+    input: (params: ConfluenceListSpaceLabelsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -92,13 +92,8 @@ export const confluenceListSpaceLabelsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/space-labels?${query.toString()}`
+      return Object.fromEntries(query)
     },
-    method: 'GET',
-    headers: (params: ConfluenceListSpaceLabelsParams) => ({
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
   },
 
   transformResponse: async (response: Response) => {

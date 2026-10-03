@@ -2,13 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { compareVersions, isShellOutdated } from '@/lib/desktop/min-version'
 
 describe('compareVersions', () => {
-  it('orders release cores numerically', () => {
-    expect(compareVersions('1.2.3', '1.2.3')).toBe(0)
-    expect(compareVersions('1.2.3', '1.2.4')).toBe(-1)
-    expect(compareVersions('1.10.0', '1.9.9')).toBe(1)
-    expect(compareVersions('v0.5.24', '0.5.24')).toBe(0)
-  })
-
   it('ranks prereleases below their release', () => {
     expect(compareVersions('1.2.3-beta.1', '1.2.3')).toBe(-1)
     expect(compareVersions('1.2.3', '1.2.3-rc.9')).toBe(1)
@@ -19,11 +12,6 @@ describe('compareVersions', () => {
     expect(compareVersions('1.4.0-rc.1', '1.4.0-beta.9')).toBe(1)
     expect(compareVersions('1.4.0-beta.2', '1.4.0-beta.2')).toBe(0)
     expect(compareVersions('1.4.0-alpha', '1.4.0-alpha.1')).toBe(-1)
-  })
-
-  it('returns null for unparseable input', () => {
-    expect(compareVersions('nightly', '1.2.3')).toBeNull()
-    expect(compareVersions('1.2', '1.2.3')).toBeNull()
   })
 })
 

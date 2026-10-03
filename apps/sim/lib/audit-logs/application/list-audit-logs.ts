@@ -11,7 +11,8 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface ListAuditLogsInput {
-  organizationId: string
+  /** Omitted when the caller belongs to exactly one organization and let it be derived. */
+  organizationId?: string
   includeDeparted: boolean
   filters: AuditLogFilterParams
   limit: number
@@ -37,7 +38,16 @@ export const listAuditLogs = defineAuthorizedAuditLogUseCase({
       orgMemberIds: context.orgMemberIds,
       includeDeparted: input.includeDeparted,
     })
-    const filterConditions = buildFilterConditions(input.filters)
+    if (
+      context.workspaceId &&
+      input.filters.workspaceId &&
+      context.workspaceId !== input.filters.workspaceId
+    )
+      throw new OrchestrationError('not_found', 'Audit logs not found in the selected workspace')
+    const filterConditions = buildFilterConditions({
+      ...input.filters,
+      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+    })
     return queryAuditLogs([scopeCondition, ...filterConditions], input.limit, input.cursor)
   },
 })

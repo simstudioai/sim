@@ -19,6 +19,10 @@ import {
   normalizeDurableSecretProvenanceEntries,
 } from '@/lib/execution/durable-secret-provenance'
 import {
+  reportDurableSecretProvenanceRefusal,
+  reportDurableSecretProvenanceWrite,
+} from '@/lib/execution/durable-secret-provenance-telemetry'
+import {
   ResolvedSecretTraceRegistry,
   type ResolvedSecretTraceScopeV1,
 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -310,6 +314,7 @@ async function replaceSidecarInTx(options: {
   identity: Record<string, string>
   hashField: Record<string, string>
   provenance: DurableSecretProvenance
+  cause?: 'source-hash-unavailable'
 }): Promise<void> {
   const entries =
     options.provenance.status === 'exact'
@@ -330,12 +335,24 @@ async function replaceSidecarInTx(options: {
         target: documentSecretProvenance.documentId,
         set: values,
       })
-    return
+  } else {
+    await options.tx
+      .insert(embeddingSecretProvenance)
+      .values(values as typeof embeddingSecretProvenance.$inferInsert)
+      .onConflictDoUpdate({ target: embeddingSecretProvenance.embeddingId, set: values })
   }
-  await options.tx
-    .insert(embeddingSecretProvenance)
-    .values(values as typeof embeddingSecretProvenance.$inferInsert)
-    .onConflictDoUpdate({ target: embeddingSecretProvenance.embeddingId, set: values })
+  if (values.status === 'unknown') {
+    reportDurableSecretProvenanceWrite({
+      surface: 'knowledge',
+      status: 'unknown',
+      cause:
+        options.cause ??
+        (options.provenance.status === 'unknown'
+          ? 'source-provenance-unknown'
+          : 'invalid-provenance-entries'),
+      resourceId: options.identity.documentId ?? options.identity.embeddingId,
+    })
+  }
 }
 
 /** Atomically tracks one document ingestion source. */
@@ -351,6 +368,7 @@ export async function replaceKnowledgeDocumentSecretProvenanceInTx(
     identity: { documentId },
     hashField: { sourceHash: sourceHash ?? 'unavailable' },
     provenance: sourceHash ? provenance : { status: 'unknown' },
+    ...(sourceHash ? {} : { cause: 'source-hash-unavailable' }),
   })
   await tx.update(document).set({ secretProvenanceVersion: 1 }).where(eq(document.id, documentId))
 }
@@ -401,6 +419,12 @@ export async function loadKnowledgeDocumentSecretRegistry(
       )
     : persistedProvenance
   if (provenance.status === 'unknown') {
+    reportDurableSecretProvenanceRefusal({
+      surface: 'knowledge',
+      cause: 'knowledge-document-source-unavailable',
+      workspaceId: scope.workspaceId,
+      resourceId: documentId,
+    })
     throw new Error('Knowledge document secret provenance is unavailable')
   }
   if (provenance.entries.length === 0)
@@ -409,7 +433,7 @@ export async function loadKnowledgeDocumentSecretRegistry(
       tracked: row.secretProvenanceVersion === 1 || currentSourceFileProvenance !== undefined,
     }
   const registry = new ResolvedSecretTraceRegistry([], scope)
-  if (!(await importDurableSecretProvenance(registry, provenance, undefined, 'knowledge'))) {
+  if (!(await importDurableSecretProvenance(registry, provenance, undefined))) {
     throw new Error('Knowledge document secret provenance is unavailable')
   }
   return { registry, provenance, tracked: true }
@@ -493,9 +517,7 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
       readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
       source
     )
-    if (
-      !(await importDurableSecretProvenance(options.registry, provenance, item.value, 'knowledge'))
-    ) {
+    if (!(await importDurableSecretProvenance(options.registry, provenance, item.value))) {
       return false
     }
   }
@@ -507,9 +529,7 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
       return false
     }
     const provenance = readBoundKnowledgeEmbeddingSecretProvenance(row)
-    if (
-      !(await importDurableSecretProvenance(options.registry, provenance, item.value, 'knowledge'))
-    ) {
+    if (!(await importDurableSecretProvenance(options.registry, provenance, item.value))) {
       return false
     }
   }
@@ -539,7 +559,9 @@ export async function importKnowledgeSearchResultSecretProvenance(options: {
     }
   >
 }> {
-  if (options.results.length === 0) return { imported: true, documentMetadata: {} }
+  if (options.results.length === 0) {
+    return { imported: true, documentMetadata: {} }
+  }
   const embeddingIds = [...new Set(options.results.map((result) => result.id))]
   const documentIds = [...new Set(options.results.map((result) => result.documentId))]
   const [chunks, documents] = await Promise.all([
@@ -554,21 +576,16 @@ export async function importKnowledgeSearchResultSecretProvenance(options: {
     ),
   ])
   const chunkById = new Map(chunks.map((row) => [row.id, row]))
-  if (chunkById.size !== embeddingIds.length) return { imported: false, documentMetadata: {} }
+  if (chunkById.size !== embeddingIds.length) {
+    return { imported: false, documentMetadata: {} }
+  }
   for (const result of options.results) {
     const row = chunkById.get(result.id)
     if (!row || row.documentId !== result.documentId || row.content !== result.content) {
       return { imported: false, documentMetadata: {} }
     }
     const provenance = readBoundKnowledgeEmbeddingSecretProvenance(row)
-    if (
-      !(await importDurableSecretProvenance(
-        options.registry,
-        provenance,
-        result.content,
-        'knowledge'
-      ))
-    ) {
+    if (!(await importDurableSecretProvenance(options.registry, provenance, result.content))) {
       return { imported: false, documentMetadata: {} }
     }
   }

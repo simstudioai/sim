@@ -1,4 +1,4 @@
-import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
 
 interface WorkflowBlockDimensionsInput {
   blockType: string

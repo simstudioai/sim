@@ -1,13 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCopyInput, ChipLink, ChipModalTabs, ChipTextarea } from '@sim/emcn'
+import {
+  Chip,
+  ChipCopyInput,
+  ChipLink,
+  ChipModalTabs,
+  ChipTextarea,
+  Label,
+  Switch,
+} from '@sim/emcn'
 import { ArrowLeft, Clock, Key, Send } from '@sim/emcn/icons'
 import { useQueryState } from 'nuqs'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { SettingsActionChips } from '@/components/settings/settings-header'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -17,6 +24,7 @@ import {
   UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { ResourceTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -240,6 +248,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
             value={valueField.value}
             onChange={valueField.setValue}
             canEdit={valueField.canEdit}
+            canReveal={!isPersonal && credential.unredacted}
             unmasked={valueField.isConflicted}
             readOnly={valueField.isConflicted}
             placeholder='Enter value'
@@ -259,6 +268,27 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
               data-lpignore='true'
               viewOnly={!isWorkspaceSecretAdmin}
             />
+          </DetailSection>
+        )}
+
+        {!isPersonal && (
+          <DetailSection title='Visibility'>
+            <div className='flex items-center justify-between'>
+              <div className='flex flex-col gap-1'>
+                <Label htmlFor='secret-unredacted'>Show value in logs and Chat</Label>
+                <p className='text-[var(--text-muted)] text-caption'>
+                  {
+                    'The value is visible to anyone who can see this workspace’s runs — in logs, Chat, and the API, including shared log links.'
+                  }
+                </p>
+              </div>
+              <Switch
+                id='secret-unredacted'
+                checked={form.unredactedDraft}
+                onCheckedChange={form.setUnredactedDraft}
+                disabled={!isWorkspaceSecretAdmin}
+              />
+            </div>
           </DetailSection>
         )}
 

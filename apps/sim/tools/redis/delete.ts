@@ -1,7 +1,7 @@
 import type { RedisDeleteParams, RedisDeleteResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisDeleteTool: ToolConfig<RedisDeleteParams, RedisDeleteResponse> = {
+export const redisDeleteTool: InternalToolConfig<RedisDeleteParams, RedisDeleteResponse> = {
   id: 'redis_delete',
   name: 'Redis Delete',
   description: 'Delete a key from Redis.',
@@ -22,11 +22,8 @@ export const redisDeleteTool: ToolConfig<RedisDeleteParams, RedisDeleteResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'DEL',
       args: [params.key],

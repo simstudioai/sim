@@ -1,136 +1,52 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { dataDrains } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { and, asc, eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import { createDataDrainContract, listDataDrainsContract } from '@/lib/api/contracts/data-drains'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { authorizeDrainAccess } from '@/lib/data-drains/access'
-import { getDestination } from '@/lib/data-drains/destinations/registry'
-import { encryptCredentials } from '@/lib/data-drains/encryption'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { dataDrainOperations } from '@/lib/data-drains/application/operations'
+import {
+  authorizeDataDrainOperation,
+  createDataDrain,
+  listDataDrains,
+} from '@/lib/data-drains/application/use-cases'
+import { dataDrainRouteErrorPolicy } from '@/lib/data-drains/route-policy'
 import { serializeDrain } from '@/lib/data-drains/serializers'
 
-const logger = createLogger('DataDrainsAPI')
-
-type RouteContext = { params: Promise<{ id: string }> }
-
-export const GET = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const { id: organizationId } = await context.params
-  const access = await authorizeDrainAccess(organizationId, { requireMutating: false })
-  if (!access.ok) return access.response
-
-  const parsed = await parseRequest(listDataDrainsContract, request, context)
-  if (!parsed.success) return parsed.response
-
-  const rows = await db
-    .select()
-    .from(dataDrains)
-    .where(eq(dataDrains.organizationId, organizationId))
-    .orderBy(asc(dataDrains.createdAt))
-
-  return NextResponse.json({ drains: rows.map(serializeDrain) })
+export const GET = defineInternalJsonRoute({
+  contract: listDataDrainsContract,
+  auth: internalSessionAuth,
+  operation: dataDrainOperations.list,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserves existing organization-admin data-drain route policy',
+  }),
+  errorPolicy: dataDrainRouteErrorPolicy,
+  beforeParse: async ({ principal, params }) => {
+    if (typeof params.id === 'string')
+      await authorizeDataDrainOperation(principal, dataDrainOperations.list, {
+        organizationId: params.id,
+      })
+  },
+  mapInput: ({ params }) => ({ organizationId: params.id }),
+  useCase: listDataDrains,
+  present: (rows) => ({ drains: rows.map(serializeDrain) }),
 })
 
-export const POST = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const { id: organizationId } = await context.params
-  const access = await authorizeDrainAccess(organizationId, { requireMutating: true })
-  if (!access.ok) return access.response
-
-  const parsed = await parseRequest(createDataDrainContract, request, context)
-  if (!parsed.success) return parsed.response
-
-  const body = parsed.data.body
-
-  if (!body.destinationCredentials) {
-    return NextResponse.json(
-      { error: 'destinationCredentials is required when creating a drain' },
-      { status: 400 }
-    )
-  }
-  const destination = getDestination(body.destinationType)
-  const configResult = destination.configSchema.safeParse(body.destinationConfig)
-  if (!configResult.success) return validationErrorResponse(configResult.error)
-  const credentialsResult = destination.credentialsSchema.safeParse(body.destinationCredentials)
-  if (!credentialsResult.success) return validationErrorResponse(credentialsResult.error)
-  const encryptedCredentials = await encryptCredentials(credentialsResult.data)
-
-  const [existing] = await db
-    .select({ id: dataDrains.id })
-    .from(dataDrains)
-    .where(and(eq(dataDrains.organizationId, organizationId), eq(dataDrains.name, body.name)))
-    .limit(1)
-  if (existing) {
-    return NextResponse.json(
-      { error: 'A data drain with this name already exists in this organization' },
-      { status: 409 }
-    )
-  }
-
-  const id = generateId()
-  const now = new Date()
-  let inserted: typeof dataDrains.$inferSelect | undefined
-  try {
-    ;[inserted] = await db
-      .insert(dataDrains)
-      .values({
-        id,
-        organizationId,
-        name: body.name,
-        source: body.source,
-        destinationType: body.destinationType,
-        destinationConfig: configResult.data as Record<string, unknown>,
-        destinationCredentials: encryptedCredentials,
-        scheduleCadence: body.scheduleCadence,
-        enabled: body.enabled ?? true,
-        cursor: null,
-        createdBy: access.session.user.id,
-        createdAt: now,
-        updatedAt: now,
+export const POST = defineInternalJsonRoute({
+  contract: createDataDrainContract,
+  auth: internalSessionAuth,
+  operation: dataDrainOperations.create,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserves existing organization-admin data-drain route policy',
+  }),
+  errorPolicy: dataDrainRouteErrorPolicy,
+  beforeParse: async ({ principal, params }) => {
+    if (typeof params.id === 'string')
+      await authorizeDataDrainOperation(principal, dataDrainOperations.create, {
+        organizationId: params.id,
       })
-      .returning()
-  } catch (error) {
-    if (getPostgresErrorCode(error) === '23505') {
-      return NextResponse.json(
-        { error: 'A data drain with this name already exists in this organization' },
-        { status: 409 }
-      )
-    }
-    throw error
-  }
-
-  if (!inserted) {
-    throw new Error('Insert returned no row')
-  }
-
-  logger.info('Data drain created', {
-    drainId: id,
-    organizationId,
-    source: body.source,
-    destinationType: body.destinationType,
-  })
-
-  recordAudit({
-    workspaceId: null,
-    actorId: access.session.user.id,
-    action: AuditAction.DATA_DRAIN_CREATED,
-    resourceType: AuditResourceType.DATA_DRAIN,
-    resourceId: id,
-    actorName: access.session.user.name ?? undefined,
-    actorEmail: access.session.user.email ?? undefined,
-    resourceName: body.name,
-    description: `Created data drain '${body.name}'`,
-    metadata: {
-      organizationId,
-      source: body.source,
-      destinationType: body.destinationType,
-      scheduleCadence: body.scheduleCadence,
-    },
-    request,
-  })
-
-  return NextResponse.json({ drain: serializeDrain(inserted) }, { status: 201 })
+  },
+  mapInput: ({ params, body }) => ({ organizationId: params.id, body }),
+  useCase: createDataDrain,
+  present: (row) => ({ drain: serializeDrain(row) }),
 })

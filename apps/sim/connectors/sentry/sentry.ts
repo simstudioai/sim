@@ -372,6 +372,7 @@ async function fetchLatestEvent(
   const url = `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/${encodeURIComponent(issueId)}/events/latest/`
 
   const response = await secureFetchWithRetry(url, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: authHeaders(accessToken),
   })
@@ -456,6 +457,7 @@ export const sentryConnector: ConnectorConfig = {
     })
 
     const response = await secureFetchWithRetry(url.toString(), {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: authHeaders(accessToken),
     })
@@ -511,6 +513,7 @@ export const sentryConnector: ConnectorConfig = {
     const url = `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/${encodeURIComponent(externalId)}/`
 
     const response = await secureFetchWithRetry(url, {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: authHeaders(accessToken),
     })
@@ -570,10 +573,7 @@ export const sentryConnector: ConnectorConfig = {
        */
       const projectResponse = await secureFetchWithRetry(
         `${apiBase}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/`,
-        {
-          method: 'GET',
-          headers: authHeaders(accessToken),
-        },
+        { profile: 'configuredEndpoint', method: 'GET', headers: authHeaders(accessToken) },
         VALIDATE_RETRY_OPTIONS
       )
 
@@ -612,10 +612,7 @@ export const sentryConnector: ConnectorConfig = {
 
       const issuesResponse = await secureFetchWithRetry(
         issuesProbeUrl.toString(),
-        {
-          method: 'GET',
-          headers: authHeaders(accessToken),
-        },
+        { profile: 'configuredEndpoint', method: 'GET', headers: authHeaders(accessToken) },
         VALIDATE_RETRY_OPTIONS
       )
 

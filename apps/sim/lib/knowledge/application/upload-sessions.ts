@@ -1,6 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -23,7 +22,7 @@ import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/doc
 import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import {
   type KnowledgeDocumentUploadMetadata,
-  knowledgeDocumentUploadMetadataSchema,
+  persistedKnowledgeDocumentUploadMetadataSchema,
 } from '@/lib/knowledge/upload-metadata'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
@@ -37,8 +36,6 @@ import {
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-
-const logger = createLogger('KnowledgeUploadSessions')
 
 export class KnowledgeDocumentUnsupportedMediaTypeError extends Error {
   constructor(message: string) {
@@ -88,11 +85,20 @@ export interface CompleteKnowledgeDocumentUploadResult {
 
 export const createKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadCreate,
-  resolveContext: ({ input }: { input: CreateKnowledgeDocumentUploadInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CreateKnowledgeDocumentUploadInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context, request }) {
     if (!request) throw new Error('Knowledge upload creation requires a request context')
     const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
@@ -140,11 +146,20 @@ export const createKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
 
 export const issueKnowledgeDocumentUploadParts = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadParts,
-  resolveContext: ({ input }: { input: IssueKnowledgeDocumentUploadPartsInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: IssueKnowledgeDocumentUploadPartsInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context, request }) {
     if (!request) throw new Error('Knowledge upload part issuance requires a request context')
     const session = await loadBoundKnowledgeDocumentUpload(principal, input, context)
@@ -161,11 +176,20 @@ export const issueKnowledgeDocumentUploadParts = defineAuthorizedKnowledgeUseCas
 
 export const cancelKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadCancel,
-  resolveContext: ({ input }: { input: KnowledgeDocumentUploadControlInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: KnowledgeDocumentUploadControlInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context }) {
     const session = await loadBoundKnowledgeDocumentUpload(principal, input, context)
     await reauthorizeKnowledgeDocumentUpload(principal, session, knowledgeOperations.uploadCancel)
@@ -183,11 +207,20 @@ export const cancelKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
 
 export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadComplete,
-  resolveContext: ({ input }: { input: CompleteKnowledgeDocumentUploadInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CompleteKnowledgeDocumentUploadInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({
     principal,
     input,
@@ -446,19 +479,26 @@ async function reauthorizeKnowledgeDocumentUpload(
     throw new OrchestrationError('not_found', 'Upload session not found')
   }
   assertUploadSessionAuthBinding(session, principal)
-  const context = await resolveActiveKnowledgeBaseContext({
-    knowledgeBaseId: session.knowledgeBaseId,
-    assertedWorkspaceId: session.workspaceId,
-  })
+  const context = await resolveActiveKnowledgeBaseContext(
+    {
+      knowledgeBaseId: session.knowledgeBaseId,
+      assertedWorkspaceId: session.workspaceId,
+    },
+    principal
+  )
   await authorizeWorkspaceOperation(principal, operation, context, {
     delegation: knowledgeDelegationPolicy,
   })
   return context
 }
 
+/**
+ * Reads metadata back off a persisted session, so it uses the lenient schema:
+ * a session created before `recipe`/`lang` were constrained must still resume.
+ */
 function knowledgeDocumentMetadataFor(session: UploadSessionRecord) {
   const { authBinding: _authBinding, ...metadata } = session.metadata
-  return knowledgeDocumentUploadMetadataSchema.parse(metadata)
+  return persistedKnowledgeDocumentUploadMetadataSchema.parse(metadata)
 }
 
 function knowledgeDocumentInputFor(session: UploadSessionRecord) {

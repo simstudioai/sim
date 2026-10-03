@@ -1,6 +1,7 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getTableById, type TableDefinition } from '@/lib/table'
 import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
+import { getTableById } from '@/lib/table/service'
+import type { TableDefinition } from '@/lib/table/types'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export type TableWorkspaceContext = TableAuthorizationContext
@@ -29,7 +30,7 @@ async function requireTable(tableId: string, workspaceId: string | undefined) {
   if (!table || (workspaceId !== undefined && table.workspaceId !== workspaceId)) {
     throw new OrchestrationError(
       'not_found',
-      `Table "${tableId}" not found in this workspace — it may not exist or may belong to a different workspace. Run glob("tables/*") to list the tables you can use here.`
+      `Table "${tableId}" not found in this workspace — it may not exist or may belong to a different workspace. List the tables in this workspace to see the ids you can use here.`
     )
   }
   return table
@@ -93,5 +94,29 @@ export async function resolveActiveTableInWorkspace(
   workspaceContext: TableWorkspaceContext
 ): Promise<ActiveTableContext> {
   const table = await requireTable(tableId, workspaceContext.workspaceId)
+  return { ...workspaceContext, tableId: table.id, table }
+}
+
+/**
+ * Loads the canonical context an archived-table use case authorizes against.
+ *
+ * Restore is the one table operation whose subject is deliberately NOT active,
+ * so it cannot go through {@link resolveActiveTableContext} — that resolver's
+ * `getTableById` skips archived rows and would report every restorable table as
+ * missing. The asserted-workspace comparison and its not-found concealment are
+ * identical.
+ */
+export async function resolveArchivedTableContext(input: {
+  tableId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveTableContext> {
+  const table = await getTableById(input.tableId, { includeArchived: true })
+  if (
+    !table ||
+    (input.assertedWorkspaceId !== undefined && table.workspaceId !== input.assertedWorkspaceId)
+  ) {
+    throw new OrchestrationError('not_found', 'Table not found')
+  }
+  const workspaceContext = await resolveTableWorkspaceContext(table.workspaceId)
   return { ...workspaceContext, tableId: table.id, table }
 }

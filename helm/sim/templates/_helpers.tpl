@@ -24,6 +24,19 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
+Create a CronJob name that leaves room for the Job controller's generated suffix.
+Long names retain a stable hash so independently configured jobs cannot collide.
+*/}}
+{{- define "sim.cronjobName" -}}
+{{- $name := printf "%s-%s" (include "sim.fullname" .root) .jobName -}}
+{{- if gt (len $name) 52 -}}
+{{- printf "%s-%s" ($name | trunc 43 | trimSuffix "-") ($name | sha256sum | trunc 8) -}}
+{{- else -}}
+{{- $name -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "sim.chart" -}}

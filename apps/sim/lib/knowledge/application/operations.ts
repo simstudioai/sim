@@ -1,22 +1,105 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import {
+  type ApplicationOperation,
+  assertOperationCapability,
+} from '@/lib/core/application/operation'
+import {
+  defineOrganizationOperation,
+  type OrganizationOperation,
+} from '@/lib/core/application/organization-operation'
+import {
+  defineWorkspaceOperation,
+  type WorkspaceOperation,
+} from '@/lib/core/application/workspace-operation'
+
+export type ScopedKnowledgeOperation<O extends WorkspaceOperation = WorkspaceOperation> = O & {
+  readonly organizationOperation: OrganizationOperation
+}
+
+interface KnowledgeOperationOptions {
+  organizationDelegation?: 'allow' | 'deny'
+  organizationDelegationAudience?: 'sim:knowledge' | 'sim:settings'
+}
+
+type AllowedKnowledgeDelegation = {
+  organizationDelegation: 'allow'
+  organizationDelegationAudience?: 'sim:knowledge' | 'sim:settings'
+}
+type DeniedKnowledgeDelegation = { organizationDelegation?: 'deny' }
+type ExplicitKnowledgeDelegation<O extends WorkspaceOperation> = ScopedKnowledgeOperation<O> & {
+  readonly organizationDelegation: 'allow'
+}
+type OptionalKnowledgeDelegation<O extends WorkspaceOperation> = ScopedKnowledgeOperation<O> & {
+  readonly organizationDelegation?: 'allow' | 'deny'
+}
+
+/** Binds organization policy to the same semantic operation declared for workspace access. */
+function defineKnowledgeOperation<const O extends WorkspaceOperation>(
+  operation: O,
+  options: AllowedKnowledgeDelegation
+): ExplicitKnowledgeDelegation<O>
+function defineKnowledgeOperation<const O extends WorkspaceOperation>(
+  operation: O,
+  options?: DeniedKnowledgeDelegation
+): ScopedKnowledgeOperation<O>
+function defineKnowledgeOperation<const O extends WorkspaceOperation>(
+  operation: O,
+  options?: KnowledgeOperationOptions
+): OptionalKnowledgeDelegation<O> {
+  const supportsOrganizationDelegation =
+    options?.organizationDelegation !== 'deny' &&
+    (options?.organizationDelegation === 'allow' ||
+      (operation.minimumRole === 'read' && operation.delegatedServices?.includes('copilot')))
+  const organizationOperation = defineOrganizationOperation({
+    id: operation.id,
+    capability: operation.capability,
+    minimumRole: operation.minimumRole === 'read' ? 'member' : 'admin',
+    /** Setup operations may admit readers but still write; bearer clients need write consent. */
+    oauthScope: operation.oauthScope ?? 'api:write',
+    ...(supportsOrganizationDelegation
+      ? ({
+          principalKinds: [
+            'session',
+            'personal_api_key',
+            'oauth_access_token',
+            'organization_delegated',
+          ],
+          delegationAudience: options?.organizationDelegationAudience ?? 'sim:knowledge',
+          delegatedServices:
+            operation.id === 'knowledge.search' ? ['copilot', 'slack-search'] : ['copilot'],
+        } as const)
+      : ({ principalKinds: ['session', 'personal_api_key', 'oauth_access_token'] } as const)),
+  })
+  return Object.freeze({ ...operation, organizationOperation, ...options })
+}
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['copilot'],
-} as const
-const COPILOT_PRINCIPAL_POLICY = {
-  principalKinds: ['delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 
 const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot', 'executor'],
 } as const
 
-const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
-
-const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'delegated'] as const
+const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = [
+  'session',
+  'personal_api_key',
+  'oauth_access_token',
+  'delegated',
+] as const
 
 const HUMAN_AND_COPILOT_PRINCIPAL_POLICY = {
   principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
@@ -29,338 +112,821 @@ const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
 } as const
 
 export const knowledgeOperations = {
-  list: defineWorkspaceOperation({
-    id: 'knowledge.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  listArchived: defineWorkspaceOperation({
-    id: 'knowledge.list_archived',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  read: defineWorkspaceOperation({
-    id: 'knowledge.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  create: defineWorkspaceOperation({
-    id: 'knowledge.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  update: defineWorkspaceOperation({
-    id: 'knowledge.update',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  delete: defineWorkspaceOperation({
-    id: 'knowledge.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  bulkMoveItems: defineWorkspaceOperation({
-    id: 'knowledge.bulk_move_items',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  bulkDeleteItems: defineWorkspaceOperation({
-    id: 'knowledge.bulk_delete_items',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  bulkDelete: defineWorkspaceOperation({
-    id: 'knowledge.bulk_delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
-  renameByVfsPath: defineWorkspaceOperation({
-    id: 'knowledge.vfs.rename',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...COPILOT_PRINCIPAL_POLICY,
-  }),
-  moveByVfsPath: defineWorkspaceOperation({
-    id: 'knowledge.vfs.move',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...COPILOT_PRINCIPAL_POLICY,
-  }),
-  manageVfsFolders: defineWorkspaceOperation({
-    id: 'knowledge.vfs.folders.manage',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...COPILOT_PRINCIPAL_POLICY,
-  }),
-  deleteByVfsPath: defineWorkspaceOperation({
-    id: 'knowledge.vfs.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...COPILOT_PRINCIPAL_POLICY,
-  }),
-  search: defineWorkspaceOperation({
-    id: 'knowledge.search',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-  }),
-  listFolders: defineWorkspaceOperation({
-    id: 'knowledge.folders.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
-  createFolder: defineWorkspaceOperation({
-    id: 'knowledge.folders.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
-  relocateFolder: defineWorkspaceOperation({
-    id: 'knowledge.folders.relocate',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
-  deleteFolder: defineWorkspaceOperation({
-    id: 'knowledge.folders.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
-  listDocuments: defineWorkspaceOperation({
-    id: 'knowledge.documents.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-  }),
-  readDocument: defineWorkspaceOperation({
-    id: 'knowledge.documents.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-  }),
-  uploadDocument: defineWorkspaceOperation({
-    id: 'knowledge.documents.upload',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-  }),
-  addWorkspaceFiles: defineWorkspaceOperation({
-    id: 'knowledge.documents.add_workspace_files',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  deleteDocument: defineWorkspaceOperation({
-    id: 'knowledge.documents.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-  }),
-  bulkDeleteDocuments: defineWorkspaceOperation({
-    id: 'knowledge.documents.bulk_delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  updateDocument: defineWorkspaceOperation({
-    id: 'knowledge.documents.update',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  bulkDocuments: defineWorkspaceOperation({
-    id: 'knowledge.documents.bulk',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  listChunks: defineWorkspaceOperation({
-    id: 'knowledge.chunks.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  readChunk: defineWorkspaceOperation({
-    id: 'knowledge.chunks.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  createChunk: defineWorkspaceOperation({
-    id: 'knowledge.chunks.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  updateChunk: defineWorkspaceOperation({
-    id: 'knowledge.chunks.update',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  deleteChunk: defineWorkspaceOperation({
-    id: 'knowledge.chunks.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  bulkChunks: defineWorkspaceOperation({
-    id: 'knowledge.chunks.bulk',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
+  completeGitHubSetupOAuth: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.oauth.complete',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  startGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.start',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  readGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.read',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  cancelGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.cancel',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  continueGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.continue',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  selectGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.select',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  completeGitHubSetup: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.setup.complete',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listGitHubInstallations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.installations.list',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  connectGitHubInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.github.installations.connect',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  prepareSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.prepare',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  startSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.oauth.start',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  connectCustomSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.connect_custom',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  completeSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.oauth.complete',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listSlackInstallations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.list',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    }),
+    { organizationDelegation: 'allow', organizationDelegationAudience: 'sim:settings' }
+  ),
+  configureSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.configure',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    }),
+    { organizationDelegation: 'allow', organizationDelegationAudience: 'sim:settings' }
+  ),
+  removeSlackInstallation: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.slack.remove',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    }),
+    { organizationDelegation: 'allow', organizationDelegationAudience: 'sim:settings' }
+  ),
+  /**
+   * Lists the workspace's knowledge bases, active or archived.
+   *
+   * One operation covers both lifecycle scopes: the archived set is the same rows
+   * under a different `deleted_at` predicate, and it is the only discovery read
+   * that makes restore usable, so denying it to a principal that may archive and
+   * restore leaves that principal able to recover only the ids it happened to
+   * record itself.
+   */
+  list: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.list',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  read: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.read',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  /**
+   * Streams a whole knowledge base out as one archive. A read-role principal
+   * may export because nothing leaves that the reader could not already page
+   * through, but the bulk shape is what `knowledge.export` lets a group withhold.
+   */
+  export: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.export',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.export',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  /**
+   * The only operation that brings a knowledge base into existence, so it is the
+   * only one `knowledge.create` governs — a group may be allowed to query,
+   * populate and organize the bases it already has without opening new ones.
+   */
+  create: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.create',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.create',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  update: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.update',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  delete: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.delete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  /**
+   * Un-archives a soft-deleted knowledge base.
+   *
+   * Deliberately the same policy as {@link knowledgeOperations.delete}: an
+   * operation's inverse must not be harder to reach than the operation, or a
+   * principal can archive a knowledge base it is then unable to recover.
+   */
+  restore: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.restore',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  bulkMoveItems: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.bulk_move_items',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  bulkDeleteItems: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.bulk_delete_items',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  bulkDelete: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.bulk_delete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  search: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search',
+      oauthScope: 'search:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+    })
+  ),
+  listFolders: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.folders.list',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    }),
+    /** Folder mentions resolve workspace folders; organization delegation stays disabled. */
+    { organizationDelegation: 'deny' }
+  ),
+  createFolder: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.folders.create',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  relocateFolder: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.folders.relocate',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  deleteFolder: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.folders.delete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  listDocuments: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.list',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+    })
+  ),
+  readDocument: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.read',
+      oauthScope: 'search:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+    })
+  ),
+  /**
+   * The single-request upload path: the caller hands over file bytes, so the
+   * document's provenance is whatever the caller chose. `knowledge.upload` is
+   * what an organization withholds to admit documents only from the connectors
+   * it sanctioned.
+   */
+  uploadDocument: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.upload',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.upload',
+      ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+    })
+  ),
+  addWorkspaceFiles: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.add_workspace_files',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  deleteDocument: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.delete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+    })
+  ),
+  updateDocument: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.update',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    })
+  ),
+  bulkDocuments: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.bulk',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  listChunks: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.chunks.list',
+      oauthScope: 'search:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+    })
+  ),
+  readChunk: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.chunks.read',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  createChunk: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.chunks.create',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    })
+  ),
+  updateChunk: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.chunks.update',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    })
+  ),
+  deleteChunk: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.chunks.delete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    })
+  ),
+  bulkChunks: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.chunks.bulk',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
   /**
    * The tag vocabulary is required input for two operations a workspace API key
    * may already perform — filtering documents and search by tag display name —
    * so it carries the same policy as those sibling reads (`documents.list`,
    * `read`, `search`) rather than the stricter one the tag *writes* keep.
    */
-  listTags: defineWorkspaceOperation({
-    id: 'knowledge.tags.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-  }),
-  createTag: defineWorkspaceOperation({
-    id: 'knowledge.tags.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  updateTag: defineWorkspaceOperation({
-    id: 'knowledge.tags.update',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  deleteTag: defineWorkspaceOperation({
-    id: 'knowledge.tags.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  readTagUsage: defineWorkspaceOperation({
-    id: 'knowledge.tags.read_usage',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  readDetailedTagUsage: defineWorkspaceOperation({
-    id: 'knowledge.tags.read_detailed_usage',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  readNextTagSlot: defineWorkspaceOperation({
-    id: 'knowledge.tags.read_next_slot',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  saveDocumentTagDefinitions: defineWorkspaceOperation({
-    id: 'knowledge.tags.save_document_definitions',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  deleteDocumentTagDefinitions: defineWorkspaceOperation({
-    id: 'knowledge.tags.delete_document_definitions',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  listConnectors: defineWorkspaceOperation({
-    id: 'knowledge.connectors.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  readConnector: defineWorkspaceOperation({
-    id: 'knowledge.connectors.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  createConnector: defineWorkspaceOperation({
-    id: 'knowledge.connectors.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  updateConnector: defineWorkspaceOperation({
-    id: 'knowledge.connectors.update',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  deleteConnector: defineWorkspaceOperation({
-    id: 'knowledge.connectors.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  syncConnector: defineWorkspaceOperation({
-    id: 'knowledge.connectors.sync',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
-  }),
-  listConnectorDocuments: defineWorkspaceOperation({
-    id: 'knowledge.connectors.documents.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  updateConnectorDocuments: defineWorkspaceOperation({
-    id: 'knowledge.connectors.documents.update',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
-  }),
-  uploadCreate: defineWorkspaceOperation({
-    id: 'knowledge.documents.upload.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
-  uploadParts: defineWorkspaceOperation({
-    id: 'knowledge.documents.upload.parts',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
-  uploadComplete: defineWorkspaceOperation({
-    id: 'knowledge.documents.upload.complete',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
-  uploadCancel: defineWorkspaceOperation({
-    id: 'knowledge.documents.upload.cancel',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
-  }),
+  listTags: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.list',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+    })
+  ),
+  createTag: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.create',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  updateTag: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.update',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  deleteTag: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.delete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  readTagUsage: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.read_usage',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  readDetailedTagUsage: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.read_detailed_usage',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  readNextTagSlot: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.read_next_slot',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  /**
+   * Bulk upsert of a knowledge base's tag vocabulary.
+   *
+   * Named for the knowledge base it writes, not the document a caller used to
+   * address it through: the write targets `knowledge_base_tag_definitions` and
+   * its audit entry has always been a `KNOWLEDGE_BASE` one.
+   */
+  saveDocumentTagDefinitions: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.bulk_save',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  /** Removal over that same vocabulary — unused definitions, or all of them. */
+  deleteDocumentTagDefinitions: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.tags.cleanup',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  listConnectors: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.list',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    })
+  ),
+  readConnector: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.read',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    })
+  ),
+  createConnector: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.create',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  updateConnector: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.update',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  /**
+   * Which people a connector crawls as is an admin decision: members mode
+   * grants the connector every enrolled member's credential. Session only —
+   * it is a settings action, not something an agent or key performs.
+   */
+  updateConnectorAccess: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.access.update',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  connectPersonalSearchIntegration: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.connect',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  listPersonalSearchIntegrations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.personal-integrations.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
+    })
+  ),
+  listSearchSources: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.sources.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session', 'delegated'],
+      delegatedServices: ['copilot'],
+    })
+  ),
+  listSearchIntegrations: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.integrations.list',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    }),
+    { organizationDelegation: 'allow' }
+  ),
+  approveSearchIntegration: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.integrations.approve',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    }),
+    { organizationDelegation: 'allow' }
+  ),
+  /**
+   * A workspace reader connecting their own account for a member crawl or a
+   * mirrored-ACL identity. Enrollment never creates crawler access grants.
+   */
+  enrollConnectorMember: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.members.enroll',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    })
+  ),
+  readSearchIndex: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.index.read',
+      oauthScope: 'search:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.use',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  prepareSearchSource: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.search.sources.prepare',
+      minimumRole: 'admin',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      principalKinds: ['session'],
+    }),
+    { organizationDelegation: 'allow' }
+  ),
+  deleteConnector: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.delete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  syncConnector: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.sync',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    })
+  ),
+  listConnectorDocuments: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.documents.list',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  updateConnectorDocuments: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.connectors.documents.update',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'deny',
+      capability: 'knowledge.use',
+      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+    })
+  ),
+  /**
+   * The four session operations are one upload, split across requests only
+   * because a large file cannot arrive in one. They carry the same capability
+   * for that reason — including cancel, which would otherwise be the one open
+   * door into a surface the group was denied.
+   */
+  uploadCreate: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.upload.create',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.upload',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  uploadParts: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.upload.parts',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.upload',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  uploadComplete: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.upload.complete',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.upload',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
+  uploadCancel: defineKnowledgeOperation(
+    defineWorkspaceOperation({
+      id: 'knowledge.documents.upload.cancel',
+      oauthScope: 'api:write',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+      capability: 'knowledge.upload',
+      ...ALL_PRINCIPAL_POLICY,
+    })
+  ),
 } as const
 
+/**
+ * The session-scoped entry points, which resolve a knowledge base first and then
+ * hand authorization to the workspace-scoped `knowledgeOperations` sibling that
+ * matches. The capability rides on that sibling, so each of these declares
+ * `'none'` — but declares it, rather than being minted from a bare object
+ * literal as they were, which is the form that kept them out of
+ * `check:permission-group-enforcement` entirely.
+ */
+function defineKnowledgeSessionOperation<const Id extends string>(
+  operation: ApplicationOperation<Id>
+): ApplicationOperation<Id> {
+  assertOperationCapability(operation)
+  return Object.freeze(operation)
+}
+
 export const knowledgeSessionOperations = {
-  list: Object.freeze({ id: 'knowledge.session.list' as const }),
-  read: Object.freeze({ id: 'knowledge.session.read' as const }),
-  update: Object.freeze({ id: 'knowledge.session.update' as const }),
-  delete: Object.freeze({ id: 'knowledge.session.delete' as const }),
-  restore: Object.freeze({ id: 'knowledge.session.restore' as const }),
+  // permission-group-exempt: delegates to knowledgeOperations.list, which carries knowledge.use
+  list: defineKnowledgeSessionOperation({ id: 'knowledge.session.list', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.read, which carries knowledge.use
+  read: defineKnowledgeSessionOperation({ id: 'knowledge.session.read', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.update, which carries knowledge.use
+  update: defineKnowledgeSessionOperation({ id: 'knowledge.session.update', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.delete, which carries knowledge.use
+  delete: defineKnowledgeSessionOperation({ id: 'knowledge.session.delete', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.restore, which carries knowledge.use
+  restore: defineKnowledgeSessionOperation({ id: 'knowledge.session.restore', capability: 'none' }),
 } as const
 
 export type KnowledgeOperation = (typeof knowledgeOperations)[keyof typeof knowledgeOperations]

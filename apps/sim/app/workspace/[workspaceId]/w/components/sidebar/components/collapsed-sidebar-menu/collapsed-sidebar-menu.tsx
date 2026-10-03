@@ -1,4 +1,4 @@
-import { type ComponentType, type MouseEvent as ReactMouseEvent, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useState } from 'react'
 import {
   Chip,
   chipVariants,
@@ -13,16 +13,21 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Loader,
+  OverflowText,
 } from '@sim/emcn'
-import { Folder, MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
+import { MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
+import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
 import {
   SidebarNavChip,
   type SidebarNavItemData,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-nav-chip'
-import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import {
+  SIDEBAR_NO_MOTION_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -30,8 +35,6 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 interface CollapsedResourceFlyoutProps {
   entries: FlyoutEntry[]
-  /** Icon for the resource rows. Folders always carry the folder glyph. */
-  icon: ComponentType<{ className?: string }>
   /** Resource open on the current route, so its row reads as selected. */
   currentItemId?: string
   /**
@@ -47,11 +50,12 @@ interface CollapsedResourceFlyoutProps {
 /**
  * Rail flyout body for a foldered workspace resource (Tables, Files). Every row
  * is a link — the flyout is a jump list, so folders open as submenus rather than
- * navigating, and an empty one has nowhere to go and is inert.
+ * navigating, and an empty one has nowhere to go and is inert. Rows carry no
+ * glyph: the rail chip the flyout hangs off already names the resource, so a
+ * repeated icon on every row is noise in a list that exists only to be scanned.
  */
 export function CollapsedResourceFlyout({
   entries,
-  icon,
   currentItemId,
   isLoading = false,
   emptyLabel,
@@ -67,7 +71,7 @@ export function CollapsedResourceFlyout({
   if (entries.length === 0) {
     return <DropdownMenuItem disabled>{emptyLabel}</DropdownMenuItem>
   }
-  return <CollapsedFlyoutRows entries={entries} icon={icon} currentItemId={currentItemId} />
+  return <CollapsedFlyoutRows entries={entries} currentItemId={currentItemId} />
 }
 
 /**
@@ -83,9 +87,8 @@ function PinnedGlyph() {
 
 function CollapsedFlyoutRows({
   entries,
-  icon: Icon,
   currentItemId,
-}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'icon' | 'currentItemId'>) {
+}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'currentItemId'>) {
   return (
     <>
       {entries.map((entry) => {
@@ -93,8 +96,7 @@ function CollapsedFlyoutRows({
           return (
             <DropdownMenuItem key={entry.id} asChild active={currentItemId === entry.id}>
               <Link href={entry.href}>
-                <Icon className='size-[14px]' />
-                <span className='truncate'>{entry.name}</span>
+                <OverflowText label={entry.name} />
                 {entry.pinned && <PinnedGlyph />}
               </Link>
             </DropdownMenuItem>
@@ -104,8 +106,7 @@ function CollapsedFlyoutRows({
         if (entry.children.length === 0) {
           return (
             <DropdownMenuItem key={entry.id} disabled>
-              <Folder className='size-[14px]' />
-              <span className='truncate'>{entry.name}</span>
+              <OverflowText label={entry.name} />
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuItem>
           )
@@ -114,16 +115,11 @@ function CollapsedFlyoutRows({
         return (
           <DropdownMenuSub key={entry.id}>
             <DropdownMenuSubTrigger>
-              <Folder className='size-[14px]' />
-              <span className='truncate'>{entry.name}</span>
+              <OverflowText label={entry.name} />
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <CollapsedFlyoutRows
-                entries={entry.children}
-                icon={Icon}
-                currentItemId={currentItemId}
-              />
+            <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
+              <CollapsedFlyoutRows entries={entry.children} currentItemId={currentItemId} />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )
@@ -146,6 +142,8 @@ export interface CollapsedSidebarMenuNavLink {
 type CollapsedSidebarMenuProps = {
   hover: ReturnType<typeof useHoverMenu>
   children: React.ReactNode
+  /** Keeps menu hover from blurring an inline rename, including in portaled folders. */
+  isEditing?: boolean
   primaryAction?: {
     label: string
     onSelect: () => void
@@ -158,6 +156,8 @@ type CollapsedSidebarMenuProps = {
 interface CollapsedChatFlyoutItemProps {
   chat: { id: string; href: string; name: string; isActive?: boolean; isUnread?: boolean }
   isCurrentRoute: boolean
+  isSelected?: boolean
+  onSelectChat?: (chatId: string, shiftKey: boolean) => void
   isMenuOpen?: boolean
   isEditing?: boolean
   editValue?: string
@@ -188,16 +188,9 @@ interface CollapsedWorkflowFlyoutItemProps {
 }
 
 /**
- * Suppresses the Radix menu row's own pointer handlers, which focus the row on
- * `pointermove` and hand focus back to the flyout content on `pointerleave`.
- * A submenu closes on any focus that is not its trigger, so while this row's
- * actions submenu is open those two handlers would close it the instant the
- * cursor moved — the path a right-click takes, since it opens the submenu with
- * the cursor still over the row rather than over the trigger. Radix composes
- * consumer handlers ahead of its own and skips its own once the event is
- * defaulted, so preventing default here holds focus still until the cursor
- * reaches the submenu. Only applied to the row whose submenu is open: moving on
- * to any other row still steals focus and closes it, as it should.
+ * Prevents Radix's mouse pointer handlers from transferring focus. Row handlers keep
+ * actions submenus open; content capture handlers preserve inline rename focus,
+ * including inside portaled folders. Radix skips handlers for defaulted events.
  */
 const holdRowFocus = (e: React.PointerEvent) => {
   if (e.pointerType === 'mouse') e.preventDefault()
@@ -230,6 +223,7 @@ export function CollapsedSidebarMenu({
   children,
   primaryAction,
   navLink,
+  isEditing = false,
 }: CollapsedSidebarMenuProps) {
   return (
     <DropdownMenu
@@ -265,7 +259,15 @@ export function CollapsedSidebarMenu({
           )}
         </DropdownMenuTrigger>
       </div>
-      <DropdownMenuContent side='right' align='start' sideOffset={8} {...hover.contentProps}>
+      <DropdownMenuContent
+        side='right'
+        align='start'
+        className={cn('w-[220px]', SIDEBAR_NO_MOTION_CLASS)}
+        sideOffset={8}
+        {...hover.contentProps}
+        onPointerMoveCapture={isEditing ? holdRowFocus : undefined}
+        onPointerOutCapture={isEditing ? holdRowFocus : undefined}
+      >
         {primaryAction && (
           <>
             <DropdownMenuItem onSelect={primaryAction.onSelect}>
@@ -284,6 +286,8 @@ export function CollapsedSidebarMenu({
 export function CollapsedChatFlyoutItem({
   chat,
   isCurrentRoute,
+  isSelected = false,
+  onSelectChat,
   isMenuOpen = false,
   isEditing = false,
   editValue,
@@ -306,9 +310,12 @@ export function CollapsedChatFlyoutItem({
           ref={inputRef}
           value={editValue ?? chat.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
-          onKeyDown={onEditKeyDown}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            onEditKeyDown?.(e)
+          }}
           onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}
           disabled={isRenaming}
           onClick={(e) => {
@@ -327,22 +334,25 @@ export function CollapsedChatFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      active={isCurrentRoute || isMenuOpen}
+      active={isCurrentRoute || isSelected || isMenuOpen}
+      actionOpen={isMenuOpen}
       action={
         showActions ? (
           <DropdownMenuItemAction
             aria-label='Chat options'
             onPointerDown={onMorePointerDown}
             onClick={(e) => onMoreClick?.(e, chat.id)}
-            className={cn(isMenuOpen && 'opacity-100')}
           >
             <MoreHorizontal />
           </DropdownMenuItemAction>
         ) : undefined
       }
     >
-      <Link
+      <ChatNavigationLink
+        chatId={chat.id}
         href={chat.href}
+        isCurrentRoute={isCurrentRoute}
+        onSelectChat={onSelectChat}
         onContextMenu={
           chat.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, chat.id) : undefined
         }
@@ -352,7 +362,7 @@ export function CollapsedChatFlyoutItem({
           isActive={!!chat.isActive}
           isUnread={!!chat.isUnread && !isCurrentRoute}
         />
-      </Link>
+      </ChatNavigationLink>
     </DropdownMenuItem>
   )
 }
@@ -383,9 +393,12 @@ export function CollapsedWorkflowFlyoutItem({
           ref={inputRef}
           value={editValue ?? workflow.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
-          onKeyDown={onEditKeyDown}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            onEditKeyDown?.(e)
+          }}
           onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}
           disabled={isRenaming}
           onClick={(e) => {
@@ -405,6 +418,7 @@ export function CollapsedWorkflowFlyoutItem({
     <DropdownMenuItem
       asChild
       active={isCurrentRoute || actionsOpen}
+      actionOpen={actionsOpen}
       onPointerMove={actionsOpen ? holdRowFocus : undefined}
       onPointerLeave={actionsOpen ? holdRowFocus : undefined}
       action={
@@ -419,12 +433,11 @@ export function CollapsedWorkflowFlyoutItem({
               <DropdownMenuItemAction
                 aria-label='Workflow options'
                 onClick={() => setActionsOpen((prev) => !prev)}
-                className={cn(actionsOpen && 'opacity-100')}
               >
                 <MoreHorizontal />
               </DropdownMenuItemAction>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
               {onOpenInNewTab && (
                 <DropdownMenuItem onSelect={onOpenInNewTab}>
                   <SquareArrowUpRight className='size-[14px]' />
@@ -460,7 +473,7 @@ export function CollapsedWorkflowFlyoutItem({
             : undefined
         }
       >
-        <span className='min-w-0 flex-1 truncate'>{workflow.name}</span>
+        <OverflowText label={workflow.name} className='flex-1' />
       </Link>
     </DropdownMenuItem>
   )
@@ -516,8 +529,7 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
         if (!hasChildren) {
           return (
             <DropdownMenuItem key={folder.id} disabled>
-              <Folder className='size-[14px]' />
-              <span className='truncate'>{folder.name}</span>
+              <OverflowText label={folder.name} />
             </DropdownMenuItem>
           )
         }
@@ -525,10 +537,9 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
         return (
           <DropdownMenuSub key={folder.id}>
             <DropdownMenuSubTrigger>
-              <Folder className='size-[14px]' />
-              <span className='truncate'>{folder.name}</span>
+              <OverflowText label={folder.name} />
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
               {interleaveSiblings(folder.children, folderWorkflows).map((child) =>
                 child.kind === 'folder' ? (
                   <CollapsedFolderItems key={child.id} {...props} nodes={[child.node]} />

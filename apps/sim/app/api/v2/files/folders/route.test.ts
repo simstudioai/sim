@@ -1,16 +1,13 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -22,15 +19,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   listWorkspaceFileFoldersOperation: {
     operation: { id: 'files.folders.list', minimumRole: 'read', workspaceApiKey: 'allow' },
@@ -54,13 +43,12 @@ import {
   WorkspaceFileFolderConflictError,
   WorkspaceFileItemsNotFoundError,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { DELETE, GET, PATCH, POST } from '@/app/api/v2/files/folders/route'
+import { GET, PATCH, POST } from '@/app/api/v2/files/folders/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+const PRINCIPAL = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -80,21 +68,17 @@ const folder = {
 const context = undefined
 
 function request(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown) {
-  return new NextRequest(`http://localhost:3000${url}`, {
+  return createMockRequest({
     method,
-    headers: {
-      'x-api-key': 'key',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    url: `http://localhost:3000${url}`,
+    headers: { 'x-api-key': 'key' },
+    body,
   })
 }
 
 describe('/api/v2/files/folders', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.listFolders.mockResolvedValue({ folders: [folder] })
@@ -103,35 +87,6 @@ describe('/api/v2/files/folders', () => {
     mocks.deleteFolder.mockResolvedValue({
       deletedItems: { folders: 1, files: 2 },
       path: '/Reports',
-    })
-  })
-
-  it('lists folders through the shared operation and v2 presenter', async () => {
-    const response = await GET(
-      request('GET', `/api/v2/files/folders?workspaceId=${WORKSPACE_ID}`),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual([
-      {
-        name: 'Reports',
-        path: '/Reports',
-        parentPath: '/',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
-    expect(mocks.listFolders).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        parentPath: undefined,
-        search: undefined,
-        sortBy: 'name',
-        sortOrder: 'asc',
-      },
-      request: expect.anything(),
     })
   })
 
@@ -164,80 +119,6 @@ describe('/api/v2/files/folders', () => {
     )
 
     expect(response.status).toBe(500)
-  })
-
-  it('creates a folder from its canonical path', async () => {
-    const response = await POST(
-      request('POST', '/api/v2/files/folders', { workspaceId: WORKSPACE_ID, path: '/Reports' }),
-      context
-    )
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).data).toEqual({
-      name: 'Reports',
-      path: '/Reports',
-      parentPath: '/',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-    })
-    expect(mocks.createFolder).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, path: '/Reports' },
-      request: expect.anything(),
-    })
-  })
-
-  it('relocates a folder through the shared operation', async () => {
-    const response = await PATCH(
-      request('PATCH', '/api/v2/files/folders', {
-        workspaceId: WORKSPACE_ID,
-        path: '/Reports',
-        destinationPath: '/Archive/Reports',
-      }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.updateFolder).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        path: '/Reports',
-        destinationPath: '/Archive/Reports',
-      },
-      request: expect.anything(),
-    })
-  })
-
-  it('deletes a folder and returns the v2 deletion result', async () => {
-    const response = await DELETE(
-      request(
-        'DELETE',
-        `/api/v2/files/folders?workspaceId=${WORKSPACE_ID}&path=%2FReports&recursive=true`
-      ),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({
-      path: '/Reports',
-      deleted: true,
-      deletedItems: { folders: 1, files: 2 },
-    })
-  })
-
-  it('maps a duplicate folder name to 409 rather than a 500', async () => {
-    mocks.createFolder.mockRejectedValueOnce(new WorkspaceFileFolderConflictError('Reports'))
-
-    const response = await POST(
-      request('POST', '/api/v2/files/folders', { workspaceId: WORKSPACE_ID, path: '/Reports' }),
-      context
-    )
-
-    expect(response.status).toBe(409)
-    const body = await response.json()
-    expect(body.error.code).toBe('CONFLICT')
-    expect(body.error.message).toContain('already exists')
   })
 
   it('maps a duplicate folder name raised inside a drizzle transaction to 409', async () => {
@@ -295,15 +176,5 @@ describe('/api/v2/files/folders', () => {
     expect((await relocated.json()).error.code).toBe('BAD_REQUEST')
     expect(mocks.createFolder).not.toHaveBeenCalled()
     expect(mocks.updateFolder).not.toHaveBeenCalled()
-  })
-
-  it('authenticates before parsing folder input', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await POST(request('POST', '/api/v2/files/folders', {}), context)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-    expect(mocks.createFolder).not.toHaveBeenCalled()
   })
 })

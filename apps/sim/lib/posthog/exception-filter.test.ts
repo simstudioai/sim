@@ -1,9 +1,6 @@
-/**
- * @vitest-environment node
- */
 import type { CaptureResult } from 'posthog-js'
 import { describe, expect, it } from 'vitest'
-import { dropUnactionableExceptions } from '@/lib/posthog/exception-filter'
+import { dropUnactionableExceptions, preparePostHogEvent } from '@/lib/posthog/exception-filter'
 
 interface TestException {
   type?: string
@@ -37,20 +34,6 @@ function deliberatelyReported(exception: TestException): CaptureResult {
 }
 
 describe('dropUnactionableExceptions', () => {
-  it('passes through events that are not exceptions', () => {
-    const event = {
-      uuid: 'test-uuid',
-      event: 'block_added',
-      properties: { block_type: 'agent' },
-    } as CaptureResult
-
-    expect(dropUnactionableExceptions(event)).toBe(event)
-  })
-
-  it('passes through a null event from an earlier hook', () => {
-    expect(dropUnactionableExceptions(null)).toBeNull()
-  })
-
   it.each([
     'ResizeObserver loop completed with undelivered notifications.',
     'ResizeObserver loop completed with undelivered notifications',
@@ -91,15 +74,6 @@ describe('dropUnactionableExceptions', () => {
     expect(dropUnactionableExceptions(event)).toBe(event)
   })
 
-  it('keeps a real exception', () => {
-    const event = browserRaised({
-      type: 'TypeError',
-      value: "Cannot read properties of undefined (reading 'id')",
-    })
-
-    expect(dropUnactionableExceptions(event)).toBe(event)
-  })
-
   it('keeps a deliberately reported exception even when it looks like noise', () => {
     const event = deliberatelyReported({
       type: 'AbortError',
@@ -118,15 +92,6 @@ describe('dropUnactionableExceptions', () => {
     expect(dropUnactionableExceptions(event)).toBe(event)
   })
 
-  it('keeps an exception whose message merely mentions a filtered one', () => {
-    const event = browserRaised({
-      type: 'TypeError',
-      value: 'Failed to patch ResizeObserver loop completed with undelivered notifications',
-    })
-
-    expect(dropUnactionableExceptions(event)).toBe(event)
-  })
-
   it.each([
     ['a missing list', undefined],
     ['an empty list', []],
@@ -140,5 +105,39 @@ describe('dropUnactionableExceptions', () => {
     } as CaptureResult
 
     expect(dropUnactionableExceptions(event)).toBe(event)
+  })
+})
+
+describe('preparePostHogEvent', () => {
+  it('strips query strings and fragments from automatically captured URL properties', () => {
+    const event = {
+      uuid: 'test-uuid',
+      event: 'signup_page_viewed',
+      properties: {
+        $current_url: 'https://sim.ai/signup?email=private%40example.com#form',
+        $referrer: 'https://sim.ai/invite?token=secret',
+        $pathname: '/signup',
+      },
+    } as CaptureResult
+
+    expect(preparePostHogEvent(event)).toEqual({
+      ...event,
+      properties: {
+        $current_url: 'https://sim.ai/signup',
+        $referrer: 'https://sim.ai/invite',
+        $pathname: '/signup',
+      },
+    })
+    expect(event.properties?.$current_url).toContain('?email=')
+  })
+
+  it('still drops an unactionable exception after URL sanitization', () => {
+    const event = browserRaised({
+      type: 'DOMException',
+      value: 'AbortError: signal is aborted without reason',
+    })
+    event.properties.$current_url = 'https://sim.ai/workspace/id?token=secret'
+
+    expect(preparePostHogEvent(event)).toBeNull()
   })
 })

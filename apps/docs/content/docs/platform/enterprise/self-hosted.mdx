@@ -1,0 +1,279 @@
+---
+title: Self-hosted Enterprise
+description: Run the full enterprise feature set on a self-hosted deployment without billing
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+On Sim Cloud, enterprise features are unlocked by an Enterprise subscription. Self-hosted deployments have no subscription, so they are unlocked by environment configuration instead.
+
+There are two parts to getting this right, and skipping the second is the most common reason features appear to do nothing:
+
+1. **Enable the features** with `ENTERPRISE_ENABLED`.
+2. **Give them an organization to apply to.** White-labeling, PII redaction, permission groups, custom blocks, data drains, and audit scoping all read their settings from the organization that owns a workspace. A deployment where everyone works in personal workspaces has no organization for those settings to come from.
+
+## Enable the feature set
+
+Set the master switch and its client twin. Both are required. The server value decides access and most of what a workspace shows: settings sections and nearly all block fields read the deployment's server-resolved configuration, so the sidebar and the API answer the same question. The `NEXT_PUBLIC_` value covers what still reads the browser's own configuration: the SSO entry point on the login page, which renders before any workspace loads, and the Function block's Sandbox selector. On a Compose install or source checkout, `npx sim-setup doctor` reports a twin that disagrees with its server flag; see [Verify your install](/platform/self-hosting/verify).
+
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+```
+
+That turns on organizations, permission groups, SSO, white-labeling, audit logs,
+usage tracking, custom blocks, session policies, data retention, data drains, workspace
+forks, the Sandbox entitlement, and the inbox.
+
+### Turning one feature off
+
+Every feature keeps its own flag, and an explicitly set flag always wins over the master switch. To run the suite without data drains:
+
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+DATA_DRAINS_ENABLED=false
+NEXT_PUBLIC_DATA_DRAINS_ENABLED=false
+```
+
+The individual flags also work on their own if you would rather opt in one at a time and leave the master switch unset.
+
+Three features do not need a flag at all: **custom branding**, **session policies**, and the **Sim Mailer inbox** are already on wherever billing is disabled, which is every self-hosted deployment. They preserve behavior that predates these flags. Set the corresponding variable to `false` to turn one off.
+
+| Feature | Server variable | Client variable |
+|---------|-----------------|-----------------|
+| Everything below | `ENTERPRISE_ENABLED` | `NEXT_PUBLIC_ENTERPRISE_ENABLED` |
+| Organizations | `ORGANIZATIONS_ENABLED` | `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` |
+| Permission groups | `ACCESS_CONTROL_ENABLED` | `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` |
+| SAML and OIDC sign-in | `SSO_ENABLED` | `NEXT_PUBLIC_SSO_ENABLED` |
+| Directory provisioning (SCIM) | `SCIM_ENABLED` | `NEXT_PUBLIC_SCIM_ENABLED` |
+| Custom branding — on by default | `WHITELABELING_ENABLED` | `NEXT_PUBLIC_WHITELABELING_ENABLED` |
+| Audit logs | `AUDIT_LOGS_ENABLED` | `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` |
+| Insights | `USAGE_MONITORING_ENABLED` | `NEXT_PUBLIC_USAGE_MONITORING_ENABLED` |
+| Custom blocks | `CUSTOM_BLOCKS_ENABLED` | `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED` |
+| Session policies — on by default | `SESSION_POLICIES_ENABLED` | `NEXT_PUBLIC_SESSION_POLICIES_ENABLED` |
+| Data retention deletion | `DATA_RETENTION_ENABLED` | `NEXT_PUBLIC_DATA_RETENTION_ENABLED` |
+| Data drains | `DATA_DRAINS_ENABLED` | `NEXT_PUBLIC_DATA_DRAINS_ENABLED` |
+| Workspace forks | `FORKING_ENABLED` | `NEXT_PUBLIC_FORKING_ENABLED` |
+| Sim Mailer inbox — on by default | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
+| Sandboxes | `SANDBOXES_ENABLED` | `NEXT_PUBLIC_SANDBOXES_ENABLED` |
+
+Sandboxes also need a remote execution provider and a dedicated Function base image before they can run anything. `SANDBOXES_ENABLED` grants the server-side entitlement, and the server also verifies the provider credentials and an immutable Function base before it reports Sandboxes as available. Until then a workspace offers no Shell language, and **Settings → Sandboxes** stays in the sidebar but shows an upgrade notice instead of the sandbox list. `NEXT_PUBLIC_SANDBOXES_ENABLED` asserts that readiness to the browser rather than checking it: it reveals the Function block's Sandbox selector, and `npx sim-setup doctor` compares it with the selected provider's readiness. Set it only after the selected provider has credentials and a valid immutable Function base configured.
+
+JavaScript without `import` or `require` does not use the remote provider and continues to run in the local isolated VM when all Sandbox flags are off. Python, Shell, JavaScript with external imports, and selected custom Sandboxes fail with an explicit configuration error until the remote Function base is ready.
+
+See [Sandboxes](/platform/self-hosting/sandboxes) for the provider credentials, the Function base-image build, and the promotion procedure.
+
+<Callout type="warn">
+  Data retention is the one feature that deletes data. Its flag controls the cleanup pass, not the settings screen — retention windows are always configurable. Nothing is ever deleted until you enable it, and even then only against windows you configured explicitly. Sim never applies the hosted plan defaults to a self-hosted deployment.
+</Callout>
+
+## Schedule the background jobs
+
+Data drains and retention are started by cron-driven HTTP endpoints rather than by the app on their own schedules. What happens next differs: retention's cleanup runs inline in the app process, while each due data drain is handed to a background job. Every endpoint authenticates with a bearer token equal to `CRON_SECRET` and returns `401` when it is unset:
+
+```bash
+openssl rand -hex 32
+```
+
+Persist that value as `CRON_SECRET` on the app **and** on whatever calls these endpoints. Generating it in a shell configures neither, and a mismatch returns `401`, so the work silently never runs.
+
+| Feature | Endpoint | Suggested schedule | Scheduled for you |
+|---------|----------|--------------------|-------------------|
+| Data drains | `GET /api/cron/run-data-drains` | Hourly | Yes — Helm and Docker Compose both call it |
+| Retention — logs | `GET /api/logs/cleanup` | Daily | **No** — schedule it yourself |
+| Retention — soft deletes | `GET /api/cron/cleanup-soft-deletes` | Daily | **No** — schedule it yourself |
+| Retention — Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | **No** — schedule it yourself |
+| Retention — file versions | `GET /api/cron/cleanup-file-versions` | Daily | **No** — schedule it yourself |
+| OAuth token cleanup | `GET /api/cron/cleanup-oauth-tokens` | Hourly | Yes — Helm and Docker Compose both call it |
+
+<Callout type="warn">
+  Both shipped deployments schedule the data-drain dispatcher and OAuth token cleanup, but **not** the four configurable data-retention endpoints. Setting `DATA_RETENTION_ENABLED=true` alone deletes no retained product data — those windows are evaluated only when one of the four endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
+
+  OAuth token cleanup runs independently of sign-in activity, removing expired and revoked credentials. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim) for provider configuration.
+</Callout>
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://sim.example.com/api/logs/cleanup
+```
+
+The two features differ in what they need to run the work. Retention's cleanup dispatcher executes inline when Trigger.dev is not configured, so it completes on a default self-host. Data drains have no inline path: without `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project, each due drain is claimed and enqueued to the database, and nothing drains that queue for this job type. See [background jobs](/platform/self-hosting/background-jobs).
+
+## Choose an organization model
+
+### Pattern 1: one organization for the whole instance
+
+Best when everyone on the deployment belongs to the same company. Set a name and every user joins that organization automatically at signup, with their workspaces created org-owned.
+
+```bash
+INSTANCE_ORG_NAME="Acme Inc"
+```
+
+Optionally pin the slug and the owner:
+
+```bash
+INSTANCE_ORG_SLUG=acme-inc
+INSTANCE_ORG_OWNER_EMAIL=admin@acme.com
+```
+
+The organization is created the first time a user signs up. If `INSTANCE_ORG_OWNER_EMAIL` is not set, or names a user who does not exist yet, the first user to sign up becomes the owner; move ownership later with the Admin API. Provisioning is idempotent and safe across multiple replicas.
+
+<Callout type="info">
+  Instance-organization mode only applies when billing is disabled. With billing enabled, organizations are created through the normal subscription flow and these variables are ignored.
+</Callout>
+
+#### Existing deployments
+
+Users and workspaces created before you set `INSTANCE_ORG_NAME` stay where they are. Move them across once with the backfill script, which adds every user to the organization and attaches their workspaces:
+
+```bash
+# Preview
+DATABASE_URL=... INSTANCE_ORG_NAME="Acme Inc" \
+  bun run apps/sim/scripts/consolidate-users-into-organization.ts
+
+# Apply
+DATABASE_URL=... INSTANCE_ORG_NAME="Acme Inc" \
+  bun run apps/sim/scripts/consolidate-users-into-organization.ts --apply
+```
+
+It is a dry run unless you pass `--apply`, and it is safe to re-run. Users who already belong to a different organization are reported and skipped, since a user can only belong to one.
+
+### Pattern 2: many organizations you manage yourself
+
+Best when one deployment serves several teams that should not see each other's data. Leave `INSTANCE_ORG_NAME` unset and provision organizations through the Admin API.
+
+Set an admin key first:
+
+```bash
+ADMIN_API_KEY=$(openssl rand -hex 32)
+```
+
+<Steps>
+<Step>
+### Create an organization
+
+The owner must not already belong to another organization.
+
+```bash
+curl -X POST https://sim.example.com/api/v1/admin/organizations \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme Inc", "ownerId": "user_123", "slug": "acme-inc"}'
+```
+</Step>
+
+<Step>
+### Add members
+
+```bash
+curl -X POST https://sim.example.com/api/v1/admin/organizations/$ORG_ID/members \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user_456", "role": "member"}'
+```
+</Step>
+
+<Step>
+### Move a workspace into the organization
+
+Organization-scoped features only apply to workspaces the organization owns.
+
+```bash
+curl -X POST https://sim.example.com/api/v1/admin/dashboard/workspaces/$WORKSPACE_ID/move \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"destinationOrganizationId\": \"$ORG_ID\"}"
+```
+</Step>
+
+<Step>
+### Configure organization settings
+
+Branding, retention, and session policies can be set from the API instead of the UI.
+
+<Tabs items={['Whitelabel', 'Data retention', 'Session policy']}>
+<Tab value="Whitelabel">
+```bash
+curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/whitelabel \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"brandName": "Acme AI", "hidePoweredBySim": true}'
+```
+</Tab>
+<Tab value="Data retention">
+```bash
+curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/data-retention \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"logRetentionHours": 2160}'
+```
+</Tab>
+<Tab value="Session policy">
+```bash
+curl -X PATCH https://sim.example.com/api/v1/admin/organizations/$ORG_ID/session-policy \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"maxSessionHours": 168, "idleTimeoutHours": 48}'
+```
+</Tab>
+</Tabs>
+</Step>
+</Steps>
+
+### Reading enterprise data with the admin key
+
+Two enterprise reads have admin-key equivalents that need no organization and no Enterprise plan, which is what makes them usable on a billing-free deployment:
+
+```bash
+# Audit log entries across the whole deployment, with the same filters as the UI
+curl "https://sim.example.com/api/v1/admin/audit-logs?limit=50&workspaceId=$WORKSPACE_ID" \
+  -H "x-admin-key: $ADMIN_API_KEY"
+
+# A single entry
+curl "https://sim.example.com/api/v1/admin/audit-logs/$AUDIT_LOG_ID" \
+  -H "x-admin-key: $ADMIN_API_KEY"
+
+# Permission groups, optionally scoped to one organization
+curl "https://sim.example.com/api/v1/admin/access-control?organizationId=$ORG_ID" \
+  -H "x-admin-key: $ADMIN_API_KEY"
+```
+
+The organization-scoped `/api/v1/audit-logs` endpoint documented in the [audit logs guide](/platform/enterprise/audit-logs) needs an API key whose owner is an admin or owner of an organization, so reach for the admin endpoints when no organization exists yet.
+
+Deleting an organization requires echoing its slug, because the delete cascades to members, invitations, and permission groups, and detaches its workspaces:
+
+```bash
+curl -X DELETE "https://sim.example.com/api/v1/admin/organizations/$ORG_ID?confirmSlug=acme-inc" \
+  -H "x-admin-key: $ADMIN_API_KEY"
+```
+
+## Verifying it worked
+
+If a feature is enabled but nothing appears, check these in order.
+
+**The settings section is missing.** The server-side variable is not set, or the app was not restarted after adding it. Variables are read at boot from the container environment, so a restart is enough — no rebuild.
+
+**Settings → Sandboxes shows an upgrade notice instead of the sandbox list.** The Sandbox entitlement resolves off — `SANDBOXES_ENABLED=false`, or `SANDBOXES_ENABLED` unset without the `ENTERPRISE_ENABLED` master switch — or the selected provider failed the server's readiness check: missing credentials, or a Function base that is not an immutable reference. The page stays in the sidebar either way. See [Sandboxes](/platform/self-hosting/sandboxes).
+
+**The section appears but the login page has no SSO option, or the Function block has no Sandbox selector.** The `NEXT_PUBLIC_` twin is unset or `false` while the server-side feature resolves on. A workspace follows the server, but the login page renders before any workspace loads and reads the twin, and the Sandbox selector does too. Set both. On a Compose install or source checkout, `npx sim-setup doctor` reports a twin that disagrees with its server flag; for Sandboxes it compares `NEXT_PUBLIC_SANDBOXES_ENABLED` with the selected provider's readiness instead.
+
+**The feature is on but has no effect inside a workspace.** The workspace is not owned by an organization. Check `workspace_mode` and `organization_id`:
+
+```sql
+SELECT id, name, workspace_mode, organization_id FROM workspace;
+```
+
+A workspace showing `personal` or a null `organization_id` will not pick up branding, PII redaction, permission groups, or drains. Use the backfill script or the workspace move endpoint.
+
+**Retention is configured but nothing is deleted.** Either `DATA_RETENTION_ENABLED` is unset — configuring windows and running the cleanup pass are separate switches by design — or nothing is calling the cleanup endpoints. The Helm chart does not schedule them; see [Schedule the background jobs](#schedule-the-background-jobs).
+
+## Related
+
+- [Environment variables](/platform/self-hosting/environment-variables)
+- [Single Sign-On](/platform/enterprise/sso)
+- [Access control](/platform/enterprise/access-control)
+- [Roles and permissions](/platform/permissions)
+- [Workspaces](/platform/workspaces)

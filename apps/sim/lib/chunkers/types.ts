@@ -7,6 +7,7 @@ export interface ChunkerOptions {
   chunkSize?: number
   chunkOverlap?: number
   minCharactersPerChunk?: number
+  maxChunks?: number
 }
 
 export interface Chunk {

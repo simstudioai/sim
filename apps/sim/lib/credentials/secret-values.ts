@@ -1,29 +1,20 @@
 import { db } from '@sim/db'
 import { credential, environment, workspaceEnvironment } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
   createWorkspaceEnvCredentials,
   deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
   upsertPersonalEnvCredentialForUser,
 } from '@/lib/credentials/environment'
-import type { DbOrTx } from '@/lib/db/types'
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
-
-const SECRET_MAP_LOCK_TIMEOUT_MS = 5_000
 
 export interface SecretMutationResult {
   created: boolean
   updatedAt: Date
-}
-
-async function lockSecretMap(tx: DbOrTx, lockKey: string): Promise<void> {
-  await tx.execute(
-    sql`SELECT set_config('lock_timeout', ${`${SECRET_MAP_LOCK_TIMEOUT_MS}ms`}, true)`
-  )
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`)
 }
 
 /** Stores one workspace secret without decrypting any existing value. */
@@ -38,13 +29,15 @@ export async function setWorkspaceSecret(params: {
    * clears it.
    */
   description?: string | null
+  /** Redaction opt-out on the credential row. `undefined` leaves the current setting. */
+  unredacted?: boolean
 }): Promise<SecretMutationResult> {
-  const { workspaceId, name, value, userId, description } = params
+  const { workspaceId, name, value, userId, description, unredacted } = params
   const { encrypted } = await encryptSecret(value)
   const updatedAt = new Date()
 
   const created = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, workspaceId)
+    await lockWorkspaceEnvMap(tx, workspaceId)
     const [row] = await tx
       .select({
         id: workspaceEnvironment.id,
@@ -82,7 +75,11 @@ export async function setWorkspaceSecret(params: {
     })
     await tx
       .update(credential)
-      .set(description === undefined ? { updatedAt } : { updatedAt, description })
+      .set({
+        updatedAt,
+        ...(description !== undefined ? { description } : {}),
+        ...(unredacted !== undefined ? { unredacted } : {}),
+      })
       .where(
         and(
           eq(credential.workspaceId, workspaceId),
@@ -99,6 +96,53 @@ export async function setWorkspaceSecret(params: {
   return { created, updatedAt }
 }
 
+/**
+ * Updates one workspace secret's metadata, leaving its stored value untouched.
+ *
+ * Deliberately UPDATE-only: it never encrypts, never rewrites the environment
+ * variables map, and never inserts a credential row, so restoring redaction on a
+ * secret costs nothing and a metadata write can never conjure a secret that does
+ * not exist. A write that matches no row returns `null` and the caller answers
+ * not-found rather than creating one.
+ *
+ * The decrypted-env cache is still invalidated on a match: `unredacted` rides the
+ * environment snapshot into every run's redaction catalog, so a stale entry would
+ * keep printing a value the workspace just re-redacted.
+ */
+export async function updateWorkspaceSecretMetadata(params: {
+  workspaceId: string
+  name: string
+  /** `undefined` leaves any existing description untouched; `null` clears it. */
+  description?: string | null
+  /** `undefined` leaves the current setting. */
+  unredacted?: boolean
+}): Promise<SecretMutationResult | null> {
+  const { workspaceId, name, description, unredacted } = params
+  const updatedAt = new Date()
+
+  const updated = await db
+    .update(credential)
+    .set({
+      updatedAt,
+      ...(description !== undefined ? { description } : {}),
+      ...(unredacted !== undefined ? { unredacted } : {}),
+    })
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'env_workspace'),
+        eq(credential.envKey, name)
+      )
+    )
+    .returning({ id: credential.id })
+
+  if (updated.length === 0) return null
+
+  invalidateEffectiveDecryptedEnvCache({ workspaceId })
+
+  return { created: false, updatedAt }
+}
+
 /** Stores one caller-owned personal secret without decrypting any existing value. */
 export async function setPersonalSecret(params: {
   userId: string
@@ -110,7 +154,7 @@ export async function setPersonalSecret(params: {
   const updatedAt = new Date()
 
   const created = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, userId)
+    await lockPersonalEnvMap(tx, userId)
     const [row] = await tx
       .select({ id: environment.id, variables: environment.variables })
       .from(environment)
@@ -157,7 +201,7 @@ export async function deleteWorkspaceSecret(params: {
   const { workspaceId, name } = params
 
   const deleted = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, workspaceId)
+    await lockWorkspaceEnvMap(tx, workspaceId)
     const [row] = await tx
       .select({ variables: workspaceEnvironment.variables })
       .from(workspaceEnvironment)
@@ -193,7 +237,7 @@ export async function deletePersonalSecret(params: {
   const { userId, name } = params
 
   const deleted = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, userId)
+    await lockPersonalEnvMap(tx, userId)
     const [row] = await tx
       .select({ variables: environment.variables })
       .from(environment)

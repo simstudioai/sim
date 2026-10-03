@@ -109,7 +109,7 @@ export const rssPollingHandler: PollingProviderHandler = {
         items: newItems,
         etag,
         lastModified,
-      } = await fetchNewRssItems(config, requestId, logger)
+      } = await fetchNewRssItems(config, webhookData.createdAt, requestId, logger)
 
       if (!newItems.length) {
         await updateRssState(webhookId, now.toISOString(), [], config, logger, etag, lastModified)
@@ -195,11 +195,12 @@ async function updateRssState(
 
 async function fetchNewRssItems(
   config: RssWebhookConfig,
+  subscriptionStartedAt: Date,
   requestId: string,
   logger: Logger
 ): Promise<{ feed: RssFeed; items: RssItem[]; etag?: string; lastModified?: string }> {
   try {
-    const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl')
+    const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl', 'requestTarget')
     if (!urlValidation.isValid) {
       logger.error(`[${requestId}] Invalid RSS feed URL: ${urlValidation.error}`)
       throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
@@ -216,7 +217,8 @@ async function fetchNewRssItems(
       headers['If-Modified-Since'] = config.lastModified
     }
 
-    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP, {
+      profile: 'requestTarget',
       headers,
       timeout: 30000,
       maxResponseBytes: MAX_RSS_FEED_BYTES,
@@ -247,9 +249,6 @@ async function fetchNewRssItems(
       return { feed: feed as RssFeed, items: [], etag: newEtag, lastModified: newLastModified }
     }
 
-    const lastCheckedTime = config.lastCheckedTimestamp
-      ? new Date(config.lastCheckedTimestamp)
-      : null
     const lastSeenGuids = new Set(config.lastSeenGuids || [])
 
     const newItems = feed.items.filter((item) => {
@@ -262,9 +261,13 @@ async function fetchNewRssItems(
         return false
       }
 
-      if (lastCheckedTime && item.isoDate) {
+      /**
+       * A cached feed can reveal an item after its publication time. Only the fixed
+       * subscription boundary excludes history; the last poll time is not a delivery cursor.
+       */
+      if (item.isoDate) {
         const itemDate = new Date(item.isoDate)
-        if (itemDate <= lastCheckedTime) {
+        if (itemDate <= subscriptionStartedAt) {
           return false
         }
       }

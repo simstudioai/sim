@@ -1,3 +1,5 @@
+import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
+
 /**
  * The link scheme for `@`-mention links — `[label](sim:<kind>/<id>)`. Matches the chat composer's
  * portable chip format (`chip-clipboard-codec.ts`), so a mention authored here is parseable there.
@@ -18,22 +20,5 @@ export function toSimHref(kind: string, id: string): string {
  * credentials), so the chip stays display-only.
  */
 export function simLinkPath(workspaceId: string, kind: string, id: string): string | null {
-  const base = `/workspace/${encodeURIComponent(workspaceId)}`
-  const encodedId = encodeURIComponent(id)
-  switch (kind) {
-    case 'file':
-      return `${base}/files/${encodedId}`
-    case 'folder':
-      return `${base}/files?folderId=${encodedId}`
-    case 'table':
-      return `${base}/tables/${encodedId}`
-    case 'knowledge':
-      return `${base}/knowledge/${encodedId}`
-    case 'workflow':
-      return `${base}/w/${encodedId}`
-    case 'skill':
-      return `${base}/skills?skillId=${encodedId}`
-    default:
-      return null
-  }
+  return isWorkspaceResourceKind(kind) ? workspaceResourcePath(workspaceId, kind, id) : null
 }

@@ -140,39 +140,3 @@ export interface TtsResponse {
   format?: string
   provider?: TtsProvider
 }
-
-// Audio format MIME types
-export const AUDIO_MIME_TYPES: Record<string, string> = {
-  mp3: 'audio/mpeg',
-  opus: 'audio/opus',
-  aac: 'audio/aac',
-  flac: 'audio/flac',
-  wav: 'audio/wav',
-  pcm: 'audio/pcm',
-  linear16: 'audio/pcm',
-  mulaw: 'audio/basic',
-  alaw: 'audio/basic',
-  ogg: 'audio/ogg',
-}
-
-// Get file extension from format
-export function getFileExtension(format: string): string {
-  const formatMap: Record<string, string> = {
-    mp3: 'mp3',
-    opus: 'opus',
-    aac: 'aac',
-    flac: 'flac',
-    wav: 'wav',
-    pcm: 'pcm',
-    linear16: 'wav',
-    mulaw: 'wav',
-    alaw: 'wav',
-    ogg: 'ogg',
-  }
-  return formatMap[format] || 'mp3'
-}
-
-// Get MIME type from format
-export function getMimeType(format: string): string {
-  return AUDIO_MIME_TYPES[format] || 'audio/mpeg'
-}

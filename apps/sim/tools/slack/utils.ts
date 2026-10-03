@@ -1,6 +1,18 @@
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
-import type { SlackCanvasFile } from '@/tools/slack/types'
+import type {
+  SlackAgentSessionStatus,
+  SlackCanvasFile,
+  SlackSuggestedPrompt,
+} from '@/tools/slack/types'
+
+const SLACK_AGENT_SESSION_STATUSES = new Set<SlackAgentSessionStatus>([
+  'active',
+  'processing',
+  'suspended',
+  'closed',
+])
 
 export const mapCanvasFile = (file: SlackCanvasFile): SlackCanvasFile => ({
   id: file.id,
@@ -28,6 +40,109 @@ export const mapCanvasFile = (file: SlackCanvasFile): SlackCanvasFile => ({
   linked_channel_id: file.linked_channel_id ?? null,
   canvas_creator_id: file.canvas_creator_id ?? null,
 })
+
+/** Returns the configured Slack bearer token or fails before making a request. */
+export function resolveSlackAccessToken(params: {
+  accessToken?: string
+  botToken?: string
+}): string {
+  const token = params.accessToken?.trim() || params.botToken?.trim()
+  if (!token) {
+    throw new Error('Slack authentication token is required')
+  }
+  return token
+}
+
+/** Trims a required Slack identifier and rejects empty workflow values. */
+export function requireSlackString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${label} is required`)
+  }
+  return value.trim()
+}
+
+/** Validates an Agent Sessions status after workflow variables have resolved. */
+export function requireSlackAgentSessionStatus(value: unknown): SlackAgentSessionStatus {
+  if (
+    typeof value !== 'string' ||
+    !SLACK_AGENT_SESSION_STATUSES.has(value as SlackAgentSessionStatus)
+  ) {
+    throw new Error('Session Status must be active, processing, suspended, or closed')
+  }
+  return value as SlackAgentSessionStatus
+}
+
+/** Parses an optional JSON value while preserving already-resolved workflow values. */
+function parseSlackJson(value: unknown, label: string): unknown | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value !== 'string') return value
+
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  try {
+    return JSON.parse(trimmed) as unknown
+  } catch {
+    throw new Error(`${label} must be valid JSON`)
+  }
+}
+
+/** Parses the prompt chips accepted by Slack Agent View and enforces its four-prompt limit. */
+export function parseSlackSuggestedPrompts(value: unknown): SlackSuggestedPrompt[] {
+  const parsed = parseSlackJson(value, 'Suggested Prompts')
+  if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > 4) {
+    throw new Error('Suggested Prompts must contain between 1 and 4 prompt objects')
+  }
+
+  return parsed.map((entry) => {
+    if (!isRecordLike(entry)) {
+      throw new Error('Each suggested prompt must be an object')
+    }
+    return {
+      title: requireSlackString(entry.title, 'Suggested prompt title'),
+      message: requireSlackString(entry.message, 'Suggested prompt message'),
+    }
+  })
+}
+
+interface SlackApiResponse {
+  ok?: boolean
+  error?: string
+}
+
+/** Throws a consistent error for Slack Web API responses whose `ok` flag is false. */
+export function assertSlackApiSuccess<T extends SlackApiResponse>(
+  data: T,
+  fallbackMessage: string
+): asserts data is T & { ok: true } {
+  if (data.ok) return
+
+  switch (data.error) {
+    case 'invalid_auth':
+    case 'not_authed':
+    case 'token_expired':
+    case 'token_revoked':
+      throw new Error('Invalid authentication. Please check your Slack credentials.')
+    case 'missing_scope':
+      throw new Error(
+        'Missing a required Slack permission. Reconnect the selected credential with the permissions required by this operation.'
+      )
+    case 'channel_not_found':
+      throw new Error('Channel not found. Please check the channel ID.')
+    case 'thread_ts_required':
+    case 'invalid_thread_ts':
+      throw new Error('A valid Slack thread timestamp is required.')
+    case 'message_not_found':
+      throw new Error('Streaming message not found. Check the channel and stream timestamp.')
+    case 'message_not_in_streaming_state':
+      throw new Error('The Slack message is no longer in a streaming state.')
+    case 'message_not_owned_by_app':
+      throw new Error('The streaming message is not owned by this Slack app.')
+    case 'streaming_mode_mismatch':
+      throw new Error('Use the same content mode that was used to start the Slack stream.')
+    default:
+      throw new Error(data.error || fallbackMessage)
+  }
+}
 
 /**
  * Normalizes a raw Slack message object into the shape used by every
@@ -103,6 +218,8 @@ export interface SlackPaginateOptions {
   maxPages: number
   /** Human-readable scope hint surfaced on `missing_scope`. */
   missingScopeHint: string
+  /** Cancels provider requests and rate-limit waits. */
+  signal?: AbortSignal
 }
 
 export interface SlackPaginateResult {
@@ -144,18 +261,21 @@ export async function fetchSlackMessagesPaginated(
       response = await fetch(url.toString(), {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
+        signal: opts.signal,
       })
 
       if (response.status === 429 && attempt < SLACK_RATE_LIMIT_MAX_RETRIES) {
         attempt += 1
         const retryAfter = parseRetryAfter(response.headers.get('retry-after')) ?? 1000
-        await sleep(retryAfter)
+        await interruptibleSleep(retryAfter, opts.signal)
+        opts.signal?.throwIfAborted()
         continue
       }
       break
     }
 
     const data = await response.json()
+    opts.signal?.throwIfAborted()
 
     if (!data.ok) {
       if (data.error === 'missing_scope') {

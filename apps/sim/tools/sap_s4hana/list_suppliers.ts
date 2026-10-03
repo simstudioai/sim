@@ -1,13 +1,8 @@
-import type { ListSuppliersParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  buildOdataQuery,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ListSuppliersParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildOdataQuery, buildSapOperationBaseInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listSuppliersTool: ToolConfig<ListSuppliersParams, SapProxyResponse> = {
+export const listSuppliersTool: InternalToolConfig<ListSuppliersParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_list_suppliers',
   name: 'SAP S/4HANA List Suppliers',
   description:
@@ -113,19 +108,15 @@ export const listSuppliersTool: ToolConfig<ListSuppliersParams, SapProxyResponse
         'Comma-separated navigation properties to expand (e.g., "to_SupplierCompany,to_SupplierPurchasingOrg")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_BUSINESS_PARTNER',
       path: '/A_Supplier',
       method: 'GET',
       query: buildOdataQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

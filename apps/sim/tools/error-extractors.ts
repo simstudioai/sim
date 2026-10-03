@@ -20,6 +20,7 @@
  */
 
 import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
+import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
 export interface ErrorInfo {
   status?: number
@@ -47,6 +48,41 @@ interface ErrorExtractorConfig {
    * leaves the original reachable at `output.data`.
    */
   redactData?: (errorInfo?: ErrorInfo) => unknown
+}
+
+const CODA_MAX_VALIDATION_MESSAGES = 5
+
+/**
+ * Flattens Coda's validation detail (`validationErrors` or nested schema `issues`) into
+ * `path: message` strings. Only Coda's own path and message text is used, never the
+ * submitted values.
+ */
+function collectCodaValidationMessages(detail: unknown): string[] {
+  const messages = new Set<string>()
+  const visit = (issue: unknown) => {
+    if (messages.size >= CODA_MAX_VALIDATION_MESSAGES || !issue || typeof issue !== 'object') return
+    const record = issue as { path?: unknown; message?: unknown; errors?: unknown }
+    if (Array.isArray(record.errors) && record.errors.length > 0) {
+      for (const branch of record.errors) {
+        if (Array.isArray(branch)) branch.forEach(visit)
+        else visit(branch)
+      }
+      return
+    }
+    if (typeof record.message !== 'string' || !record.message) return
+    const path = Array.isArray(record.path)
+      ? record.path.filter((part) => typeof part === 'string' || typeof part === 'number').join('.')
+      : typeof record.path === 'string'
+        ? record.path
+        : ''
+    messages.add(path ? `${path}: ${record.message}` : record.message)
+  }
+  if (detail && typeof detail === 'object') {
+    const { validationErrors, issues } = detail as { validationErrors?: unknown; issues?: unknown }
+    if (Array.isArray(validationErrors)) validationErrors.forEach(visit)
+    if (Array.isArray(issues)) issues.forEach(visit)
+  }
+  return [...messages]
 }
 
 const PITCHBOOK_UNAUTHORIZED_MESSAGE =
@@ -234,6 +270,23 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.message,
   },
   {
+    id: 'coda-errors',
+    description:
+      'Coda (Superhuman Docs) API errors: the `message` field, or the field-level validation issues under `codaDetail` when the message is only the generic HTTP status text',
+    examples: ['Coda'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      const generic = !message || message === data.statusMessage
+      if (!generic) return message
+      const details = collectCodaValidationMessages(data.codaDetail)
+      const status = message || (typeof data.statusMessage === 'string' ? data.statusMessage : '')
+      if (details.length > 0) return `${status || 'Invalid request'}: ${details.join('; ')}`
+      return status || undefined
+    },
+  },
+  {
     id: 'harmonic-errors',
     description:
       'Harmonic API message errors, string and object FastAPI detail aborts including the enrichment URN, bulk email-enrichment error codes with their quota counters, and validation detail arrays without echoed request input',
@@ -262,7 +315,10 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
        * appended to the message rather than dropped with the rest of the envelope.
        */
       if (data.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)) {
-        const detail = data.detail as { message?: unknown; enrichment_urn?: unknown }
+        const detail = data.detail as {
+          message?: unknown
+          enrichment_urn?: unknown
+        }
         const detailMessage = typeof detail.message === 'string' ? detail.message.trim() : ''
         const enrichmentUrn =
           typeof detail.enrichment_urn === 'string' ? detail.enrichment_urn.trim() : ''
@@ -416,6 +472,35 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'quickbooks-fault',
+    description: 'QuickBooks Online Fault.Error[] responses with authentication and rate guidance',
+    examples: ['QuickBooks Online Accounting API'],
+    extract: (errorInfo) => {
+      const status = errorInfo?.status
+      const data = errorInfo?.data
+      const fault =
+        sanitizeQuickBooksFaultData(data) ??
+        (data && typeof data === 'object' && !Array.isArray(data)
+          ? sanitizeQuickBooksFaultData((data as Record<string, unknown>).QueryResponse)
+          : null)
+      if (!fault) return null
+
+      const guidance =
+        status === 401
+          ? 'Reconnect the QuickBooks credential.'
+          : status === 403
+            ? 'Confirm the QuickBooks accounting scope and access to this company.'
+            : status === 429
+              ? 'QuickBooks rate limit reached; retry after the indicated delay.'
+              : ''
+      const statusMessage =
+        typeof status === 'number'
+          ? `QuickBooks request failed with HTTP ${status}.`
+          : 'QuickBooks request failed.'
+      return [statusMessage, guidance, formatQuickBooksFaultDetail(fault)].filter(Boolean).join(' ')
+    },
+  },
+  {
     id: 'prospeo-errors',
     description: 'Prospeo API error_code with optional filter_error and message details',
     examples: ['Prospeo API'],
@@ -427,6 +512,20 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
         (part): part is string => typeof part === 'string' && Boolean(part.trim())
       )
       return parts.length > 0 ? parts.join(': ') : undefined
+    },
+  },
+  {
+    id: 'wiza-errors',
+    description:
+      'Wiza API error envelope: {status: {code, message}}, plus plain-text bodies. The message is nested under status, so the generic extractors miss it',
+    examples: ['Wiza'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      const candidates = [data, data?.status?.message, data?.message]
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+      }
+      return undefined
     },
   },
   {
@@ -532,7 +631,7 @@ export function extractErrorMessageWithId(
     if (message?.trim()) {
       return message
     }
-  } catch (error) {}
+  } catch {}
 
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
 }
@@ -564,7 +663,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
       if (message?.trim()) {
         return message
       }
-    } catch (error) {}
+    } catch {}
   }
 
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
@@ -585,6 +684,7 @@ export const ErrorExtractorId = {
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',
   HARMONIC_ERRORS: 'harmonic-errors',
+  CODA_ERRORS: 'coda-errors',
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
@@ -592,7 +692,9 @@ export const ErrorExtractorId = {
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  QUICKBOOKS_FAULT: 'quickbooks-fault',
   PROSPEO_ERRORS: 'prospeo-errors',
+  WIZA_ERRORS: 'wiza-errors',
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   PITCHBOOK_ERRORS: 'pitchbook-errors',
   SPLUNK_ERRORS: 'splunk-errors',

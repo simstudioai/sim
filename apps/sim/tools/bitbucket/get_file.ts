@@ -1,24 +1,16 @@
 import type { BitbucketGetFileParams, BitbucketToolResponse } from '@/tools/bitbucket/types'
 import {
-  assertBitbucketResponseOk,
   BITBUCKET_API_BASE,
   BITBUCKET_DEFAULT_MAX_CHARACTERS,
   BITBUCKET_ERROR_EXTRACTOR,
-  BITBUCKET_RAW_TRANSFER_MAX_BYTES,
-  BITBUCKET_READ_RETRY,
   BITBUCKET_REPOSITORY_PARAMS,
-  bitbucketHeaders,
-  bitbucketHeadRange,
-  bitbucketJson,
-  bitbucketMaxCharacters,
-  bitbucketRawHead,
   bitbucketRepositoryPath,
   encodeBitbucketRepositoryPath,
   encodeBitbucketSegment,
-  normalizeBitbucketFileMetadata,
 } from '@/tools/bitbucket/utils'
 import { requireBitbucketSha1 } from '@/tools/bitbucket/validation'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 interface BitbucketFileOutput {
   content: string | null
@@ -29,13 +21,13 @@ interface BitbucketFileOutput {
   contentType: string | null
 }
 
-function fileUrl(params: BitbucketGetFileParams, metadata = false): string {
+export function fileUrl(params: BitbucketGetFileParams, metadata = false): string {
   const commit = requireBitbucketSha1(params.commit, 'commit')
   const url = `${BITBUCKET_API_BASE}${bitbucketRepositoryPath(params.workspaceSlug, params.repoSlug)}/src/${encodeBitbucketSegment(commit, 'commit')}/${encodeBitbucketRepositoryPath(params.path)}`
   return metadata ? `${url}?format=meta` : url
 }
 
-export const bitbucketGetFileTool: ToolConfig<
+export const bitbucketGetFileTool: InternalToolConfig<
   BitbucketGetFileParams,
   BitbucketToolResponse<BitbucketFileOutput>
 > = {
@@ -66,68 +58,8 @@ export const bitbucketGetFileTool: ToolConfig<
       default: BITBUCKET_DEFAULT_MAX_CHARACTERS,
     },
   },
-  directExecution: async (params, signal) => {
-    bitbucketMaxCharacters(params.maxCharacters)
-    const { secureBitbucketRead } = await import('@/tools/bitbucket/utils.server')
-    const metadataResponse = await secureBitbucketRead(
-      fileUrl(params, true),
-      bitbucketHeaders(params.accessToken),
-      256 * 1024,
-      { signal }
-    )
-    await assertBitbucketResponseOk(metadataResponse)
-    const metadata = normalizeBitbucketFileMetadata(await bitbucketJson(metadataResponse))
-    if (metadata.isBinary === true) {
-      return {
-        success: true,
-        output: {
-          content: null,
-          binary: true,
-          truncated: metadata.size === null ? null : metadata.size > 0,
-          returnedBytes: 0,
-          fullBytes: metadata.size,
-          contentType: null,
-        },
-      }
-    }
-
-    const rawResponse = await secureBitbucketRead(
-      fileUrl(params),
-      bitbucketHeaders(params.accessToken, {
-        json: false,
-        range: bitbucketHeadRange(params.maxCharacters),
-      }),
-      BITBUCKET_RAW_TRANSFER_MAX_BYTES,
-      { stripAuthOnRedirect: true, signal }
-    )
-    await assertBitbucketResponseOk(rawResponse)
-    const raw = await bitbucketRawHead(rawResponse, params.maxCharacters, metadata.isBinary)
-    const fullBytes = raw.fullBytes ?? metadata.size
-    return {
-      success: true,
-      output: {
-        ...raw,
-        truncated:
-          raw.binary === true && raw.truncated === null && fullBytes !== null
-            ? fullBytes > 0
-            : raw.truncated,
-        fullBytes,
-      },
-    }
-  },
-  request: {
-    url: (params) => fileUrl(params),
-    method: 'GET',
-    headers: (params) =>
-      bitbucketHeaders(params.accessToken, {
-        json: false,
-        range: bitbucketHeadRange(params.maxCharacters),
-      }),
-    retry: BITBUCKET_READ_RETRY,
-    stripAuthOnRedirect: true,
-  },
-  transformResponse: async () => {
-    throw new Error('Bitbucket file reads require the metadata preflight direct execution path')
+  operation: {
+    input: createInternalToolOperationInput,
   },
   outputs: {
     content: {

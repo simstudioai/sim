@@ -6,11 +6,14 @@ import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useSelectorSetup } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-selector-setup'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
+import type { SelectorClientContext } from '@/hooks/queries/selectors'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 export interface SelectorOverrides {
-  transformContext?: (context: SelectorContext, deps: Record<string, unknown>) => SelectorContext
+  transformContext?: (
+    context: SelectorClientContext,
+    deps: Record<string, unknown>
+  ) => SelectorClientContext
   getDefaultValue?: (subBlock: SubBlockConfig) => string | null
 }
 

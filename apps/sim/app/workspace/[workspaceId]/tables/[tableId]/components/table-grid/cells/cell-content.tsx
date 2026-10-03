@@ -1,6 +1,7 @@
 'use client'
 
 import type { RowExecutionMetadata } from '@/lib/table'
+import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import type { DisplayColumn } from '../types'
 import { CellRender, resolveCellRender } from './cell-render'
@@ -13,8 +14,11 @@ interface CellContentProps {
   /** Current workspace id — lets string cells holding an in-workspace resource
    *  URL render as a tagged-resource chip instead of a plain external link. */
   workspaceId: string
+  timezoneStatus: TimezoneState['status']
   isEditing: boolean
   initialCharacter?: string | null
+  /** Opens the inline editor read-only; text stays selectable and copyable. */
+  readOnly?: boolean
   onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
   /**
@@ -38,8 +42,10 @@ export function CellContent({
   exec,
   column,
   workspaceId,
+  timezoneStatus,
   isEditing,
   initialCharacter,
+  readOnly,
   onSave,
   onCancel,
   waitingOnLabels,
@@ -52,6 +58,7 @@ export function CellContent({
     waitingOnLabels,
     isEnrichmentOutput,
     currentWorkspaceId: workspaceId,
+    timezoneStatus,
   })
 
   return (
@@ -62,6 +69,7 @@ export function CellContent({
             value={value}
             column={column}
             initialCharacter={initialCharacter ?? undefined}
+            readOnly={readOnly}
             onSave={onSave}
             onCancel={onCancel}
           />

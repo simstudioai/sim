@@ -1,25 +1,21 @@
-import type {
-  ListTravelProfilesSummaryParams,
-  SapConcurProxyResponse,
-} from '@/tools/sap_concur/types'
+import type { ListTravelProfilesSummaryParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Travel Profile v2 serves this endpoint as XML only (Accept: application/xml, schema
- * TravelProfileSummaryV2.xsd) — there is no JSON representation. The shared proxy therefore
+ * TravelProfileSummaryV2.xsd) — there is no JSON representation. The direct operation therefore
  * surfaces the payload as a raw XML string in `data`, which downstream blocks are expected
  * to parse.
  */
-export const listTravelProfilesSummaryTool: ToolConfig<
+export const listTravelProfilesSummaryTool: InternalToolConfig<
   ListTravelProfilesSummaryParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_list_travel_profiles_summary',
   name: 'SAP Concur List Travel Profiles Summary',
@@ -100,11 +96,8 @@ export const listTravelProfilesSummaryTool: ToolConfig<
       description: 'Filter by user state: "1" returns active users, "0" returns inactive users.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const lastModifiedDate = trimRequired(params.lastModifiedDate, 'lastModifiedDate')
       const query = buildListQuery({
         LastModifiedDate: lastModifiedDate,
@@ -114,7 +107,7 @@ export const listTravelProfilesSummaryTool: ToolConfig<
         Active: params.active,
       })
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: '/api/travelprofile/v2.0/summary',
         method: 'GET',
         accept: 'application/xml',
@@ -122,7 +115,7 @@ export const listTravelProfilesSummaryTool: ToolConfig<
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

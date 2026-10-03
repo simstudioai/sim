@@ -1,13 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { dropboxConnectorMeta } from '@/connectors/dropbox/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   htmlToPlainText,
+  isListingScopeUnavailableError,
   isSkippedDocument,
+  listingRequestError,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
@@ -145,7 +149,7 @@ async function downloadFileContent(
     throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
   }
 
-  const text = buffer.toString('utf8')
+  const { text } = decodeTextBuffer(buffer)
 
   return isHtml ? htmlToPlainText(text) : text
 }
@@ -169,6 +173,8 @@ function fileToStub(entry: DropboxFileMetadata): ExternalDocument {
 
 export const dropboxConnector: ConnectorConfig = {
   ...dropboxConnectorMeta,
+
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
 
   listDocuments: async (
     accessToken: string,
@@ -227,7 +233,15 @@ export const dropboxConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        throw new Error(`Failed to list Dropbox folder: ${response.status}`)
+        /**
+         * Dropbox answers every endpoint-specific failure with 409; only
+         * path/not_found means the caller cannot reach the folder.
+         */
+        throw listingRequestError(
+          'Failed to list Dropbox folder',
+          response.status,
+          response.status === 409 && /path\/not_found/.test(errorText)
+        )
       }
 
       data = await response.json()

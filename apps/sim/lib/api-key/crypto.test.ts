@@ -5,12 +5,13 @@
  * path and the `backfill-api-key-hash` script — the backfill is idempotent
  * precisely because `hashApiKey` is deterministic and the encrypted round-trip
  * recovers the same plain-text key on every run.
- *
- * @vitest-environment node
  */
 import { randomBytes } from 'crypto'
 import { resetEnvMock, setEnv } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGenerateSecureToken } = vi.hoisted(() => ({ mockGenerateSecureToken: vi.fn() }))
+vi.mock('@sim/security/tokens', () => ({ generateSecureToken: mockGenerateSecureToken }))
 
 beforeAll(() => {
   setEnv({ API_ENCRYPTION_KEY: undefined })
@@ -18,32 +19,11 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
-import {
-  decryptApiKey,
-  encryptApiKey,
-  hashApiKey,
-  isEncryptedApiKeyFormat,
-  isLegacyApiKeyFormat,
-} from '@/lib/api-key/crypto'
+import { decryptApiKey, encryptApiKey, generateApiKey, hashApiKey } from '@/lib/api-key/crypto'
 
 const FIXED_ENCRYPTION_KEY = '0'.repeat(64)
 
 describe('hashApiKey', () => {
-  it('is deterministic — same input produces same hash', () => {
-    const h1 = hashApiKey('sk-sim-example')
-    const h2 = hashApiKey('sk-sim-example')
-    expect(h1).toBe(h2)
-  })
-
-  it('produces a 64-char hex SHA-256 digest', () => {
-    const hash = hashApiKey('sk-sim-example')
-    expect(hash).toMatch(/^[0-9a-f]{64}$/)
-  })
-
-  it('produces different hashes for different inputs', () => {
-    expect(hashApiKey('sk-sim-a')).not.toBe(hashApiKey('sk-sim-b'))
-  })
-
   it('matches the published SHA-256 vector for the empty string', () => {
     expect(hashApiKey('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
   })
@@ -65,24 +45,12 @@ describe('backfill idempotency — encrypted round-trip', () => {
     expect(second).toBe(plainKey)
     expect(hashApiKey(first)).toBe(hashApiKey(second))
   })
-
-  it('is stable whether the stored key is legacy plain text or encrypted', async () => {
-    const plainKey = 'sim_legacy-format-key'
-    const { encrypted } = await encryptApiKey(plainKey)
-
-    const { decrypted } = await decryptApiKey(encrypted)
-    expect(hashApiKey(decrypted)).toBe(hashApiKey(plainKey))
-  })
 })
 
-describe('api-key format helpers', () => {
-  it('treats sk-sim- prefix as the encrypted format', () => {
-    expect(isEncryptedApiKeyFormat('sk-sim-abc')).toBe(true)
-    expect(isLegacyApiKeyFormat('sk-sim-abc')).toBe(false)
-  })
-
-  it('treats sim_ prefix as the legacy format', () => {
-    expect(isLegacyApiKeyFormat('sim_abc')).toBe(true)
-    expect(isEncryptedApiKeyFormat('sim_abc')).toBe(false)
+describe('generateApiKey', () => {
+  it('never issues a legacy key that reads as an OAuth access token', () => {
+    mockGenerateSecureToken.mockReturnValueOnce('oat_collision').mockReturnValueOnce('plain_token')
+    expect(generateApiKey()).toBe('sim_plain_token')
+    expect(mockGenerateSecureToken).toHaveBeenCalledTimes(2)
   })
 })

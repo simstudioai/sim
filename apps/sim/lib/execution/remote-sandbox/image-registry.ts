@@ -17,7 +17,6 @@ import {
   providerBuildError,
   type SandboxBuildError,
 } from '@/lib/execution/remote-sandbox/build-errors'
-import { FUNCTION_SANDBOX_MATERIALIZER_REVISION } from '@/lib/execution/remote-sandbox/function-resources'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
 import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
@@ -44,23 +43,7 @@ const STALE_BUILD_MS = BUILD_POLL_CAP_MS * 2
 const POLL_BASE_MS = 3_000
 const POLL_MAX_MS = 20_000
 
-/** Task IDs kept live together so either web-first or worker-first rollouts drain safely. */
-export function sandboxImageBuildTaskIds(rendererRevision: number): {
-  current: string
-  previous?: string
-  legacy: string
-} {
-  return {
-    current: `sandbox-image-build-v${rendererRevision}`,
-    ...(rendererRevision > 1 ? { previous: `sandbox-image-build-v${rendererRevision - 1}` } : {}),
-    legacy: 'sandbox-image-build',
-  }
-}
-
-const SANDBOX_IMAGE_TASK_IDS = sandboxImageBuildTaskIds(FUNCTION_SANDBOX_MATERIALIZER_REVISION)
-export const SANDBOX_IMAGE_BUILD_TASK_ID = SANDBOX_IMAGE_TASK_IDS.current
-export const PREVIOUS_SANDBOX_IMAGE_BUILD_TASK_ID = SANDBOX_IMAGE_TASK_IDS.previous
-export const LEGACY_SANDBOX_IMAGE_BUILD_TASK_ID = SANDBOX_IMAGE_TASK_IDS.legacy
+export const SANDBOX_IMAGE_BUILD_TASK_ID = 'sandbox-image-build'
 
 export interface SandboxImageBuildPayload {
   provider: SandboxProviderId

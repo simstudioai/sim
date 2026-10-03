@@ -1,7 +1,10 @@
 import type { SharepointDownloadFileResponse, SharepointToolParams } from '@/tools/sharepoint/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const downloadFileTool: ToolConfig<SharepointToolParams, SharepointDownloadFileResponse> = {
+export const downloadFileTool: InternalToolConfig<
+  SharepointToolParams,
+  SharepointDownloadFileResponse
+> = {
   id: 'sharepoint_download_file',
   name: 'Download File from SharePoint',
   description: 'Download a file from a SharePoint document library',
@@ -39,13 +42,16 @@ export const downloadFileTool: ToolConfig<SharepointToolParams, SharepointDownlo
     },
   },
 
-  request: {
-    url: '/api/tools/sharepoint/download-file',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        driveId: params.driveId,
+        driveItemId: params.driveItemId,
+        fileName: params.fileName,
+      }),
+    },
+    input: (params) => ({
       accessToken: params.accessToken,
       driveId: params.driveId,
       itemId: params.driveItemId,

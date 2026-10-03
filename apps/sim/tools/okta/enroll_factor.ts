@@ -34,7 +34,7 @@ export const oktaEnrollFactorTool: ToolConfig<OktaEnrollFactorParams, OktaEnroll
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID or login to enroll the factor for',
+      description: 'Okta user ID (not a login or email) to enroll the factor for',
     },
     factorType: {
       type: 'string',

@@ -1,48 +1,30 @@
-/**
- * @vitest-environment node
- */
 import { skill } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getActor: vi.fn(),
   listEditors: vi.fn(),
-  listWorkspaceMembers: vi.fn(),
-  recordAudit: vi.fn(),
+  getSkillById: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    SKILL_CREATED: 'skill.created',
-    SKILL_UPDATED: 'skill.updated',
-    SKILL_DELETED: 'skill.deleted',
-    SKILL_MEMBER_ADDED: 'skill.member_added',
-    SKILL_MEMBER_REMOVED: 'skill.member_removed',
-  },
-  AuditResourceType: { SKILL: 'skill' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/skills/access', () => ({
-  getSkillActorContext: mocks.getActor,
-  listSkillEditors: mocks.listEditors,
+  getSkillActorContext: hoisted.getActor,
+  listSkillEditors: hoisted.listEditors,
 }))
 
 vi.mock('@/lib/skills/orchestration', () => ({
@@ -53,7 +35,7 @@ vi.mock('@/lib/skills/orchestration', () => ({
 }))
 
 vi.mock('@/lib/workflows/skills/operations', () => ({
-  getSkillById: vi.fn(),
+  getSkillById: hoisted.getSkillById,
   listSkillSummariesPage: vi.fn(),
   listSkillsForUser: vi.fn(),
 }))
@@ -62,9 +44,7 @@ vi.mock('@/lib/workflows/skills/builtin-skills', () => ({
   isBuiltinSkillId: (id: string) => id.startsWith('builtin-'),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUsersWithPermissions: mocks.listWorkspaceMembers,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   grantSkillEditorUseCase,
@@ -72,12 +52,20 @@ import {
   revokeSkillEditorUseCase,
 } from '@/lib/skills/application/use-cases'
 
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  listWorkspaceMembers: permissionsMockFns.mockGetUsersWithPermissions,
+  recordAudit: auditMockFns.mockRecordAudit,
+}
+
 const WORKSPACE_ID = 'workspace-1'
 const SKILL_ID = 'skill-1'
 const ACTOR_ID = 'user-1'
 const TARGET_ID = 'user-2'
 const TARGET_EMAIL = 'ada@example.com'
-const principal = { kind: 'personal_api_key' as const, userId: ACTOR_ID, keyId: 'key-1' }
+const principal = createPersonalApiKeyPrincipal({ userId: ACTOR_ID })
 const skillRow = {
   id: SKILL_ID,
   workspaceId: WORKSPACE_ID,
@@ -121,7 +109,6 @@ function queueSkill(): void {
 
 describe('skill editor application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
@@ -167,6 +154,39 @@ describe('skill editor application use cases', () => {
     expect(mocks.resolvePermission).toHaveBeenCalled()
   })
 
+  /**
+   * The sort orders a copy, never the array the loader handed back. `listSkillEditors`
+   * builds a fresh array today so nothing else can observe the mutation, but the use
+   * case does not own that array and must not reorder it for whatever reads it next.
+   */
+  it('sorts without reordering the array the loader returned', async () => {
+    queueSkill()
+    const loaded = [
+      targetEditor,
+      {
+        ...targetEditor,
+        id: 'workspace-admin-user-3',
+        userId: 'user-3',
+        userName: 'Grace',
+        userEmail: 'grace@example.com',
+        isWorkspaceAdmin: true,
+      },
+    ]
+    mocks.listEditors.mockResolvedValue(loaded)
+
+    await listSkillEditorsUseCase.execute({
+      principal,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        skillId: SKILL_ID,
+        sortBy: 'name',
+        sortOrder: 'desc',
+      },
+    })
+
+    expect(loaded.map(({ userId }) => userId)).toEqual([targetEditor.userId, 'user-3'])
+  })
+
   it('creates an explicit grant and audits the authoritative result', async () => {
     queueSkill()
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: targetEditor.id }])
@@ -185,7 +205,7 @@ describe('skill editor application use cases', () => {
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: WORKSPACE_ID,
-        action: 'skill.member_added',
+        action: 'skill_member.added',
         metadata: expect.objectContaining({ targetUserId: TARGET_ID }),
       })
     )
@@ -287,5 +307,105 @@ describe('skill editor application use cases', () => {
 
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A built-in skill is materialized from code, so `skills get` and `skills
+   * list` both return it. Reporting it as missing from the editor verbs
+   * contradicted that: the read and the writes disagree about what is possible,
+   * not about what exists.
+   */
+  describe('built-in skills', () => {
+    const BUILTIN_ID = 'builtin-research'
+
+    beforeEach(() => {
+      mocks.getSkillById.mockResolvedValue({ ...skillRow, id: BUILTIN_ID })
+    })
+
+    it('lists an empty editor roster rather than refusing the read', async () => {
+      const result = await listSkillEditorsUseCase.execute({
+        principal,
+        input: {
+          workspaceId: WORKSPACE_ID,
+          skillId: BUILTIN_ID,
+          sortBy: 'email',
+          sortOrder: 'asc',
+        },
+      })
+
+      expect(result).toMatchObject({ editors: [], hasMore: false })
+      expect(mocks.listEditors).not.toHaveBeenCalled()
+      expect(mocks.resolvePermission).toHaveBeenCalled()
+    })
+
+    it('refuses a grant as read-only rather than as missing', async () => {
+      await expect(
+        grantSkillEditorUseCase.execute({
+          principal,
+          input: {
+            workspaceId: WORKSPACE_ID,
+            skillId: BUILTIN_ID,
+            target: { kind: 'email', email: TARGET_EMAIL },
+          },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: 'Built-in skills are read-only and cannot be modified',
+      })
+    })
+
+    it('refuses a revoke as read-only rather than as missing', async () => {
+      await expect(
+        revokeSkillEditorUseCase.execute({
+          principal,
+          input: {
+            workspaceId: WORKSPACE_ID,
+            skillId: BUILTIN_ID,
+            target: { kind: 'email', email: TARGET_EMAIL },
+          },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: 'Built-in skills are read-only and cannot be modified',
+      })
+    })
+
+    /**
+     * The internal members route maps no workspace id, so the list used to fall
+     * through to the mutation resolver and answer a read with the read-only
+     * refusal — the same incoherence the empty roster was added to remove.
+     */
+    it('never answers a workspace-less list with the read-only refusal', async () => {
+      await expect(
+        listSkillEditorsUseCase.execute({
+          principal,
+          input: { skillId: BUILTIN_ID, sortBy: 'email', sortOrder: 'asc' },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message:
+          'Listing the editors of a built-in skill requires a workspace scope to authorize against',
+      })
+
+      expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+      expect(mocks.listEditors).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The internal members contract has no workspace slot, and the v2 contract
+     * makes `workspaceId` a required query param that is rejected before this
+     * branch runs. So no caller that reaches this refusal can act on the field
+     * name, and the message must not spell one.
+     */
+    it('refuses without naming a wire field the caller cannot send', async () => {
+      const error = await listSkillEditorsUseCase
+        .execute({
+          principal,
+          input: { skillId: BUILTIN_ID, sortBy: 'email', sortOrder: 'asc' },
+        })
+        .catch((caught: Error) => caught)
+
+      expect((error as Error).message).not.toMatch(/workspaceId/)
+    })
   })
 })

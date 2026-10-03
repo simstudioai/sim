@@ -4,6 +4,7 @@ import { tableJobs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import {
   type V2CreateTableImportBody,
@@ -25,9 +26,13 @@ import { getWorkspaceTableLimits } from '@/lib/table/billing'
 import {
   CSV_DURABLE_MAX_FILE_SIZE_BYTES,
   CSV_DURABLE_MAX_FILE_SIZE_MESSAGE,
+  type CsvSkippedRecord,
 } from '@/lib/table/import'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
-import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
+import {
+  markTableJobRunningInWorkspace,
+  type TableImportRejectionSummary,
+} from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
 import { assertWorkspaceTableCapacity, createTable, getTableById } from '@/lib/table/service'
 import type { TableImportJobPayload } from '@/lib/table/types'
@@ -58,6 +63,10 @@ export interface TableImportResource {
   tableId: string | null
   status: TableImportStatus
   rowsProcessed: number
+  /** See {@link TableImportRejectionSummary}. Zeroed for an import that lost nothing. */
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: CsvSkippedRecord[]
   error: string | null
   createdAt: Date
   updatedAt: Date
@@ -253,6 +262,7 @@ export async function findTableImportResource(params: {
     tableId: job.tableId,
     status,
     rowsProcessed: job.rowsProcessed,
+    ...parseRejectionSummary(job.payload),
     error: job.error,
     createdAt: job.startedAt,
     updatedAt: job.updatedAt,
@@ -307,6 +317,9 @@ export function toV2TableImport(record: TableImportResource): V2TableImport {
     target: record.target,
     tableId: record.tableId,
     rowsProcessed: record.rowsProcessed,
+    rowsRejected: record.rowsRejected,
+    cellsRejected: record.cellsRejected,
+    rejectedSamples: record.rejectedSamples,
     error: record.error,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
@@ -466,6 +479,9 @@ function resourceFromUpload(
     tableId: body.target.type === 'existing' ? body.target.tableId : null,
     status: uploadStatus(upload),
     rowsProcessed: 0,
+    rowsRejected: 0,
+    cellsRejected: 0,
+    rejectedSamples: [],
     error: null,
     createdAt: upload.createdAt,
     updatedAt: upload.updatedAt,
@@ -500,13 +516,62 @@ interface ParsedTableImportPayload {
 }
 
 /**
+ * Reads the rejection summary the import runner merges into `table_jobs.payload`.
+ *
+ * Every field is defensive: the payload is schemaless jsonb, and jobs that ran before
+ * rejection accounting existed simply carry none — those read back as a clean import,
+ * which is what they were as far as anything can now tell.
+ */
+function parseRejectionSummary(payload: unknown): TableImportRejectionSummary {
+  const empty: TableImportRejectionSummary = {
+    rowsRejected: 0,
+    cellsRejected: 0,
+    rejectedSamples: [],
+  }
+  if (!isRecordLike(payload)) return empty
+  const candidate = payload as Partial<TableImportRejectionSummary>
+  const samples = Array.isArray(candidate.rejectedSamples) ? candidate.rejectedSamples : []
+  return {
+    rowsRejected: parseRejectionCount(candidate.rowsRejected),
+    cellsRejected: parseRejectionCount(candidate.cellsRejected),
+    rejectedSamples: samples
+      .map(parseRejectedSample)
+      .filter((sample): sample is CsvSkippedRecord => sample !== null),
+  }
+}
+
+/**
+ * Narrows one persisted rejection sample to exactly the fields the strict response schema
+ * accepts, or `null` when it cannot be read as one.
+ *
+ * The array is read straight out of schemaless jsonb, so an element written by a different
+ * worker version — an extra key, a non-integer line, a missing message — would otherwise be
+ * handed unchanged to a `.strict()` schema and turn a read of the import into a 500.
+ */
+function parseRejectedSample(value: unknown): CsvSkippedRecord | null {
+  if (!isRecordLike(value)) return null
+  const candidate = value as Partial<CsvSkippedRecord>
+  if (typeof candidate.code !== 'string' || typeof candidate.message !== 'string') return null
+  const line =
+    typeof candidate.line === 'number' && Number.isInteger(candidate.line) && candidate.line >= 0
+      ? candidate.line
+      : null
+  return { code: candidate.code, line, message: candidate.message }
+}
+
+/** Reads a persisted count the response schema declares as a non-negative integer. */
+function parseRejectionCount(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0
+}
+
+/**
  * Reads a `table_jobs.payload` as an import-resource payload, or `null` when it
  * is not one. A null payload is the normal shape for the first-party CSV import
  * paths, which write `type = 'import'` jobs without one, so failing to parse is
  * an ordinary "not this resource" answer rather than an error condition.
  */
 function parseImportJobPayload(payload: unknown): ParsedTableImportPayload | null {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  if (!isRecordLike(payload)) return null
   const candidate = payload as Partial<TableImportJobPayload>
   if (
     candidate.kind !== 'table_import' ||

@@ -3,16 +3,15 @@ import type {
   AzureDataExplorerTableResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   buildWithClause,
   renderEntityName,
   renderIngestMode,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerIngestFromQueryTool: ToolConfig<
+export const azureDataExplorerIngestFromQueryTool: InternalToolConfig<
   AzureDataExplorerIngestFromQueryParams,
   AzureDataExplorerTableResponse
 > = {
@@ -92,12 +91,9 @@ export const azureDataExplorerIngestFromQueryTool: ToolConfig<
       description: `Optional ingestion properties clause contents, e.g. distributed=true, tags='["daily"]'`,
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...azureDataExplorerAuthBody(params),
+  operation: {
+    input: (params) => ({
+      ...azureDataExplorerAuthInput(params),
       endpoint: 'mgmt',
       database: params.database,
       csl: `${renderIngestMode(params.mode)}${params.async ? ' async' : ''} ${renderEntityName(

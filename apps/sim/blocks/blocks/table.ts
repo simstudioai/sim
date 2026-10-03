@@ -4,7 +4,7 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
-import type { TableQueryResponse } from '@/tools/table/types'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -204,7 +204,7 @@ const QUERY_FILTER_FIELD = ['filterBuilder', 'filter'] as const
 const BULK_FILTER_FIELD = ['bulkFilterBuilder', 'filter'] as const
 const SORT_FIELD = ['sortBuilder', 'sort'] as const
 
-export const TableBlock: BlockConfig<TableQueryResponse> = {
+export const TableBlock: BlockConfig = {
   type: 'table',
   name: 'Table',
   description: 'User-defined data tables',
@@ -212,6 +212,16 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
     'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows returns every matching row when Limit is omitted and fails if the result exceeds 5MB.',
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
+  /**
+   * Superseded by {@link TableV2Block} (GA): hidden from discovery like other
+   * legacy `_vN` blocks, while placed instances keep resolving and executing.
+   *
+   * `triggers.enabled` below deliberately stays `true`. Webhook execution gates
+   * on it at runtime rather than on discovery, so flipping it would break every
+   * deployed v1 table-trigger workflow.
+   */
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'table_v2' },
   bgColor: '#10B981',
   icon: Table,
   canvasPresentation: {
@@ -725,7 +735,7 @@ Return ONLY the sort JSON:`,
 
   inputs: {
     operation: { type: 'string', description: 'Table operation to perform' },
-    tableId: { type: 'string', description: 'Table identifier' },
+    tableId: { type: 'string', description: TABLE_ID_PARAM.description },
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },

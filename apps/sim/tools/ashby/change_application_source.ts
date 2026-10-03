@@ -1,6 +1,7 @@
 import type { AshbyApplication } from '@/tools/ashby/types'
 import {
   APPLICATION_OUTPUTS,
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   mapApplication,
@@ -9,6 +10,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyChangeApplicationSourceParams {
   apiKey: string
+  onBehalfOfUserId?: string
   applicationId: string
   sourceId?: string
   unsetSource?: boolean
@@ -35,6 +37,7 @@ export const changeApplicationSourceTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     applicationId: {
       type: 'string',
       required: true,
@@ -60,7 +63,7 @@ export const changeApplicationSourceTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/application.changeSource',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     /**
      * Ashby requires `sourceId` to be present even when unsetting, so it always
      * serializes - but the value has to say what the caller actually meant. The

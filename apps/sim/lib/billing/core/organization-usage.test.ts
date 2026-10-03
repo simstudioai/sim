@@ -1,26 +1,20 @@
-/** @vitest-environment node */
-
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getOrganizationSubscription, getBillingPeriodUsageCostByUser } = vi.hoisted(() => ({
-  getOrganizationSubscription: vi.fn(),
-  getBillingPeriodUsageCostByUser: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription,
-  getPlanPricing: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: vi.fn(),
-  getBillingPeriodUsageCostByUser,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 
+const getOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const getBillingPeriodUsageCostByUser = billingUsageLogMockFns.mockGetBillingPeriodUsageCostByUser
+
 describe('getOrganizationMemberUsageSnapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-20T12:00:00.000Z'))
     getBillingPeriodUsageCostByUser.mockResolvedValue(new Map([['user-1', 12.5]]))
@@ -28,7 +22,7 @@ describe('getOrganizationMemberUsageSnapshot', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  it('uses the Enterprise reporting window and excludes the legacy baseline', async () => {
+  it('uses the Enterprise reporting window for anchored organizations', async () => {
     getOrganizationSubscription.mockResolvedValue({
       plan: 'enterprise',
       billingInterval: 'year',
@@ -46,7 +40,6 @@ describe('getOrganizationMemberUsageSnapshot', () => {
       start: new Date('2026-01-01T00:00:00.000Z'),
       end: new Date('2027-01-01T00:00:00.000Z'),
     })
-    expect(snapshot.includeLegacyBaseline).toBe(false)
     expect(getBillingPeriodUsageCostByUser).toHaveBeenCalledWith(
       { type: 'organization', id: 'org-1' },
       expect.objectContaining({ source: 'reporting' }),
@@ -56,7 +49,7 @@ describe('getOrganizationMemberUsageSnapshot', () => {
     )
   })
 
-  it('uses Stripe dates and retains the legacy baseline without custom reporting metadata', async () => {
+  it('uses Stripe dates without custom reporting metadata', async () => {
     const periodStart = new Date('2026-08-01T00:00:00.000Z')
     const periodEnd = new Date('2026-09-01T00:00:00.000Z')
     getOrganizationSubscription.mockResolvedValue({
@@ -76,6 +69,6 @@ describe('getOrganizationMemberUsageSnapshot', () => {
       anchorDate: null,
       interval: 'month',
     })
-    expect(snapshot.includeLegacyBaseline).toBe(true)
+    expect(snapshot.usageByUser).toEqual(new Map([['user-1', 12.5]]))
   })
 })

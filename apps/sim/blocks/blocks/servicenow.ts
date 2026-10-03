@@ -15,7 +15,6 @@ import {
   INCIDENT_STATE_OPTIONS,
   PRIORITY_OPTIONS,
 } from '@/tools/servicenow/constants'
-import type { ServiceNowResponse } from '@/tools/servicenow/types'
 import { getTrigger } from '@/triggers'
 
 const FILE_FIELD = ['uploadFile', 'fileReference'] as const
@@ -162,9 +161,11 @@ const optionalChoices = <T extends { label: string; id: string }>(options: reado
   ...options,
 ]
 
-export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
+export const ServiceNowBlock = {
   type: 'servicenow',
-  name: 'ServiceNow',
+  name: 'ServiceNow (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'servicenow_v2' },
   description: 'Create, read, update, and delete ServiceNow records',
   longDescription:
     'Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.',
@@ -1920,6 +1921,33 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       'servicenow_change_request_updated',
       'servicenow_webhook',
     ],
+  },
+} satisfies BlockConfig
+
+export const ServiceNowV2Block: BlockConfig = {
+  ...ServiceNowBlock,
+  type: 'servicenow_v2',
+  name: 'ServiceNow',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...ServiceNowBlock.tools,
+    access: ServiceNowBlock.tools.access.map((toolId) =>
+      toolId === 'servicenow_download_attachment' ? 'servicenow_download_attachment_v2' : toolId
+    ),
+    config: {
+      ...ServiceNowBlock.tools.config,
+      tool: (params) => {
+        const toolId = ServiceNowBlock.tools.config.tool(params)
+        return toolId === 'servicenow_download_attachment'
+          ? 'servicenow_download_attachment_v2'
+          : toolId
+      },
+    },
+  },
+  outputs: {
+    ...ServiceNowBlock.outputs,
+    content: { type: 'string', description: 'HTML body of a knowledge article' },
   },
 }
 

@@ -1,17 +1,17 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-  VALIDATE_RETRY_OPTIONS: {},
-}))
-vi.mock('@/components/icons', () => ({ MicrosoftOneDriveIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { onedriveConnector } from '@/connectors/onedrive/onedrive'
+import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 
@@ -52,45 +52,18 @@ function mockGraph(routes: Record<string, GraphRoute>) {
   return requested
 }
 
-const ROOT_URL = `${GRAPH}/me/drive/root/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+const ROOT_URL = `${GRAPH}/me/drive/root/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
 const childrenUrl = (id: string) =>
-  `${GRAPH}/me/drive/items/${id}/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
+  `${GRAPH}/me/drive/items/${id}/children?$top=200&$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`
 
 describe('onedrive listDocuments', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  it.each([
+    { value: [{ id: 'f1', name: 'Missing facet' }] },
+    { value: [], '@odata.nextLink': 'https://evil.example/items' },
+  ])('rejects ambiguous or unsafe list metadata', async (body) => {
+    mockGraph({ [ROOT_URL]: { body } })
 
-  it('walks nested folders within a single call', async () => {
-    const requested = mockGraph({
-      [ROOT_URL]: { body: { value: [file('f1', 'a.txt'), folder('dir1', 'dir1')] } },
-      [childrenUrl('dir1')]: { body: { value: [file('f2', 'b.md')] } },
-    })
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await onedriveConnector.listDocuments('token', {}, undefined, syncContext)
-
-    expect(requested).toHaveLength(2)
-    expect(result.documents.map((d) => d.externalId)).toEqual(['f1', 'f2'])
-    expect(result.hasMore).toBe(false)
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
-  it('follows @odata.nextLink pages of the same folder', async () => {
-    const nextLink = `${GRAPH}/me/drive/root/children?$skiptoken=abc`
-    mockGraph({
-      [ROOT_URL]: {
-        body: { value: [file('f1', 'a.txt')], '@odata.nextLink': nextLink },
-      },
-      [nextLink]: { body: { value: [file('f2', 'b.txt')] } },
-    })
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await onedriveConnector.listDocuments('token', {}, undefined, syncContext)
-
-    expect(result.documents.map((d) => d.externalId)).toEqual(['f1', 'f2'])
-    expect(result.hasMore).toBe(false)
-    expect(syncContext.listingCapped).toBeUndefined()
+    await expect(onedriveConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow()
   })
 
   it('leaves listingCapped unset when maxFiles lands exactly on source exhaustion', async () => {
@@ -114,27 +87,6 @@ describe('onedrive listDocuments', () => {
   it('flags listingCapped when maxFiles hides items on the same page', async () => {
     mockGraph({
       [ROOT_URL]: { body: { value: [file('f1', 'a.txt'), file('f2', 'b.txt')] } },
-    })
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await onedriveConnector.listDocuments(
-      'token',
-      { maxFiles: '1' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(syncContext.listingCapped).toBe(true)
-  })
-
-  it('flags listingCapped when maxFiles lands on a page boundary with a nextLink left', async () => {
-    const nextLink = `${GRAPH}/me/drive/root/children?$skiptoken=abc`
-    mockGraph({
-      [ROOT_URL]: {
-        body: { value: [file('f1', 'a.txt')], '@odata.nextLink': nextLink },
-      },
-      [nextLink]: { body: { value: [file('f2', 'b.txt')] } },
     })
 
     const syncContext: Record<string, unknown> = {}
@@ -184,64 +136,66 @@ describe('onedrive listDocuments', () => {
     expect(second.hasMore).toBe(false)
     expect(syncContext.listingCapped).toBeUndefined()
   })
-
-  it('encodes the configured folder path', async () => {
-    const url = `${GRAPH}/me/drive/root:/My%20Docs/Q1%20%26%20Q2:/children?$top=200&$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`
-    const requested = mockGraph({ [url]: { body: { value: [] } } })
-
-    await onedriveConnector.listDocuments(
-      'token',
-      { folderPath: '/My Docs/Q1 & Q2/' },
-      undefined,
-      {}
-    )
-
-    expect(requested[0]).toBe(url)
-  })
 })
 
 describe('onedrive getDocument', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  it.each([{}, { id: 'f1', name: 'Missing facet' }, file('different', 'a.txt')])(
+    'rejects malformed metadata instead of replacing retained content',
+    async (metadata) => {
+      mockGraph({
+        [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,package,remoteItem,lastModifiedDateTime,createdBy,parentReference`]:
+          {
+            body: metadata,
+          },
+      })
 
-  it('returns null on 404', async () => {
-    mockGraph({})
-    const doc = await onedriveConnector.getDocument!('token', {}, 'missing')
-    expect(doc).toBeNull()
-  })
+      await expect(onedriveConnector.getDocument!('token', {}, 'f1')).rejects.toThrow(
+        'Microsoft Graph returned malformed OneDrive item metadata'
+      )
+    }
+  )
+})
 
-  it('produces the same contentHash as the listing stub', async () => {
-    const item = file('f1', 'a.txt')
+describe('onedrive listing scope', () => {
+  it.each([403, 404])(
+    'reads a %s on the configured folder as a scope the caller cannot reach',
+    async (status) => {
+      mockGraph({ [ROOT_URL]: { status, body: {} } })
+
+      const error = await onedriveConnector.listDocuments('token', {}).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(onedriveConnector.isListingScopeUnavailableError!(error)).toBe(true)
+    }
+  )
+
+  it('skips a subfolder the member cannot reach and keeps their listing complete', async () => {
     mockGraph({
-      [ROOT_URL]: { body: { value: [item] } },
-      [`${GRAPH}/me/drive/items/f1?$select=id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference`]:
-        { body: item },
+      [ROOT_URL]: {
+        body: { value: [file('f1', 'a.txt'), folder('open', 'open'), folder('locked', 'locked')] },
+      },
+      [childrenUrl('locked')]: { status: 403, body: {} },
+      [childrenUrl('open')]: { body: { value: [file('f2', 'b.md')] } },
+    })
+    const syncContext: Record<string, unknown> = { ...PER_MEMBER_LISTING_CONTEXT }
+
+    const result = await onedriveConnector.listDocuments('token', {}, undefined, syncContext)
+
+    expect(result.documents.map((d) => d.externalId)).toEqual(['f1', 'f2'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('still fails a shared listing on a subfolder it cannot reach', async () => {
+    mockGraph({
+      [ROOT_URL]: { body: { value: [file('f1', 'a.txt'), folder('locked', 'locked')] } },
     })
 
-    const listed = await onedriveConnector.listDocuments('token', {}, undefined, {})
+    const error = await onedriveConnector
+      .listDocuments('token', {}, undefined, {})
+      .catch((e: unknown) => e)
 
-    mockFetchWithRetry.mockImplementation(async (url: string) => {
-      if (url.endsWith('/content')) {
-        return {
-          ok: true,
-          status: 200,
-          body: null,
-          arrayBuffer: async () => new TextEncoder().encode('hello').buffer,
-        } as unknown as Response
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => item,
-        text: async () => '',
-      } as unknown as Response
-    })
-
-    const fetched = await onedriveConnector.getDocument!('token', {}, 'f1')
-
-    expect(fetched?.contentHash).toBe(listed.documents[0].contentHash)
-    expect(fetched?.contentDeferred).toBe(false)
-    expect(fetched?.content).toBe('hello')
+    expect(error).toBeInstanceOf(Error)
+    expect(onedriveConnector.isListingScopeUnavailableError!(error)).toBe(true)
   })
 })

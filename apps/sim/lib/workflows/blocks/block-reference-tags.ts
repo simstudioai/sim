@@ -2,7 +2,7 @@ import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outpu
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks'
-import { normalizeName } from '@/executor/constants'
+import { isHumanInTheLoopBlock, normalizeName } from '@/executor/constants'
 
 interface ReferenceableBlock {
   id: string
@@ -61,7 +61,7 @@ export function getBlockReferenceTags({
   const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
   let blockTags: string[]
-  if (block.type === 'human_in_the_loop' && block.id === currentBlockId) {
+  if (isHumanInTheLoopBlock(block.type) && block.id === currentBlockId) {
     blockTags = allTags.filter((tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint'))
   } else if (allTags.length === 0) {
     blockTags = [normalizedBlockName]

@@ -3,14 +3,13 @@ import type {
   AzureDataExplorerTableSchemaResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   renderEntityName,
   transformTableSchemaResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerShowTableSchemaTool: ToolConfig<
+export const azureDataExplorerShowTableSchemaTool: InternalToolConfig<
   AzureDataExplorerShowTableSchemaParams,
   AzureDataExplorerTableSchemaResponse
 > = {
@@ -63,12 +62,9 @@ export const azureDataExplorerShowTableSchemaTool: ToolConfig<
       description: 'Table whose schema should be read',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...azureDataExplorerAuthBody(params),
+  operation: {
+    input: (params) => ({
+      ...azureDataExplorerAuthInput(params),
       endpoint: 'mgmt',
       database: params.database,
       csl: `.show table ${renderEntityName(params.table)} cslschema`,

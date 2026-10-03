@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_AFFECTED_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,7 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillDeleteDocumentTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillDeleteDocumentTool: InternalToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_delete_document',
   name: 'Windchill Delete Document',
   description: 'Delete one document',
@@ -41,12 +41,8 @@ export const windchillDeleteDocumentTool: ToolConfig<WindchillParams, WindchillR
       description: 'WT.Document OID, for example OR:wt.doc.WTDocument:48796581',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_delete_document', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_delete_document', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_delete_document', response),

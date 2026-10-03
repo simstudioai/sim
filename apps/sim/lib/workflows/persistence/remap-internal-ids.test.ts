@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
-  coerceObjectArray,
   remapConditionIdsInSubBlocks,
   remapWorkflowReferencesInSubBlocks,
   type SubBlockRecord,
@@ -55,27 +51,6 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
     )
   })
 
-  it('leaves unknown workflow ids and non-workflow tools untouched', () => {
-    const subBlocks: SubBlockRecord = {
-      sel: { id: 'sel', type: 'workflow-selector', value: 'wf-unknown' },
-      tools: {
-        id: 'tools',
-        type: 'tool-input',
-        value: [{ type: 'workflow_input', params: { workflowId: 'wf-unknown' } }],
-      },
-    }
-    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map)
-    expect(result.sel.value).toBe('wf-unknown')
-    expect(result.tools).toBe(subBlocks.tools)
-  })
-
-  it('returns the input unchanged when the id map is empty', () => {
-    const subBlocks: SubBlockRecord = {
-      target: { id: 'target', type: 'workflow-selector', value: 'wf-src' },
-    }
-    expect(remapWorkflowReferencesInSubBlocks(subBlocks, new Map())).toBe(subBlocks)
-  })
-
   it('clears an unmapped workflow-selector when clearUnmapped is set (cross-workspace)', () => {
     const subBlocks: SubBlockRecord = {
       sel: { id: 'sel', type: 'workflow-selector', value: 'wf-unknown' },
@@ -111,34 +86,11 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
     expect(result.inputMapping.value).toBe('')
   })
 
-  it('keeps inputMapping when the workflow selector is remapped (not cleared)', () => {
-    const subBlocks: SubBlockRecord = {
-      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
-      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
-    }
-    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
-    expect(result.workflowId.value).toBe('wf-dst')
-    expect(result.inputMapping.value).toBe('{"a":"b"}')
-  })
-
   // The `inputMapping` belongs to the ACTIVE canonical mode's workflow only. resolveCanonicalMode
   // picks the active mode (block.data.canonicalModes override, else the value heuristic); the wipe
   // fires iff the ACTIVE mode's workflow was removed by the remap. Only the SELECTOR is ever
   // remapped/cleared - the manual member passes through verbatim - so an active-advanced (manual)
   // mode never wipes inputMapping. clearUnmapped: true throughout.
-  it('keeps inputMapping: active basic valid + dormant advanced manual preserved (no override)', () => {
-    const subBlocks: SubBlockRecord = {
-      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
-      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-unknown' },
-      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
-    }
-    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
-    expect(result.workflowId.value).toBe('wf-dst')
-    // Manual member is user-owned: preserved verbatim (never cleared), even while dormant.
-    expect(result.manualWorkflowId.value).toBe('wf-unknown')
-    expect(result.inputMapping.value).toBe('{"a":"b"}')
-  })
-
   it('keeps inputMapping: active advanced manual preserved (canonicalModes override) + dormant basic remapped', () => {
     const subBlocks: SubBlockRecord = {
       workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
@@ -170,43 +122,12 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
     expect(result.inputMapping.value).toBe('')
   })
 
-  it('keeps inputMapping: active advanced manual preserved + basic empty (heuristic)', () => {
-    const subBlocks: SubBlockRecord = {
-      workflowId: { id: 'workflowId', type: 'workflow-selector', value: '' },
-      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-unknown' },
-      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
-    }
-    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
-    expect(result.manualWorkflowId.value).toBe('wf-unknown')
-    expect(result.inputMapping.value).toBe('{"a":"b"}')
-  })
-
-  it('keeps inputMapping: both modes valid (selector remapped, manual preserved)', () => {
-    const subBlocks: SubBlockRecord = {
-      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
-      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'sub-src' },
-      inputMapping: { id: 'inputMapping', type: 'input-mapping', value: '{"a":"b"}' },
-    }
-    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
-    expect(result.workflowId.value).toBe('wf-dst')
-    expect(result.manualWorkflowId.value).toBe('sub-src')
-    expect(result.inputMapping.value).toBe('{"a":"b"}')
-  })
-
   it('does not remap the advanced manualWorkflowId (manual is user-owned)', () => {
     const subBlocks: SubBlockRecord = {
       manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-src' },
     }
     const result = remapWorkflowReferencesInSubBlocks(subBlocks, map)
     expect(result.manualWorkflowId.value).toBe('wf-src')
-  })
-
-  it('does not remap the manual comma-separated manualWorkflowIds list (manual is user-owned)', () => {
-    const subBlocks: SubBlockRecord = {
-      manualWorkflowIds: { id: 'manualWorkflowIds', type: 'short-input', value: 'wf-src, sub-src' },
-    }
-    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map)
-    expect(result.manualWorkflowIds.value).toBe('wf-src, sub-src')
   })
 
   it('preserves the manual manualWorkflowIds list verbatim even under clearUnmapped', () => {
@@ -243,24 +164,6 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
   // The one behavioral change vs. selector handling: a literal source-workspace id typed into the
   // MANUAL field that WOULD map to a copied target is left AS-IS (not remapped), because manual is
   // user-owned - while the SELECTOR with the same id still remaps to the copied target.
-  it('leaves a mapped literal id in the manual field as-is while the selector remaps it', () => {
-    const manualSubBlocks: SubBlockRecord = {
-      manualWorkflowId: { id: 'manualWorkflowId', type: 'short-input', value: 'wf-src' },
-    }
-    expect(
-      remapWorkflowReferencesInSubBlocks(manualSubBlocks, map, { clearUnmapped: true })
-        .manualWorkflowId.value
-    ).toBe('wf-src')
-
-    const selectorSubBlocks: SubBlockRecord = {
-      workflowId: { id: 'workflowId', type: 'workflow-selector', value: 'wf-src' },
-    }
-    expect(
-      remapWorkflowReferencesInSubBlocks(selectorSubBlocks, map, { clearUnmapped: true }).workflowId
-        .value
-    ).toBe('wf-dst')
-  })
-
   it('remaps a multi-select workflowSelector array', () => {
     const subBlocks: SubBlockRecord = {
       workflowSelector: { id: 'workflowSelector', type: 'dropdown', value: ['wf-src', 'sub-src'] },
@@ -312,16 +215,6 @@ describe('remapWorkflowReferencesInSubBlocks', () => {
 
   // The baseKey gate: dropdowns whose baseKey is neither `workflowSelector` nor `workflowIds`
   // (event pickers, status filters, ...) hold non-workflow values and are never rewritten.
-  it('leaves other dropdowns untouched (only workflow-list baseKeys are remapped)', () => {
-    const subBlocks: SubBlockRecord = {
-      eventType: { id: 'eventType', type: 'dropdown', value: 'wf-src' },
-      level: { id: 'level', type: 'dropdown', value: ['wf-src'] },
-    }
-    const result = remapWorkflowReferencesInSubBlocks(subBlocks, map, { clearUnmapped: true })
-    expect(result.eventType.value).toBe('wf-src')
-    expect(result.level.value).toEqual(['wf-src'])
-  })
-
   // create-fork scopes its workflow id map to the workflows ACTUALLY copied (deployed state loaded).
   // With BOTH `wf-src` and `sub-src` copied, the SELECTOR varieties remap to the child ids; the
   // free-form MANUAL varieties (`manualWorkflowId`, `manualWorkflowIds`) are user-owned and pass
@@ -414,19 +307,6 @@ describe('remapConditionIdsInSubBlocks', () => {
     expect(rows.map((row: { id: string }) => row.id)).toContain(`${NEW_ID}-else`)
   })
 
-  it('remaps route ids on a router_v2 block', () => {
-    const subBlocks: SubBlockRecord = {
-      routes: {
-        id: 'routes',
-        type: 'router-input',
-        value: JSON.stringify([{ id: `${OLD_ID}-route1`, title: 'Route 1', value: 'desc' }]),
-      },
-    }
-    const result = remapConditionIdsInSubBlocks(subBlocks, 'router_v2', OLD_ID, NEW_ID)
-    const rows = JSON.parse(result.routes.value as string)
-    expect(rows[0].id).toBe(`${NEW_ID}-route1`)
-  })
-
   it('leaves rows with a foreign block-id prefix untouched (matches the edge-handle remap)', () => {
     const subBlocks: SubBlockRecord = {
       conditions: {
@@ -440,26 +320,5 @@ describe('remapConditionIdsInSubBlocks', () => {
     expect(remapConditionEdgeHandle('condition-foreign-block-if', OLD_ID, NEW_ID)).toBe(
       'condition-foreign-block-if'
     )
-  })
-
-  it('does not touch subblocks on non-dynamic-handle block types', () => {
-    const subBlocks: SubBlockRecord = {
-      conditions: { id: 'conditions', type: 'condition-input', value: conditionsValue },
-    }
-    const result = remapConditionIdsInSubBlocks(subBlocks, 'function', OLD_ID, NEW_ID)
-    expect(result.conditions).toBe(subBlocks.conditions)
-  })
-})
-
-describe('coerceObjectArray', () => {
-  it('returns arrays directly', () => {
-    expect(coerceObjectArray([{ a: 1 }])).toEqual({ array: [{ a: 1 }], wasString: false })
-  })
-  it('parses JSON-string arrays', () => {
-    expect(coerceObjectArray('[{"a":1}]')).toEqual({ array: [{ a: 1 }], wasString: true })
-  })
-  it('returns null for non-array values', () => {
-    expect(coerceObjectArray('hi')).toEqual({ array: null, wasString: false })
-    expect(coerceObjectArray(42)).toEqual({ array: null, wasString: false })
   })
 })

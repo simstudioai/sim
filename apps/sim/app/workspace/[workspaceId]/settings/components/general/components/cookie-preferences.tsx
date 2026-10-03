@@ -6,13 +6,8 @@ import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { CONSENT_LINK_CLASS, ConsentPreferences } from '@/app/_shell/consent/consent-preferences'
-import { ConsentStoreProvider } from '@/app/_shell/consent/consent-store-provider'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
-/**
- * Body of the cookies section, split out because it reads the consent store,
- * which only exists below the provider.
- */
 function CookiePreferencesBody() {
   const { saveConsents } = useConsentManager()
   const [saving, setSaving] = useState(false)
@@ -61,11 +56,7 @@ function CookiePreferencesBody() {
   )
 }
 
-/** The cookies section, with the store it reads. */
+/** The cookies section, backed by the root hosted consent store. */
 export function CookiePreferences() {
-  return (
-    <ConsentStoreProvider>
-      <CookiePreferencesBody />
-    </ConsentStoreProvider>
-  )
+  return <CookiePreferencesBody />
 }

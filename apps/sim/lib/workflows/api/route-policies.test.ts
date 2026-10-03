@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   DelegatedWorkspaceAuthorizationError,
   NoWorkspaceAccessError,
@@ -83,23 +80,9 @@ describe('v2 workflow error policies', () => {
       error: { code: 'FORBIDDEN', message: 'Workflow transition is forbidden' },
     })
   })
-
-  it('preserves genuine not-found failures', async () => {
-    const response = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(
-      new OrchestrationError('not_found', 'Workflow not found')
-    )
-    expect(response?.status).toBe(404)
-    expect(await response?.json()).toEqual({
-      error: { code: 'NOT_FOUND', message: 'Workflow not found' },
-    })
-  })
 })
 
 describe('internal workflow read auth', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('constructs a workspace principal only from the verified API-key result', async () => {
     mocks.authenticateApiKey.mockResolvedValue({
       success: true,

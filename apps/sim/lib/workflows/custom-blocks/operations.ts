@@ -8,9 +8,14 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq, isNull, sql } from 'drizzle-orm'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { omit } from '@sim/utils/object'
+import { escapeLikePattern } from '@sim/utils/string'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
+import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import { isBillingEnabled, isCustomBlocksEnabled } from '@/lib/core/config/env-flags'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import type { DbOrTx } from '@/lib/db/types'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -18,41 +23,40 @@ import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-co
 import { CUSTOM_BLOCK_TYPE_PREFIX, isReservedOutputName } from '@/blocks/custom/build-config'
 
 const logger = createLogger('CustomBlocksOperations')
+const CUSTOM_BLOCK_HYDRATION_CONCURRENCY = 10
+
+/** Whether the deployment permits Custom Blocks surfaces independent of an organization's plan. */
+export function isCustomBlocksDeploymentEnabled(): boolean {
+  return isBillingEnabled || isCustomBlocksEnabled
+}
+
+/** Whether an organization may publish, list, and execute custom blocks. */
+export async function isCustomBlocksEligibleForOrganization(
+  organizationId: string
+): Promise<boolean> {
+  return isOrganizationFeatureEntitled(organizationId, isCustomBlocksEnabled)
+}
 
 /**
- * Resolve a workspace's organization ONLY when custom blocks are enabled for it —
- * the same gate the REST list/publish routes apply (`deploy-as-block` flag +
- * enterprise plan). Applying it in every org-scoped resolver keeps execution, the
- * copilot VFS, and workspace context from surfacing blocks the API withholds (e.g.
- * after an org drops off the enterprise plan). Returns `null` when ineligible.
- *
- * Pass `userId` when the caller acts for a specific user so per-user flag
- * targeting matches the REST routes; workspace-scoped resolvers (VFS, context,
- * executor overlay) omit it and evaluate at org level.
+ * Resolve a workspace's organization only when it is eligible for custom blocks.
+ * Applying the shared entitlement in every org-scoped resolver keeps execution,
+ * the Copilot VFS, and workspace context from surfacing blocks the API withholds.
+ * Returns `null` when ineligible.
  */
-async function eligibleOrgForWorkspace(
-  workspaceId: string,
-  userId?: string
-): Promise<string | null> {
+async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | null> {
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
   if (!ws?.organizationId) return null
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ws.organizationId }))) {
-    return null
-  }
-  if (!(await isOrganizationOnEnterprisePlan(ws.organizationId))) return null
+  if (!(await isCustomBlocksEligibleForOrganization(ws.organizationId))) return null
   return ws.organizationId
 }
 
 /**
- * Whether the workspace's org may use custom blocks (`deploy-as-block` flag +
- * enterprise plan). Feeds the 'custom-blocks' entitlement in
- * `@/lib/copilot/entitlements` and matches the REST route gates.
+ * Whether the workspace's organization may use custom blocks. Feeds the
+ * `custom-blocks` entitlement in
+ * `@/lib/mothership/entitlements` and matches the REST route gates.
  */
-export async function isCustomBlocksEligible(
-  workspaceId: string,
-  userId?: string
-): Promise<boolean> {
-  return (await eligibleOrgForWorkspace(workspaceId, userId)) !== null
+export async function isCustomBlocksEligible(workspaceId: string): Promise<boolean> {
+  return (await eligibleOrgForWorkspace(workspaceId)) !== null
 }
 
 /** A persisted custom block plus its live-derived Start input fields. */
@@ -82,9 +86,12 @@ export interface CustomBlockWithInputs {
  * expects) whenever the publisher edits after deploying. Returns `[]` if the
  * workflow has no active deployment.
  */
-async function deriveInputFields(workflowId: string): Promise<WorkflowInputField[]> {
+async function deriveInputFields(
+  workflowId: string,
+  workspaceId?: string
+): Promise<WorkflowInputField[]> {
   try {
-    const deployed = await loadDeployedWorkflowState(workflowId)
+    const deployed = await loadDeployedWorkflowState(workflowId, workspaceId)
     return extractInputFieldsFromBlocks(deployed.blocks)
   } catch {
     return []
@@ -121,6 +128,29 @@ function applyInputPlaceholders(
   })
 }
 
+const CUSTOM_BLOCK_ROW_COLUMNS = {
+  type: customBlock.type,
+  name: customBlock.name,
+  description: customBlock.description,
+  workflowId: customBlock.workflowId,
+  outputs: customBlock.outputs,
+  enabled: customBlock.enabled,
+}
+
+function toCustomBlockRow({
+  outputs,
+  ...row
+}: {
+  type: string
+  name: string
+  description: string
+  workflowId: string
+  outputs: CustomBlockOutput[] | null
+  enabled: boolean
+}): CustomBlockRow & { enabled: boolean } {
+  return { ...row, exposedOutputs: outputs ?? [] }
+}
+
 /**
  * The org's custom blocks for the server overlay (`withCustomBlockOverlay`).
  * Includes DISABLED rows (carrying `enabled`) so a still-placed disabled block
@@ -134,31 +164,33 @@ export async function getCustomBlockRowsForOrg(
   organizationId: string
 ): Promise<Array<CustomBlockRow & { enabled: boolean }>> {
   const rows = await db
-    .select({
-      type: customBlock.type,
-      name: customBlock.name,
-      description: customBlock.description,
-      workflowId: customBlock.workflowId,
-      outputs: customBlock.outputs,
-      enabled: customBlock.enabled,
-    })
+    .select(CUSTOM_BLOCK_ROW_COLUMNS)
     .from(customBlock)
     .where(eq(customBlock.organizationId, organizationId))
 
-  return rows.map(({ outputs, ...r }) => ({ ...r, exposedOutputs: outputs ?? [] }))
+  return rows.map(toCustomBlockRow)
 }
 
 /**
  * The custom-block rows in scope for a workspace's organization, for wrapping an
  * execution in `withCustomBlockOverlay`. Returns `[]` when the workspace has no
- * organization (nothing to resolve).
+ * organization or the organization is not entitled to custom blocks.
+ *
+ * Every execution starts here, so the rows are read first, joined through the
+ * workspace: most organizations have none, which settles the answer in one query
+ * without the entitlement check.
  */
 export async function getCustomBlockRowsForWorkspace(
   workspaceId: string
 ): Promise<CustomBlockRow[]> {
-  const organizationId = await eligibleOrgForWorkspace(workspaceId)
-  if (!organizationId) return []
-  return getCustomBlockRowsForOrg(organizationId)
+  const rows = await db
+    .select({ ...CUSTOM_BLOCK_ROW_COLUMNS, organizationId: customBlock.organizationId })
+    .from(customBlock)
+    .innerJoin(workspace, eq(workspace.organizationId, customBlock.organizationId))
+    .where(eq(workspace.id, workspaceId))
+  if (rows.length === 0) return []
+  if (!(await isCustomBlocksEligibleForOrganization(rows[0].organizationId))) return []
+  return rows.map((row) => toCustomBlockRow(omit(row, ['organizationId'])))
 }
 
 /**
@@ -220,7 +252,10 @@ async function hydrateCustomBlockRow(joined: {
     iconUrl: row.iconUrl,
     enabled: row.enabled,
     traceChildRuns: row.traceChildRuns,
-    inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
+    inputFields: applyInputPlaceholders(
+      row.inputs,
+      await deriveInputFields(row.workflowId, workspaceId ?? undefined)
+    ),
     exposedOutputs: row.outputs ?? [],
   }
 }
@@ -241,7 +276,7 @@ export async function listCustomBlocksWithInputs(
     .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
     .where(eq(customBlock.organizationId, organizationId))
 
-  return Promise.all(rows.map(hydrateCustomBlockRow))
+  return mapWithConcurrency(rows, CUSTOM_BLOCK_HYDRATION_CONCURRENCY, hydrateCustomBlockRow)
 }
 
 /**
@@ -299,11 +334,23 @@ export async function getCustomBlockManageContext(id: string): Promise<{
  * executor to run the bound workflow under the invocation-boundary model: the
  * consumer needs no permission on the source workflow. Returns the authoritative
  * `workflowId` from the DB (never trust a serialized value) plus the source
- * workflow's **owner** (`workflow.userId`) — the same identity a normal deployed
- * API/schedule/webhook run executes as. Using the owner (not the publisher) means
- * the owner always has read on their own workflow, and owner deletion cascade-
- * deletes the workflow → the custom_block row, so there is never an orphaned block.
- * `null` when no enabled block matches the type.
+ * workflow's **owner** (`workflow.userId`). Using the owner (not the publisher)
+ * means the owner always has read on their own workflow, and owner deletion
+ * cascade-deletes the workflow → the custom_block row, so there is never an
+ * orphaned block. `null` when no enabled block matches the type.
+ *
+ * `ownerUserId` carries further than the owner does on any other trigger. It is
+ * the child run's actor, the personal-variable identity, and the subject of its
+ * delegated tool calls, because a custom block publishes a fixed behavior to
+ * consumers who can see none of its internals and the publisher's own
+ * integrations and personal keys are part of that behavior.
+ *
+ * It is NOT the identity for the two things a workspace owns. Workspace
+ * variables authorize against the source workspace's billing account, and that
+ * account is the payer, exactly as they would for a schedule on the same
+ * workflow — see the environment resolution in `workflow-handler`. Reading those
+ * as the owner too gave a published block a narrower workspace-secret selection
+ * than the workflow got on every other trigger, which no consumer could see.
  */
 export async function getCustomBlockAuthority(
   type: string,
@@ -327,11 +374,8 @@ export async function getCustomBlockAuthority(
   // key, so without the org filter a `custom_block_*` type smuggled in from another
   // org's serialized workflow could resolve and run that org's block.
   if (!consumerWorkspaceId) return null
-  // Match `getCustomBlockRowsForWorkspace` (which builds the overlay) — include
-  // archived so a workspace that can serialize a custom block can also execute it,
-  // instead of failing mid-run with "no longer available".
-  const consumerWs = await getWorkspaceWithOwner(consumerWorkspaceId, { includeArchived: true })
-  if (!consumerWs?.organizationId) return null
+  const organizationId = await eligibleOrgForWorkspace(consumerWorkspaceId)
+  if (!organizationId) return null
 
   const [row] = await db
     .select({
@@ -345,9 +389,7 @@ export async function getCustomBlockAuthority(
     })
     .from(customBlock)
     .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
-    .where(
-      and(eq(customBlock.type, type), eq(customBlock.organizationId, consumerWs.organizationId))
-    )
+    .where(and(eq(customBlock.type, type), eq(customBlock.organizationId, organizationId)))
     .limit(1)
 
   if (!row || !row.enabled) return null
@@ -494,41 +536,59 @@ export async function publishCustomBlock(params: {
     throw new CustomBlockValidationError('You can only publish a workflow from its own workspace')
   }
 
-  const ws = wf.workspaceId ? await getWorkspaceWithOwner(wf.workspaceId) : null
-  if (!ws?.organizationId || ws.organizationId !== organizationId) {
-    throw new CustomBlockValidationError('Workflow does not belong to this organization')
-  }
-
-  // One block per workflow: the (org, type) unique index doesn't prevent the same
-  // workflow being published under a fresh `custom_block_*` type, so guard here.
-  const [existing] = await db
-    .select({ id: customBlock.id })
-    .from(customBlock)
-    .where(eq(customBlock.workflowId, workflowId))
-    .limit(1)
-  if (existing) {
-    throw new CustomBlockValidationError('This workflow is already published as a block')
-  }
-
   const id = generateId()
   const type = `${CUSTOM_BLOCK_TYPE_PREFIX}${generateShortId(10).toLowerCase()}`
   const now = new Date()
 
-  await db.insert(customBlock).values({
-    id,
-    organizationId,
-    workflowId,
-    type,
-    name,
-    description,
-    iconUrl: iconUrl ?? null,
-    inputs: inputs ?? [],
-    outputs: exposedOutputs ?? [],
-    enabled: true,
-    traceChildRuns,
-    createdBy: userId,
-    createdAt: now,
-    updatedAt: now,
+  /**
+   * The org-belongs check and the insert run under the organization mutation
+   * lock, together, because an admin workspace move holds that same lock while
+   * it re-homes a workspace and unpublishes the blocks bound to its workflows.
+   * Reading the workspace's organization outside the lock lets a publish that
+   * validated against the OLD organization commit after the move's cleanup
+   * scan, leaving a source-organization block bound to a workflow that now
+   * lives in another tenant — which `getCustomBlockAuthority` would resolve and
+   * execute under the wrong owner's credentials and billing.
+   */
+  const ws = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+
+    const workspaceRow = wf.workspaceId
+      ? await getWorkspaceWithOwner(wf.workspaceId, { executor: tx })
+      : null
+    if (!workspaceRow?.organizationId || workspaceRow.organizationId !== organizationId) {
+      throw new CustomBlockValidationError('Workflow does not belong to this organization')
+    }
+
+    // One block per workflow: the (org, type) unique index doesn't prevent the same
+    // workflow being published under a fresh `custom_block_*` type, so guard here.
+    const [existing] = await tx
+      .select({ id: customBlock.id })
+      .from(customBlock)
+      .where(eq(customBlock.workflowId, workflowId))
+      .limit(1)
+    if (existing) {
+      throw new CustomBlockValidationError('This workflow is already published as a block')
+    }
+
+    await tx.insert(customBlock).values({
+      id,
+      organizationId,
+      workflowId,
+      type,
+      name,
+      description,
+      iconUrl: iconUrl ?? null,
+      inputs: inputs ?? [],
+      outputs: exposedOutputs ?? [],
+      enabled: true,
+      traceChildRuns,
+      createdBy: userId,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    return workspaceRow
   })
 
   logger.info('Published custom block', { id, type, organizationId, workflowId })
@@ -546,7 +606,10 @@ export async function publishCustomBlock(params: {
     iconUrl: iconUrl ?? null,
     enabled: true,
     traceChildRuns,
-    inputFields: applyInputPlaceholders(inputs ?? null, await deriveInputFields(workflowId)),
+    inputFields: applyInputPlaceholders(
+      inputs ?? null,
+      await deriveInputFields(workflowId, workspaceId)
+    ),
     exposedOutputs: exposedOutputs ?? [],
   }
 }
@@ -584,9 +647,16 @@ export async function updateCustomBlock(
   await db.update(customBlock).set(patch).where(eq(customBlock.id, id))
 }
 
-/** Unpublish (hard-delete) a custom block. */
-export async function deleteCustomBlock(id: string): Promise<void> {
-  await db.delete(customBlock).where(eq(customBlock.id, id))
+/**
+ * Unpublish (hard-delete) a custom block.
+ *
+ * Accepts an executor so a caller that must unpublish atomically with something
+ * else can enlist it — the admin workspace move unpublishes blocks in the same
+ * transaction that re-homes their bound workflow, keeping a block and its
+ * workflow from ever being visible in two different organizations.
+ */
+export async function deleteCustomBlock(id: string, executor: DbOrTx = db): Promise<void> {
+  await executor.delete(customBlock).where(eq(customBlock.id, id))
 }
 
 /**
@@ -599,15 +669,18 @@ export async function deleteCustomBlock(id: string): Promise<void> {
  */
 export async function getCustomBlockUsageCounts(
   organizationId: string,
-  blockType: string
+  blockType: string,
+  scope?: { onlyWorkspaceId?: string; excludeWorkspaceId?: string }
 ): Promise<{ usageCount: number; deployedUsageCount: number }> {
   const orgActiveWorkflow = and(
     eq(workspace.organizationId, organizationId),
-    isNull(workflow.archivedAt)
+    isNull(workflow.archivedAt),
+    scope?.onlyWorkspaceId ? eq(workflow.workspaceId, scope.onlyWorkspaceId) : undefined,
+    scope?.excludeWorkspaceId ? ne(workflow.workspaceId, scope.excludeWorkspaceId) : undefined
   )
   // Escape LIKE wildcards — the `_`s in `custom_block_<id>` would otherwise match
   // any character and let unrelated states through to the jsonb parse.
-  const likePattern = `%${blockType.replace(/[\\%_]/g, '\\$&')}%`
+  const likePattern = `%${escapeLikePattern(blockType)}%`
 
   const [liveRows, deployedRows] = await Promise.all([
     db

@@ -4,11 +4,10 @@ import type {
   AzureDataExplorerTableResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 function parseProperties(
   input: AzureDataExplorerQueryParams['properties']
@@ -26,7 +25,7 @@ function parseProperties(
   throw new Error('Invalid properties: must be a JSON object')
 }
 
-export const azureDataExplorerQueryTool: ToolConfig<
+export const azureDataExplorerQueryTool: InternalToolConfig<
   AzureDataExplorerQueryParams,
   AzureDataExplorerTableResponse
 > = {
@@ -93,14 +92,11 @@ export const azureDataExplorerQueryTool: ToolConfig<
       description: 'Send x-ms-readonly so the cluster rejects any request that would change data',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const properties = parseProperties(params.properties)
       return {
-        ...azureDataExplorerAuthBody(params),
+        ...azureDataExplorerAuthInput(params),
         endpoint: 'query',
         database: params.database,
         csl: params.query,

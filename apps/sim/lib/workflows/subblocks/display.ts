@@ -8,6 +8,9 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { parseFolderPath } from '@/lib/folders/paths'
+import { readFolderPaths } from '@/lib/folders/selection'
+import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { getBlock } from '@/blocks'
@@ -191,8 +194,7 @@ export const getDisplayValue = (value: unknown): string => {
   if (isMessagesArray(parsedValue)) {
     const firstMessage = parsedValue[0]
     if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
-    const content = firstMessage.content.trim()
-    return truncate(content, 50)
+    return firstMessage.content.trim()
   }
 
   if (isVariableAssignmentsArray(parsedValue)) {
@@ -357,19 +359,29 @@ export function resolveFilterFieldLabel(
   }
 }
 
+/** Evaluates local option definitions against the block values supplied by the caller. */
+export function resolveSubBlockOptions(
+  subBlock: SubBlockConfig,
+  values: Record<string, unknown> = {}
+) {
+  return typeof subBlock.options === 'function'
+    ? subBlock.options({ values })
+    : (subBlock.options ?? [])
+}
+
 /**
  * Resolves a static dropdown/combobox value to its option label.
  * Returns null if not a dropdown/combobox or no matching option is found.
  */
 export function resolveDropdownLabel(
   subBlock: SubBlockConfig | undefined,
-  rawValue: unknown
+  rawValue: unknown,
+  values: Record<string, unknown> = {}
 ): string | null {
   if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
   if (!rawValue) return null
 
-  const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
-  if (!options) return null
+  const options = resolveSubBlockOptions(subBlock, values)
 
   const labelFor = (id: string): string | null => {
     const option = options.find((opt) => (typeof opt === 'string' ? opt === id : opt.id === id))
@@ -508,6 +520,10 @@ export function resolveStoredToolName(
     return storedTitle
   }
 
+  if (t.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+    return storedTitle || 'MCP Server (Advanced)'
+  }
+
   if (typeof t.type === 'string' && t.type) {
     const blockConfig = getBlockConfig(t.type)
     if (blockConfig?.name) return blockConfig.name
@@ -556,13 +572,15 @@ export function resolveSkillsLabel(
   if (subBlock?.type !== 'skill-input') return null
   if (!Array.isArray(rawValue) || rawValue.length === 0) return null
 
+  const skillsById = new Map(skills.map((skill) => [skill.id, skill]))
+
   const names = rawValue
     .map((skill: unknown) => {
       if (!skill || typeof skill !== 'object') return null
       const s = skill as { skillId?: string; name?: string }
 
       if (s.skillId) {
-        const found = skills.find((candidate) => candidate.id === s.skillId)
+        const found = skillsById.get(s.skillId)
         if (found?.name) return found.name
       }
       if (typeof s.name === 'string' && s.name) return s.name
@@ -572,6 +590,29 @@ export function resolveSkillsLabel(
     .filter((name): name is string => !!name)
 
   return summarizeNames(names)
+}
+
+/**
+ * Resolves a fallback-model list to its model ids, e.g. "gpt-5.6, gemini-3.6-flash +1".
+ * Returns null for other subblocks and for an empty list so callers fall through.
+ * Row keys are never shown.
+ */
+export function resolveFallbackModelsLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown
+): string | null {
+  if (subBlock?.type !== 'model-fallback-list') return null
+  if (!Array.isArray(rawValue) || rawValue.length === 0) return null
+
+  const models = rawValue
+    .map((row: unknown) => {
+      if (!row || typeof row !== 'object') return null
+      const model = (row as { model?: unknown }).model
+      return typeof model === 'string' && model.trim() ? model.trim() : null
+    })
+    .filter((model): model is string => !!model)
+
+  return summarizeNames(models)
 }
 
 /**
@@ -595,4 +636,33 @@ export function resolveSandboxLabel(
   if (typeof rawValue !== 'string' || !rawValue) return null
 
   return sandboxes.find((sandbox) => sandbox.id === rawValue)?.name ?? null
+}
+
+/**
+ * Names a picked folder from the canonical path the picker stores.
+ *
+ * The path is in `SELECTOR_TYPES_HYDRATION_REQUIRED` because it is not fit to
+ * show raw — `/Reports/Q3%20Results` is percent-encoded — and a type in that
+ * list with no resolver renders as the unset placeholder, which reads as "you
+ * picked nothing" rather than "this could not be named".
+ *
+ * The path already carries the names, so this decodes rather than fetches: no
+ * request per canvas row, no loading state, and nothing to go stale that the
+ * stored path has not gone stale with.
+ */
+export function resolveFolderPathLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown
+): string | null {
+  if (subBlock?.type !== 'folder-selector' || !subBlock.resourceType) return null
+
+  const names = readFolderPaths(rawValue).flatMap((path) => {
+    try {
+      const segments = parseFolderPath(path)
+      return segments.length > 0 ? [segments.join(' / ')] : []
+    } catch {
+      return [path]
+    }
+  })
+  return summarizeNames(names)
 }

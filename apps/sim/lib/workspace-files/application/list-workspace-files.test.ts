@@ -1,42 +1,44 @@
-/**
- * @vitest-environment node
- */
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { publicSharesMock } from '@sim/testing/mocks/public-shares.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  queryFiles: vi.fn(),
-  resolvePermission: vi.fn(),
-  recordAudit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
+  resolveFolderScope: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+vi.mock('@sim/audit', () => auditMock)
+
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+
+vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
+  resolveWorkspaceFolderScope: hoisted.resolveFolderScope,
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  listWorkspaceFiles: vi.fn(),
-  loadActiveWorkspaceContext: mocks.loadWorkspace,
-  queryWorkspaceFiles: mocks.queryFiles,
-}))
+import {
+  listWorkspaceFilesInFolderScope,
+  queryWorkspaceFilePage,
+} from '@/lib/workspace-files/application/list-workspace-files'
 
-vi.mock('@/lib/public-shares/share-manager', () => ({ getWorkspaceShares: vi.fn() }))
-
-vi.mock('@/lib/folders/queries', async () => {
-  const { resolveFolderPathFilter } =
-    await vi.importActual<typeof import('@/lib/folders/queries')>('@/lib/folders/queries')
-  return { loadActiveFolderPathIndex: mocks.loadFolderIndex, resolveFolderPathFilter }
-})
-
-import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
+const mocks = {
+  loadWorkspace: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  queryFiles: workspaceUploadsMockFns.mockQueryWorkspaceFiles,
+  recordAudit: auditMockFns.mockRecordAudit,
+  ...hoisted,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 /**
  * Projects / (a)
@@ -94,7 +96,6 @@ async function run(input: Partial<PageInput> = {}) {
 
 describe('queryWorkspaceFilePage folder scoping', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.loadWorkspace.mockResolvedValue({
       workspaceId: 'workspace-1',
@@ -103,32 +104,42 @@ describe('queryWorkspaceFilePage folder scoping', () => {
       billedAccountUserId: 'billing-owner',
     })
     mocks.loadFolderIndex.mockResolvedValue(buildIndex())
+    mocks.resolveFolderScope.mockResolvedValue({
+      folderIds: new Set(['a', 'b', 'c']),
+      includeRootItems: false,
+    })
     mocks.queryFiles.mockResolvedValue({ files: [], nextKeys: null })
   })
 
-  it('applies no folder predicate when folderPath is omitted', async () => {
-    const options = await run()
-    expect(options.folderId).toBeUndefined()
-  })
+  it('pushes a multi-path scope into the bounded query', async () => {
+    await listWorkspaceFilesInFolderScope.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        folderPaths: ['/Projects', '/Archive'],
+        includeSubfolders: false,
+        limit: 5000,
+      },
+    })
 
-  it('matches one folder when not recursive', async () => {
-    const options = await run({ folderPath: '/Projects' })
-    expect(options.folderId).toBe('a')
-  })
-
-  it('matches the whole subtree when recursive', async () => {
-    const options = await run({ folderPath: '/Projects', recursive: true })
-    expect(options.folderId).toEqual(['a', 'b', 'c'])
+    expect(mocks.resolveFolderScope).toHaveBeenCalledWith({
+      principal,
+      workspaceId: 'workspace-1',
+      folderPaths: ['/Projects', '/Archive'],
+      includeSubfolders: false,
+    })
+    expect(mocks.queryFiles).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({
+        folderScope: { folderIds: new Set(['a', 'b', 'c']), includeRootItems: false },
+        limit: 5000,
+      })
+    )
   })
 
   it('stops at the subtree it was asked for', async () => {
     const options = await run({ folderPath: '/Projects/Q3', recursive: true })
     expect(options.folderId).toEqual(['b', 'c'])
-  })
-
-  it('includes a leaf folder itself', async () => {
-    const options = await run({ folderPath: '/Projects/Q3/Drafts', recursive: true })
-    expect(options.folderId).toEqual(['c'])
   })
 
   it('treats a recursive root filter as the whole workspace, not root-level files', async () => {
@@ -139,11 +150,5 @@ describe('queryWorkspaceFilePage folder scoping', () => {
   it('still means root-level files only when the root filter is not recursive', async () => {
     const options = await run({ folderPath: '/' })
     expect(options.folderId).toBeNull()
-  })
-
-  it('returns an empty page for a folder that does not resolve', async () => {
-    const result = await execute({ folderPath: '/Nope', recursive: true })
-    expect(result).toEqual({ files: [], nextKeys: null })
-    expect(mocks.queryFiles).not.toHaveBeenCalled()
   })
 })

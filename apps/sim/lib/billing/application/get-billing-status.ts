@@ -1,3 +1,4 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedBillingReadUseCase } from '@/lib/billing/application/authorized-billing-read-use-case'
 import { type BillingReadPrincipal, billingOperations } from '@/lib/billing/application/operations'
 import {
@@ -104,8 +105,8 @@ async function canReadPayerPool(
   principal: BillingReadPrincipal,
   workspace: WorkspaceBillingAuthorityContext
 ): Promise<boolean> {
-  if (principal.kind !== 'personal_api_key') return false
-  return canUserManageWorkspaceBilling(workspace, principal.userId)
+  const actorUserId = resolvePrincipalSubjectUserId(principal)
+  return actorUserId ? canUserManageWorkspaceBilling(workspace, actorUserId) : false
 }
 
 /**
@@ -156,10 +157,11 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
   requestedWorkspaceId: (input: GetBillingStatusInput) => input.workspaceId,
   execute: async ({ principal, scope }): Promise<BillingStatusResult> => {
     if (scope.kind === 'workspace') {
+      const actorUserId = resolvePrincipalSubjectUserId(principal)
       const [attribution, canViewPayerPool] = await Promise.all([
-        principal.kind === 'personal_api_key'
+        actorUserId
           ? resolveBillingAttribution({
-              actorUserId: principal.userId,
+              actorUserId,
               workspaceId: scope.workspace.workspaceId,
             })
           : resolveSystemBillingAttribution(scope.workspace.workspaceId),

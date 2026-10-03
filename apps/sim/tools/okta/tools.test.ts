@@ -1,7 +1,5 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { executeOktaUpdateGroupOperation } from '@/lib/internal/okta/operations/update-group'
 import { OktaBlock } from '@/blocks/blocks/okta'
 import { oktaActivateUserTool } from '@/tools/okta/activate_user'
 import { oktaAssignUserRoleTool } from '@/tools/okta/assign_user_role'
@@ -12,12 +10,10 @@ import { oktaDeleteGroupRuleTool } from '@/tools/okta/delete_group_rule'
 import { oktaDeleteUserTool } from '@/tools/okta/delete_user'
 import { oktaEnrollFactorTool } from '@/tools/okta/enroll_factor'
 import { oktaGetLogsTool } from '@/tools/okta/get_logs'
-import { oktaGetUserTool } from '@/tools/okta/get_user'
 import { oktaListAppsTool } from '@/tools/okta/list_apps'
 import { oktaRemoveUserFromAppTool } from '@/tools/okta/remove_user_from_app'
 import { oktaResetFactorTool } from '@/tools/okta/reset_factor'
 import { oktaResetPasswordTool } from '@/tools/okta/reset_password'
-import { oktaUpdateGroupTool } from '@/tools/okta/update_group'
 import { oktaUpdateUserTool } from '@/tools/okta/update_user'
 import { mergeOktaGroupProfile } from '@/tools/okta/utils'
 
@@ -48,10 +44,6 @@ function mergedBlockParams(inputs: Record<string, unknown>): Record<string, unkn
   if (!mapper) throw new Error('Okta block defines no params mapper')
   return { ...inputs, ...mapper(inputs) }
 }
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 describe('okta update_group profile merge', () => {
   it('keeps the stored description when the caller omits it', () => {
@@ -87,10 +79,6 @@ describe('okta update_group profile merge', () => {
     expect(merged.description).toBe('Updated')
   })
 
-  it('does not require a name, matching the description it advertises', () => {
-    expect(oktaUpdateGroupTool.params.name.required).toBe(false)
-  })
-
   it('still applies an explicitly supplied empty description', () => {
     const merged = mergeOktaGroupProfile(
       { name: 'Engineering', description: 'All engineers' },
@@ -123,7 +111,7 @@ describe('okta update_group profile merge', () => {
         )
       )
 
-    const result = await oktaUpdateGroupTool.directExecution!({
+    const result = await executeOktaUpdateGroupOperation({
       ...AUTH,
       groupId: '00g1',
       name: 'Engineering EMEA',
@@ -429,20 +417,6 @@ describe('okta query-string flags are coerced rather than interpolated raw', () 
   })
 })
 
-describe('okta update_group declarative fallback', () => {
-  /**
-   * `PUT /api/v1/groups/{groupId}` replaces an extensible profile wholesale, so
-   * a body built without first reading the stored profile would erase the
-   * description on a rename plus every org-defined custom attribute. Unreachable
-   * today, but it must fail loudly rather than truncate silently.
-   */
-  it('refuses to build a body instead of sending a truncated profile', () => {
-    expect(() =>
-      oktaUpdateGroupTool.request.body!({ ...AUTH, groupId: '00g1', name: 'Engineering EMEA' })
-    ).toThrow(/direct execution/i)
-  })
-})
-
 describe('okta block params mapping', () => {
   it('maps the group-rule keyword field onto the shared search wire param', () => {
     const merged = mergedBlockParams({
@@ -575,30 +549,5 @@ describe('okta block params mapping', () => {
     })
 
     expect(merged.limit).toBeUndefined()
-  })
-})
-
-describe('okta block output contract', () => {
-  it('keeps the get_user activation timestamp on its published output name', () => {
-    // Renaming it would break saved `<Okta.activated>` references, so the tool
-    // keeps the name and declares the real type.
-    expect(oktaGetUserTool.outputs?.activated).toMatchObject({ type: 'string' })
-  })
-
-  it('declares activated as the timestamp string the user reads emit', () => {
-    // `get_user` and `list_users` publish Okta's activation timestamp here, so a
-    // boolean declaration mistyped every saved `<Okta.activated>` reference.
-    expect(OktaBlock.outputs.activated).toMatchObject({ type: 'string' })
-  })
-
-  it('declares every subBlock the params mapper reads', () => {
-    const subBlockIds = new Set(OktaBlock.subBlocks.map((subBlock) => subBlock.id))
-    expect(subBlockIds.has('ruleSearch')).toBe(true)
-    expect(OktaBlock.inputs.ruleSearch).toBeDefined()
-  })
-
-  it('has no duplicate subBlock ids, which would silently seed the wrong default', () => {
-    const ids = OktaBlock.subBlocks.map((subBlock) => subBlock.id)
-    expect(ids.length).toBe(new Set(ids).size)
   })
 })

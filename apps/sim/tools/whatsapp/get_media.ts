@@ -1,20 +1,7 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { WhatsAppGetMediaParams, WhatsAppGetMediaResponse } from '@/tools/whatsapp/types'
 
-function getExecutionContext(params: WhatsAppGetMediaParams): {
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-} {
-  const context = params._context
-  return {
-    workspaceId: typeof context?.workspaceId === 'string' ? context.workspaceId : undefined,
-    workflowId: typeof context?.workflowId === 'string' ? context.workflowId : undefined,
-    executionId: typeof context?.executionId === 'string' ? context.executionId : undefined,
-  }
-}
-
-export const getMediaTool: ToolConfig<WhatsAppGetMediaParams, WhatsAppGetMediaResponse> = {
+export const getMediaTool: InternalToolConfig<WhatsAppGetMediaParams, WhatsAppGetMediaResponse> = {
   id: 'whatsapp_get_media',
   name: 'WhatsApp Download Media',
   description:
@@ -43,15 +30,11 @@ export const getMediaTool: ToolConfig<WhatsAppGetMediaParams, WhatsAppGetMediaRe
     },
   },
 
-  request: {
-    url: '/api/tools/whatsapp/get-media',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       mediaId: params.mediaId,
       phoneNumberId: params.phoneNumberId,
-      ...getExecutionContext(params),
     }),
   },
 

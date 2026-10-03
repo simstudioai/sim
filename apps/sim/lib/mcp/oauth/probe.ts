@@ -3,6 +3,7 @@ import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/hostnames'
 import { createPinnedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
+import { MCP_EGRESS_PROFILE } from '@/lib/mcp/domain-check'
 import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import type { McpAuthType } from '@/lib/mcp/types'
 
@@ -35,8 +36,10 @@ export async function detectMcpAuthType(
 
   // Pre-validated IP → pin directly (we own the Agent); otherwise the SSRF-guarded fetch
   // self-manages its per-request Agent teardown.
-  const pinned = resolvedIP ? createPinnedFetchWithDispatcher(resolvedIP) : undefined
-  const probeFetch: FetchLike = pinned?.fetch ?? createSsrfGuardedMcpFetch()
+  const pinned = resolvedIP
+    ? createPinnedFetchWithDispatcher(resolvedIP, { profile: MCP_EGRESS_PROFILE })
+    : undefined
+  const probeFetch: FetchLike = pinned?.fetch ?? createSsrfGuardedMcpFetch({ serverUrl: url })
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)

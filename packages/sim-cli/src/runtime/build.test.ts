@@ -1,7 +1,12 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildGeneratedCommands } from './build'
+import { V2_OPERATIONS } from '../generated/v2-api'
+import { SimApiError } from '../http/client'
+import { buildProgram } from '../program'
+import { assertNoReservedProgramFlags, buildGeneratedCommands } from './build'
+import { kebab } from './derive'
 import { resetRenameWarnings } from './renamed'
+import type { OperationSpec } from './types'
 
 /**
  * Drives commands through commander's own parsing rather than calling
@@ -14,6 +19,10 @@ import { resetRenameWarnings } from './renamed'
  * catch that class of bug.
  */
 
+/** `SimClient.requireWorkspace`'s message, verbatim, for the mocked client. */
+const NO_WORKSPACE_FOR_PROFILE =
+  'No workspace set for profile "default". Pass --workspace, or run: sim configure --profile default --set-workspace <id>'
+
 const { mockRequest, output, profileState } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
   output: { format: 'json' },
@@ -25,7 +34,9 @@ vi.mock('../context', () => ({
     client: {
       request: mockRequest,
       requireWorkspace: () => {
-        if (!profileState.workspaceId) throw new Error('workspace required')
+        // The client's own wording, so a command that skips `requireWorkspace`
+        // is visible here rather than passing on a placeholder.
+        if (!profileState.workspaceId) throw new Error(NO_WORKSPACE_FOR_PROFILE)
         return profileState.workspaceId
       },
     },
@@ -52,6 +63,29 @@ function program(): Command {
   return root
 }
 
+/**
+ * Every header a v2 operation declares, in the flag spelling it derives into
+ * when nothing renames it.
+ *
+ * Read off the operation table rather than listed by hand, so a header added to
+ * a route is swept the day it lands.
+ */
+const HEADER_WIRE_FLAGS: ReadonlySet<string> = new Set(
+  Object.values(V2_OPERATIONS as Record<string, { headers?: Record<string, unknown> }>).flatMap(
+    (spec) => Object.keys(spec.headers ?? {}).map((header) => `--${kebab(header)}`)
+  )
+)
+
+/** Every flag in a command tree typed exactly as a header is spelled on the wire. */
+function wireSpelledFlags(command: Command, prefix: string[] = []): string[] {
+  const path = [...prefix, command.name()]
+  const offenders = command.options
+    .filter((option) => option.long !== undefined && HEADER_WIRE_FLAGS.has(option.long))
+    .map((option) => `${path.join(' ')} ${option.long}`)
+  for (const child of command.commands) offenders.push(...wireSpelledFlags(child, path))
+  return offenders
+}
+
 function commandAt(...names: string[]): Command {
   let current = program()
   for (const name of names) {
@@ -67,13 +101,100 @@ async function run(argv: string[], response: unknown = { data: [], nextCursor: n
   mockRequest.mockResolvedValue(response)
   vi.spyOn(console, 'log').mockImplementation(() => {})
   await program().parseAsync(['node', 'sim', ...argv])
-  return mockRequest.mock.calls[0]
+  // `--all-workspaces` asks `/api/v2/meta` whether the key can make an
+  // account-wide read before it makes one, so the operation's own call is not
+  // always the first.
+  const call = mockRequest.mock.calls.find(([path]) => path !== V2_OPERATIONS.getMeta.path)
+  if (!call) throw new Error('the command made no request of its own')
+  return call
 }
 
 describe('commands parsed through commander', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     profileState.workspaceId = 'ws_local'
+  })
+
+  describe('organization access-request decisions', () => {
+    it('rejects flags from another decision branch before calling the API', async () => {
+      await expect(
+        run([
+          'organizations',
+          'access-requests',
+          'resolve',
+          'request-1',
+          '--organization',
+          'org-1',
+          '--action',
+          'decline',
+          '--reason',
+          'Not needed',
+          '--expected-fingerprint',
+          'preview',
+        ])
+      ).rejects.toThrow('--expected-fingerprint is not available when --action is decline')
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('organization member credit caps', () => {
+    it.each([
+      ['100', 100],
+      ['0', 0],
+      ['null', null],
+    ] as const)('sends --credit-limit %s without changing its meaning', async (value, expected) => {
+      profileState.workspaceId = null
+      const [path, options] = await run(
+        [
+          'organizations',
+          'members',
+          'usage-limit',
+          'update',
+          'user-1',
+          '--organization',
+          'org-1',
+          '--credit-limit',
+          value,
+        ],
+        { data: { creditLimit: expected } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/members/user-1/usage-limit')
+      expect(options.body).toEqual({ creditLimit: expected })
+    })
+
+    it.each(['many', '1.5', 'Infinity', ''])(
+      'rejects an invalid credit cap %s before sending',
+      async (value) => {
+        await expect(
+          run([
+            'organizations',
+            'members',
+            'usage-limit',
+            'update',
+            'user-1',
+            '--organization',
+            'org-1',
+            '--credit-limit',
+            value,
+          ])
+        ).rejects.toThrow(/--credit-limit/)
+        expect(mockRequest).not.toHaveBeenCalled()
+      }
+    )
+  })
+
+  describe('permission groups', () => {
+    it('requires confirmation to delete a group', async () => {
+      await expect(
+        run(['permission-groups', 'delete', 'group-1', '--organization', 'org-1'])
+      ).rejects.toThrow(/--yes/)
+      expect(mockRequest).not.toHaveBeenCalled()
+      const [path, options] = await run(
+        ['permission-groups', 'delete', 'group-1', '--organization', 'org-1', '--yes'],
+        { data: { id: 'group-1', deleted: true } }
+      )
+      expect(path).toBe('/api/v2/organizations/org-1/permission-groups/group-1')
+      expect(options.method).toBe('DELETE')
+    })
   })
 
   it('carries a multi-word flag all the way to the request', async () => {
@@ -83,444 +204,103 @@ describe('commands parsed through commander', () => {
     expect(options.query).toMatchObject({ minDurationMs: 250 })
   })
 
-  it('registers singular aliases for every plural resource group', () => {
-    const aliases = {
-      'audit-logs': 'audit-log',
-      credentials: 'credential',
-      'custom-tools': 'custom-tool',
-      files: 'file',
-      knowledge: 'kb',
-      logs: 'log',
-      'mcp-servers': 'mcp-server',
-      secrets: 'secret',
-      skills: 'skill',
-      tables: 'table',
-      workflows: 'workflow',
-      workspaces: 'workspace',
-    }
-
-    for (const [name, alias] of Object.entries(aliases)) {
-      expect(
-        program()
-          .commands.find((command) => command.name() === name)
-          ?.alias()
-      ).toBe(alias)
-    }
-    expect(program().commands.some((command) => command.name() === 'folders')).toBe(false)
-  })
-
-  it('describes generated resource and sub-resource groups', () => {
-    expect(commandAt('tables').description()).toBe('Manage tables')
-    expect(commandAt('tables', 'rows').description()).toBe('Manage table rows')
-  })
-
-  it('shows the command syntax when a required positional argument is missing', async () => {
-    const root = program()
-    const skills = root.commands.find((command) => command.name() === 'skills')
-    const update = skills?.commands.find((command) => command.name() === 'update')
-    if (!update) throw new Error('Missing command skills update')
-
-    let errorOutput = ''
-    update.configureOutput({
-      writeErr: (message) => {
-        errorOutput += message
-      },
-    })
-
-    await expect(root.parseAsync(['node', 'sim', 'skills', 'update'])).rejects.toMatchObject({
-      code: 'commander.missingArgument',
-    })
-    expect(errorOutput).toContain("error: missing required argument 'id'")
-    expect(errorOutput).toContain('Example: sim skills update <id>')
-    expect(errorOutput).not.toContain('--id')
-  })
-
-  it('dispatches generated commands through their singular resource alias', async () => {
-    const [tablePath] = await run(['table', 'list'])
-    expect(tablePath).toBe('/api/v2/tables')
-
-    const [filePath] = await run(['file', 'list'])
-    expect(filePath).toBe('/api/v2/files')
-
-    const [knowledgePath] = await run(['kb', 'list'])
-    expect(knowledgePath).toBe('/api/v2/knowledge')
-  })
-
-  it('nests document commands under their knowledge base', async () => {
-    expect(program().commands.map((command) => command.name())).not.toContain('documents')
-
-    const help = commandAt('knowledge', 'documents', 'get').helpInformation()
-    expect(help).toContain('<knowledgeBaseId> <documentId>')
-    expect(help).not.toContain('--kb')
-
-    const [listPath, listOptions] = await run(['kb', 'documents', 'list', 'kb_1'])
-    expect(listPath).toBe('/api/v2/knowledge/kb_1/documents')
-    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local' })
-
-    const [getPath, getOptions] = await run(['kb', 'documents', 'get', 'kb_1', 'doc_1'])
-    expect(getPath).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
-    expect(getOptions.query).toEqual({ workspaceId: 'ws_local' })
-
-    await expect(run(['kb', 'documents', 'delete', 'kb_1', 'doc_1'])).rejects.toThrow(
-      /document and its embeddings/
-    )
-    expect(mockRequest).not.toHaveBeenCalled()
-
-    const [deletePath, deleteOptions] = await run([
-      'kb',
-      'documents',
-      'delete',
-      'kb_1',
-      'doc_1',
-      '--yes',
-    ])
-    expect(deletePath).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
-    expect(deleteOptions.query).toEqual({ workspaceId: 'ws_local' })
-
-    await expect(run(['kb', 'documents', 'get', 'kb_1'])).rejects.toThrow(/documentId/)
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  it('keeps billing status and logs as explicit subcommands', async () => {
-    expect(
-      commandAt('billing')
-        .commands.map((command) => command.name())
-        .sort()
-    ).toEqual(['logs', 'status'])
-
-    const help = commandAt('billing', 'logs').helpInformation()
-    expect(help).toContain('--source <value>')
-    expect(help).toMatch(/sim-chat combines Copilot and\s+workspace chat/)
-    expect(help).toContain('"sim-chat"')
-    expect(help).not.toContain('"workspace-chat"')
-    expect(help).not.toContain('"copilot"')
-    expect(help).not.toContain('One of: workflow')
-
-    const [summaryPath, summaryOptions] = await run(['billing', 'status'], {
-      data: {
-        plan: 'pro',
-        status: 'active',
-        credits: { used: 10, limit: 100, remaining: 90 },
-      },
-    })
-    expect(summaryPath).toBe('/api/v2/billing/status')
-    expect(summaryOptions.query).toEqual({ workspaceId: 'ws_local' })
-
-    const [, accountOptions] = await run(['billing', 'status', '--all-workspaces'])
-    expect(accountOptions.query).toEqual({})
-
-    profileState.workspaceId = null
-    const [, unconfiguredAccountOptions] = await run(['billing', 'status', '--all-workspaces'])
-    expect(unconfiguredAccountOptions.query).toEqual({})
-    await expect(run(['billing', 'status'])).rejects.toThrow('workspace required')
-    profileState.workspaceId = 'ws_local'
-    await expect(
-      run(['--workspace', 'ws_other', 'billing', 'status', '--all-workspaces'])
-    ).rejects.toThrow('--all-workspaces cannot be combined with --workspace')
-
-    const [logsPath, logsOptions] = await run([
-      'billing',
-      'logs',
-      '--period',
-      '7d',
-      '--source',
-      'sim-chat',
-    ])
-    expect(logsPath).toBe('/api/v2/billing/logs')
-    expect(logsOptions.query).toMatchObject({
-      workspaceId: 'ws_local',
-      period: '7d',
-      source: 'sim-chat',
-    })
-
-    const [, accountLogsOptions] = await run(['billing', 'logs', '--all-workspaces'])
-    expect(accountLogsOptions.query).not.toHaveProperty('workspaceId')
-
-    for (const deprecated of ['copilot', 'workspace-chat']) {
-      await expect(run(['billing', 'logs', '--source', deprecated])).rejects.toThrow(
-        /allowed choices.*sim-chat/i
-      )
+  /**
+   * A dry run writes nothing, so demanding `--yes` to preview a change would
+   * teach callers to pass `--yes` reflexively — the exact habit the confirm gate
+   * depends on not forming.
+   */
+  describe('destructive confirmation and --dry-run', () => {
+    it('refuses a graph replace without --yes', async () => {
+      await expect(
+        run(['workflows', 'state', 'replace', 'wf-1', '--blocks', '{}', '--edges', '[]'])
+      ).rejects.toThrow(/--yes/)
       expect(mockRequest).not.toHaveBeenCalled()
-    }
-  })
+    })
 
-  it('carries every multi-word flag on a command, not just the first', async () => {
-    const [, options] = await run([
-      'logs',
-      'list',
-      '--min-duration-ms',
-      '10',
-      '--max-duration-ms',
-      '20',
-      '--min-cost',
-      '1',
-      '--run-id',
-      'run_1',
-    ])
-    expect(options.query).toMatchObject({
-      minDurationMs: 10,
-      maxDurationMs: 20,
-      minCost: 1,
-      runId: 'run_1',
+    it('allows the same command as a dry run without --yes', async () => {
+      const [, options] = await run([
+        'workflows',
+        'state',
+        'replace',
+        'wf-1',
+        '--blocks',
+        '{}',
+        '--edges',
+        '[]',
+        '--dry-run',
+      ])
+
+      expect(options.query).toMatchObject({ dryRun: true })
     })
   })
 
-  it('applies a contract flag alias', async () => {
-    const [path, options] = await run([
-      'tables',
-      'upsert',
-      'tbl_1',
-      '--data',
-      '{"a":1}',
-      '--on',
-      'email',
-    ])
-    expect(path).toBe('/api/v2/tables/tbl_1/rows/upsert')
-    expect(options.body).toMatchObject({ conflictTarget: 'email', data: { a: 1 } })
-  })
+  /**
+   * ~59 v2 operations refuse a workspace API key. The restriction is stated in
+   * the OpenAPI description, and before the generator carried it into the
+   * operation table `--help` advertised them identically to their
+   * workspace-key-capable siblings — the caller met the rule as a `403` only
+   * after the request had gone out.
+   */
+  describe('a command whose operation refuses a workspace API key', () => {
+    /**
+     * Catches the next hand-written command rather than only the four that
+     * exist: a restricted operation invoked from `src/commands` has to state
+     * the restriction through the one helper that owns the wording.
+     *
+     * Reading the source is what makes this general — a hand-written command
+     * declares nothing that ties it back to its operation at runtime, so the
+     * `V2_OPERATIONS.<name>` reference is the only link there is.
+     */
+    it('is enforced for every restricted operation a hand-written command calls', async () => {
+      const { readdirSync, readFileSync } = await import('node:fs')
+      const { join } = await import('node:path')
+      const root = join(import.meta.dirname, '..', 'commands')
 
-  it('exposes inline file creation added by the v2 files contract', async () => {
-    const [path, options] = await run([
-      'file',
-      'create',
-      '--name',
-      'notes.txt',
-      '--content',
-      'hello',
-      '--encoding',
-      'utf-8',
-    ])
-    expect(path).toBe('/api/v2/files')
-    expect(options.body).toEqual({
-      workspaceId: 'ws_local',
-      name: 'notes.txt',
-      content: 'hello',
-      encoding: 'utf-8',
+      const sources = readdirSync(root, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+        .filter((entry) => !entry.name.endsWith('.test.ts'))
+        .map((entry) => join(entry.parentPath, entry.name))
+
+      const unsuffixed: string[] = []
+      for (const source of sources) {
+        const text = readFileSync(source, 'utf8')
+        for (const [, operation] of text.matchAll(/V2_OPERATIONS\.([A-Za-z]+)/g)) {
+          const spec = (V2_OPERATIONS as Record<string, OperationSpec>)[operation]
+          if (!spec?.workspaceKeyUnsupported) continue
+          const suffixed = new RegExp(`describeOperation\\(\\s*V2_OPERATIONS\\.${operation}\\b`)
+          if (suffixed.test(text)) continue
+          unsuffixed.push(`${source.slice(root.length + 1)} calls ${operation}`)
+        }
+      }
+
+      expect([...new Set(unsuffixed)]).toEqual([])
     })
   })
 
-  it('describes file metadata and sharing without fetching content', async () => {
-    const [path, options] = await run(['file', 'describe', 'file_1'], {
-      data: { id: 'file_1', sharing: { enabled: false } },
-    })
-    expect(path).toBe('/api/v2/files/file_1/metadata')
-    expect(options.query).toEqual({ workspaceId: 'ws_local' })
-  })
-
-  it('reads and writes sharing through one upsert', async () => {
-    const [sharePath, shareOptions] = await run([
-      'file',
-      'share',
-      'set',
-      'file_1',
-      '--is-active',
-      'true',
-      '--auth-type',
-      'email',
-      '--allowed-emails',
-      'ada@example.com',
-    ])
-    expect(sharePath).toBe('/api/v2/files/file_1/share')
-    expect(shareOptions.method).toBe('PATCH')
-    expect(shareOptions.body).toEqual({
-      workspaceId: 'ws_local',
-      isActive: true,
-      authType: 'email',
-      allowedEmails: ['ada@example.com'],
-    })
-
-    // v2 has no unshare operation; disabling is the same upsert.
-    const [offPath, offOptions] = await run([
-      'file',
-      'share',
-      'set',
-      'file_1',
-      '--is-active',
-      'false',
-    ])
-    expect(offPath).toBe('/api/v2/files/file_1/share')
-    expect(offOptions.body).toMatchObject({ isActive: false })
-
-    const [getPath, getOptions] = await run(['file', 'share', 'get', 'file_1'], {
-      data: { sharing: { enabled: false } },
-    })
-    expect(getPath).toBe('/api/v2/files/file_1/share')
-    expect(getOptions.query).toEqual({ workspaceId: 'ws_local' })
-  })
-
-  it('moves space-separated file ids to a folder path', async () => {
-    const [path, options] = await run([
-      'file',
-      'mv',
-      '--file-ids',
-      'file_1',
-      'file_2',
-      '--to',
-      'Archive',
-    ])
-    expect(path).toBe('/api/v2/files/move')
-    expect(options.body).toEqual({
-      workspaceId: 'ws_local',
-      fileIds: ['file_1', 'file_2'],
-      targetFolderPath: 'Archive',
-    })
-  })
-
-  it('uses Linux-style resource move commands without changing update syntax', async () => {
-    const [tablePath, tableOptions] = await run(['table', 'mv', 'tbl_1', 'Archive'])
-    expect(tablePath).toBe('/api/v2/tables/tbl_1')
-    expect(tableOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
-
-    const [workflowPath, workflowOptions] = await run(['workflow', 'mv', 'wf_1', 'Archive'])
-    expect(workflowPath).toBe('/api/v2/workflows/wf_1')
-    expect(workflowOptions.body).toEqual({ folderPath: 'Archive' })
-
-    const [knowledgePath, knowledgeOptions] = await run(['kb', 'mv', 'kb_1', 'Archive'])
-    expect(knowledgePath).toBe('/api/v2/knowledge/kb_1')
-    expect(knowledgeOptions.body).toEqual({ workspaceId: 'ws_local', folderPath: 'Archive' })
-
-    const [, updateOptions] = await run(['workflow', 'update', 'wf_1', '--description', 'Updated'])
-    expect(updateOptions.body).toEqual({ description: 'Updated' })
-
-    const moveHelp = commandAt('workflows', 'mv').helpInformation()
-    expect(moveHelp).toContain('<id> <folder>')
-    expect(moveHelp).not.toContain('--folder')
-    expect(commandAt('workflows', 'update').helpInformation()).not.toContain('update|mv')
-  })
-
-  it('exposes path-addressed folder commands under each resource', async () => {
-    const [createPath, createOptions] = await run(['table', 'folders', 'create', 'Reports'])
-    expect(createPath).toBe('/api/v2/tables/folders')
-    expect(createOptions.body).toEqual({ workspaceId: 'ws_local', path: 'Reports' })
-
-    const [movePath, moveOptions] = await run([
-      'table',
-      'folders',
-      'mv',
-      'Reports',
-      'Archive/Reports',
-    ])
-    expect(movePath).toBe('/api/v2/tables/folders')
-    expect(moveOptions.body).toEqual({
-      workspaceId: 'ws_local',
-      path: 'Reports',
-      destinationPath: 'Archive/Reports',
-    })
-
-    const [listPath, listOptions] = await run(['table', 'folders', 'ls', '--parent', 'Reports'])
-    expect(listPath).toBe('/api/v2/tables/folders')
-    expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local', parentPath: 'Reports' })
-
-    const [deletePath, deleteOptions] = await run([
-      'table',
-      'folders',
-      'delete',
-      'Archive/Reports',
-      '--recursive',
-      '--yes',
-    ])
-    expect(deletePath).toBe('/api/v2/tables/folders')
-    expect(deleteOptions.query).toEqual({
-      workspaceId: 'ws_local',
-      path: 'Archive/Reports',
-      recursive: true,
-    })
-
-    const [, nonRecursiveOptions] = await run([
-      'table',
-      'folders',
-      'delete',
-      'Archive/Empty',
-      '--yes',
-    ])
-    expect(nonRecursiveOptions.query).toEqual({
-      workspaceId: 'ws_local',
-      path: 'Archive/Empty',
-    })
-
-    const help = commandAt('tables', 'folders', 'delete').helpInformation()
-    expect(help).toContain('--recursive')
-    expect(help).not.toContain('--recursive <value>')
-    expect(help).not.toContain('--no-recursive')
-  })
-
-  it('exposes named secrets separately from connected credentials', () => {
-    expect(commandAt('secrets', 'list').name()).toBe('list')
-    expect(commandAt('credentials', 'list').name()).toBe('list')
-  })
-
-  it('exposes workspace metadata and email-attributed members', async () => {
-    const getHelp = commandAt('workspaces', 'get').helpInformation()
-    expect(getHelp).not.toContain('<workspaceId>')
-
-    const [workspacePath] = await run(['workspace', 'get'], {
-      data: { id: 'ws_local' },
-    })
-    expect(workspacePath).toBe('/api/v2/workspaces/ws_local')
-
-    profileState.workspaceId = null
-    await expect(run(['workspace', 'get'])).rejects.toThrow(
-      'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+  /**
+   * The server names its own fields — right for an OpenAPI reader, untypeable
+   * here: `drop includeJobRuns` names no flag this CLI has.
+   */
+  it('restates a rejected wire field as the flag the caller typed', async () => {
+    mockRequest.mockReset()
+    mockRequest.mockRejectedValue(
+      new SimApiError(
+        'sortBy: only "startedAt" can order job runs; drop includeJobRuns or sort by "startedAt"',
+        400,
+        'BAD_REQUEST',
+        [{ path: ['sortBy'], message: 'sortBy: drop includeJobRuns' }]
+      )
     )
-    profileState.workspaceId = 'ws_local'
+    vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    const membersHelp = commandAt('workspaces', 'members').helpInformation()
-    expect(membersHelp).not.toContain('<workspaceId>')
-
-    const [membersPath, membersOptions] = await run(['workspace', 'members'])
-    expect(membersPath).toBe('/api/v2/workspaces/ws_local/members')
-    expect(membersOptions.query).toEqual({ limit: 100, cursor: null })
-  })
-
-  it('comma-joins a repeated list flag', async () => {
-    const [, options] = await run(['logs', 'list', '--workflow', 'wf_1', 'wf_2'])
-    expect(options.query).toMatchObject({ workflowIds: 'wf_1,wf_2' })
+    await expect(
+      program().parseAsync(['node', 'sim', 'logs', 'list', '--include-job-runs'])
+    ).rejects.toThrow(/drop --include-job-runs/)
   })
 
   it('injects the profile workspace without a flag', async () => {
     const [, options] = await run(['tables', 'list'])
     expect(options.query).toMatchObject({ workspaceId: 'ws_local' })
-  })
-
-  it('sends a boolean flag only when present', async () => {
-    const [, withFlag] = await run(['workflows', 'list', '--deployed-only'])
-    expect(withFlag.query).toMatchObject({ deployedOnly: true })
-
-    const [, without] = await run(['workflows', 'list'])
-    expect(without.query).not.toHaveProperty('deployedOnly')
-  })
-
-  it('runs a workflow without input and keeps output selection distinct from rendering', async () => {
-    const help = commandAt('workflows', 'run').helpInformation()
-    expect(help).toContain('--select-output <value...>')
-    expect(help).toContain('blockName.field')
-    expect(help).toContain('agent_1.content')
-    expect(help).not.toContain('--output <value...>')
-
-    const [, withoutInput] = await run(['workflows', 'run', 'wf_1'], { data: { success: true } })
-    expect(withoutInput.body).toEqual({})
-
-    const [, selected] = await run(
-      ['workflows', 'run', 'wf_1', '--select-output', 'agent.answer', 'save.result'],
-      { data: { success: true } }
-    )
-    expect(selected.body).toEqual({ selectedOutputs: ['agent.answer', 'save.result'] })
-  })
-
-  it('documents plain and grouped table queries in help', () => {
-    const help = commandAt('tables', 'rows', 'query').helpInformation()
-    expect(help).toContain('{"field":"status","op":"eq","value":"active"}')
-    expect(help).toContain('{"all":[{"field":"status","op":"eq","value":"active"}]}')
-    expect(help).toContain('{"any":[{"field":"status","op":"eq","value":"active"}]}')
-    expect(help).toContain('group entries may also be nested groups')
-    expect(help).toContain('[{"field":"createdAt","direction":"desc"}]')
-  })
-
-  it('refuses a destructive command without --yes, before any request', async () => {
-    await expect(run(['tables', 'rows', 'batch-delete', 'tbl_1', '--row', 'a'])).rejects.toThrow(
-      /cannot be undone/
-    )
-    expect(mockRequest).not.toHaveBeenCalled()
   })
 
   it('marks required flags in help and rejects omissions before a request', async () => {
@@ -532,163 +312,6 @@ describe('commands parsed through commander', () => {
       /required option '--schema/
     )
     expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  it('shows repeated values and recovered enum choices accurately', async () => {
-    const help = commandAt('knowledge', 'search').helpInformation()
-    expect(help).toContain('--kb <value...>')
-    expect(help).not.toMatch(/--kb[^\n]*JSON/)
-    expect(help).toMatch(/--search-mode.*vector.*hybrid/s)
-
-    await expect(
-      run(['knowledge', 'search', '--kb', 'kb_1', '--search-mode', 'semantic'])
-    ).rejects.toThrow(/allowed choices are vector, hybrid/i)
-
-    const [, options] = await run(
-      ['knowledge', 'search', '--kb', 'kb_1', '--search-mode', 'hybrid'],
-      { data: { results: [] } }
-    )
-    expect(options.body).toMatchObject({ knowledgeBaseIds: ['kb_1'], searchMode: 'hybrid' })
-  })
-
-  it('documents space-separated and file-backed lists', () => {
-    const help = commandAt('files', 'move').helpInformation()
-    expect(help).toContain('--file-ids <value...>')
-    expect(help).toMatch(/space-separated.*@path.*one\s+value\s+per\s+line/s)
-  })
-
-  it('advertises the file-content encoding choices', () => {
-    expect(commandAt('files', 'set-content').helpInformation()).toMatch(
-      /--encoding.*utf-8.*base64/s
-    )
-  })
-
-  it('offers expanded trace output without changing the default summary', () => {
-    expect(commandAt('logs', 'get').description()).toBe('Show run diagnostics')
-    expect(commandAt('logs', 'get').helpInformation()).toMatch(
-      /--trace.*inputs, outputs, errors, timing,\s+and cost/s
-    )
-    const listHelp = commandAt('logs', 'list').helpInformation()
-    expect(listHelp).toMatch(/--include-trace-spans.*implies full detail/s)
-    expect(listHelp).toMatch(/--include-final-output.*implies full detail/s)
-  })
-
-  it('uses a named workflow scope for run subresources', async () => {
-    expect(commandAt('workflows').commands.map((command) => command.name())).not.toContain(
-      'executions'
-    )
-    const runs = commandAt('workflows', 'runs')
-    expect(runs.commands.map((command) => command.name()).sort()).toEqual([
-      'cancel',
-      'get',
-      'list',
-      'resume',
-    ])
-
-    const help = commandAt('workflows', 'runs', 'get').helpInformation()
-    expect(help).toContain('<runId>')
-    expect(help).toMatch(/--workflow <workflowId>.*required/s)
-    expect(help).toContain('--include-output')
-    expect(help).toContain('--select-output <value...>')
-
-    const [path, options] = await run([
-      'workflows',
-      'runs',
-      'get',
-      'run_1',
-      '--workflow',
-      'wf_1',
-      '--include-output',
-      '--select-output',
-      'agent.content',
-      'writer.text',
-    ])
-    expect(path).toBe('/api/v2/workflows/wf_1/runs/run_1')
-    expect(options.query).toEqual({
-      includeOutput: true,
-      selectedOutputs: 'agent.content,writer.text',
-    })
-
-    const [listPath] = await run(['workflows', 'runs', 'list', '--workflow', 'wf_1'])
-    expect(listPath).toBe('/api/v2/workflows/wf_1/runs')
-
-    const [cancelPath] = await run(['workflows', 'runs', 'cancel', 'run_1', '--workflow', 'wf_1'])
-    expect(cancelPath).toBe('/api/v2/workflows/wf_1/runs/run_1/cancel')
-
-    const resumeHelp = commandAt('workflows', 'runs', 'resume').helpInformation()
-    expect(resumeHelp).toContain('<runId>')
-    expect(resumeHelp).toMatch(/--workflow <workflowId>.*required/s)
-    expect(resumeHelp).toMatch(/--context <value>.*required/s)
-
-    const [resumePath, resumeOptions] = await run([
-      'workflows',
-      'runs',
-      'resume',
-      'run_1',
-      '--workflow',
-      'wf_1',
-      '--context',
-      'ctx_1',
-      '--input',
-      '{"approved":true}',
-    ])
-    expect(resumePath).toBe('/api/v2/workflows/wf_1/runs/run_1/resume')
-    expect(resumeOptions.body).toEqual({
-      contextId: 'ctx_1',
-      input: { approved: true },
-    })
-  })
-
-  it('supports organization-wide audit listing explicitly', async () => {
-    const help = commandAt('audit-logs', 'list').helpInformation()
-    expect(help).toMatch(/--organization <value>.*personal API key required.*required/s)
-    expect(help).toContain('--all-workspaces')
-    expect(help).toContain('--actor-email')
-    expect(help).not.toContain('--actor-id')
-
-    const [, scopedOptions] = await run([
-      'audit-logs',
-      'list',
-      '--organization',
-      'org_1',
-      '--actor-email',
-      'owner@example.com',
-    ])
-    expect(scopedOptions.query).toMatchObject({
-      organizationId: 'org_1',
-      workspaceId: 'ws_local',
-      actorEmail: 'owner@example.com',
-    })
-
-    const [, organizationOptions] = await run([
-      'audit-logs',
-      'list',
-      '--organization',
-      'org_1',
-      '--all-workspaces',
-    ])
-    expect(organizationOptions.query).toMatchObject({
-      organizationId: 'org_1',
-      limit: 100,
-    })
-    expect(organizationOptions.query).not.toHaveProperty('workspaceId')
-
-    const [detailPath, detailOptions] = await run([
-      'audit-logs',
-      'get',
-      'audit_1',
-      '--organization',
-      'org_1',
-    ])
-    expect(detailPath).toBe('/api/v2/audit-logs/audit_1')
-    expect(detailOptions.query).toEqual({ organizationId: 'org_1' })
-  })
-
-  it('describes asynchronous workflow runs without a contradictory negative flag', () => {
-    const help = commandAt('workflows', 'run').helpInformation()
-    expect(commandAt('workflows', 'run').description()).toBe('Run a deployed workflow')
-    expect(help).toContain('--async')
-    expect(help).not.toContain('--no-async')
   })
 })
 
@@ -733,50 +356,27 @@ describe('single-resource rendering', () => {
     expect(printed.join('\n')).toMatch(/Deepwiki/)
   })
 
-  it('renders nested fields instead of dropping them', async () => {
-    // `workflows export` printed `version` and `exportedAt` and nothing else:
-    // the record builder kept only scalars, so `workflow` and `state` — the
-    // entire export — vanished with no indication anything was missing.
+  it('prints the API data verbatim for machine output, envelope included', async () => {
+    // `--output json` is what scripts and the agent reference card (generated from the
+    // OpenAPI response shapes) consume: the single-key unwrap above is a table-only
+    // convenience, so JSON keeps `mcpServer` exactly as the API returned it.
     const printed = await lines(
-      ['workflows', 'get', 'wf_1'],
-      { id: 'wf_1', name: 'Onboarding', inputs: [{ name: 'email', type: 'string' }] },
-      'text'
-    )
-
-    expect(printed.join('\n')).toMatch(/inputs/)
-    expect(printed.join('\n')).toMatch(/email/)
-  })
-
-  it('truncates a nested value in the table, and only there', async () => {
-    const payload = { id: 'wf_1', state: { blocks: 'x'.repeat(5000) } }
-
-    const table = await lines(['workflows', 'get', 'wf_1'], payload, 'table')
-    const clamped = table.find((line) => line.startsWith('state')) ?? ''
-    expect(clamped.length).toBeLessThan(300)
-    expect(clamped).toMatch(/…$/)
-
-    // `text` is the format built for pipes, so it carries the whole value: the
-    // clamp is a legibility cap on the human table, and clamping before the
-    // format branch silently truncated commands whose output is one long value.
-    const piped = await lines(['workflows', 'get', 'wf_1'], payload, 'text')
-    const whole = piped.find((line) => line.startsWith('state')) ?? ''
-    expect(whole).toContain('x'.repeat(5000))
-  })
-
-  it('emits a document command as JSON whatever the display format is', async () => {
-    // Redirecting this to a file has to yield something `import` accepts, so
-    // `table`/`text` — which flatten and truncate — must not be honoured here.
-    const printed = await lines(
-      ['workflows', 'export', 'wf_1'],
-      { version: '1.0', exportedAt: 'now', workflow: { id: 'wf_1' }, state: { blocks: {} } },
-      'text'
+      [
+        'mcp-servers',
+        'create',
+        '--name',
+        'Deepwiki',
+        '--transport',
+        'streamable-http',
+        '--url',
+        'https://mcp.deepwiki.com/mcp',
+      ],
+      { mcpServer: { id: 'mcp-1', name: 'Deepwiki', enabled: true } },
+      'json'
     )
 
     expect(JSON.parse(printed.join('\n'))).toEqual({
-      version: '1.0',
-      exportedAt: 'now',
-      workflow: { id: 'wf_1' },
-      state: { blocks: {} },
+      mcpServer: { id: 'mcp-1', name: 'Deepwiki', enabled: true },
     })
   })
 
@@ -855,247 +455,165 @@ describe('single-resource rendering', () => {
   })
 })
 
-describe('contract-selected list rendering', () => {
-  async function lines(argv: string[], data: unknown): Promise<string[]> {
-    mockRequest.mockReset()
-    mockRequest.mockResolvedValue({ data })
-    output.format = 'text'
-    const captured: string[] = []
-    vi.spyOn(console, 'log').mockImplementation((line: string) => captured.push(line))
-    try {
-      await program().parseAsync(['node', 'sim', ...argv])
-    } finally {
-      output.format = 'json'
+describe('pagination slot', () => {
+  it.each([
+    { argv: ['files', 'list'], cursors: ['c1', 'c1'] },
+    { argv: ['files', 'list'], cursors: ['c1', 'c2', 'c1'] },
+    { argv: ['tables', 'rows', 'query', 'tbl_1', '--limit', '0'], cursors: ['c1', 'c1'] },
+    { argv: ['logs', 'list', '--cursor', 'c1'], cursors: ['c1'] },
+    { argv: ['tables', 'rows', 'query', 'tbl_1', '--cursor', 'c1'], cursors: ['c1'] },
+  ])(
+    'rejects cursor cycles in $argv without printing partial results',
+    async ({ argv, cursors }) => {
+      mockRequest.mockReset()
+      mockRequest.mockRejectedValue(new Error('Pagination did not stop at the cycle'))
+      for (const nextCursor of cursors) {
+        mockRequest.mockResolvedValueOnce({ data: [{ id: 'r1' }], nextCursor })
+      }
+      const printed = vi.spyOn(console, 'log').mockImplementation(() => {})
+      printed.mockClear()
+
+      await expect(program().parseAsync(['node', 'sim', ...argv])).rejects.toThrow(
+        'repeated pagination cursor'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(cursors.length)
+      expect(printed).not.toHaveBeenCalled()
     }
-    return captured
-  }
+  )
 
-  it('renders knowledge results as rows instead of a truncated JSON blob', async () => {
-    const printed = await lines(['knowledge', 'search', '--kb', 'kb_1', '--query', 'refund'], {
-      results: [
-        {
-          similarity: 0.91,
-          documentName: 'policy.md',
-          chunkIndex: 2,
-          content: 'Refunds are available for 30 days.',
-        },
-      ],
-      query: 'refund',
-      totalResults: 1,
-    })
+  it.each([
+    ['tables', 'rows', 'list', 'tbl_1'],
+    ['tables', 'rows', 'query', 'tbl_1'],
+    ['logs', 'list'],
+    ['knowledge', 'documents', 'list', 'kb_1'],
+    ['knowledge', 'chunks', 'list', 'kb_1', 'doc_1'],
+    ['knowledge', 'connectors', 'documents', 'list', 'kb_1', 'connector_1'],
+    ['workflows', 'runs', 'list', '--workflow', 'wf_1'],
+    ['workflows', 'versions', 'list', 'wf_1'],
+    ['billing', 'logs'],
+    ['audit-logs', 'list', '--organization', 'org_1'],
+  ])('caps large dataset command %j at 100 items by default', async (...argv) => {
+    mockRequest.mockReset()
+    const rows = Array.from({ length: 100 }, (_, index) => ({ id: `r${index}` }))
+    mockRequest
+      .mockResolvedValueOnce({ data: rows, nextCursor: 'c1' })
+      .mockRejectedValue(new Error('The default limit must stop before another page'))
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => printed.push(line))
 
-    // Four decimals, fixed, like the `cost` column: a similarity is compared
-    // against its neighbours, so the width has to stay put down the column.
-    expect(printed).toEqual(['0.9100\tpolicy.md\t2\tRefunds are available for 30 days.'])
-  })
+    await program().parseAsync(['node', 'sim', ...argv])
 
-  it('renders row matches as rows', async () => {
-    const printed = await lines(['tables', 'rows', 'find', 'tbl_1', '--query', 'alice'], {
-      matches: [{ ordinal: 3, rowId: 'row_1', column: 'email' }],
-      truncated: false,
-    })
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(printed.join('\n'))).toEqual({ data: rows, nextCursor: 'c1' })
 
-    expect(printed).toEqual(['3\trow_1\temail'])
-  })
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValueOnce({ data: [{ id: 'r100' }], nextCursor: null })
+    printed.length = 0
 
-  it('maps custom-tool, credential, and secret fields to their actual response paths', async () => {
-    const tools = await lines(
-      ['custom-tools', 'list'],
-      [
-        {
-          id: 'tool_1',
-          title: 'Lookup',
-          schema: { function: { description: 'Find a customer' } },
-          updatedAt: '2026-08-04T00:00:00.000Z',
-        },
-      ]
-    )
-    expect(tools[0]).toContain('Lookup')
-    expect(tools[0]).toContain('Find a customer')
+    await program().parseAsync(['node', 'sim', ...argv, '--cursor', 'c1'])
 
-    const credentials = await lines(
-      ['credentials', 'list'],
-      [
-        {
-          id: 'cred_1',
-          displayName: 'Production Stripe',
-          providerId: 'stripe',
-          updatedAt: '2026-08-04T00:00:00.000Z',
-        },
-      ]
-    )
-    expect(credentials[0]).toContain('Production Stripe')
-    expect(credentials[0]).toContain('stripe')
-
-    const secrets = await lines(
-      ['secrets', 'list'],
-      [
-        {
-          name: 'STRIPE_API_KEY',
-          scope: 'workspace',
-          role: 'admin',
-          updatedAt: '2026-08-04T00:00:00.000Z',
-        },
-      ]
-    )
-    expect(secrets[0]).toContain('STRIPE_API_KEY')
-    expect(secrets[0]).toContain('workspace')
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    const options = mockRequest.mock.calls[0][1]
+    expect({ ...options.query, ...options.body }).toMatchObject({ cursor: 'c1', limit: 100 })
+    expect(JSON.parse(printed.join('\n'))).toEqual({ data: [{ id: 'r100' }], nextCursor: null })
   })
 
   /**
-   * A field path that misses renders as an em-dash rather than failing, so a
-   * renamed response key is invisible until someone reads the output. v2 nests
-   * the share under `share` and calls the flag `isActive`; the CLI briefly read
-   * a `sharing` wrapper and silently showed nothing for all four columns.
+   * `parseInt` truncated the value before it was checked, so a fractional was
+   * silently floored and `-0.5` parsed to `-0` — not less than zero, and then
+   * equal to the `0` that means "everything". Both walked a workspace the
+   * caller had asked to cap.
    */
-  it('reads share fields from the v2 share object, not a sharing wrapper', async () => {
-    const described = (
-      await lines(['files', 'describe', 'file_1'], {
-        id: 'file_1',
-        name: 'notes.txt',
-        uploadedByEmail: 'ada@example.com',
-        share: {
-          isActive: true,
-          url: 'https://sim.ai/s/tok_1',
-          authType: 'email',
-          hasPassword: false,
-          allowedEmails: ['ada@example.com'],
-        },
-      })
-    ).join('\n')
-    expect(described).toContain('https://sim.ai/s/tok_1')
-    expect(described).toContain('email')
-    expect(described).toContain('ada@example.com')
-
-    const share = (
-      await lines(['files', 'share', 'get', 'file_1'], {
-        isActive: true,
-        url: 'https://sim.ai/s/tok_2',
-        authType: 'sso',
-        hasPassword: true,
-        allowedEmails: ['ada@example.com', 'grace@example.com'],
-      })
-    ).join('\n')
-    expect(share).toContain('https://sim.ai/s/tok_2')
-    expect(share).toContain('sso')
-  })
-})
-
-describe('pagination slot', () => {
-  it('pages a body-cursor operation and renders its rows', async () => {
-    // `queryRows` is a POST whose cursor is in the body, not the query. Reading
-    // only the query made it take the single-request path and print nothing.
-    mockRequest.mockReset()
-    mockRequest
-      .mockResolvedValueOnce({ data: [{ id: 'r1' }], nextCursor: 'c1' })
-      .mockResolvedValueOnce({ data: [{ id: 'r2' }], nextCursor: null })
-    const lines: string[] = []
-    vi.spyOn(console, 'log').mockImplementation((line: string) => {
-      lines.push(line)
-    })
-
-    await program().parseAsync(['node', 'sim', 'tables', 'rows', 'query', 'tbl_1'])
-
-    expect(mockRequest).toHaveBeenCalledTimes(2)
-    // Second call resumes from the cursor — in the body, where the contract puts it.
-    expect(mockRequest.mock.calls[1][1].body).toMatchObject({ cursor: 'c1' })
-    expect(mockRequest.mock.calls[1][1].query).not.toHaveProperty('cursor')
-    // And the rows actually render rather than printing an empty record.
-    expect(JSON.parse(lines[0])).toEqual([{ id: 'r1' }, { id: 'r2' }])
-  })
-
-  it('keeps a query-cursor operation on the query slot', async () => {
-    mockRequest.mockReset()
-    mockRequest
-      .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1' })
-      .mockResolvedValueOnce({ data: [{ id: 'b' }], nextCursor: null })
-    vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    await program().parseAsync(['node', 'sim', 'logs', 'list'])
-
-    expect(mockRequest.mock.calls[1][1].query).toMatchObject({ cursor: 'c1' })
-  })
-
-  it('says it is still fetching, on stderr, so a long cursor does not read as a hang', async () => {
-    // The progress writer only ever lived in `requestAllPages`, which just the
-    // `ls` commands use; every generated list pages through its own loop, so
-    // `--limit 0` sat silent through twenty sequential requests. stdout stays
-    // clean because that is what gets piped to `jq`.
-    mockRequest.mockReset()
-    mockRequest
-      .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1' })
-      .mockResolvedValueOnce({ data: [{ id: 'b' }], nextCursor: null })
-    vi.spyOn(console, 'log').mockImplementation(() => {})
-    const terminal = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
-    Object.defineProperty(process.stderr, 'isTTY', { configurable: true, value: true })
-    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
-
-    try {
-      await program().parseAsync(['node', 'sim', 'logs', 'list', '--limit', '0'])
-    } finally {
-      if (terminal) Object.defineProperty(process.stderr, 'isTTY', terminal)
-      else Reflect.deleteProperty(process.stderr, 'isTTY')
-    }
-
-    expect(stderr.mock.calls.map(([chunk]) => String(chunk)).join('')).toContain('fetched 1')
-  })
-
-  it('uses a valid per-page size for unlimited and large totals', async () => {
-    for (const requested of ['0', '250']) {
+  it('refuses a limit that is not a whole number, before any request', async () => {
+    for (const value of ['-0.5', '-0.9', '3.9', '1.5', '', ' ']) {
       mockRequest.mockReset()
-      mockRequest.mockResolvedValue({ data: [], nextCursor: null })
       vi.spyOn(console, 'log').mockImplementation(() => {})
-
-      await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', requested])
-
-      expect(mockRequest.mock.calls[0][1].query.limit).toBe(100)
+      await expect(
+        program().parseAsync(['node', 'sim', 'files', 'list', '--limit', value])
+      ).rejects.toThrow(/--limit must be a whole number of 0 or more/)
+      expect(mockRequest).not.toHaveBeenCalled()
     }
   })
-})
 
-describe('rows whose content sits in a wrapper', () => {
-  it('discovers columns from the expanded field', async () => {
-    // `tables rows query` returned a table of ids and timestamps: a row's cells
-    // live under `data`, and column inference skipped it for being an object.
+  it.each([
+    { slot: 'query' as const, argv: ['logs', 'list'] },
+    { slot: 'body' as const, argv: ['tables', 'rows', 'query', 'tbl_1'] },
+  ])('returns an accurate cursor after a partial final $slot page', async ({ slot, argv }) => {
     mockRequest.mockReset()
-    mockRequest.mockResolvedValue({
-      data: [
-        { id: 'r1', data: { url: 'https://a', title: 'A' }, createdAt: 'now' },
-        { id: 'r2', data: { url: 'https://b', extra: 'E' }, createdAt: 'now' },
-      ],
-      nextCursor: null,
-    })
-    const lines: string[] = []
-    output.format = 'text'
-    vi.spyOn(console, 'log').mockImplementation((line: string) => {
-      lines.push(line)
-    })
-    await program().parseAsync(['node', 'sim', 'tables', 'rows', 'query', 'tbl_1'])
-    output.format = 'json'
+    mockRequest.mockImplementation(
+      async (
+        _path: string,
+        options: {
+          query: { limit: number; cursor?: string }
+          body?: { limit: number; cursor?: string }
+        }
+      ) => {
+        const page = options[slot]
+        if (!page) throw new Error(`Missing ${slot} pagination`)
+        const offset = Number(page.cursor ?? 0)
+        const count = Math.min(page.limit, 400 - offset)
+        return {
+          data: Array.from({ length: count }, (_, index) => ({ id: `r${offset + index}` })),
+          nextCursor: offset + count < 400 ? String(offset + count) : null,
+        }
+      }
+    )
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => printed.push(line))
 
-    // Unioned across the page: `extra` appears only on the second row.
-    expect(lines[0]).toContain('https://a')
-    expect(lines[0]).toContain('A')
-    expect(lines[1]).toContain('E')
+    await program().parseAsync(['node', 'sim', ...argv, '--limit', '250'])
+
+    expect(mockRequest.mock.calls.map(([, options]) => options[slot].limit)).toEqual([100, 100, 50])
+    const result = JSON.parse(printed.join('\n'))
+    expect(result.data).toHaveLength(250)
+    expect(result.data[249]).toEqual({ id: 'r249' })
+    expect(result.nextCursor).toBe('250')
+
+    printed.length = 0
+    await program().parseAsync(['node', 'sim', ...argv, '--limit', '0'])
+
+    const complete = JSON.parse(printed.join('\n'))
+    expect(complete.data).toHaveLength(400)
+    expect(complete.nextCursor).toBeNull()
+
+    printed.length = 0
+    const resumeCall = mockRequest.mock.calls.length
+    await program().parseAsync(['node', 'sim', ...argv, '--cursor', result.nextCursor])
+
+    expect(mockRequest.mock.calls[resumeCall][1][slot]).toMatchObject({ cursor: '250', limit: 100 })
+    const resumed = JSON.parse(printed.join('\n'))
+    expect(resumed.data).toHaveLength(100)
+    expect(resumed.data[0]).toEqual({ id: 'r250' })
+    expect(resumed.data[99]).toEqual({ id: 'r349' })
+    expect(resumed.nextCursor).toBe('350')
+
+    printed.length = 0
+    await program().parseAsync([
+      'node',
+      'sim',
+      ...argv,
+      '--cursor',
+      resumed.nextCursor,
+      '--limit',
+      '0',
+    ])
+
+    const remaining = JSON.parse(printed.join('\n'))
+    expect(remaining.data).toHaveLength(50)
+    expect(remaining.data[0]).toEqual({ id: 'r350' })
+    expect(remaining.nextCursor).toBeNull()
   })
 
-  it('uses the generated list command for table rows', async () => {
+  it('rejects an oversized page instead of emitting a cursor that skips rows', async () => {
     mockRequest.mockReset()
-    mockRequest.mockResolvedValue({
-      data: [{ id: 'r1', data: { email: 'a@example.com' } }],
-      nextCursor: null,
-    })
-    const lines: string[] = []
-    output.format = 'text'
-    vi.spyOn(console, 'log').mockImplementation((line: string) => lines.push(line))
-    try {
-      await program().parseAsync(['node', 'sim', 'tables', 'rows', 'list', 'tbl_1'])
-    } finally {
-      output.format = 'json'
-    }
+    mockRequest.mockResolvedValue({ data: [{ id: 'a' }, { id: 'b' }], nextCursor: 'c2' })
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    stdout.mockClear()
 
-    expect(lines[0]).toContain('a@example.com')
-    expect(mockRequest.mock.calls[0][0]).toBe('/api/v2/tables/tbl_1/rows')
+    await expect(
+      program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '1'])
+    ).rejects.toThrow('nextCursor would skip unreturned items')
+    expect(stdout).not.toHaveBeenCalled()
   })
 })
 
@@ -1112,11 +630,36 @@ describe('boolean flags', () => {
     const [, absent] = await run(['mcp-servers', 'update', 'mcp_1', '--name', 'x'])
     expect(absent.body).not.toHaveProperty('enabled')
   })
+})
 
-  it('rejects an argument the command has no meaning for', async () => {
-    await expect(run(['mcp-servers', 'update', 'mcp_1', '--enabled', 'bogus'])).rejects.toThrow(
-      /too many arguments/
+describe('a body field the contract clears with null', () => {
+  /**
+   * All the way through commander, because the unit tests below this seam feed
+   * `coerce` a value already keyed by flag name and cannot see what argv the CLI
+   * accepts. There is no flag that sends JSON `null` — `--no-<flag>` means "send
+   * this boolean as false" on every other flag in the CLI — so an empty string
+   * is as far as the terminal goes, and the word is only ever the word.
+   */
+  it('sends an empty string as empty and the word null as text, with no companion flag', async () => {
+    const [, empty] = await run(
+      ['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--description', ''],
+      {
+        data: { id: '00000000-0000-4000-8000-00000000000a' },
+      }
     )
+    expect(empty.body).toMatchObject({ description: '' })
+
+    const [, literal] = await run(
+      ['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--description', 'null'],
+      {
+        data: { id: '00000000-0000-4000-8000-00000000000a' },
+      }
+    )
+    expect(literal.body).toMatchObject({ description: 'null' })
+
+    await expect(
+      run(['workflows', 'update', '00000000-0000-4000-8000-00000000000a', '--no-description'])
+    ).rejects.toThrow(/unknown option/)
   })
 })
 
@@ -1139,18 +682,6 @@ describe('bodies and fields the generator cannot flatten', () => {
     expect(options.body).toEqual({ workspaceId: 'ws_local', rows: [{ city: 'Paris' }] })
   })
 
-  it('offers a direct single-row flag', async () => {
-    const [, options] = await run([
-      'tables',
-      'rows',
-      'create',
-      'tbl_1',
-      '--data',
-      '{"city":"Paris"}',
-    ])
-    expect(options.body).toEqual({ workspaceId: 'ws_local', data: { city: 'Paris' } })
-  })
-
   it('requires exactly one row-body form', async () => {
     await expect(run(['tables', 'rows', 'create', 'tbl_1'])).rejects.toThrow(
       /exactly one of --data or --rows/
@@ -1160,42 +691,103 @@ describe('bodies and fields the generator cannot flatten', () => {
     ).rejects.toThrow(/exactly one of --data or --rows/)
   })
 
-  it('rejects the wrong JSON shape for a row-body flag', async () => {
-    await expect(run(['tables', 'rows', 'create', 'tbl_1', '--data', '[1,2]'])).rejects.toThrow(
-      /--data must be a JSON object/
+  /**
+   * The route's cap is an object holding exactly one free value, because its
+   * `type` is a `z.literal('rows')` — so the wire shape was four tokens of
+   * ceremony to say a number the caller already had.
+   */
+  describe('the dispatch row cap is typed as the count it reads as', () => {
+    it('refuses a count the route would reject, naming the bounds', async () => {
+      for (const value of ['0', '1.5', 'abc', '1000001']) {
+        await expect(
+          run([
+            'tables',
+            'dispatches',
+            'create',
+            'tbl_1',
+            '--group-ids',
+            '["g1"]',
+            '--max-rows',
+            value,
+          ])
+        ).rejects.toThrow(/--max-rows must be a whole number between 1 and 1,000,000/)
+        expect(mockRequest).not.toHaveBeenCalled()
+      }
+    })
+  })
+
+  /**
+   * The pager's flag was handed to any field named `limit`, so a bulk mutation
+   * that does not paginate carried commander's `100` default into its body: a
+   * filter matching 250 rows deleted 100, exited 0, and said nothing.
+   */
+  describe('a row cap on a mutation that does not paginate', () => {
+    const FILTER = '{"all":[{"field":"status","op":"eq","value":"active"}]}'
+
+    it('leaves the cap off the wire entirely when it is not typed', async () => {
+      const [, omitted] = await run([
+        'tables',
+        'rows',
+        'batch-delete',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--yes',
+      ])
+      expect(omitted.body).not.toHaveProperty('limit')
+
+      const [, updated] = await run([
+        'tables',
+        'rows',
+        'batch-update',
+        'tbl_1',
+        '--filter',
+        FILTER,
+        '--data',
+        '{"status":"done"}',
+        '--yes',
+      ])
+      expect(updated.body).not.toHaveProperty('limit')
+    })
+
+    it('refuses a cap typed alongside the id list that supersedes it', async () => {
+      await expect(
+        run([
+          'tables',
+          'rows',
+          'batch-delete',
+          'tbl_1',
+          '--row',
+          'row_1',
+          'row_2',
+          '--limit',
+          '1',
+          '--yes',
+        ])
+      ).rejects.toThrow(/--limit caps a --filter match .* --row list; pass one, not both/)
+      expect(mockRequest).not.toHaveBeenCalled()
+    })
+  })
+
+  /**
+   * `--limit` on a cursor-paginated operation is a client-side total, stripped
+   * from the request while the CLI walks the pages — so `--limit 0` reached the
+   * whole table with run state attached as many individually-legal pages, which
+   * is what the route's own `limit: 0` refusal exists to prevent.
+   */
+  /**
+   * An `integer` field said so in the contract, and the refusal was left to the
+   * server — which answered in library wording naming neither the flag nor the
+   * value.
+   */
+  it('refuses a fractional or unrepresentable value on an integer flag', async () => {
+    await expect(run(['files', 'read', 'file_1', '--max-bytes', '5.5'])).rejects.toThrow(
+      '--max-bytes must be a whole number'
     )
-  })
-
-  it('explains the single and batch row forms in help', () => {
-    const help = commandAt('tables', 'rows', 'create').helpInformation()
-    expect(help).toMatch(/--data.*One row keyed by column name/s)
-    expect(help).toMatch(/--rows.*Several rows keyed by column name/s)
-    expect(help).not.toContain('--body')
-  })
-
-  it('leaves a non-numeric `limit` alone', async () => {
-    // `runTableColumn` takes `limit: { type, max }`. The pager claimed the name
-    // regardless of type, turning it into `--limit <n>` that defaulted to 100,
-    // so every call failed with "expected object, received number".
-    const [, omitted] = await run(['tables', 'columns', 'run', 'tbl_1', '--group-ids', '["g1"]'])
-    expect(omitted.body).not.toHaveProperty('limit')
-
-    const [, given] = await run([
-      'tables',
-      'columns',
-      'run',
-      'tbl_1',
-      '--group-ids',
-      '["g1"]',
-      '--limit',
-      '{"type":"rows","max":5}',
-    ])
-    expect(given.body).toMatchObject({ limit: { type: 'rows', max: 5 } })
-  })
-
-  it('still gives paginated lists their numeric --limit', async () => {
-    const [, options] = await run(['files', 'list', '--limit', '7'])
-    expect(options.query).toMatchObject({ limit: 7 })
+    await expect(
+      run(['files', 'read', 'file_1', '--max-bytes', '999999999999999999999'])
+    ).rejects.toThrow('--max-bytes is outside the whole-number range the API accepts')
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 })
 
@@ -1212,53 +804,6 @@ describe('spellings the CLI has retired', () => {
     })
     return written
   }
-
-  it('still answers to a command path that moved between groups', async () => {
-    // `tables count create` counted rows and created nothing, so it became
-    // `tables rows count`. A script written against the old path predates the
-    // rename and has no way to know.
-    const written = warnings()
-    const [path, options] = await run(
-      ['tables', 'count', 'create', 'tbl_1', '--filter', '{"all":[]}'],
-      { data: { totalCount: 0 } }
-    )
-    expect(path).toBe('/api/v2/tables/tbl_1/query/count')
-    expect(options.body).toMatchObject({ predicate: { all: [] } })
-    expect(written.join('')).toContain('"sim tables count create" has been renamed')
-  })
-
-  it('still answers to a path whose group became the command itself', async () => {
-    // The hardest shape: `files restore create` retired in favour of `files
-    // restore`, so the old path needs a `create` *under* a command that now
-    // takes `<fileId>` there. Commander matches the subcommand before the
-    // positional, which is what makes both spellings reachable.
-    const written = warnings()
-    const [path] = await run(['files', 'restore', 'create', 'wf_1'], { data: { id: 'wf_1' } })
-    expect(path).toBe('/api/v2/files/wf_1/restore')
-    expect(written.join('')).toContain('"sim files restore create" has been renamed')
-
-    const [current] = await run(['files', 'restore', 'wf_1'], { data: { id: 'wf_1' } })
-    expect(current).toBe('/api/v2/files/wf_1/restore')
-  })
-
-  it('keeps retired spellings out of help', () => {
-    // A retired name exists for scripts, not for readers: surfacing it in help
-    // would teach the spelling being retired. Commander still lists a hidden
-    // command in `.commands`, so this asks what help itself would print.
-    const visible = (command: Command) =>
-      command.commands
-        .filter((child) => (child as Command & { _hidden?: boolean })._hidden !== true)
-        .map((child) => child.name())
-
-    expect(visible(commandAt('tables'))).not.toContain('count')
-    expect(visible(commandAt('workflows', 'deployment'))).not.toContain('list')
-    expect(visible(commandAt('files', 'restore'))).toEqual([])
-    expect(
-      commandAt('tables', 'rows', 'count')
-        .options.filter((option) => !option.hidden)
-        .map((option) => option.flags)
-    ).not.toContain('--predicate <json|@file>')
-  })
 
   it('folds a retired flag onto its current name', async () => {
     const written = warnings()
@@ -1284,13 +829,6 @@ describe('spellings the CLI has retired', () => {
     ).rejects.toThrow('--predicate is the former name of --filter; pass one, not both')
   })
 
-  it('still requires a renamed-but-required field, naming its current spelling', async () => {
-    // The current flag cannot be commander-mandatory or the retired spelling
-    // would be rejected before it could be folded, so the requirement is raised
-    // downstream instead. It must still be raised.
-    await expect(run(['tables', 'rows', 'find', 'tbl_1'])).rejects.toThrow('--query is required')
-  })
-
   it('never lets a retired path shadow a live command', () => {
     const seen = new Map<string, boolean>()
     const walk = (command: Command, prefix: string[]) => {
@@ -1306,5 +844,172 @@ describe('spellings the CLI has retired', () => {
       }
     }
     walk(program(), [])
+  })
+})
+
+describe('flags the root program would swallow', () => {
+  /**
+   * Commander matches the root's own options anywhere in argv, including after a
+   * subcommand name, so a leaf declaring one never sees it: `sim workflows
+   * rollback 00000000-0000-4000-8000-00000000000a --version 1` printed the CLI version and exited 0 without
+   * issuing a request — a rollback that silently did nothing, with no output to
+   * tell anyone. The generic sweep is the point; the rollback assertion below
+   * only records the one case that got through.
+   */
+  it('declares no leaf flag the root program already owns', () => {
+    const walk = (command: Command) => {
+      for (const option of command.options) {
+        expect([option.long, option.short].filter(Boolean)).not.toContain('--version')
+        expect([option.long, option.short].filter(Boolean)).not.toContain('-V')
+        expect([option.long, option.short].filter(Boolean)).not.toContain('--help')
+        expect([option.long, option.short].filter(Boolean)).not.toContain('-h')
+      }
+      command.commands.forEach(walk)
+    }
+    walk(program())
+  })
+})
+
+describe('headers the route contract declares', () => {
+  /**
+   * `x-run-id` is the only contract header a visible command exposes: the upload
+   * token is a per-transfer credential the CLI never prints, so its flags are
+   * omitted and `sim files uploads get` is hidden. Required-header handling is
+   * covered against `buildRequest` in `request.test.ts`, which reaches a hidden
+   * operation the assembled tree no longer offers.
+   */
+  it('sends a declared header when the flag is passed, and omits the slot when it is not', async () => {
+    const [, sent] = await run(
+      ['workflows', 'run', '00000000-0000-4000-8000-00000000000a', '--run-id', 'run_mine'],
+      {
+        data: { status: 'completed' },
+      }
+    )
+    expect(sent.headers).toEqual({ 'x-run-id': 'run_mine' })
+
+    const [, unset] = await run(['workflows', 'run', '00000000-0000-4000-8000-00000000000a'], {
+      data: { status: 'completed' },
+    })
+    expect(unset.headers).toBeUndefined()
+  })
+
+  /**
+   * The call-chain marker is Sim's own; a CLI invocation is always the first
+   * hop, so a flag for it could only forge a chain the caller was never in.
+   */
+  it('does not expose the call-chain header Sim writes for itself', async () => {
+    await expect(
+      run(
+        [
+          'workflows',
+          'run',
+          '00000000-0000-4000-8000-00000000000a',
+          '--x-sim-via',
+          '00000000-0000-4000-8000-000000000000',
+        ],
+        { data: { status: 'completed' } }
+      )
+    ).rejects.toThrow(/unknown option/)
+  })
+
+  /**
+   * A header field reaching a command under its wire spelling is a generator
+   * output nobody decided on. Every other flag in the CLI is a domain name, so
+   * the sweep is over the whole assembled tree rather than the one header that
+   * got through.
+   *
+   * The rule is the spelling, not the provenance: `--run-id` is derived from
+   * `x-run-id` and is a deliberate, documented flag, so it passes. What fails is
+   * a flag typed exactly as the header is written on the wire, which is what a
+   * generator emits when nobody named the field. Sweeping for an `x-` prefix
+   * instead of the declared header names is what let `--upload-token` through.
+   */
+  it('exposes no flag spelled as a raw HTTP header', () => {
+    expect([...HEADER_WIRE_FLAGS].sort()).toEqual(['--upload-token', '--x-run-id', '--x-sim-via'])
+    expect(wireSpelledFlags(buildProgram())).toEqual([])
+
+    const workflowRun = buildProgram()
+      .commands.find((command) => command.name() === 'workflows')
+      ?.commands.find((command) => command.name() === 'run')
+    expect(workflowRun?.options.some((option) => option.long === '--run-id')).toBe(true)
+  })
+})
+
+describe('flags the root program already owns', () => {
+  it('refuses a hand-attached command that redeclares a root value flag', () => {
+    const program = buildProgram()
+    program.addCommand(new Command('widgets').option('--endpoint <url>', 'Where to send it'))
+
+    expect(() => assertNoReservedProgramFlags(program)).toThrow(/--endpoint/)
+  })
+})
+
+describe('a list that is not the whole answer', () => {
+  /** Captures stderr for one invocation, in one output format. */
+  async function noteFor(
+    format: 'table' | 'text' | 'json' | 'yaml',
+    argv: string[],
+    response: unknown
+  ): Promise<string> {
+    const errors: string[] = []
+    const written = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        errors.push(String(chunk))
+        return true
+      })
+    output.format = format
+    try {
+      await run(argv, response)
+    } finally {
+      output.format = 'json'
+      written.mockRestore()
+    }
+    return errors.join('')
+  }
+
+  /**
+   * The server clips an inventory itself and says so on the envelope, which the
+   * CLI reports separately from data and nextCursor so a reconciling caller
+   * can distinguish a clipped inventory from a complete one.
+   */
+  it('carries a truncation the server stated on the envelope', async () => {
+    const paged = await noteFor('json', ['workflow-mcp-servers', 'list'], {
+      data: [{ id: 'srv_1' }],
+      nextCursor: null,
+      toolNamesTruncated: true,
+    })
+    expect(paged).toContain('tool names truncated')
+
+    const unpaged = await noteFor('json', ['workflow-mcp-servers', 'tools', 'list', 'srv_1'], {
+      data: [{ toolName: 't' }],
+      nextCursor: null,
+      truncated: true,
+    })
+    expect(unpaged).toContain('truncated')
+  })
+
+  /** A flag raised on a later page is the same fact, and used to be lost. */
+  it('carries a truncation stated on a page after the first', async () => {
+    mockRequest.mockReset()
+    mockRequest
+      .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1', toolNamesTruncated: false })
+      .mockResolvedValueOnce({ data: [{ id: 'b' }], nextCursor: null, toolNamesTruncated: true })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const errors: string[] = []
+    const written = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        errors.push(String(chunk))
+        return true
+      })
+
+    try {
+      await program().parseAsync(['node', 'sim', 'workflow-mcp-servers', 'list', '--limit', '0'])
+    } finally {
+      written.mockRestore()
+    }
+
+    expect(errors.join('')).toContain('tool names truncated')
   })
 })

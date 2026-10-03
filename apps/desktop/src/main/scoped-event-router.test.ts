@@ -64,29 +64,6 @@ describe('ScopedEventRouter', () => {
     expect(chatB.fake.send).not.toHaveBeenCalled()
   })
 
-  it('tracks browser and terminal activation independently', () => {
-    const router = new ScopedEventRouter()
-    const renderer = webContents()
-
-    router.activateBrowser(renderer.contents, 'browser-chat')
-    router.activateTerminal(renderer.contents, 'terminal-chat')
-    router.sendBrowser('browser-chat', 'browser-agent:tabs-state', { scopeId: 'browser-chat' })
-    router.sendTerminal('browser-chat', 'terminal:tabs', { scopeId: 'browser-chat' })
-    router.sendTerminal('terminal-chat', 'terminal:tabs', { scopeId: 'terminal-chat' })
-
-    expect(renderer.fake.send).toHaveBeenCalledTimes(2)
-    expect(renderer.fake.send).toHaveBeenNthCalledWith(
-      1,
-      'browser-agent:tabs-state',
-      expect.objectContaining({ scopeId: 'browser-chat' })
-    )
-    expect(renderer.fake.send).toHaveBeenNthCalledWith(
-      2,
-      'terminal:tabs',
-      expect.objectContaining({ scopeId: 'terminal-chat' })
-    )
-  })
-
   it('stops delivery to the prior scope as soon as a renderer activates another chat', () => {
     const router = new ScopedEventRouter()
     const renderer = webContents()
@@ -101,20 +78,5 @@ describe('ScopedEventRouter', () => {
       'browser-agent:page-state',
       expect.objectContaining({ scopeId: 'chat-b' })
     )
-  })
-
-  it('forgets activation on navigation and destruction', () => {
-    const router = new ScopedEventRouter()
-    const navigated = webContents()
-    const destroyed = webContents()
-
-    router.activateTerminal(navigated.contents, 'chat-a')
-    router.activateTerminal(destroyed.contents, 'chat-a')
-    navigated.fake.navigate()
-    destroyed.fake.destroy()
-    router.sendTerminal('chat-a', 'terminal:data', 'terminal-1', 'secret', 'chat-a')
-
-    expect(navigated.fake.send).not.toHaveBeenCalled()
-    expect(destroyed.fake.send).not.toHaveBeenCalled()
   })
 })

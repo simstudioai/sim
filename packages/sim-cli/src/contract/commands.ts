@@ -1,5 +1,25 @@
 import type { CliContract, ColumnSpec, CommandVariantSpec } from './types'
 
+const ORGANIZATION_FLAG = {
+  organizationId: { name: 'organization', describe: 'Organization identifier' },
+} as const
+const PERMISSION_GROUP_MEMBER_FLAGS = {
+  ...ORGANIZATION_FLAG,
+  groupId: { name: 'group', describe: 'Permission group identifier' },
+} as const
+
+const DEFAULT_FLAG = {
+  isDefault: { name: 'default', boolean: true, negatable: true },
+} as const
+
+const ACCESS_REQUEST_COLUMNS: ColumnSpec[] = [
+  { header: 'id' },
+  { header: 'target', path: 'targetLabel' },
+  { header: 'status' },
+  { header: 'requester', path: 'requester.email' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+]
+
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
@@ -7,8 +27,30 @@ const TABLE_READ_FILTER_HELP =
   'Condition: {"field":"status","op":"eq","value":"active"}. Groups: {"all":[{"field":"status","op":"eq","value":"active"}]} or {"any":[{"field":"status","op":"eq","value":"active"}]}; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
 const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
+const KNOWLEDGE_TAG_DEFINITIONS_HELP =
+  'Tag definitions: [{"tagSlot":"tag1","displayName":"category","fieldType":"text"}]'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
+const DISPATCH_ROW_LIMIT_HELP =
+  'Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run'
+const FILE_EDIT_HELP =
+  'One edit object: {"mode":"search_replace","search":"old","content":"new","replaceAll":false}, {"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"}, {"mode":"insert_after","anchor":"line","content":"new"}, or {"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"}. Anchored modes also accept occurrence starting at 1'
+/**
+ * The shapes behind the graph-write batches.
+ *
+ * Both fields are `z.array(z.unknown())` on the wire, so the generated help
+ * said only `<json|@file>` and the discriminant that decides what an entry even
+ * means appeared nowhere in the terminal. One example per arm is what makes the
+ * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
+ */
+const WORKFLOW_OPERATIONS_HELP =
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId'
+const WORKFLOW_SET_BLOCK_ENABLED_HELP =
+  'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
+const WORKFLOW_VARIABLE_OPERATIONS_HELP =
+  'Variable changes to apply in order, keyed by operation: [{"operation":"add","name":"my_var","type":"string","value":"hello"},{"operation":"edit","name":"my_var","value":"updated"},{"operation":"delete","name":"my_var"}]'
+const MCP_PARAMETER_DESCRIPTIONS_HELP =
+  'Per-field description overrides applied to the schema generated from the deployed workflow inputs, as [{"name":"email","description":"Customer email address"}]. A name matching no input field is ignored'
 /**
  * Every folder-path input the API accepts.
  *
@@ -29,13 +71,44 @@ const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
-const KNOWLEDGE_BASE_PATH_ARGUMENT = { id: 'knowledgeBaseId' } as const
+const KNOWLEDGE_BASE_PATH_ARGUMENT = { knowledgeBaseId: 'knowledgeBaseId' } as const
+/**
+ * The signed control token a transfer route accepts, kept off the terminal.
+ *
+ * It is minted inside a handshake the CLI drives end to end and is never
+ * printed, so there is no supported way for a caller to be holding one — a flag
+ * for it can only fail, and where it is required the command it gates is
+ * unreachable by construction. The token path exists for a raw-API caller
+ * mid-upload; the CLI reaches the same resources through the API key and
+ * workspace it already sends.
+ */
+const TRANSFER_TOKEN_OMITTED = { 'upload-token': { omit: true } } as const
 const WORKFLOW_RUN_SCOPE = {
-  id: {
+  workflowId: {
     name: 'workflow',
     placeholder: 'workflowId',
     describe: 'Workflow ID',
   },
+} as const
+const FOLDER_PATHS_FLAG = { ...FOLDER_PATH_FLAG, list: true } as const
+const TARGET_FOLDER_PATH_FLAG = {
+  ...FOLDER_PATH_INPUT,
+  name: 'to',
+  describe: 'Destination folder path; omit for root',
+} as const
+/**
+ * The comma-split list filters every log read shares.
+ *
+ * `listLogs`, `getLogStats` and `queryLogs` accept the same `z.string()` fields
+ * that the route splits on commas. They live on one constant because a flag
+ * that means `--workflow` on one log command and `--workflow-ids` on the next
+ * is the exact divergence `spells one concept with one flag name` exists to
+ * catch, and nothing about that failure would point back here.
+ */
+const LOG_LIST_FILTER_FLAGS = {
+  workflowIds: { name: 'workflow', list: true },
+  folderPaths: FOLDER_PATHS_FLAG,
+  triggers: { name: 'trigger', list: true },
 } as const
 const FOLDER_COLUMN: ColumnSpec = { header: 'folder', path: 'folderPath', format: 'folder-path' }
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
@@ -75,7 +148,12 @@ export const CLI_CONTRACT: CliContract = {
   getBillingStatus: {
     command: 'billing status',
     allWorkspaces: true,
-    describe: 'Show billing status and current-period credit usage',
+    // The credit and storage figures are the payer's, and the API returns null
+    // for both to a workspace API key. Said here because the three credit
+    // fields otherwise render as an unexplained em-dash for exactly the key
+    // most people run the CLI with.
+    describe:
+      'Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -85,18 +163,32 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'used credits', path: 'credits.used' },
       { header: 'limit credits', path: 'credits.limit' },
       { header: 'remaining credits', path: 'credits.remaining' },
+      // `fields` is what drives table and text output, so the storage quota the
+      // API returns beside the credits was visible only in JSON or YAML.
+      { header: 'used storage', path: 'storage.usedBytes', format: 'bytes' },
+      { header: 'limit storage', path: 'storage.limitBytes', format: 'bytes' },
+      { header: 'storage used %', path: 'storage.percentUsed' },
     ],
   },
   listBillingLogs: {
     command: 'billing logs',
     allWorkspaces: true,
-    describe: 'List credit usage events',
+    // Which ledger answered depends on the credential, and the counts otherwise read
+    // as a bug next to `billing status`. Said in the describe for the reason
+    // `billing status` says its own caveat. The trailing parenthetical is what
+    // keeps the generated docs heading unchanged.
+    describe:
+      "List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)",
     flags: {
       source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
       period: { describe: 'Billing period' },
       startDate: { describe: 'Custom period start (ISO 8601)' },
       endDate: { describe: 'Custom period end (ISO 8601)' },
     },
+    // Which ledger answered: a user credential reports only the calling user's
+    // events, a workspace key the whole workspace. The difference was silent —
+    // same workspace, same window, same flags, a strictly smaller result.
+    pageNote: { path: 'scope', label: 'scope' },
     columns: [
       { header: 'at', path: 'createdAt', format: 'timestamp' },
       { header: 'workspace', path: 'workspaceId' },
@@ -108,7 +200,7 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Name collisions: REST overloads one path for single and bulk ─────────
+  // Name collisions: REST overloads one path for single and bulk
   // The derived name is identical for both, so the bulk form is renamed. AWS's
   // `batch-` prefix rather than a `--all` flag: the plural is a different and
   // more dangerous operation, and it should be a different word.
@@ -144,19 +236,72 @@ export const CLI_CONTRACT: CliContract = {
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
     },
   },
+  // Same overload again for chunks: PATCH `/chunks` is the bulk form of PATCH
+  // `/chunks/[chunkId]`.
+  bulkUpdateKnowledgeChunks: {
+    command: 'knowledge chunks batch-update',
+    describe: 'Enable, disable, or delete many chunks at once',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      chunkIds: { name: 'chunk', list: true },
+    },
+    // `--operation delete` reaches the same destructive path as `knowledge
+    // chunks delete`, which is confirm-gated, so the bulk form is gated too.
+    // The document batch-update above is not: it only enables or disables.
+    //
+    // `confirm` is one message for the whole command, and the operation is a
+    // flag value, so the gate cannot branch on it here. The message therefore
+    // has to be true of an `enable` as well — both are reversible and neither
+    // destroys anything. Claiming a possible irreversible delete on every
+    // invocation is what teaches the reflexive `--yes` the gate depends on
+    // nobody learning.
+    confirm:
+      'This applies --operation to every named chunk; with --operation delete it deletes them and their embeddings, which cannot be undone.',
+  },
+  createKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  listKnowledgeConnectors: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  getKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
   listKnowledgeConnectorDocuments: {
     command: 'knowledge connectors documents list',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  updateKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
   },
   updateKnowledgeConnectorDocuments: {
     command: 'knowledge connectors documents update',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     flags: {
       documentIds: { name: 'document', list: true },
     },
+  },
+  syncKnowledgeConnector: {
+    command: 'knowledge connectors sync',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Queue a knowledge connector synchronization',
   },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
     command: 'workflows undeploy',
     describe: 'Take a workflow out of deployment',
+    // Nothing about the name says "delete", so the destructive sweep never
+    // reached it — yet every consumer of the workflow breaks the moment it
+    // runs, the published MCP tools included.
+    //
+    // The outage is the whole of it: a workflow's MCP registrations are
+    // archived rather than deleted, and deploying again republishes it on
+    // exactly the servers it was on before. So the message says "until it is
+    // deployed again" and claims no permanent loss — a warning that overstates
+    // is the same defect as one that is silent, and this gate only works while
+    // callers believe it.
+    confirm:
+      'This takes the workflow offline for every API and chat consumer, and agents calling its MCP tools lose access until it is deployed again.',
   },
   // `GET /workflows/[id]/deployment` is a collection-shaped path holding one
   // record, so the derived `list` promised a page of deployments there is no
@@ -169,19 +314,29 @@ export const CLI_CONTRACT: CliContract = {
   },
   setSecret: { hidden: true },
 
-  // ─── Destructive single-resource operations ───────────────────────────────
-  deleteTable: { confirm: 'This deletes the table and all of its rows.' },
+  // Soft deletes, all three: `tables restore`, `knowledge restore` and
+  // `workflows restore` bring the resource back with its contents intact. The
+  // messages promised an irreversible loss, which is the one thing a confirm
+  // gate must get right — `deleteFile` already says "archives".
+  deleteTable: {
+    confirm: 'This archives the table and all of its rows; restore with `tables restore`.',
+  },
   deleteTableRow: { confirm: 'This deletes the row.' },
   deleteTableColumn: {
     confirm: 'This deletes the column and its values in every row.',
     fields: [{ header: 'remaining columns', path: 'columns', format: 'count' }],
   },
-  deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
+  deleteKnowledgeBase: {
+    confirm:
+      'This archives the knowledge base and every document in it; restore with `knowledge restore`.',
+  },
   deleteKnowledgeDocument: {
+    describe: 'Delete a document from a knowledge base',
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes the document and its embeddings.',
   },
   deleteKnowledgeConnector: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm:
       'This deletes the connector; --delete-documents also deletes its synchronized documents.',
   },
@@ -194,31 +349,36 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This revokes the explicit skill editor grant for the selected email.',
   },
   deleteCustomTool: { confirm: 'This deletes the custom tool.' },
+  deleteSandbox: {
+    confirm: 'This deletes the sandbox; Function blocks that select it fail until re-pointed.',
+  },
   deleteMcpServer: {
     confirm: 'This removes the MCP server and the tools it provides.',
   },
   deleteSecret: {
     confirm: 'This deletes the secret; anything using it may stop working.',
   },
-  deleteWorkflow: { confirm: 'This deletes the workflow and its run history.' },
+  deleteWorkflow: {
+    confirm: 'This archives the workflow and its run history; restore with `workflows restore`.',
+  },
   deleteTableView: { confirm: 'This deletes the saved view and its filters.' },
   deleteWorkflowGroup: {
-    // Not just the grouping: the documented behaviour is that every column the
-    // group fed goes with it, values included.
-    confirm: 'This deletes the group, every column it fed, and the values in them.',
+    // Not just the grouping: the group's output columns go with it, row data
+    // included. The workflow it dispatched to is a separate resource and stays.
+    confirm:
+      'This deletes the group AND its output columns with all of their row data; the workflow it pointed at is untouched.',
     fields: [
       { header: 'id' },
       { header: 'deleted', format: 'bool' },
       { header: 'remaining columns', path: 'columns', format: 'count' },
     ],
   },
-  // ─── Fields whose type misdescribes their meaning ─────────────────────────
+  // Fields whose type misdescribes their meaning
   // `z.string()` that the route splits on commas. No generator can infer this.
   listLogs: {
+    describe: 'List run logs, such as failed or errored runs, by workflow, trigger or time',
     flags: {
-      workflowIds: { name: 'workflow', list: true },
-      folderPaths: { ...FOLDER_PATH_FLAG, list: true },
-      triggers: { name: 'trigger', list: true },
+      ...LOG_LIST_FILTER_FLAGS,
       // The `workflow` column below reads `workflow.name`, which the API only
       // sends at `full` — at its own `basic` default every row's workflow was an
       // em-dash and a run had nothing naming what ran. Asked for by default so
@@ -236,15 +396,24 @@ export const CLI_CONTRACT: CliContract = {
         describe: 'Include final output in JSON or YAML output (implies full detail)',
       },
     },
+    // The floors are for `logs follow`, which locks its widths on the first
+    // batch and had nothing to measure at `-n 0`. Each is what the column's own
+    // rendering needs beyond its header label: an ISO timestamp trimmed to
+    // seconds, the longest status and core trigger type, a UUID run id, and a
+    // four-decimal cost above ten credits. `workflow` is free text with no
+    // bound, so its floor is editorial — enough to tell two runs apart.
+    // `duration` carries none: a lock is never narrower than its own header,
+    // and `DURATION` is already the eight characters a floor would have asked
+    // for.
     columns: [
-      { header: 'started', path: 'startedAt', format: 'timestamp' },
-      { header: 'status' },
+      { header: 'started', path: 'startedAt', format: 'timestamp', minWidth: 19 },
+      { header: 'status', minWidth: 9 },
       { header: 'level' },
-      { header: 'trigger' },
-      { header: 'workflow', path: 'workflow.name' },
+      { header: 'trigger', minWidth: 12 },
+      { header: 'workflow', path: 'workflow.name', minWidth: 24 },
       { header: 'duration', path: 'totalDurationMs', format: 'duration' },
-      { header: 'cost', path: 'cost.total', format: 'cost' },
-      { header: 'run', path: 'runId' },
+      { header: 'cost', path: 'cost.total', format: 'cost', minWidth: 8 },
+      { header: 'run', path: 'runId', minWidth: 36 },
     ],
   },
   getLog: {
@@ -262,6 +431,207 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'cost', path: 'cost.total', format: 'cost' },
       { header: 'files', format: 'count' },
       { header: 'trace', path: 'traceSpans', format: 'trace-count' },
+    ],
+  },
+  /**
+   * Single-record GETs. `deriveCommandPath` calls a `GET` a `list` unless the
+   * path ends in a parameter, so each of these derived to `... list` while
+   * returning exactly one thing — the defect already corrected above for
+   * `getWorkflowDeployment`. None of these spellings has shipped, so no
+   * `renamedFrom` is owed.
+   */
+  getMeta: {
+    command: 'meta status',
+    describe: 'Show what this API supports and which limits apply',
+  },
+  getWorkflowChatDeployment: {
+    command: 'workflows chat status',
+    describe: 'Show a workflow’s chat deployment',
+  },
+  getLogStats: {
+    command: 'logs stats',
+    describe: 'Summarize run counts, failures and latency over a window',
+    flags: LOG_LIST_FILTER_FLAGS,
+    // Undeclared, the summary fell through to the generic key dump: the whole
+    // `workflows` series printed as one truncated line of raw JSON, the window
+    // as another, and `avgLatency` as a raw float — the one duration in the
+    // response the `Ms` suffix does not rescue.
+    fields: [
+      { header: 'runs', path: 'totalRuns' },
+      { header: 'errors', path: 'totalErrors' },
+      { header: 'avg latency', path: 'avgLatency', format: 'duration' },
+      { header: 'window start', path: 'timeBounds.start', format: 'timestamp' },
+      { header: 'window end', path: 'timeBounds.end', format: 'timestamp' },
+      { header: 'bucket width', path: 'segmentMs', format: 'duration' },
+      { header: 'workflows', format: 'count' },
+      { header: 'workflows truncated', path: 'workflowsTruncated', format: 'bool' },
+    ],
+  },
+  readFileText: {
+    command: 'files read',
+    describe: 'Read a file’s text content as JSON or YAML',
+    document: true,
+  },
+  // Publishing a workflow for an outside agent to call, and withdrawing it.
+  createWorkflowMcpServer: {
+    flags: { workflowIds: { name: 'workflow', list: true } },
+  },
+  deleteWorkflowMcpServer: {
+    confirm: 'This deletes the MCP server, and any agent calling its tools loses access.',
+  },
+  deployWorkflowMcpTool: {
+    flags: {
+      parameterDescriptions: { json: true, describe: MCP_PARAMETER_DESCRIPTIONS_HELP },
+    },
+  },
+  // The same miss the comment on `listMcpServers` describes, one family over:
+  // undeclared, these dumped every scalar — both timestamps and, on the tools
+  // list, `mcpServerUrl` and `apiEndpoint` truncated side by side — while
+  // `toolCount`, the field you scan a server list for, came last.
+  listWorkflowMcpServers: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'tools', path: 'toolCount' },
+      { header: 'public', path: 'isPublic', format: 'bool' },
+      { header: 'url', path: 'mcpServerUrl' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listWorkflowMcpTools: {
+    // `workflowId`, not the tool's own id: it is what `tools delete` addresses
+    // the tool by.
+    columns: [
+      { header: 'tool', path: 'toolName' },
+      { header: 'workflow', path: 'workflowId' },
+      { header: 'description', path: 'toolDescription' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  undeployWorkflowMcpTool: {
+    confirm: 'This withdraws the tool, and any agent calling it loses access.',
+  },
+  duplicateWorkflow: {
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
+  // Graph writes. None is delete-shaped by name, so neither destructive sweep
+  // reaches them, yet each can discard work: a state replace overwrites the
+  // whole draft with no conflict detection, an operations batch carries a
+  // `delete` arm, and a variables patch replaces the set.
+  /**
+   * The derived names read wrong here. `deriveCommandPath` calls a `GET` a
+   * `list` unless the path ends in a parameter, but `/workflows/[id]/state` is
+   * one graph, not a page of them; and `POST` derives to `create`, which
+   * describes neither replacing a graph nor applying a batch of edits to one.
+   * Each name is the operation's own verb instead.
+   */
+  getWorkflowState: { command: 'workflows state get' },
+  replaceWorkflowState: {
+    command: 'workflows state replace',
+    confirm: 'This replaces the entire draft graph and cannot be undone.',
+  },
+  applyWorkflowOperations: {
+    command: 'workflows operations apply',
+    describe: 'Edit a workflow’s blocks, connections and settings with a batch of operations',
+    confirm:
+      'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
+    flags: {
+      operations: { json: true, describe: WORKFLOW_OPERATIONS_HELP },
+      setBlockEnabled: { json: true, describe: WORKFLOW_SET_BLOCK_ENABLED_HELP },
+    },
+  },
+  applyWorkflowVariables: {
+    confirm: 'This replaces the workflow’s variables and cannot be undone.',
+    flags: {
+      operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
+    },
+  },
+  compareWorkflowVersions: { command: 'workflows versions compare' },
+  // A revert is a graph write too: it overwrites the draft with an older
+  // deployment's graph. Nothing about the name says "delete", so the destructive
+  // sweep does not reach it, and the work it discards is whatever is in the
+  // draft right now.
+  revertWorkflowVersion: {
+    confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
+  },
+  // A rollback is the deployed counterpart of that revert, and the more
+  // consequential of the two: a revert only rewrites the draft, while this
+  // changes which version production serves. Gating the draft write and not the
+  // live one had it backwards.
+  rollbackWorkflow: {
+    confirm:
+      'This changes which deployed version runs in production for every API and chat consumer.',
+  },
+  // The same application operation as `rollback`, under a different transition:
+  // both switch production away from the version the caller last chose. Gating
+  // one and not the other was an accident of naming, not a policy.
+  activateWorkflowVersion: {
+    confirm:
+      'This changes which deployed version runs in production for every API and chat consumer.',
+  },
+  // POST derives to `... create`, which creates nothing here. Named for the
+  // operation instead, matching the shipped `files move`.
+  moveWorkflows: {
+    command: 'workflows move',
+    flags: {
+      workflowIds: { name: 'workflow', list: true },
+      // The destination, which its two siblings both spell `--to`. Under
+      // `--folder` it read as the selection being moved — the sense the flag
+      // of that name genuinely has one command over, on `tables move`.
+      folderPath: {
+        ...FOLDER_PATH_INPUT,
+        name: 'to',
+        renamedFrom: ['folder'],
+        describe: 'Destination folder path; / moves the workflows to the workspace root',
+      },
+    },
+  },
+  moveTables: {
+    command: 'tables move',
+    flags: {
+      // Folders being moved, not a destination: the generic path blurb the
+      // shared constant carries answers the format question and leaves the
+      // one that matters beside `--to`.
+      folderPaths: {
+        ...FOLDER_PATHS_FLAG,
+        describe: 'Table folders to move, by path as shown in the app; the leading / is optional',
+      },
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
+    },
+  },
+  // `PATCH /rows` is already the filter form (`updateRowsByFilter`,
+  // one payload applied to every match). This is the AIP-234 batch — a distinct
+  // payload per listed row — so it needs a name that says "each", not a second
+  // `batch-`/`bulk-` spelling one word apart from its neighbour.
+  bulkUpdateTableRows: {
+    command: 'tables rows update-each',
+    describe: 'Apply a distinct patch to each listed row',
+  },
+  bulkDeleteTables: {
+    // `batch-`, not `bulk-`: `tables delete` exists, so this is the same
+    // collision rename as `files batch-delete` above and takes the same word.
+    command: 'tables batch-delete',
+    flags: { folderPaths: FOLDER_PATHS_FLAG },
+    confirm: 'This deletes every listed table and all of their rows.',
+  },
+  searchFileContent: {
+    flags: {
+      folderPaths: {
+        ...FOLDER_PATHS_FLAG,
+        describe:
+          'Folders to search, by path as shown in the app; omit to search the whole workspace',
+      },
+      includeSubfolders: {
+        boolean: true,
+        negatable: true,
+        describe: 'Whether each folder scope includes nested folders; on by default',
+      },
+    },
+    itemsPath: 'results',
+    columns: [
+      { header: 'file', path: 'fileId' },
+      { header: 'line', path: 'lineNumber' },
+      { header: 'text' },
     ],
   },
   searchKnowledge: {
@@ -287,7 +657,6 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Friendlier flag names ────────────────────────────────────────────────
   upsertTableRow: {
     describe: 'Insert a row, or update the one that conflicts on a unique column',
     flags: {
@@ -298,6 +667,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   queryRows: {
     command: 'tables rows query',
+    describe: 'Query rows with a filter and sort',
     flags: {
       predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
@@ -345,16 +715,99 @@ export const CLI_CONTRACT: CliContract = {
     variants: [moveResource('knowledge mv', 'knowledge base')],
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
-  createWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createWorkflow: {
+    flags: {
+      folderPath: {
+        ...FOLDER_PATH_FLAG,
+        describe:
+          'Existing folder path (leading / optional); create it first with sim workflows mkdir <path>',
+      },
+    },
+  },
   updateWorkflow: {
     variants: [moveResource('workflows mv', 'workflow')],
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
-  importWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  importWorkflow: { workspaceOperation: true, flags: { folderPath: FOLDER_PATH_FLAG } },
+  previewWorkflowImport: {
+    command: 'workflows import-preview',
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
+  previewWorkspaceFork: { command: 'workspaces fork-preview', profileWorkspacePath: true },
+  forkWorkspace: {
+    command: 'workspaces fork',
+    profileWorkspacePath: true,
+    workspaceOperation: true,
+  },
+  previewWorkspacePush: { command: 'workspaces push-preview', profileWorkspacePath: true },
+  pushWorkspace: {
+    command: 'workspaces push',
+    profileWorkspacePath: true,
+    workspaceOperation: true,
+    confirm: 'This replaces target workflows and may archive targets whose sources were deleted.',
+    flags: { confirm: { omit: true } },
+  },
+  previewWorkspacePull: { command: 'workspaces pull-preview', profileWorkspacePath: true },
+  pullWorkspace: {
+    command: 'workspaces pull',
+    profileWorkspacePath: true,
+    workspaceOperation: true,
+    confirm: 'This replaces target workflows and may archive targets whose sources were deleted.',
+    flags: { confirm: { omit: true } },
+  },
+  getWorkspaceForkAvailability: {
+    command: 'workspaces fork-availability',
+    profileWorkspacePath: true,
+  },
+  getWorkspaceForkLineage: { command: 'workspaces lineage', profileWorkspacePath: true },
+  listWorkspaceForkChildren: { command: 'workspaces children', profileWorkspacePath: true },
+  listWorkspaceForkResources: { command: 'workspaces fork-resources', profileWorkspacePath: true },
+  getWorkspaceForkMappings: { command: 'workspaces mappings get', profileWorkspacePath: true },
+  updateWorkspaceForkMappings: {
+    command: 'workspaces mappings update',
+    profileWorkspacePath: true,
+  },
+  rollbackWorkspaceFork: {
+    command: 'workspaces fork-rollback',
+    profileWorkspacePath: true,
+    confirm: 'This restores the latest sync using its prior deployed versions.',
+  },
+  unlinkWorkspaceFork: {
+    command: 'workspaces unlink',
+    profileWorkspacePath: true,
+    confirm: 'This removes the fork relationship and its persisted mappings.',
+  },
+  updateWorkspaceForkExclusions: {
+    command: 'workspaces sync-exclusions',
+    profileWorkspacePath: true,
+    flags: { workflowIds: { name: 'workflow', list: true } },
+  },
+  getWorkspaceOperation: { command: 'workspaces operations get', profileWorkspacePath: true },
+  listWorkspaceOperations: { command: 'workspaces operations list', profileWorkspacePath: true },
+  listSelector: { command: 'selectors list' },
+  getSelector: { command: 'selectors get' },
   createCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
+  // A dependency set is typed one specifier at a time or pasted from a
+  // requirements file, so each list takes space-separated values or `@path`
+  // with one entry per line rather than a JSON array. The package lists are
+  // manifests: a requirements file carries blank lines and `#` comments, which
+  // the API ignores, so the reader drops them instead of refusing the file.
+  createSandbox: {
+    flags: {
+      dependencies: { list: true, manifest: true },
+      cliTools: { list: true },
+      systemPackages: { list: true, manifest: true },
+    },
+  },
+  updateSandbox: {
+    flags: {
+      dependencies: { list: true, manifest: true },
+      cliTools: { list: true },
+      systemPackages: { list: true, manifest: true },
+    },
+  },
 
-  // ─── Output columns for list commands ─────────────────────────────────────
   listTables: {
     flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [
@@ -377,11 +830,21 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   listFiles: {
-    flags: { folderPath: FOLDER_PATH_FLAG },
+    flags: {
+      folderPath: FOLDER_PATH_FLAG,
+      // The same server-side string union as the four folder deletes, and the
+      // one place the terminal override was missed: `--recursive` alone read
+      // as "argument missing" and only `--recursive yes` worked, on the flag
+      // spelled as a bare switch everywhere else in the CLI.
+      // Unlike the folder deletes, this one is on unless told otherwise: the
+      // API turns it on as soon as `--search` is set, so the negation is the
+      // only way to search a folder without descending into it.
+      recursive: { boolean: true, negatable: true },
+    },
     columns: [
       { header: 'id' },
       { header: 'name' },
-      // Now that files live in folders, which one is the difference between two
+      // Files live in folders, so the folder is the difference between two
       // identically-named rows.
       FOLDER_COLUMN,
       { header: 'size', format: 'bytes' },
@@ -407,8 +870,72 @@ export const CLI_CONTRACT: CliContract = {
   // and `tags list` were left out, so the same value was `<id>` on one command
   // and `<knowledgeBaseId>` on its neighbours.
   getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
-  updateKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeDocument: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    // `retryProcessing` is `z.literal(true)` and must travel alone, so the
+    // generated `--no-retry-processing` sends `retryProcessing: false` as the
+    // whole request: a payload that asks for nothing and that the route
+    // rejects. `boolean` suppresses the negation.
+    flags: { retryProcessing: { boolean: true } },
+  },
   listKnowledgeTags: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  createKnowledgeTag: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      // The default is silent in help, and it is the field a rejected
+      // `--tag-slot` is blamed on: `--tag-slot number3` alone fails with `not
+      // valid for field type "text"`, naming a type the caller never typed.
+      fieldType: {
+        describe:
+          'Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3',
+      },
+    },
+  },
+  updateKnowledgeTag: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeTag: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the tag and clears its values on every document and chunk.',
+  },
+  // Both derive off their trailing segment (`knowledge next-slot list`,
+  // `knowledge usage list`), which loses the `tags` group they belong to and
+  // reads as a resource the API does not have.
+  getNextKnowledgeTagSlot: {
+    command: 'knowledge tags next-slot',
+    describe: 'Show which tag slot a create would take for a field type',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  listKnowledgeTagUsage: {
+    command: 'knowledge tags usage',
+    describe: 'Show how many documents and chunks carry each tag',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+  },
+  addWorkspaceFilesToKnowledgeBase: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Index files the workspace already stores',
+    flags: {
+      fileReferences: {
+        name: 'file',
+        list: true,
+        describe: 'Workspace file ID or key (repeatable)',
+      },
+    },
+  },
+  listKnowledgeChunks: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    columns: [
+      { header: 'id' },
+      { header: 'index', path: 'chunkIndex' },
+      { header: 'tokens', path: 'tokenCount' },
+      { header: 'enabled' },
+    ],
+  },
+  createKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  getKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeChunk: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  deleteKnowledgeChunk: {
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    confirm: 'This deletes the chunk and its embedding.',
+  },
   listKnowledgeDocuments: {
     pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     columns: [
@@ -440,11 +967,259 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'built-in', path: 'readOnly', format: 'bool' },
     ],
   },
+  discoverWorkspaceAccessRequests: {
+    command: 'workspaces access-requests discover',
+    profileWorkspacePath: true,
+    columns: [
+      { header: 'label' },
+      { header: 'target' },
+      { header: 'state' },
+      { header: 'pending', path: 'pendingRequestId' },
+    ],
+  },
+  listMyWorkspaceAccessRequests: {
+    command: 'workspaces access-requests mine',
+    profileWorkspacePath: true,
+    columns: ACCESS_REQUEST_COLUMNS,
+  },
+  createWorkspaceAccessRequest: {
+    command: 'workspaces access-requests create',
+    profileWorkspacePath: true,
+  },
+  cancelWorkspaceAccessRequest: {
+    command: 'workspaces access-requests cancel',
+    profileWorkspacePath: true,
+  },
+  discoverOrganizationAccessRequests: {
+    command: 'organizations access-requests discover',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'label' },
+      { header: 'target' },
+      { header: 'state' },
+      { header: 'pending', path: 'pendingRequestId' },
+    ],
+  },
+  listMyOrganizationAccessRequests: {
+    command: 'organizations access-requests mine',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: ACCESS_REQUEST_COLUMNS,
+  },
+  createOrganizationAccessRequest: {
+    command: 'organizations access-requests create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  cancelOrganizationAccessRequest: {
+    command: 'organizations access-requests cancel',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizationAccessRequests: {
+    command: 'organizations access-requests list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: ACCESS_REQUEST_COLUMNS,
+  },
+  previewOrganizationAccessRequest: {
+    command: 'organizations access-requests preview',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  resolveOrganizationAccessRequest: {
+    command: 'organizations access-requests resolve',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationAccessRequestSettings: {
+    command: 'organizations access-requests settings get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  updateOrganizationAccessRequestSettings: {
+    command: 'organizations access-requests settings update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  createWorkspaceInvitations: {
+    command: 'workspaces invitations create',
+    profileWorkspacePath: true,
+    flags: { emails: { list: true } },
+  },
+  getWorkspacePermissionConfig: {
+    command: 'workspaces permission-config',
+    profileWorkspacePath: true,
+  },
+  listOrganizationInvitationWorkspaces: {
+    command: 'organizations invitations workspaces',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'permission' },
+      { header: 'archived', path: 'archivedAt', format: 'timestamp' },
+    ],
+  },
+  getOrganizationMemberUsageLimit: {
+    command: 'organizations members usage-limit get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  updateOrganizationMemberUsageLimit: {
+    command: 'organizations members usage-limit update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationUsageSummary: {
+    command: 'organizations usage summary',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationUsageBreakdown: {
+    command: 'organizations usage breakdown',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizationUsageEvents: {
+    command: 'organizations usage events',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizations: {
+    command: 'organizations list',
+    columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
+  },
+  getOrganization: { command: 'organizations get' },
+  listOrganizationWorkspaces: {
+    command: 'organizations workspaces',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [{ header: 'id' }, { header: 'name' }],
+  },
+  listOrganizationMembers: {
+    command: 'organizations members list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name' },
+      { header: 'email' },
+      { header: 'role' },
+    ],
+  },
+  updateOrganizationMember: {
+    command: 'organizations members update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  removeOrganizationMember: {
+    command: 'organizations members remove',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This removes the member, revokes their organization workspace access, and ends their sessions.',
+  },
+  listOrganizationInvitations: {
+    command: 'organizations invitations list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'email' },
+      { header: 'role' },
+      { header: 'membership', path: 'membershipIntent' },
+      { header: 'status' },
+      { header: 'expires', path: 'expiresAt', format: 'timestamp' },
+    ],
+  },
+  createOrganizationInvitation: {
+    command: 'organizations invitations create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getOrganizationInvitation: {
+    command: 'organizations invitations get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  resendOrganizationInvitation: {
+    command: 'organizations invitations resend',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  revokeOrganizationInvitation: {
+    command: 'organizations invitations revoke',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This cancels the invitation and all its workspace grants, preventing acceptance.',
+  },
+  updateTableView: {
+    flags: { isDefault: { ...DEFAULT_FLAG.isDefault, renamedFrom: ['is-default'] } },
+  },
+  listPermissionGroups: {
+    command: 'permission-groups list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'default', path: 'isDefault', format: 'bool' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  getPermissionGroup: {
+    command: 'permission-groups get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  createPermissionGroup: {
+    command: 'permission-groups create',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: DEFAULT_FLAG,
+  },
+  updatePermissionGroup: {
+    command: 'permission-groups update',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: DEFAULT_FLAG,
+  },
+  deletePermissionGroup: {
+    command: 'permission-groups delete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This permanently deletes the permission group and its member assignments.',
+  },
+  listPermissionGroupMembers: {
+    command: 'permission-groups members list',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name', path: 'userName' },
+      { header: 'email', path: 'userEmail' },
+    ],
+  },
+  addPermissionGroupMember: {
+    command: 'permission-groups members add',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    flags: { userId: { name: 'user' } },
+  },
+  removePermissionGroupMember: {
+    command: 'permission-groups members remove',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    confirm:
+      'This removes the member assignment and changes which permission groups apply to the user.',
+  },
+  bulkAddPermissionGroupMembers: {
+    command: 'permission-groups members batch-add',
+    pathFlags: PERMISSION_GROUP_MEMBER_FLAGS,
+    flags: {
+      userIds: {
+        name: 'user',
+        list: true,
+        describe: 'User IDs to add; cannot be combined with --all-members',
+      },
+      addAllOrganizationMembers: {
+        name: 'all-members',
+        boolean: true,
+        describe: 'Add every current organization member; cannot be combined with --user',
+      },
+    },
+  },
   listCustomTools: {
     columns: [
       { header: 'id' },
-      { header: 'name', path: 'title' },
+      // `title` and `schema.function.name` are both real and different fields
+      // on this resource — the flags say `--search` matches the title and
+      // `--sort-by title` orders by it — so a column headed `name` showing the
+      // title named the other one.
+      { header: 'title', path: 'title' },
       { header: 'description', path: 'schema.function.description' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listSandboxes: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'language' },
+      // `builtAt` is null under a runtime-install deployment, so the build
+      // state and the last edit are what every row can show.
+      { header: 'status', path: 'buildStatus' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
@@ -477,22 +1252,34 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   listSecrets: {
-    // `description` trails the existing columns: `--output text` is positional,
-    // so inserting ahead of `updated` would shift every field a script already cuts.
+    // `description` and `unredacted` trail the existing columns: `--output
+    // text` is positional, so inserting ahead of `updated` would shift every
+    // field a script already cuts.
+    //
+    // `unredacted` is the one property of a secret an operator has to be able
+    // to see from a listing: it means the stored value appears in plaintext in
+    // run logs, model-visible content, and publicly shared log links. Omitting
+    // it left the table and text formats — the defaults — unable to answer
+    // which secrets are in that state at all.
     columns: [
       { header: 'name' },
       { header: 'scope' },
       { header: 'role' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
       { header: 'description' },
+      { header: 'unredacted', format: 'bool' },
     ],
   },
   getWorkspace: {
     profileWorkspacePath: true,
+    // `mode` is not a field of the strict v2 workspace schema, so it rendered
+    // an em-dash on every call; `color` and `logoUrl` are returned and were the
+    // two the record left out.
     fields: [
       { header: 'id' },
       { header: 'name' },
-      { header: 'mode' },
+      { header: 'color' },
+      { header: 'logo', path: 'logoUrl' },
       { header: 'members', path: 'memberCount' },
       { header: 'created', path: 'createdAt', format: 'timestamp' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
@@ -516,7 +1303,8 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       organizationId: {
         name: 'organization',
-        describe: 'Organization ID (personal API key required)',
+        describe:
+          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
       },
     },
     columns: [
@@ -525,18 +1313,21 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'actor', path: 'actorEmail' },
       { header: 'action' },
       { header: 'resource', path: 'resourceName' },
+      // `audit-logs get` takes this id, and the listing is the only place to
+      // read one — the same reason `logs list` renders `run`.
+      { header: 'id' },
     ],
   },
   getAuditLog: {
     flags: {
       organizationId: {
         name: 'organization',
-        describe: 'Organization ID (personal API key required)',
+        describe:
+          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
       },
     },
   },
 
-  // ─── The expanded files surface ───────────────────────────────────────────
   // Every one of these derives badly. `/files/move`, `/files/bulk-delete` and
   // `/files/[fileId]/restore` are verbs sitting where the deriver expects a
   // sub-resource, so it made them groups holding a lone `create`.
@@ -554,6 +1345,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Show file metadata and sharing status',
     fields: [
       { header: 'id' },
+      { header: 'web URL', path: 'webUrl' },
       { header: 'name' },
       { header: 'size', format: 'bytes' },
       { header: 'type' },
@@ -561,6 +1353,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'uploaded by', path: 'uploadedByEmail' },
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'version', path: 'currentVersion' },
       // v2 returns the share under `share` (null when unshared), and its flag
       // is `isActive`.
       { header: 'shared', path: 'share.isActive', format: 'bool' },
@@ -575,11 +1368,7 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Move files into another folder',
     flags: {
       fileIds: { list: true },
-      targetFolderPath: {
-        ...FOLDER_PATH_INPUT,
-        name: 'to',
-        describe: 'Destination folder path; omit for root',
-      },
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
     },
   },
   renameFile: {
@@ -593,6 +1382,176 @@ export const CLI_CONTRACT: CliContract = {
     command: 'files restore',
     renamedFrom: ['files restore create'],
     describe: 'Restore an archived file',
+  },
+  /**
+   * Version history. The deriver files `/versions/[version]/text` under a `text`
+   * group and `/revert` under a lone `create`; both belong beside the list. The
+   * single-version read is `describe`, matching `files describe`, because `get`
+   * already means downloading content one level up (`files get`, and the
+   * hand-written `files versions download`).
+   */
+  listFileVersions: {
+    command: 'files versions list',
+    describe: 'List the recorded versions of a file',
+    columns: [
+      { header: 'version' },
+      { header: 'current', path: 'isCurrent', format: 'bool' },
+      { header: 'source' },
+      { header: 'size', format: 'bytes' },
+      { header: 'authors', format: 'people' },
+      { header: 'created', path: 'createdAt', format: 'timestamp' },
+      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+    ],
+  },
+  getFileVersion: {
+    command: 'files versions describe',
+    describe: 'Show the metadata of one version of a file',
+    fields: [
+      { header: 'file', path: 'fileId' },
+      { header: 'version' },
+      { header: 'current', path: 'isCurrent', format: 'bool' },
+      { header: 'source' },
+      { header: 'restored from', path: 'restoredFromVersion' },
+      { header: 'size', format: 'bytes' },
+      { header: 'type', path: 'contentType' },
+      { header: 'authors', format: 'people' },
+      { header: 'created', path: 'createdAt', format: 'timestamp' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+    ],
+  },
+  readFileVersionText: {
+    command: 'files versions read',
+    describe: 'Read the text content of one version of a file as JSON or YAML',
+    document: true,
+  },
+  /** No confirm: a revert writes the old content as a new version, so what it replaces stays revertible. */
+  revertFileVersion: {
+    command: 'files versions revert',
+    describe: 'Make a previous version of a file current again',
+    fields: [
+      { header: 'reverted', format: 'bool' },
+      { header: 'file', path: 'file.id' },
+      { header: 'name', path: 'file.name' },
+      { header: 'version', path: 'version.version' },
+      { header: 'source', path: 'version.source' },
+      { header: 'restored from', path: 'version.restoredFromVersion' },
+      { header: 'size', path: 'version.size', format: 'bytes' },
+      { header: 'authors', path: 'version.authors', format: 'people' },
+      { header: 'created', path: 'version.createdAt', format: 'timestamp' },
+    ],
+  },
+  deleteFileVersion: {
+    command: 'files versions delete',
+    describe: 'Permanently delete a previous version of a file',
+    confirm: 'This permanently deletes the version and its stored content.',
+  },
+  // Left to derive, the folder restore lands under `files restore` and turns
+  // that leaf back into a group holding a lone `create` — the exact shape the
+  // rename above exists to remove. It belongs beside the other folder verbs.
+  restoreFileFolder: {
+    command: 'files folders restore',
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Restore an archived file folder',
+  },
+  /**
+   * The restore family mirrors `restoreFile`/`restoreFileFolder` above: a
+   * `restore create` created nothing, and leaving the folder restore to derive
+   * collides with the resource restore on the same leaf.
+   */
+  restoreTable: {
+    command: 'tables restore',
+    describe: 'Restore an archived table',
+  },
+  restoreTableFolder: {
+    command: 'tables folders restore',
+    positionals: ['path'],
+    flags: { path: FOLDER_PATH_INPUT },
+    describe: 'Restore an archived table folder',
+  },
+  restoreKnowledgeBase: {
+    command: 'knowledge restore',
+    describe: 'Restore an archived knowledge base',
+  },
+  restoreWorkflow: {
+    command: 'workflows restore',
+    describe: 'Restore an archived workflow',
+  },
+  cancelTableDispatch: {
+    // `delete` reads as removing a record; this stops a run that is under way.
+    command: 'tables dispatches cancel',
+    describe: 'Cancel a running dispatch',
+    confirm:
+      'This stops the dispatch. Cells already handed to the queue keep running — use `tables cancel-runs` to stop those.',
+  },
+  replaceWorkflowChatDeployment: {
+    command: 'workflows chat publish',
+    describe: 'Publish or replace a workflow’s chat deployment',
+    confirm:
+      'This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.',
+  },
+  deleteWorkflowChatDeployment: {
+    command: 'workflows chat unpublish',
+    describe: 'Take a workflow’s chat deployment offline',
+    confirm:
+      'This takes the chat offline and frees its identifier. The workflow itself stays deployed and executable.',
+  },
+  /**
+   * Both write the knowledge base's tag vocabulary, so they sit beside the
+   * per-definition `tags update`/`tags delete` rather than deriving onto them.
+   */
+  bulkSaveKnowledgeTagDefinitions: {
+    command: 'knowledge tags save',
+    describe: 'Declare the tag definitions a knowledge base needs',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    flags: {
+      definitions: { json: true, describe: KNOWLEDGE_TAG_DEFINITIONS_HELP },
+    },
+  },
+  deleteKnowledgeTagDefinitions: {
+    command: 'knowledge tags cleanup',
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
+    describe: 'Remove tag definitions no document still uses',
+    flags: {
+      // The API's own prose names a wire spelling the terminal does not have:
+      // there is no `unused=false` to pass, and the flag that does it is
+      // `--no-unused`, printed on the very next line of the same help.
+      unused: {
+        describe:
+          'Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable',
+      },
+    },
+    confirm:
+      'This deletes every tag definition no document still uses. Their slots become free for a different field.',
+  },
+  unzipFile: {
+    // `files unzip create` created nothing; the verb is the whole command.
+    command: 'files unzip',
+    describe: 'Unzip an archive into a new folder beside it',
+    confirm: 'This writes every file in the archive into the workspace.',
+  },
+  /**
+   * Configured even though `buildGeneratedCommands` skips it: it only builds
+   * operations whose `responseMode` is `json` (runtime/build.ts), so this
+   * zip-streaming endpoint has no command today. The entry is not inert — the
+   * contract sweeps read it, and `folderPaths` must be marked for encoding
+   * here or `folder-path fields` fails.
+   */
+  bulkDownloadFiles: {
+    command: 'files bulk-download',
+    describe: 'Download files and folders as a zip archive',
+    flags: {
+      fileIds: { list: true },
+      folderPaths: FOLDER_PATHS_FLAG,
+    },
+  },
+  editFileContent: {
+    command: 'files edit',
+    describe: 'Apply one exact or anchor-based edit to a text file',
+    flags: {
+      edit: { describe: FILE_EDIT_HELP },
+    },
   },
   updateFileContent: {
     command: 'files set-content',
@@ -631,8 +1590,15 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Resource-scoped, path-addressed folders ──────────────────────────────
+  /**
+   * None of the four folder lists paginates: the route declares no `cursor` and
+   * answers with the whole set. That is deliberate — a folder tree is bounded
+   * where it loads — but the terminal said nothing about it, and a caller
+   * reading `--limit` on every other `list` had no way to tell whether the
+   * answer was the full set or the first page of one.
+   */
   listFileFolders: {
+    describe: 'List folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -640,6 +1606,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listKnowledgeFolders: {
+    describe: 'List knowledge folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -647,6 +1614,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listTableFolders: {
+    describe: 'List table folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -654,6 +1622,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listWorkflowFolders: {
+    describe: 'List workflow folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -741,8 +1710,7 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This archives the workflow folder and, when recursive, everything inside it.',
   },
 
-  // ─── The expanded tables surface ──────────────────────────────────────────
-  // `/cancel-runs`, `/rows/find`, `/query/count`, `/columns/run` and the
+  // `/cancel-runs`, `/rows/search`, `/query/count` and the
   // enrichment path all put a verb where the deriver expects a sub-resource, so
   // each became a group holding a lone `create`.
   cancelTableRuns: {
@@ -752,14 +1720,21 @@ export const CLI_CONTRACT: CliContract = {
       excludeRowIds: { list: true },
       filter: { json: true, describe: TABLE_FILTER_HELP },
     },
+    // `tables dispatches cancel` gates one dispatch; this stops every run on
+    // the table at once and was the ungated one of the pair. The message has
+    // to hold for `--scope row` too, so it names the scope rather than
+    // claiming the whole table every time.
+    confirm:
+      'This cancels running column jobs — the whole table with --scope all, one row with --scope row.',
   },
-  findTableRows: {
-    command: 'tables rows find',
-    describe: 'Find rows matching a predicate',
+  searchTableRows: {
+    command: 'tables rows search',
+    renamedFrom: ['tables rows find'],
+    describe: 'Search cells for a value and return their coordinates',
     flags: {
       // `--q` was the wire field spelled out; the same idea is `--query` on
       // `knowledge search`, and one concept should not have two flag names.
-      q: { name: 'query', renamedFrom: ['q'], describe: 'Value to find' },
+      q: { name: 'query', renamedFrom: ['q'], describe: 'Value to search for' },
       predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
@@ -781,15 +1756,55 @@ export const CLI_CONTRACT: CliContract = {
       },
     },
   },
-  runTableColumn: {
-    command: 'tables columns run',
-    describe: 'Run a column’s workflow',
+  createTableDispatch: {
+    command: 'tables dispatches create',
+    renamedFrom: ['tables columns run'],
+    describe: 'Start a column or enrichment run',
     flags: {
       groupIds: { list: true },
       rowIds: { list: true },
       excludeRowIds: { list: true },
       filter: { json: true, describe: TABLE_FILTER_HELP },
+      // Every other `--limit` in the CLI is a page size typed as a bare
+      // integer, so this one — an object naming the unit it caps — answered
+      // `--limit 2` with "expected object, received number" and the flag name
+      // was the reason anyone typed that. Renamed to say what it caps, and
+      // typed as the count it reads as: `rowCap` builds the object the route
+      // wants. `--limit` still resolves for an existing script.
+      limit: {
+        name: 'max-rows',
+        renamedFrom: ['limit'],
+        rowCap: true,
+        describe: DISPATCH_ROW_LIMIT_HELP,
+      },
     },
+  },
+  listTableDispatches: {
+    // Column inference drops every object-valued field, so `scope` — the whole
+    // point of the row — was invisible, and `limit` appeared or vanished with
+    // whether the first row happened to be capped. Declared instead, with the
+    // scope broken into the scalars that distinguish a plain dispatch from a
+    // filtered or select-all-minus one. `tableId` and `workspaceId` are gone:
+    // both are already the command's own arguments. The rest keep the order
+    // inference gave them and the scope columns are appended, because
+    // `--output text` is positional and a script may be cutting fields.
+    columns: [
+      { header: 'id' },
+      { header: 'status' },
+      { header: 'mode' },
+      // The cap is `{ type, max } | null`, and only `max` is a value: `type` is
+      // a `z.literal('rows')` that says the same thing on every row.
+      { header: 'max rows', path: 'limit.max' },
+      { header: 'processed', path: 'processedCount' },
+      { header: 'manual', path: 'isManualRun', format: 'bool' },
+      { header: 'requested', path: 'requestedAt', format: 'timestamp' },
+      { header: 'completed', path: 'completedAt', format: 'timestamp' },
+      { header: 'canceled', path: 'canceledAt', format: 'timestamp' },
+      { header: 'groups', path: 'scope.groupIds', format: 'count' },
+      { header: 'rows', path: 'scope.rowIds', format: 'count' },
+      { header: 'filtered', path: 'scope.filtered', format: 'bool' },
+      { header: 'excluded', path: 'scope.excludeRowIds', format: 'count' },
+    ],
   },
   runRowEnrichment: {
     command: 'tables rows enrich',
@@ -803,37 +1818,106 @@ export const CLI_CONTRACT: CliContract = {
   createTableImport: { hidden: true },
   createTableImportPartUrls: { hidden: true },
   completeTableImport: { hidden: true },
-  cancelTableImport: { command: 'tables imports cancel' },
-  cancelTableExport: { command: 'tables exports cancel' },
+  // `get` and `cancel` stay, but not the upload token they also accept. It
+  // addresses an import mid-transfer, and `sim tables import` never leaves one
+  // in that state: the command drives the whole handshake and aborts the
+  // session if any part of it fails. An import a CLI caller can still name is
+  // an import their API key and workspace already reach, which is the branch
+  // `resolveTableImportContext` takes when no token is sent — so the flag adds
+  // a credential to type and no import it reaches.
+  getTableImport: { flags: TRANSFER_TOKEN_OMITTED },
+  cancelTableImport: {
+    command: 'tables imports cancel',
+    flags: TRANSFER_TOKEN_OMITTED,
+    describe: 'Stop a running import',
+    // Gated for the reason `tables dispatches cancel` is: the runner commits
+    // rows batch by batch and its ownership gate stops it between batches, so
+    // there is never a state to resume from. The message has to hold for both
+    // modes, and `replace` is the destructive one — it empties the table before
+    // its first batch, so a cancelled replace leaves neither the old rows nor
+    // the whole file.
+    confirm:
+      'This stops the import between row batches, so whatever it already wrote stays and nothing resumes it. A replace import empties the table before its first batch, so cancelling one leaves only part of the new file; an append adds its rows again if you import the file a second time.',
+  },
+  cancelTableExport: {
+    command: 'tables exports cancel',
+    describe: 'Stop a running export',
+    // Not `confirm`-gated: the export only reads the table and writes a file
+    // nobody has yet, so cancelling discards nothing `tables exports create`
+    // cannot redo.
+  },
   tableExportDownload: {
     // GET, but it returns a signed URL rather than a listing.
     command: 'tables exports download',
     describe: 'Get the download URL for a finished export',
   },
 
-  // ─── Documents, not records ───────────────────────────────────────────────
+  // Documents, not records
   // The payload is the artifact: `sim workflows export <id> > wf.json` has to
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
     describe: 'Print a workflow as a portable JSON document',
+    flags: {
+      includeReferences: {
+        boolean: true,
+        describe: 'Include non-secret resource identities for mapped import',
+      },
+    },
     document: true,
   },
 
-  // ─── Runs ─────────────────────────────────────────────────────────────────
+  // `tools get` and `tools list` derive cleanly; only the verb needs naming, for
+  // the same reason `workflows run` does — `/execute` is not in the action list,
+  // so POST would derive `tools execute create`.
+  executeTool: {
+    command: 'tools execute',
+    describe: 'Run one built-in tool and print what it produced',
+    flags: {
+      // Named `input` to match `workflows run --input`, the only other command
+      // that hands arguments to something Sim runs. `@file` and `@-` come from
+      // the JSON kind, so a payload too awkward to quote can be piped in.
+      input: {
+        json: true,
+        describe:
+          'Tool arguments as JSON, keyed by the parameter ids `sim tools get <toolId>` lists',
+      },
+      // Spelled `--credential-id`, the derived name, because `knowledge
+      // connectors create` already takes the same field under it and the
+      // contract holds one flag name per concept.
+      credentialId: { describe: 'Credential to authenticate with, required for OAuth tools' },
+      timeoutSeconds: { name: 'timeout', describe: 'Seconds to wait before abandoning the call' },
+    },
+    fields: [
+      { path: 'toolId', header: 'Tool' },
+      { path: 'status', header: 'Status' },
+      // The command's whole purpose. Human formats one-line and clamp it, which
+      // is why `--output json` exists; omitting it entirely printed a status and
+      // nothing the caller asked for.
+      { path: 'output', header: 'Output' },
+      { path: 'error.message', header: 'Error' },
+    ],
+  },
+
   // The derived names land badly here: `/execute` and `/cancel` are verbs in
   // the path, but neither is in the action list, so POST would derive
   // `workflows execute create` and `workflows cancel create`.
   executeWorkflow: {
     command: 'workflows run',
-    describe: 'Run a deployed workflow',
+    describe: 'Run a deployed workflow or execute saved state manually',
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
       input: { json: true, describe: 'Trigger input as JSON' },
+      run: {
+        hidden: true,
+        describe: 'Low-level workflow state and entry-point selection',
+      },
+      // `workflows runs get` takes the same names (`workflow-run-get.ts` resolves
+      // them against the draft graph), which is why both describes name theirs.
       selectedOutputs: {
         name: 'select-output',
         list: true,
         describe:
-          'Return blockName.field values (e.g. agent_1.content); missing fields are omitted',
+          'Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async',
       },
       // SSE, not JSON — the generic client cannot consume it, so the response
       // encoding is chosen by `--follow`, which `workflow-run-follow.ts` adds to
@@ -842,6 +1926,20 @@ export const CLI_CONTRACT: CliContract = {
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },
+      // Exposed under its domain name: every other flag in the CLI is one, and
+      // `--x-run-id` would be the only place the raw HTTP header spelling
+      // surfaced. The describe denies idempotency outright because the name
+      // reads like an idempotency key and the header is not one: neither reusing
+      // a value nor picking a fresh one makes a retry safe.
+      'x-run-id': {
+        name: 'run-id',
+        describe:
+          'One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run',
+      },
+      // The call-chain marker Sim writes for itself on a workflow-to-workflow
+      // hop. A CLI invocation is always the first hop, so the only thing a flag
+      // for it could do is forge a chain the caller was never part of.
+      'x-sim-via': { omit: true },
     },
   },
   getWorkflowRun: {
@@ -853,10 +1951,14 @@ export const CLI_CONTRACT: CliContract = {
         boolean: true,
         describe: 'Include the final output in JSON or YAML output',
       },
+      // The run resource matches recorded block ids only, so block names are
+      // resolved against the workflow's blocks before the request is made
+      // (`workflow-run-get.ts`) — the flag reads like `workflows run`'s.
       selectedOutputs: {
         name: 'select-output',
         list: true,
-        describe: 'Include blockName.field values in JSON or YAML output (e.g. agent_1.content)',
+        describe:
+          'Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted',
       },
     },
     fields: [
@@ -894,8 +1996,15 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows runs cancel',
     pathFlags: WORKFLOW_RUN_SCOPE,
     describe: 'Cancel a running workflow run',
-    // Not `confirm`-gated: cancelling is recoverable (re-run it), and the
-    // whole point is to stop something that is already going wrong.
+    // Not `confirm`-gated: the whole point is to stop something that is
+    // already going wrong, and for an ordinary in-flight run `re-run it` is a
+    // real recovery. It is NOT one for a run paused for input — cancelling
+    // flips the paused row to `cancelled`, and nothing resumes from that
+    // status, so the snapshot is kept but `workflows runs resume` can never
+    // take it again and starting over repeats every side effect the run
+    // already performed. Gating it is a live proposal rather than an
+    // oversight; it is left ungated here because `confirm` is all-or-nothing
+    // and cancel is the command most likely to be automated.
   },
   resumeWorkflow: {
     command: 'workflows runs resume',
@@ -924,7 +2033,7 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
 
-  // ─── Not a terminal-shaped operation ──────────────────────────────────────
+  // Not a terminal-shaped operation
   // Multipart upload; `sim knowledge documents upload <id> <path>` needs its
   // own file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
@@ -933,8 +2042,8 @@ export const CLI_CONTRACT: CliContract = {
   completeKnowledgeDocumentUpload: { hidden: true },
   abortKnowledgeDocumentUpload: { hidden: true },
 
-  // ─── Steps of a transfer, not commands ────────────────────────────────────
-  // Uploading is now a presigned multipart handshake: create the upload, ask for
+  // Steps of a transfer, not commands
+  // Uploading is a presigned multipart handshake: create the upload, ask for
   // part URLs in batches, PUT each part to storage, then complete with the
   // ETags — and abort if any of it fails. Exposing the steps individually would
   // advertise a protocol whose halfway states leak storage, so `sim files
@@ -943,4 +2052,11 @@ export const CLI_CONTRACT: CliContract = {
   createFileUploadPartUrls: { hidden: true },
   completeFileUpload: { hidden: true },
   abortFileUpload: { hidden: true },
+  // Inspecting a session goes with them, for a reason the other steps do not
+  // share: it is addressed by a *required* upload token, and `sim files upload`
+  // completes the session on success and aborts it on failure, so no session
+  // outlives the command and no caller is left holding a token to ask with.
+  // Left visible it read as a working command that answered every invocation
+  // with `--upload-token is required` and no way to satisfy it.
+  getFileUpload: { hidden: true },
 }

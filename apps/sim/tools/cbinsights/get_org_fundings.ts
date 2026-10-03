@@ -1,20 +1,16 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  cbInsightsRequest,
-  clampLimit,
-  compactBody,
-  pageInfo,
-  requireOrgId,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-interface CbInsightsOrgFundingsParams extends CbInsightsOrgParams {
+export interface CbInsightsOrgFundingsParams extends CbInsightsOrgParams {
   limit?: number | string
   nextPageToken?: string
 }
 
-export const cbinsightsGetOrgFundingsTool: ToolConfig<CbInsightsOrgFundingsParams, ToolResponse> = {
+export const cbinsightsGetOrgFundingsTool: InternalToolConfig<
+  CbInsightsOrgFundingsParams,
+  ToolResponse
+> = {
   id: 'cbinsights_get_org_fundings',
   name: 'CB Insights Get Organization Fundings',
   description:
@@ -55,32 +51,8 @@ export const cbinsightsGetOrgFundingsTool: ToolConfig<CbInsightsOrgFundingsParam
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{
-      fundings?: unknown
-      capTableHistory?: unknown
-      nextPageToken?: unknown
-      totalHits?: unknown
-      totalHitsRelation?: unknown
-    }>(
-      params,
-      {
-        path: `/v2/organizations/${orgId}/financialtransactions/fundings`,
-        body: compactBody({
-          limit: clampLimit(params.limit),
-          nextPageToken: params.nextPageToken?.trim(),
-        }),
-      },
-      (data) => ({
-        fundings: asArray(data.fundings),
-        capTableHistory: asArray(data.capTableHistory),
-        ...pageInfo(data),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

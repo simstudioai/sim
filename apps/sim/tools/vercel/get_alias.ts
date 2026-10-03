@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelGetAliasParams, VercelGetAliasResponse } from '@/tools/vercel/types'
 
 export const vercelGetAliasTool: ToolConfig<VercelGetAliasParams, VercelGetAliasResponse> = {
@@ -40,7 +41,7 @@ export const vercelGetAliasTool: ToolConfig<VercelGetAliasParams, VercelGetAlias
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v4/aliases/${params.aliasId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v4/aliases/${safeUrlPathSegment(params.aliasId, 'aliasId')}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelGetAliasParams) => ({

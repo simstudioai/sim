@@ -7,12 +7,11 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { ExtendParserOutput } from '@/tools/extend/types'
 
 const EXTEND_DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 const EXTEND_V2_FILE_FIELD = ['fileUpload', 'fileReference'] as const
 
-export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
+export const ExtendBlock: BlockConfig = {
   type: 'extend',
   name: 'Extend',
   description: 'Parse and extract content from documents',
@@ -176,7 +175,7 @@ const extendV2SubBlocks = (ExtendBlock.subBlocks || []).flatMap((subBlock) => {
   return [subBlock]
 })
 
-export const ExtendV2Block: BlockConfig<ExtendParserOutput> = {
+export const ExtendV2Block: BlockConfig = {
   ...ExtendBlock,
   sunset: undefined,
   type: 'extend_v2',

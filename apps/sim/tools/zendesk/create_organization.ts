@@ -48,7 +48,7 @@ export const zendeskCreateOrganizationTool: ToolConfig<
     apiToken: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Zendesk API token',
     },
     subdomain: {

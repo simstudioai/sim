@@ -1,5 +1,5 @@
 import { SPACE_DESCRIPTION_OUTPUT_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreateSpaceParams {
   accessToken: string
@@ -25,7 +25,7 @@ export interface ConfluenceCreateSpaceResponse {
   }
 }
 
-export const confluenceCreateSpaceTool: ToolConfig<
+export const confluenceCreateSpaceTool: InternalToolConfig<
   ConfluenceCreateSpaceParams,
   ConfluenceCreateSpaceResponse
 > = {
@@ -49,7 +49,7 @@ export const confluenceCreateSpaceTool: ToolConfig<
     domain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
     },
     name: {
@@ -73,21 +73,14 @@ export const confluenceCreateSpaceTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    url: () => '/api/tools/confluence/space',
-    method: 'POST',
-    headers: (params: ConfluenceCreateSpaceParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceCreateSpaceParams) => ({
+  operation: {
+    input: (params: ConfluenceCreateSpaceParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

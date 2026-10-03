@@ -49,13 +49,13 @@ interface UsageLogRowProps {
 function UsageLogRow({ log }: UsageLogRowProps) {
   return (
     <div className='flex items-center gap-2.5 rounded-lg p-2 text-left'>
-      <span className='w-[150px] flex-shrink-0 text-[var(--text-muted)] text-caption'>
+      <span className='w-[150px] shrink-0 text-[var(--text-muted)] text-caption'>
         {formatDateTime(new Date(log.createdAt))}
       </span>
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
         {rowLabel(log)}
       </span>
-      <span className='flex-shrink-0 text-[var(--text-muted)] text-caption tabular-nums'>
+      <span className='shrink-0 text-[var(--text-muted)] text-caption tabular-nums'>
         {formatApportionedCreditCost(log.creditCost, log.hasCost)}
       </span>
     </div>
@@ -146,7 +146,15 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
   })
 
   const logs = data?.pages.flatMap((page) => page.logs) ?? []
-  const totalCredits = data?.pages[0]?.summary.totalCredits ?? 0
+  const totalCredits = data?.pages[0]?.summary.totalCredits
+  const hasBlockingError = isError && data === undefined
+  const totalCreditsLabel = isLoading
+    ? 'Loading…'
+    : hasBlockingError
+      ? 'Unavailable'
+      : isPlaceholderData
+        ? 'Updating…'
+        : formatCreditsLabel(totalCredits ?? 0)
 
   return (
     <SettingsPanel
@@ -167,9 +175,7 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
       description='Every credit-consuming event behind your usage.'
     >
       <div className='flex items-center justify-between'>
-        <span className='text-[var(--text-muted)] text-small'>
-          Total: {formatCreditsLabel(totalCredits)}
-        </span>
+        <span className='text-[var(--text-muted)] text-small'>Total: {totalCreditsLabel}</span>
         <div className='relative'>
           <ChipCombobox
             options={PERIOD_OPTIONS}
@@ -208,8 +214,10 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
       >
         {isLoading ? (
           <SettingsEmptyState variant='inline'>Loading usage…</SettingsEmptyState>
-        ) : isError ? (
-          <SettingsEmptyState variant='inline'>Couldn't load credit usage.</SettingsEmptyState>
+        ) : hasBlockingError ? (
+          <SettingsEmptyState variant='inline' tone='error'>
+            Couldn't load credit usage.
+          </SettingsEmptyState>
         ) : logs.length === 0 ? (
           <SettingsEmptyState variant='inline'>No credit usage in this period.</SettingsEmptyState>
         ) : (

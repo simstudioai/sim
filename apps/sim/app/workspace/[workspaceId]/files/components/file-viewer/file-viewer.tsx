@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
+import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -109,6 +110,7 @@ interface FileViewerProps {
     retry?: () => Promise<void>
   ) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
@@ -127,6 +129,13 @@ interface FileViewerProps {
    * untitled, so the caller can name the file after it. Only wired for the editable markdown editor.
    */
   onDeriveTitleFromHeading?: (headingText: string) => void
+  /**
+   * Let an open markdown file claim Cmd/Ctrl+F for find-in-document. Set wherever the file is the
+   * whole pane the user is reading — the Files page, the mothership file view, the public share
+   * page. Left off for the streaming-file preview, which is a pane beside a conversation that owns
+   * its own find. See {@link RichMarkdownEditorProps.enableFind}.
+   */
+  enableFind?: boolean
 }
 
 export function FileViewer(props: FileViewerProps) {
@@ -156,6 +165,7 @@ function FileViewerContent({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  downloadSourceRef,
   discardRef,
   streamingContent,
   isAgentEditing,
@@ -165,6 +175,7 @@ function FileViewerContent({
   previewContextKey,
   collaborative,
   onDeriveTitleFromHeading,
+  enableFind = false,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -181,7 +192,13 @@ function FileViewerContent({
       // the bubble menu, and every other editing affordance.
       if (isMarkdownFile(file)) {
         return (
-          <RichMarkdownEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
+          <RichMarkdownEditor
+            key={file.id}
+            file={file}
+            workspaceId={workspaceId}
+            canEdit={false}
+            enableFind={enableFind}
+          />
         )
       }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
@@ -203,6 +220,7 @@ function FileViewerContent({
           onDirtyChange={onDirtyChange}
           onSaveStatusChange={onSaveStatusChange}
           saveRef={saveRef}
+          downloadSourceRef={downloadSourceRef}
           discardRef={discardRef}
           streamingContent={streamingContent}
           isAgentEditing={isAgentEditing}
@@ -212,6 +230,7 @@ function FileViewerContent({
           previewContextKey={previewContextKey}
           collaborative={collaborative}
           onDeriveTitleFromHeading={onDeriveTitleFromHeading}
+          enableFind={enableFind}
         />
       )
     }
@@ -308,7 +327,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
 
   return (
     <div className='min-h-0 w-full flex-1 overflow-auto bg-[var(--surface-1)] p-4'>
-      <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
+      <pre className='whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-small'>
         {content}
       </pre>
     </div>

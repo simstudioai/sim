@@ -3,19 +3,56 @@ import { GithubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
-import type { GitHubResponse } from '@/tools/github/types'
 import { getTrigger } from '@/triggers'
 
 /** Reviewers can be named individually or by team slug; either identifies the request. */
 const REVIEWER_FIELD = ['reviewers', 'team_reviewers'] as const
 
-export const GitHubBlock: BlockConfig<GitHubResponse> = {
+/**
+ * Block subBlock ids that differ from the tool param they feed, each scoped to
+ * the operations whose tool declares that target. `sort` has two sources and
+ * `title`/`description`/`state` share their names with fields on other
+ * operations, so the scoping is what keeps them from colliding.
+ *
+ * `toBoolean` marks a dropdown feeding a boolean tool param: a dropdown stores
+ * its option id, so the value arrives as the string 'true'/'false' and the
+ * generic handler only JSON-parses `json`/`array` inputs.
+ */
+const GITHUB_PARAM_ALIASES: ReadonlyArray<{
+  from: string
+  to: string
+  operations: readonly string[]
+  toBoolean?: true
+}> = [
+  {
+    from: 'reaction_content',
+    to: 'content',
+    operations: ['github_create_issue_reaction', 'github_create_comment_reaction'],
+  },
+  {
+    from: 'milestone_title',
+    to: 'title',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  {
+    from: 'milestone_description',
+    to: 'description',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  { from: 'milestone_state', to: 'state', operations: ['github_list_milestones'] },
+  { from: 'milestone_sort', to: 'sort', operations: ['github_list_milestones'] },
+  { from: 'fork_name', to: 'name', operations: ['github_fork_repo'] },
+  { from: 'fork_sort', to: 'sort', operations: ['github_list_forks'] },
+  { from: 'gist_public', to: 'public', operations: ['github_create_gist'], toBoolean: true },
+]
+
+export const GitHubBlock: BlockConfig = {
   type: 'github',
   name: 'GitHub (Legacy)',
   description: 'Interact with GitHub or trigger workflows from GitHub events',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.',
+    'Read and update GitHub repositories, pull requests, issues, and related records. Use trigger mode to start workflows from GitHub events.',
   docsLink: 'https://docs.sim.ai/integrations/github',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
@@ -343,13 +380,11 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Create PR comment', id: 'github_comment' },
         { label: 'Get repository info', id: 'github_repo_info' },
         { label: 'Get latest commit', id: 'github_latest_commit' },
-        // Comment Operations
         { label: 'Create issue comment', id: 'github_issue_comment' },
         { label: 'List issue comments', id: 'github_list_issue_comments' },
         { label: 'Update comment', id: 'github_update_comment' },
         { label: 'Delete comment', id: 'github_delete_comment' },
         { label: 'List PR comments', id: 'github_list_pr_comments' },
-        // Pull Request Operations
         { label: 'Create pull request', id: 'github_create_pr' },
         { label: 'Update pull request', id: 'github_update_pr' },
         { label: 'Merge pull request', id: 'github_merge_pr' },
@@ -358,7 +393,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Close pull request', id: 'github_close_pr' },
         { label: 'Request PR reviewers', id: 'github_request_reviewers' },
         { label: 'Create PR review', id: 'github_create_pr_review' },
-        // File Operations
         { label: 'Get file content', id: 'github_get_file_content' },
         { label: 'Create file', id: 'github_create_file' },
         { label: 'Update file', id: 'github_update_file' },
@@ -366,14 +400,12 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Get directory tree', id: 'github_get_tree' },
         { label: 'Get README', id: 'github_get_readme' },
         { label: 'List tags', id: 'github_list_tags' },
-        // Branch Operations
         { label: 'List branches', id: 'github_list_branches' },
         { label: 'Get branch', id: 'github_get_branch' },
         { label: 'Create branch', id: 'github_create_branch' },
         { label: 'Delete branch', id: 'github_delete_branch' },
         { label: 'Get branch protection', id: 'github_get_branch_protection' },
         { label: 'Update branch protection', id: 'github_update_branch_protection' },
-        // Issue Operations
         { label: 'Create issue', id: 'github_create_issue' },
         { label: 'Update issue', id: 'github_update_issue' },
         { label: 'List issues', id: 'github_list_issues' },
@@ -382,14 +414,12 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Add issue labels', id: 'github_add_labels' },
         { label: 'Remove issue label', id: 'github_remove_label' },
         { label: 'Add issue assignees', id: 'github_add_assignees' },
-        // Release Operations
         { label: 'Create release', id: 'github_create_release' },
         { label: 'Update release', id: 'github_update_release' },
         { label: 'List releases', id: 'github_list_releases' },
         { label: 'Get release', id: 'github_get_release' },
         { label: 'Get latest release', id: 'github_get_latest_release' },
         { label: 'Delete release', id: 'github_delete_release' },
-        // Workflow Operations
         { label: 'List workflows', id: 'github_list_workflows' },
         { label: 'Get workflow', id: 'github_get_workflow' },
         { label: 'Trigger workflow', id: 'github_trigger_workflow' },
@@ -397,23 +427,19 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Get workflow run', id: 'github_get_workflow_run' },
         { label: 'Cancel workflow run', id: 'github_cancel_workflow_run' },
         { label: 'Rerun workflow', id: 'github_rerun_workflow' },
-        // Project Operations
         { label: 'List projects', id: 'github_list_projects' },
         { label: 'Get project', id: 'github_get_project' },
         { label: 'Create project', id: 'github_create_project' },
         { label: 'Update project', id: 'github_update_project' },
         { label: 'Delete project', id: 'github_delete_project' },
-        // Search Operations
         { label: 'Search code', id: 'github_search_code' },
         { label: 'Search commits', id: 'github_search_commits' },
         { label: 'Search issues', id: 'github_search_issues' },
         { label: 'Search repositories', id: 'github_search_repos' },
         { label: 'Search users', id: 'github_search_users' },
-        // Commit Operations
         { label: 'List commits', id: 'github_list_commits' },
         { label: 'Get commit', id: 'github_get_commit' },
         { label: 'Compare commits', id: 'github_compare_commits' },
-        // Gist Operations
         { label: 'Create gist', id: 'github_create_gist' },
         { label: 'Get gist', id: 'github_get_gist' },
         { label: 'List gists', id: 'github_list_gists' },
@@ -422,21 +448,17 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Fork gist', id: 'github_fork_gist' },
         { label: 'Star gist', id: 'github_star_gist' },
         { label: 'Unstar gist', id: 'github_unstar_gist' },
-        // Fork Operations
         { label: 'Fork repository', id: 'github_fork_repo' },
         { label: 'List forks', id: 'github_list_forks' },
-        // Milestone Operations
         { label: 'Create milestone', id: 'github_create_milestone' },
         { label: 'Get milestone', id: 'github_get_milestone' },
         { label: 'List milestones', id: 'github_list_milestones' },
         { label: 'Update milestone', id: 'github_update_milestone' },
         { label: 'Delete milestone', id: 'github_delete_milestone' },
-        // Reaction Operations
         { label: 'Add issue reaction', id: 'github_create_issue_reaction' },
         { label: 'Remove issue reaction', id: 'github_delete_issue_reaction' },
         { label: 'Add comment reaction', id: 'github_create_comment_reaction' },
         { label: 'Remove comment reaction', id: 'github_delete_comment_reaction' },
-        // Star Operations
         { label: 'Star repository', id: 'github_star_repo' },
         { label: 'Unstar repository', id: 'github_unstar_repo' },
         { label: 'Check if starred', id: 'github_check_star' },
@@ -490,7 +512,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       condition: { field: 'operation', value: 'github_latest_commit' },
       mode: 'advanced',
     },
-    // Comment operations parameters
     {
       id: 'issue_number',
       title: 'Issue Number',
@@ -563,7 +584,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       condition: { field: 'operation', value: 'github_list_pr_comments' },
       mode: 'advanced',
     },
-    // Pull request operations parameters
     {
       id: 'title',
       title: 'PR Title',
@@ -730,7 +750,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       condition: { field: 'operation', value: 'github_request_reviewers' },
       mode: 'advanced',
     },
-    // File operations parameters
     {
       id: 'path',
       title: 'File Path',
@@ -867,7 +886,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       condition: { field: 'operation', value: 'github_get_tree' },
       mode: 'advanced',
     },
-    // Branch operations parameters
     {
       id: 'protected',
       title: 'Filter by Protection',
@@ -955,7 +973,14 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       condition: { field: 'operation', value: 'github_update_branch_protection' },
       mode: 'advanced',
     },
-    // Issue operations parameters
+    {
+      id: 'restrictions',
+      title: 'Push Restrictions',
+      type: 'short-input',
+      placeholder: 'JSON: {"users":["octocat"],"teams":["admins"]}',
+      condition: { field: 'operation', value: 'github_update_branch_protection' },
+      mode: 'advanced',
+    },
     {
       id: 'title',
       title: 'Issue Title',
@@ -1107,7 +1132,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       required: true,
       condition: { field: 'operation', value: 'github_add_assignees' },
     },
-    // Release operations parameters
     {
       id: 'tag_name',
       title: 'Tag Name',
@@ -1210,7 +1234,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       required: true,
       condition: { field: 'operation', value: 'github_delete_release' },
     },
-    // Workflow operations parameters
     {
       id: 'per_page',
       title: 'Results Per Page',
@@ -1304,7 +1327,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       required: true,
       condition: { field: 'operation', value: 'github_rerun_workflow' },
     },
-    // Project operations parameters
     {
       id: 'owner_login',
       title: 'Owner Login',
@@ -1402,7 +1424,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       required: true,
       condition: { field: 'operation', value: 'github_delete_project' },
     },
-    // Search operations parameters
     {
       id: 'q',
       title: 'Search Query',
@@ -1471,7 +1492,6 @@ Return ONLY the search query - no explanations.`,
       },
       mode: 'advanced',
     },
-    // Commit operations parameters
     {
       id: 'sha',
       title: 'SHA or Branch',
@@ -1557,7 +1577,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       required: true,
       condition: { field: 'operation', value: 'github_compare_commits' },
     },
-    // Gist operations parameters
     {
       id: 'gist_id',
       title: 'Gist ID',
@@ -1649,7 +1668,6 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
       condition: { field: 'operation', value: 'github_list_gists' },
       mode: 'advanced',
     },
-    // Fork operations parameters
     {
       id: 'organization',
       title: 'Organization',
@@ -1690,7 +1708,6 @@ Return ONLY valid JSON - no explanations, no markdown formatting.`,
       condition: { field: 'operation', value: 'github_list_forks' },
       mode: 'advanced',
     },
-    // Milestone operations parameters
     {
       id: 'milestone_title',
       title: 'Milestone Title',
@@ -1778,7 +1795,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'github_list_milestones' },
       mode: 'advanced',
     },
-    // Reaction operations parameters
     {
       id: 'reaction_content',
       title: 'Reaction',
@@ -1832,7 +1848,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: ['github_create_comment_reaction', 'github_delete_comment_reaction'],
       },
     },
-    // Star operations parameters - owner/repo already covered by existing subBlocks
+    // Star operations reuse the existing owner/repo subBlocks
     {
       id: 'per_page',
       title: 'Results Per Page',
@@ -1915,7 +1931,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Create PR review parameters
     {
       id: 'pullNumber',
       title: 'Pull Request Number',
@@ -1951,7 +1966,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'github_create_pr_review' },
       mode: 'advanced',
     },
-    // Get README parameters
     {
       id: 'ref',
       title: 'Git Reference',
@@ -1960,7 +1974,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'github_get_readme' },
       mode: 'advanced',
     },
-    // List tags parameters
     {
       id: 'per_page',
       title: 'Results Per Page',
@@ -1984,13 +1997,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_comment',
       'github_repo_info',
       'github_latest_commit',
-      // Comment tools
       'github_issue_comment',
       'github_list_issue_comments',
       'github_update_comment',
       'github_delete_comment',
       'github_list_pr_comments',
-      // Pull request tools
       'github_create_pr',
       'github_update_pr',
       'github_merge_pr',
@@ -1999,7 +2010,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_close_pr',
       'github_request_reviewers',
       'github_create_pr_review',
-      // File tools
       'github_get_file_content',
       'github_create_file',
       'github_update_file',
@@ -2007,14 +2017,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_get_tree',
       'github_get_readme',
       'github_list_tags',
-      // Branch tools
       'github_list_branches',
       'github_get_branch',
       'github_create_branch',
       'github_delete_branch',
       'github_get_branch_protection',
       'github_update_branch_protection',
-      // Issue tools
       'github_create_issue',
       'github_update_issue',
       'github_list_issues',
@@ -2023,14 +2031,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_add_labels',
       'github_remove_label',
       'github_add_assignees',
-      // Release tools
       'github_create_release',
       'github_update_release',
       'github_list_releases',
       'github_get_release',
       'github_get_latest_release',
       'github_delete_release',
-      // Workflow tools
       'github_list_workflows',
       'github_get_workflow',
       'github_trigger_workflow',
@@ -2038,23 +2044,19 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_get_workflow_run',
       'github_cancel_workflow_run',
       'github_rerun_workflow',
-      // Project tools
       'github_list_projects',
       'github_get_project',
       'github_create_project',
       'github_update_project',
       'github_delete_project',
-      // Search tools
       'github_search_code',
       'github_search_commits',
       'github_search_issues',
       'github_search_repos',
       'github_search_users',
-      // Commit tools
       'github_list_commits',
       'github_get_commit',
       'github_compare_commits',
-      // Gist tools
       'github_create_gist',
       'github_get_gist',
       'github_list_gists',
@@ -2063,21 +2065,17 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'github_fork_gist',
       'github_star_gist',
       'github_unstar_gist',
-      // Fork tools
       'github_fork_repo',
       'github_list_forks',
-      // Milestone tools
       'github_create_milestone',
       'github_get_milestone',
       'github_list_milestones',
       'github_update_milestone',
       'github_delete_milestone',
-      // Reaction tools
       'github_create_issue_reaction',
       'github_delete_issue_reaction',
       'github_create_comment_reaction',
       'github_delete_comment_reaction',
-      // Star tools
       'github_star_repo',
       'github_unstar_repo',
       'github_check_star',
@@ -2094,7 +2092,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_repo_info'
           case 'github_latest_commit':
             return 'github_latest_commit'
-          // Comment operations
           case 'github_issue_comment':
             return 'github_issue_comment'
           case 'github_list_issue_comments':
@@ -2105,7 +2102,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_delete_comment'
           case 'github_list_pr_comments':
             return 'github_list_pr_comments'
-          // Pull request operations
           case 'github_create_pr':
             return 'github_create_pr'
           case 'github_update_pr':
@@ -2122,7 +2118,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_request_reviewers'
           case 'github_create_pr_review':
             return 'github_create_pr_review'
-          // File operations
           case 'github_get_file_content':
             return 'github_get_file_content'
           case 'github_create_file':
@@ -2137,7 +2132,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_get_readme'
           case 'github_list_tags':
             return 'github_list_tags'
-          // Branch operations
           case 'github_list_branches':
             return 'github_list_branches'
           case 'github_get_branch':
@@ -2150,7 +2144,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_get_branch_protection'
           case 'github_update_branch_protection':
             return 'github_update_branch_protection'
-          // Issue operations
           case 'github_create_issue':
             return 'github_create_issue'
           case 'github_update_issue':
@@ -2167,7 +2160,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_remove_label'
           case 'github_add_assignees':
             return 'github_add_assignees'
-          // Release operations
           case 'github_create_release':
             return 'github_create_release'
           case 'github_update_release':
@@ -2180,7 +2172,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_get_latest_release'
           case 'github_delete_release':
             return 'github_delete_release'
-          // Workflow operations
           case 'github_list_workflows':
             return 'github_list_workflows'
           case 'github_get_workflow':
@@ -2195,7 +2186,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_cancel_workflow_run'
           case 'github_rerun_workflow':
             return 'github_rerun_workflow'
-          // Project operations
           case 'github_list_projects':
             return 'github_list_projects'
           case 'github_get_project':
@@ -2206,7 +2196,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_update_project'
           case 'github_delete_project':
             return 'github_delete_project'
-          // Search operations
           case 'github_search_code':
             return 'github_search_code'
           case 'github_search_commits':
@@ -2217,14 +2206,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_search_repos'
           case 'github_search_users':
             return 'github_search_users'
-          // Commit operations
           case 'github_list_commits':
             return 'github_list_commits'
           case 'github_get_commit':
             return 'github_get_commit'
           case 'github_compare_commits':
             return 'github_compare_commits'
-          // Gist operations
           case 'github_create_gist':
             return 'github_create_gist'
           case 'github_get_gist':
@@ -2241,12 +2228,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_star_gist'
           case 'github_unstar_gist':
             return 'github_unstar_gist'
-          // Fork operations
           case 'github_fork_repo':
             return 'github_fork_repo'
           case 'github_list_forks':
             return 'github_list_forks'
-          // Milestone operations
           case 'github_create_milestone':
             return 'github_create_milestone'
           case 'github_get_milestone':
@@ -2257,7 +2242,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_update_milestone'
           case 'github_delete_milestone':
             return 'github_delete_milestone'
-          // Reaction operations
           case 'github_create_issue_reaction':
             return 'github_create_issue_reaction'
           case 'github_delete_issue_reaction':
@@ -2266,7 +2250,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_create_comment_reaction'
           case 'github_delete_comment_reaction':
             return 'github_delete_comment_reaction'
-          // Star operations
           case 'github_star_repo':
             return 'github_star_repo'
           case 'github_unstar_repo':
@@ -2278,6 +2261,58 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           default:
             return 'github_repo_info'
         }
+      },
+      /**
+       * Bridges the subBlock ids that do not match their tool's param name.
+       *
+       * A tool param is populated only when a subBlock's `id` equals it — the
+       * serializer keys values by subBlock id, and nothing else renames them.
+       * Each aliased field below renders, accepts input, and then arrives under
+       * a name its tool never reads.
+       *
+       * Every alias is scoped to the operations whose tool actually declares
+       * the target param, and that scoping is load-bearing. Seven of these
+       * sources are `mode: 'advanced'`, and `shouldSerializeSubBlock`
+       * (`serializer/index.ts:91-93`) serializes a non-empty advanced field
+       * WITHOUT evaluating its condition. So a `milestone_title` left over from
+       * an earlier operation is still in `params` after the user switches to,
+       * say, Update PR — and an unscoped alias would rewrite it to `title` and
+       * clobber the PR's own title with stale milestone data.
+       *
+       * Presence is tested rather than truthiness so that a deliberate `false`
+       * or `'false'` is not mistaken for an unset field; only nullish and empty
+       * defer to the tool's own default.
+       *
+       * `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }` and
+       * `providers/utils.ts` installs this as the provider `paramsTransform`,
+       * spreading over the model's tool-call arguments — so emitting a key the
+       * block did not supply would clobber a model-supplied value on the agent
+       * path.
+       *
+       * On the agent tool-calling path `operation` is not part of the params
+       * this receives: `providers/utils.ts` spreads it in for the tool-selection
+       * call (`:736-739`) but builds the transform's input from `block.params`
+       * alone (`:776`). Every alias therefore skips there, which is the same
+       * behaviour as before this mapper existed - the agent path already works
+       * because a model supplies `content`/`title`/`sort` by their real names.
+       * That gap is shared by every block whose mapper branches on
+       * `params.operation`, so closing it belongs in the provider layer rather
+       * than here.
+       */
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        const operation = typeof params.operation === 'string' ? params.operation : ''
+
+        const isSet = (value: unknown) => value !== undefined && value !== null && value !== ''
+
+        for (const alias of GITHUB_PARAM_ALIASES) {
+          if (!alias.operations.includes(operation)) continue
+          const value = params[alias.from]
+          if (!isSet(value)) continue
+          result[alias.to] = alias.toBoolean ? value === true || value === 'true' : value
+        }
+
+        return result
       },
     },
   },
@@ -2294,11 +2329,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     side: { type: 'string', description: 'Comment side' },
     commitId: { type: 'string', description: 'Commit identifier' },
     branch: { type: 'string', description: 'Branch name' },
-    // Comment parameters
     issue_number: { type: 'number', description: 'Issue number' },
     comment_id: { type: 'number', description: 'Comment ID' },
     per_page: { type: 'number', description: 'Results per page' },
-    // Pull request parameters
     title: { type: 'string', description: 'Title' },
     head: { type: 'string', description: 'Head branch' },
     base: { type: 'string', description: 'Base branch' },
@@ -2310,67 +2343,55 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     team_reviewers: { type: 'string', description: 'Team reviewer slugs' },
     event: { type: 'string', description: 'PR review action' },
     commit_id: { type: 'string', description: 'Commit SHA' },
-    // File parameters
     content: { type: 'string', description: 'File content' },
     message: { type: 'string', description: 'Commit message' },
     sha: { type: 'string', description: 'File or commit SHA' },
     ref: { type: 'string', description: 'Branch, tag, or commit reference' },
-    // Branch parameters
     protected: { type: 'string', description: 'Protection status filter' },
-    required_status_checks: { type: 'string', description: 'Required status checks JSON' },
+    required_status_checks: { type: 'json', description: 'Required status checks JSON' },
     enforce_admins: { type: 'boolean', description: 'Enforce for admins' },
-    required_pull_request_reviews: { type: 'string', description: 'Required PR reviews JSON' },
-    // Issue parameters
+    required_pull_request_reviews: { type: 'json', description: 'Required PR reviews JSON' },
+    restrictions: { type: 'json', description: 'Push restrictions JSON' },
     labels: { type: 'string', description: 'Comma-separated labels' },
     assignees: { type: 'string', description: 'Comma-separated assignees' },
     name: { type: 'string', description: 'Label or release name' },
-    // Release parameters
     tag_name: { type: 'string', description: 'Release tag name' },
     release_id: { type: 'number', description: 'Release ID' },
     prerelease: { type: 'boolean', description: 'Prerelease status' },
-    // Workflow parameters
     workflow_id: { type: 'string', description: 'Workflow ID or filename' },
     run_id: { type: 'number', description: 'Workflow run ID' },
     status: { type: 'string', description: 'Status filter' },
     inputs: { type: 'string', description: 'Workflow inputs JSON' },
-    // Project parameters
     owner_login: { type: 'string', description: 'Owner login' },
     owner_type: { type: 'string', description: 'Owner type (user or org)' },
     owner_id: { type: 'string', description: 'Owner node ID' },
     project_number: { type: 'number', description: 'Project number' },
     project_id: { type: 'string', description: 'Project node ID' },
     project_public: { type: 'boolean', description: 'Project public status' },
-    // Search parameters
     q: { type: 'string', description: 'Search query with qualifiers' },
     sort: { type: 'string', description: 'Sort field' },
     order: { type: 'string', description: 'Sort order (asc or desc)' },
-    // Commit parameters
     author: { type: 'string', description: 'Author filter' },
     committer: { type: 'string', description: 'Committer filter' },
     since: { type: 'string', description: 'Date filter (since)' },
     until: { type: 'string', description: 'Date filter (until)' },
-    // Gist parameters
     gist_id: { type: 'string', description: 'Gist ID' },
     description: { type: 'string', description: 'Description' },
     files: { type: 'string', description: 'Files JSON object' },
     gist_public: { type: 'boolean', description: 'Public gist status' },
     username: { type: 'string', description: 'GitHub username' },
-    // Fork parameters
     organization: { type: 'string', description: 'Target organization for fork' },
     fork_name: { type: 'string', description: 'Custom name for fork' },
     default_branch_only: { type: 'boolean', description: 'Fork only default branch' },
     fork_sort: { type: 'string', description: 'Fork list sort field' },
-    // Milestone parameters
     milestone_title: { type: 'string', description: 'Milestone title' },
     milestone_description: { type: 'string', description: 'Milestone description' },
     due_on: { type: 'string', description: 'Milestone due date' },
     milestone_number: { type: 'number', description: 'Milestone number' },
     milestone_state: { type: 'string', description: 'Milestone state filter' },
     milestone_sort: { type: 'string', description: 'Milestone sort field' },
-    // Reaction parameters
     reaction_content: { type: 'string', description: 'Reaction type' },
     reaction_id: { type: 'number', description: 'Reaction ID' },
-    // Pagination parameters
     page: { type: 'number', description: 'Page number for pagination' },
   },
   outputs: {
@@ -2413,7 +2434,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   },
 }
 
-export const GitHubV2Block: BlockConfig<GitHubResponse> = {
+export const GitHubV2Block: BlockConfig = {
   ...GitHubBlock,
   sunset: undefined,
   type: 'github_v2',
@@ -2436,7 +2457,7 @@ export const GitHubV2Block: BlockConfig<GitHubResponse> = {
   outputs: {
     data: { type: 'json', description: 'Operation result data (API-aligned)' },
 
-    // Trigger outputs (unchanged)
+    // Trigger outputs
     action: { type: 'string', description: 'The action that was performed' },
     event_type: { type: 'string', description: 'Type of GitHub event' },
     repository: { type: 'string', description: 'Repository full name' },

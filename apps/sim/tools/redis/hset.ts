@@ -1,7 +1,7 @@
 import type { RedisHSetParams, RedisHSetResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisHSetTool: ToolConfig<RedisHSetParams, RedisHSetResponse> = {
+export const redisHSetTool: InternalToolConfig<RedisHSetParams, RedisHSetResponse> = {
   id: 'redis_hset',
   name: 'Redis HSET',
   description: 'Set a field in a hash stored at a key in Redis.',
@@ -34,11 +34,8 @@ export const redisHSetTool: ToolConfig<RedisHSetParams, RedisHSetResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'HSET',
       args: [params.key, params.field, params.value],

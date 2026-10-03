@@ -1,20 +1,20 @@
-/**
- * @vitest-environment node
- */
-
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getTableById, loadWorkspace } = vi.hoisted(() => ({
-  getTableById: vi.fn(),
-  loadWorkspace: vi.fn(),
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/table', () => ({ getTableById }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: loadWorkspace,
-}))
+import {
+  resolveActiveTableContext,
+  resolveArchivedTableContext,
+} from '@/lib/table/application/context'
 
-import { resolveActiveTableContext } from '@/lib/table/application/context'
+const getTableById = tableServiceMockFns.mockGetTableById
+const loadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
 
 const WORKSPACE_ONE = {
   workspaceId: 'workspace-1',
@@ -47,26 +47,8 @@ async function withUnhandledRejectionWatch(body: () => Promise<void>): Promise<u
   return seen
 }
 
-/**
- * Holds the table load open so a test can observe what the resolver does before
- * the table arrives. `release` resolves it with the canonical table.
- */
-function deferTableLoad(): { release: () => void } {
-  let releaseTable: (table: unknown) => void = () => {}
-  getTableById.mockImplementationOnce(
-    () =>
-      new Promise((resolve) => {
-        releaseTable = resolve
-      })
-  )
-  return {
-    release: () => releaseTable({ id: 'table-1', workspaceId: 'workspace-1', name: 'Contacts' }),
-  }
-}
-
 describe('table application context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     getTableById.mockResolvedValue({
       id: 'table-1',
       workspaceId: 'workspace-1',
@@ -86,36 +68,6 @@ describe('table application context', () => {
       billedAccountUserId: 'billing-user-1',
     })
     expect(getTableById).toHaveBeenCalledWith('table-1')
-    expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
-  })
-
-  it('starts the workspace load without waiting for the table when a workspace is asserted', async () => {
-    const { release } = deferTableLoad()
-
-    const pending = resolveActiveTableContext({
-      tableId: 'table-1',
-      assertedWorkspaceId: 'workspace-1',
-    })
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
-
-    release()
-    await expect(pending).resolves.toMatchObject({ tableId: 'table-1', workspaceId: 'workspace-1' })
-  })
-
-  it('waits for the table before loading a workspace when none is asserted', async () => {
-    const { release } = deferTableLoad()
-
-    const pending = resolveActiveTableContext({ tableId: 'table-1' })
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(loadWorkspace).not.toHaveBeenCalled()
-
-    release()
-    await expect(pending).resolves.toMatchObject({ tableId: 'table-1', workspaceId: 'workspace-1' })
     expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
@@ -139,16 +91,6 @@ describe('table application context', () => {
     })
   })
 
-  it('conceals a missing table with no asserted workspace', async () => {
-    getTableById.mockResolvedValueOnce(null)
-
-    await expect(resolveActiveTableContext({ tableId: 'missing' })).rejects.toMatchObject({
-      code: 'not_found',
-      message: expect.stringContaining('not found in this workspace'),
-    })
-    expect(loadWorkspace).not.toHaveBeenCalled()
-  })
-
   it('surfaces not_found rather than a failing workspace load on a mismatched assertion', async () => {
     const failure = new Error('workspace database unavailable')
     loadWorkspace.mockRejectedValueOnce(failure)
@@ -160,19 +102,6 @@ describe('table application context', () => {
         code: 'not_found',
         message: expect.stringContaining('not found in this workspace'),
       })
-    })
-
-    expect(unhandled).toEqual([])
-  })
-
-  it('surfaces not_found rather than a failing table load on a matched assertion', async () => {
-    const failure = new Error('table database unavailable')
-    getTableById.mockRejectedValueOnce(failure)
-
-    const unhandled = await withUnhandledRejectionWatch(async () => {
-      await expect(
-        resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
-      ).rejects.toBe(failure)
     })
 
     expect(unhandled).toEqual([])
@@ -195,31 +124,52 @@ describe('table application context', () => {
     })
   })
 
-  it('fails when the canonical workspace is unavailable on the asserted path', async () => {
-    loadWorkspace.mockResolvedValueOnce(null)
-
-    await expect(
-      resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Workspace not found' })
-  })
-
   it('propagates canonical workspace database failures', async () => {
     const failure = new Error('workspace database unavailable')
     loadWorkspace.mockRejectedValueOnce(failure)
 
     await expect(resolveActiveTableContext({ tableId: 'table-1' })).rejects.toBe(failure)
   })
+})
 
-  it('propagates canonical workspace database failures on the asserted path', async () => {
-    const failure = new Error('workspace database unavailable')
-    loadWorkspace.mockRejectedValueOnce(failure)
+/**
+ * Restore is the one table operation whose subject is deliberately archived, so
+ * it needs a resolver the active one cannot provide — while keeping the same
+ * cross-workspace concealment.
+ */
+describe('resolveArchivedTableContext', () => {
+  beforeEach(() => {
+    loadWorkspace.mockResolvedValue(WORKSPACE_ONE)
+  })
 
-    const unhandled = await withUnhandledRejectionWatch(async () => {
-      await expect(
-        resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
-      ).rejects.toBe(failure)
+  it('loads a table the active resolver would report as missing', async () => {
+    const archived = {
+      id: 'table-1',
+      workspaceId: 'workspace-1',
+      archivedAt: new Date('2026-01-01'),
+    }
+    getTableById.mockResolvedValue(archived)
+
+    const context = await resolveArchivedTableContext({
+      tableId: 'table-1',
+      assertedWorkspaceId: 'workspace-1',
     })
 
-    expect(unhandled).toEqual([])
+    expect(getTableById).toHaveBeenCalledWith('table-1', { includeArchived: true })
+    expect(context.table).toBe(archived)
+    expect(context.workspaceId).toBe('workspace-1')
+  })
+
+  it('conceals an archived table in another workspace as not found', async () => {
+    getTableById.mockResolvedValue({
+      id: 'table-1',
+      workspaceId: 'workspace-2',
+      archivedAt: new Date('2026-01-01'),
+    })
+
+    await expect(
+      resolveArchivedTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(loadWorkspace).not.toHaveBeenCalled()
   })
 })

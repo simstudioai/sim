@@ -123,7 +123,9 @@ let scanned = 0
 let annotated = 0
 
 for (const file of files) {
-  const source = await Bun.file(path.join(ROOT, file)).text()
+  const sourceFile = Bun.file(path.join(ROOT, file))
+  if (!(await sourceFile.exists())) continue
+  const source = await sourceFile.text()
   const hasIndex = source.includes('buildCanonicalIndex(')
   const hasGates = source.includes('createCanonicalModeGates(')
   if (!hasIndex && !hasGates) continue

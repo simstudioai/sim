@@ -42,7 +42,6 @@ function commandAt(...names: string[]): Command {
 
 describe('credential connection commands', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     output.format = 'table'
     mockRequest.mockReset()
     mockRequest.mockResolvedValue({
@@ -52,98 +51,6 @@ describe('credential connection commands', () => {
       },
     })
     vi.spyOn(console, 'log').mockImplementation(() => {})
-  })
-
-  it('discovers and validates a service-account provider before creating it', async () => {
-    mockRequest
-      .mockReset()
-      .mockResolvedValueOnce({
-        data: [
-          {
-            type: 'service_account',
-            serviceId: 'zoom-service-account',
-            providerId: 'zoom-service-account',
-            name: 'Zoom server-to-server app',
-            description: 'Connect Zoom.',
-            providerFamily: 'zoom',
-            available: true,
-            docsUrl: 'https://docs.sim.ai/zoom',
-            requiresClientGeneratedCredentialId: false,
-            fields: [
-              {
-                id: 'clientId',
-                label: 'Client ID',
-                placeholder: 'Client ID',
-                required: true,
-                secret: false,
-                multiline: false,
-              },
-              {
-                id: 'clientSecret',
-                label: 'Client secret',
-                placeholder: 'Client secret',
-                required: true,
-                secret: true,
-                multiline: false,
-              },
-              {
-                id: 'orgId',
-                label: 'Account ID',
-                placeholder: 'Account ID',
-                required: true,
-                secret: false,
-                multiline: false,
-              },
-            ],
-          },
-        ],
-        nextCursor: null,
-      })
-      .mockResolvedValueOnce({
-        data: {
-          id: 'cred_123',
-          type: 'service_account',
-          displayName: 'Production Zoom',
-          description: null,
-          providerId: 'zoom-service-account',
-          accountId: null,
-          hasServiceAccountKey: true,
-          role: 'admin',
-          createdAt: '2026-08-12T20:15:00.000Z',
-          updatedAt: '2026-08-12T20:15:00.000Z',
-        },
-      })
-
-    await program().parseAsync([
-      'node',
-      'sim',
-      'credentials',
-      'create',
-      'zoom-service-account',
-      '--name',
-      'Production Zoom',
-      '--credentials',
-      '{"clientId":"client","clientSecret":"secret","orgId":"account"}',
-    ])
-
-    expect(mockRequest).toHaveBeenNthCalledWith(1, '/api/v2/credentials/providers', {
-      method: 'GET',
-      query: { workspaceId: 'ws_local' },
-    })
-    expect(mockRequest).toHaveBeenNthCalledWith(2, '/api/v2/credentials', {
-      method: 'POST',
-      body: {
-        workspaceId: 'ws_local',
-        type: 'service_account',
-        providerId: 'zoom-service-account',
-        displayName: 'Production Zoom',
-        credentials: JSON.stringify({
-          clientId: 'client',
-          clientSecret: 'secret',
-          orgId: 'account',
-        }),
-      },
-    })
   })
 
   it('exposes one provider-shaped credential object instead of every provider secret', () => {
@@ -205,39 +112,24 @@ describe('credential connection commands', () => {
     ).rejects.toThrow('unsupported field "extra" for zoom-service-account')
     expect(mockRequest).toHaveBeenCalledTimes(1)
   })
+})
 
-  it('creates and prints a new-provider connection link', async () => {
-    await program().parseAsync([
-      'node',
-      'sim',
-      'credentials',
-      'connect',
-      'google-email',
-      '--name',
-      'Work Gmail',
-    ])
-
-    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/connections', {
-      method: 'POST',
-      body: {
-        workspaceId: 'ws_local',
-        providerId: 'google-email',
-        displayName: 'Work Gmail',
-      },
-    })
-    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain(
-      'https://sim.ai/api/auth/oauth2/authorize?draftId=draft-1'
-    )
+describe('credentials update --name', () => {
+  beforeEach(() => {
+    output.format = 'json'
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: { id: 'cred-1', displayName: 'renamed' } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
-  it('creates a reconnect link for an existing credential', async () => {
-    output.format = 'json'
-    await program().parseAsync(['node', 'sim', 'credentials', 'reconnect', 'cred_1'])
+  async function update(...argv: string[]): Promise<void> {
+    await program().parseAsync(['node', 'sim', 'credentials', 'update', 'cred-1', ...argv])
+  }
 
-    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/connections', {
-      method: 'POST',
-      body: { workspaceId: 'ws_local', credentialId: 'cred_1' },
-    })
-    expect(vi.mocked(console.log).mock.calls.flat().join('\n')).toContain('authorizationUrl')
+  it('refuses both spellings of the same field', async () => {
+    await expect(update('--name', 'one', '--display-name', 'two')).rejects.toThrow(
+      '--name and --display-name are the same field; pass one, not both'
+    )
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 })

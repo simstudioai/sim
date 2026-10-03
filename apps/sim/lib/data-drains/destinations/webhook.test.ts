@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createHmac } from 'node:crypto'
 import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,7 +29,6 @@ function mockPinnedFetchOnce(response: { ok: boolean; status: number; headers?: 
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
     isValid: true,
     resolvedIP: '93.184.216.34',

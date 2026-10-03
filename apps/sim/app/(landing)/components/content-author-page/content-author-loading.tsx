@@ -6,7 +6,7 @@ const AUTHOR_POST_SKELETON_COUNT = 4
 export function ContentAuthorLoading() {
   return (
     <section className='bg-[var(--bg)]'>
-      <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <div className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <Skeleton className='mb-6 h-[16px] w-[100px] rounded-md bg-[var(--surface-hover)]' />
         <div className='flex items-center gap-4'>
           <Skeleton className='size-[64px] rounded-full bg-[var(--surface-hover)]' />
@@ -16,7 +16,7 @@ export function ContentAuthorLoading() {
 
       <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-      <div className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'>
+      <div className='mx-auto w-full max-w-[1728px] px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='border-[var(--border)] border-x'>
           {Array.from({ length: AUTHOR_POST_SKELETON_COUNT }).map((_, i) => (
             <div key={i}>

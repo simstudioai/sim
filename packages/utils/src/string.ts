@@ -34,6 +34,46 @@ export function truncate(str: string, sliceLength: number, suffix = '...'): stri
 }
 
 /**
+ * Like {@link truncate}, but never cuts inside a surrogate pair: when the code unit at the cut
+ * would split an astral character, the cut moves one unit earlier. Lengths are still counted in
+ * UTF-16 code units, so the result of a cut is at most `sliceLength + suffix.length` units.
+ *
+ * @example
+ * truncateAtCodePoint('ab😀cd', 3)   // 'ab...' (the cut at 3 would split the emoji)
+ * truncateAtCodePoint('ab😀cd', 4)   // 'ab😀...'
+ */
+export function truncateAtCodePoint(str: string, sliceLength: number, suffix = '...'): string {
+  if (str.length <= sliceLength) return str
+  const splitsPair = sliceLength > 0 && (str.charCodeAt(sliceLength - 1) & 0xfc00) === 0xd800
+  return str.slice(0, splitsPair ? sliceLength - 1 : sliceLength) + suffix
+}
+
+/**
+ * Lowercases `value` into the `[a-z0-9-]` charset: every run of other characters
+ * becomes one hyphen, and leading and trailing hyphens are dropped.
+ *
+ * ASCII-only by design — the character class drops accented and non-Latin text
+ * rather than transliterating it, so `'Café'` yields `'caf'` and a wholly
+ * non-Latin name yields `''`. Callers that need a non-empty result supply their
+ * own fallback, because what to fall back to is theirs to decide.
+ *
+ * Truncation is likewise the caller's: slicing a slug can leave a trailing
+ * hyphen, and whether to strip it, and at what length, varies by the identifier
+ * being built.
+ *
+ * @example
+ * slugify('Acme Corp')       // 'acme-corp'
+ * slugify('  !!Hello!!  ')   // 'hello'
+ * slugify('***')             // ''
+ */
+export function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+/**
  * Strips a trailing `_vN` version suffix from `value`, yielding the base type.
  * Only the single trailing suffix is removed; leading occurrences are left intact.
  *
@@ -183,6 +223,40 @@ export function foldSearchWhitespace(value: string): string {
 }
 
 /**
+ * Lowercases without ever changing the string's length.
+ *
+ * A plain `toLowerCase()` cannot be used where an index into the result has to
+ * address the same character of the input: a few code points lowercase to more
+ * than one (`'\u0130'.toLowerCase()` is two characters), which slides every
+ * later index. Characters that would grow are left alone — they simply match
+ * case-sensitively. The whole-string form is tried first because it is a single
+ * intrinsic and is length-preserving for every input that contains no such code
+ * point, i.e. essentially all of them.
+ *
+ * The fallback still reads each character's replacement out of the whole-string
+ * result rather than lowercasing it in isolation, because some lowercasing is
+ * context-sensitive: a word-final `\u03a3` lowercases to `\u03c2` in the string
+ * but to `\u03c3` on its own. Folding character by character would make one
+ * expanding code point elsewhere in the string silently change how every sigma
+ * in it matches.
+ */
+function lowerPreservingLength(value: string): string {
+  const lowered = value.toLowerCase()
+  if (lowered.length === value.length) return lowered
+  let result = ''
+  let loweredOffset = 0
+  for (const char of value) {
+    const loweredChar = char.toLowerCase()
+    result +=
+      loweredChar.length === char.length
+        ? lowered.slice(loweredOffset, loweredOffset + loweredChar.length)
+        : char
+    loweredOffset += loweredChar.length
+  }
+  return result
+}
+
+/**
  * Visits every occurrence of `query` in `text`, without overlaps.
  *
  * The single definition of what "an occurrence" means for search, shared by the
@@ -192,8 +266,11 @@ export function foldSearchWhitespace(value: string): string {
  * panel counts a match the card never paints, which is exactly the bug that
  * arrived when only the whitespace fold was shared and the scan was not.
  *
- * Whitespace is folded first (see {@link foldSearchWhitespace}) and the fold is
- * one-to-one, so both bounds index the caller's own unfolded string.
+ * Whitespace is folded first (see {@link foldSearchWhitespace}) and case is
+ * folded with {@link lowerPreservingLength}; both are one-to-one, so the bounds
+ * index the caller's own unfolded string. A plain `toLowerCase()` here would
+ * break that guarantee for the handful of code points that lowercase to two —
+ * every occurrence after one would be reported a character late.
  */
 export function forEachSearchOccurrence(
   text: string,
@@ -205,7 +282,7 @@ export function forEachSearchOccurrence(
 
   const normalize = (value: string) => {
     const folded = foldSearchWhitespace(value)
-    return caseSensitive ? folded : folded.toLowerCase()
+    return caseSensitive ? folded : lowerPreservingLength(folded)
   }
   const haystack = normalize(text)
   const needle = normalize(query)
@@ -274,4 +351,54 @@ function identityStarts(length: number): number[] {
   const starts: number[] = new Array(length + 1)
   for (let index = 0; index <= length; index += 1) starts[index] = index
   return starts
+}
+
+/**
+ * One character class, declared twice: the `/g` copy is stateful under `.test()`
+ * (`lastIndex` advances between calls), so only `.replace` may use it.
+ */
+const REGEX_METACHARACTER = /[.*+?^${}()|[\]\\]/
+const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/g
+
+/**
+ * Escapes every regex metacharacter in `value` so it matches only itself when
+ * interpolated into a `RegExp`.
+ *
+ * @example
+ * new RegExp(escapeRegExp('a.b')) // matches the literal 'a.b', not 'axb'
+ */
+export function escapeRegExp(value: string): string {
+  return value.replace(REGEX_METACHARACTERS, '\\$&')
+}
+
+/**
+ * Escapes the SQL LIKE/ILIKE metacharacters `%`, `_`, and `\` in `value` so
+ * each matches itself. Postgres uses `\` as the default LIKE escape character,
+ * so the result needs no explicit `ESCAPE` clause.
+ *
+ * @example
+ * escapeLikePattern('100%_done') // '100\\%\\_done'
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&')
+}
+
+/** Reports whether `value` carries a character {@link escapeRegExp} would escape. */
+export function hasRegexMetacharacter(value: string): boolean {
+  return REGEX_METACHARACTER.test(value)
+}
+
+/**
+ * Compares two strings by code unit, the ordering `Array.prototype.sort` applies
+ * by default. Deliberately not `localeCompare`: ordering that feeds a hash, a
+ * fingerprint, or a value compared across processes must not vary with the
+ * host's locale.
+ *
+ * @example
+ * ['a', 'Z'].sort(compareStrings) // ['Z', 'a'] — uppercase sorts first
+ */
+export function compareStrings(left: string, right: string): number {
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
 }

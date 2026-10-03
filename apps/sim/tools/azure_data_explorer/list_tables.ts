@@ -3,13 +3,12 @@ import type {
   AzureDataExplorerTableListResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerListTablesTool: ToolConfig<
+export const azureDataExplorerListTablesTool: InternalToolConfig<
   AzureDataExplorerListTablesParams,
   AzureDataExplorerTableListResponse
 > = {
@@ -56,12 +55,9 @@ export const azureDataExplorerListTablesTool: ToolConfig<
       description: 'Database whose tables should be listed',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...azureDataExplorerAuthBody(params),
+  operation: {
+    input: (params) => ({
+      ...azureDataExplorerAuthInput(params),
       endpoint: 'mgmt',
       database: params.database,
       csl: '.show tables',

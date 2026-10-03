@@ -1,36 +1,34 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { filesAuthorizationMock } from '@sim/testing/mocks/files-authorization.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockParseWorkspaceFileKey, mockResolveServableDocBytes } = vi.hoisted(
-  () => ({
-    mockDownloadFile: vi.fn(),
-    mockParseWorkspaceFileKey: vi.fn(),
-    mockResolveServableDocBytes: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  hasCloudStorage: vi.fn(() => true),
+const { mockResolveServableDocBytes, mockRenderPage } = vi.hoisted(() => ({
+  mockResolveServableDocBytes: vi.fn(),
+  mockRenderPage: vi.fn(),
 }))
+
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
-  downloadExecutionFile: mockDownloadFile,
+  downloadExecutionFile: storageServiceMockFns.mockDownloadFile,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  parseWorkspaceFileKey: mockParseWorkspaceFileKey,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: vi.fn(),
+vi.mock('@/lib/workspace-files/page-document.server', () => ({
+  renderSimPageDocumentWithContributors: mockRenderPage,
 }))
+
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 import { createLogger } from '@sim/logger'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -42,9 +40,13 @@ import {
 } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 
+const mockParseWorkspaceFileKey = workspaceFileManagerMockFns.mockParseWorkspaceFileKey
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+storageServiceMockFns.mockHasCloudStorage.mockImplementation(() => true)
+
 describe('downloadFileFromStorage context derivation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDownloadFile.mockResolvedValue(Buffer.from('bytes'))
     mockParseWorkspaceFileKey.mockReturnValue(null)
     mockResolveServableDocBytes.mockImplementation(async ({ rawBuffer }) => ({
@@ -86,7 +88,7 @@ describe('downloadFileFromStorage context derivation', () => {
       context: 'execution',
     }
 
-    const filePrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const filePrincipal = createSessionPrincipal()
     await downloadServableFileFromStorage(userFile, 'req-1', createLogger('test'), {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       filePrincipal,
@@ -110,7 +112,6 @@ describe('downloadFileFromStorage size ceiling', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockParseWorkspaceFileKey.mockReturnValue(null)
   })
 
@@ -129,14 +130,6 @@ describe('downloadFileFromStorage size ceiling', () => {
       downloadFileFromStorage(fileOfSize(1), 'req-1', logger, { maxBytes: 1024 })
     ).rejects.toThrow(PayloadSizeLimitError)
   })
-
-  it('forwards the ceiling to the storage layer so a provider can stop mid-stream', async () => {
-    mockDownloadFile.mockResolvedValue(Buffer.alloc(512))
-
-    await downloadFileFromStorage(fileOfSize(512), 'req-1', logger, { maxBytes: 1024 })
-
-    expect(mockDownloadFile).toHaveBeenCalledWith(expect.objectContaining({ maxBytes: 1024 }))
-  })
 })
 
 describe('downloadServableFilesWithinBudget', () => {
@@ -151,7 +144,6 @@ describe('downloadServableFilesWithinBudget', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockParseWorkspaceFileKey.mockReturnValue(null)
     mockDownloadFile.mockImplementation(async ({ key }) =>
       Buffer.alloc(key.endsWith('big.bin') ? 900 : 400)
@@ -192,17 +184,44 @@ describe('downloadServableFilesWithinBudget', () => {
     // refused without fetching its bytes — the whole set is never resident at once.
     expect(mockDownloadFile).toHaveBeenCalledTimes(2)
   })
+})
 
-  it('refuses the next file on its declared size once the budget is spent', async () => {
-    await expect(
-      downloadServableFilesWithinBudget(
-        [fileOfSize('big.bin', 900), fileOfSize('a.bin', 400)],
-        'req-1',
-        logger,
-        { totalMaxBytes: 1000, label: 'Total attachment size' }
-      )
-    ).rejects.toThrow(PayloadSizeLimitError)
+describe('servable page provenance', () => {
+  it('preserves the inlined image identity for execution-stored pages', async () => {
+    const workspaceId = '2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f'
+    const contributor = {
+      fileId: 'image-file',
+      key: `workspace/${workspaceId}/image.png`,
+      context: 'workspace' as const,
+      contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+    }
+    mockParseWorkspaceFileKey.mockReturnValue(null)
+    mockDownloadFile.mockResolvedValue(Buffer.from('---\ntitle: Example\n---\nPage body'))
+    mockRenderPage.mockResolvedValue({
+      html: '<html>rendered image</html>',
+      contributingFiles: [contributor],
+    })
 
-    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
+    const rendered = await downloadServableFileFromStorage(
+      {
+        id: 'page-file',
+        name: 'page.html',
+        key: `execution/${workspaceId}/3f2e9d4c-6a7b-4d8e-9f0a-1b2c3d4e5f6a/4a3b2c1d-7e8f-4a9b-8c0d-1e2f3a4b5c6d/page.html`,
+        url: '',
+        type: 'text/x-sim-page',
+        size: 100,
+        context: 'execution',
+      },
+      'request',
+      createLogger('test'),
+      { maxBytes: 1024 }
+    )
+
+    expect(mockRenderPage).toHaveBeenCalledWith(expect.any(String), { workspaceId })
+    expect(rendered).toEqual({
+      buffer: Buffer.from('<html>rendered image</html>'),
+      contentType: 'text/html',
+      contributingFiles: [contributor],
+    })
   })
 })

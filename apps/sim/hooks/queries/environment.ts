@@ -1,14 +1,15 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  type ContractBodyInput,
   removeWorkspaceEnvironmentContract,
   savePersonalEnvironmentContract,
   upsertWorkspaceEnvironmentContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/environment'
+import type { ContractBodyInput } from '@/lib/api/contracts/types'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
+import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 const logger = createLogger('EnvironmentQueries')
 
@@ -25,19 +26,38 @@ export const environmentKeys = {
   workspace: (workspaceId: string) => [...environmentKeys.workspaces(), workspaceId] as const,
 }
 
+export function personalEnvironmentQueryOptions() {
+  return queryOptions({
+    queryKey: environmentKeys.personal(),
+    queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
+    staleTime: PERSONAL_ENVIRONMENT_STALE_TIME,
+    retryOnMount: true,
+    // Pinned off (not inheriting the desktop QueryClient default): the secrets
+    // manager seeds an editable form from this data, so a background focus
+    // refetch during a concurrent edit would drop the user's unsaved rows.
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function workspaceEnvironmentQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: environmentKeys.workspace(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
+    staleTime: WORKSPACE_ENVIRONMENT_STALE_TIME,
+    retryOnMount: true,
+    // See personalEnvironmentQueryOptions: seeds an editable form, so a focus refetch
+    // during a concurrent workspace-env edit must not clobber unsaved rows.
+    refetchOnWindowFocus: false,
+  })
+}
+
 /**
  * Hook to fetch personal environment variables
  */
 export function usePersonalEnvironment(options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: environmentKeys.personal(),
-    queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
+    ...personalEnvironmentQueryOptions(),
     enabled: options?.enabled ?? true,
-    staleTime: PERSONAL_ENVIRONMENT_STALE_TIME,
-    // Pinned off (not inheriting the desktop QueryClient default): the secrets
-    // manager seeds an editable form from this data, so a background focus
-    // refetch during a concurrent edit would drop the user's unsaved rows.
-    refetchOnWindowFocus: false,
   })
 }
 
@@ -49,14 +69,8 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
   options?: { enabled?: boolean; select?: (data: WorkspaceEnvironmentData) => TData }
 ) {
   return useQuery({
-    queryKey: environmentKeys.workspace(workspaceId),
-    queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
+    ...workspaceEnvironmentQueryOptions(workspaceId),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
-    staleTime: WORKSPACE_ENVIRONMENT_STALE_TIME,
-    placeholderData: keepPreviousData,
-    // See usePersonalEnvironment: seeds an editable form, so a focus refetch
-    // during a concurrent workspace-env edit must not clobber unsaved rows.
-    refetchOnWindowFocus: false,
     select: options?.select,
   })
 }
@@ -79,6 +93,7 @@ export function useSavePersonalEnvironment() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: environmentKeys.personal() }),
         queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() }),
+        invalidateSelectorQueries(queryClient),
       ])
     },
   })
@@ -104,9 +119,12 @@ export function useUpsertWorkspaceEnvironment() {
       return data
     },
     onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: environmentKeys.workspace(variables.workspaceId),
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: environmentKeys.workspace(variables.workspaceId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }
 
@@ -130,8 +148,11 @@ export function useRemoveWorkspaceEnvironment() {
       return data
     },
     onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: environmentKeys.workspace(variables.workspaceId),
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: environmentKeys.workspace(variables.workspaceId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }

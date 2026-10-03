@@ -1,8 +1,6 @@
 import { ImageIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput } from '@/blocks/utils'
-import type { ImageGenerationResponse } from '@/tools/image/types'
-import type { DalleResponse } from '@/tools/openai/types'
 
 const OPENAI_GPT_IMAGE_MODELS = [
   { label: 'GPT Image 1.5', id: 'gpt-image-1.5' },
@@ -52,7 +50,7 @@ const OUTPUT_FORMAT_OPTIONS = [
   { label: 'WebP', id: 'webp' },
 ]
 
-export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
+export const ImageGeneratorBlock: BlockConfig = {
   type: 'image_generator',
   name: 'Image Generator',
   description: 'Generate images',
@@ -319,7 +317,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   },
 }
 
-export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
+export const ImageGeneratorV2Block: BlockConfig = {
   type: 'image_generator_v2',
   name: 'Image Generator',
   description: 'Generate images',

@@ -1,5 +1,12 @@
 import type { CaptureResult } from 'posthog-js'
 
+const URL_PROPERTIES = [
+  '$current_url',
+  '$referrer',
+  '$initial_current_url',
+  '$initial_referrer',
+] as const
+
 /**
  * Exception types that only ever mean "something was cancelled".
  *
@@ -122,4 +129,33 @@ export function dropUnactionableExceptions(event: CaptureResult | null): Capture
   if (!isBrowserRaised(entries)) return event
 
   return entries.every(isNoise) ? null : event
+}
+
+function stripUrlQuery(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+
+  try {
+    const url = new URL(value)
+    return `${url.origin}${url.pathname}`
+  } catch {
+    const queryIndex = value.search(/[?#]/)
+    return queryIndex === -1 ? value : value.slice(0, queryIndex)
+  }
+}
+
+/** Removes URL secrets before applying the browser-exception noise filter. */
+export function preparePostHogEvent(event: CaptureResult | null): CaptureResult | null {
+  if (!event?.properties) return dropUnactionableExceptions(event)
+
+  let sanitizedProperties: CaptureResult['properties'] | null = null
+  for (const property of URL_PROPERTIES) {
+    const value = event.properties[property]
+    const sanitizedValue = stripUrlQuery(value)
+    if (sanitizedValue === value) continue
+    sanitizedProperties ??= { ...event.properties }
+    sanitizedProperties[property] = sanitizedValue
+  }
+
+  const sanitizedEvent = sanitizedProperties ? { ...event, properties: sanitizedProperties } : event
+  return dropUnactionableExceptions(sanitizedEvent)
 }

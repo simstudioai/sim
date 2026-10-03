@@ -5,6 +5,7 @@
  */
 
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition } from '@/lib/table/types'
 
@@ -37,15 +38,73 @@ export interface ChartStaticSource {
 
 /**
  * A `.chart` file (`text/x-sim-chart`): a declarative ECharts document. The
- * `option` is a plain ECharts option object; `source` optionally supplies the
- * data — inline rows, or a live read of a Sim table injected as
- * `option.dataset.source` so the chart stays current with the table.
+ * `option` is a plain ECharts option object, confined to ECharts' canvas render
+ * paths by {@link confineOptionToCanvas}; `source` optionally supplies the data —
+ * inline rows, or a live read of a Sim table injected as `option.dataset.source`
+ * so the chart stays current with the table.
  */
 export interface ChartSpec {
   schema_version: number
   title?: string
   source?: ChartStaticSource | ChartTableSource
   option: Record<string, unknown>
+}
+
+/** ECharts' tooltip render mode that draws into the chart canvas instead of the DOM. */
+const CANVAS_TOOLTIP_RENDER_MODE = 'richText'
+
+/** Option keys stripped at every level: the `toolbox` DOM sink and the `link`/`sublink` navigation sinks. */
+const DROPPED_KEYS = ['toolbox', 'link', 'sublink'] as const
+
+/**
+ * Closes the paths by which an ECharts option reaches the DOM, so a `.chart`
+ * document cannot inject markup into the page that renders it. A document is
+ * untrusted input: any workspace member authors one, and `/f/<token>` renders it
+ * to anonymous visitors on the app origin.
+ *
+ * ECharts draws through canvas with two exceptions. A `tooltip` left in its
+ * default `renderMode: 'html'` assigns its content to `el.innerHTML`, and a
+ * string `formatter` is used as that content's template verbatim — only the
+ * values substituted into it are escaped. A `toolbox` assigns `dataView.lang`
+ * entries to `innerHTML` and fills a `saveAsImage` popup with `document.write`.
+ * Forcing the render mode and dropping the toolbox leaves it no DOM sink.
+ *
+ * ECharts also navigates: `title.link`, `title.sublink`, and a `link` on a
+ * treemap or sunburst data item each reach `windowOpen`, which assigns the URL
+ * to `location.href` — so a `javascript:` URL runs on this origin on a single
+ * click. A chart has no reason to navigate its viewer, so the keys are dropped
+ * everywhere rather than scheme-checked, which would still leave an open
+ * redirect on an authenticated origin. Between them the document is left no
+ * sink at all, which holds whatever any individual option value contains.
+ *
+ * The walk is deep because `tooltip` is not only a top-level component:
+ * `baseOption`, `media[].option`, and timeline `options[]` each carry their own,
+ * a tooltip declared *only* under `media` still instantiates the component in
+ * HTML mode once its query matches, and a `media` entry can override a top-level
+ * `renderMode`. `dataset` is skipped — it holds rows, not components.
+ */
+function confineOptionToCanvas(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const entry of node) confineOptionToCanvas(entry)
+    return
+  }
+  if (node === null || typeof node !== 'object') return
+  const record = node as Record<string, unknown>
+  for (const key of DROPPED_KEYS) {
+    if (key in record) delete record[key]
+  }
+  for (const key of Object.keys(record)) {
+    if (key === 'dataset') continue
+    const value = record[key]
+    if (key === 'tooltip') {
+      for (const tooltip of Array.isArray(value) ? value : [value]) {
+        if (tooltip !== null && typeof tooltip === 'object') {
+          ;(tooltip as Record<string, unknown>).renderMode = CANVAS_TOOLTIP_RENDER_MODE
+        }
+      }
+    }
+    confineOptionToCanvas(value)
+  }
 }
 
 export function parseChartSpec(content: string): { spec?: ChartSpec; error?: string } {
@@ -98,6 +157,17 @@ export function parseChartSpec(content: string): { spec?: ChartSpec; error?: str
       return { error: '"source.type" must be "static" or "table"' }
     }
   }
+  const option = doc.option as Record<string, unknown>
+  try {
+    confineOptionToCanvas(option)
+  } catch {
+    // Exhausting the stack is the only way the walk fails, and an option that
+    // deep never reaches the renderer anyway — `structuredClone` in
+    // `buildChartRenderOption` throws on it too. Rejecting it here shows the
+    // document's error card instead of failing inside the render.
+    return { error: 'chart document is nested too deeply' }
+  }
+
   // Built explicitly from the validated fields — no blanket cast, and no
   // unvalidated extra keys riding along on the parsed spec.
   return {
@@ -105,7 +175,7 @@ export function parseChartSpec(content: string): { spec?: ChartSpec; error?: str
       schema_version: 1,
       title: typeof doc.title === 'string' ? doc.title : undefined,
       source,
-      option: doc.option as Record<string, unknown>,
+      option,
     },
   }
 }
@@ -200,4 +270,10 @@ export function shapeTableRows(
     out.push(shaped)
   }
   return out
+}
+
+/** Cartesian charts with one horizontal time axis share dashboard interactions. */
+export function isTimeSeriesOption(option: Record<string, unknown>): boolean {
+  const axes = Array.isArray(option.xAxis) ? option.xAxis : [option.xAxis]
+  return axes.length === 1 && toRecord(axes[0]).type === 'time'
 }

@@ -1,7 +1,10 @@
 import type { JsmCreateRequestParams, JsmCreateRequestResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateRequestResponse> = {
+export const jsmCreateRequestTool: InternalToolConfig<
+  JsmCreateRequestParams,
+  JsmCreateRequestResponse
+> = {
   id: 'jsm_create_request',
   name: 'JSM Create Request',
   description: 'Create a new service request in Jira Service Management',
@@ -89,13 +92,8 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/request',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

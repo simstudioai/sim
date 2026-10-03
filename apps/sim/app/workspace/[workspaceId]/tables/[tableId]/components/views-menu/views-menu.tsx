@@ -4,9 +4,11 @@ import { memo, useEffect, useRef, useState } from 'react'
 import {
   Button,
   ChipChevronDown,
+  ChipConfirmModal,
   chipContentLabelClass,
   chipVariants,
   cn,
+  OverflowText,
   POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
@@ -62,9 +64,11 @@ export const ViewsMenu = memo(function ViewsMenu({
   canEdit,
 }: ViewsMenuProps) {
   const [open, setOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { activeView, defaultView } = resolveTableViewSelection(views, activeViewId)
+  const deleteTarget = views.find((view) => view.id === deleteTargetId)
   const hasDefaultView = defaultView !== null
   const label = activeView?.name ?? ALL_ROWS_VIEW_LABEL
 
@@ -115,7 +119,11 @@ export const ViewsMenu = memo(function ViewsMenu({
           onMouseLeave={scheduleClose}
           className={cn(chipVariants(), 'max-w-[220px]')}
         >
-          <span className={chipContentLabelClass}>{label}</span>
+          <OverflowText
+            label={label}
+            className={cn('flex-1', chipContentLabelClass)}
+            focusTarget='nearest-interactive'
+          />
           <ChipChevronDown />
         </button>
       </PopoverAnchor>
@@ -129,7 +137,7 @@ export const ViewsMenu = memo(function ViewsMenu({
         border
         className={cn(
           POPOVER_ANIMATION_CLASSES,
-          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-xs'
         )}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}
@@ -176,7 +184,7 @@ export const ViewsMenu = memo(function ViewsMenu({
                         disabledReason: view.isDefault
                           ? 'Default view cannot be deleted'
                           : undefined,
-                        onClick: () => runAndClose(() => onDelete(view.id)),
+                        onClick: () => runAndClose(() => setDeleteTargetId(view.id)),
                       },
                     ]
                   : undefined
@@ -194,11 +202,33 @@ export const ViewsMenu = memo(function ViewsMenu({
               <span className='flex size-[14px] shrink-0 items-center justify-center'>
                 <Plus className='size-3 text-[var(--text-icon)]' />
               </span>
-              <span className='min-w-0 flex-1 truncate text-left'>New view</span>
+              <OverflowText label='New view' className='flex-1 text-left' />
             </PopoverItem>
           </>
         )}
       </PopoverContent>
+      <ChipConfirmModal
+        open={deleteTargetId !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDeleteTargetId(null)
+        }}
+        srTitle='Delete View'
+        title='Delete View'
+        text={[
+          'Are you sure you want to delete ',
+          { text: deleteTarget?.name ?? 'this view', bold: true },
+          '? ',
+          { text: 'This action cannot be undone.', error: true },
+        ]}
+        confirm={{
+          label: 'Delete',
+          onClick: () => {
+            if (!deleteTargetId) return
+            onDelete(deleteTargetId)
+            setDeleteTargetId(null)
+          },
+        }}
+      />
     </Popover>
   )
 })
@@ -243,7 +273,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
         <span className='flex size-[14px] shrink-0 items-center justify-center'>
           {isActive && <Check className='size-3 text-[var(--text-icon)]' />}
         </span>
-        <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
+        <OverflowText label={label} className='flex-1 text-left' />
         {actionCount > 0 && (
           <span
             aria-hidden

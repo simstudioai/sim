@@ -32,7 +32,7 @@ import {
   queryAuditLogs,
 } from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
+import { validateV1EnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
@@ -46,6 +46,14 @@ const logger = createLogger('V1AuditLogsAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+/**
+ * GET /api/v1/audit-logs — List an organization's audit log.
+ *
+ * permission-group-exempt: none — the counterpart `audit_logs.list` declares
+ * `capability: 'none'` explicitly, because the surface is already restricted to
+ * organization admins and owners, who sit above every permission group. There
+ * is nothing here for a group to withhold.
+ */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
@@ -55,13 +63,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
-
-    const authResult = await validateEnterpriseAuditAccess(userId)
+    const authResult = await validateV1EnterpriseAuditAccess(rateLimit)
     if (!authResult.success) {
       return authResult.response
     }
 
+    const { userId } = authResult
     const { organizationId, orgMemberIds } = authResult.context
 
     const parsed = await parseRequest(

@@ -32,7 +32,7 @@ export function getPostHogIngestBaseUrl(region?: 'us' | 'eu', host?: string): st
 function normalizeHost(host: string): string {
   const trimmed = host.trim().replace(/\/+$/, '')
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  const validation = validateExternalUrl(withProtocol, 'Self-hosted host')
+  const validation = validateExternalUrl(withProtocol, 'Self-hosted host', 'configuredEndpoint')
   if (!validation.isValid) {
     throw new Error(`${validation.error} (e.g., posthog.mycompany.com)`)
   }

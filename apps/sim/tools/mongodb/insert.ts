@@ -1,7 +1,7 @@
 import type { MongoDBInsertParams, MongoDBResponse } from '@/tools/mongodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const insertTool: ToolConfig<MongoDBInsertParams, MongoDBResponse> = {
+export const insertTool: InternalToolConfig<MongoDBInsertParams, MongoDBResponse> = {
   id: 'mongodb_insert',
   name: 'MongoDB Insert',
   description: 'Insert documents into MongoDB collection',
@@ -64,13 +64,8 @@ export const insertTool: ToolConfig<MongoDBInsertParams, MongoDBResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mongodb/insert',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

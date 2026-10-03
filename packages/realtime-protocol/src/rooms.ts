@@ -43,12 +43,34 @@ export const ROOM_TYPES = {
    * space is the workspace id, mirroring {@link ROOM_TYPES.WORKSPACE_FILES}.
    */
   WORKSPACE_TABLES: 'workspace-tables',
+  /**
+   * The workspace workflow registry (one room per workspace). The list-level
+   * counterpart to {@link ROOM_TYPES.WORKFLOW}: it carries NO presence, only a
+   * lossy `workspace-workflows-changed` invalidation signal so every viewer's
+   * sidebar workflow list (and workflow folder tree) refetches when a workflow
+   * or workflow folder is created/renamed/moved/deleted/restored — including
+   * mutations from other surfaces (CLI, copilot, API). Its id space is the
+   * workspace id, mirroring {@link ROOM_TYPES.WORKSPACE_TABLES}.
+   */
+  WORKSPACE_WORKFLOWS: 'workspace-workflows',
 } as const
 
 export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]
 
 /** Every known room type, for exhaustive iteration/validation. */
 export const ALL_ROOM_TYPES = Object.values(ROOM_TYPES) as readonly RoomType[]
+
+/**
+ * The presence-free, workspace-scoped live-list rooms. They share one contract derived entirely
+ * from the room-type token: clients join via `join-${type}`, the app server fans a mutation out via
+ * `POST /api/${type}-changed`, and members receive a lossy `${type}-changed` invalidation signal.
+ * Adding a room type here wires it into the shared socket handler and HTTP relay branch.
+ */
+export const WORKSPACE_LIST_ROOM_TYPES = [
+  ROOM_TYPES.WORKSPACE_FILES,
+  ROOM_TYPES.WORKSPACE_TABLES,
+  ROOM_TYPES.WORKSPACE_WORKFLOWS,
+] as const
 
 /** Universal address of a realtime room. */
 export interface RoomRef {

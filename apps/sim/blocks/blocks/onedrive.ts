@@ -1,13 +1,9 @@
-import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { OneDriveResponse } from '@/tools/onedrive/types'
 import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
-
-const logger = createLogger('OneDriveBlock')
 
 const UPLOAD_FILE_FIELD = ['file', 'fileReference'] as const
 const UPLOAD_FOLDER_FIELD = ['uploadFolderSelector', 'uploadManualFolderId'] as const
@@ -31,7 +27,7 @@ const COPY_DESTINATION_FIELD = [
 const SHARE_FILE_FIELD = ['shareLinkFileSelector', 'shareLinkManualFileId'] as const
 const DELETE_FILE_FIELD = ['deleteFileSelector', 'deleteManualFileId'] as const
 
-export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
+export const OneDriveBlock: BlockConfig = {
   type: 'onedrive',
   name: 'OneDrive',
   description: 'Create, upload, download, search, move, copy, share, and delete files',

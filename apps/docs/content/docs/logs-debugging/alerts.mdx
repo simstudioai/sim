@@ -1,0 +1,29 @@
+---
+title: Alerts
+description: Send an alert when a watched workflow fails or exceeds an operational threshold.
+---
+
+Use a [Sim Workspace Events trigger](/workflows/triggers/sim) to run an alert workflow when another workflow fails, slows down, exceeds a cost threshold, or goes quiet. Add delivery blocks for the channel you use, such as Slack, email, or an incident API.
+
+## Example: notify Slack after repeated failures
+
+1. Create a workflow with **Sim Workspace Events** as its trigger.
+2. Set **Event** to **Consecutive Failures** and **Consecutive Failures** to `3`.
+3. Select the source **Workflows**. Leave the field empty to watch the workspace.
+4. Add a Slack block that sends a message to your incident channel. Choose the intended Slack account and channel.
+5. Include the trigger's `workflowName` and `triggeringRun.runId` in the message using the reference picker. For a trigger named `workspaceevent`, the message can be:
+
+```text
+Workflow <workspaceevent.workflowName> has failed repeatedly.
+Latest run: <workspaceevent.triggeringRun.runId>
+```
+
+6. Deploy the alert workflow to activate it. Trigger representative failures in a watched test workflow, then inspect the alert workflow's [run log](/logs-debugging) and the Slack message.
+
+## Choose another condition
+
+Choose **Run Error** to respond to each failed run. Other conditions include failure rate, error count, latency, cost, and inactivity. Cost thresholds use credits. See the [event and rule reference](/workflows/triggers/sim) for settings, defaults, and event-specific outputs.
+
+Rule-based subscriptions have a one-hour cooldown after firing; plain events such as Run Error do not. Rate-based rules need at least five runs in their window. A subscription does not receive events about its own workflow, and runs started by this trigger do not emit new workspace events.
+
+Delivery behavior comes from the action blocks you configure. If an alert is missing, check that the alert workflow is deployed, the source workflow matches its filter, the condition and cooldown allow it to fire, and the delivery block completed successfully.

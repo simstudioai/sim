@@ -1,12 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
+import { outboxEvent, workspaceOperationReceipt } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import {
+  continueOutboxHandler,
+  type DeferredOutboxHandlerResult,
+  deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxEventContext,
   type OutboxHandler,
@@ -22,8 +26,9 @@ import {
   removeMcpToolsForWorkflow,
   syncMcpToolsForWorkflow,
 } from '@/lib/mcp/workflow-mcp-sync'
-import { deliverOutboxServerEvent } from '@/lib/posthog/server'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
+  cleanupInactiveDeploymentWebhooks,
   cleanupWebhooksForWorkflow,
   prepareStableTriggerWebhooksForDeploy,
   saveTriggerWebhooksForDeploy,
@@ -44,7 +49,9 @@ import {
   beginDeploymentOperationActivation,
   type DeploymentOperationGeneration,
   getDeploymentOperation,
+  getProtectedDeploymentVersionId,
   isDeploymentOperationCurrent,
+  isDeploymentVersionActive,
   isDeploymentVersionProtectedByCurrentOperation,
   markDeploymentComponentReadiness,
   markDeploymentOperationFailed,
@@ -52,8 +59,14 @@ import {
   setDeploymentTxTimeouts,
   type WorkflowDeploymentOperation,
 } from '@/lib/workflows/persistence/deployment-operations'
-import { createSchedulesForDeploy, deleteSchedulesForWorkflow } from '@/lib/workflows/schedules'
+import {
+  createSchedulesForDeploy,
+  deleteInactiveDeploymentSchedules,
+  deleteSchedulesForWorkflow,
+} from '@/lib/workflows/schedules'
 import { emitWorkflowDeployedEvent } from '@/lib/workspace-events/emitter'
+import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
+import { activateForkSyncProvenance } from '@/ee/workspace-forking/lib/promote/sync-provenance'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeploymentOutbox')
@@ -77,6 +90,16 @@ export const DEPLOYMENT_READINESS_COMPONENTS = ['webhooks', 'schedules', 'mcp'] 
  */
 const DEPLOYMENT_PREPARATION_MAX_ATTEMPTS = 4
 
+/**
+ * Webhooks retired per outbox attempt when cleaning up inactive deployment
+ * versions. Each costs a provider call, so the batch keeps one attempt well
+ * inside the handler timeout; the handler continues through the outbox while
+ * rows remain.
+ */
+const INACTIVE_WEBHOOK_CLEANUP_BATCH_SIZE = 20
+
+const INACTIVE_CLEANUP_CONTINUATION_REASON = 'Continuing inactive deployment side-effect cleanup'
+
 interface DeploymentPreparationCheckpoints {
   webhooksPrepared?: boolean
   schedulesPrepared?: boolean
@@ -94,6 +117,7 @@ interface DeploymentCleanupOperationFence extends DeploymentOperationGeneration 
 }
 
 export interface PrepareDeploymentV2Payload {
+  workspaceOperationId?: string
   protocolVersion: number
   operationId: string
   generation: number
@@ -132,7 +156,12 @@ interface SyncActiveSideEffectsPayload {
 
 interface CleanupUndeployedSideEffectsPayload {
   workflowId: string
-  deploymentVersionIds: string[]
+  /**
+   * Versions the undeploy retired. Cleanup finds stale rows from the versions'
+   * current state instead; kept for one release so events written by earlier
+   * pods still parse, and events written here still parse on them.
+   */
+  deploymentVersionIds?: string[]
   userId: string
   requestId?: string
 }
@@ -249,7 +278,7 @@ function createPrepareDeploymentHandler(
   return async (rawPayload, context) => {
     const payload = parsePrepareDeploymentV2Payload(rawPayload)
     try {
-      await prepareDeploymentOperation(payload, context, prepareWebhooks)
+      return await prepareDeploymentOperation(payload, context, prepareWebhooks)
     } catch (error) {
       const isFinalAttempt = context.attempts + 1 >= context.maxAttempts
       if (isNonRetryableDeploymentError(error) || isFinalAttempt) {
@@ -305,12 +334,45 @@ async function prepareDeploymentOperation(
   payload: PrepareDeploymentV2Payload,
   context: OutboxEventContext,
   prepareWebhooks: PrepareDeploymentWebhooksHook
-): Promise<void> {
+): Promise<DeferredOutboxHandlerResult | undefined> {
   context.signal.throwIfAborted()
   let operation = await getDeploymentOperation(payload)
   context.signal.throwIfAborted()
   if (!operation || isTerminalNonActiveOperation(operation)) return
   assertPreparationPayloadMatchesOperation(payload, operation)
+
+  if (payload.workspaceOperationId) {
+    const [receipt] = await db
+      .select({ report: workspaceOperationReceipt.report })
+      .from(workspaceOperationReceipt)
+      .where(eq(workspaceOperationReceipt.id, payload.workspaceOperationId))
+      .limit(1)
+    const report = receipt?.report as WorkspaceOperationReport | undefined
+    if (!report || !report.deploymentOperationIds?.includes(payload.operationId))
+      throw new NonRetryableDeploymentError(
+        'Workspace sync receipt no longer admits this deployment'
+      )
+    if (report.copyProgress?.status === 'failed')
+      throw new NonRetryableDeploymentError(
+        'Selected workspace resources failed to copy',
+        'resource_copy_failed'
+      )
+    if (report.copyProgress?.status === 'pending') {
+      const [copy] = report.contentOutboxEventId
+        ? await db
+            .select({ status: outboxEvent.status })
+            .from(outboxEvent)
+            .where(eq(outboxEvent.id, report.contentOutboxEventId))
+            .limit(1)
+        : []
+      if (!copy || copy.status === 'dead_letter')
+        throw new NonRetryableDeploymentError(
+          'Workspace content copy could not complete',
+          'resource_copy_failed'
+        )
+      return deferOutboxHandler('Waiting for workspace resource copy', 1000, false)
+    }
+  }
 
   const [workflowRecord] = await db
     .select()
@@ -329,19 +391,16 @@ async function prepareDeploymentOperation(
   }
 
   if (operation.status === 'active') {
-    await cleanupRetiredWebhooksForOperation({
-      payload,
-      workflow: workflowRecord as Record<string, unknown>,
-      context,
-    })
-    await cleanupInactiveDeploymentsForOperation({
-      payload,
-      workflow: workflowRecord as Record<string, unknown>,
-      checkpoints,
-      checkpoint,
-      context,
-    })
-    await emitPostActivationSideEffects({
+    /**
+     * Resuming an attempt that already activated. The terminal short circuit
+     * above cannot catch this case — a superseded-after-activation attempt
+     * keeps its own `active` status — so the generation fence is applied per
+     * step inside {@link runPostActivationWork} rather than here: the
+     * notifications describe a cutover that really happened and stay owed
+     * whatever else has started since, while only the fenced cleanup is
+     * skipped.
+     */
+    return runPostActivationWork({
       payload,
       operation,
       workflow: workflowRecord as Record<string, unknown>,
@@ -349,7 +408,6 @@ async function prepareDeploymentOperation(
       checkpoint,
       context,
     })
-    return
   }
   if (operation.status !== 'preparing' && operation.status !== 'activating') return
 
@@ -458,7 +516,7 @@ async function prepareDeploymentOperation(
     workflowId: payload.workflowId,
     operationId: payload.operationId,
     generation: payload.generation,
-    onActivateTransaction: async (tx) => {
+    onActivateTransaction: async (tx, activatedOperation) => {
       context.signal.throwIfAborted()
       await activateWebhookRegistrations(tx, {
         workflowId: payload.workflowId,
@@ -478,6 +536,7 @@ async function prepareDeploymentOperation(
         notify: false,
         throwOnError: true,
       })
+      await activateForkSyncProvenance(tx, activatedOperation)
       context.signal.throwIfAborted()
     },
   })
@@ -491,19 +550,7 @@ async function prepareDeploymentOperation(
   notifyMcpToolServers(affectedMcpServers)
   context.signal.throwIfAborted()
 
-  await cleanupRetiredWebhooksForOperation({
-    payload,
-    workflow: workflowRecord as Record<string, unknown>,
-    context,
-  })
-  await cleanupInactiveDeploymentsForOperation({
-    payload,
-    workflow: workflowRecord as Record<string, unknown>,
-    checkpoints,
-    checkpoint,
-    context,
-  })
-  await emitPostActivationSideEffects({
+  return runPostActivationWork({
     payload,
     operation,
     workflow: workflowRecord as Record<string, unknown>,
@@ -511,6 +558,54 @@ async function prepareDeploymentOperation(
     checkpoint,
     context,
   })
+}
+
+/**
+ * Runs everything that follows a committed cutover — notifications first.
+ *
+ * The ordering is load-bearing. The audit entry, analytics event, socket
+ * notification, and workspace event all describe an activation that is
+ * already durable, and each is individually checkpointed. Retiring the
+ * previous generation's external subscriptions is best-effort cleanup that
+ * makes one provider call per retired row and is by far the slowest, most
+ * failure-prone step here. Running cleanup first put every one of those
+ * notifications behind it, so a single flaky provider — or the handler
+ * timeout its latency burns through — silently cost the deploy its audit
+ * trail and left clients on the old version until something else refreshed
+ * them. Nothing below depends on the cleanup having run.
+ *
+ * It also decides where the generation fence goes. Both cleanups carry their
+ * own, because only they are fenced; the notifications are not, and gating
+ * them on the same predicate would drop them for good in the window where a
+ * newer generation exists but has not activated — this activation is still
+ * the live one there, and nothing else will emit them.
+ *
+ * Inactive-version cleanup is bounded per attempt. While rows remain, the
+ * handler yields a continuation so the outbox re-runs it without spending an
+ * attempt; the notifications above are checkpointed and never repeat.
+ */
+async function runPostActivationWork(params: {
+  payload: PrepareDeploymentV2Payload
+  operation: WorkflowDeploymentOperation
+  workflow: Record<string, unknown>
+  checkpoints: DeploymentPreparationCheckpoints
+  checkpoint: (patch: Partial<DeploymentPreparationCheckpoints>) => Promise<void>
+  context: OutboxEventContext
+}): Promise<DeferredOutboxHandlerResult | undefined> {
+  await emitPostActivationSideEffects(params)
+  await cleanupRetiredWebhooksForOperation({
+    payload: params.payload,
+    workflow: params.workflow,
+    context: params.context,
+  })
+  const cleanupComplete = await cleanupInactiveDeploymentsForOperation({
+    payload: params.payload,
+    workflow: params.workflow,
+    checkpoints: params.checkpoints,
+    checkpoint: params.checkpoint,
+    context: params.context,
+  })
+  return cleanupComplete ? undefined : continueOutboxHandler(INACTIVE_CLEANUP_CONTINUATION_REASON)
 }
 
 async function prepareReadinessComponent(params: {
@@ -559,27 +654,54 @@ async function cleanupRetiredWebhooksForOperation(params: {
   context: OutboxEventContext
 }): Promise<void> {
   params.context.signal.throwIfAborted()
-  await cleanupRetiredWebhookRegistrationsAfterActivation({
-    fence: {
+  const fence = {
+    workflowId: params.payload.workflowId,
+    operationId: params.payload.operationId,
+    generation: params.payload.generation,
+    deploymentVersionId: params.payload.deploymentVersionId,
+  }
+
+  /**
+   * Gated exactly like {@link cleanupInactiveDeploymentsForOperation} below,
+   * and on the same predicate the store asserts internally — the store throws
+   * where this returns, so a superseded attempt would otherwise fail here
+   * identically on every retry until the event dead-lettered. Skipping loses
+   * nothing: a newer generation collects every retired row below its own
+   * fence, this one included.
+   */
+  const isCurrent = await isDeploymentOperationCurrent({ ...fence, statuses: ['active'] })
+  params.context.signal.throwIfAborted()
+  if (!isCurrent) {
+    logger.info('Skipping retired webhook cleanup for a superseded generation', {
       workflowId: params.payload.workflowId,
       operationId: params.payload.operationId,
       generation: params.payload.generation,
-      deploymentVersionId: params.payload.deploymentVersionId,
-    },
+      errorCode: DEPLOYMENT_ERROR_CODES.operationSuperseded,
+    })
+    return
+  }
+
+  await cleanupRetiredWebhookRegistrationsAfterActivation({
+    fence,
     workflow: params.workflow,
     requestId: params.payload.requestId,
     signal: params.context.signal,
   })
 }
 
+/**
+ * Returns false while inactive-version cleanup still has rows to retire, so
+ * the caller yields a continuation instead of completing the event. A
+ * superseded attempt returns true: the newer generation owns the cleanup now.
+ */
 async function cleanupInactiveDeploymentsForOperation(params: {
   payload: PrepareDeploymentV2Payload
   workflow: Record<string, unknown>
   checkpoints: DeploymentPreparationCheckpoints
   checkpoint: (patch: Partial<DeploymentPreparationCheckpoints>) => Promise<void>
   context: OutboxEventContext
-}): Promise<void> {
-  if (params.checkpoints.inactiveCleanupCompleted) return
+}): Promise<boolean> {
+  if (params.checkpoints.inactiveCleanupCompleted) return true
   const operationFence = {
     workflowId: params.payload.workflowId,
     operationId: params.payload.operationId,
@@ -594,18 +716,18 @@ async function cleanupInactiveDeploymentsForOperation(params: {
     return isCurrent
   }
 
-  if (!(await shouldContinue())) return
-  await cleanupInactiveDeploymentVersions({
+  if (!(await shouldContinue())) return true
+  const { complete } = await cleanupInactiveDeploymentSideEffects({
     workflowId: params.payload.workflowId,
-    activeDeploymentVersionId: params.payload.deploymentVersionId,
     workflow: params.workflow,
-    userId: params.payload.userId,
     requestId: params.payload.requestId,
     shouldContinue,
     operationFence,
   })
-  if (!(await shouldContinue())) return
+  if (!(await shouldContinue())) return true
+  if (!complete) return false
   await params.checkpoint({ inactiveCleanupCompleted: true })
+  return true
 }
 
 async function emitPostActivationSideEffects(params: {
@@ -642,12 +764,23 @@ async function emitPostActivationSideEffects(params: {
     await params.checkpoint({ auditEmitted: true })
   }
 
+  /**
+   * Analytics is fire-and-forget by contract: PostHog being unreachable must
+   * never fail an activation that is already durable. Awaiting a flush here
+   * bought no delivery the process does not already have — the client flushes
+   * on its own interval and again from the `SIGTERM`/`SIGINT` hook in
+   * `instrumentation-node.ts` — while holding the socket notification, the
+   * workspace event, and subscription cleanup behind a third party, and
+   * failing the outbox event until it dead-lettered when that party was down.
+   * `flush()` also drains the whole shared client queue, so an unrelated
+   * event's network error surfaced here as a failed deploy.
+   */
   if (!params.checkpoints.analyticsCaptured) {
     params.context.signal.throwIfAborted()
     if (params.payload.captureAnalytics !== false) {
       const workspaceId = (params.workflow.workspaceId as string) || ''
       const isVersionActivation = params.operation.action === 'activate'
-      await deliverOutboxServerEvent(
+      captureServerEvent(
         params.payload.userId,
         isVersionActivation ? 'deployment_version_activated' : 'workflow_deployed',
         {
@@ -837,9 +970,10 @@ const syncActiveSideEffects = async (rawPayload: unknown): Promise<void> => {
   })
 }
 
-const cleanupInactiveSideEffects = async (rawPayload: unknown): Promise<void> => {
+const cleanupInactiveSideEffects: OutboxHandler = async (rawPayload, context) => {
   const payload = parseCleanupInactiveSideEffectsPayload(rawPayload)
   const requestId = payload.requestId ?? generateRequestId()
+  context.signal.throwIfAborted()
   const [workflowRecord] = await db
     .select()
     .from(workflowTable)
@@ -848,18 +982,19 @@ const cleanupInactiveSideEffects = async (rawPayload: unknown): Promise<void> =>
 
   if (!workflowRecord) return
 
-  await cleanupInactiveDeploymentVersions({
+  const { complete } = await cleanupInactiveDeploymentSideEffects({
     workflowId: payload.workflowId,
-    activeDeploymentVersionId: payload.activeDeploymentVersionId,
     workflow: workflowRecord as Record<string, unknown>,
-    userId: payload.userId,
     requestId,
+    shouldContinue: unlessAborted(context.signal),
   })
+  if (!complete) return continueOutboxHandler(INACTIVE_CLEANUP_CONTINUATION_REASON)
 }
 
-const cleanupUndeployedSideEffects = async (rawPayload: unknown): Promise<void> => {
+const cleanupUndeployedSideEffects: OutboxHandler = async (rawPayload, context) => {
   const payload = parseCleanupUndeployedSideEffectsPayload(rawPayload)
   const requestId = payload.requestId ?? generateRequestId()
+  context.signal.throwIfAborted()
   const [workflowRecord] = await db
     .select()
     .from(workflowTable)
@@ -869,47 +1004,45 @@ const cleanupUndeployedSideEffects = async (rawPayload: unknown): Promise<void> 
   if (!workflowRecord) return
   const workflowData = workflowRecord as Record<string, unknown>
 
-  for (const deploymentVersionId of payload.deploymentVersionIds) {
-    const [versionRow] = await db
-      .select({ isActive: workflowDeploymentVersion.isActive })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, payload.workflowId),
-          eq(workflowDeploymentVersion.id, deploymentVersionId)
-        )
-      )
-      .limit(1)
+  const { complete } = await cleanupInactiveDeploymentSideEffects({
+    workflowId: payload.workflowId,
+    workflow: workflowData,
+    requestId,
+    shouldContinue: unlessAborted(context.signal),
+  })
+  if (!complete) return continueOutboxHandler(INACTIVE_CLEANUP_CONTINUATION_REASON)
 
-    if (!versionRow || versionRow.isActive) continue
-    await cleanupDeploymentVersionIfInactive({
-      workflowId: payload.workflowId,
-      workflow: workflowData,
-      userId: payload.userId,
-      requestId,
-      deploymentVersionId,
-    })
-  }
-
+  context.signal.throwIfAborted()
   await cleanupNullVersionWebhooksIfStillUndeployed({
     workflowId: payload.workflowId,
     workflow: workflowData,
     requestId,
+    signal: context.signal,
   })
 
+  context.signal.throwIfAborted()
   await removeMcpToolsIfStillUndeployed(payload.workflowId, requestId)
+}
+
+/** Continuation gate for handlers without an operation fence: stops only when the lease aborts. */
+function unlessAborted(signal: AbortSignal): () => Promise<boolean> {
+  return async () => {
+    signal.throwIfAborted()
+    return true
+  }
 }
 
 /**
  * Run inactive-version cleanup synchronously as part of the active-version sync, right
  * after the active version's webhooks/schedules are registered.
  *
- * {@link cleanupInactiveDeploymentVersions} re-checks that each version is still inactive
- * before tearing anything down, so it can never touch the now-active version. Running it
- * inline — rather than only enqueueing it — closes the window where a lost
+ * {@link cleanupInactiveDeploymentSideEffects} only selects rows whose version is inactive and
+ * re-checks each webhook right before its delete, so it can never touch the now-active version.
+ * Running it inline — rather than only enqueueing it — closes the window where a lost
  * `CLEANUP_INACTIVE` outbox event leaves superseded webhooks behind as live-but-never-polled
- * `is_active` orphans. The deferred event is kept as a fallback so cleanup still retries if
- * the inline pass throws, without failing the already-succeeded registration.
+ * `is_active` orphans. The deferred event is kept as a fallback so cleanup still continues if
+ * the inline pass throws or has more rows than one bounded pass retires, without failing the
+ * already-succeeded registration.
  */
 async function syncInactiveDeploymentCleanup(params: {
   workflowId: string
@@ -919,57 +1052,64 @@ async function syncInactiveDeploymentCleanup(params: {
   requestId: string
 }): Promise<void> {
   try {
-    await cleanupInactiveDeploymentVersions(params)
+    const { complete } = await cleanupInactiveDeploymentSideEffects({
+      workflowId: params.workflowId,
+      workflow: params.workflow,
+      requestId: params.requestId,
+    })
+    if (complete) return
+    logger.info(
+      `[${params.requestId}] Inline inactive-deployment cleanup has more rows; continuing through the outbox`
+    )
   } catch (cleanupError) {
     logger.warn(
       `[${params.requestId}] Inline inactive-deployment cleanup failed; deferring to outbox retry`,
       cleanupError
     )
-    await enqueueWorkflowInactiveDeploymentCleanup(db, {
-      workflowId: params.workflowId,
-      activeDeploymentVersionId: params.activeDeploymentVersionId,
-      userId: params.userId,
-      requestId: params.requestId,
-    })
   }
+  await enqueueWorkflowInactiveDeploymentCleanup(db, {
+    workflowId: params.workflowId,
+    activeDeploymentVersionId: params.activeDeploymentVersionId,
+    userId: params.userId,
+    requestId: params.requestId,
+  })
 }
 
-async function cleanupInactiveDeploymentVersions(params: {
+/**
+ * Retires schedules and webhooks still owned by inactive deployment versions
+ * of the workflow. Work is keyed by side-effect rows, never by versions, so a
+ * workflow deployed hundreds of times costs no more than one deployed twice.
+ * Schedules go in one fenced statement; webhooks need a provider call each
+ * and drain in bounded batches, with `complete: false` asking the caller to
+ * run again. `shouldContinue` gates every step and throws once the outbox
+ * lease is aborted.
+ */
+async function cleanupInactiveDeploymentSideEffects(params: {
   workflowId: string
-  activeDeploymentVersionId: string
   workflow: Record<string, unknown>
-  userId: string
   requestId: string
   shouldContinue?: () => Promise<boolean>
   operationFence?: DeploymentCleanupOperationFence
-}): Promise<void> {
-  if (params.shouldContinue && !(await params.shouldContinue())) return
-  const inactiveVersions = await db
-    .select({ id: workflowDeploymentVersion.id })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, params.workflowId),
-        ne(workflowDeploymentVersion.id, params.activeDeploymentVersionId),
-        eq(workflowDeploymentVersion.isActive, false)
-      )
-    )
+}): Promise<{ complete: boolean }> {
+  if (params.shouldContinue && !(await params.shouldContinue())) return { complete: false }
 
-  for (const version of inactiveVersions) {
-    if (params.shouldContinue && !(await params.shouldContinue())) return
-    if (await isDeploymentVersionProtectedByCurrentOperation(params.workflowId, version.id)) {
-      continue
-    }
-    await cleanupDeploymentVersionIfInactive({
-      workflowId: params.workflowId,
-      workflow: params.workflow,
-      userId: params.userId,
-      requestId: params.requestId,
-      deploymentVersionId: version.id,
-      shouldContinue: params.shouldContinue,
-      operationFence: params.operationFence,
-    })
-  }
+  const schedules = await deleteInactiveDeploymentSchedules({
+    workflowId: params.workflowId,
+    operationFence: params.operationFence,
+  })
+  if (schedules.status === 'superseded') return { complete: false }
+
+  if (params.shouldContinue && !(await params.shouldContinue())) return { complete: false }
+  const protectedDeploymentVersionId = await getProtectedDeploymentVersionId(params.workflowId)
+  const { hasMore } = await cleanupInactiveDeploymentWebhooks({
+    workflowId: params.workflowId,
+    workflow: params.workflow,
+    requestId: params.requestId,
+    protectedDeploymentVersionId,
+    limit: INACTIVE_WEBHOOK_CLEANUP_BATCH_SIZE,
+    shouldContinue: params.shouldContinue,
+  })
+  return { complete: !hasMore }
 }
 
 async function cleanupDeploymentVersionIfInactive(params: {
@@ -1094,25 +1234,6 @@ async function cleanupStaleDeploymentIfNeeded(params: {
   return false
 }
 
-async function isDeploymentVersionActive(
-  workflowId: string,
-  deploymentVersionId: string
-): Promise<boolean> {
-  const [versionRow] = await db
-    .select({ id: workflowDeploymentVersion.id })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.id, deploymentVersionId),
-        eq(workflowDeploymentVersion.isActive, true)
-      )
-    )
-    .limit(1)
-
-  return Boolean(versionRow)
-}
-
 async function removeMcpToolsIfStillUndeployed(
   workflowId: string,
   requestId: string
@@ -1133,12 +1254,18 @@ async function removeMcpToolsIfStillUndeployed(
   notifyMcpToolServers(tools)
 }
 
+/**
+ * The per-row gate also throws once the outbox lease aborts, so a timed-out
+ * undeploy stops between webhooks instead of overlapping its reaped retry.
+ */
 async function cleanupNullVersionWebhooksIfStillUndeployed(params: {
   workflowId: string
   workflow: Record<string, unknown>
   requestId: string
+  signal: AbortSignal
 }): Promise<void> {
   const isStillUndeployed = async () => {
+    params.signal.throwIfAborted()
     const [workflowRecord] = await db
       .select({ isDeployed: workflowTable.isDeployed })
       .from(workflowTable)
@@ -1326,6 +1453,14 @@ function parsePrepareDeploymentV2Payload(payload: unknown): PrepareDeploymentV2P
   const checkpoints = parseDeploymentPreparationCheckpoints(record.checkpoints)
 
   return {
+    ...(record.workspaceOperationId === undefined
+      ? {}
+      : {
+          workspaceOperationId: parseRequiredString(
+            record.workspaceOperationId,
+            'workspaceOperationId'
+          ),
+        }),
     protocolVersion,
     operationId,
     generation,
@@ -1351,6 +1486,14 @@ function parseOptionalPrincipalActor(value: unknown): PrincipalActor | undefined
     return {
       kind,
       keyId: parseRequiredString(record.keyId, 'actor.keyId'),
+      userId: parseRequiredString(record.userId, 'actor.userId'),
+    }
+  }
+  if (kind === 'oauth_access_token') {
+    return {
+      kind,
+      tokenId: parseRequiredString(record.tokenId, 'actor.tokenId'),
+      clientId: parseRequiredString(record.clientId, 'actor.clientId'),
       userId: parseRequiredString(record.userId, 'actor.userId'),
     }
   }
@@ -1397,7 +1540,7 @@ function parseCleanupUndeployedSideEffectsPayload(
   const record = parsePayloadRecord(payload)
   const workflowId = parseRequiredString(record.workflowId, 'workflowId')
   const userId = parseRequiredString(record.userId, 'userId')
-  const deploymentVersionIds = parseRequiredStringArray(
+  const deploymentVersionIds = parseOptionalStringArray(
     record.deploymentVersionIds,
     'deploymentVersionIds'
   )
@@ -1406,7 +1549,12 @@ function parseCleanupUndeployedSideEffectsPayload(
       ? record.requestId
       : undefined
 
-  return { workflowId, deploymentVersionIds, userId, requestId }
+  return {
+    workflowId,
+    ...(deploymentVersionIds ? { deploymentVersionIds } : {}),
+    userId,
+    requestId,
+  }
 }
 
 function parseCleanupInactiveSideEffectsPayload(
@@ -1448,12 +1596,13 @@ function parseRequiredPositiveInteger(value: unknown, fieldName: string): number
   return value
 }
 
-function parseRequiredStringArray(value: unknown, fieldName: string): string[] {
+function parseOptionalStringArray(value: unknown, fieldName: string): string[] | undefined {
+  if (value === undefined) return undefined
   if (
     !Array.isArray(value) ||
     value.some((item) => typeof item !== 'string' || item.length === 0)
   ) {
-    throw new Error(`Deployment outbox payload is missing ${fieldName}`)
+    throw new Error(`Deployment outbox payload has an invalid ${fieldName}`)
   }
   return value
 }

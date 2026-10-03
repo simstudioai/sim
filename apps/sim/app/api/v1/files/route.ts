@@ -58,7 +58,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId } = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'files.use')
     if (accessError) return accessError
 
     const files = await listWorkspaceFiles(workspaceId)
@@ -130,7 +130,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const { workspaceId } = formFieldsResult.data
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
     if (!file) {
@@ -146,7 +146,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'files.use',
+      'write'
+    )
     if (accessError) return accessError
 
     const buffer = await readFileToBufferWithLimit(file, {
