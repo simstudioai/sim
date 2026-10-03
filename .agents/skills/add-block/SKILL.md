@@ -562,6 +562,11 @@ Use `wandConfig` on fields that are hard to fill by hand — timestamps (`genera
 
 ## Tools Configuration
 
+**Write operation ids and tool ids as string literals** in the `operation` dropdown `options` and
+`tools.access`, never through constants (`id: SEARCH`, `access: [SEARCH]`). `scripts/generate-docs.ts`
+reads them from source with regexes, so a constant parses as empty: the docs page loses its whole
+Actions section and the integration catalog ships blank operation descriptions, with no check failing.
+
 **Preferred:** Use tool names directly as dropdown option IDs to avoid switch cases:
 ```typescript
 // Dropdown options use tool IDs directly

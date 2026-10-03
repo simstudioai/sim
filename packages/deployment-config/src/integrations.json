@@ -27876,35 +27876,35 @@
       "operations": [
         {
           "name": "Search",
-          "description": ""
+          "description": "Search the web and news with You.com, returning LLM-ready results with optional query-relevant highlights or full page content."
         },
         {
           "name": "Get Contents",
-          "description": ""
+          "description": "Fetch the HTML, Markdown, and page metadata of one or more web pages with You.com."
         },
         {
           "name": "Answer",
-          "description": ""
+          "description": "Get a synthesized answer to a question with numbered citations and the web results used to write it."
         },
         {
           "name": "Research",
-          "description": ""
+          "description": "Run multi-step web research on a question and get a thorough, cited answer, or start it as a background task."
         },
         {
           "name": "Get Research Task",
-          "description": ""
+          "description": "Get the status of a background research task and, once completed, its cited answer and sources."
         },
         {
           "name": "Finance Research",
-          "description": ""
+          "description": "Research a financial question across earnings reports, SEC filings, analyst coverage, and market news, and get a cited answer."
         },
         {
           "name": "Search Images",
-          "description": ""
+          "description": "Find image URLs for a query with You.com. Beta, and limited to You.com early-access API keys."
         },
         {
           "name": "Get Account Balance",
-          "description": ""
+          "description": "Get the remaining You.com API credit balance for the account or organization that owns the API key."
         }
       ],
       "operationCount": 8,

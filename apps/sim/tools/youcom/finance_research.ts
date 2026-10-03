@@ -7,8 +7,7 @@ import type {
 import {
   FINANCE_RESEARCH_EFFORTS,
   mapResearchSources,
-  RESEARCH_SOURCES_OUTPUT,
-  RESEARCH_WARNINGS_OUTPUT,
+  RESEARCH_SOURCE_OUTPUTS,
   YOUCOM_API_BASE_URL,
   youComApiKeyParam,
   youComHeaders,
@@ -78,7 +77,6 @@ export const youComFinanceResearchTool: ToolConfig<
       description: 'Markdown answer with numbered inline citations referencing sources',
     },
     contentType: { type: 'string', description: 'Format of content (text)' },
-    sources: RESEARCH_SOURCES_OUTPUT,
-    warnings: RESEARCH_WARNINGS_OUTPUT,
+    ...RESEARCH_SOURCE_OUTPUTS,
   },
 }
