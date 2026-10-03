@@ -8,6 +8,7 @@ import {
   composeServiceQuery,
   composeServiceState,
   type Install,
+  noInstallHint,
   serviceStatusRows,
 } from './lifecycle'
 
@@ -129,5 +130,21 @@ describe('status service rows', () => {
       ['sim-b postgres (compose db)', null],
       ['sim-b redis (compose redis)', null],
     ])
+  })
+})
+
+describe('no-install hint', () => {
+  it('blames Docker, not the install, when Docker is unreachable', () => {
+    const lines = noInstallHint({ dockerReachable: false, cwd: '/home/dev' })
+    expect(lines.join(' ')).toContain('Docker is not reachable')
+    expect(lines.join(' ')).not.toContain('npx sim-setup')
+  })
+
+  it('points an existing user at the sim/ folder or --dir before suggesting setup', () => {
+    const lines = noInstallHint({ dockerReachable: true, cwd: '/home/dev' })
+    expect(lines[0]).toContain('/home/dev')
+    expect(lines[1]).toContain('--dir')
+    expect(lines[2]).toContain('kubectl')
+    expect(lines[3]).toContain('npx sim-setup')
   })
 })
