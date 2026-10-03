@@ -1,5 +1,6 @@
+import type { UserFile } from '@/executor/types'
 import type { GoogleDriveToolParams } from '@/tools/google_drive/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface GoogleDriveExportParams extends GoogleDriveToolParams {
   fileId: string
@@ -9,17 +10,12 @@ interface GoogleDriveExportParams extends GoogleDriveToolParams {
 
 interface GoogleDriveExportResponse extends ToolResponse {
   output: {
-    file: {
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }
+    file: UserFile
     exportedMimeType: string
   }
 }
 
-export const exportTool: ToolConfig<GoogleDriveExportParams, GoogleDriveExportResponse> = {
+export const exportTool: InternalToolConfig<GoogleDriveExportParams, GoogleDriveExportResponse> = {
   id: 'google_drive_export',
   name: 'Export Google Drive File',
   description:
@@ -58,13 +54,8 @@ export const exportTool: ToolConfig<GoogleDriveExportParams, GoogleDriveExportRe
     },
   },
 
-  request: {
-    url: '/api/tools/google_drive/export',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       fileId: params.fileId,
       mimeType: params.mimeType,

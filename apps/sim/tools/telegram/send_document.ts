@@ -2,9 +2,9 @@ import type {
   TelegramSendDocumentParams,
   TelegramSendDocumentResponse,
 } from '@/tools/telegram/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const telegramSendDocumentTool: ToolConfig<
+export const telegramSendDocumentTool: InternalToolConfig<
   TelegramSendDocumentParams,
   TelegramSendDocumentResponse
 > = {
@@ -41,13 +41,8 @@ export const telegramSendDocumentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/telegram/send-document',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TelegramSendDocumentParams) => {
+  operation: {
+    input: (params: TelegramSendDocumentParams) => {
       let normalizedFiles: unknown[] | null = null
       if (params.files) {
         normalizedFiles = Array.isArray(params.files) ? params.files : [params.files]

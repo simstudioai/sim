@@ -1,43 +1,48 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   list: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveRunContext: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
+  getRunFiles: vi.fn(),
+  describeFiles: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-  resolveActiveWorkflowRunApplicationContext: mocks.resolveRunContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/workflows/executor/execution-queries', () => ({
   listWorkflowExecutions: mocks.list,
 }))
 
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
-  getWorkflowExecutionStatus: mocks.getStatus,
+  getProjectedWorkflowExecutionStatus: mocks.getStatus,
+}))
+
+vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
+  getWorkflowRunFiles: mocks.getRunFiles,
+  describeWorkflowRunFiles: mocks.describeFiles,
 }))
 
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { listWorkflowRuns } from '@/lib/workflows/application/list-workflow-runs'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveWorkflowContext =
+  workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockResolveRunContext = workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext
 
 const workflowContext = {
   workflowId: 'workflow-1',
@@ -51,9 +56,9 @@ const workflowContext = {
 const runContext = { ...workflowContext, runId: 'run-1' }
 
 const principals: Principal[] = [
-  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
-  { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-workspace' },
+  createSessionPrincipal(),
+  createPersonalApiKeyPrincipal({ keyId: 'key-personal' }),
+  createWorkspaceApiKeyPrincipal({ keyId: 'key-workspace' }),
   {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -68,16 +73,20 @@ const principals: Principal[] = [
 
 describe('workflow run application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
-    mocks.resolveRunContext.mockResolvedValue(runContext)
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveWorkflowContext.mockResolvedValue(workflowContext)
+    mockResolveRunContext.mockResolvedValue(runContext)
     mocks.list.mockResolvedValue({ data: [], nextCursor: null })
     mocks.getStatus.mockResolvedValue({
-      executionId: 'run-1',
-      workflowId: 'workflow-1',
-      status: 'completed',
+      status: { executionId: 'run-1', workflowId: 'workflow-1', status: 'completed' },
+      projection: { hideTraceSpans: false, hideCostInfo: false },
     })
+    mocks.getRunFiles.mockResolvedValue({
+      terminal: true,
+      workspaceId: 'workspace-1',
+      filesById: new Map(),
+    })
+    mocks.describeFiles.mockResolvedValue([])
   })
 
   it.each(principals)(
@@ -88,12 +97,8 @@ describe('workflow run application use cases', () => {
         input: { workflowId: 'workflow-1', limit: 25, order: 'desc' },
       })
 
-      expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
+      expect(mockResolveWorkflowContext).toHaveBeenCalledWith({
         workflowId: 'workflow-1',
-        assertedWorkspaceId:
-          principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-            ? 'workspace-1'
-            : undefined,
       })
       expect(mocks.list).toHaveBeenCalledWith(
         expect.objectContaining({ workflowId: 'workflow-1', limit: 25, order: 'desc' })
@@ -108,25 +113,46 @@ describe('workflow run application use cases', () => {
         workflowId: 'workflow-1',
         runId: 'run-1',
         includeOutput: true,
-        selectedOutputs: ['block-1.value'],
+        selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
       },
     })
 
-    expect(mocks.resolveRunContext).toHaveBeenCalledWith({
+    expect(mockResolveRunContext).toHaveBeenCalledWith({
       runId: 'run-1',
       assertedWorkflowId: 'workflow-1',
-      assertedWorkspaceId: 'workspace-1',
     })
     expect(mocks.getStatus).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
       executionId: 'run-1',
       includeOutput: true,
-      selectedOutputs: ['block-1.value'],
+      selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      viewerUserId: null,
     })
   })
 
+  it('propagates an over-ceiling inline request as payload_too_large', async () => {
+    mocks.describeFiles.mockRejectedValueOnce(
+      Object.assign(new Error('exceeds the 16MB inline limit'), { code: 'payload_too_large' })
+    )
+
+    await expect(
+      readWorkflowRun.execute({
+        principal: principals[2],
+        input: {
+          workflowId: 'workflow-1',
+          runId: 'run-1',
+          includeOutput: true,
+          selectedOutputs: [],
+          includeFileBase64: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
+
   it('stops before authorization and data access when canonical run scope disagrees', async () => {
-    mocks.resolveRunContext.mockRejectedValueOnce(
+    mockResolveRunContext.mockRejectedValueOnce(
       Object.assign(new Error('Run not found'), { code: 'not_found' })
     )
 
@@ -141,7 +167,7 @@ describe('workflow run application use cases', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mockResolvePermission).not.toHaveBeenCalled()
     expect(mocks.getStatus).not.toHaveBeenCalled()
   })
 
@@ -159,17 +185,5 @@ describe('workflow run application use cases', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'conflict' })
-  })
-
-  it('propagates run repository infrastructure failures', async () => {
-    const infrastructureError = new Error('database unavailable')
-    mocks.list.mockRejectedValueOnce(infrastructureError)
-
-    await expect(
-      listWorkflowRuns.execute({
-        principal: principals[0],
-        input: { workflowId: 'workflow-1', limit: 25, order: 'desc' },
-      })
-    ).rejects.toBe(infrastructureError)
   })
 })

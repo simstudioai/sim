@@ -38,12 +38,11 @@ export const listTableViewsUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ context }) {
-    const views = await listTableViews(
-      context.table.id,
-      (context.table.schema as TableSchema).columns,
-      context.workspaceId
-    )
-    return { views }
+    const columns = (context.table.schema as TableSchema).columns
+    const views = await listTableViews(context.table.id, columns, context.workspaceId)
+    // Both result shapes are live: staging consumers read `columns`, the
+    // copilot table tools read `table`.
+    return { views, columns, table: context.table }
   },
 })
 
@@ -55,20 +54,22 @@ export const readTableViewUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ input, context }) {
-    const view = await getTableView(
-      input.viewId,
-      context.table.id,
-      (context.table.schema as TableSchema).columns,
-      context.workspaceId
-    )
-    if (!view) throw new OrchestrationError('not_found', 'View not found')
-    return { view }
+    const columns = (context.table.schema as TableSchema).columns
+    const view = await getTableView(input.viewId, context.table.id, columns, context.workspaceId)
+    if (!view)
+      throw new OrchestrationError(
+        'not_found',
+        'View not found on this table — list the views on this table for valid view ids'
+      )
+    return { view, columns, table: context.table }
   },
 })
 
 export interface CreateTableViewInput extends TableViewInput {
   name: string
   config: TableViewConfig
+  /** Make the new view the table's default, demoting the previous one in the same transaction. */
+  isDefault?: boolean
 }
 
 export const createTableViewUseCase = defineAuthorizedTableUseCase({
@@ -82,16 +83,19 @@ export const createTableViewUseCase = defineAuthorizedTableUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    const columns = (context.table.schema as TableSchema).columns
     try {
       const view = await createTableView({
         tableId: context.table.id,
         workspaceId: context.workspaceId,
         name: input.name,
         config: input.config,
+        isDefault: input.isDefault,
         userId: attribution.attributedUserId,
-        columns: (context.table.schema as TableSchema).columns,
+        columns,
+        strictRefs: true,
       })
-      return { view, table: context.table }
+      return { view, table: context.table, columns }
     } catch (error) {
       rethrowViewError(error)
     }
@@ -123,14 +127,19 @@ export const updateTableViewUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ input, context }) {
+    const columns = (context.table.schema as TableSchema).columns
     try {
       const existing = await getTableView(
         input.viewId,
         context.table.id,
-        (context.table.schema as TableSchema).columns,
+        columns,
         context.workspaceId
       )
-      if (!existing) throw new OrchestrationError('not_found', 'View not found')
+      if (!existing)
+        throw new OrchestrationError(
+          'not_found',
+          'View not found on this table — list the views on this table for valid view ids'
+        )
       const view = await updateTableView({
         viewId: input.viewId,
         tableId: context.table.id,
@@ -139,12 +148,18 @@ export const updateTableViewUseCase = defineAuthorizedTableUseCase({
         config: input.config,
         configPatch: input.configPatch,
         isDefault: input.isDefault,
-        columns: (context.table.schema as TableSchema).columns,
+        columns,
+        strictRefs: true,
       })
-      if (!view) throw new OrchestrationError('not_found', 'View not found')
+      if (!view)
+        throw new OrchestrationError(
+          'not_found',
+          'View not found on this table — list the views on this table for valid view ids'
+        )
       return {
         view,
         table: context.table,
+        columns,
         changed:
           existing.name !== view.name ||
           existing.isDefault !== view.isDefault ||
@@ -181,10 +196,22 @@ export const deleteTableViewUseCase = defineAuthorizedTableUseCase({
       (context.table.schema as TableSchema).columns,
       context.workspaceId
     )
-    if (!existing) throw new OrchestrationError('not_found', 'View not found')
-    const deleted = await deleteTableView(input.viewId, context.table.id, context.workspaceId)
-    if (!deleted) throw new OrchestrationError('not_found', 'View not found')
-    return { viewId: input.viewId, viewName: existing.name, table: context.table }
+    if (!existing)
+      throw new OrchestrationError(
+        'not_found',
+        'View not found on this table — list the views on this table for valid view ids'
+      )
+    try {
+      const deleted = await deleteTableView(input.viewId, context.table.id, context.workspaceId)
+      if (!deleted)
+        throw new OrchestrationError(
+          'not_found',
+          'View not found on this table — list the views on this table for valid view ids'
+        )
+      return { viewId: input.viewId, viewName: existing.name, table: context.table }
+    } catch (error) {
+      rethrowViewError(error)
+    }
   },
   projectAudit({ result }) {
     return {

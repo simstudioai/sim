@@ -22,7 +22,7 @@ export const PUT = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal content-update behavior',
   }),
-  errorPolicy: internalFileErrorPolicies.default,
+  errorPolicy: internalFileErrorPolicies.concealContentAuthorization,
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {
@@ -34,6 +34,7 @@ export const PUT = defineInternalJsonRoute({
     assertedWorkspaceId: params.id,
     content: body.content,
     encoding: body.encoding === 'base64' ? ('base64' as const) : ('utf-8' as const),
+    ...(body.expectedUpdatedAt ? { expectedUpdatedAt: new Date(body.expectedUpdatedAt) } : {}),
   }),
   useCase: updateWorkspaceFileContent,
   present: internalFilePresenters.successFile,

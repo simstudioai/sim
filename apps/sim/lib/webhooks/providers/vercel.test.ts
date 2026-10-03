@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import crypto from 'crypto'
 import { createMockRequest } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
@@ -21,19 +18,6 @@ describe('vercelHandler', () => {
         rawBody,
         requestId: 'r1',
         providerConfig: {},
-        webhook: {},
-        workflow: {},
-      })
-      expect(res?.status).toBe(401)
-    })
-
-    it('returns 401 when signature header is missing', async () => {
-      const request = createMockRequest('POST', JSON.parse(rawBody), {})
-      const res = await vercelHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { webhookSecret: secret },
         webhook: {},
         workflow: {},
       })

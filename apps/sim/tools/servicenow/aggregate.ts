@@ -3,7 +3,13 @@ import type {
   ServiceNowAggregateParams,
   ServiceNowAggregateResponse,
 } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import {
+  buildServiceNowHeaders,
+  normalizeInstanceUrl,
+  parseServiceNowResponse,
+  toRecordArray,
+  toRecordObject,
+} from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowAggregateTool')
@@ -87,7 +93,8 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter on aggregate results (e.g., "count>5")',
+      description:
+        'Filter on aggregate results, written as aggregate^field^operator^value and comma-separated for more than one (e.g., "count^priority^>^3" or "count^state^=^1,avg^priority^>^3")',
     },
     displayValue: {
       type: 'string',
@@ -99,10 +106,7 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
-      if (!baseUrl) {
-        throw new Error('ServiceNow instance URL is required')
-      }
+      const baseUrl = normalizeInstanceUrl(params.instanceUrl)
       const url = `${baseUrl}/api/now/stats/${params.tableName.trim()}`
 
       const queryParams = new URLSearchParams()
@@ -139,29 +143,32 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
       return queryString ? `${url}?${queryString}` : url
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.username || !params.password) {
-        throw new Error('ServiceNow username and password are required')
-      }
-      return {
-        Authorization: createBasicAuthHeader(params.username, params.password),
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => buildServiceNowHeaders(params),
   },
 
   transformResponse: async (response: Response) => {
     try {
-      const data = await response.json()
+      const data = await parseServiceNowResponse(response)
 
-      if (!response.ok) {
-        const error = data.error || data
-        throw new Error(typeof error === 'string' ? error : error.message || JSON.stringify(error))
-      }
+      /**
+       * The Aggregate API answers with an array when `sysparm_group_by` is set
+       * and a single object otherwise, so the two shapes are narrowed
+       * separately rather than wrapped.
+       */
+      const grouped = Array.isArray(data.result)
+      const groups = grouped ? toRecordArray(data.result) : []
+      const result = grouped ? groups : toRecordObject(data.result)
 
-      const result = data.result ?? null
-      const grouped = Array.isArray(result)
-      const count = !grouped && result?.stats?.count != null ? Number(result.stats.count) : null
+      /**
+       * `stats.count` arrives as a *string* ("42"), which is why this reads the
+       * raw value and converts rather than accepting only a number — a numeric
+       * type check drops every count the API actually returns. A value that is
+       * not a finite number stays `null` instead of surfacing `NaN`.
+       */
+      const rawCount = grouped ? undefined : toRecordObject(toRecordObject(data.result).stats).count
+      const parsedCount =
+        typeof rawCount === 'string' || typeof rawCount === 'number' ? Number(rawCount) : Number.NaN
+      const count = Number.isFinite(parsedCount) ? parsedCount : null
 
       return {
         success: true,
@@ -170,7 +177,7 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
           count,
           metadata: {
             grouped,
-            groupCount: grouped ? result.length : null,
+            groupCount: grouped ? groups.length : null,
           },
         },
       }

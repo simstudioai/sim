@@ -9,9 +9,11 @@ import {
   buildFolderPath,
   buildFolderPathIndex,
   encodeFolderPathSegment,
+  FolderPathError,
   MAX_FOLDER_PATH_SEGMENTS,
   parseFolderPath,
   ROOT_FOLDER_PATH,
+  resolveFolderMoveDestination,
 } from '@/lib/folders/paths'
 
 describe('canonical folder paths', () => {
@@ -38,6 +40,18 @@ describe('canonical folder paths', () => {
     '/%E0%A4%A',
   ])('rejects noncanonical path %s', (path) => {
     expect(() => parseFolderPath(path)).toThrow()
+  })
+
+  it.each(['/apitest_%00x', '/%00', '/Reports/Q1%00'])(
+    'rejects a percent-encoded NUL in path %s',
+    (path) => {
+      expect(() => parseFolderPath(path)).toThrow(FolderPathError)
+    }
+  )
+
+  it('rejects a NUL in a folder name before it can be encoded into a path', () => {
+    expect(() => encodeFolderPathSegment('apitest_\u0000x')).toThrow(FolderPathError)
+    expect(() => buildFolderPath(['apitest_\u0000x'])).toThrow(FolderPathError)
   })
 
   it('builds a bidirectional index and rejects corrupt hierarchies', () => {
@@ -77,11 +91,57 @@ describe('canonical folder paths', () => {
     ).toThrow('cycle')
   })
 
+  it('keeps slashes inside names as one segment in every resource folder index', () => {
+    const index = buildFolderPathIndex([
+      { id: 'legal', name: 'Finance/Legal', parentId: null },
+      { id: 'quarterly', name: 'Quarterly', parentId: 'legal' },
+    ])
+
+    expect(index.pathById.get('legal')).toBe('/Finance%2FLegal')
+    expect(index.pathById.get('quarterly')).toBe('/Finance%2FLegal/Quarterly')
+    expect(index.idByPath.get('/Finance%2FLegal')).toBe('legal')
+  })
+
   it('enforces segment and byte limits', () => {
     expect(() =>
       buildFolderPath(Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'x'))
     ).toThrow('segments')
     expect(() => buildFolderPath(['x'.repeat(4096)])).toThrow('bytes')
+  })
+
+  it('resolves a move destination with mv semantics, the root included', () => {
+    const index = {
+      idByPath: new Map([
+        ['/fx-archive', 'folder-1'],
+        ['/fx-archive/xp-docs', 'folder-2'],
+      ]),
+    }
+
+    expect(resolveFolderMoveDestination(index, '/fx-archive/xp-docs', ROOT_FOLDER_PATH)).toBe(
+      '/xp-docs'
+    )
+    expect(resolveFolderMoveDestination(index, '/xp-files', '/fx-archive')).toBe(
+      '/fx-archive/xp-files'
+    )
+    expect(resolveFolderMoveDestination(index, '/xp-files', '/renamed')).toBe('/renamed')
+    expect(resolveFolderMoveDestination(index, '/fx-archive', '/fx-archive')).toBe('/fx-archive')
+  })
+
+  it('accepts the root as a relocation destination but never as the source', () => {
+    expect(
+      v2RelocateFolderBodySchema.parse({
+        workspaceId: 'workspace-1',
+        path: '/Reports/Q1',
+        destinationPath: '/',
+      }).destinationPath
+    ).toBe('/')
+    expect(
+      v2RelocateFolderBodySchema.safeParse({
+        workspaceId: 'workspace-1',
+        path: '/',
+        destinationPath: '/Reports',
+      }).success
+    ).toBe(false)
   })
 
   it('keeps public folder mutations path-only and rejects the virtual root', () => {

@@ -2,28 +2,42 @@ import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import { logQuerySelectsCost } from '@/lib/logs/log-projection'
+import {
+  capabilityDeniedBy,
+  capabilityRefusal,
+} from '@/lib/permission-groups/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsExportAPI')
+const LOG_EXPORT_PAGE_SIZE = 100
 
 export const revalidate = 0
 
-function escapeCsv(value: any): string {
-  if (value === null || value === undefined) return ''
-  const str = typeof value === 'string' ? neutralizeCsvFormula(value) : String(value)
-  if (/[",\n]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
+interface LogExportRow {
+  id: string
+  workflowId: string | null
+  executionId: string
+  level: string
+  trigger: string
+  startedAt: Date
+  startedAtCursor: string
+  endedAt: Date | null
+  totalDurationMs: number | null
+  costTotal: string | null
+  executionData: unknown
+  workflowName: string
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -44,6 +58,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       level: workflowExecutionLogs.level,
       trigger: workflowExecutionLogs.trigger,
       startedAt: workflowExecutionLogs.startedAt,
+      startedAtCursor: sql<string>`${workflowExecutionLogs.startedAt}::text`,
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
@@ -61,7 +76,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? and(workspaceCondition, filterConditions)
       : workspaceCondition
 
-    const header = [
+    const header = toCsvRow([
       'startedAt',
       'level',
       'workflow',
@@ -72,7 +87,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       'executionId',
       'message',
       'traceSpans',
-    ].join(',')
+    ])
 
     const access = await checkWorkspaceAccess(params.workspaceId, userId)
     if (!access.hasAccess) {
@@ -86,98 +101,180 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * permission-group-enforced: logs.export — one download carries every
+     * execution payload the workspace ever recorded, including a trace-span
+     * column, so this is the widest read in the product and the one most worth
+     * withholding separately from reading a single log.
+     *
+     * Checked here rather than in an application use case because this route
+     * queries directly and predates that boundary; migrating it is worth doing,
+     * and is not a reason to leave the export ungoverned meanwhile.
+     *
+     * No admin exemption, unlike `organization.member_directory`. That one is
+     * organization-scoped: it reads the org *default* group, which governs the
+     * admins too, and the page it withholds is the roster an admin needs open to
+     * change the setting — an exemption there breaks a bootstrap loop. This
+     * capability has neither half. It resolves the caller's own workspace group,
+     * so an admin who wants the export edits the group that withheld it, on a
+     * settings page this refusal does not touch. Exempting admins would instead
+     * make `disableLogExport` unable to say what it says — that nobody in this
+     * group downloads the whole workspace's execution payloads — for exactly the
+     * accounts whose export is widest.
+     */
+    const permissionConfig = await resolvePermissionGroupConfig(
+      userId,
+      params.workspaceId,
+      undefined
+    )
+    if (capabilityDeniedBy('logs.export', permissionConfig)) {
+      return NextResponse.json({ error: capabilityRefusal('logs.export') }, { status: 403 })
+    }
+
+    const hideTraceSpans = capabilityDeniedBy('logs.trace_spans', permissionConfig)
+    /**
+     * permission-group-enforced: logs.cost — the `costTotal` column is the same
+     * run spend the detail view withholds, and a whole-workspace CSV of it is
+     * the widest disclosure of the two. The column stays in the header so the
+     * file shape does not depend on who downloaded it; only its values go.
+     */
+    const hideCostInfo = capabilityDeniedBy('logs.cost', permissionConfig)
+    /**
+     * The same filter the list refuses. Blanking the column while still
+     * answering `costOperator`/`costValue` faithfully would leave the CSV itself
+     * a bisection oracle over the figures it just withheld — one download per
+     * probe, with the row count as the answer.
+     */
+    if (hideCostInfo && logQuerySelectsCost(params)) {
+      return NextResponse.json({ error: capabilityRefusal('logs.cost') }, { status: 403 })
+    }
+
     const encoder = new TextEncoder()
-    const stream = new ReadableStream<Uint8Array>({
-      start: async (controller) => {
-        controller.enqueue(encoder.encode(`${header}\n`))
-        const pageSize = 1000
-        let offset = 0
-        try {
-          while (true) {
-            const rows = await dbReplica
-              .select(selectColumns)
-              .from(workflowExecutionLogs)
-              .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-              .where(conditions)
-              .orderBy(desc(workflowExecutionLogs.startedAt))
-              .limit(pageSize)
-              .offset(offset)
-
-            if (!rows.length) break
-
-            // Heavy execution data may live in object storage; materialize per
-            // row with bounded concurrency so a 1000-row page doesn't fan out
-            // into 1000 simultaneous reads.
-            const materialized = await mapWithConcurrency(
-              rows as any[],
-              MATERIALIZE_CONCURRENCY,
-              (r) =>
-                materializeExecutionDataForDisplay(
-                  r.executionData as Record<string, unknown> | null,
-                  {
-                    workspaceId: params.workspaceId,
-                    workflowId: r.workflowId,
-                    executionId: r.executionId,
-                    userId: session.user.id,
-                  }
-                )
+    const csvChunks = (async function* () {
+      yield encoder.encode(`${header}\n`)
+      const pageSize = LOG_EXPORT_PAGE_SIZE
+      let cursor: { startedAt: string; id: string } | null = null
+      while (true) {
+        const cursorCondition: SQL | undefined = cursor
+          ? or(
+              lt(workflowExecutionLogs.startedAt, sql`${cursor.startedAt}::timestamp`),
+              and(
+                eq(workflowExecutionLogs.startedAt, sql`${cursor.startedAt}::timestamp`),
+                lt(workflowExecutionLogs.id, cursor.id)
+              )
             )
+          : undefined
+        const rows: LogExportRow[] = await dbReplica
+          .select(selectColumns)
+          .from(workflowExecutionLogs)
+          .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+          .where(and(conditions, cursorCondition))
+          .orderBy(desc(workflowExecutionLogs.startedAt), desc(workflowExecutionLogs.id))
+          .limit(pageSize)
 
-            for (let j = 0; j < rows.length; j++) {
-              const r = rows[j] as any
-              const ed = materialized[j] as Record<string, any>
-              // A single malformed/unserializable row must not abort the whole CSV
-              // stream — derive the message/trace columns defensively and fall back
-              // to empty on error so the row's metadata still exports.
-              let message = ''
-              let tracesJson = ''
-              try {
-                if (ed) {
-                  if (ed.finalOutput)
-                    message =
-                      typeof ed.finalOutput === 'string'
-                        ? ed.finalOutput
-                        : JSON.stringify(ed.finalOutput)
-                  if (ed.message) message = ed.message
-                  if (ed.traceSpans) tracesJson = JSON.stringify(ed.traceSpans)
-                }
-              } catch (rowError) {
-                logger.warn('Skipping unserializable execution data for export row', {
-                  executionId: r.executionId,
-                  error: getErrorMessage(rowError),
-                })
+        if (!rows.length) break
+
+        for (let chunkStart = 0; chunkStart < rows.length; chunkStart += MATERIALIZE_CONCURRENCY) {
+          const chunk = rows.slice(chunkStart, chunkStart + MATERIALIZE_CONCURRENCY)
+          const materialized = await mapWithConcurrency(chunk, MATERIALIZE_CONCURRENCY, (row) =>
+            materializeExecutionDataForDisplay(
+              row.executionData as Record<string, unknown> | null,
+              {
+                workspaceId: params.workspaceId,
+                workflowId: row.workflowId,
+                executionId: row.executionId,
+                userId: session.user.id,
               }
-              const line = [
-                escapeCsv(r.startedAt?.toISOString?.() || r.startedAt),
-                escapeCsv(r.level),
-                escapeCsv(r.workflowName),
-                escapeCsv(r.trigger),
-                escapeCsv(r.totalDurationMs ?? ''),
-                escapeCsv(r.costTotal ?? ''),
-                escapeCsv(r.workflowId ?? ''),
-                escapeCsv(r.executionId ?? ''),
-                escapeCsv(message),
-                escapeCsv(tracesJson),
-              ].join(',')
-              controller.enqueue(encoder.encode(`${line}\n`))
-            }
+            )
+          )
 
-            offset += pageSize
+          for (let index = 0; index < chunk.length; index++) {
+            const row = chunk[index]
+            const materializedRow = materialized[index]
+            const executionData = hideCostInfo
+              ? withheldSpendData(materializedRow)
+              : materializedRow
+            let message: unknown = ''
+            let tracesJson = ''
+            try {
+              /**
+               * `finalOutput` is one of the payloads the log-detail projection
+               * deletes for this viewer, so exporting it here would hand back in
+               * bulk exactly what the detail view withholds one run at a time.
+               */
+              if (executionData.finalOutput && !hideTraceSpans) {
+                message =
+                  typeof executionData.finalOutput === 'string'
+                    ? executionData.finalOutput
+                    : (JSON.stringify(executionData.finalOutput) ?? '')
+              }
+              if (executionData.message) message = executionData.message
+              /**
+               * The same projection the log detail applies. A group that
+               * withholds trace spans in the UI would otherwise hand them over
+               * in bulk here, which is the larger disclosure of the two.
+               */
+              if (executionData.traceSpans && !hideTraceSpans) {
+                tracesJson = JSON.stringify(executionData.traceSpans) ?? ''
+              }
+            } catch (rowError) {
+              logger.warn('Skipping unserializable execution data for export row', {
+                executionId: row.executionId,
+                error: getErrorMessage(rowError),
+              })
+            }
+            const line = toCsvRow([
+              formatCsvValue(row.startedAt),
+              formatCsvValue(row.level),
+              formatCsvValue(row.workflowName),
+              formatCsvValue(row.trigger),
+              formatCsvValue(row.totalDurationMs ?? ''),
+              formatCsvValue(hideCostInfo ? '' : (row.costTotal ?? '')),
+              formatCsvValue(row.workflowId ?? ''),
+              formatCsvValue(row.executionId),
+              formatCsvValue(message),
+              formatCsvValue(tracesJson),
+            ])
+            yield encoder.encode(`${line}\n`)
           }
-          controller.close()
-        } catch (e: any) {
-          logger.error('Export stream error', { error: e?.message })
-          try {
-            controller.error(e)
-          } catch {}
         }
+
+        const last = rows.at(-1)
+        if (!last || rows.length < pageSize) break
+        cursor = { startedAt: last.startedAtCursor, id: last.id }
+      }
+    })()
+
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull: async (controller) => {
+          try {
+            const next = await csvChunks.next()
+            if (cancelled) return
+            if (next.done) {
+              controller.close()
+              return
+            }
+            controller.enqueue(next.value)
+          } catch (error) {
+            if (cancelled) return
+            logger.error('Export stream error', { error: getErrorMessage(error) })
+            controller.error(error)
+          }
+        },
+        cancel: async () => {
+          cancelled = true
+          await csvChunks.return(undefined)
+        },
       },
-    })
+      { highWaterMark: 0 }
+    )
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-')
     const filename = `logs-${ts}.csv`
 
-    return new NextResponse(stream as any, {
+    return new NextResponse(stream, {
       status: 200,
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
@@ -185,8 +282,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         'Cache-Control': 'no-cache',
       },
     })
-  } catch (error: any) {
-    logger.error('Export error', { error: error?.message })
+  } catch (error) {
+    logger.error('Export error', { error: getErrorMessage(error) })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

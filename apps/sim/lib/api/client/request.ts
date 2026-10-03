@@ -1,4 +1,6 @@
 import { ApiClientError } from '@/lib/api/client/errors'
+import { CLIENT_ID_HEADER, getClientId } from '@/lib/api/client-id'
+import { CLIENT_INFO_HEADER, getClientInfoHeader } from '@/lib/api/client-info'
 import type {
   AnyApiRouteContract,
   ApiSchema,
@@ -27,6 +29,7 @@ export type ApiClientRequest<C extends AnyApiRouteContract> = MaybeField<
   MaybeField<'body', ContractBodyInput<C>> &
   MaybeField<'headers', ContractHeadersInput<C>> & {
     signal?: AbortSignal
+    keepalive?: boolean
   }
 
 export interface ApiRawRequestOptions {
@@ -103,6 +106,13 @@ function buildHeaders(headers: unknown, hasBody: boolean): Record<string, string
   if (hasBody) {
     output['Content-Type'] = 'application/json'
   }
+
+  /** Set here rather than per call site so every request carries it without a decision to get wrong. */
+  const clientId = getClientId()
+  if (clientId) output[CLIENT_ID_HEADER] = clientId
+
+  const clientInfo = getClientInfoHeader()
+  if (clientInfo) output[CLIENT_INFO_HEADER] = clientInfo
 
   if (headers && typeof headers === 'object') {
     for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
@@ -187,12 +197,10 @@ export async function requestJson<C extends AnyApiRouteContract>(
     throw new Error(`Contract ${contract.method} ${contract.path} does not declare a JSON response`)
   }
 
-  const parsedParams = parseOptionalSchema(contract.params, input.params)
-  const parsedQuery = parseOptionalSchema(contract.query, input.query)
   const parsedBody = parseOptionalSchema(contract.body, input.body)
   const parsedHeaders = parseOptionalSchema(contract.headers, input.headers)
 
-  const url = appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
+  const url = contractUrl(contract, input)
   const hasBody = parsedBody !== undefined && contract.method !== 'GET'
 
   const response = await fetch(url, {
@@ -200,6 +208,7 @@ export async function requestJson<C extends AnyApiRouteContract>(
     headers: buildHeaders(parsedHeaders, hasBody),
     body: hasBody ? JSON.stringify(parsedBody) : undefined,
     signal: input.signal,
+    ...(input.keepalive === undefined ? {} : { keepalive: input.keepalive }),
   })
 
   const { parsed, raw } = await readResponseBody(response)
@@ -231,17 +240,30 @@ export async function requestJson<C extends AnyApiRouteContract>(
   }
 }
 
+/**
+ * The URL a contract resolves to for `input`, validated the same way a request
+ * would be. For a download the browser should stream itself — an anchor
+ * navigation rather than a fetch that buffers the body — so the caller needs
+ * the address, not the response.
+ */
+export function contractUrl<C extends AnyApiRouteContract>(
+  contract: C,
+  input: ApiClientRequest<C>
+): string {
+  const parsedParams = parseOptionalSchema(contract.params, input.params)
+  const parsedQuery = parseOptionalSchema(contract.query, input.query)
+  return appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
+}
+
 export async function requestRaw<C extends AnyApiRouteContract>(
   contract: C,
   input: ApiClientRequest<C>,
   options: ApiRawRequestOptions = {}
 ): Promise<Response> {
-  const parsedParams = parseOptionalSchema(contract.params, input.params)
-  const parsedQuery = parseOptionalSchema(contract.query, input.query)
   const parsedBody = parseOptionalSchema(contract.body, input.body)
   const parsedHeaders = parseOptionalSchema(contract.headers, input.headers)
 
-  const url = appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
+  const url = contractUrl(contract, input)
   const hasBody = parsedBody !== undefined && contract.method !== 'GET'
   const headers = {
     ...buildHeaders(parsedHeaders, hasBody),

@@ -1,0 +1,3565 @@
+---
+title: Slack
+description: Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="slack_v2"
+  color="#611f69"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Use [Slack](https://www.slack.com/) to send and manage messages, work with canvases, and inspect channels and users. Custom bots also support Agent Sessions and streamed trigger responses.
+
+## Credentials and workflow actions
+
+Select an operation in the **Slack** block. Custom bots support the expanded channel, file, bookmark, pin, user-group, profile, workspace, List, and Canvas actions. The custom-app manifest selects all available capabilities by default. Existing apps need the updated manifest and a reinstall to grant newly added scopes.
+
+The native Sim Slack app keeps its existing permissions. **Set Bot Presence** changes the selected custom bot’s presence. **Mark Conversation Read** moves the selected account or bot’s read cursor. Neither action changes another workspace member’s state.
+
+List actions return one page. Use the returned cursor or page information to continue. **Update User Group Members** replaces the complete member list. **Start List Export** returns a job ID; pass it to **Get List Export** with the same export options. Canvas access changes apply to standalone canvases and require the link to have been shared with the recipient first.
+
+User-token-only search, profile updates, and notification controls, Slack’s retired reminders APIs, and Enterprise administration APIs are not included. Use scheduled messages or a scheduled Sim workflow for reminders.
+
+## Stream Trigger Responses
+
+Custom-bot Slack triggers can stream workflow outputs directly back into the conversation that started a run. Turn on **Enable agent session** (`streamResponse`) on a Message, App Mention, or Assistant Thread Started trigger, then select the outputs to deliver in **Outputs to stream** (`streamOutputs`).
+
+- A selected Agent output streams immediately as it is generated. If the Agent later calls a tool, any pre-tool commentary already streamed remains visible.
+- A selected non-streaming block output is sent when that block invocation completes.
+- Loop and parallel invocations each create their own Slack response.
+- The response status label defaults to `Running` and can be customized in the trigger's advanced settings.
+- Optional thinking and tool-call updates appear as Slack tasks in a timeline or plan.
+- Slack Agent Sessions remain in processing state for the run, return to active when it finishes, and the native Slack stop button cancels active workflow executions.
+
+Automatic trigger responses require a custom bot created by the Slack setup wizard. They are not available with the shared Sim Slack app. Where the deployment enables shared-app triggers, the Sim app can receive its subscribed event subset without automatic streaming.
+
+The **Set Assistant Status** (`set_status`) action changes the assistant-thread indicator; it does not enable agent-session streaming. A separate Send Message action for an output already selected on the trigger sends an additional message.
+
+Testing a block with sample input verifies its logic. To verify a Slack integration, check the real event's deployed workflow run and any execution or delivery errors, then confirm the reply in the originating conversation or thread.
+
+## AI-Generated Content
+
+Sim workflows may use AI models to generate messages and responses sent to Slack. AI-generated content may be inaccurate or contain errors. Always review automated outputs, especially for critical communications.
+
+For help with the Slack integration, contact [help@sim.ai](mailto:help@sim.ai).
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.
+
+
+
+## Actions
+
+### Slack Message
+
+Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `destinationType` | string | No | Destination type: channel or dm |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | No | Slack channel ID \(e.g., C1234567890\) |
+| `dmUserId` | string | No | Slack user ID for direct messages \(e.g., U1234567890\) |
+| `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
+| `threadTs` | string | No | Thread timestamp to reply to \(creates thread reply\) |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
+| `files` | file[] | No | Files to attach to the message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | Complete message object with all properties returned by Slack |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `ts` | string | Message timestamp |
+| `channel` | string | Channel ID where message was sent |
+| `fileCount` | number | Number of files uploaded \(when files are attached\) |
+| `files` | file[] | Files attached to the message |
+
+### Slack Ephemeral Message
+
+Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
+| `user` | string | Yes | User ID who will see the ephemeral message \(e.g., U1234567890\). Must be a member of the channel. |
+| `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
+| `threadTs` | string | No | Thread timestamp to reply in. When provided, the ephemeral message appears as a thread reply. |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageTs` | string | Timestamp of the ephemeral message \(cannot be used with chat.update\) |
+| `channel` | string | Channel ID where the ephemeral message was sent |
+
+### Slack Canvas Writer
+
+Create and share Slack canvases in channels. Canvases are collaborative documents within Slack.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
+| `title` | string | Yes | Title of the canvas |
+| `content` | string | Yes | Canvas content in markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvas_id` | string | Unique canvas identifier |
+
+### Slack Message Reader
+
+Read the latest messages from Slack channels. Retrieve conversation history with filtering options.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `destinationType` | string | No | Destination type: channel or dm |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | No | Slack channel ID to read messages from \(e.g., C1234567890\) |
+| `dmUserId` | string | No | Slack user ID for DM conversation \(e.g., U1234567890\) |
+| `limit` | number | No | Number of messages to retrieve \(default: 10, max: 15\) |
+| `oldest` | string | No | Start of time range \(timestamp\) |
+| `latest` | string | No | End of time range \(timestamp\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Array of message objects from the channel |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+
+### Slack Get Message
+
+Retrieve a specific message by its timestamp. Useful for getting a thread parent message.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Message timestamp to retrieve \(e.g., 1405894322.002768\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | The retrieved message object |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+
+### Slack Get Thread
+
+Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
+| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) to retrieve \(e.g., 1405894322.002768\) |
+| `limit` | number | No | Maximum number of messages to return \(default: 100, max: 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `parentMessage` | object | The thread parent message |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `replies` | array | Array of reply messages in the thread \(excluding the parent\) |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `messages` | array | All messages in the thread \(parent + replies\) in chronological order |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `replyCount` | number | Number of replies returned in this response |
+| `hasMore` | boolean | Whether there are more messages in the thread \(pagination needed\) |
+
+### Slack Get Thread Replies
+
+Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID containing the thread \(e.g., C1234567890\) |
+| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the parent message \(e.g., 1405894322.002768\) |
+| `oldest` | string | No | Only include replies after this Unix timestamp \(seconds\) |
+| `latest` | string | No | Only include replies before this Unix timestamp \(seconds\) |
+| `inclusive` | boolean | No | Include messages with timestamps matching oldest or latest \(default: false\) |
+| `limit` | number | No | Messages to request per page \(default: 200, max: 999\) |
+| `cursor` | string | No | Pagination cursor from a previous response.nextCursor to resume from |
+| `maxPages` | number | No | Maximum number of pages to fetch before stopping \(default: 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `parentMessage` | object | The thread parent message, or null if the thread is empty |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `replies` | array | All reply messages in the thread \(excluding the parent\) |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `messages` | array | All messages \(parent + replies\) in chronological order |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `replyCount` | number | Number of replies returned \(excluding the parent\) |
+| `hasMore` | boolean | Whether more pages remain beyond the fetched window |
+| `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
+| `pages` | number | Number of pages fetched in this invocation |
+
+### Slack Get Channel History
+
+Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
+| `oldest` | string | No | Only include messages after this Unix timestamp \(seconds, e.g., 1700000000\) |
+| `latest` | string | No | Only include messages before this Unix timestamp \(seconds\) |
+| `inclusive` | boolean | No | Include messages with timestamps matching oldest or latest \(default: false\) |
+| `limit` | number | No | Messages to request per page \(default: 200, max: 999\) |
+| `cursor` | string | No | Pagination cursor from a previous response.nextCursor to resume from |
+| `maxPages` | number | No | Maximum number of pages to fetch before stopping \(default: 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Channel messages in reverse-chronological order \(newest first\) |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `count` | number | Total number of messages returned across all fetched pages |
+| `hasMore` | boolean | Whether more pages remain beyond the fetched window |
+| `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
+| `pages` | number | Number of pages fetched in this invocation |
+
+### Slack Get Permalink
+
+Get a stable permalink URL to a specific Slack message.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID containing the message \(e.g., C1234567890\) |
+| `messageTs` | string | Yes | The message's ts value \(e.g., 1405894322.002768\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the permalink was retrieved successfully |
+| `channel` | string | Channel ID containing the message |
+| `permalink` | string | The permalink URL to the message |
+
+### Slack Set Assistant Status
+
+Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
+| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
+| `status` | string | No | Status text to display, e.g. 'Working on it…'. Omit or pass an empty string to clear the status. |
+| `loadingMessages` | json | No | Optional list of messages to rotate through as an animated loading indicator \(max 10\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the status was set successfully |
+| `channel` | string | Channel ID the status was set on |
+| `threadTs` | string | Thread timestamp the status was set on |
+
+### Slack Set Assistant Title
+
+Set the title of a Slack assistant thread (shown in the AI app thread header).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
+| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
+| `title` | string | Yes | The title to display for the assistant thread |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the title was set successfully |
+| `channel` | string | Channel ID the title was set on |
+| `threadTs` | string | Thread timestamp the title was set on |
+
+### Slack Set Suggested Prompts
+
+Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
+| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
+| `prompts` | json | Yes | Array of prompts, each with a "title" \(shown on the chip\) and a "message" \(sent when clicked\). Max 4. |
+| `promptsTitle` | string | No | Optional heading for the prompt list, e.g. 'Suggested Prompts' |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the suggested prompts were set successfully |
+| `channel` | string | Channel ID the prompts were set on |
+| `threadTs` | string | Thread timestamp the prompts were set on |
+
+### Slack Set Agent Suggested Prompts
+
+Set suggested prompts in Slack Agent View, optionally scoped to a specific thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Agent direct-message channel ID |
+| `threadTs` | string | No | Optional thread timestamp for legacy thread-scoped prompts |
+| `prompts` | json | Yes | One to four prompt objects with title and message fields |
+| `promptsTitle` | string | No | Optional heading displayed above the prompt chips |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack updated the suggested prompts |
+
+### Slack Set Agent Session Status
+
+Create or update the state of a Slack agent session associated with a thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Channel ID containing the agent session thread |
+| `threadTs` | string | Yes | Timestamp of the thread associated with the agent session |
+| `status` | string | Yes | Agent session state: active, processing, suspended, or closed |
+| `title` | string | No | Title used when creating the agent session, up to 200 characters |
+| `initiatorUserId` | string | No | Slack user ID that initiated the session |
+| `iconEmoji` | string | No | Emoji used to customize the agent identity |
+| `iconUrl` | string | No | Image URL used to customize the agent identity |
+| `username` | string | No | Display name used to customize the agent identity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack updated the agent session |
+| `status` | string | Requested agent session status |
+| `agentStatus` | string | Agent status recorded by Slack |
+| `title` | string | Current agent session title, or null when the session has no title |
+
+### Slack Rename Agent Session
+
+Rename the Slack agent session associated with a thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Channel ID containing the agent session thread |
+| `threadTs` | string | Yes | Timestamp of the thread associated with the agent session |
+| `title` | string | Yes | New agent session title, from 1 to 200 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack renamed the agent session |
+| `title` | string | Updated agent session title |
+
+### Slack List Channels
+
+List one page of accessible public and private Slack channels. Pass the returned nextCursor as cursor to fetch the next page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `includePrivate` | boolean | No | Include private channels the connected account can access \(default: true\) |
+| `excludeArchived` | boolean | No | Exclude archived channels \(default: true\) |
+| `limit` | number | No | Conversations to request per Slack page \(default: 100, max: 200\) |
+| `cursor` | string | No | Pagination cursor from a previous response.nextCursor to resume from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channels` | array | One page of accessible public and private channels |
+|   ↳ `id` | string | Conversation ID \(for example, C123, D123, or G123\) |
+|   ↳ `name` | string | Channel or group-DM name; omitted for one-to-one direct messages |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether the conversation is private |
+|   ↳ `is_archived` | boolean | Whether the conversation is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the credential owner is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Conversation topic |
+|   ↳ `purpose` | string | Conversation purpose |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+|   ↳ `is_group` | boolean | Whether this is a legacy private channel or group direct message |
+|   ↳ `is_im` | boolean | Whether this is a one-to-one direct message |
+|   ↳ `is_mpim` | boolean | Whether this is a group direct message |
+|   ↳ `user` | string | Other participant user ID for a one-to-one direct message |
+|   ↳ `is_user_deleted` | boolean | Whether the other participant in a direct message is deactivated |
+|   ↳ `is_open` | boolean | Whether a direct or group-direct-message conversation is open |
+|   ↳ `priority` | number | Slack sidebar sort priority |
+| `ids` | array | Conversation IDs for every returned channel |
+| `names` | array | Names of returned channels |
+| `count` | number | Number of conversations returned in this page |
+| `hasMore` | boolean | Whether a next cursor is available to fetch more Slack conversations |
+| `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
+
+### Slack List Channel Members
+
+List all members (user IDs) in a Slack channel. Use with Get User Info to resolve IDs to names.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID to list members from |
+| `limit` | number | No | Maximum number of members to return \(default: 100, max: 200\) |
+| `cursor` | string | No | Pagination cursor from a previous response.next_cursor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Array of user IDs who are members of the channel \(e.g., U1234567890\) |
+| `count` | number | Total number of members returned |
+| `nextCursor` | string | Cursor for the next page; null if no more pages |
+
+### Slack List Users
+
+List all users in a Slack workspace. Returns user profiles with names and avatars.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `includeDeleted` | boolean | No | Include deactivated/deleted users \(default: false\) |
+| `limit` | number | No | Maximum number of users to return \(default: 100, max: 200\) |
+| `cursor` | string | No | Pagination cursor from a previous response.next_cursor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Array of user objects from the workspace |
+|   ↳ `id` | string | User ID \(e.g., U1234567890\) |
+|   ↳ `name` | string | Username \(handle\) |
+|   ↳ `real_name` | string | Full real name |
+|   ↳ `display_name` | string | Display name shown in Slack |
+|   ↳ `email` | string | Email address \(requires users:read.email scope\) |
+|   ↳ `is_bot` | boolean | Whether the user is a bot |
+|   ↳ `is_admin` | boolean | Whether the user is a workspace admin |
+|   ↳ `is_owner` | boolean | Whether the user is the workspace owner |
+|   ↳ `deleted` | boolean | Whether the user is deactivated |
+|   ↳ `timezone` | string | User timezone identifier |
+|   ↳ `avatar` | string | URL to user avatar image |
+|   ↳ `status_text` | string | Custom status text |
+|   ↳ `status_emoji` | string | Custom status emoji |
+| `ids` | array | Array of user IDs for easy access |
+| `names` | array | Array of usernames for easy access |
+| `count` | number | Total number of users returned |
+| `nextCursor` | string | Cursor for the next page; null if no more pages |
+
+### Slack Get User Info
+
+Get detailed information about a specific Slack user by their user ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `userId` | string | Yes | User ID to look up \(e.g., U1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | Detailed user information |
+|   ↳ `id` | string | User ID \(e.g., U1234567890\) |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `name` | string | Username \(handle\) |
+|   ↳ `real_name` | string | Full real name |
+|   ↳ `display_name` | string | Display name shown in Slack |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `title` | string | Job title |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `skype` | string | Skype handle |
+|   ↳ `email` | string | Email address \(requires users:read.email scope\) |
+|   ↳ `is_bot` | boolean | Whether the user is a bot |
+|   ↳ `is_admin` | boolean | Whether the user is a workspace admin |
+|   ↳ `is_owner` | boolean | Whether the user is the workspace owner |
+|   ↳ `is_primary_owner` | boolean | Whether the user is the primary owner |
+|   ↳ `is_restricted` | boolean | Whether the user is a guest \(restricted\) |
+|   ↳ `is_ultra_restricted` | boolean | Whether the user is a single-channel guest |
+|   ↳ `is_app_user` | boolean | Whether user is an app user |
+|   ↳ `deleted` | boolean | Whether the user is deactivated |
+|   ↳ `color` | string | User color for display |
+|   ↳ `timezone` | string | Timezone identifier \(e.g., America/Los_Angeles\) |
+|   ↳ `timezone_label` | string | Human-readable timezone label |
+|   ↳ `timezone_offset` | number | Timezone offset in seconds from UTC |
+|   ↳ `avatar` | string | URL to user avatar image |
+|   ↳ `avatar_24` | string | URL to 24px avatar |
+|   ↳ `avatar_48` | string | URL to 48px avatar |
+|   ↳ `avatar_72` | string | URL to 72px avatar |
+|   ↳ `avatar_192` | string | URL to 192px avatar |
+|   ↳ `avatar_512` | string | URL to 512px avatar |
+|   ↳ `status_text` | string | Custom status text |
+|   ↳ `status_emoji` | string | Custom status emoji |
+|   ↳ `status_expiration` | number | Unix timestamp when status expires |
+|   ↳ `updated` | number | Unix timestamp of last profile update |
+|   ↳ `has_2fa` | boolean | Whether two-factor auth is enabled |
+
+### Download File from Slack
+
+Download a file from Slack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `fileId` | string | Yes | The ID of the file to download |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+
+### Slack Update Message
+
+Update a message previously sent by the bot in Slack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to update \(e.g., 1405894322.002768\) |
+| `text` | string | Yes | New message text \(supports Slack mrkdwn formatting\) |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | object | Complete updated message object with all properties returned by Slack |
+|   ↳ `type` | string | Message type \(usually "message"\) |
+|   ↳ `ts` | string | Message timestamp \(unique identifier\) |
+|   ↳ `text` | string | Message text content |
+|   ↳ `user` | string | User ID who sent the message |
+|   ↳ `bot_id` | string | Bot ID if sent by a bot |
+|   ↳ `username` | string | Display username |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `team` | string | Team/workspace ID |
+|   ↳ `thread_ts` | string | Parent message timestamp \(for threaded replies\) |
+|   ↳ `parent_user_id` | string | User ID of thread parent message author |
+|   ↳ `reply_count` | number | Total number of replies in thread |
+|   ↳ `reply_users_count` | number | Number of unique users who replied |
+|   ↳ `latest_reply` | string | Timestamp of most recent reply |
+|   ↳ `subscribed` | boolean | Whether user is subscribed to thread |
+|   ↳ `last_read` | string | Timestamp of last read message |
+|   ↳ `unread_count` | number | Number of unread messages in thread |
+|   ↳ `subtype` | string | Message subtype \(bot_message, file_share, etc.\) |
+|   ↳ `is_starred` | boolean | Whether message is starred by user |
+|   ↳ `pinned_to` | array | Channel IDs where message is pinned |
+|   ↳ `permalink` | string | Permanent URL to the message |
+|   ↳ `reactions` | array | Reactions on this message |
+|     ↳ `name` | string | Emoji name \(without colons\) |
+|     ↳ `count` | number | Number of times this reaction was added |
+|     ↳ `users` | array | Array of user IDs who reacted |
+|   ↳ `files` | array | Files attached to the message |
+|     ↳ `id` | string | Unique file identifier |
+|     ↳ `name` | string | File name |
+|     ↳ `mimetype` | string | MIME type of the file |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `url_private` | string | Private download URL \(requires auth\) |
+|     ↳ `permalink` | string | Permanent link to the file |
+|     ↳ `mode` | string | File mode \(hosted, external, etc.\) |
+|   ↳ `attachments` | array | Legacy attachments on the message |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `fallback` | string | Plain text summary |
+|     ↳ `text` | string | Main attachment text |
+|     ↳ `pretext` | string | Text shown before attachment |
+|     ↳ `color` | string | Color bar hex code or preset |
+|     ↳ `author_name` | string | Author display name |
+|     ↳ `author_link` | string | Author link URL |
+|     ↳ `author_icon` | string | Author icon URL |
+|     ↳ `title` | string | Attachment title |
+|     ↳ `title_link` | string | Title link URL |
+|     ↳ `image_url` | string | Image URL |
+|     ↳ `thumb_url` | string | Thumbnail URL |
+|     ↳ `footer` | string | Footer text |
+|     ↳ `footer_icon` | string | Footer icon URL |
+|     ↳ `ts` | string | Timestamp shown in footer |
+|   ↳ `blocks` | array | Block Kit blocks in the message |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `edited` | object | Edit information if message was edited |
+|     ↳ `user` | string | User ID who edited the message |
+|     ↳ `ts` | string | Timestamp of the edit |
+| `content` | string | Success message |
+| `metadata` | object | Updated message metadata |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `text` | string | Updated message text |
+
+### Slack Delete Message
+
+Delete a message previously sent by the bot in Slack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to delete \(e.g., 1405894322.002768\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Deleted message metadata |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+
+### Slack Add Reaction
+
+Add an emoji reaction to a Slack message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to react to \(e.g., 1405894322.002768\) |
+| `name` | string | Yes | Name of the emoji reaction \(without colons, e.g., thumbsup, heart, eyes\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Reaction metadata |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `reaction` | string | Emoji reaction name |
+
+### Slack Remove Reaction
+
+Remove an emoji reaction from a Slack message
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
+| `timestamp` | string | Yes | Timestamp of the message to remove reaction from \(e.g., 1405894322.002768\) |
+| `name` | string | Yes | Name of the emoji reaction to remove \(without colons, e.g., thumbsup, heart, eyes\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+| `metadata` | object | Reaction metadata |
+|   ↳ `channel` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `reaction` | string | Emoji reaction name |
+
+### Slack Get Channel Info
+
+Get detailed information about a Slack channel by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID to get information about \(e.g., C1234567890\) |
+| `includeNumMembers` | boolean | No | Whether to include the member count in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | Detailed channel information |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### Slack Get User Presence
+
+Check whether a Slack user is currently active or away
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `userId` | string | Yes | User ID to check presence for \(e.g., U1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `presence` | string | User presence status: "active" or "away" |
+| `online` | boolean | Whether user has an active client connection \(only available when checking own presence\) |
+| `autoAway` | boolean | Whether user was automatically set to away due to inactivity \(only available when checking own presence\) |
+| `manualAway` | boolean | Whether user manually set themselves as away \(only available when checking own presence\) |
+| `connectionCount` | number | Total number of active connections for the user \(only available when checking own presence\) |
+| `lastActivity` | number | Unix timestamp of last detected activity \(only available when checking own presence\) |
+
+### Slack Edit Canvas
+
+Edit an existing Slack canvas by inserting, replacing, or deleting content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas ID to edit \(e.g., F1234ABCD\) |
+| `operation` | string | Yes | Edit operation: insert_at_start, insert_at_end, insert_after, insert_before, replace, delete, or rename |
+| `content` | string | No | Markdown content for the operation \(required for insert/replace operations\) |
+| `sectionId` | string | No | Section ID to target \(required for insert_after, insert_before, and delete; omit for replace to replace the whole canvas\) |
+| `title` | string | No | New title for the canvas \(only used with rename operation\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Success message |
+
+### Slack Create Channel Canvas
+
+Create a canvas pinned to a Slack channel as its resource hub
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID to create the canvas in \(e.g., C1234567890\) |
+| `title` | string | No | Title for the channel canvas |
+| `content` | string | No | Canvas content in markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvas_id` | string | ID of the created channel canvas |
+
+### Slack Get Canvas Info
+
+Get Slack canvas file metadata by canvas ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas file ID to retrieve \(e.g., F1234ABCD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvas` | object | Canvas file information returned by Slack |
+|   ↳ `id` | string | Unique canvas file identifier |
+|   ↳ `created` | number | Unix timestamp when the canvas was created |
+|   ↳ `timestamp` | number | Unix timestamp associated with the canvas |
+|   ↳ `name` | string | Canvas file name |
+|   ↳ `title` | string | Canvas title |
+|   ↳ `mimetype` | string | MIME type of the canvas file |
+|   ↳ `filetype` | string | Slack file type for the canvas |
+|   ↳ `pretty_type` | string | Human-readable file type |
+|   ↳ `user` | string | User ID of the canvas creator |
+|   ↳ `editable` | boolean | Whether the canvas file is editable |
+|   ↳ `size` | number | Canvas file size in bytes |
+|   ↳ `mode` | string | File mode |
+|   ↳ `is_external` | boolean | Whether the canvas is externally hosted |
+|   ↳ `is_public` | boolean | Whether the canvas is public |
+|   ↳ `url_private` | string | Private URL for the canvas file |
+|   ↳ `url_private_download` | string | Private download URL for the canvas file |
+|   ↳ `permalink` | string | Permanent URL for the canvas |
+|   ↳ `channels` | array | Public channel IDs where the canvas appears |
+|   ↳ `groups` | array | Private channel IDs where the canvas appears |
+|   ↳ `ims` | array | Direct message IDs where the canvas appears |
+|   ↳ `canvas_readtime` | number | Approximate read time for canvas content |
+|   ↳ `is_channel_space` | boolean | Whether this canvas is linked to a channel |
+|   ↳ `linked_channel_id` | string | Channel ID linked to this canvas |
+|   ↳ `canvas_creator_id` | string | User ID of the canvas creator |
+
+### Slack List Canvases
+
+List Slack canvases available to the authenticated user or bot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | No | Filter canvases appearing in a specific channel ID |
+| `count` | number | No | Number of canvases to return per page |
+| `page` | number | No | Page number to return |
+| `user` | string | No | Filter canvases created by a single user ID |
+| `tsFrom` | string | No | Filter canvases created after this Unix timestamp |
+| `tsTo` | string | No | Filter canvases created before this Unix timestamp |
+| `teamId` | string | No | Encoded team ID, required when using an org-level token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvases` | array | Canvas file objects returned by Slack |
+|   ↳ `id` | string | Unique canvas file identifier |
+|   ↳ `created` | number | Unix timestamp when the canvas was created |
+|   ↳ `timestamp` | number | Unix timestamp associated with the canvas |
+|   ↳ `name` | string | Canvas file name |
+|   ↳ `title` | string | Canvas title |
+|   ↳ `mimetype` | string | MIME type of the canvas file |
+|   ↳ `filetype` | string | Slack file type for the canvas |
+|   ↳ `pretty_type` | string | Human-readable file type |
+|   ↳ `user` | string | User ID of the canvas creator |
+|   ↳ `editable` | boolean | Whether the canvas file is editable |
+|   ↳ `size` | number | Canvas file size in bytes |
+|   ↳ `mode` | string | File mode |
+|   ↳ `is_external` | boolean | Whether the canvas is externally hosted |
+|   ↳ `is_public` | boolean | Whether the canvas is public |
+|   ↳ `url_private` | string | Private URL for the canvas file |
+|   ↳ `url_private_download` | string | Private download URL for the canvas file |
+|   ↳ `permalink` | string | Permanent URL for the canvas |
+|   ↳ `channels` | array | Public channel IDs where the canvas appears |
+|   ↳ `groups` | array | Private channel IDs where the canvas appears |
+|   ↳ `ims` | array | Direct message IDs where the canvas appears |
+|   ↳ `canvas_readtime` | number | Approximate read time for canvas content |
+|   ↳ `is_channel_space` | boolean | Whether this canvas is linked to a channel |
+|   ↳ `linked_channel_id` | string | Channel ID linked to this canvas |
+|   ↳ `canvas_creator_id` | string | User ID of the canvas creator |
+| `paging` | object | Pagination information from Slack |
+|   ↳ `count` | number | Number of items requested per page |
+|   ↳ `total` | number | Total number of matching files |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pages` | number | Total number of pages |
+
+### Slack Lookup Canvas Sections
+
+Find Slack canvas section IDs matching criteria for later edits
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas ID to search \(e.g., F1234ABCD\) |
+| `criteria` | json | Yes | Section lookup criteria, such as \{"section_types":\["h1"\],"contains_text":"Roadmap"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sections` | array | Canvas sections matching the lookup criteria |
+|   ↳ `id` | string | Canvas section identifier |
+
+### Slack Delete Canvas
+
+Delete a Slack canvas by its canvas ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas ID to delete \(e.g., F1234ABCD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack deleted the canvas successfully |
+
+### Slack Lists Create List
+
+Create a Slack List with an optional column schema. Requires a paid Slack plan.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the new List |
+| `schema` | json | No | Column definitions with key, name, type, and optional is_primary_column/options. Read returned column IDs before writing rows. |
+| `description` | string | No | Plain text description, encoded as Slack rich text |
+| `todoMode` | boolean | No | Add task tracking fields for completion, assignee, and due date |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listId` | string | Created Slack List ID |
+| `schema` | array | Column schema with IDs; null if Slack omitted it |
+|   ↳ `id` | string | Column ID |
+|   ↳ `key` | string | Column key |
+|   ↳ `name` | string | Column name |
+|   ↳ `type` | string | Slack column type |
+|   ↳ `is_primary_column` | boolean | Whether this is the primary text column |
+|   ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
+
+### Slack Lists Update List
+
+Update a Slack List name, description, or task tracking fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID, from the List URL or Create List output |
+| `name` | string | No | New name for the List |
+| `description` | string | No | Plain text description, encoded as Slack rich text |
+| `todoMode` | boolean | No | Enable or disable task tracking fields; omit to leave unchanged |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
+### Slack Lists Share List
+
+Grant users or channels access to a Slack List. Provide exactly one of userIds or channelIds. Read allows viewing, write allows editing, and owner grants ownership to users only; only a current owner can grant ownership.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID, from the List URL or Create List output |
+| `accessLevel` | string | Yes | Access to grant: read, write, or owner. Ownership can only be granted to users. |
+| `userIds` | json | No | Nonempty JSON array of Slack user IDs, e.g. \["U0123456789"\]. Omit channelIds. |
+| `channelIds` | json | No | Nonempty JSON array of Slack channel IDs, e.g. \["C0123456789"\]. Omit userIds. Supports read or write access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
+### Slack Lists List Items
+
+Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID, from the List URL or Create List output |
+| `limit` | number | No | Maximum rows in this page \(positive integer; defaults to 100\) |
+| `cursor` | string | No | Continuation cursor from the previous response |
+| `archived` | boolean | No | Return archived rows instead of active rows |
+| `includeList` | boolean | No | Include List title and schema \(defaults to true\); schema IDs are required to write cells |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Rows in this page |
+|   ↳ `id` | string | Row ID; use as row_id for cell updates |
+|   ↳ `list_id` | string | Parent List ID |
+|   ↳ `date_created` | number | Creation Unix timestamp |
+|   ↳ `fields` | array | Cells with column_id, key, value and type-specific values |
+|     ↳ `column_id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `value` | json | Legacy scalar value; use typed values for writes |
+|     ↳ `text` | string | Display text; not accepted for writes |
+|     ↳ `rich_text` | json | Slack Block Kit rich text |
+|     ↳ `number` | array | Numeric values |
+|     ↳ `select` | array | Select choice values |
+|     ↳ `date` | array | Dates in YYYY-MM-DD format |
+|     ↳ `user` | array | Slack user IDs |
+|     ↳ `channel` | array | Slack channel IDs |
+|     ↳ `attachment` | array | Slack file IDs |
+|     ↳ `checkbox` | json | Checkbox boolean or boolean array returned by Slack; write a scalar boolean |
+|     ↳ `email` | array | Email values |
+|     ↳ `phone` | array | Phone values |
+|     ↳ `rating` | array | Rating values |
+|     ↳ `timestamp` | array | Unix timestamps |
+|     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
+|     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
+|     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
+|   ↳ `created_by` | string | Creator user ID |
+|   ↳ `updated_by` | string | Last editor user ID |
+|   ↳ `updated_timestamp` | string | Last update timestamp |
+|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+| `list` | object | Parent List \(id, title, schema\); null if not included |
+|   ↳ `id` | string | List ID |
+|   ↳ `title` | string | List title |
+|   ↳ `schema` | array | Column schema: use id as column_id when writing cells |
+|     ↳ `id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Slack column type |
+|     ↳ `is_primary_column` | boolean | Whether this is the primary text column |
+|     ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
+| `nextCursor` | string | Next page cursor; empty when there are no more rows |
+
+### Slack Lists Get Item
+
+Read a Slack List row and its parent List column schema.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `itemId` | string | Yes | Row ID returned by List Items or Create Item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Slack List row |
+|   ↳ `id` | string | Row ID; use as row_id for cell updates |
+|   ↳ `list_id` | string | Parent List ID |
+|   ↳ `date_created` | number | Creation Unix timestamp |
+|   ↳ `fields` | array | Cells with column_id, key, value and type-specific values |
+|     ↳ `column_id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `value` | json | Legacy scalar value; use typed values for writes |
+|     ↳ `text` | string | Display text; not accepted for writes |
+|     ↳ `rich_text` | json | Slack Block Kit rich text |
+|     ↳ `number` | array | Numeric values |
+|     ↳ `select` | array | Select choice values |
+|     ↳ `date` | array | Dates in YYYY-MM-DD format |
+|     ↳ `user` | array | Slack user IDs |
+|     ↳ `channel` | array | Slack channel IDs |
+|     ↳ `attachment` | array | Slack file IDs |
+|     ↳ `checkbox` | json | Checkbox boolean or boolean array returned by Slack; write a scalar boolean |
+|     ↳ `email` | array | Email values |
+|     ↳ `phone` | array | Phone values |
+|     ↳ `rating` | array | Rating values |
+|     ↳ `timestamp` | array | Unix timestamps |
+|     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
+|     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
+|     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
+|   ↳ `created_by` | string | Creator user ID |
+|   ↳ `updated_by` | string | Last editor user ID |
+|   ↳ `updated_timestamp` | string | Last update timestamp |
+|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+| `list` | object | Parent List title and column schema |
+|   ↳ `id` | string | List ID |
+|   ↳ `title` | string | List title |
+|   ↳ `schema` | array | Column schema: use id as column_id when writing cells |
+|     ↳ `id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Slack column type |
+|     ↳ `is_primary_column` | boolean | Whether this is the primary text column |
+|     ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
+
+### Slack Lists Create Item
+
+Create a Slack List row using real column IDs and typed cell values. Text columns require rich_text, not text.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `initialFields` | json | No | Array of typed fields, each with column_id and exactly one value such as rich_text, number, select, date, user, or checkbox. Use schema IDs from List Items \(includeList=true\). |
+| `parentItemId` | string | No | Parent row ID when creating a subtask |
+| `duplicatedItemId` | string | No | Existing row ID to duplicate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Slack List row |
+|   ↳ `id` | string | Row ID; use as row_id for cell updates |
+|   ↳ `list_id` | string | Parent List ID |
+|   ↳ `date_created` | number | Creation Unix timestamp |
+|   ↳ `fields` | array | Cells with column_id, key, value and type-specific values |
+|     ↳ `column_id` | string | Column ID |
+|     ↳ `key` | string | Column key |
+|     ↳ `value` | json | Legacy scalar value; use typed values for writes |
+|     ↳ `text` | string | Display text; not accepted for writes |
+|     ↳ `rich_text` | json | Slack Block Kit rich text |
+|     ↳ `number` | array | Numeric values |
+|     ↳ `select` | array | Select choice values |
+|     ↳ `date` | array | Dates in YYYY-MM-DD format |
+|     ↳ `user` | array | Slack user IDs |
+|     ↳ `channel` | array | Slack channel IDs |
+|     ↳ `attachment` | array | Slack file IDs |
+|     ↳ `checkbox` | json | Checkbox boolean or boolean array returned by Slack; write a scalar boolean |
+|     ↳ `email` | array | Email values |
+|     ↳ `phone` | array | Phone values |
+|     ↳ `rating` | array | Rating values |
+|     ↳ `timestamp` | array | Unix timestamps |
+|     ↳ `message` | json | Message references with value, channel_id, ts, and optional thread_ts |
+|     ↳ `link` | json | Link values with originalUrl and optional displayAsUrl/displayName/attachment |
+|     ↳ `reference` | json | Typed references to messages, List rows, files, or canvas sections |
+|   ↳ `created_by` | string | Creator user ID |
+|   ↳ `updated_by` | string | Last editor user ID |
+|   ↳ `updated_timestamp` | string | Last update timestamp |
+|   ↳ `parent_record_id` | string | Parent row ID for subtasks |
+
+### Slack Lists Update Items
+
+Update cells across Slack List rows. Each cell requires row_id, column_id, and one typed value. Use empty arrays to clear array-valued cells, or false to clear a checkbox.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `cells` | json | Yes | Nonempty array of cells with row_id, column_id and a typed value \(e.g. \{"row_id":"Rec...","column_id":"Col...","checkbox":true\}\). Text uses rich_text blocks. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
+### Slack Lists Delete Item
+
+Delete a row from an existing Slack List.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID |
+| `itemId` | string | Yes | Row ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
+### Slack Create Conversation
+
+Create a new public or private channel in a Slack workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `name` | string | Yes | Name of the channel to create \(lowercase, numbers, hyphens, underscores only; max 80 characters\) |
+| `isPrivate` | boolean | No | Create a private channel instead of a public one \(default: false\) |
+| `teamId` | string | No | Encoded team ID to create the channel in \(required if using an org token\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The newly created channel object |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### Slack Invite to Conversation
+
+Invite one or more users to a Slack channel. Supports up to 100 users at a time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | The ID of the channel to invite users to |
+| `users` | string | Yes | Comma-separated list of user IDs to invite \(up to 100\) |
+| `force` | boolean | No | When true, continues inviting valid users while skipping invalid ones \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The channel object after inviting users |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+| `errors` | array | Per-user errors when force is true and some invitations failed |
+|   ↳ `user` | string | User ID that failed |
+|   ↳ `ok` | boolean | Always false for error entries |
+|   ↳ `error` | string | Error code for this user |
+
+### Slack Open View
+
+Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., slash command, button click\) |
+| `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
+| `view` | json | Yes | A view payload object defining the modal. Must include type \("modal"\), title, and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The opened modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### Slack Update View
+
+Update an existing modal view in Slack. Identify the view by view_id or external_id, and provide the updated view payload.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `viewId` | string | No | Unique identifier of the view to update. Either viewId or externalId is required |
+| `externalId` | string | No | Developer-set unique identifier of the view to update \(max 255 chars\). Either viewId or externalId is required |
+| `hash` | string | No | View state hash to protect against race conditions. Obtained from a previous views response |
+| `view` | json | Yes | A view payload object defining the updated modal. Must include type \("modal"\), title, and blocks array. Use identical block_id and action_id values to preserve input data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The updated modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### Slack Push View
+
+Push a new view onto an existing modal stack in Slack. Limited to 2 additional views after the initial modal is opened.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., button click within an existing modal\) |
+| `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
+| `view` | json | Yes | A view payload object defining the modal to push. Must include type \("modal"\), title, and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The pushed modal view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### Slack Publish View
+
+Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `userId` | string | Yes | The user ID to publish the Home tab view to \(e.g., U0BPQUNTA\) |
+| `hash` | string | No | View state hash to protect against race conditions. Obtained from a previous views response |
+| `view` | json | Yes | A view payload object defining the Home tab. Must include type \("home"\) and blocks array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `view` | object | The published Home tab view object |
+|   ↳ `id` | string | Unique view identifier |
+|   ↳ `team_id` | string | Workspace/team ID |
+|   ↳ `type` | string | View type \(e.g., "modal"\) |
+|   ↳ `title` | json | Plain text title object with type and text fields |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Title text content |
+|   ↳ `submit` | json | Plain text submit button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Submit button text |
+|   ↳ `close` | json | Plain text close button object |
+|     ↳ `type` | string | Text object type \(plain_text\) |
+|     ↳ `text` | string | Close button text |
+|   ↳ `blocks` | array | Block Kit blocks in the view |
+|     ↳ `type` | string | Block type \(section, divider, image, actions, etc.\) |
+|     ↳ `block_id` | string | Unique block identifier |
+|   ↳ `private_metadata` | string | Private metadata string passed with the view |
+|   ↳ `callback_id` | string | Custom identifier for the view |
+|   ↳ `external_id` | string | Custom external identifier \(max 255 chars, unique per workspace\) |
+|   ↳ `state` | json | Current state of the view with input values |
+|   ↳ `hash` | string | View version hash for updates |
+|   ↳ `clear_on_close` | boolean | Whether to clear all views in the stack when this view is closed |
+|   ↳ `notify_on_close` | boolean | Whether to send a view_closed event when this view is closed |
+|   ↳ `root_view_id` | string | ID of the root view in the view stack |
+|   ↳ `previous_view_id` | string | ID of the previous view in the view stack |
+|   ↳ `app_id` | string | Application identifier |
+|   ↳ `bot_id` | string | Bot identifier |
+
+### Slack Schedule Message
+
+Schedule a message to be sent to a Slack channel or DM at a future time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel, private group, or DM to receive the message \(e.g., C1234567890\) |
+| `postAt` | number | Yes | Unix timestamp \(seconds\) representing the future time the message should post |
+| `text` | string | No | Message text to send \(supports Slack mrkdwn formatting\) |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
+| `threadTs` | string | No | Thread timestamp to reply to \(creates a scheduled thread reply\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `scheduledMessageId` | string | Identifier of the scheduled message \(used to delete it before it posts\) |
+| `postAt` | number | Unix timestamp when the message will post |
+| `channel` | string | Channel ID where the message is scheduled |
+| `message` | object | The scheduled message object returned by Slack |
+
+### Slack List Scheduled Messages
+
+List pending scheduled messages in a Slack workspace, optionally filtered by channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | No | Optional channel ID to filter scheduled messages \(e.g., C1234567890\) |
+| `limit` | number | No | Maximum number of scheduled messages to return |
+| `cursor` | string | No | Pagination cursor \(next_cursor\) from a previous response |
+| `oldest` | string | No | Unix timestamp of the oldest scheduled message to include |
+| `latest` | string | No | Unix timestamp of the latest scheduled message to include |
+| `teamId` | string | No | Encoded team ID \(required only with org-level tokens\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `scheduledMessages` | array | Array of pending scheduled message objects |
+|   ↳ `id` | string | Scheduled message ID |
+|   ↳ `channel_id` | string | Channel the message is scheduled for |
+|   ↳ `post_at` | number | Unix timestamp when the message will post |
+|   ↳ `date_created` | number | Unix timestamp when the schedule was created |
+|   ↳ `text` | string | Scheduled message text |
+| `nextCursor` | string | Cursor for the next page \(null when there are no more pages\) |
+
+### Slack Delete Scheduled Message
+
+Delete a pending scheduled message before it posts to Slack.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID where the scheduled message is queued \(e.g., C1234567890\) |
+| `scheduledMessageId` | string | Yes | Scheduled message ID from chat.scheduleMessage \(e.g., Q1234ABCD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the scheduled message was deleted successfully |
+
+### Slack Archive Conversation
+
+Archive a Slack channel so it is closed to new activity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to archive \(e.g., C1234567890\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the conversation was archived successfully |
+
+### Slack Rename Conversation
+
+Rename an existing Slack channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to rename \(e.g., C1234567890\) |
+| `name` | string | Yes | New channel name \(lowercase letters, numbers, hyphens, underscores only; max 80 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The channel object after renaming |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### Slack Set Conversation Topic
+
+Set the topic for a Slack channel (max 250 characters).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to update \(e.g., C1234567890\) |
+| `topic` | string | Yes | New topic text \(max 250 characters; no formatting or linkification\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The channel object after updating the topic |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### Slack Set Conversation Purpose
+
+Set the purpose (description) for a Slack channel (max 250 characters).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | ID of the channel to update \(e.g., C1234567890\) |
+| `purpose` | string | Yes | New purpose/description text \(max 250 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purpose` | string | The purpose/description that was set on the channel |
+
+### Slack Revoke List Access
+
+Remove access to a Slack List for either users or channels.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list_id` | string | Yes | List ID |
+| `user_ids` | json | No | User IDs |
+| `channel_ids` | json | No | Channel IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Start List Export
+
+Start an asynchronous CSV or JSON List export. Use the returned job_id with Get List Export and the same format options.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list_id` | string | Yes | List ID |
+| `format` | string | No | Export Format Options: csv, json. |
+| `include_threads` | boolean | No | Include Threads |
+| `include_attachments` | boolean | No | Include Attachments |
+| `include_archived` | boolean | No | Include Archived Rows |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `job_id` | string | Job id |
+
+### Slack Get List Export
+
+Read a List export job status and its download URL when ready. Format, Include Threads, and Include Attachments must match Start List Export.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list_id` | string | Yes | List ID |
+| `job_id` | string | Yes | Export Job ID |
+| `format` | string | No | Export Format Options: csv, json. |
+| `include_threads` | boolean | No | Include Threads |
+| `include_attachments` | boolean | No | Include Attachments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `status` | string | Status |
+| `download_url` | string | Download url |
+
+### Slack Delete List Items
+
+Delete multiple rows from a Slack List in one call.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `list_id` | string | Yes | List ID |
+| `ids` | json | Yes | Row IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Share Canvas
+
+Change access for users or regular channels on a standalone canvas. For sharing, first send the canvas link in Slack to the target. Channel resource canvases cannot be changed this way.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `canvas_id` | string | Yes | Canvas ID |
+| `access_level` | string | Yes | Access Level Options: read, write, owner. |
+| `user_ids` | json | No | User IDs |
+| `channel_ids` | json | No | Channel IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Revoke Canvas Access
+
+Remove user or regular-channel access to a standalone canvas. Channel-granted access must be revoked at the channel level.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `canvas_id` | string | Yes | Canvas ID |
+| `user_ids` | json | No | User IDs |
+| `channel_ids` | json | No | Channel IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Join Conversation
+
+Join a public Slack channel as the authenticated bot.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `conversation` | object | Conversation |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `creator` | string | Creator |
+|   ↳ `user` | string | User |
+|   ↳ `last_read` | string | Last read |
+|   ↳ `is_archived` | boolean | Is archived |
+|   ↳ `is_private` | boolean | Is private |
+|   ↳ `is_im` | boolean | Is im |
+|   ↳ `is_mpim` | boolean | Is mpim |
+|   ↳ `is_member` | boolean | Is member |
+|   ↳ `is_open` | boolean | Is open |
+|   ↳ `created` | number | Created |
+|   ↳ `topic` | object | Topic |
+|     ↳ `value` | string | Value |
+|     ↳ `creator` | string | Creator |
+|     ↳ `last_set` | number | Last set |
+|   ↳ `purpose` | object | Purpose |
+|     ↳ `value` | string | Value |
+|     ↳ `creator` | string | Creator |
+|     ↳ `last_set` | number | Last set |
+
+### Slack Leave Conversation
+
+Leave a Slack channel as the authenticated identity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Remove User from Conversation
+
+Remove a user from a Slack conversation, subject to workspace permissions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+| `user` | string | Yes | User ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Unarchive Conversation
+
+Restore an archived Slack channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Close Conversation
+
+Close a direct message or group direct message for the authenticated identity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Mark Conversation Read
+
+Move the authenticated identity’s read cursor to a message timestamp.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+| `ts` | string | Yes | Read Through Timestamp |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Open Conversation
+
+Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Supply exactly one target; omit the calling user from User IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `users` | json | No | User IDs |
+| `channel` | string | No | Conversation ID |
+| `prevent_creation` | boolean | No | Only Resume Existing Conversation |
+| `return_im` | boolean | No | Include Conversation Details |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `conversation` | object | Conversation |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `creator` | string | Creator |
+|   ↳ `user` | string | User |
+|   ↳ `last_read` | string | Last read |
+|   ↳ `is_archived` | boolean | Is archived |
+|   ↳ `is_private` | boolean | Is private |
+|   ↳ `is_im` | boolean | Is im |
+|   ↳ `is_mpim` | boolean | Is mpim |
+|   ↳ `is_member` | boolean | Is member |
+|   ↳ `is_open` | boolean | Is open |
+|   ↳ `created` | number | Created |
+|   ↳ `topic` | object | Topic |
+|     ↳ `value` | string | Value |
+|     ↳ `creator` | string | Creator |
+|     ↳ `last_set` | number | Last set |
+|   ↳ `purpose` | object | Purpose |
+|     ↳ `value` | string | Value |
+|     ↳ `creator` | string | Creator |
+|     ↳ `last_set` | number | Last set |
+
+### Slack Find User by Email
+
+Find a Slack user by their email address.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `user` | object | User |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `real_name` | string | Real name |
+|   ↳ `team_id` | string | Team id |
+|   ↳ `deleted` | boolean | Deleted |
+|   ↳ `is_bot` | boolean | Is bot |
+|   ↳ `profile` | object | Profile |
+|     ↳ `title` | string | Title |
+|     ↳ `phone` | string | Phone |
+|     ↳ `real_name` | string | Real name |
+|     ↳ `display_name` | string | Display name |
+|     ↳ `email` | string | Email |
+|     ↳ `first_name` | string | First name |
+|     ↳ `last_name` | string | Last name |
+|     ↳ `status_text` | string | Status text |
+|     ↳ `status_emoji` | string | Status emoji |
+|     ↳ `image_48` | string | Image 48 |
+|     ↳ `image_192` | string | Image 192 |
+|     ↳ `image_512` | string | Image 512 |
+|     ↳ `pronouns` | string | Pronouns |
+|     ↳ `start_date` | string | Start date |
+|     ↳ `status_expiration` | number | Status expiration |
+|     ↳ `fields` | json | Fields |
+
+### Slack List User Conversations
+
+List one page of conversations accessible to the selected user. Continue with response_metadata.next_cursor.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | No | User ID |
+| `types` | string | No | Comma-separated public_channel, private_channel, mpim, im. |
+| `exclude_archived` | boolean | No | Exclude Archived |
+| `exclude_muted` | boolean | No | Exclude Muted |
+| `cursor` | string | No | Cursor |
+| `limit` | number | No | Page Size |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `channels` | array | Channels |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `creator` | string | Creator |
+|   ↳ `user` | string | User |
+|   ↳ `last_read` | string | Last read |
+|   ↳ `is_archived` | boolean | Is archived |
+|   ↳ `is_private` | boolean | Is private |
+|   ↳ `is_im` | boolean | Is im |
+|   ↳ `is_mpim` | boolean | Is mpim |
+|   ↳ `is_member` | boolean | Is member |
+|   ↳ `is_open` | boolean | Is open |
+|   ↳ `created` | number | Created |
+|   ↳ `topic` | object | Topic |
+|     ↳ `value` | string | Value |
+|     ↳ `creator` | string | Creator |
+|     ↳ `last_set` | number | Last set |
+|   ↳ `purpose` | object | Purpose |
+|     ↳ `value` | string | Value |
+|     ↳ `creator` | string | Creator |
+|     ↳ `last_set` | number | Last set |
+| `response_metadata` | object | Metadata |
+|   ↳ `next_cursor` | string | Next cursor |
+
+### Slack Get User Profile
+
+Read a Slack user’s profile, status, and custom fields. Omit User ID for the authenticated identity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | No | User ID |
+| `include_labels` | boolean | No | Include Custom Field Labels |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `profile` | object | Profile |
+|   ↳ `title` | string | Title |
+|   ↳ `phone` | string | Phone |
+|   ↳ `real_name` | string | Real name |
+|   ↳ `display_name` | string | Display name |
+|   ↳ `email` | string | Email |
+|   ↳ `first_name` | string | First name |
+|   ↳ `last_name` | string | Last name |
+|   ↳ `status_text` | string | Status text |
+|   ↳ `status_emoji` | string | Status emoji |
+|   ↳ `image_48` | string | Image 48 |
+|   ↳ `image_192` | string | Image 192 |
+|   ↳ `image_512` | string | Image 512 |
+|   ↳ `pronouns` | string | Pronouns |
+|   ↳ `start_date` | string | Start date |
+|   ↳ `status_expiration` | number | Status expiration |
+|   ↳ `fields` | json | Fields |
+
+### Slack Set Bot Presence
+
+Set the selected custom bot’s presence to away or automatic. This does not change a workspace member’s presence.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `presence` | string | Yes | Presence Options: auto, away. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Get File Info
+
+Read Slack file metadata and one page of legacy file comments. Continue with response_metadata.next_cursor.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | string | Yes | File ID |
+| `cursor` | string | No | Cursor |
+| `limit` | number | No | Page Size |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `file` | object | File |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `title` | string | Title |
+|   ↳ `mimetype` | string | Mimetype |
+|   ↳ `filetype` | string | Filetype |
+|   ↳ `user` | string | User |
+|   ↳ `mode` | string | Mode |
+|   ↳ `permalink` | string | Permalink |
+|   ↳ `url_private` | string | Url private |
+|   ↳ `url_private_download` | string | Url private download |
+|   ↳ `size` | number | Size |
+|   ↳ `created` | number | Created |
+|   ↳ `is_public` | boolean | Is public |
+|   ↳ `reactions` | array | Reactions |
+|     ↳ `name` | string | Name |
+|     ↳ `count` | number | Count |
+|     ↳ `users` | array | Users |
+| `comments` | array | File comments, oldest first |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `comment` | string | Comment text |
+|   ↳ `user` | string | Author ID |
+|   ↳ `created` | number | Creation timestamp |
+|   ↳ `timestamp` | number | Comment timestamp |
+| `paging` | object | Paging |
+|   ↳ `count` | number | Count |
+|   ↳ `page` | number | Page |
+|   ↳ `pages` | number | Pages |
+|   ↳ `total` | number | Total |
+| `response_metadata` | object | Metadata |
+|   ↳ `next_cursor` | string | Next cursor |
+
+### Slack List Files
+
+List one page of Slack files matching user, channel, type, or timestamp filters. Continue using paging.page and paging.pages.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | No | Channel ID |
+| `user` | string | No | User ID |
+| `types` | string | No | File Types |
+| `ts_from` | string | No | From Timestamp |
+| `ts_to` | string | No | To Timestamp |
+| `page` | number | No | Page |
+| `count` | number | No | Page Size |
+| `show_files_hidden_by_limit` | boolean | No | Include Files Hidden by Plan Limit |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `fileMetadata` | array | Files |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `title` | string | Title |
+|   ↳ `mimetype` | string | Mimetype |
+|   ↳ `filetype` | string | Filetype |
+|   ↳ `user` | string | User |
+|   ↳ `mode` | string | Mode |
+|   ↳ `permalink` | string | Permalink |
+|   ↳ `url_private` | string | Url private |
+|   ↳ `url_private_download` | string | Url private download |
+|   ↳ `size` | number | Size |
+|   ↳ `created` | number | Created |
+|   ↳ `is_public` | boolean | Is public |
+|   ↳ `reactions` | array | Reactions |
+|     ↳ `name` | string | Name |
+|     ↳ `count` | number | Count |
+|     ↳ `users` | array | Users |
+| `paging` | object | Paging |
+|   ↳ `count` | number | Count |
+|   ↳ `page` | number | Page |
+|   ↳ `pages` | number | Pages |
+|   ↳ `total` | number | Total |
+
+### Slack Delete File
+
+Permanently delete a Slack file the authenticated identity is allowed to delete.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | string | Yes | File ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Get Reactions
+
+Get reactions for exactly one message, file, or file comment. Messages require both Channel ID and Message Timestamp.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | No | Channel ID |
+| `timestamp` | string | No | Message Timestamp |
+| `file` | string | No | File ID |
+| `file_comment` | string | No | File Comment ID |
+| `full` | boolean | No | Include All Reacting Users |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `type` | string | Type |
+| `channel` | string | Channel |
+| `message` | object | Message |
+|   ↳ `type` | string | Type |
+|   ↳ `text` | string | Text |
+|   ↳ `user` | string | User |
+|   ↳ `ts` | string | Ts |
+|   ↳ `permalink` | string | Permalink |
+|   ↳ `reactions` | array | Reactions |
+|     ↳ `name` | string | Name |
+|     ↳ `count` | number | Count |
+|     ↳ `users` | array | Users |
+| `file` | object | File |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `title` | string | Title |
+|   ↳ `mimetype` | string | Mimetype |
+|   ↳ `filetype` | string | Filetype |
+|   ↳ `user` | string | User |
+|   ↳ `mode` | string | Mode |
+|   ↳ `permalink` | string | Permalink |
+|   ↳ `url_private` | string | Url private |
+|   ↳ `url_private_download` | string | Url private download |
+|   ↳ `size` | number | Size |
+|   ↳ `created` | number | Created |
+|   ↳ `is_public` | boolean | Is public |
+|   ↳ `reactions` | array | Reactions |
+|     ↳ `name` | string | Name |
+|     ↳ `count` | number | Count |
+|     ↳ `users` | array | Users |
+| `comment` | object | Comment |
+|   ↳ `id` | string | Id |
+|   ↳ `comment` | string | Comment |
+|   ↳ `user` | string | User |
+|   ↳ `reactions` | array | Reactions |
+|     ↳ `name` | string | Name |
+|     ↳ `count` | number | Count |
+|     ↳ `users` | array | Users |
+
+### Slack List Reactions
+
+List one page of items reacted to by a user. Continue with response_metadata.next_cursor.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | No | User ID |
+| `full` | boolean | No | Include All Reacting Users |
+| `cursor` | string | No | Cursor |
+| `limit` | number | No | Page Size |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `items` | array | Items |
+|   ↳ `type` | string | Type |
+|   ↳ `channel` | string | Channel |
+|   ↳ `message` | object | Message |
+|     ↳ `type` | string | Type |
+|     ↳ `text` | string | Text |
+|     ↳ `user` | string | User |
+|     ↳ `ts` | string | Ts |
+|     ↳ `permalink` | string | Permalink |
+|     ↳ `reactions` | array | Reactions |
+|       ↳ `name` | string | Name |
+|       ↳ `count` | number | Count |
+|       ↳ `users` | array | Users |
+|   ↳ `file` | object | File |
+|     ↳ `id` | string | Id |
+|     ↳ `name` | string | Name |
+|     ↳ `title` | string | Title |
+|     ↳ `mimetype` | string | Mimetype |
+|     ↳ `filetype` | string | Filetype |
+|     ↳ `user` | string | User |
+|     ↳ `mode` | string | Mode |
+|     ↳ `permalink` | string | Permalink |
+|     ↳ `url_private` | string | Url private |
+|     ↳ `url_private_download` | string | Url private download |
+|     ↳ `size` | number | Size |
+|     ↳ `created` | number | Created |
+|     ↳ `is_public` | boolean | Is public |
+|     ↳ `reactions` | array | Reactions |
+|       ↳ `name` | string | Name |
+|       ↳ `count` | number | Count |
+|       ↳ `users` | array | Users |
+|   ↳ `comment` | object | Comment |
+|     ↳ `id` | string | Id |
+|     ↳ `comment` | string | Comment |
+|     ↳ `user` | string | User |
+|     ↳ `reactions` | array | Reactions |
+|       ↳ `name` | string | Name |
+|       ↳ `count` | number | Count |
+|       ↳ `users` | array | Users |
+|   ↳ `created` | number | Created |
+|   ↳ `created_by` | string | Created by |
+| `response_metadata` | object | Metadata |
+|   ↳ `next_cursor` | string | Next cursor |
+
+### Slack Pin Message
+
+Pin a message to its Slack conversation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+| `timestamp` | string | Yes | Message Timestamp |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Unpin Message
+
+Remove a message from its conversation’s pinned items.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+| `timestamp` | string | Yes | Message Timestamp |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack List Pins
+
+Read the pinned messages and files in a Slack conversation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `items` | array | Items |
+|   ↳ `type` | string | Type |
+|   ↳ `channel` | string | Channel |
+|   ↳ `message` | object | Message |
+|     ↳ `type` | string | Type |
+|     ↳ `text` | string | Text |
+|     ↳ `user` | string | User |
+|     ↳ `ts` | string | Ts |
+|     ↳ `permalink` | string | Permalink |
+|     ↳ `reactions` | array | Reactions |
+|       ↳ `name` | string | Name |
+|       ↳ `count` | number | Count |
+|       ↳ `users` | array | Users |
+|   ↳ `file` | object | File |
+|     ↳ `id` | string | Id |
+|     ↳ `name` | string | Name |
+|     ↳ `title` | string | Title |
+|     ↳ `mimetype` | string | Mimetype |
+|     ↳ `filetype` | string | Filetype |
+|     ↳ `user` | string | User |
+|     ↳ `mode` | string | Mode |
+|     ↳ `permalink` | string | Permalink |
+|     ↳ `url_private` | string | Url private |
+|     ↳ `url_private_download` | string | Url private download |
+|     ↳ `size` | number | Size |
+|     ↳ `created` | number | Created |
+|     ↳ `is_public` | boolean | Is public |
+|     ↳ `reactions` | array | Reactions |
+|       ↳ `name` | string | Name |
+|       ↳ `count` | number | Count |
+|       ↳ `users` | array | Users |
+|   ↳ `comment` | object | Comment |
+|     ↳ `id` | string | Id |
+|     ↳ `comment` | string | Comment |
+|     ↳ `user` | string | User |
+|     ↳ `reactions` | array | Reactions |
+|       ↳ `name` | string | Name |
+|       ↳ `count` | number | Count |
+|       ↳ `users` | array | Users |
+|   ↳ `created` | number | Created |
+|   ↳ `created_by` | string | Created by |
+
+### Slack Add Bookmark
+
+Add a link bookmark to a Slack channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel_id` | string | Yes | Channel ID |
+| `title` | string | Yes | Title |
+| `link` | string | Yes | Link URL |
+| `emoji` | string | No | Emoji |
+| `parent_id` | string | No | Parent Bookmark ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `bookmark` | object | Bookmark |
+|   ↳ `id` | string | Id |
+|   ↳ `channel_id` | string | Channel id |
+|   ↳ `title` | string | Title |
+|   ↳ `link` | string | Link |
+|   ↳ `emoji` | string | Emoji |
+|   ↳ `type` | string | Type |
+|   ↳ `date_created` | number | Date created |
+|   ↳ `date_updated` | number | Date updated |
+|   ↳ `entity_id` | string | Entity id |
+
+### Slack Edit Bookmark
+
+Change a channel link bookmark’s title, URL, or emoji.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel_id` | string | Yes | Channel ID |
+| `bookmark_id` | string | Yes | Bookmark ID |
+| `title` | string | No | Title |
+| `link` | string | No | Link URL |
+| `emoji` | string | No | Emoji |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `bookmark` | object | Bookmark |
+|   ↳ `id` | string | Id |
+|   ↳ `channel_id` | string | Channel id |
+|   ↳ `title` | string | Title |
+|   ↳ `link` | string | Link |
+|   ↳ `emoji` | string | Emoji |
+|   ↳ `type` | string | Type |
+|   ↳ `date_created` | number | Date created |
+|   ↳ `date_updated` | number | Date updated |
+|   ↳ `entity_id` | string | Entity id |
+
+### Slack List Bookmarks
+
+Read the bookmarks in a Slack channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel_id` | string | Yes | Channel ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `bookmarks` | array | Bookmarks |
+|   ↳ `id` | string | Id |
+|   ↳ `channel_id` | string | Channel id |
+|   ↳ `title` | string | Title |
+|   ↳ `link` | string | Link |
+|   ↳ `emoji` | string | Emoji |
+|   ↳ `type` | string | Type |
+|   ↳ `date_created` | number | Date created |
+|   ↳ `date_updated` | number | Date updated |
+|   ↳ `entity_id` | string | Entity id |
+
+### Slack Remove Bookmark
+
+Remove a bookmark from a Slack channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel_id` | string | Yes | Channel ID |
+| `bookmark_id` | string | Yes | Bookmark ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+### Slack Create User Group
+
+Create a Slack user group with a mention handle and default channels. Requires a paid plan and permission to manage user groups.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name |
+| `handle` | string | No | Mention Handle |
+| `description` | string | No | Description |
+| `channels` | json | No | Default Channel IDs |
+| `additional_channels` | json | No | Additional Channel IDs |
+| `enable_section` | boolean | No | Show as Sidebar Section |
+| `include_count` | boolean | No | Include Member Count |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `usergroup` | object | Usergroup |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `handle` | string | Handle |
+|   ↳ `description` | string | Description |
+|   ↳ `team_id` | string | Team id |
+|   ↳ `users` | array | Users |
+|   ↳ `user_count` | json | User count |
+|   ↳ `date_create` | number | Date create |
+|   ↳ `date_update` | number | Date update |
+|   ↳ `date_delete` | number | Date delete |
+|   ↳ `prefs` | object | Prefs |
+|     ↳ `channels` | array | Channels |
+|     ↳ `groups` | array | Groups |
+
+### Slack Update User Group
+
+Change a Slack user group’s name, handle, description, or default channels. Requires permission to manage user groups.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `usergroup` | string | Yes | User Group ID |
+| `name` | string | No | Name |
+| `handle` | string | No | Mention Handle |
+| `description` | string | No | Description |
+| `channels` | json | No | Default Channel IDs |
+| `additional_channels` | json | No | Additional Channel IDs |
+| `enable_section` | boolean | No | Show as Sidebar Section |
+| `include_count` | boolean | No | Include Member Count |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `usergroup` | object | Usergroup |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `handle` | string | Handle |
+|   ↳ `description` | string | Description |
+|   ↳ `team_id` | string | Team id |
+|   ↳ `users` | array | Users |
+|   ↳ `user_count` | json | User count |
+|   ↳ `date_create` | number | Date create |
+|   ↳ `date_update` | number | Date update |
+|   ↳ `date_delete` | number | Date delete |
+|   ↳ `prefs` | object | Prefs |
+|     ↳ `channels` | array | Channels |
+|     ↳ `groups` | array | Groups |
+
+### Slack Enable User Group
+
+Reactivate a disabled Slack user group. Requires permission to manage user groups.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `usergroup` | string | Yes | User Group ID |
+| `include_count` | boolean | No | Include Member Count |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `usergroup` | object | Usergroup |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `handle` | string | Handle |
+|   ↳ `description` | string | Description |
+|   ↳ `team_id` | string | Team id |
+|   ↳ `users` | array | Users |
+|   ↳ `user_count` | json | User count |
+|   ↳ `date_create` | number | Date create |
+|   ↳ `date_update` | number | Date update |
+|   ↳ `date_delete` | number | Date delete |
+|   ↳ `prefs` | object | Prefs |
+|     ↳ `channels` | array | Channels |
+|     ↳ `groups` | array | Groups |
+
+### Slack Disable User Group
+
+Disable a Slack user group and remove its members. Requires permission to manage user groups.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `usergroup` | string | Yes | User Group ID |
+| `include_count` | boolean | No | Include Member Count |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `usergroup` | object | Usergroup |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `handle` | string | Handle |
+|   ↳ `description` | string | Description |
+|   ↳ `team_id` | string | Team id |
+|   ↳ `users` | array | Users |
+|   ↳ `user_count` | json | User count |
+|   ↳ `date_create` | number | Date create |
+|   ↳ `date_update` | number | Date update |
+|   ↳ `date_delete` | number | Date delete |
+|   ↳ `prefs` | object | Prefs |
+|     ↳ `channels` | array | Channels |
+|     ↳ `groups` | array | Groups |
+
+### Slack List User Groups
+
+Read Slack user groups, optionally including disabled groups, members, and member counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `include_disabled` | boolean | No | Include Disabled Groups |
+| `include_users` | boolean | No | Include Members |
+| `include_count` | boolean | No | Include Member Count |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `usergroups` | array | Usergroups |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `handle` | string | Handle |
+|   ↳ `description` | string | Description |
+|   ↳ `team_id` | string | Team id |
+|   ↳ `users` | array | Users |
+|   ↳ `user_count` | json | User count |
+|   ↳ `date_create` | number | Date create |
+|   ↳ `date_update` | number | Date update |
+|   ↳ `date_delete` | number | Date delete |
+|   ↳ `prefs` | object | Prefs |
+|     ↳ `channels` | array | Channels |
+|     ↳ `groups` | array | Groups |
+
+### Slack List User Group Members
+
+Read the user IDs in a Slack user group.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `usergroup` | string | Yes | User Group ID |
+| `include_disabled` | boolean | No | Include Disabled Users |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `users` | array | Users |
+
+### Slack Update User Group Members
+
+Replace all members of a Slack user group with the supplied user IDs. An empty list is not supported; disable the group instead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `usergroup` | string | Yes | User Group ID |
+| `users` | json | Yes | User IDs |
+| `additional_channels` | json | No | Additional Channel IDs |
+| `is_shared` | boolean | No | Shared Section |
+| `include_count` | boolean | No | Include Member Count |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `usergroup` | object | Usergroup |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `handle` | string | Handle |
+|   ↳ `description` | string | Description |
+|   ↳ `team_id` | string | Team id |
+|   ↳ `users` | array | Users |
+|   ↳ `user_count` | json | User count |
+|   ↳ `date_create` | number | Date create |
+|   ↳ `date_update` | number | Date update |
+|   ↳ `date_delete` | number | Date delete |
+|   ↳ `prefs` | object | Prefs |
+|     ↳ `channels` | array | Channels |
+|     ↳ `groups` | array | Groups |
+
+### Slack Get Do Not Disturb Info
+
+Read a user’s Do Not Disturb schedule and available snooze information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `user` | string | No | User ID |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `dnd_enabled` | boolean | Dnd enabled |
+| `next_dnd_start_ts` | number | Next dnd start ts |
+| `next_dnd_end_ts` | number | Next dnd end ts |
+| `snooze_enabled` | boolean | Snooze enabled |
+| `snooze_endtime` | number | Snooze endtime |
+| `snooze_remaining` | number | Snooze remaining |
+| `snooze_is_indefinite` | boolean | Snooze is indefinite |
+
+### Slack Get Team Do Not Disturb Info
+
+Read Do Not Disturb settings for the supplied user IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `users` | json | Yes | User IDs |
+| `team_id` | string | No | Workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `users` | json | Users |
+
+### Slack List Custom Emoji
+
+List workspace custom emoji as names mapped to image URLs or alias references.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `emoji` | json | Custom emoji names mapped to image URLs or alias:name values |
+
+### Slack Get Workspace Info
+
+Read a Slack workspace’s name, domain, icon, and available organization details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `team` | string | No | Workspace ID |
+| `domain` | string | No | Workspace Domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `team` | object | Team |
+|   ↳ `id` | string | Id |
+|   ↳ `name` | string | Name |
+|   ↳ `domain` | string | Domain |
+|   ↳ `email_domain` | string | Email domain |
+|   ↳ `enterprise_id` | string | Enterprise id |
+|   ↳ `enterprise_name` | string | Enterprise name |
+|   ↳ `icon` | object | Icon |
+|     ↳ `image_34` | string | Image 34 |
+|     ↳ `image_132` | string | Image 132 |
+|     ↳ `image_default` | boolean | Image default |
+
+### Slack Get Workspace Profile Fields
+
+Read the workspace’s custom profile field definitions, optionally filtered by visibility.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `visibility` | string | No | Visibility Options: all, visible, hidden. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+| `profile` | object | Teamprofile |
+|   ↳ `fields` | array | Fields |
+|     ↳ `id` | string | Id |
+|     ↳ `label` | string | Label |
+|     ↳ `hint` | string | Hint |
+|     ↳ `type` | string | Type |
+|     ↳ `ordering` | number | Ordering |
+|     ↳ `is_hidden` | boolean | Is hidden |
+|     ↳ `section_id` | string | Section id |
+|     ↳ `possible_values` | array | Possible values |
+|   ↳ `sections` | array | Sections |
+|     ↳ `id` | string | Id |
+|     ↳ `label` | string | Label |
+|     ↳ `section_type` | string | Section type |
+|     ↳ `order` | number | Order |
+|     ↳ `is_hidden` | boolean | Is hidden |
+
+### Slack Unfurl Links
+
+Attach custom previews to links already shared in a message. Configure the relevant unfurl domains in your Slack app.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channel` | string | Yes | Channel ID |
+| `ts` | string | Yes | Message Timestamp |
+| `unfurls` | json | Yes | JSON object keyed by each shared URL, with Slack attachment fields or blocks as the value. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Ok |
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Slack
+
+Trigger from Slack events, interactions, and slash commands
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventType` | string | Yes | The single Slack event this trigger fires on. Add another trigger block for another event. |
+| `customBotCredential` | string | Yes | Choose a custom Slack bot you set up once and reuse across triggers. |
+| `manualBotCredential` | string | Yes | Set the custom bot credential ID directly. |
+| `source` | string | No | Restrict to direct messages, public channels, or private channels. Leave empty to match any. |
+| `channelFilter` | channel-selector | No | Restrict to specific channels. Leave empty to trigger on any channel the bot has been added to. |
+| `manualChannelFilter` | string | No | Comma-separated channel IDs to restrict to. Set IDs directly here. |
+| `threads` | string | No | Include thread replies, exclude them \(top-level only\), or fire only on thread replies. |
+| `streamResponse` | boolean | No | Create a Slack agent session and stream selected workflow outputs into the conversation that started this run. Custom bots only. |
+| `streamOutputs` | workflow-output-selector | No | Use `&lt;blockName&gt;.&lt;outputPath&gt;` for this workflow or `&lt;childWorkflowId&gt;.&lt;blockName&gt;.&lt;outputPath&gt;` for a child workflow. Selecting a child workflow applies to every invocation of it. Agent outputs stream live; other outputs are sent when the block completes. |
+| `streamTaskTitle` | string | No | Optional status Slack shows while each selected response is being produced. Leave empty to use Running. |
+| `streamTaskDisplayMode` | string | No | Choose how Slack displays thinking and tool progress. |
+| `streamIncludeThinking` | boolean | No | Show agent thinking as Slack task updates while the response is generated. |
+| `streamIncludeToolCalls` | boolean | No | Show Agent and Sim Chat tool execution progress as Slack task updates. |
+| `emoji` | string | No | Comma-separated emoji names to restrict to. Leave empty to match any emoji. |
+| `nameContains` | string | No | Only fire when the created channel name contains this text. |
+| `interactionFilter` | string | No | Comma-separated action_ids \(buttons/selects\) or callback_ids \(modals\) to restrict to. Leave empty to fire on any interaction. |
+| `commandFilter` | string | No | Restrict this trigger to one slash command. Leave empty to fire for every command configured on the bot. |
+| `filterBotMessages` | boolean | No | Ignore messages sent by other bots. This app's own output is always ignored. |
+| `includeOwnMessages` | boolean | No | Also fire on this app's own messages and reactions. Can cause loops — use with care. |
+| `includeFiles` | boolean | No | Download and include file attachments from messages. Requires files:read. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Slack event data |
+|   ↳ `event_type` | string | Type of Slack payload: an Events API event \(e.g., app_mention, message\), an interactivity type \(e.g., block_actions\), or "slash_command" for slash commands |
+|   ↳ `subtype` | string | Message subtype \(e.g., channel_join, channel_leave, bot_message, file_share\). Null for regular user messages |
+|   ↳ `channel` | string | Slack channel ID where the event occurred |
+|   ↳ `channel_name` | string | Human-readable channel name |
+|   ↳ `channel_type` | string | Type of channel \(e.g., channel, group, im, mpim\). Useful for distinguishing DMs from public channels |
+|   ↳ `user` | string | User ID who triggered the event |
+|   ↳ `user_name` | string | Username who triggered the event |
+|   ↳ `bot_id` | string | Bot ID if the message was sent by a bot. Null for human users |
+|   ↳ `text` | string | Message text content. For slash commands, the text after the command. For interactivity, the source message text \(falls back to the triggering action value\) |
+|   ↳ `timestamp` | string | Message timestamp from the triggering event |
+|   ↳ `thread_ts` | string | Parent thread timestamp \(if message is in a thread\) |
+|   ↳ `streaming_message_ts` | array | Message timestamps streamed during a stopped agent session |
+|   ↳ `title` | string | Current agent session title |
+|   ↳ `previous_title` | string | Previous agent session title |
+|   ↳ `tab` | string | App Home tab that was opened, including messages for Agent View |
+|   ↳ `context` | json | Current Agent View context. Normalized from context on app_context_changed/app_home_opened or app_context on message.im |
+|   ↳ `team_id` | string | Slack workspace/team ID |
+|   ↳ `user_team_id` | string | Slack workspace/team ID of the user who triggered the event. Used for Slack Connect response streaming. |
+|   ↳ `enterprise_id` | string | Slack Enterprise Grid organization ID |
+|   ↳ `event_id` | string | Unique event identifier |
+|   ↳ `reaction` | string | Emoji reaction name \(e.g., thumbsup\). Present for reaction_added/reaction_removed events |
+|   ↳ `item_user` | string | User ID of the original message author. Present for reaction_added/reaction_removed events |
+|   ↳ `command` | string | Slash command name including the leading slash \(e.g., /deploy\). Present for slash commands |
+|   ↳ `action_id` | string | action_id of the first interactive element triggered. Present for block_actions \(button/select clicks\) |
+|   ↳ `action_value` | string | Value carried by the first interactive element \(button value, selected option, date, etc.\). Present for block_actions |
+|   ↳ `actions` | json | Full array of interactive actions from the payload, preserving every element and its value. Present for block_actions |
+|   ↳ `response_url` | string | Temporary URL to post a response back to the originating message or command. Present for interactivity and slash commands |
+|   ↳ `trigger_id` | string | Short-lived trigger ID used to open a modal in response. Present for interactivity and slash commands |
+|   ↳ `callback_id` | string | Callback ID of the shortcut or view. Present for shortcuts and modal submissions |
+|   ↳ `api_app_id` | string | Slack app ID. Present for interactivity and slash commands |
+|   ↳ `app_id` | string | App ID of the app that produced the event \(e.g. the bot that posted a message\). Used to identify the app's own output |
+|   ↳ `message_ts` | string | Timestamp of the message the interaction originated from. Present for block_actions |
+|   ↳ `view` | json | Full Slack view object for modal interactions: state.values \(submitted input values\), private_metadata, id, callback_id, and hash. Present for view_submission/view_closed; null otherwise |
+|   ↳ `message` | json | Full source message object the interaction came from, including its blocks and text. Present for block_actions on a message; null otherwise |
+|   ↳ `state` | json | Current values of all stateful elements in the surface \(state.values\) at the time of a block action — e.g. inputs read on a button click. Present for block_actions; null otherwise |
+|   ↳ `hasFiles` | boolean | Whether the message has file attachments |
+|   ↳ `files` | file[] | File attachments downloaded from the message \(if includeFiles is enabled and bot token is provided\) |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Slack account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/slack` |
+| Environment variables | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `channels:read` | View public channels |
+| `channels:history` | Read public channel messages |
+| `channels:manage` | Create, archive, and rename public channels |
+| `groups:read` | View private channels |
+| `groups:history` | Read private channel messages |
+| `groups:write` | Create, archive, and manage private channels |
+| `chat:write` | Send messages |
+| `chat:write.public` | Post to public channels without joining them |
+| `im:write` | Start direct messages |
+| `im:read` | View direct message channels |
+| `users:read` | View workspace users |
+| `files:write` | Upload, edit, and delete files |
+| `files:read` | Download and read files |
+| `canvases:read` | Read canvas sections |
+| `canvases:write` | Create, edit, and delete canvas documents |
+| `reactions:write` | Add emoji reactions to messages |
+| `reactions:read` | View emoji reactions on messages |
+
+Requested only when `SLACK_EXTENDED_SCOPES` and `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` are enabled. Enable them only after Slack approves the app for these scopes:
+
+| Scope | Description |
+| ----- | ----------- |
+| `assistant:write` | Manage assistant status, titles, and suggested prompts |
+| `app_mentions:read` | View messages that mention the app |
+| `im:history` | Read direct message history |
+
+Some actions run only on a bot or service-account credential, never the OAuth connection. That credential needs these additional scopes:
+
+| Scope | Actions |
+| ----- | ------- |
+| `assistant:write` | Slack Set Agent Suggested Prompts |
+| `bookmarks:read` | Slack List Bookmarks |
+| `bookmarks:write` | Slack Add Bookmark, Slack Edit Bookmark, Slack Remove Bookmark |
+| `channels:join` | Slack Join Conversation |
+| `chat:write.customize` | Slack Set Agent Session Status |
+| `dnd:read` | Slack Get Do Not Disturb Info, Slack Get Team Do Not Disturb Info |
+| `emoji:read` | Slack List Custom Emoji |
+| `links:write` | Slack Unfurl Links |
+| `lists:read` | Slack Lists List Items, Slack Lists Get Item, Slack Start List Export, Slack Get List Export |
+| `lists:write` | Slack Lists Create List, Slack Lists Update List, Slack Lists Share List, Slack Lists Create Item, Slack Lists Update Items, Slack Lists Delete Item, Slack Revoke List Access, Slack Delete List Items |
+| `pins:read` | Slack List Pins |
+| `pins:write` | Slack Pin Message, Slack Unpin Message |
+| `team:read` | Slack Get Workspace Info |
+| `usergroups:read` | Slack List User Groups, Slack List User Group Members |
+| `usergroups:write` | Slack Create User Group, Slack Update User Group, Slack Enable User Group, Slack Disable User Group, Slack Update User Group Members |
+| `users:read.email` | Slack Find User by Email |
+| `users:write` | Slack Set Bot Presence |
+| `users.profile:read` | Slack Get User Profile, Slack Get Workspace Profile Fields |
+
+{/* MANUAL-CONTENT-START:notes */}
+## Lists and Canvas notes
+
+### Lists
+
+Lists actions require a custom Slack bot and a paid Slack plan. **Manage Lists** is selected by default during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
+
+- **Share List** grants access to users or channels. Choose **Share With**, enter a JSON array of Slack IDs, and select **Can view**, **Can edit**, or **Owner**. Ownership is for users only and requires the current owner. Creating a List does not automatically share it with your personal Slack account. See Slack's [sharing reference](https://docs.slack.dev/reference/methods/slackLists.access.set/).
+- Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
+- **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
+- To read every row, pass `nextCursor` into **Cursor** until it is empty. **Archived Rows** reads archived rows instead of active rows.
+
+### Canvases
+
+For custom bots, **Manage canvases** is selected by default during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
+
+**Edit Canvas** can replace the whole document when **Section ID** is empty. **Get Canvas Info** and **List Canvases** return metadata, not document contents. See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) for details.
+{/* MANUAL-CONTENT-END */}

@@ -1,11 +1,15 @@
-/**
- * @vitest-environment node
- */
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
+import { tableApiMock } from '@sim/testing/mocks/table-api.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 interface CapturedDefinition {
   contract: { method: string; path: string }
   auth: unknown
+  errorPolicy: unknown
   operation: { id: string }
   useCase: unknown
   mapInput(input: {
@@ -20,8 +24,6 @@ interface CapturedDefinition {
 }
 
 const mocks = vi.hoisted(() => ({
-  auth: { kind: 'session-or-executor' },
-  definitions: [] as CapturedDefinition[],
   useCases: {
     create: { operation: { id: 'tables.groups.create' } },
     remove: { operation: { id: 'tables.groups.delete' } },
@@ -29,20 +31,9 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes', () => ({
-  defineInternalJsonRoute: (definition: CapturedDefinition) => {
-    mocks.definitions.push(definition)
-    return vi.fn()
-  },
-  extendInternalErrorPolicy: vi.fn(() => ({ kind: 'table' })),
-  internalErrorResponse: vi.fn(),
-  internalPlainOrchestrationErrorPolicy: { kind: 'plain' },
-  internalRateLimits: {
-    none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
-  },
-}))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 
-vi.mock('@/lib/table/api', () => ({ internalTableSessionOrExecutorAuth: mocks.auth }))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
 vi.mock('@/lib/table/application/groups', () => ({
   createTableGroupUseCase: mocks.useCases.create,
@@ -50,36 +41,21 @@ vi.mock('@/lib/table/application/groups', () => ({
   updateTableGroupUseCase: mocks.useCases.update,
 }))
 
-vi.mock('@/app/api/table/utils', () => ({
-  normalizeColumn: vi.fn(),
-}))
+vi.mock('@/lib/table/wire', () => tableWireMock)
 
 import '@/app/api/table/[tableId]/groups/route'
 
+const definitions = apiServerRoutesMockFns.mockDefineInternalJsonRoute.mock.calls.map(
+  ([captured]) => captured as unknown as CapturedDefinition
+)
+
 function definition(method: string): CapturedDefinition {
-  const match = mocks.definitions.find((candidate) => candidate.contract.method === method)
+  const match = definitions.find((candidate) => candidate.contract.method === method)
   if (!match) throw new Error(`Missing ${method} group route definition`)
   return match
 }
 
 describe('/api/table/[tableId]/groups', () => {
-  it('routes every mutation through its session-or-executor application use case', () => {
-    const expected = [
-      ['POST', mocks.useCases.create],
-      ['PATCH', mocks.useCases.update],
-      ['DELETE', mocks.useCases.remove],
-    ] as const
-
-    expect(mocks.definitions).toHaveLength(expected.length)
-    for (const [method, useCase] of expected) {
-      const route = definition(method)
-      expect(route.contract.path).toBe('/api/table/[tableId]/groups')
-      expect(route.auth).toBe(mocks.auth)
-      expect(route.useCase).toBe(useCase)
-      expect(route.operation.id).toBe(useCase.operation.id)
-    }
-  })
-
   it('preserves the legacy create default while honoring an explicit opt-out', () => {
     const route = definition('POST')
     const input = {

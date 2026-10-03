@@ -1,7 +1,7 @@
 import type { Neo4jDeleteParams, Neo4jResponse } from '@/tools/neo4j/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<Neo4jDeleteParams, Neo4jResponse> = {
+export const deleteTool: InternalToolConfig<Neo4jDeleteParams, Neo4jResponse> = {
   id: 'neo4j_delete',
   name: 'Neo4j Delete',
   description:
@@ -67,13 +67,8 @@ export const deleteTool: ToolConfig<Neo4jDeleteParams, Neo4jResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/neo4j/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

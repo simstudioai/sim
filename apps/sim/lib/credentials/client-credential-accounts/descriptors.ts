@@ -2,13 +2,12 @@
  * Client-safe descriptors for client-credentials service-account providers.
  *
  * A client-credential account is a `service_account`-type credential where a
- * workspace admin pastes an OAuth client id + client secret + provider org
- * identifier instead of a long-lived token. Unlike the token-paste family
+ * workspace admin supplies an OAuth client identity plus a shared secret or
+ * signing key and provider account identifier. Unlike the token-paste family
  * (whose stored secret IS the access token), these credentials mint a
- * short-lived access token on demand via the provider's client-credentials
- * grant (Zoom Server-to-Server OAuth, Box CCG). This module holds only
- * UI/contract metadata (field lists, labels, docs links); the server-side
- * minting registry lives in `@/lib/credentials/client-credential-accounts/server`.
+ * short-lived access token on demand. This module holds only UI/contract
+ * metadata (field lists, labels, docs links); the server-side minting registry
+ * lives in `@/lib/credentials/client-credential-accounts/server`.
  */
 
 /** Discriminator stored inside every encrypted client-credential secret blob. */
@@ -18,6 +17,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account'
 export type ClientCredentialAccountFieldId =
   | 'clientId'
   | 'clientSecret'
+  | 'certificateId'
   | 'orgId'
   | 'dataCenter'
   | 'authMethod'
@@ -110,12 +110,49 @@ export const ZOOM_SERVICE_ACCOUNT_PROVIDER_ID = 'zoom-service-account' as const
 export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
+export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof BOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
+
+/**
+ * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
+ * REST endpoints. The account label may include a sandbox suffix such as
+ * `-sb1`; paths, ports, credentials, query strings, and fragments are never
+ * accepted because the stored origin later receives a bearer token.
+ */
+export const NETSUITE_SUITETALK_ORIGIN_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.suitetalk\.api\.netsuite\.com$/
+
+/**
+ * Normalizes an account-specific SuiteTalk URL to its HTTPS origin. Returns
+ * `undefined` rather than throwing so the client-side format hint and the
+ * server-side minter can share the exact same admission rule.
+ */
+export function normalizeNetSuiteSuiteTalkOrigin(rawUrl: string): string | undefined {
+  try {
+    const parsed = new URL(rawUrl.trim())
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      (parsed.pathname !== '' && parsed.pathname !== '/') ||
+      !NETSUITE_SUITETALK_ORIGIN_REGEX.test(parsed.origin)
+    ) {
+      return undefined
+    }
+    return parsed.origin
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * Allowed My Domain host shapes: one org label (optionally with a
@@ -450,6 +487,49 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoho-desk-service-account',
     helpText: 'Zoho Desk triggers still require an OAuth connection, which is US-only.',
+  },
+  [NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle NetSuite',
+    connectNoun: 'OAuth certificate',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'SuiteTalk URL',
+        placeholder: 'https://1234567-sb1.suitetalk.api.netsuite.com',
+        secret: false,
+        hintPattern: NETSUITE_SUITETALK_ORIGIN_REGEX,
+        hintNormalize: (value) =>
+          normalizeNetSuiteSuiteTalkOrigin(value) ?? value.trim().toLowerCase(),
+        hintMessage:
+          'Expected the HTTPS SuiteTalk Company URL with no path, port, query, or fragment.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the integration record client ID',
+        secret: false,
+      },
+      {
+        id: 'certificateId',
+        label: 'Certificate ID',
+        placeholder: 'Paste the certificate mapping ID',
+        secret: false,
+      },
+      {
+        id: 'privateKey',
+        label: 'Private key',
+        placeholder: '-----BEGIN PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+        hintPattern: /-----BEGIN (?:EC |RSA )?PRIVATE KEY-----/,
+        hintMessage: 'Expected the PEM private key paired with the uploaded certificate.',
+        hint: 'Must match the certificate mapping in this NetSuite account and environment.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
+    helpText:
+      'Use the account-specific SuiteTalk URL and the client ID, certificate ID, and private key from one OAuth 2.0 client-credentials mapping.',
   },
 }
 

@@ -11,7 +11,7 @@ export const GoogleGroupsBlock: BlockConfig = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.',
-  docsLink: 'https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups',
+  docsLink: 'https://docs.sim.ai/integrations/google_groups',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#E8F0FE',

@@ -3,8 +3,10 @@ import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { toRecord } from '@sim/utils/object'
+import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   getSlackBotCredential,
@@ -20,12 +22,24 @@ import {
   projectDesiredWebhookProviderConfig,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import { fetchSlackTeamId } from '@/lib/webhooks/providers/slack'
 import {
   prepareStableWebhookRegistrations,
   type StableDesiredWebhookRegistration,
 } from '@/lib/webhooks/registration-service'
+import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
+import { getSlackNativeSigningSecret } from '@/lib/webhooks/slack-native-config'
+import {
+  isSlackStreamResponseRequested,
+  normalizeSlackStreamResponseConfig,
+  replaceSlackStreamAuthoringConfig,
+} from '@/lib/webhooks/slack-stream-config'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
+import {
+  isDeploymentVersionActive,
+  isDeploymentVersionProtectedByCurrentOperation,
+} from '@/lib/workflows/persistence/deployment-operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -36,7 +50,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
-import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
+import { SIM_SUBSCRIBED_EVENTS, slackEventById } from '@/triggers/slack/shared'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 const logger = createLogger('DeployWebhookSync')
@@ -209,6 +223,8 @@ export function buildProviderConfig(
     Object.entries(block.subBlocks || {}).map(([key, value]) => [key, { value: value.value }])
   )
 
+  // canonical-index-unscoped: a trigger DEFINITION's subblocks are the trigger surface by
+  // construction — this never sees the host block's action fields.
   const canonicalIndex = buildCanonicalIndex(triggerDef.subBlocks)
   const satisfiedCanonicalIds = new Set<string>()
   const filledSubBlockIds = new Set<string>()
@@ -331,6 +347,7 @@ export async function resolveTriggerCredentialId(
  */
 export async function resolveWebhookConfigForBlock(input: {
   block: BlockState
+  blocks: Record<string, BlockState>
   workflow: Record<string, unknown>
   userId: string
   requestId: string
@@ -426,11 +443,69 @@ export async function resolveWebhookConfigForBlock(input: {
           },
         }
       }
+      if (!botCredential.signingSecret) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The selected Slack bot can run actions but cannot receive events because it has no signing secret. Reconnect it with a signing secret.',
+            status: 400,
+          },
+        }
+      }
+      const eventType =
+        typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
+      if (eventType && slackEventById.get(eventType)?.legacy) {
+        return {
+          success: false,
+          error: {
+            message:
+              'Legacy Assistant events require a native Sim Slack connection. Choose an Agent View event for a custom bot.',
+            status: 400,
+          },
+        }
+      }
+      try {
+        replaceSlackStreamAuthoringConfig(
+          providerConfig,
+          normalizeSlackStreamResponseConfig(providerConfig, input.blocks)
+        )
+      } catch (error) {
+        return {
+          success: false,
+          error: {
+            message: getErrorMessage(error, 'Invalid Slack stream configuration.'),
+            status: 400,
+          },
+        }
+      }
       effectiveProvider = 'slack'
       effectivePath = null
       routingKey = slackCredentialId
       providerConfig.credentialId = slackCredentialId
-      if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
+      if (botCredential.botUserId) {
+        providerConfig.bot_user_id = botCredential.botUserId
+      } else if (
+        providerConfig.eventType === 'reaction_added' ||
+        providerConfig.eventType === 'reaction_removed'
+      ) {
+        try {
+          const { userId: botUserId } = await fetchSlackTeamId(botCredential.botToken)
+          if (botUserId) providerConfig.bot_user_id = botUserId
+        } catch (error: unknown) {
+          logger.error(
+            `[${input.requestId}] Slack custom bot identity resolution failed for ${input.block.id}`,
+            error
+          )
+          return {
+            success: false,
+            error: {
+              message: 'Could not verify the selected Slack bot. Reconnect it and try again.',
+              status: 400,
+            },
+          }
+        }
+      }
     } else {
       // getSlackBotCredential also returns null for a custom bot credential that
       // was deleted or lost its stored secrets. Name that case so the error
@@ -442,6 +517,35 @@ export async function resolveWebhookConfigForBlock(input: {
           success: false,
           error: {
             message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
+            status: 400,
+          },
+        }
+      }
+      if (!isSlackExtendedScopesEnabled) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
+            status: 400,
+          },
+        }
+      }
+      if (!getSlackNativeSigningSecret()) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The Sim Slack app trigger is not configured for this deployment. Configure its signing secret or select a custom bot.',
+            status: 400,
+          },
+        }
+      }
+      if (isSlackStreamResponseRequested(providerConfig)) {
+        return {
+          success: false,
+          error: {
+            message: 'Streaming Slack trigger responses require a custom bot.',
             status: 400,
           },
         }
@@ -528,6 +632,46 @@ export async function resolveWebhookConfigForBlock(input: {
       // (`slack_app`) rows on providerConfig.credentialId.
       providerConfig.credentialId = resolvedCredentialId
     }
+  } else if (triggerId === 'slack_webhook') {
+    const slackCredentialId =
+      typeof providerConfig.botCredential === 'string' ? providerConfig.botCredential : undefined
+
+    if (slackCredentialId) {
+      const botCredential = await getSlackBotCredential(slackCredentialId)
+      const workflowWorkspace =
+        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+      if (!botCredential || !workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
+        return {
+          success: false,
+          error: {
+            message: 'The migrated Slack bot credential is not available in this workspace.',
+            status: 400,
+          },
+        }
+      }
+      if (!botCredential.signingSecret) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The migrated Slack bot cannot receive events because it has no signing secret.',
+            status: 400,
+          },
+        }
+      }
+
+      routingKey = slackCredentialId
+      providerConfig.credentialId = slackCredentialId
+      providerConfig.ingressMode = LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE
+    } else if (providerConfig.credentialId || providerConfig.ingressMode) {
+      return {
+        success: false,
+        error: {
+          message: 'The migrated Slack webhook credential association is incomplete.',
+          status: 400,
+        },
+      }
+    }
   } else if (triggerDef.provider === 'tiktok') {
     if (!credentialId) {
       return {
@@ -560,6 +704,30 @@ export async function resolveWebhookConfigForBlock(input: {
     routingKey = openId
   }
 
+  const handler = getProviderHandler(triggerDef.provider)
+  if (handler?.prepareDeploymentConfig) {
+    try {
+      const prepared = await handler.prepareDeploymentConfig({
+        credentialId,
+        providerConfig,
+        requestId: input.requestId,
+        triggerId,
+      })
+      effectiveProvider = prepared.provider ?? effectiveProvider
+      Object.assign(providerConfig, prepared.providerConfigUpdates)
+      if (prepared.triggerPath !== undefined) effectivePath = prepared.triggerPath
+      if (prepared.routingKey !== undefined) routingKey = prepared.routingKey
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
+          status: error instanceof WebhookDeploymentConfigurationError ? 400 : 500,
+        },
+      }
+    }
+  }
+
   return {
     success: true,
     config: {
@@ -574,14 +742,15 @@ export async function resolveWebhookConfigForBlock(input: {
 async function configurePollingIfNeeded(
   provider: string,
   savedWebhook: Record<string, unknown>,
-  requestId: string
+  requestId: string,
+  actor: { userId: string; workspaceId: string | null; deploymentVersionId?: string | null }
 ): Promise<TriggerSaveError | null> {
   const handler = getProviderHandler(provider)
   if (!handler.configurePolling) {
     return null
   }
 
-  const success = await handler.configurePolling({ webhook: savedWebhook, requestId })
+  const success = await handler.configurePolling({ webhook: savedWebhook, requestId, ...actor })
   if (!success) {
     await db.delete(webhook).where(eq(webhook.id, savedWebhook.id as string))
     return {
@@ -634,6 +803,7 @@ export async function prepareStableTriggerWebhooksForDeploy({
     signal?.throwIfAborted()
     const resolved = await resolveWebhookConfigForBlock({
       block,
+      blocks,
       workflow,
       userId,
       requestId,
@@ -743,6 +913,7 @@ export async function saveTriggerWebhooksForDeploy({
   for (const block of triggerBlocks) {
     const resolved = await resolveWebhookConfigForBlock({
       block,
+      blocks,
       workflow,
       userId,
       requestId,
@@ -786,7 +957,7 @@ export async function saveTriggerWebhooksForDeploy({
       }
 
       // Check if config changed or if we're forcing recreation (e.g., activating old version)
-      const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
+      const existingConfig = toRecord(existingWh.providerConfig)
       const needsRecreation =
         forceRecreateSubscriptions ||
         existingWh.provider !== provider ||
@@ -972,7 +1143,12 @@ export async function saveTriggerWebhooksForDeploy({
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
         { id: sub.webhookId, path: sub.triggerPath, providerConfig: sub.updatedProviderConfig },
-        requestId
+        requestId,
+        {
+          userId,
+          workspaceId: typeof workflow.workspaceId === 'string' ? workflow.workspaceId : null,
+          deploymentVersionId,
+        }
       )
       if (pollingError) {
         logger.error(
@@ -1153,39 +1329,15 @@ export async function cleanupWebhooksForWorkflow(
 
   if (!skipExternalCleanup) {
     for (const wh of existingWebhooks) {
-      if (shouldDeleteWebhook && !(await shouldDeleteWebhook())) {
-        logger.info(`[${requestId}] Stopping webhook cleanup because deployment became active`, {
-          workflowId,
-          deploymentVersionId,
-          webhookId: wh.id,
-        })
-        return
-      }
-
-      try {
-        await cleanupExternalWebhook(wh, workflow, requestId, {
-          throwOnError: strictExternalCleanup,
-        })
-      } catch (cleanupError) {
-        logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
-        if (strictExternalCleanup) throw cleanupError
-        // Continue with other webhooks even if one fails
-      }
-
-      const deleted = await deleteWebhookRecordAfterCleanup({
-        workflowId,
+      const deleted = await cleanupWebhookRow({
+        webhook: wh,
+        workflow,
+        requestId,
         deploymentVersionId,
-        webhookId: wh.id,
+        strictExternalCleanup,
         shouldDeleteWebhook,
       })
-      if (!deleted) {
-        logger.info(`[${requestId}] Stopping webhook DB cleanup because deployment became active`, {
-          workflowId,
-          deploymentVersionId,
-          webhookId: wh.id,
-        })
-        return
-      }
+      if (!deleted) return
     }
   } else {
     for (const wh of existingWebhooks) {
@@ -1211,6 +1363,141 @@ export async function cleanupWebhooksForWorkflow(
       ? `[${requestId}] Cleaned up webhooks for workflow ${workflowId} deployment ${deploymentVersionId}`
       : `[${requestId}] Cleaned up all webhooks for workflow ${workflowId}`
   )
+}
+
+type WebhookRow = typeof webhook.$inferSelect
+
+/**
+ * Tears down one webhook's provider subscription and then deletes its row.
+ * Returns false when `shouldDeleteWebhook` reports the deployment became
+ * active again, in which case the caller must stop touching its rows.
+ */
+async function cleanupWebhookRow(params: {
+  webhook: WebhookRow
+  workflow: Record<string, unknown>
+  requestId: string
+  deploymentVersionId?: string | null
+  strictExternalCleanup: boolean
+  shouldDeleteWebhook?: () => Promise<boolean>
+}): Promise<boolean> {
+  const { webhook: wh, workflow, requestId, deploymentVersionId, strictExternalCleanup } = params
+  const workflowId = wh.workflowId
+  if (params.shouldDeleteWebhook && !(await params.shouldDeleteWebhook())) {
+    logger.info(`[${requestId}] Stopping webhook cleanup because deployment became active`, {
+      workflowId,
+      deploymentVersionId,
+      webhookId: wh.id,
+    })
+    return false
+  }
+
+  try {
+    await cleanupExternalWebhook(wh, workflow, requestId, { throwOnError: strictExternalCleanup })
+  } catch (cleanupError) {
+    logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+    if (strictExternalCleanup) throw cleanupError
+  }
+
+  const deleted = await deleteWebhookRecordAfterCleanup({
+    workflowId,
+    deploymentVersionId,
+    webhookId: wh.id,
+    shouldDeleteWebhook: params.shouldDeleteWebhook,
+  })
+  if (!deleted) {
+    logger.info(`[${requestId}] Stopping webhook DB cleanup because deployment became active`, {
+      workflowId,
+      deploymentVersionId,
+      webhookId: wh.id,
+    })
+  }
+  return deleted
+}
+
+export interface InactiveDeploymentWebhookCleanupResult {
+  /** True when rows remain beyond this batch and the caller should run again. */
+  hasMore: boolean
+}
+
+/**
+ * Tears down webhooks still owned by inactive deployment versions of a
+ * workflow, at most `limit` rows per call. Provider teardown costs one call
+ * per row, so the work is bounded here and `hasMore` asks the caller to come
+ * back; every finished row leaves the remaining set smaller, so repeated calls
+ * converge. `protectedDeploymentVersionId` is the version an in-flight
+ * operation is preparing, inactive until cutover but live preparation state.
+ * Each row is re-checked right before its provider call: the version must
+ * still be inactive and must not have become the current operation's
+ * candidate, since either can change while the batch runs and the fenced row
+ * delete that follows cannot undo provider teardown.
+ */
+export async function cleanupInactiveDeploymentWebhooks(params: {
+  workflowId: string
+  workflow: Record<string, unknown>
+  requestId: string
+  protectedDeploymentVersionId: string | null
+  limit: number
+  shouldContinue?: () => Promise<boolean>
+}): Promise<InactiveDeploymentWebhookCleanupResult> {
+  const { workflowId, workflow, requestId, shouldContinue } = params
+  const inactiveVersionIds = db
+    .select({ id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, false)
+      )
+    )
+  const staleWebhooks = await db
+    .select()
+    .from(webhook)
+    .where(
+      and(
+        eq(webhook.workflowId, workflowId),
+        isNull(webhook.archivedAt),
+        inArray(webhook.deploymentVersionId, inactiveVersionIds),
+        params.protectedDeploymentVersionId
+          ? ne(webhook.deploymentVersionId, params.protectedDeploymentVersionId)
+          : undefined
+      )
+    )
+    .orderBy(asc(webhook.createdAt))
+    .limit(params.limit + 1)
+
+  const batch = staleWebhooks.slice(0, params.limit)
+  if (batch.length === 0) return { hasMore: false }
+
+  logger.info(
+    `[${requestId}] Cleaning up ${batch.length} webhook(s) owned by inactive deployments`,
+    {
+      workflowId,
+      webhookIds: batch.map((wh) => wh.id),
+    }
+  )
+
+  for (const wh of batch) {
+    const deploymentVersionId = wh.deploymentVersionId
+    const deleted = await cleanupWebhookRow({
+      webhook: wh,
+      workflow,
+      requestId,
+      deploymentVersionId,
+      strictExternalCleanup: true,
+      shouldDeleteWebhook: async () => {
+        if (shouldContinue && !(await shouldContinue())) return false
+        if (!deploymentVersionId) return true
+        if (await isDeploymentVersionActive(workflowId, deploymentVersionId)) return false
+        return !(await isDeploymentVersionProtectedByCurrentOperation(
+          workflowId,
+          deploymentVersionId
+        ))
+      },
+    })
+    if (!deleted) return { hasMore: true }
+  }
+
+  return { hasMore: staleWebhooks.length > params.limit }
 }
 
 /**

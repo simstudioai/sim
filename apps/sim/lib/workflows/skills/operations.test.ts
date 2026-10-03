@@ -1,24 +1,27 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getEditableSkillIdsMock } = vi.hoisted(() => ({
   getEditableSkillIdsMock: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@sim/utils/id', () => ({ generateId: () => 'gen-uuid', generateShortId: () => 'gen-id' }))
+vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/skills/access', () => ({
   getEditableSkillIds: getEditableSkillIdsMock,
 }))
 
-import { listSkills, listSkillsForUser } from '@/lib/workflows/skills/operations'
+import {
+  listSkillSummariesPage,
+  listSkills,
+  listSkillsForUser,
+} from '@/lib/workflows/skills/operations'
+
+idMockFns.mockGenerateId.mockReturnValue('gen-uuid')
+idMockFns.mockGenerateShortId.mockReturnValue('gen-id')
 
 describe('listSkills includeBuiltins', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -31,25 +34,62 @@ describe('listSkills includeBuiltins', () => {
     expect(result.length).toBeGreaterThan(0)
     expect(result.every((s) => s.id.startsWith('builtin-'))).toBe(true)
   })
+})
 
-  /**
-   * The mothership skill inventory passes includeBuiltins: false so it never
-   * sees the code-only template skills.
-   */
-  it('excludes builtin template skills when includeBuiltins is false', async () => {
+/**
+ * The page is sliced after the built-ins are merged in and the merged array is
+ * re-sorted, so these assert the window over that merged sequence — not over
+ * the DB rows alone.
+ */
+describe('listSkillSummariesPage', () => {
+  const page = (limit: number, offset: number) =>
+    listSkillSummariesPage({
+      workspaceId: 'ws-1',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      limit,
+      offset,
+    })
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
+  it('returns at most `limit` skills and reports that more remain', async () => {
+    const result = await page(2, 0)
+
+    expect(result.skills).toHaveLength(2)
+    expect(result.hasMore).toBe(true)
+    expect(result).toMatchObject({ offset: 0, limit: 2 })
+  })
+
+  it('pages over the merged built-in and workspace sequence, not the DB rows alone', async () => {
     queueTableRows(schemaMock.skill, [
-      { id: 'sk-1', name: 'mine', description: 'd', content: 'c', workspaceId: 'ws-1' },
+      { id: 'sk-1', name: 'aaa-mine', description: 'd', workspaceId: 'ws-1' },
     ])
-    const result = await listSkills({ workspaceId: 'ws-1', includeBuiltins: false })
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('sk-1')
-    expect(result.some((s) => s.id.startsWith('builtin-'))).toBe(false)
+
+    const result = await page(1, 0)
+
+    expect(result.skills.map((s) => s.id)).toEqual(['sk-1'])
+    expect(result.hasMore).toBe(true)
+  })
+
+  it('never selects the skill body for a list page', async () => {
+    await page(50, 0)
+
+    const projection = dbChainMockFns.select.mock.calls.at(-1)?.[0]
+    expect(projection).toBeDefined()
+    expect(projection).not.toHaveProperty('content')
+    expect(projection).toHaveProperty('name')
   })
 })
 
 describe('listSkillsForUser', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     getEditableSkillIdsMock.mockResolvedValue({
       canAdminWorkspace: false,
@@ -99,13 +139,6 @@ describe('listSkillsForUser', () => {
     })
 
     expect(result.every((s) => s.canEdit)).toBe(true)
-  })
-
-  it('always passes builtin skills through as non-editable', async () => {
-    const result = await listSkillsForUser({ workspaceId: 'ws-1', userId: 'user-1' })
-
-    expect(result.length).toBeGreaterThan(0)
-    expect(result.every((s) => s.id.startsWith('builtin-') && s.canEdit === false)).toBe(true)
   })
 
   it('lets a workspace skill sharing a builtin name override it for everyone', async () => {

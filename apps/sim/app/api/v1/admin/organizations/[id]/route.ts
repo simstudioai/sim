@@ -30,7 +30,13 @@
  * Response: AdminSingleResponse<{ success, organizationId, slug, membersRemoved, workspacesDetached }>
  */
 
-import { AuditAction, AuditResourceType, recordAudit, recordAuditBatch } from '@sim/audit'
+import {
+  AuditAction,
+  AuditResourceType,
+  auditUpdatedFields,
+  recordAudit,
+  recordAuditBatch,
+} from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -51,7 +57,9 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   TERMINAL_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -178,9 +186,8 @@ export const PATCH = withRouteHandler(
         .where(eq(organization.id, organizationId))
         .returning()
 
-      logger.info(`Admin API: Updated organization ${organizationId}`, {
-        fields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
-      })
+      const updatedFields = auditUpdatedFields(updateData)
+      logger.info(`Admin API: Updated organization ${organizationId}`, { updatedFields })
 
       recordAudit({
         workspaceId: null,
@@ -190,7 +197,7 @@ export const PATCH = withRouteHandler(
         resourceId: organizationId,
         resourceName: updated.name,
         description: `Admin API updated organization "${updated.name}"`,
-        metadata: { fields: Object.keys(updateData).filter((k) => k !== 'updatedAt') },
+        metadata: { updatedFields },
         request,
       })
 
@@ -294,6 +301,7 @@ export const DELETE = withRouteHandler(
        */
       const { detachedWorkspaceIds, auditEntries } = await db.transaction(async (tx) => {
         const detached = await detachOrganizationWorkspacesTx(tx, organizationId)
+        await enqueueOrganizationResourceCleanup(tx, organizationId)
         await tx.delete(organization).where(eq(organization.id, organizationId))
         return detached
       })
@@ -331,6 +339,9 @@ export const DELETE = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to delete organization', { error, organizationId })
+      if (error instanceof OrchestrationError && error.code === 'conflict') {
+        return conflictResponse(error.message)
+      }
       return internalErrorResponse('Failed to delete organization')
     }
   })

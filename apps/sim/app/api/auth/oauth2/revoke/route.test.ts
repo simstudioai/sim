@@ -1,0 +1,56 @@
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
+import { NextRequest } from 'next/server'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  revoke: vi.fn(),
+}))
+
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
+vi.mock('@/lib/auth/oauth-token-family', () => ({ revokeOAuthToken: mocks.revoke }))
+
+import { POST } from '@/app/api/auth/oauth2/revoke/route'
+
+function revokeRequest(body: string) {
+  return new NextRequest('http://localhost/api/auth/oauth2/revoke', {
+    method: 'POST',
+    body,
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  })
+}
+
+afterAll(resetEnvFlagsMock)
+
+describe('OAuth revocation route', () => {
+  beforeEach(() => {
+    setEnvFlags({ isAuthDisabled: false })
+    mocks.revoke.mockResolvedValue({ success: true, value: undefined })
+  })
+
+  it('returns the empty RFC 7009 success response for known or unknown tokens', async () => {
+    const response = await POST(
+      revokeRequest('client_id=sim-cli&token=sim_ort_current&token_type_hint=not-a-real-hint')
+    )
+    expect(response.status).toBe(200)
+    await expect(response.text()).resolves.toBe('')
+    expect(mocks.revoke).toHaveBeenCalledWith({
+      credentials: { clientId: 'sim-cli', method: 'none' },
+      token: 'sim_ort_current',
+    })
+  })
+
+  it('returns a Basic challenge for Basic client-authentication failure', async () => {
+    mocks.revoke.mockResolvedValue({
+      success: false,
+      error: 'invalid_client',
+      description: 'Client authentication failed.',
+    })
+    const basic = Buffer.from('client:wrong').toString('base64')
+    const request = revokeRequest('token=sim_ort_current')
+    request.headers.set('authorization', `Basic ${basic}`)
+    const response = await POST(request)
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toContain('Basic')
+  })
+})

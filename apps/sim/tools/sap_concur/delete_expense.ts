@@ -1,13 +1,12 @@
-import type { DeleteExpenseParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { DeleteExpenseParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteExpenseTool: ToolConfig<DeleteExpenseParams, SapConcurProxyResponse> = {
+export const deleteExpenseTool: InternalToolConfig<DeleteExpenseParams, SapConcurResponse> = {
   id: 'sap_concur_delete_expense',
   name: 'SAP Concur Delete Expense',
   description:
@@ -69,28 +68,24 @@ export const deleteExpenseTool: ToolConfig<DeleteExpenseParams, SapConcurProxyRe
       description: 'Expense ID to delete',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const reportId = trimRequired(params.reportId, 'reportId')
       const expenseId = trimRequired(params.expenseId, 'expenseId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/reports/${encodeURIComponent(reportId)}/expenses/${encodeURIComponent(expenseId)}`,
         method: 'DELETE',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
       type: 'json',
       description:
         'Empty body on success (HTTP 204 No Content). Error details when status is non-2xx',
-      properties: {},
     },
   },
 }

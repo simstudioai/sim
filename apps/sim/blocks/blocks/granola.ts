@@ -1,12 +1,13 @@
 import { GranolaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const GranolaBlock: BlockConfig = {
   type: 'granola',
   name: 'Granola',
-  description: 'Access meeting notes and transcripts from Granola',
+  description: 'Access meeting notes, transcripts, and audit events from Granola',
   longDescription:
-    'Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.',
+    'Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts, review workspace audit events, and manage webhook endpoints. Granola can also trigger workflows when notes are generated, edited, or shared with you.',
   docsLink: 'https://docs.sim.ai/integrations/granola',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
@@ -24,9 +25,26 @@ export const GranolaBlock: BlockConfig = {
           { text: ', before', field: 'createdBefore' },
         ],
         get_note: [{ text: 'Read meeting note', field: 'noteId', core: true }],
+        get_transcript: [{ text: 'Read the transcript of note', field: 'noteId', core: true }],
         list_folders: [
           'List note folders',
           { text: ', up to', field: 'pageSize', after: 'per page' },
+        ],
+        list_audit_events: [
+          'List audit events',
+          { text: 'for action', field: 'action' },
+          { text: ', occurring after', field: 'occurredAfter' },
+        ],
+        create_webhook_endpoint: [
+          'Create a webhook endpoint',
+          { text: 'delivering to', field: 'url', core: true },
+        ],
+        list_webhook_endpoints: ['List webhook endpoints'],
+        update_webhook_endpoint: [
+          { text: 'Update webhook endpoint', field: 'webhookEndpointId', core: true },
+        ],
+        delete_webhook_endpoint: [
+          { text: 'Delete webhook endpoint', field: 'webhookEndpointId', core: true },
         ],
       },
     },
@@ -40,7 +58,13 @@ export const GranolaBlock: BlockConfig = {
       options: [
         { label: 'List Notes', id: 'list_notes' },
         { label: 'Get Note', id: 'get_note' },
+        { label: 'Get Transcript', id: 'get_transcript' },
         { label: 'List Folders', id: 'list_folders' },
+        { label: 'List Audit Events', id: 'list_audit_events' },
+        { label: 'Create Webhook Endpoint', id: 'create_webhook_endpoint' },
+        { label: 'List Webhook Endpoints', id: 'list_webhook_endpoints' },
+        { label: 'Update Webhook Endpoint', id: 'update_webhook_endpoint' },
+        { label: 'Delete Webhook Endpoint', id: 'delete_webhook_endpoint' },
       ],
       value: () => 'list_notes',
     },
@@ -56,9 +80,9 @@ export const GranolaBlock: BlockConfig = {
       id: 'noteId',
       title: 'Note ID',
       type: 'short-input',
-      required: { field: 'operation', value: 'get_note' },
+      required: { field: 'operation', value: ['get_note', 'get_transcript'] },
       placeholder: 'e.g., not_1d3tmYTlCICgjy',
-      condition: { field: 'operation', value: 'get_note' },
+      condition: { field: 'operation', value: ['get_note', 'get_transcript'] },
     },
     {
       id: 'includeTranscript',
@@ -71,6 +95,8 @@ export const GranolaBlock: BlockConfig = {
       value: () => 'false',
       condition: { field: 'operation', value: 'get_note' },
       mode: 'advanced',
+      description:
+        'Include the transcript inline. If it is too large to return inline, use the Get Transcript operation to page through it instead.',
     },
     {
       id: 'createdAfter',
@@ -127,7 +153,12 @@ export const GranolaBlock: BlockConfig = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '10 (1-30)',
-      condition: { field: 'operation', value: ['list_notes', 'list_folders'] },
+      description:
+        'Results per page. Notes, folders, and audit events allow 1-30 (default 10); transcripts allow 1-100 (default 50).',
+      condition: {
+        field: 'operation',
+        value: ['list_notes', 'list_folders', 'list_audit_events', 'get_transcript'],
+      },
       mode: 'advanced',
     },
     {
@@ -135,18 +166,160 @@ export const GranolaBlock: BlockConfig = {
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Pagination cursor from previous response',
-      condition: { field: 'operation', value: ['list_notes', 'list_folders'] },
+      condition: {
+        field: 'operation',
+        value: ['list_notes', 'list_folders', 'list_audit_events', 'get_transcript'],
+      },
       mode: 'advanced',
     },
+    {
+      id: 'action',
+      title: 'Action',
+      type: 'short-input',
+      placeholder: 'e.g., workspace',
+      description:
+        'Return only events with this exact action, or actions beginning with it followed by a dot ("workspace" matches workspace.member_added but not workspace_automation.created).',
+      condition: { field: 'operation', value: 'list_audit_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'occurredAfter',
+      title: 'Occurred After',
+      type: 'short-input',
+      placeholder: 'e.g., 2026-01-01',
+      description: 'Must fall within the one-year audit retention window.',
+      condition: { field: 'operation', value: 'list_audit_events' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 date or datetime string. Return ONLY the date string - no explanations, no extra text.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'occurredBefore',
+      title: 'Occurred Before',
+      type: 'short-input',
+      placeholder: 'e.g., 2026-03-01',
+      description: 'Must fall within the one-year audit retention window.',
+      condition: { field: 'operation', value: 'list_audit_events' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 date or datetime string. Return ONLY the date string - no explanations, no extra text.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'url',
+      title: 'Delivery URL',
+      type: 'short-input',
+      required: { field: 'operation', value: 'create_webhook_endpoint' },
+      placeholder: 'https://example.com/granola-webhooks',
+      description:
+        'The publicly reachable HTTPS URL to deliver events to. Private network addresses are rejected. On update, leave blank to keep the current URL.',
+      condition: {
+        field: 'operation',
+        value: ['create_webhook_endpoint', 'update_webhook_endpoint'],
+      },
+    },
+    {
+      id: 'scopes',
+      title: 'Scopes',
+      type: 'short-input',
+      required: { field: 'operation', value: 'create_webhook_endpoint' },
+      placeholder: 'personal, public',
+      description:
+        'Comma-separated scopes deciding which notes send events: personal, public. With a Workspace API key pass exactly "workspace". On update, leave blank to keep the current scopes.',
+      condition: {
+        field: 'operation',
+        value: ['create_webhook_endpoint', 'update_webhook_endpoint'],
+      },
+    },
+    {
+      id: 'events',
+      title: 'Events',
+      type: 'short-input',
+      placeholder: 'note.generated, note.edited, note.access_granted',
+      description:
+        'Comma-separated event names to subscribe to. Leave blank to subscribe to all events on create, or to keep the current subscriptions on update.',
+      condition: {
+        field: 'operation',
+        value: ['create_webhook_endpoint', 'update_webhook_endpoint'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'folderIds',
+      title: 'Folder IDs',
+      type: 'short-input',
+      placeholder: 'fol_2mKr8fQxLp7Ta3, fol_4y6LduVdwSKC27',
+      description:
+        'Comma-separated folder IDs (max 100) to restrict delivery to. Leave blank for every note matching the scopes; on update, pass [] to clear an existing filter.',
+      condition: {
+        field: 'operation',
+        value: ['create_webhook_endpoint', 'update_webhook_endpoint'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'webhookEndpointId',
+      title: 'Webhook Endpoint ID',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: ['update_webhook_endpoint', 'delete_webhook_endpoint'],
+      },
+      placeholder: 'e.g., whe_2mKr8fQxLp7Ta3',
+      condition: {
+        field: 'operation',
+        value: ['update_webhook_endpoint', 'delete_webhook_endpoint'],
+      },
+    },
+    {
+      id: 'enabled',
+      title: 'Delivery State',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: '' },
+        { label: 'Enabled', id: 'true' },
+        { label: 'Paused', id: 'false' },
+      ],
+      value: () => '',
+      description:
+        'Pause or resume deliveries. A paused endpoint keeps its configuration and signing secret, but events that occur while paused are not delivered later.',
+      condition: { field: 'operation', value: 'update_webhook_endpoint' },
+    },
+    ...getTrigger('granola_note_generated').subBlocks,
+    ...getTrigger('granola_note_edited').subBlocks,
+    ...getTrigger('granola_note_access_granted').subBlocks,
+    ...getTrigger('granola_webhook').subBlocks,
   ],
 
   tools: {
-    access: ['granola_list_notes', 'granola_get_note', 'granola_list_folders'],
+    access: [
+      'granola_list_notes',
+      'granola_get_note',
+      'granola_get_transcript',
+      'granola_list_folders',
+      'granola_list_audit_events',
+      'granola_create_webhook_endpoint',
+      'granola_list_webhook_endpoints',
+      'granola_update_webhook_endpoint',
+      'granola_delete_webhook_endpoint',
+    ],
     config: {
       tool: (params) => `granola_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
         if (params.pageSize) result.pageSize = Number(params.pageSize)
+        /* The dropdown is tri-state: '' means "leave unchanged", so only a
+           non-empty selection is coerced to the boolean the API expects. */
+        if (params.enabled === 'true' || params.enabled === 'false') {
+          result.enabled = params.enabled === 'true'
+        }
         return result
       },
     },
@@ -161,8 +334,26 @@ export const GranolaBlock: BlockConfig = {
     createdBefore: { type: 'string', description: 'Filter notes created before this date' },
     updatedAfter: { type: 'string', description: 'Filter notes updated after this date' },
     folderId: { type: 'string', description: 'Filter notes by folder ID' },
-    pageSize: { type: 'number', description: 'Results per page (1-30)' },
+    pageSize: {
+      type: 'number',
+      description: 'Results per page (1-30; transcripts allow 1-100)',
+    },
     cursor: { type: 'string', description: 'Pagination cursor' },
+    action: { type: 'string', description: 'Filter audit events by action prefix' },
+    occurredAfter: { type: 'string', description: 'Filter audit events occurring after this date' },
+    occurredBefore: {
+      type: 'string',
+      description: 'Filter audit events occurring before this date',
+    },
+    url: { type: 'string', description: 'HTTPS delivery URL for a webhook endpoint' },
+    scopes: { type: 'string', description: 'Comma-separated webhook endpoint scopes' },
+    events: { type: 'string', description: 'Comma-separated webhook event names' },
+    folderIds: {
+      type: 'string',
+      description: 'Comma-separated folder IDs to restrict delivery to',
+    },
+    webhookEndpointId: { type: 'string', description: 'Webhook endpoint ID' },
+    enabled: { type: 'string', description: 'Whether webhook deliveries are active' },
   },
 
   outputs: {
@@ -170,9 +361,17 @@ export const GranolaBlock: BlockConfig = {
       type: 'json',
       description: 'List of meeting notes (id, title, ownerName, ownerEmail, createdAt, updatedAt)',
     },
-    hasMore: { type: 'boolean', description: 'Whether more notes are available' },
+    hasMore: {
+      type: 'boolean',
+      description:
+        'Whether another page is available, for whichever listing ran — notes, folders, audit events, or transcript items',
+    },
     cursor: { type: 'string', description: 'Pagination cursor for next page' },
-    id: { type: 'string', description: 'Note ID' },
+    id: {
+      type: 'string',
+      description:
+        'Note ID for Get Note, or the webhook endpoint ID for the create, update, and delete webhook endpoint operations',
+    },
     title: { type: 'string', description: 'Note title' },
     ownerName: { type: 'string', description: 'Note owner name' },
     ownerEmail: { type: 'string', description: 'Note owner email' },
@@ -196,8 +395,44 @@ export const GranolaBlock: BlockConfig = {
     transcript: {
       type: 'json',
       description:
-        'Meeting transcript entries (speaker, speakerLabel, speakerName, text, startTime, endTime)',
+        'Meeting transcript entries (speaker, speakerAttribution, speakerLabel, speakerName, text, startTime, endTime)',
     },
+    events: {
+      type: 'json',
+      description:
+        'Audit events (id, action, occurredAt, collectedAt, actorType, actorId, actorEmail, data, ipAddress, userAgent, clientVersion) for List Audit Events, or the subscribed webhook event names for the create and update webhook endpoint operations',
+    },
+    webhookEndpoints: {
+      type: 'json',
+      description:
+        'Webhook endpoints (id, url, urlRedacted, events, folderIds, scopes, createdByName, createdByEmail, enabled, createdAt)',
+    },
+    url: { type: 'string', description: 'The HTTPS URL a webhook endpoint delivers to' },
+    urlRedacted: {
+      type: 'boolean',
+      description: 'Whether the returned webhook URL was reduced to its origin',
+    },
+    folderIds: { type: 'json', description: 'Folder IDs a webhook endpoint is restricted to' },
+    scopes: { type: 'json', description: 'Scopes a webhook endpoint receives events for' },
+    createdByName: { type: 'string', description: 'Name of the webhook endpoint creator' },
+    createdByEmail: { type: 'string', description: 'Email of the webhook endpoint creator' },
+    enabled: { type: 'boolean', description: 'Whether webhook deliveries are active' },
+    signingSecret: {
+      type: 'string',
+      description:
+        'Signing secret for verifying webhook deliveries. Returned only when creating an endpoint.',
+    },
+    deleted: { type: 'boolean', description: 'Whether the webhook endpoint was deleted' },
+  },
+
+  triggers: {
+    enabled: true,
+    available: [
+      'granola_note_generated',
+      'granola_note_edited',
+      'granola_note_access_granted',
+      'granola_webhook',
+    ],
   },
 }
 

@@ -1,71 +1,63 @@
-/**
- * @vitest-environment node
- */
-import { hybridAuthMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table'
 
-const { mockCheckAccess, mockQueryRows } = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockQueryRows: vi.fn(),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkAccess: mockCheckAccess,
-    accessError: (result: { status: number }) =>
-      NextResponse.json({ error: 'Access denied' }, { status: result.status }),
-  }
-})
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
 
-vi.mock('@/lib/table/rows/service', () => ({
-  queryRows: mockQueryRows,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/table/[tableId]/export/route'
 
+const { mockQueryRows } = tableRowsServiceMockFns
+const { mockCheckAccess } = tableRouteUtilsMockFns
+
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+
 /** Table with an id-native column whose stable id (`col_email`) differs from its display name. */
-function buildTable(): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: {
-      columns: [
-        { id: 'col_email', name: 'email', type: 'string' },
-        { name: 'legacy', type: 'string' }, // legacy: id == name
-      ],
-    },
-    metadata: null,
-    rowCount: 1,
-    maxRows: 100,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-  }
-}
 
 function callGet(format: string) {
-  const req = new NextRequest(`http://localhost:3000/api/table/tbl_1/export?format=${format}`, {
-    method: 'GET',
-  })
-  return GET(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  const req = createMockRequest({ url: `/api/table/tbl_1/export?format=${format}` })
+  return GET(req, createRouteContext({ tableId: 'tbl_1' }))
 }
 
 describe('table export route — id→name translation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
       authType: 'session',
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: createTableDefinition({
+        columns: [
+          { id: 'col_email', name: 'email', type: 'string' },
+          { name: 'legacy', type: 'string' }, // legacy: id == name
+        ],
+        rowCount: 1,
+        maxRows: 100,
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      }),
+    })
     // Row data is keyed by stable column id (`col_email`), not the display name.
+    mockGetUserPermissionConfig.mockResolvedValue(null)
     mockQueryRows.mockResolvedValue({
       rows: [{ id: 'r1', data: { col_email: 'a@b.c', legacy: 'x' }, executions: {}, position: 0 }],
       rowCount: 1,
@@ -85,11 +77,18 @@ describe('table export route — id→name translation', () => {
     expect(firstRow).toBe('a@b.c,x')
   })
 
-  it('JSON: keys are display names, never the stable column id', async () => {
-    const res = await callGet('json')
-    expect(res.status).toBe(200)
-    const parsed = JSON.parse(await res.text())
-    expect(parsed).toEqual([{ email: 'a@b.c', legacy: 'x' }])
-    expect(JSON.stringify(parsed)).not.toContain('col_email')
+  it('refuses the stream when the group withholds tables.export', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableExport: true,
+    })
+
+    const res = await callGet('csv')
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({
+      error: "Exporting a table is not available under your organization's permission group",
+      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+    })
   })
 })

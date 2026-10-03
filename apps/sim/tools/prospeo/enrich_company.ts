@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
@@ -14,6 +15,7 @@ export const enrichCompanyTool: ToolConfig<
   name: 'Prospeo Enrich Company',
   description: 'Enrich a company with complete B2B data.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   hosting: prospeoHosting<ProspeoEnrichCompanyParams>((_params, output) => {
     // 1 credit per company match; no charge on a no-match or repeat enrichment.

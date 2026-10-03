@@ -29,6 +29,9 @@
   "security": [
     {
       "apiKey": []
+    },
+    {
+      "oauthBearer": []
     }
   ],
   "paths": {
@@ -36,17 +39,21 @@
       "get": {
         "operationId": "getBillingStatus",
         "summary": "Get Billing Status",
-        "description": "Return the current plan, billing standing, credit allowance, and storage quota. Billing history lives at `GET /api/v2/billing/logs`.",
+        "description": "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List Billing Logs for credit history.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "billing.status.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Billing"],
         "parameters": [
           {
             "name": "workspaceId",
             "in": "query",
             "required": false,
-            "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
+            "description": "Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
             "schema": {
-              "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
-              "type": "string"
+              "description": "Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           }
         ],
@@ -81,6 +88,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -97,7 +107,9 @@
       "get": {
         "operationId": "listBillingLogs",
         "summary": "List Billing Logs",
-        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination.",
+        "description": "List credit usage with source filtering and cursor pagination. The default `period` is `30d`; pagination covers only the selected time window. An inverted custom window returns `400`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "billing.logs.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Billing"],
         "parameters": [
           {
@@ -117,7 +129,8 @@
                 "knowledge-base",
                 "voice-input",
                 "enrichment",
-                "voice-output"
+                "voice-output",
+                "api-tool"
               ]
             }
           },
@@ -125,20 +138,22 @@
             "name": "workspaceId",
             "in": "query",
             "required": false,
-            "description": "Restrict results to one workspace whose payer the caller can inspect.",
+            "description": "Narrow the ledger to one workspace. An OAuth token or personal API key reports only its user's events; a workspace API key reports every member's events in its bound workspace. The response `scope` identifies which view was returned. A workspace key asking for another workspace receives the same `404 Workspace not found` as an unknown id.",
             "schema": {
-              "description": "Restrict results to one workspace whose payer the caller can inspect.",
-              "type": "string"
+              "description": "Narrow the ledger to one workspace. An OAuth token or personal API key reports only its user's events; a workspace API key reports every member's events in its bound workspace. The response `scope` identifies which view was returned. A workspace key asking for another workspace receives the same `404 Workspace not found` as an unknown id.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           },
           {
             "name": "period",
             "in": "query",
             "required": false,
-            "description": "Relative window, all history, or a custom date range.",
+            "description": "Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.",
             "schema": {
               "default": "30d",
-              "description": "Relative window, all history, or a custom date range.",
+              "description": "Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.",
               "type": "string",
               "enum": ["1d", "7d", "30d", "all", "custom"]
             }
@@ -147,32 +162,34 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Start of a custom window as a Date-parseable string.",
+            "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
-              "description": "Start of a custom window as a Date-parseable string.",
               "type": "string",
-              "minLength": 1
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "End of a custom window as a Date-parseable string; defaults to now.",
+            "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
-              "description": "End of a custom window as a Date-parseable string; defaults to now.",
               "type": "string",
-              "minLength": 1
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum usage events per page, from 1 to 100.",
+            "description": "Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum usage events per page, from 1 to 100.",
+              "description": "Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -182,9 +199,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -221,6 +238,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -240,7 +260,13 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+      },
+      "oauthBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "OAuth 2.0 access token",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
       }
     },
     "headers": {
@@ -275,13 +301,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying a rate-limited request.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying a rate-limited request."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -296,41 +322,52 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request"
+              }
             }
           }
         }
       },
       "Unauthorized": {
-        "description": "The API key is missing or invalid.",
+        "description": "The API credential is missing or invalid.",
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UsageLimitExceeded": {
-        "description": "The workspace has exceeded its usage or billing limits.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "Authentication required"
+              }
             }
           }
         }
       },
       "Forbidden": {
-        "description": "The caller lacks access to the resource.",
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Insufficient workspace permissions",
+                "details": {
+                  "code": "INSUFFICIENT_WORKSPACE_ROLE"
+                }
+              }
             }
           }
         }
@@ -341,71 +378,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Conflict": {
-        "description": "The request conflicts with current resource state.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "RunIdConflict": {
-        "description": "The run identifier is already associated with a different request.",
-        "headers": {
-          "X-Run-Id": {
-            "$ref": "#/components/headers/X-Run-Id"
-          }
-        },
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Gone": {
-        "description": "The requested generated resource has expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "PayloadTooLarge": {
-        "description": "The request body exceeds the allowed size.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UnsupportedMediaType": {
-        "description": "The request uses an unsupported media type.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Locked": {
-        "description": "The resource is locked and cannot be modified.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Not found"
+              }
             }
           }
         }
@@ -421,6 +399,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-01T00:00:30.000Z"
+                }
+              }
             }
           }
         }
@@ -431,22 +418,84 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
             }
           }
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
         "content": {
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Service temporarily unavailable"
+              }
             }
           }
         }
       }
     },
     "schemas": {
+      "V2ActionableForbiddenDetails": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/V2ForbiddenDetailCode"
+          }
+        },
+        "required": ["code"],
+        "additionalProperties": {
+          "description": "Additional context for this refusal."
+        },
+        "title": "Actionable forbidden details",
+        "description": "Machine-readable cause and optional context for an actionable `403` response."
+      },
+      "V2ForbiddenDetailCode": {
+        "type": "string",
+        "enum": [
+          "INSUFFICIENT_WORKSPACE_ROLE",
+          "PERSONAL_API_KEYS_DISABLED",
+          "WORKSPACE_KEY_OPERATION_NOT_PERMITTED",
+          "PRINCIPAL_KIND_NOT_PERMITTED",
+          "ORGANIZATION_MEMBERSHIP_REQUIRED",
+          "ORGANIZATION_ADMIN_REQUIRED",
+          "ENTERPRISE_PLAN_REQUIRED",
+          "ORGANIZATION_PLAN_REQUIRED",
+          "AUDIT_LOGS_DISABLED",
+          "ACCESS_REQUESTS_DISABLED",
+          "ACCESS_REQUEST_ORGANIZATION_REQUIRED",
+          "SKILL_EDITOR_ACCESS_REQUIRED",
+          "SECRET_ADMIN_ACCESS_REQUIRED",
+          "WORKSPACE_RESOURCE_LIMIT_REACHED",
+          "PUBLIC_SHARING_NOT_ALLOWED",
+          "CREDENTIAL_ADMIN_ACCESS_REQUIRED",
+          "MCP_SERVER_URL_NOT_ALLOWED",
+          "WORKSPACE_PLAN_CAPABILITY_REQUIRED",
+          "CHAT_AUTH_MODE_NOT_PERMITTED",
+          "CONNECTOR_MANAGED_RESOURCE_READ_ONLY",
+          "PERMISSION_GROUP_CAPABILITY_BLOCKED",
+          "INTEGRATION_NOT_ALLOWED",
+          "INSUFFICIENT_SCOPE",
+          "SCIM_MANAGED_MEMBERSHIP"
+        ],
+        "title": "Forbidden detail code",
+        "description": "Stable cause code for an actionable `403` response."
+      },
       "V2Error": {
         "type": "object",
         "properties": {
@@ -462,7 +511,15 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Optional structured error details."
+                "description": "Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.",
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/V2ActionableForbiddenDetails"
+                  },
+                  {
+                    "description": "Other structured context defined by the specific error."
+                  }
+                ]
               }
             },
             "required": ["code", "message"],
@@ -502,18 +559,18 @@
             "properties": {
               "start": {
                 "type": "string",
-                "description": "ISO 8601 start of the current billing period.",
+                "description": "ISO 8601 start of the current billing period, or 1970-01-01T00:00:00.000Z when no Stripe subscription defines one.",
                 "format": "date-time"
               },
               "end": {
                 "type": "string",
-                "description": "ISO 8601 end of the current billing period.",
+                "description": "ISO 8601 end of the current billing period, or 9999-12-31T00:00:00.000Z when no Stripe subscription defines one.",
                 "format": "date-time"
               }
             },
             "required": ["start", "end"],
             "additionalProperties": false,
-            "description": "Current billing period."
+            "description": "Current billing period. Only a Stripe subscription defines a real period; without one — notably on the free plan — this is the open interval 1970-01-01 to 9999-12-31 and must not be read as a monthly window."
           },
           "plan": {
             "type": "string",
@@ -525,47 +582,61 @@
             "description": "Current billing standing."
           },
           "credits": {
-            "type": "object",
-            "properties": {
-              "used": {
-                "type": "number",
-                "description": "Credits consumed during the current billing period."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "used": {
+                    "type": "number",
+                    "description": "Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption."
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Credit allowance for the reporting window — per billing period on a paid plan, lifetime on the free plan."
+                  },
+                  "remaining": {
+                    "type": "number",
+                    "description": "Allowance minus consumption, over the same window."
+                  }
+                },
+                "required": ["used", "limit", "remaining"],
+                "additionalProperties": false
               },
-              "limit": {
-                "type": "number",
-                "description": "Credit allowance for the current billing period."
-              },
-              "remaining": {
-                "type": "number",
-                "description": "Credits remaining in the current billing period."
+              {
+                "type": "null"
               }
-            },
-            "required": ["used", "limit", "remaining"],
-            "additionalProperties": false,
-            "description": "Credit usage and allowance for the current billing period."
+            ],
+            "description": "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
           },
           "storage": {
-            "type": "object",
-            "properties": {
-              "usedBytes": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Storage currently consumed, in bytes."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usedBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage currently consumed, in bytes."
+                  },
+                  "limitBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage quota, in bytes."
+                  },
+                  "percentUsed": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Percentage of the storage quota consumed."
+                  }
+                },
+                "required": ["usedBytes", "limitBytes", "percentUsed"],
+                "additionalProperties": false
               },
-              "limitBytes": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Storage quota, in bytes."
-              },
-              "percentUsed": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Percentage of the storage quota consumed."
+              {
+                "type": "null"
               }
-            },
-            "required": ["usedBytes", "limitBytes", "percentUsed"],
-            "additionalProperties": false,
-            "description": "Current storage consumption and quota."
+            ],
+            "description": "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
           }
         },
         "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],
@@ -632,7 +703,8 @@
               "knowledge-base",
               "voice-input",
               "enrichment",
-              "voice-output"
+              "voice-output",
+              "api-tool"
             ],
             "description": "Product surface that consumed the credits."
           },
@@ -717,10 +789,15 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["user", "workspace"],
+            "description": "Whose usage this page reports. `user` contains only the OAuth or personal-key user's events, optionally narrowed by `workspaceId`; it omits other members. `workspace` contains every member's events for the workspace API key's bound workspace."
           }
         },
-        "required": ["data", "nextCursor"],
+        "required": ["data", "nextCursor", "scope"],
         "additionalProperties": false,
         "title": "Billing log list response",
         "description": "A cursor-paginated page of credit-consuming usage events.",
@@ -737,7 +814,8 @@
                 "creditCost": 12
               }
             ],
-            "nextCursor": null
+            "nextCursor": null,
+            "scope": "workspace"
           }
         ]
       }

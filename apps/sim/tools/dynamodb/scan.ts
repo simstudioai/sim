@@ -1,7 +1,7 @@
 import type { DynamoDBScanParams, DynamoDBScanResponse } from '@/tools/dynamodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
+export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
   id: 'dynamodb_scan',
   name: 'DynamoDB Scan',
   description: 'Scan all items in a DynamoDB table',
@@ -72,13 +72,8 @@ export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/dynamodb/scan',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

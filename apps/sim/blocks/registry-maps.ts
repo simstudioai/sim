@@ -1,4 +1,5 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
+import { AffinityBlock, AffinityBlockMeta } from '@/blocks/blocks/affinity'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AgentMailBlock, AgentMailBlockMeta } from '@/blocks/blocks/agentmail'
 import { AgentPhoneBlock, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone'
@@ -18,8 +19,13 @@ import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaBlockMeta } from '@/blocks/blocks/athena'
 import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
+import {
+  AzureDataExplorerBlock,
+  AzureDataExplorerBlockMeta,
+} from '@/blocks/blocks/azure_data_explorer'
 import { AzureDevOpsBlock, AzureDevOpsBlockMeta } from '@/blocks/blocks/azure_devops'
-import { BoxBlock, BoxBlockMeta } from '@/blocks/blocks/box'
+import { BitbucketBlock, BitbucketBlockMeta } from '@/blocks/blocks/bitbucket'
+import { BoxBlock, BoxBlockMeta, BoxV2Block } from '@/blocks/blocks/box'
 import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch'
 import { BrexBlock, BrexBlockMeta } from '@/blocks/blocks/brex'
 import { BrightDataBlock, BrightDataBlockMeta } from '@/blocks/blocks/brightdata'
@@ -27,6 +33,7 @@ import { BrowserUseBlock, BrowserUseBlockMeta } from '@/blocks/blocks/browser_us
 import { BufferBlock, BufferBlockMeta } from '@/blocks/blocks/buffer'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
+import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
@@ -35,14 +42,18 @@ import { ClickHouseBlock, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse
 import { ClickUpBlock, ClickUpBlockMeta } from '@/blocks/blocks/clickup'
 import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
+import { CloudTrailBlock, CloudTrailBlockMeta } from '@/blocks/blocks/cloudtrail'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
+import { CodaBlock, CodaBlockMeta } from '@/blocks/blocks/coda'
 import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { ContextDevBlock, ContextDevBlockMeta } from '@/blocks/blocks/context_dev'
 import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
+import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
+import { CrunchbaseBlock, CrunchbaseBlockMeta } from '@/blocks/blocks/crunchbase'
 import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta } from '@/blocks/blocks/databricks'
@@ -54,10 +65,10 @@ import { DevinBlock, DevinBlockMeta } from '@/blocks/blocks/devin'
 import { DiscordBlock, DiscordBlockMeta } from '@/blocks/blocks/discord'
 import { DocuSignBlock, DocuSignBlockMeta } from '@/blocks/blocks/docusign'
 import { DowndetectorBlock, DowndetectorBlockMeta } from '@/blocks/blocks/downdetector'
-import { DropboxBlock, DropboxBlockMeta } from '@/blocks/blocks/dropbox'
+import { DropboxBlock, DropboxBlockMeta, DropboxV2Block } from '@/blocks/blocks/dropbox'
 import { DropcontactBlock, DropcontactBlockMeta } from '@/blocks/blocks/dropcontact'
 import { DSPyBlock, DSPyBlockMeta } from '@/blocks/blocks/dspy'
-import { DubBlock, DubBlockMeta } from '@/blocks/blocks/dub'
+import { DubBlock, DubBlockMeta, DubV2Block } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock, DuckDuckGoBlockMeta } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock, DynamoDBBlockMeta } from '@/blocks/blocks/dynamodb'
 import { DynatraceBlock, DynatraceBlockMeta } from '@/blocks/blocks/dynatrace'
@@ -69,7 +80,6 @@ import { EnrichBlock, EnrichBlockMeta } from '@/blocks/blocks/enrich'
 import { EnrichmentBlock, EnrichmentBlockMeta } from '@/blocks/blocks/enrichment'
 import { EnrowBlock, EnrowBlockMeta } from '@/blocks/blocks/enrow'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
-import { EvernoteBlock, EvernoteBlockMeta } from '@/blocks/blocks/evernote'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendBlockMeta, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock, FathomBlockMeta } from '@/blocks/blocks/fathom'
@@ -135,10 +145,11 @@ import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
 import { GreenhouseBlock, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
+import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
-import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
+import { HumanInTheLoopBlock, HumanInTheLoopV2Block } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock, HunterBlockMeta } from '@/blocks/blocks/hunter'
 import { IAMBlock, IAMBlockMeta } from '@/blocks/blocks/iam'
 import { IcypeasBlock, IcypeasBlockMeta } from '@/blocks/blocks/icypeas'
@@ -162,7 +173,8 @@ import {
   JiraServiceManagementBlock,
   JiraServiceManagementBlockMeta,
 } from '@/blocks/blocks/jira_service_management'
-import { JupyterBlock, JupyterBlockMeta } from '@/blocks/blocks/jupyter'
+import { JotformBlock, JotformBlockMeta } from '@/blocks/blocks/jotform'
+import { JupyterBlock, JupyterBlockMeta, JupyterV2Block } from '@/blocks/blocks/jupyter'
 import {
   KalshiBlock,
   KalshiBlockMeta,
@@ -171,6 +183,7 @@ import {
 } from '@/blocks/blocks/kalshi'
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
+import { LambdaBlock, LambdaBlockMeta } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithBlockMeta } from '@/blocks/blocks/langsmith'
 import { LatexBlock, LatexBlockMeta } from '@/blocks/blocks/latex'
 import { LaunchDarklyBlock, LaunchDarklyBlockMeta } from '@/blocks/blocks/launchdarkly'
@@ -181,12 +194,14 @@ import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
 import { LinqBlock, LinqBlockMeta } from '@/blocks/blocks/linq'
 import { LogfireBlock, LogfireBlockMeta } from '@/blocks/blocks/logfire'
+import { LogRocketBlock, LogRocketBlockMeta } from '@/blocks/blocks/logrocket'
 import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 import { LoopsBlock, LoopsBlockMeta } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaBlockMeta } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpBlockMeta } from '@/blocks/blocks/mailchimp'
 import { MailgunBlock, MailgunBlockMeta } from '@/blocks/blocks/mailgun'
 import { ManagedAgentBlock, ManagedAgentBlockMeta } from '@/blocks/blocks/managed_agent'
+import { ManageEngineSdpBlock, ManageEngineSdpBlockMeta } from '@/blocks/blocks/manageengine-sdp'
 import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block, Mem0BlockMeta } from '@/blocks/blocks/mem0'
@@ -195,7 +210,12 @@ import { MicrosoftAdBlock, MicrosoftAdBlockMeta } from '@/blocks/blocks/microsof
 import {
   MicrosoftDataverseBlock,
   MicrosoftDataverseBlockMeta,
+  MicrosoftDataverseV2Block,
 } from '@/blocks/blocks/microsoft_dataverse'
+import {
+  MicrosoftDynamics365Block,
+  MicrosoftDynamics365BlockMeta,
+} from '@/blocks/blocks/microsoft_dynamics_365'
 import {
   MicrosoftExcelBlock,
   MicrosoftExcelBlockMeta,
@@ -204,6 +224,7 @@ import {
 } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock, MicrosoftPlannerBlockMeta } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock, MicrosoftTeamsBlockMeta } from '@/blocks/blocks/microsoft_teams'
+import { MicrosoftWordBlock, MicrosoftWordBlockMeta } from '@/blocks/blocks/microsoft_word'
 import { MillionVerifierBlock, MillionVerifierBlockMeta } from '@/blocks/blocks/millionverifier'
 import { MintlifyBlock, MintlifyBlockMeta } from '@/blocks/blocks/mintlify'
 import {
@@ -212,11 +233,14 @@ import {
   MistralParseV2Block,
   MistralParseV3Block,
 } from '@/blocks/blocks/mistral_parse'
+import { ModalBlock, ModalBlockMeta } from '@/blocks/blocks/modal'
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
+import { MSSQLBlock, MSSQLBlockMeta } from '@/blocks/blocks/mssql'
 import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
+import { NetSuiteBlock, NetSuiteBlockMeta } from '@/blocks/blocks/netsuite'
 import { NeverBounceBlock, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce'
 import { NewRelicBlock, NewRelicBlockMeta } from '@/blocks/blocks/new_relic'
 import { NoteBlock } from '@/blocks/blocks/note'
@@ -231,6 +255,7 @@ import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock, OpenAIBlockMeta } from '@/blocks/blocks/openai'
+import { OtterBlock, OtterBlockMeta } from '@/blocks/blocks/otter'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
 import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock, ParallelBlockMeta } from '@/blocks/blocks/parallel'
@@ -240,15 +265,20 @@ import { PersonaBlock, PersonaBlockMeta } from '@/blocks/blocks/persona'
 import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
+import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
+import { PlanetScaleBlock, PlanetScaleBlockMeta } from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
+import { PowerBIBlock, PowerBIBlockMeta } from '@/blocks/blocks/powerbi'
 import { ProfoundBlock, ProfoundBlockMeta } from '@/blocks/blocks/profound'
 import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrBlockMeta } from '@/blocks/blocks/quartr'
-import { QuiverBlock, QuiverBlockMeta } from '@/blocks/blocks/quiver'
+import { QuickBooksBlock, QuickBooksBlockMeta } from '@/blocks/blocks/quickbooks'
+import { QuiverBlock, QuiverBlockMeta, QuiverV2Block } from '@/blocks/blocks/quiver'
+import { RabbitmqBlock, RabbitmqBlockMeta } from '@/blocks/blocks/rabbitmq'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
 import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta } from '@/blocks/blocks/rds'
@@ -264,33 +294,37 @@ import { RootlyBlock, RootlyBlockMeta } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
 import { S3Block, S3BlockMeta } from '@/blocks/blocks/s3'
+import { SailPointBlock, SailPointBlockMeta } from '@/blocks/blocks/sailpoint'
 import { SalesforceBlock, SalesforceBlockMeta } from '@/blocks/blocks/salesforce'
 import { SapConcurBlock, SapConcurBlockMeta } from '@/blocks/blocks/sap_concur'
 import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
 import { SecretsManagerBlock, SecretsManagerBlockMeta } from '@/blocks/blocks/secrets_manager'
+import { SemrushBlock, SemrushBlockMeta } from '@/blocks/blocks/semrush'
 import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
-import { ServiceNowBlock, ServiceNowBlockMeta } from '@/blocks/blocks/servicenow'
+import { ServiceNowBlock, ServiceNowBlockMeta, ServiceNowV2Block } from '@/blocks/blocks/servicenow'
 import { SESBlock, SESBlockMeta } from '@/blocks/blocks/ses'
-import { SftpBlock, SftpBlockMeta } from '@/blocks/blocks/sftp'
+import { SftpBlock, SftpBlockMeta, SftpV2Block } from '@/blocks/blocks/sftp'
 import { SharepointBlock, SharepointBlockMeta, SharepointV2Block } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock, ShopifyBlockMeta } from '@/blocks/blocks/shopify'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
-import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackBlockMeta, SlackV2Block, SlackV2BlockMeta } from '@/blocks/blocks/slack'
 import { SmartleadBlock, SmartleadBlockMeta } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
+import { SplunkBlock, SplunkBlockMeta } from '@/blocks/blocks/splunk'
 import { SportmonksBlock, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
 import { SquareBlock, SquareBlockMeta } from '@/blocks/blocks/square'
-import { SSHBlock, SSHBlockMeta } from '@/blocks/blocks/ssh'
+import { SSHBlock, SSHBlockMeta, SSHV2Block } from '@/blocks/blocks/ssh'
+import { SSMBlock, SSMBlockMeta } from '@/blocks/blocks/ssm'
 import { StagehandBlock, StagehandBlockMeta } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
@@ -309,6 +343,7 @@ import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { ThriveBlock, ThriveBlockMeta } from '@/blocks/blocks/thrive'
 import { TikTokBlock, TikTokBlockMeta } from '@/blocks/blocks/tiktok'
 import { TinybirdBlock, TinybirdBlockMeta } from '@/blocks/blocks/tinybird'
+import { TinyFishBlock, TinyFishBlockMeta } from '@/blocks/blocks/tinyfish'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock, TrelloBlockMeta } from '@/blocks/blocks/trello'
 import { TriggerDevBlock, TriggerDevBlockMeta } from '@/blocks/blocks/trigger_dev'
@@ -333,12 +368,14 @@ import { WebflowBlock, WebflowBlockMeta } from '@/blocks/blocks/webflow'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock, WhatsAppBlockMeta } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock, WikipediaBlockMeta } from '@/blocks/blocks/wikipedia'
+import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
 import { WizaBlock, WizaBlockMeta } from '@/blocks/blocks/wiza'
 import { WordPressBlock, WordPressBlockMeta } from '@/blocks/blocks/wordpress'
 import { WorkdayBlock, WorkdayBlockMeta } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock, XBlockMeta } from '@/blocks/blocks/x'
+import { YouComBlock, YouComBlockMeta } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeBlockMeta } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
@@ -351,6 +388,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 /** All block configs keyed by block type. The execution source of truth. */
 export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   a2a: A2ABlock,
+  affinity: AffinityBlock,
   agent: AgentBlock,
   agentmail: AgentMailBlock,
   agentphone: AgentPhoneBlock,
@@ -370,8 +408,11 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
+  azure_data_explorer: AzureDataExplorerBlock,
   azure_devops: AzureDevOpsBlock,
+  bitbucket: BitbucketBlock,
   box: BoxBlock,
+  box_v2: BoxV2Block,
   brandfetch: BrandfetchBlock,
   brex: BrexBlock,
   brightdata: BrightDataBlock,
@@ -379,6 +420,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   buffer: BufferBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
+  cbinsights: CbInsightsBlock,
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
   clay: ClayBlock,
@@ -387,7 +429,9 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   clickup: ClickUpBlock,
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
+  cloudtrail: CloudTrailBlock,
   cloudwatch: CloudWatchBlock,
+  coda: CodaBlock,
   codepipeline: CodePipelineBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
@@ -395,7 +439,9 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   context_dev: ContextDevBlock,
   convex: ConvexBlock,
   credential: CredentialBlock,
+  credential_group: CredentialGroupBlock,
   crowdstrike: CrowdStrikeBlock,
+  crunchbase: CrunchbaseBlock,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
   dagster: DagsterBlock,
@@ -409,9 +455,11 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   docusign: DocuSignBlock,
   downdetector: DowndetectorBlock,
   dropbox: DropboxBlock,
+  dropbox_v2: DropboxV2Block,
   dropcontact: DropcontactBlock,
   dspy: DSPyBlock,
   dub: DubBlock,
+  dub_v2: DubV2Block,
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
   dynatrace: DynatraceBlock,
@@ -423,7 +471,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   enrichment: EnrichmentBlock,
   enrow: EnrowBlock,
   evaluator: EvaluatorBlock,
-  evernote: EvernoteBlock,
   exa: ExaBlock,
   extend: ExtendBlock,
   extend_v2: ExtendV2Block,
@@ -479,10 +526,12 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
+  harmonic: HarmonicBlock,
   hex: HexBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
+  human_in_the_loop_v2: HumanInTheLoopV2Block,
   hunter: HunterBlock,
   iam: IAMBlock,
   icypeas: IcypeasBlock,
@@ -500,11 +549,14 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
+  jotform: JotformBlock,
   jupyter: JupyterBlock,
+  jupyter_v2: JupyterV2Block,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
+  lambda: LambdaBlock,
   langsmith: LangsmithBlock,
   latex: LatexBlock,
   launchdarkly: LaunchDarklyBlock,
@@ -516,6 +568,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   linkup: LinkupBlock,
   linq: LinqBlock,
   logfire: LogfireBlock,
+  logrocket: LogRocketBlock,
   logs: LogsBlock,
   logs_v2: LogsV2Block,
   loops: LoopsBlock,
@@ -523,25 +576,32 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mailchimp: MailchimpBlock,
   mailgun: MailgunBlock,
   managed_agent: ManagedAgentBlock,
+  manageengine_sdp: ManageEngineSdpBlock,
   manual_trigger: ManualTriggerBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
   memory: MemoryBlock,
   microsoft_ad: MicrosoftAdBlock,
   microsoft_dataverse: MicrosoftDataverseBlock,
+  microsoft_dataverse_v2: MicrosoftDataverseV2Block,
+  microsoft_dynamics_365: MicrosoftDynamics365Block,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
+  microsoft_word: MicrosoftWordBlock,
   mintlify: MintlifyBlock,
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
   mistral_parse_v3: MistralParseV3Block,
+  modal: ModalBlock,
   monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
+  mssql: MSSQLBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
+  netsuite: NetSuiteBlock,
   new_relic: NewRelicBlock,
   note: NoteBlock,
   notion: NotionBlock,
@@ -551,6 +611,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   onepassword: OnePasswordBlock,
   openai: OpenAIBlock,
+  otter: OtterBlock,
   outlook: OutlookBlock,
   pagerduty: PagerDutyBlock,
   parallel_ai: ParallelBlock,
@@ -560,16 +621,22 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pi: PiBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
+  pitchbook: PitchBookBlock,
+  planetscale: PlanetScaleBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
+  powerbi: PowerBIBlock,
   profound: ProfoundBlock,
   prospeo: ProspeoBlock,
   pulse: PulseBlock,
   pulse_v2: PulseV2Block,
   qdrant: QdrantBlock,
   quartr: QuartrBlock,
+  quickbooks: QuickBooksBlock,
   quiver: QuiverBlock,
+  quiver_v2: QuiverV2Block,
+  rabbitmq: RabbitmqBlock,
   railway: RailwayBlock,
   rb2b: RB2BBlock,
   rds: RDSBlock,
@@ -587,19 +654,23 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   router_v2: RouterV2Block,
   rss: RssBlock,
   s3: S3Block,
+  sailpoint: SailPointBlock,
   salesforce: SalesforceBlock,
   sap_concur: SapConcurBlock,
   sap_s4hana: SapS4HanaBlock,
   schedule: ScheduleBlock,
   search: SearchBlock,
   secrets_manager: SecretsManagerBlock,
+  semrush: SemrushBlock,
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
   serper: SerperBlock,
   servicenow: ServiceNowBlock,
+  servicenow_v2: ServiceNowV2Block,
   ses: SESBlock,
   sftp: SftpBlock,
+  sftp_v2: SftpV2Block,
   sharepoint: SharepointBlock,
   sharepoint_v2: SharepointV2Block,
   shopify: ShopifyBlock,
@@ -611,11 +682,14 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   smartlead: SmartleadBlock,
   smtp: SmtpBlock,
   snowflake: SnowflakeBlock,
+  splunk: SplunkBlock,
   sportmonks: SportmonksBlock,
   spotify: SpotifyBlock,
   sqs: SQSBlock,
   square: SquareBlock,
   ssh: SSHBlock,
+  ssh_v2: SSHV2Block,
+  ssm: SSMBlock,
   stagehand: StagehandBlock,
   start_trigger: StartTriggerBlock,
   starter: StarterBlock,
@@ -636,6 +710,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   thrive: ThriveBlock,
   tiktok: TikTokBlock,
   tinybird: TinybirdBlock,
+  tinyfish: TinyFishBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
   trigger_dev: TriggerDevBlock,
@@ -659,12 +734,14 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   webhook_request: WebhookRequestBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
+  windchill: WindchillBlock,
   wiza: WizaBlock,
   wordpress: WordPressBlock,
   workday: WorkdayBlock,
   workflow: WorkflowBlock,
   workflow_input: WorkflowInputBlock,
   x: XBlock,
+  youcom: YouComBlock,
   youtube: YouTubeBlock,
   zendesk: ZendeskBlock,
   zep: ZepBlock,
@@ -679,7 +756,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
  * two stay in lockstep without a separate registry to maintain.
  *
  * `BlockMeta` exists only for catalog-visible integrations — every key here
- * has a corresponding entry in `lib/integrations/integrations.json`. Blocks
+ * has a corresponding entry in `packages/deployment-config/src/integrations.json`. Blocks
  * absent from the catalog (core blocks like `agent`/`api`, superseded base
  * versions, and hidden tools) carry no meta because the only consumers are
  * integration surfaces: `getTemplatesForBlock` (the two integration detail
@@ -687,6 +764,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
  * index). The toolbar and search modal read block *configs*, not metas.
  */
 export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
+  affinity: AffinityBlockMeta,
   agentmail: AgentMailBlockMeta,
   agentphone: AgentPhoneBlockMeta,
   agiloft: AgiloftBlockMeta,
@@ -703,7 +781,9 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   ashby: AshbyBlockMeta,
   athena: AthenaBlockMeta,
   attio: AttioBlockMeta,
+  azure_data_explorer: AzureDataExplorerBlockMeta,
   azure_devops: AzureDevOpsBlockMeta,
+  bitbucket: BitbucketBlockMeta,
   box: BoxBlockMeta,
   brandfetch: BrandfetchBlockMeta,
   brex: BrexBlockMeta,
@@ -712,6 +792,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   buffer: BufferBlockMeta,
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
+  cbinsights: CbInsightsBlockMeta,
   circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,
@@ -719,12 +800,15 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   clickup: ClickUpBlockMeta,
   cloudflare: CloudflareBlockMeta,
   cloudformation: CloudFormationBlockMeta,
+  cloudtrail: CloudTrailBlockMeta,
   cloudwatch: CloudWatchBlockMeta,
+  coda: CodaBlockMeta,
   codepipeline: CodePipelineBlockMeta,
   confluence: ConfluenceBlockMeta,
   context_dev: ContextDevBlockMeta,
   convex: ConvexBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
+  crunchbase: CrunchbaseBlockMeta,
   cursor: CursorBlockMeta,
   dagster: DagsterBlockMeta,
   databricks: DatabricksBlockMeta,
@@ -749,7 +833,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   enrich: EnrichBlockMeta,
   enrichment: EnrichmentBlockMeta,
   enrow: EnrowBlockMeta,
-  evernote: EvernoteBlockMeta,
   exa: ExaBlockMeta,
   extend: ExtendBlockMeta,
   fathom: FathomBlockMeta,
@@ -793,6 +876,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   granola: GranolaBlockMeta,
   greenhouse: GreenhouseBlockMeta,
   greptile: GreptileBlockMeta,
+  harmonic: HarmonicBlockMeta,
   hex: HexBlockMeta,
   hubspot: HubSpotBlockMeta,
   huggingface: HuggingFaceBlockMeta,
@@ -810,10 +894,13 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   jina: JinaBlockMeta,
   jira: JiraBlockMeta,
   jira_service_management: JiraServiceManagementBlockMeta,
+  jotform: JotformBlockMeta,
   jupyter: JupyterBlockMeta,
+  jupyter_v2: JupyterBlockMeta,
   kalshi: KalshiBlockMeta,
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,
+  lambda: LambdaBlockMeta,
   langsmith: LangsmithBlockMeta,
   latex: LatexBlockMeta,
   launchdarkly: LaunchDarklyBlockMeta,
@@ -824,25 +911,32 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   linkup: LinkupBlockMeta,
   linq: LinqBlockMeta,
   logfire: LogfireBlockMeta,
+  logrocket: LogRocketBlockMeta,
   loops: LoopsBlockMeta,
   luma: LumaBlockMeta,
   mailchimp: MailchimpBlockMeta,
   mailgun: MailgunBlockMeta,
   managed_agent: ManagedAgentBlockMeta,
+  manageengine_sdp: ManageEngineSdpBlockMeta,
   mem0: Mem0BlockMeta,
   microsoft_ad: MicrosoftAdBlockMeta,
   microsoft_dataverse: MicrosoftDataverseBlockMeta,
+  microsoft_dynamics_365: MicrosoftDynamics365BlockMeta,
   microsoft_excel: MicrosoftExcelBlockMeta,
   microsoft_excel_v2: MicrosoftExcelV2BlockMeta,
   microsoft_planner: MicrosoftPlannerBlockMeta,
   microsoft_teams: MicrosoftTeamsBlockMeta,
+  microsoft_word: MicrosoftWordBlockMeta,
   millionverifier: MillionVerifierBlockMeta,
   mintlify: MintlifyBlockMeta,
   mistral_parse: MistralParseBlockMeta,
+  modal: ModalBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,
+  mssql: MSSQLBlockMeta,
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
+  netsuite: NetSuiteBlockMeta,
   neverbounce: NeverBounceBlockMeta,
   new_relic: NewRelicBlockMeta,
   notion: NotionBlockMeta,
@@ -852,6 +946,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   onedrive: OneDriveBlockMeta,
   onepassword: OnePasswordBlockMeta,
   openai: OpenAIBlockMeta,
+  otter: OtterBlockMeta,
   outlook: OutlookBlockMeta,
   pagerduty: PagerDutyBlockMeta,
   parallel_ai: ParallelBlockMeta,
@@ -860,15 +955,20 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   persona: PersonaBlockMeta,
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
+  pitchbook: PitchBookBlockMeta,
+  planetscale: PlanetScaleBlockMeta,
   polymarket: PolymarketBlockMeta,
   postgresql: PostgreSQLBlockMeta,
   posthog: PostHogBlockMeta,
+  powerbi: PowerBIBlockMeta,
   profound: ProfoundBlockMeta,
   prospeo: ProspeoBlockMeta,
   pulse: PulseBlockMeta,
   qdrant: QdrantBlockMeta,
   quartr: QuartrBlockMeta,
+  quickbooks: QuickBooksBlockMeta,
   quiver: QuiverBlockMeta,
+  rabbitmq: RabbitmqBlockMeta,
   railway: RailwayBlockMeta,
   rb2b: RB2BBlockMeta,
   rds: RDSBlockMeta,
@@ -882,10 +982,12 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   rootly: RootlyBlockMeta,
   rss: RssBlockMeta,
   s3: S3BlockMeta,
+  sailpoint: SailPointBlockMeta,
   salesforce: SalesforceBlockMeta,
   sap_concur: SapConcurBlockMeta,
   sap_s4hana: SapS4HanaBlockMeta,
   secrets_manager: SecretsManagerBlockMeta,
+  semrush: SemrushBlockMeta,
   sendblue: SendblueBlockMeta,
   sendgrid: SendGridBlockMeta,
   sentry: SentryBlockMeta,
@@ -893,19 +995,24 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   servicenow: ServiceNowBlockMeta,
   ses: SESBlockMeta,
   sftp: SftpBlockMeta,
+  sftp_v2: SftpBlockMeta,
   sharepoint: SharepointBlockMeta,
   shopify: ShopifyBlockMeta,
   similarweb: SimilarwebBlockMeta,
   sixtyfour: SixtyfourBlockMeta,
   slack: SlackBlockMeta,
+  slack_v2: SlackV2BlockMeta,
   smartlead: SmartleadBlockMeta,
   smtp: SmtpBlockMeta,
   snowflake: SnowflakeBlockMeta,
+  splunk: SplunkBlockMeta,
   sportmonks: SportmonksBlockMeta,
   spotify: SpotifyBlockMeta,
   sqs: SQSBlockMeta,
   square: SquareBlockMeta,
   ssh: SSHBlockMeta,
+  ssh_v2: SSHBlockMeta,
+  ssm: SSMBlockMeta,
   stagehand: StagehandBlockMeta,
   stripe: StripeBlockMeta,
   sts: STSBlockMeta,
@@ -918,6 +1025,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   thrive: ThriveBlockMeta,
   tiktok: TikTokBlockMeta,
   tinybird: TinybirdBlockMeta,
+  tinyfish: TinyFishBlockMeta,
   trello: TrelloBlockMeta,
   trigger_dev: TriggerDevBlockMeta,
   twilio_sms: TwilioSMSBlockMeta,
@@ -931,10 +1039,12 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   webflow: WebflowBlockMeta,
   whatsapp: WhatsAppBlockMeta,
   wikipedia: WikipediaBlockMeta,
+  windchill: WindchillBlockMeta,
   wiza: WizaBlockMeta,
   wordpress: WordPressBlockMeta,
   workday: WorkdayBlockMeta,
   x: XBlockMeta,
+  youcom: YouComBlockMeta,
   youtube: YouTubeBlockMeta,
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,

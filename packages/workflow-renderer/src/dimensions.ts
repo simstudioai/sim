@@ -80,16 +80,36 @@ export const estimateNoteBlockHeight = (content: string) => {
   )
 }
 
+/**
+ * A container's box, and the gutter it keeps around the blocks inside it.
+ *
+ * The single source for both halves of that: the layout math that sizes a
+ * container and clamps its children, and the card's own DOM. `subflow-node-view`
+ * renders its header and content box straight from these, so the gap the
+ * geometry reserves is the gap the container actually paints. They used to be
+ * separate — the same four numbers as Tailwind literals in the view — and had
+ * already drifted, the view drawing a 40px header against a constant that
+ * claimed 50.
+ *
+ * Each padding is the gap between a child's edge and the container's, counted
+ * once: the header is accounted for by the child's own position, which
+ * `clampPositionToContainer` floors at `HEADER_HEIGHT + TOP_PADDING`.
+ *
+ * The two edges that carry chrome are wider than the two that are only gutter.
+ * The container's output handle sits on the right, and the resize grip in the
+ * bottom-right corner spans 40px in from both — a child at the gutter width
+ * would sit underneath it.
+ */
 export const CONTAINER_DIMENSIONS = {
   DEFAULT_WIDTH: 500,
   DEFAULT_HEIGHT: 300,
   MIN_WIDTH: 400,
   MIN_HEIGHT: 200,
-  HEADER_HEIGHT: 50,
-  LEFT_PADDING: 16,
+  HEADER_HEIGHT: 40,
+  LEFT_PADDING: 24,
   RIGHT_PADDING: 80,
-  TOP_PADDING: 16,
-  BOTTOM_PADDING: 16,
+  TOP_PADDING: 24,
+  BOTTOM_PADDING: 80,
 } as const
 
 /**

@@ -1,6 +1,10 @@
-import type { CSSProperties } from 'react'
 import { cn } from '@sim/emcn'
 import { ThinkingLoader } from '@/components/ui'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
+import {
+  INVERSE_LOADER_INK_CLASS,
+  INVERSE_LOADER_INK_STYLE,
+} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/operations-teams-graphic.module.css'
 
@@ -14,19 +18,6 @@ import styles from '@/app/(landing)/enterprise/components/feature-graphics/opera
  * the wires keep long vertical runs.
  */
 const CANVAS = { WIDTH: 280, HEIGHT: 248 } as const
-
-/**
- * The ThinkingLoader's light-grey material (its dark-surface theme from
- * `thinking-loader.module.css`), asserted inline exactly as the deploy
- * tile's Deploy button does — the always-light landing would otherwise
- * ink the loader dark, invisible on the dark tile ground showing through
- * the outlined router hub.
- */
-const ROUTER_LOADER_INK = {
-  '--tl-grad-inner': '#a7a7a7',
-  '--tl-grad-outer': '#d6d6d6',
-  '--tl-glow': 'rgba(255, 255, 255, 0.9)',
-} as CSSProperties
 
 interface Port {
   /** Tailwind classes positioning the size-2 port dot, centered on the port's canvas x/y. */
@@ -118,14 +109,11 @@ const OUT_PATHS = {
   jira: 'M 140 155 C 140 184 224 178 224 206',
 } as const
 
-/** Faint-ink stroke for the resting wires (the deploy tile's guide-line grey, quieter). */
-const QUIET_STROKE = 'color-mix(in srgb, var(--text-muted-inverse) 28%, transparent)'
-
 /** Shared 1px outline ink for the tags, port dots, and router hub ring. */
-const OUTLINE_INK = 'border-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+const OUTLINE_INK = colorMixFallbacks.inverseBorder45
 
 /** Shared SVG props for a resting wire. */
-const WIRE_PROPS = { stroke: QUIET_STROKE, strokeWidth: '1' } as const
+const WIRE_PROPS = { className: colorMixFallbacks.inverseStroke28, strokeWidth: '1' } as const
 
 /** Shared SVG props for a traveling white request-pulse overlay on a wire. */
 const PULSE_PROPS = {
@@ -143,7 +131,7 @@ function PortTag({ port }: { port: Port }) {
     >
       <span
         className={cn(
-          'relative flex h-5 items-center overflow-hidden rounded-md border bg-transparent px-1.5 font-medium text-[var(--text-muted-inverse)] text-caption',
+          'relative flex h-5 items-center overflow-hidden rounded-md border bg-transparent px-1.5 text-[var(--text-muted-inverse)] text-caption',
           OUTLINE_INK
         )}
       >
@@ -316,7 +304,11 @@ export function OperationsTeamsGraphic({
                 styles.routerBloom
               )}
             >
-              <ThinkingLoader size={36} style={ROUTER_LOADER_INK} />
+              <ThinkingLoader
+                size={36}
+                className={INVERSE_LOADER_INK_CLASS}
+                style={INVERSE_LOADER_INK_STYLE}
+              />
             </div>
           </div>
         </div>

@@ -2,9 +2,12 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
+import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
+import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
+import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialDraftHooks')
@@ -35,65 +38,104 @@ export async function handleCreateCredentialFromDraft(params: {
       createdAt: now,
       updatedAt: now,
     })
+  } catch (insertError: unknown) {
+    if (
+      getPostgresErrorCode(insertError) !== '23505' ||
+      getPostgresConstraintName(insertError) !== 'credential_workspace_account_unique'
+    ) {
+      throw insertError
+    }
 
-    await db.insert(schema.credentialMember).values({
-      id: generateId(),
-      credentialId,
-      userId,
-      role: 'admin',
-      status: 'active',
-      joinedAt: now,
-      invitedBy: userId,
-      createdAt: now,
-      updatedAt: now,
-    })
+    const [existingCredential] = await db
+      .select({ id: schema.credential.id, displayName: schema.credential.displayName })
+      .from(schema.credential)
+      .where(
+        and(
+          eq(schema.credential.workspaceId, draft.workspaceId),
+          eq(schema.credential.accountId, accountId)
+        )
+      )
+      .limit(1)
 
-    logger.info('Created credential from draft', {
-      credentialId,
-      displayName: draft.displayName,
+    if (!existingCredential) {
+      throw new Error(
+        `Credential account conflict was reported without an existing credential for account ${accountId}`
+      )
+    }
+
+    logger.info('OAuth account is already connected to this workspace', {
+      credentialId: existingCredential.id,
+      displayName: existingCredential.displayName,
       providerId,
       accountId,
     })
 
-    await clearDeadFlag(accountId)
+    await db
+      .update(schema.credential)
+      .set({ updatedAt: now })
+      .where(eq(schema.credential.id, existingCredential.id))
+
+    await clearOAuthRefreshDeadFlag(accountId)
+    await resumeConnectorsAfterCredentialReconnect(accountId, now)
 
     recordAudit({
       workspaceId: draft.workspaceId,
       actorId: userId,
-      action: AuditAction.CREDENTIAL_CREATED,
+      action: AuditAction.CREDENTIAL_RECONNECTED,
       resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: credentialId,
-      resourceName: draft.displayName,
-      description: `Created OAuth credential "${draft.displayName}"`,
-      metadata: { providerId, accountId },
+      resourceId: existingCredential.id,
+      resourceName: existingCredential.displayName,
+      description: `Reconnected OAuth credential "${existingCredential.displayName}"`,
+      metadata: { accountId },
     })
-
-    captureServerEvent(
-      userId,
-      'credential_connected',
-      {
-        credential_type: 'oauth',
-        provider_id: providerId,
-        workspace_id: draft.workspaceId,
-      },
-      {
-        groups: { workspace: draft.workspaceId },
-        setOnce: { first_credential_connected_at: now.toISOString() },
-      }
-    )
-  } catch (insertError: unknown) {
-    const code =
-      insertError && typeof insertError === 'object' && 'code' in insertError
-        ? (insertError as { code: string }).code
-        : undefined
-    if (code !== '23505') {
-      throw insertError
-    }
-    logger.info('Credential already exists, skipping draft', {
-      providerId,
-      accountId,
-    })
+    return
   }
+
+  await db.insert(schema.credentialMember).values({
+    id: generateId(),
+    credentialId,
+    userId,
+    role: 'admin',
+    status: 'active',
+    joinedAt: now,
+    invitedBy: userId,
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  logger.info('Created credential from draft', {
+    credentialId,
+    displayName: draft.displayName,
+    providerId,
+    accountId,
+  })
+
+  await clearOAuthRefreshDeadFlag(accountId)
+
+  recordAudit({
+    workspaceId: draft.workspaceId,
+    actorId: userId,
+    action: AuditAction.CREDENTIAL_CREATED,
+    resourceType: AuditResourceType.CREDENTIAL,
+    resourceId: credentialId,
+    resourceName: draft.displayName,
+    description: `Created OAuth credential "${draft.displayName}"`,
+    metadata: { providerId, accountId },
+  })
+
+  captureServerEvent(
+    userId,
+    'credential_connected',
+    {
+      credential_type: 'oauth',
+      provider_id: providerId,
+      workspace_id: draft.workspaceId,
+    },
+    {
+      groups: { workspace: draft.workspaceId },
+      setOnce: { first_credential_connected_at: now.toISOString() },
+    }
+  )
 }
 
 /**
@@ -105,7 +147,7 @@ export async function handleCreateCredentialFromDraft(params: {
  * the dead flag. Callers treat that timestamp as proof the reconnect landed.
  */
 export async function handleReconnectCredential(params: {
-  draft: { credentialId: string | null; workspaceId: string; displayName: string }
+  draft: { credentialId: string | null }
   newAccountId: string
   workspaceId: string
   userId: string
@@ -115,19 +157,21 @@ export async function handleReconnectCredential(params: {
   if (!draft.credentialId) return
 
   const [existingCredential] = await db
-    .select({ id: schema.credential.id, accountId: schema.credential.accountId })
+    .select({
+      id: schema.credential.id,
+      accountId: schema.credential.accountId,
+      displayName: schema.credential.displayName,
+    })
     .from(schema.credential)
     .where(eq(schema.credential.id, draft.credentialId))
     .limit(1)
 
   if (!existingCredential) {
-    logger.warn('Credential not found for reconnect, skipping', {
-      credentialId: draft.credentialId,
-    })
-    return
+    throw new Error(`Cannot reconnect missing credential ${draft.credentialId}`)
   }
 
   const oldAccountId = existingCredential.accountId
+  const displayName = existingCredential.displayName
   const accountChanged = oldAccountId !== newAccountId
 
   if (accountChanged) {
@@ -144,12 +188,9 @@ export async function handleReconnectCredential(params: {
       .limit(1)
 
     if (conflicting) {
-      logger.warn('New account already used by another credential, skipping reconnect', {
-        credentialId: draft.credentialId,
-        newAccountId,
-        conflictingCredentialId: conflicting.id,
-      })
-      return
+      throw new Error(
+        `Cannot reconnect credential ${draft.credentialId}: account ${newAccountId} is already used by credential ${conflicting.id}`
+      )
     }
   }
 
@@ -169,7 +210,8 @@ export async function handleReconnectCredential(params: {
     }
   )
 
-  await clearDeadFlag(newAccountId)
+  await clearOAuthRefreshDeadFlag(newAccountId)
+  await resumeConnectorsAfterCredentialReconnect(newAccountId, now)
 
   recordAudit({
     workspaceId,
@@ -177,23 +219,14 @@ export async function handleReconnectCredential(params: {
     action: AuditAction.CREDENTIAL_RECONNECTED,
     resourceType: AuditResourceType.CREDENTIAL,
     resourceId: draft.credentialId,
-    resourceName: draft.displayName,
+    resourceName: displayName,
     description: accountChanged
-      ? `Reconnected OAuth credential "${draft.displayName}" to a new account`
-      : `Reconnected OAuth credential "${draft.displayName}"`,
+      ? `Reconnected OAuth credential "${displayName}" to a new account`
+      : `Reconnected OAuth credential "${displayName}"`,
     metadata: { oldAccountId, newAccountId },
   })
 
   if (oldAccountId) {
-    const [stillReferenced] = await db
-      .select({ id: schema.credential.id })
-      .from(schema.credential)
-      .where(eq(schema.credential.accountId, oldAccountId))
-      .limit(1)
-
-    if (!stillReferenced) {
-      await db.delete(schema.account).where(eq(schema.account.id, oldAccountId))
-      logger.info('Deleted orphaned account after reconnect', { accountId: oldAccountId })
-    }
+    await deleteOrphanedOAuthAccount(oldAccountId)
   }
 }

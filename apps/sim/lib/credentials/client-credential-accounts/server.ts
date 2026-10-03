@@ -2,12 +2,16 @@ import {
   BOX_SERVICE_ACCOUNT_PROVIDER_ID,
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   type ClientCredentialAccountProviderId,
+  getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
+  NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  partitionClientCredentialFields,
   SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { mintBoxServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/box'
+import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 import { mintZohoDeskServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoho-desk'
 import { mintZoomServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/zoom'
@@ -16,14 +20,17 @@ import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 /** Raw fields a client-credential minter receives (already trimmed). */
 export interface ClientCredentialAccountFields {
   clientId: string
+  /** Certificate mapping identifier used as the JWT `kid` by NetSuite. */
+  certificateId?: string
   /**
-   * Absent only when the provider's selected {@link authMethod} authenticates
-   * with key material instead of a shared secret (Salesforce JWT bearer).
+   * Absent when the provider authenticates with key material instead of a
+   * shared secret (for example NetSuite or Salesforce JWT bearer).
    */
   clientSecret?: string
   /**
    * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
-   * Salesforce My Domain host, Zoho Desk organization ID).
+   * Salesforce My Domain host, Zoho Desk organization ID, or NetSuite
+   * SuiteTalk origin).
    */
   orgId: string
   /**
@@ -40,8 +47,9 @@ export interface ClientCredentialAccountFields {
    */
   authMethod?: string
   /**
-   * PEM private key signing the assertion, for key-based grants (Salesforce
-   * JWT bearer). Mutually exclusive with {@link clientSecret} in practice.
+   * PEM private key signing the assertion for key-based providers and grants
+   * (NetSuite or Salesforce JWT bearer). Mutually exclusive with
+   * {@link clientSecret} in practice.
    */
   privateKey?: string
   /** Username a key-based grant authenticates as (Salesforce JWT `sub`). */
@@ -76,8 +84,8 @@ export interface ClientCredentialAccountMintResult {
   accessToken: string
   expiresInSeconds: number
   /**
-   * Provider API base URL the minted token must be used against (Salesforce
-   * `instance_url`), forwarded to tools alongside the token.
+   * Provider API origin the minted token must be used against (Salesforce or
+   * NetSuite), forwarded to tools alongside the token.
    */
   instanceUrl?: string
   /**
@@ -121,6 +129,7 @@ const CLIENT_CREDENTIAL_ACCOUNT_MINTERS: Record<
   [BOX_SERVICE_ACCOUNT_PROVIDER_ID]: mintBoxServiceAccountToken,
   [SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID]: mintSalesforceServiceAccountToken,
   [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: mintZohoDeskServiceAccountToken,
+  [NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID]: mintNetSuiteServiceAccountToken,
 }
 
 export function getClientCredentialAccountMinter(
@@ -140,6 +149,7 @@ export interface ClientCredentialAccountSecretBlob {
   type: typeof CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE
   providerId: string
   clientId: string
+  certificateId?: string
   /** Absent on key-based credentials, which carry a {@link privateKey} instead. */
   clientSecret?: string
   orgId: string
@@ -166,13 +176,20 @@ export function parseClientCredentialAccountSecretBlob(
   if (typeof parsed !== 'object' || parsed === null) {
     throw malformed
   }
-  // Requiring `clientSecret` outright would reject every key-based credential.
+  const descriptor = getClientCredentialAccountDescriptor(expectedProviderId)
   if (
     parsed.type !== CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE ||
     parsed.providerId !== expectedProviderId ||
-    !parsed.clientId ||
-    !parsed.orgId ||
-    (!parsed.clientSecret && !parsed.privateKey)
+    !descriptor
+  ) {
+    throw malformed
+  }
+  const { required } = partitionClientCredentialFields(descriptor, parsed.authMethod)
+  if (
+    required.some((field) => {
+      const value = parsed[field.id]
+      return typeof value !== 'string' || !value.trim()
+    })
   ) {
     throw malformed
   }

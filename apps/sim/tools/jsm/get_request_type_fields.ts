@@ -3,9 +3,9 @@ import type {
   JsmGetRequestTypeFieldsResponse,
 } from '@/tools/jsm/types'
 import { REQUEST_TYPE_FIELD_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetRequestTypeFieldsTool: ToolConfig<
+export const jsmGetRequestTypeFieldsTool: InternalToolConfig<
   JsmGetRequestTypeFieldsParams,
   JsmGetRequestTypeFieldsResponse
 > = {
@@ -53,13 +53,8 @@ export const jsmGetRequestTypeFieldsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/requesttypefields',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

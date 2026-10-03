@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { PillsRing } from '@sim/emcn'
-import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
 
 interface GenericResourceContentProps {
@@ -24,7 +24,7 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
   if (data.entries.length === 0) {
     return (
       <div className='flex h-full items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>No results yet</p>
+        <p className='text-[var(--text-muted)] text-small'>No results yet</p>
       </div>
     )
   }
@@ -35,38 +35,35 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
         <div key={entry.toolCallId} className='flex flex-col gap-2 px-4 py-3'>
           <div className='flex items-center gap-2'>
             {entry.status === 'executing' && (
-              <PillsRing
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                animate
-              />
+              <PillsRing className='size-[14px] shrink-0 text-[var(--text-tertiary)]' animate />
             )}
-            <span className='text-[13px] text-[var(--text-primary)]'>
-              {getToolStatusDisplayTitle(entry.displayTitle, entry.status)}
+            <span className='text-[var(--text-primary)] text-small'>
+              {getToolStatusDisplayTitle(entry.displayTitle, entry.status, entry.toolName)}
             </span>
             {entry.status === 'error' && (
-              <span className='ml-auto text-[12px] text-[var(--text-error)]'>Error</span>
+              <span className='ml-auto text-[var(--text-error)] text-caption'>Error</span>
             )}
             {entry.status === 'skipped' && (
-              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Skipped</span>
+              <span className='ml-auto text-[var(--text-muted)] text-caption'>Skipped</span>
             )}
             {entry.status === 'rejected' && (
-              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Rejected</span>
+              <span className='ml-auto text-[var(--text-muted)] text-caption'>Rejected</span>
             )}
           </div>
           {entry.streamingArgs && (
-            <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[12px] text-[var(--text-body)]'>
+            <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-caption'>
               {entry.streamingArgs}
             </pre>
           )}
           {!entry.streamingArgs && entry.result?.output != null && (
-            <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[12px] text-[var(--text-body)]'>
+            <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-caption'>
               {typeof entry.result.output === 'string'
                 ? entry.result.output
                 : JSON.stringify(entry.result.output, null, 2)}
             </pre>
           )}
           {entry.result?.error && (
-            <p className='text-[12px] text-[var(--text-error)]'>{entry.result.error}</p>
+            <p className='text-[var(--text-error)] text-caption'>{entry.result.error}</p>
           )}
         </div>
       ))}

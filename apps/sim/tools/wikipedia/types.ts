@@ -95,15 +95,6 @@ export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete page summary output definition
- */
-export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Wikipedia page summary and metadata',
-  properties: WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for search result items
  */
 export const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
@@ -130,15 +121,6 @@ export const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete search result output definition
- */
-export const WIKIPEDIA_SEARCH_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Wikipedia search result',
-  properties: WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for page content objects
  */
 export const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
@@ -151,15 +133,6 @@ export const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
   content_model: { type: 'string', description: 'Content model (wikitext)' },
   content_format: { type: 'string', description: 'Content format (text/html)' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete page content output definition
- */
-export const WIKIPEDIA_PAGE_CONTENT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Full HTML content and metadata of the Wikipedia page',
-  properties: WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for random page objects (subset of summary)
@@ -191,15 +164,6 @@ export const WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES = {
   timestamp: { type: 'string', description: 'Timestamp' },
   pageid: { type: 'number', description: 'Page ID' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete random page output definition
- */
-export const WIKIPEDIA_RANDOM_PAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Random Wikipedia page data',
-  properties: WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES,
-}
 
 // Page Summary tool types
 export interface WikipediaPageSummaryParams {

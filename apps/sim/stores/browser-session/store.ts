@@ -1,4 +1,11 @@
-import type { BrowserPageState, BrowserTabState, BrowserTabsState } from '@sim/browser-protocol'
+import type {
+  BrowserMediaPermissionRequest,
+  BrowserPageIssue,
+  BrowserPageState,
+  BrowserSitePermissionRequest,
+  BrowserTabState,
+  BrowserTabsState,
+} from '@sim/browser-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import {
@@ -14,6 +21,11 @@ export interface BrowserSessionData {
   /** All live tabs in this browser scope. */
   tabs: BrowserTabState[]
   activeTabId: string | null
+  automationTabId: string | null
+  automationActive: boolean
+  automationNeedsAttention: boolean
+  /** Browser-subagent spans currently working in this chat scope. */
+  agentRunIds: string[]
   /** False after this chat's browser session ends; true again when a new one starts. */
   sessionAlive: boolean
   /** Live views were administratively stopped while the restart descriptor was retained. */
@@ -29,6 +41,12 @@ interface BrowserSessionState {
   suspendScope: (scopeId: string) => void
   setPageState: (state: BrowserPageState) => void
   setTabsState: (state: BrowserTabsState) => void
+  setAgentRunActive: (scopeId: string, runId: string, active: boolean) => void
+  clearAgentRuns: (scopeId: string) => void
+  clearAgentRunIds: (
+    runIds: readonly string[],
+    options?: { hardResetScopeIds?: readonly string[] }
+  ) => void
   setSessionAlive: (alive: boolean, scopeId: string) => void
 }
 
@@ -37,6 +55,10 @@ function createInitialSession(): BrowserSessionData {
     pageState: null,
     tabs: [],
     activeTabId: null,
+    automationTabId: null,
+    automationActive: false,
+    automationNeedsAttention: false,
+    agentRunIds: [],
     sessionAlive: true,
     suspended: false,
   }
@@ -54,8 +76,61 @@ function isPristineSession(session: BrowserSessionData): boolean {
     !session.suspended &&
     session.pageState === null &&
     session.tabs.length === 0 &&
-    session.activeTabId === null
+    session.activeTabId === null &&
+    session.automationTabId === null &&
+    !session.automationActive &&
+    !session.automationNeedsAttention &&
+    session.agentRunIds.length === 0
   )
+}
+
+function pageIssueEqual(a: BrowserPageIssue | undefined, b: BrowserPageIssue | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b || a.kind !== b.kind || a.url !== b.url) return false
+  if (a.kind === 'load-error') {
+    return b.kind === 'load-error' && a.code === b.code && a.description === b.description
+  }
+  if (a.kind === 'crashed') return b.kind === 'crashed' && a.reason === b.reason
+  return true
+}
+
+function mediaPermissionRequestEqual(
+  a: BrowserMediaPermissionRequest | undefined,
+  b: BrowserMediaPermissionRequest | undefined
+): boolean {
+  if (a === b) return true
+  return Boolean(
+    a &&
+      b &&
+      a.requestId === b.requestId &&
+      a.origin === b.origin &&
+      a.devices.length === b.devices.length &&
+      a.devices.every((device, index) => device === b.devices[index])
+  )
+}
+
+function retainMediaPermissionRequest(
+  current: BrowserMediaPermissionRequest | undefined,
+  incoming: BrowserMediaPermissionRequest | undefined
+): BrowserMediaPermissionRequest | undefined {
+  return mediaPermissionRequestEqual(current, incoming) ? current : incoming
+}
+
+function sitePermissionRequestEqual(
+  a: BrowserSitePermissionRequest | undefined,
+  b: BrowserSitePermissionRequest | undefined
+): boolean {
+  return Boolean(
+    a === b ||
+      (a && b && a.requestId === b.requestId && a.tabId === b.tabId && a.origin === b.origin)
+  )
+}
+
+function retainSitePermissionRequest(
+  current: BrowserSitePermissionRequest | undefined,
+  incoming: BrowserSitePermissionRequest | undefined
+): BrowserSitePermissionRequest | undefined {
+  return sitePermissionRequestEqual(current, incoming) ? current : incoming
 }
 
 function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
@@ -65,13 +140,39 @@ function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
     a.title === b.title &&
     a.loading === b.loading &&
     a.active === b.active &&
-    a.pinned === b.pinned
+    pageIssueEqual(a.issue, b.issue)
   )
 }
 
 /** True when two tab lists carry the same values, so the old array can be kept. */
 function tabsEqual(a: BrowserTabState[], b: BrowserTabState[]): boolean {
   return a.length === b.length && a.every((tab, index) => tabFieldsEqual(tab, b[index]))
+}
+
+/**
+ * A full native tab-list push can briefly report an empty title for a settled
+ * background WebContents even though its richer page-state push already gave
+ * us the title. Keep that known title only while the tab remains on the same
+ * URL and is not loading; navigation is still free to replace it.
+ */
+function retainSettledTabTitles(
+  currentTabs: BrowserTabState[],
+  incomingTabs: BrowserTabState[]
+): BrowserTabState[] {
+  const currentById = new Map(currentTabs.map((tab) => [tab.tabId, tab]))
+  return incomingTabs.map((incoming) => {
+    const current = currentById.get(incoming.tabId)
+    if (
+      incoming.title.trim() === '' &&
+      !incoming.loading &&
+      !incoming.issue &&
+      current?.url === incoming.url &&
+      current.title.trim() !== ''
+    ) {
+      return { ...incoming, title: current.title }
+    }
+    return incoming
+  })
 }
 
 function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null): boolean {
@@ -84,7 +185,10 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
     a.title === b.title &&
     a.loading === b.loading &&
     a.canGoBack === b.canGoBack &&
-    a.canGoForward === b.canGoForward
+    a.canGoForward === b.canGoForward &&
+    pageIssueEqual(a.issue, b.issue) &&
+    mediaPermissionRequestEqual(a.mediaPermissionRequest, b.mediaPermissionRequest) &&
+    sitePermissionRequestEqual(a.sitePermissionRequest, b.sitePermissionRequest)
   )
 }
 
@@ -118,6 +222,10 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               current.pageState === null &&
               current.tabs.length === 0 &&
               current.activeTabId === null &&
+              current.automationTabId === null &&
+              !current.automationActive &&
+              !current.automationNeedsAttention &&
+              current.agentRunIds.length === 0 &&
               !current.sessionAlive
             ) {
               return current
@@ -127,6 +235,10 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               pageState: null,
               tabs: [],
               activeTabId: null,
+              automationTabId: null,
+              automationActive: false,
+              automationNeedsAttention: false,
+              agentRunIds: [],
               sessionAlive: false,
               suspended: true,
             }
@@ -137,14 +249,26 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           const { scopeId } = pageState
           return withSession(state, scopeId, (current) => {
             if (current.suspended) return current
+            const nextPageState = {
+              ...pageState,
+              mediaPermissionRequest: retainMediaPermissionRequest(
+                current.pageState?.mediaPermissionRequest,
+                pageState.mediaPermissionRequest
+              ),
+              sitePermissionRequest: retainSitePermissionRequest(
+                current.pageState?.sitePermissionRequest,
+                pageState.sitePermissionRequest
+              ),
+            }
             const nextTabs = current.tabs.map((tab) =>
-              tab.tabId === pageState.tabId
+              tab.tabId === nextPageState.tabId
                 ? {
                     ...tab,
-                    url: pageState.url,
-                    title: pageState.title,
-                    loading: pageState.loading,
+                    url: nextPageState.url,
+                    title: nextPageState.title,
+                    loading: nextPageState.loading,
                     active: true,
+                    issue: nextPageState.issue,
                   }
                 : tab.active
                   ? { ...tab, active: false }
@@ -153,17 +277,17 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
             const tabs = tabsEqual(current.tabs, nextTabs) ? current.tabs : nextTabs
             if (
               tabs === current.tabs &&
-              current.activeTabId === pageState.tabId &&
+              current.activeTabId === nextPageState.tabId &&
               current.sessionAlive &&
-              pageStateEqual(current.pageState, pageState)
+              pageStateEqual(current.pageState, nextPageState)
             ) {
               return current
             }
             return {
               ...current,
-              pageState,
+              pageState: nextPageState,
               sessionAlive: true,
-              activeTabId: pageState.tabId,
+              activeTabId: nextPageState.tabId,
               tabs,
             }
           })
@@ -173,8 +297,17 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           const { scopeId } = tabsState
           return withSession(state, scopeId, (current) => {
             if (current.suspended) return current
-            const tabs = tabsEqual(current.tabs, tabsState.tabs) ? current.tabs : tabsState.tabs
+            const incomingTabs = retainSettledTabTitles(current.tabs, tabsState.tabs)
+            const tabs = tabsEqual(current.tabs, incomingTabs) ? current.tabs : incomingTabs
             const activeTab = tabs.find((tab) => tab.tabId === tabsState.activeTabId)
+            const reportedAutomationTabId = tabsState.automationTabId ?? null
+            const automationTabId =
+              reportedAutomationTabId ??
+              (current.agentRunIds.length > 0
+                ? tabs.some((tab) => tab.tabId === current.automationTabId)
+                  ? current.automationTabId
+                  : tabsState.activeTabId
+                : null)
             const hasCurrentPageState =
               current.pageState?.tabId !== undefined &&
               current.pageState.tabId === tabsState.activeTabId
@@ -190,11 +323,15 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
                     loading: activeTab.loading,
                     canGoBack: false,
                     canGoForward: false,
+                    ...(activeTab.issue ? { issue: activeTab.issue } : {}),
                   }
             const sessionAlive = tabs.length > 0
             if (
               tabs === current.tabs &&
               tabsState.activeTabId === current.activeTabId &&
+              automationTabId === current.automationTabId &&
+              (tabsState.automationActive ?? false) === current.automationActive &&
+              (tabsState.automationNeedsAttention ?? false) === current.automationNeedsAttention &&
               sessionAlive === current.sessionAlive &&
               pageState === current.pageState
             ) {
@@ -204,10 +341,91 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               ...current,
               tabs,
               activeTabId: tabsState.activeTabId,
+              automationTabId,
+              automationActive: tabsState.automationActive ?? false,
+              automationNeedsAttention: tabsState.automationNeedsAttention ?? false,
               sessionAlive,
               pageState,
             }
           })
+        }),
+      setAgentRunActive: (scopeId, runId, active) =>
+        set((state) => {
+          if (!runId) return state
+          if (!active) {
+            let changed = false
+            const sessions = Object.fromEntries(
+              Object.entries(state.sessions).map(([id, session]) => {
+                if (!session.agentRunIds.includes(runId)) return [id, session]
+                changed = true
+                const agentRunIds = session.agentRunIds.filter((entry) => entry !== runId)
+                return [
+                  id,
+                  {
+                    ...session,
+                    agentRunIds,
+                    automationTabId:
+                      agentRunIds.length === 0 && !session.automationActive
+                        ? null
+                        : session.automationTabId,
+                  },
+                ]
+              })
+            )
+            return changed ? { sessions } : state
+          }
+          return withSession(state, scopeId, (current) => {
+            if (current.suspended || current.agentRunIds.includes(runId)) return current
+            return {
+              ...current,
+              agentRunIds: [...current.agentRunIds, runId],
+              automationTabId: current.automationTabId ?? current.activeTabId,
+            }
+          })
+        }),
+      clearAgentRuns: (scopeId) =>
+        set((state) =>
+          withSession(state, scopeId, (current) =>
+            current.agentRunIds.length === 0
+              ? current
+              : {
+                  ...current,
+                  agentRunIds: [],
+                  automationTabId: current.automationActive ? current.automationTabId : null,
+                }
+          )
+        ),
+      clearAgentRunIds: (runIds, options) =>
+        set((state) => {
+          const ids = new Set(runIds)
+          const hardResetScopes = new Set(options?.hardResetScopeIds ?? [])
+          if (ids.size === 0 && hardResetScopes.size === 0) return {}
+          let changed = false
+          const sessions = Object.fromEntries(
+            Object.entries(state.sessions).map(([id, session]) => {
+              const agentRunIds = session.agentRunIds.filter((runId) => !ids.has(runId))
+              const hardResetActivity = hardResetScopes.has(id)
+              if (agentRunIds.length === session.agentRunIds.length && !hardResetActivity) {
+                return [id, session]
+              }
+              changed = true
+              return [
+                id,
+                {
+                  ...session,
+                  agentRunIds,
+                  ...(hardResetActivity
+                    ? { automationActive: false, automationNeedsAttention: false }
+                    : {}),
+                  automationTabId:
+                    agentRunIds.length === 0 && (hardResetActivity || !session.automationActive)
+                      ? null
+                      : session.automationTabId,
+                },
+              ]
+            })
+          )
+          return changed ? { sessions } : {}
         }),
       setSessionAlive: (alive, scopeId) =>
         set((state) => {
@@ -220,7 +438,11 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               !current.sessionAlive &&
               current.pageState === null &&
               current.tabs.length === 0 &&
-              current.activeTabId === null
+              current.activeTabId === null &&
+              current.automationTabId === null &&
+              !current.automationActive &&
+              !current.automationNeedsAttention &&
+              current.agentRunIds.length === 0
             ) {
               return current
             }
@@ -230,6 +452,10 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               pageState: null,
               tabs: [],
               activeTabId: null,
+              automationTabId: null,
+              automationActive: false,
+              automationNeedsAttention: false,
+              agentRunIds: [],
             }
           })
         }),

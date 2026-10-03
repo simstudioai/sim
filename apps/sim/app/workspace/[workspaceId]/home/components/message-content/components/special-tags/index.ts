@@ -1,3 +1,4 @@
+export { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/pending-tag-indicator'
 export type {
   ContentSegment,
   CredentialItemData,
@@ -13,17 +14,19 @@ export type {
   QuestionTagData,
   QuestionType,
   RuntimeSpecialTagName,
+  SourceTagData,
   UsageUpgradeAction,
   UsageUpgradeTagData,
   WorkspaceResourceTagData,
   WorkspaceResourceTagType,
 } from './special-tags'
 export {
+  BrowserTakeoverQuestion,
   CREDENTIAL_TAG_TYPES,
   CredentialDisplay,
   credentialTagHasVisibleCard,
   formatCredentialSubmissionMessage,
-  PendingTagIndicator,
+  isHttpUrl,
   parseCredentialSubmissionMessage,
   parseCredentialSubmissionProgress,
   parseCredentialTagBody,

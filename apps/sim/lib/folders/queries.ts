@@ -1,11 +1,20 @@
 import { db } from '@sim/db'
 import { folder } from '@sim/db/schema'
-import { and, type Column, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, type Column, count, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { FolderApi, FolderResourceType } from '@/lib/api/contracts/folders'
 import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import type { DbOrTx } from '@/lib/db/types'
-import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
-import { buildFolderPathIndex, type FolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
+import {
+  buildFolderPath,
+  buildFolderPathIndex,
+  encodeFolderPathSegment,
+  type FolderPathIndex,
+  ROOT_FOLDER_PATH,
+  requireNonRootFolderPath,
+} from '@/lib/folders/paths'
+import { folderResourceLabel } from '@/lib/folders/resource-traits'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
 
 export type FolderSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt'
@@ -91,34 +100,6 @@ export async function findActiveFolder(
 }
 
 /**
- * A folder in a workspace's tree regardless of archive state.
- *
- * {@link findActiveFolder} answers "is this a valid destination"; this answers "does this row
- * exist here at all". Delete needs the second question — `deleteFolder` reuses an already
- * archived folder's own `deletedAt` so a cascade that failed partway can be retried, and
- * filtering archived rows out would strand those stragglers.
- */
-export async function findFolderInWorkspace(
-  folderId: string,
-  workspaceId: string,
-  resourceType: FolderResourceType
-): Promise<typeof folder.$inferSelect | null> {
-  const [row] = await db
-    .select()
-    .from(folder)
-    .where(
-      and(
-        eq(folder.id, folderId),
-        eq(folder.workspaceId, workspaceId),
-        eq(folder.resourceType, resourceType)
-      )
-    )
-    .limit(1)
-
-  return row ?? null
-}
-
-/**
  * Where a restored resource should land: its original folder when that folder is reachable,
  * otherwise the workspace root.
  *
@@ -147,7 +128,7 @@ export async function resolveRestoredFolderId(
  * enum by `satisfies`. Each ends in `createdAt` so folders sharing a name or a
  * `sortOrder` still come back in a stable order.
  */
-const FOLDER_SORTS = {
+export const FOLDER_SORTS = {
   position: [folder.sortOrder, folder.createdAt],
   name: [folder.name, folder.createdAt],
   createdAt: [folder.createdAt],
@@ -169,6 +150,17 @@ interface ListActiveFolderRowsOptions {
   maxRows?: number
 }
 
+/**
+ * Materializes the workspace's active folder tree for one resource type.
+ *
+ * `maxRows` is opt-in: omitting it reads every active folder row. Callers that
+ * pass it get a throw of `FolderCollectionLimitExceededError` rather than a
+ * truncated index, because a partial path index resolves real folder paths to
+ * `undefined` and re-roots resources at the workspace root. The bound is not a
+ * default because folder creation only refuses at the ceiling on the paths that
+ * run through the orchestration engine, so a workspace can already hold more
+ * rows than the cap and must still be read.
+ */
 export async function loadActiveFolderPathIndex(
   workspaceId: string,
   resourceType: FolderResourceType,
@@ -193,12 +185,101 @@ export async function loadActiveFolderPathIndex(
   return buildFolderPathIndex(rows)
 }
 
+export interface FolderCollectionRoomOptions {
+  /**
+   * How many folder rows the caller is about to insert. Bulk and recursive
+   * creates must pass their real row count: asserting room for one row and then
+   * inserting a whole subtree crosses the ceiling just as surely as ignoring it.
+   * Defaults to 1, the single-folder create.
+   */
+  additionalRows?: number
+  maxRows?: number
+}
+
+/**
+ * Refuses a folder create that would push a workspace's active tree past the
+ * ceiling the capped readers materialize under.
+ *
+ * Counts rather than loading the index: the writer only needs the cardinality,
+ * and a workspace already over the ceiling must not have its creates fail as a
+ * read error. Callers run this inside the folder mutation lock, which is what
+ * makes the count authoritative against a concurrent create.
+ *
+ * One query regardless of how many rows the caller is adding — a bulk writer
+ * passes `additionalRows` instead of calling this per row, which would be both
+ * O(n) queries and wrong (each call would see room for one more).
+ */
+export async function assertFolderCollectionHasRoom(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  tx: DbOrTx = db,
+  options: FolderCollectionRoomOptions = {}
+): Promise<void> {
+  const { additionalRows = 1, maxRows = MAX_FOLDERS_PER_WORKSPACE } = options
+  // A copy that creates no folders is not a create; an over-cap workspace must
+  // still be allowed to run it.
+  if (additionalRows <= 0) return
+
+  const [row] = await tx
+    .select({ total: count() })
+    .from(folder)
+    .where(
+      and(
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, resourceType),
+        isNull(folder.deletedAt)
+      )
+    )
+
+  if (Number(row?.total ?? 0) + additionalRows > maxRows) {
+    throw new FolderCollectionFullError(folderResourceLabel(resourceType), maxRows)
+  }
+}
+
 /** Resolves a canonical folder path to its internal id; `/` resolves to the root sentinel. */
 export function resolveFolderPathFromIndex(
   index: FolderPathIndex,
   path: string
 ): string | null | undefined {
   return path === ROOT_FOLDER_PATH ? null : index.idByPath.get(path)
+}
+
+/**
+ * A list's `folderPath` filter, resolved against the workspace's active folders.
+ *
+ * `unfiltered` is an omitted param, `folder` names one folder (`null` being the
+ * workspace root), and `noMatch` is a path that names no active folder.
+ */
+export type FolderPathFilter =
+  | { kind: 'unfiltered' }
+  | { kind: 'folder'; folderId: string | null }
+  | { kind: 'noMatch' }
+
+/**
+ * Resolves a list's `folderPath` filter, treating a path that names no active
+ * folder as a filter nothing satisfies rather than as a missing resource.
+ *
+ * A list is a collection, and every other filter it accepts answers a value
+ * nothing matches with an empty page — `workflowIds` naming no workflow and
+ * `model` naming no model both return zero rows. Answering `404 Folder not
+ * found` only on the folder filter made one filter's miss a different kind of
+ * event from all the others, told a caller its *collection* was missing when it
+ * was not, turned a folder deleted mid-walk into a failed pagination loop, and
+ * answered whether a path exists on an endpoint that was not asked. The sibling
+ * folder lists answer a non-matching `parentPath` the same way, so one rule
+ * covers every folder filter the family accepts.
+ *
+ * A path that could not name a folder at all is still rejected by the contract,
+ * as a 400, before any of this runs. Mutations keep their 404: creating into or
+ * moving to a folder that does not exist has no empty-set reading.
+ */
+export function resolveFolderPathFilter(
+  index: FolderPathIndex,
+  path: string | undefined
+): FolderPathFilter {
+  if (path === undefined) return { kind: 'unfiltered' }
+  const folderId = resolveFolderPathFromIndex(index, path)
+  return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
 }
 
 export async function listActiveFolderRows(
@@ -263,4 +344,64 @@ export async function listFoldersForWorkspace(
     .orderBy(...listOrderBy(FOLDER_SORTS[sortBy], sortOrder))
 
   return rows.map(toFolderApi)
+}
+
+/**
+ * Resolves an archived folder's id from the canonical path it had when it was deleted.
+ *
+ * Cannot go through {@link buildFolderPathIndex}: that index is lossless and fails fast on a
+ * duplicate path, but the partial unique index on folder names only covers ACTIVE rows — so
+ * archiving `/Reports` and creating a new `/Reports` is legal and puts two rows on one path.
+ * The walk below therefore computes each archived row's path against the whole row set
+ * (an archived folder can still hang off an active parent) and matches without demanding
+ * global path uniqueness.
+ *
+ * Ambiguity resolves to the most recently archived row, which is the one a caller who just
+ * deleted a folder means.
+ */
+export async function findArchivedFolderIdByPath(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  path: string,
+  options?: { maxRows?: number }
+): Promise<string | null> {
+  const target = buildFolderPath(requireNonRootFolderPath(path))
+  const maxRows = options?.maxRows ?? MAX_FOLDERS_PER_WORKSPACE
+  const rows = await db
+    .select()
+    .from(folder)
+    .where(and(eq(folder.workspaceId, workspaceId), eq(folder.resourceType, resourceType)))
+    .limit(maxRows + 1)
+  if (rows.length > maxRows) {
+    throw new FolderCollectionLimitExceededError('path index', maxRows)
+  }
+
+  const rowById = new Map(rows.map((row) => [row.id, row]))
+  const pathById = new Map<string, string>()
+
+  const resolvePath = (folderId: string, seen: Set<string>): string | null => {
+    const cached = pathById.get(folderId)
+    if (cached) return cached
+    if (seen.has(folderId)) return null
+    const row = rowById.get(folderId)
+    if (!row) return null
+    seen.add(folderId)
+    const parentPath = row.parentId ? resolvePath(row.parentId, seen) : ROOT_FOLDER_PATH
+    seen.delete(folderId)
+    if (parentPath === null) return null
+    const resolved =
+      parentPath === ROOT_FOLDER_PATH
+        ? `/${encodeFolderPathSegment(row.name)}`
+        : `${parentPath}/${encodeFolderPathSegment(row.name)}`
+    pathById.set(folderId, resolved)
+    return resolved
+  }
+
+  let match: (typeof rows)[number] | null = null
+  for (const row of rows) {
+    if (!row.deletedAt) continue
+    if (resolvePath(row.id, new Set()) !== target) continue
+    if (!match || row.deletedAt > (match.deletedAt as Date)) match = row
+  }
+  return match?.id ?? null
 }

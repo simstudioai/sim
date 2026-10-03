@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelCancelDeploymentParams,
   VercelCancelDeploymentResponse,
@@ -46,7 +47,7 @@ export const vercelCancelDeploymentTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v12/deployments/${params.deploymentId.trim()}/cancel${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v12/deployments/${safeUrlPathSegment(params.deploymentId, 'deploymentId')}/cancel${qs ? `?${qs}` : ''}`
     },
     method: 'PATCH',
     headers: (params: VercelCancelDeploymentParams) => ({

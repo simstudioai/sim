@@ -1,12 +1,11 @@
 'use client'
 
-import { Plus } from '@sim/emcn'
-import { Database, FolderPlus } from '@sim/emcn/icons'
+import { Database, FolderPlus, Plus } from '@sim/emcn/icons'
+import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
-} from '@/app/workspace/[workspaceId]/components'
-import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
 
 const KNOWLEDGE_HEADER = FOLDERED_RESOURCE_HEADERS.knowledge_base
 

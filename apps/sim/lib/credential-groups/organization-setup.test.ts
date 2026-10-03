@@ -1,0 +1,29 @@
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+
+import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
+import { ResourcePolicyNotFoundError } from '@/lib/resource-policies/repository'
+
+const mocks = { policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy }
+
+describe('fresh organization account setup', () => {
+  it('requires an existing org policy instead of creating grants for a legacy group', async () => {
+    mocks.policy.mockRejectedValue(
+      new ResourcePolicyNotFoundError('credential_group', 'legacy-group')
+    )
+    await expect(requireOrganizationAccountsSetup('org-1', 'legacy-group')).rejects.toMatchObject({
+      code: 'conflict',
+    })
+  })
+  it('does not conceal a malformed policy', async () => {
+    mocks.policy.mockRejectedValue(new Error('Malformed policy'))
+    await expect(requireOrganizationAccountsSetup('org-1', 'group-1')).rejects.toThrow(
+      'Malformed policy'
+    )
+  })
+})

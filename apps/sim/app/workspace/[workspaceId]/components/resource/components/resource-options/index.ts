@@ -1,3 +1,4 @@
+export { ResourceFilterPanel, ResourceFilterSection } from './resource-filter-panel'
 export type {
   ColumnOption,
   FilterConfig,
@@ -6,4 +7,8 @@ export type {
   SearchTag,
   SortConfig,
 } from './resource-options'
-export { ResourceOptions, SortDropdown } from './resource-options'
+export {
+  FILTER_SECTION_LABEL_CLASS,
+  ResourceOptions,
+  SortDropdown,
+} from './resource-options'

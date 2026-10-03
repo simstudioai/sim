@@ -1,8 +1,9 @@
 import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import type {
   StreamEventScope,
   StreamLoopContext,
@@ -13,6 +14,8 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
 
 type SpanEvent = Extract<PersistedStreamEventEnvelope, { type: 'span' }>
+
+const BROWSER_SUBAGENT_ID = 'browser'
 
 /**
  * Side effects for subagent span lifecycle. The model owns the subagent
@@ -41,6 +44,17 @@ export function handleSpanEvent(
   const parentToolCallId = scopedParentToolCallId ?? parentToolCallIdFromData
   const isPendingPause = spanData?.pending === true
   const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
+  const runId = scopedSpanId ?? parentToolCallId
+
+  if (name === BROWSER_SUBAGENT_ID && runId) {
+    if (payload.event === MothershipStreamV1SpanLifecycleEvent.start) {
+      state.browserAgentRunIds.add(runId)
+      deps.startBrowserAgentRun(runId)
+    } else {
+      state.browserAgentRunIds.delete(runId)
+      deps.endBrowserAgentRun(runId)
+    }
+  }
 
   if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name === FILE_SUBAGENT_ID) {
     // Seed the pending preview session only on a freshly-opened lane (the agent
@@ -78,7 +92,7 @@ export function handleSpanEvent(
       )
       deps.setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
       if (lastFileResource) {
-        deps.setActiveResourceId(lastFileResource.id)
+        deps.onResourceEventRef.current?.(getChatResourceSelectionId(lastFileResource))
       }
     }
     ops.flush()

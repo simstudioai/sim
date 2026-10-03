@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   PersonaAccount,
   PersonaCase,
@@ -77,9 +78,7 @@ export async function parsePersonaResponse(response: Response): Promise<PersonaA
  * Narrows an unknown JSON:API `data` value to a single resource object.
  */
 export function asResource(value: unknown): PersonaResourceData {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as PersonaResourceData)
-    : {}
+  return isRecordLike(value) ? (value as PersonaResourceData) : {}
 }
 
 /**
@@ -171,9 +170,7 @@ function getStringArray(attrs: Record<string, unknown>, key: string): string[] {
 
 function getObject(attrs: Record<string, unknown>, key: string): Record<string, unknown> | null {
   const value = attrs[key]
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
+  return isRecordLike(value) ? (value as Record<string, unknown>) : null
 }
 
 /**

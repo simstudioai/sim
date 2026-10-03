@@ -8,16 +8,17 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { addTableColumn, deleteColumn } from '@/lib/table'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
+  orchestrationErrorResponse,
+  orchestrationOutcomeErrorResponse,
   rootErrorMessage,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
@@ -44,7 +45,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     if (!validation.success) return validation.response
     const validated = validation.data.body
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -63,8 +64,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       },
     })
   } catch (error) {
-    const lockError = tableLockErrorResponse(error)
-    if (lockError) return lockError
+    const classifiedError = orchestrationErrorResponse(error)
+    if (classifiedError) return classifiedError
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
     }
@@ -104,7 +105,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (!validation.success) return validation.response
     const validated = validation.data.body
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -122,10 +123,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       request,
     })
     if (!outcome.success || !outcome.table) {
-      return NextResponse.json(
-        { error: outcome.error ?? 'Failed to update column' },
-        { status: statusForOrchestrationError(outcome.errorCode) }
-      )
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to update column')
     }
 
     // Live-collab: tell open viewers the change landed so they refetch.
@@ -164,7 +162,11 @@ export const DELETE = withRouteHandler(
       if (!validation.success) return validation.response
       const validated = validation.data.body
 
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result

@@ -40,7 +40,7 @@ export const POST = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ body }) => body,
-  present: ({ folder, index }) => ({ data: { folder: toV2PathFolder(folder, index, false) } }),
+  present: ({ folder, index }) => ({ data: toV2PathFolder(folder, index, false) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -51,7 +51,7 @@ export const PATCH = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ body }) => body,
-  present: ({ folder, index }) => ({ data: { folder: toV2PathFolder(folder, index, false) } }),
+  present: ({ folder, index }) => ({ data: toV2PathFolder(folder, index, false) }),
 })
 
 export const DELETE = defineV2JsonRoute({

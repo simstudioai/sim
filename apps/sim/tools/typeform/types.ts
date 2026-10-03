@@ -8,7 +8,6 @@ export interface TypeformFilesParams {
   filename: string
   inline?: boolean
   apiKey: string
-  _context?: Record<string, unknown>
 }
 
 export interface TypeformFilesResponse extends ToolResponse {

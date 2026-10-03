@@ -1,5 +1,6 @@
 import { createReadStream, createWriteStream } from 'node:fs'
 import {
+  copyFile,
   link,
   mkdir,
   readdir,
@@ -23,16 +24,42 @@ import {
 } from '@/lib/uploads/config'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import {
+  LOCAL_MULTIPART_ROOT,
+  LOCAL_STAGING_ROOT,
+  LOCAL_UPLOAD_METADATA_SUFFIX,
+} from '@/lib/uploads/core/storage-key'
+import {
   createBlobConfig,
   createGcsConfig,
   createS3Config,
-  LOCAL_UPLOAD_METADATA_SUFFIX,
 } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 export type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
+
+/**
+ * Bounded lifetime of every signed data-plane URL this module issues.
+ *
+ * A signed transfer URL is a bearer credential for writing the object's bytes,
+ * so it is deliberately decoupled from the upload session's own TTL. The
+ * session stays addressable through its control plane (part URLs, status,
+ * complete, abort) for as long as it lives; the credential that can write bytes
+ * expires an hour after it was signed, which is the lifetime the pre-session
+ * presign route used.
+ *
+ * Multipart parts are re-signed on demand by the per-surface `.../parts`
+ * endpoints, so a long-lived multipart session always outlives its part URLs
+ * and recovers by asking for new ones. A whole-object PUT has no such endpoint
+ * and needs none: it is size-capped by the provider's single-PUT ceiling
+ * (`UPLOAD_SESSION_PUT_MAX_BYTES`, or `UPLOAD_SESSION_LOCAL_PUT_MAX_BYTES` for `local`), is
+ * issued and used within one client call, and is not resumable — an expired PUT
+ * URL and an interrupted PUT have the identical recovery of starting a new
+ * session. Nothing durable is written in either case, because the transfer is
+ * signed with a create-only precondition.
+ */
+export const UPLOAD_URL_TTL_MS = 60 * 60 * 1000
 
 export interface CompletedUploadPart {
   partNumber: number
@@ -113,7 +140,9 @@ export async function initiateMultipartProviderUpload(params: {
     return { provider, providerUploadId: result.uploadId }
   }
   if (provider === 'gcs') {
-    const { initiateGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+    const { initiateGcsMultipartUpload } = await import(
+      '@/lib/uploads/providers/google-cloud-storage/client'
+    )
     const result = await initiateGcsMultipartUpload({
       fileName: params.fileName,
       contentType: params.contentType,
@@ -130,6 +159,14 @@ export async function initiateMultipartProviderUpload(params: {
   return { provider, providerUploadId: null }
 }
 
+/**
+ * Signs the whole-object PUT data plane for an upload session.
+ *
+ * The returned `expiresAt` is the transfer URL's own expiry, which is not the
+ * session's: cloud providers get a signature bounded by {@link UPLOAD_URL_TTL_MS},
+ * while the local data plane carries no signature at all and its route admits
+ * the upload for as long as the session is live.
+ */
 export async function createPutProviderTransfer(params: {
   provider: UploadStorageProvider
   key: string
@@ -141,8 +178,15 @@ export async function createPutProviderTransfer(params: {
   localOrigin?: string
   expiresAt: Date
   metadata: Record<string, string>
-}): Promise<{ method: 'put'; url: string; headers: Record<string, string> }> {
-  const expiresIn = Math.floor((params.expiresAt.getTime() - Date.now()) / 1000)
+}): Promise<{
+  method: 'put'
+  url: string
+  headers: Record<string, string>
+  expiresAt: string
+}> {
+  const expiresIn = Math.floor(
+    Math.min(params.expiresAt.getTime() - Date.now(), UPLOAD_URL_TTL_MS) / 1000
+  )
   if (expiresIn < 1) throw new Error('Cannot sign an expired PUT upload session')
 
   if (params.provider === 'local') {
@@ -156,8 +200,11 @@ export async function createPutProviderTransfer(params: {
         'Content-Type': params.contentType,
         'upload-token': params.uploadToken,
       },
+      expiresAt: params.expiresAt.toISOString(),
     }
   }
+
+  const signedExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
   const config = getStorageConfig(params.context)
   const metadata = { ...params.metadata, uploadId: params.uploadId }
@@ -171,7 +218,7 @@ export async function createPutProviderTransfer(params: {
       customConfig: createS3Config(config),
       expiresIn,
     })
-    return { method: 'put', ...transfer }
+    return { method: 'put', ...transfer, expiresAt: signedExpiresAt }
   }
   if (params.provider === 'blob') {
     const { getBlobPresignedUploadUrl } = await import('@/lib/uploads/providers/blob/client')
@@ -182,9 +229,11 @@ export async function createPutProviderTransfer(params: {
       customConfig: createBlobConfig(config),
       expiresIn,
     })
-    return { method: 'put', ...transfer }
+    return { method: 'put', ...transfer, expiresAt: signedExpiresAt }
   }
-  const { getGcsPresignedUploadUrl } = await import('@/lib/uploads/providers/gcs/client')
+  const { getGcsPresignedUploadUrl } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   const transfer = await getGcsPresignedUploadUrl(
     params.key,
     params.contentType,
@@ -192,9 +241,23 @@ export async function createPutProviderTransfer(params: {
     createGcsConfig(config),
     expiresIn
   )
-  return { method: 'put', url: transfer.url, headers: transfer.signedHeaders }
+  return {
+    method: 'put',
+    url: transfer.url,
+    headers: transfer.signedHeaders,
+    expiresAt: signedExpiresAt,
+  }
 }
 
+/**
+ * Signs the per-part data plane for a multipart upload session.
+ *
+ * The signature lifetime and the advertised `expiresAt` are both derived from
+ * {@link UPLOAD_URL_TTL_MS} and threaded into each provider in that provider's own unit —
+ * seconds for S3, an absolute instant for blob and GCS. Neither side may re-derive it: a
+ * provider defaulting the lifetime internally is how an advertised expiry and the real
+ * signature drift apart.
+ */
 export async function getMultipartProviderPartUrls(params: {
   provider: UploadStorageProvider
   providerUploadId: string | null
@@ -203,7 +266,9 @@ export async function getMultipartProviderPartUrls(params: {
   partNumbers: number[]
   localUrl: (partNumber: number) => string
 }): Promise<UploadPartUrl[]> {
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  const expiresOn = new Date(Date.now() + UPLOAD_URL_TTL_MS)
+  const expiresIn = Math.floor(UPLOAD_URL_TTL_MS / 1000)
+  const expiresAt = expiresOn.toISOString()
   if (params.provider === 'local') {
     return params.partNumbers.map((partNumber) => ({
       partNumber,
@@ -221,7 +286,8 @@ export async function getMultipartProviderPartUrls(params: {
       params.key,
       params.providerUploadId,
       params.partNumbers,
-      createS3Config(config)
+      createS3Config(config),
+      expiresIn
     )
     return urls.map(({ partNumber, url }) => ({
       partNumber,
@@ -235,7 +301,8 @@ export async function getMultipartProviderPartUrls(params: {
     const urls = await getMultipartPartUrls(
       params.key,
       params.partNumbers,
-      createBlobConfig(config)
+      createBlobConfig(config),
+      expiresOn
     )
     return urls.map(({ partNumber, url }) => ({
       partNumber,
@@ -244,12 +311,15 @@ export async function getMultipartProviderPartUrls(params: {
       expiresAt,
     }))
   }
-  const { getGcsMultipartPartUrls } = await import('@/lib/uploads/providers/gcs/client')
+  const { getGcsMultipartPartUrls } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   const urls = await getGcsMultipartPartUrls(
     params.key,
     params.providerUploadId,
     params.partNumbers,
-    createGcsConfig(config)
+    createGcsConfig(config),
+    expiresOn
   )
   return urls.map(({ partNumber, url }) => ({
     partNumber,
@@ -277,7 +347,9 @@ export async function listMultipartProviderParts(params: {
     const { listMultipartParts } = await import('@/lib/uploads/providers/blob/client')
     return listMultipartParts(params.key, createBlobConfig(config))
   }
-  const { listGcsMultipartParts } = await import('@/lib/uploads/providers/gcs/client')
+  const { listGcsMultipartParts } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   return listGcsMultipartParts(params.key, params.providerUploadId, createGcsConfig(config))
 }
 
@@ -333,7 +405,9 @@ export async function completeMultipartProviderUpload(params: {
     )
     return
   }
-  const { completeGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+  const { completeGcsMultipartUpload } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   await completeGcsMultipartUpload(
     params.key,
     params.providerUploadId,
@@ -361,8 +435,8 @@ export async function headProviderObject(params: {
         ? await import('@/lib/uploads/providers/blob/client').then(({ headBlobObject }) =>
             headBlobObject(params.key, createBlobConfig(config))
           )
-        : await import('@/lib/uploads/providers/gcs/client').then(({ headGcsObject }) =>
-            headGcsObject(params.key, createGcsConfig(config))
+        : await import('@/lib/uploads/providers/google-cloud-storage/client').then(
+            ({ headGcsObject }) => headGcsObject(params.key, createGcsConfig(config))
           )
   if (!head) return null
   if (!head.contentType || !head.uploadId || !head.version) {
@@ -405,7 +479,9 @@ export async function deleteProviderObjectVersion(params: {
     })
     return
   }
-  const { deleteGcsObjectVersion } = await import('@/lib/uploads/providers/gcs/client')
+  const { deleteGcsObjectVersion } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   await deleteGcsObjectVersion({
     key: params.key,
     generation: params.version,
@@ -438,7 +514,9 @@ export async function abortProviderUpload(params: {
       const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
       await abortMultipartUpload(params.key, params.uploadId, createBlobConfig(config))
     } else {
-      const { abortGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+      const { abortGcsMultipartUpload } = await import(
+        '@/lib/uploads/providers/google-cloud-storage/client'
+      )
       await abortGcsMultipartUpload(params.key, params.providerUploadId, createGcsConfig(config))
     }
   }
@@ -451,12 +529,16 @@ export async function writeLocalPutObject(params: {
   expectedSize: number
   contentType: string
   metadata: Record<string, string>
+  signal?: AbortSignal
 }): Promise<void> {
+  params.signal?.throwIfAborted()
   const { Readable, Transform } = await import('node:stream')
   const destination = localObjectPath(params.key)
-  const temporary = `${destination}.${params.uploadId}-${generateId()}.tmp`
-  const temporaryMetadata = `${temporary}${LOCAL_UPLOAD_METADATA_SUFFIX}`
-  await mkdir(dirname(destination), { recursive: true })
+  const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(params.uploadId)
+  await Promise.all([
+    mkdir(dirname(destination), { recursive: true }),
+    mkdir(dirname(temporary), { recursive: true }),
+  ])
   let bytes = 0
   const counter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
@@ -473,8 +555,10 @@ export async function writeLocalPutObject(params: {
     await pipeline(
       Readable.fromWeb(params.body as Parameters<typeof Readable.fromWeb>[0]),
       counter,
-      createWriteStream(temporary, { flags: 'wx' })
+      createWriteStream(temporary, { flags: 'wx' }),
+      { signal: params.signal }
     )
+    params.signal?.throwIfAborted()
     if (bytes !== params.expectedSize) {
       throw new LocalUploadBodyError(`Upload has ${bytes} bytes; expected ${params.expectedSize}`)
     }
@@ -483,6 +567,7 @@ export async function writeLocalPutObject(params: {
       contentType: params.contentType,
       metadata: { ...params.metadata, uploadId: params.uploadId },
     })
+    params.signal?.throwIfAborted()
     await publishLocalObject(
       temporary,
       temporaryMetadata,
@@ -494,6 +579,7 @@ export async function writeLocalPutObject(params: {
       rm(temporary, { force: true }),
       rm(temporaryMetadata, { force: true }),
     ])
+    params.signal?.throwIfAborted()
     if (error instanceof LocalUploadBodyError) throw error
     throw new Error(getErrorMessage(error, 'Failed to store PUT upload'), { cause: error })
   }
@@ -545,7 +631,30 @@ export async function writeLocalMultipartPart(params: {
 }
 
 function localPartsDirectory(uploadId: string): string {
-  return join(UPLOAD_DIR_SERVER, '.multipart', uploadId)
+  return join(UPLOAD_DIR_SERVER, LOCAL_MULTIPART_ROOT, uploadId)
+}
+
+/**
+ * Paths for an object being staged before it is published at its final key.
+ *
+ * Staged names are derived from the upload id alone, never from the
+ * destination. A temporary built as `destination + suffix` inherits the
+ * destination's length and then adds to it, so a key that fits `NAME_MAX`
+ * exactly still failed with `ENAMETOOLONG`: that is the 500 the upload-session
+ * PUT returned for any file name past roughly 125 characters, and the identical
+ * failure multipart `complete` returned while assembling one. Deriving the
+ * staged name from a fixed-width id removes the arithmetic rather than
+ * re-budgeting it — no suffix added here can depend on the caller's file name,
+ * so no future suffix can reintroduce the overflow.
+ *
+ * The staging root sits inside `UPLOAD_DIR_SERVER`, which keeps publication a
+ * same-filesystem `link` and lets the cleanup sweep reclaim what a crashed
+ * request left behind — artifacts written next to the destination were never
+ * swept at all.
+ */
+function localStagedPaths(uploadId: string): { object: string; metadata: string } {
+  const object = join(UPLOAD_DIR_SERVER, LOCAL_STAGING_ROOT, `${uploadId}-${generateId()}.tmp`)
+  return { object, metadata: `${object}${LOCAL_UPLOAD_METADATA_SUFFIX}` }
 }
 
 function localPartPath(uploadId: string, partNumber: number): string {
@@ -568,9 +677,11 @@ async function assembleLocalParts(
   metadata: Record<string, string>
 ): Promise<void> {
   const destination = localObjectPath(key)
-  const temporary = `${destination}.${uploadId}-${generateId()}.tmp`
-  const temporaryMetadata = `${temporary}${LOCAL_UPLOAD_METADATA_SUFFIX}`
-  await mkdir(dirname(destination), { recursive: true })
+  const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(uploadId)
+  await Promise.all([
+    mkdir(dirname(destination), { recursive: true }),
+    mkdir(dirname(temporary), { recursive: true }),
+  ])
   try {
     for (const part of parts) {
       await pipeline(
@@ -616,15 +727,48 @@ async function listLocalMultipartParts(uploadId: string): Promise<CompletedUploa
   return parts
 }
 
+/**
+ * Names a staged artifact at its final path, refusing to overwrite one already
+ * there.
+ *
+ * `link` is what makes that atomic: it either creates the name or fails
+ * `EEXIST`, and no reader ever observes a half-written object under the final
+ * key. It also requires both paths to sit on one filesystem. Staging beside the
+ * destination guaranteed that; a single `.staging` root does not, because a
+ * volume mounted under part of the uploads tree puts the two on different
+ * devices and `link` answers `EXDEV`.
+ *
+ * The fallback copies onto the destination's own device first and links from
+ * there, so the create-or-fail step still decides the final name and the
+ * no-overwrite guarantee survives — a plain copy to the destination would give
+ * that up. The copy's own name is derived from a fresh id, never from the
+ * destination, so it inherits none of the destination's path-component length.
+ */
+async function linkLocalArtifact(source: string, destination: string): Promise<void> {
+  try {
+    await link(source, destination)
+    return
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+  }
+  const sameDeviceCopy = join(dirname(destination), `.${generateId()}.publish`)
+  try {
+    await copyFile(source, sameDeviceCopy)
+    await link(sameDeviceCopy, destination)
+  } finally {
+    await rm(sameDeviceCopy, { force: true })
+  }
+}
+
 async function publishLocalObject(
   temporary: string,
   temporaryMetadata: string,
   destination: string,
   destinationMetadata: string
 ): Promise<void> {
-  await link(temporary, destination)
+  await linkLocalArtifact(temporary, destination)
   try {
-    await link(temporaryMetadata, destinationMetadata)
+    await linkLocalArtifact(temporaryMetadata, destinationMetadata)
   } catch (error) {
     await rm(destination, { force: true })
     throw error

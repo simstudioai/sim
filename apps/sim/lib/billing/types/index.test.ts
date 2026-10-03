@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { describe, expect, it } from 'vitest'
 import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
@@ -53,21 +51,26 @@ describe('Enterprise subscription metadata', () => {
       plan: 'enterprise',
       referenceId: 'org-1',
       monthlyPrice: 500,
+      invoiceAmountUsd: 500,
       seats: 25,
     })
   })
 
-  it('does not expose the unused workspace-scoped metadata field', () => {
+  it('prefers the neutral invoice amount for annual Enterprise metadata', () => {
     expect(
       parseEnterpriseSubscriptionMetadata({
-        ...REQUIRED_METADATA,
-        workspaceConcurrencyLimit: 1250,
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        invoiceAmountCents: '120000',
+        seats: '25',
+        reportingPeriodAnchorDate: '2026-01-31',
+        reportingPeriodInterval: 'year',
       })
-    ).toEqual({
-      plan: 'enterprise',
-      referenceId: 'org-1',
-      monthlyPrice: 500,
-      seats: 25,
+    ).toMatchObject({
+      invoiceAmountCents: 120000,
+      invoiceAmountUsd: 1200,
+      reportingPeriodAnchorDate: '2026-01-31',
+      reportingPeriodInterval: 'year',
     })
   })
 })

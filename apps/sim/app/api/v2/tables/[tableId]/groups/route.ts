@@ -13,7 +13,8 @@ import {
   updateTableGroupUseCase,
 } from '@/lib/table/application/groups'
 import { tableOperations } from '@/lib/table/application/operations'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn } from '@/lib/table/wire'
+import { presentV2WorkflowGroup } from '@/app/api/v2/tables/presenters'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -26,7 +27,10 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
-  present: ({ groups }) => ({ data: groups, nextCursor: null }),
+  present: ({ table, groups }) => ({
+    data: groups.map((group) => presentV2WorkflowGroup(group, table.schema)),
+    nextCursor: null,
+  }),
 })
 
 export const POST = defineV2JsonRoute({
@@ -38,7 +42,10 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: ({ table, group }) => ({
-    data: { group, columns: table.schema.columns.map(normalizeColumn) },
+    data: {
+      group: presentV2WorkflowGroup(group, table.schema),
+      columns: table.schema.columns.map(normalizeColumn),
+    },
   }),
 })
 
@@ -51,7 +58,10 @@ export const PATCH = defineV2JsonRoute({
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: ({ table, group }) => ({
-    data: { group, columns: table.schema.columns.map(normalizeColumn) },
+    data: {
+      group: presentV2WorkflowGroup(group, table.schema),
+      columns: table.schema.columns.map(normalizeColumn),
+    },
   }),
 })
 

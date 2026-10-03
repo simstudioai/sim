@@ -5,7 +5,6 @@ import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface OTPVerificationEmailProps {
   otp: string
-  email?: string
   type?: 'sign-in' | 'email-verification' | 'change-email' | 'forget-password' | 'chat-access'
   chatTitle?: string
 }
@@ -29,7 +28,6 @@ const getSubjectByType = (type: string, brandName: string, chatTitle?: string) =
 
 export function OTPVerificationEmail({
   otp,
-  email = '',
   type = 'email-verification',
   chatTitle,
 }: OTPVerificationEmailProps) {

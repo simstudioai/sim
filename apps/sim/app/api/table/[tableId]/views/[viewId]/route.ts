@@ -34,7 +34,11 @@ export const PATCH = withRouteHandler(
       const { tableId, viewId } = parsed.data.params
       const { workspaceId, name, config, configPatch, isDefault } = parsed.data.body
 
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       if (result.table.workspaceId !== workspaceId) {
@@ -85,7 +89,11 @@ export const DELETE = withRouteHandler(
       const { tableId, viewId } = parsed.data.params
       const { workspaceId } = parsed.data.body
 
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       if (result.table.workspaceId !== workspaceId) {
@@ -99,6 +107,9 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true, data: { deleted: true } })
     } catch (error) {
+      if (error instanceof TableViewValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
       logger.error(`[${requestId}] Error deleting table view:`, error)
       return NextResponse.json({ error: 'Failed to delete view' }, { status: 500 })
     }

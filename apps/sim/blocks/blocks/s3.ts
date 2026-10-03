@@ -2,7 +2,6 @@ import { S3Icon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { S3Response } from '@/tools/s3/types'
 
 /**
  * Normalize the batch-delete keys input into a string array. Accepts an array,
@@ -33,7 +32,7 @@ function parseObjectKeys(value: unknown): string[] {
 /** Upload payload: an uploaded file, a referenced file, or inline text. */
 const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
 
-export const S3Block: BlockConfig<S3Response> = {
+export const S3Block: BlockConfig = {
   type: 's3',
   name: 'S3',
   description: 'Upload, download, list, and manage S3 files and buckets',
@@ -186,7 +185,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== UPLOAD (PUT OBJECT) FIELDS =====
     {
       id: 'objectKey',
       title: 'Object Key/Path',
@@ -245,7 +243,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== DOWNLOAD (GET OBJECT) FIELDS =====
     {
       id: 's3Uri',
       title: 'S3 Object URL',
@@ -255,7 +252,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== LIST OBJECTS FIELDS =====
     {
       id: 'prefix',
       title: 'Prefix/Folder',
@@ -292,7 +288,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== COPY OBJECT FIELDS =====
     {
       id: 'sourceBucket',
       title: 'Source Bucket',

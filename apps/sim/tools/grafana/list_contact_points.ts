@@ -69,9 +69,9 @@ export const listContactPointsTool: ToolConfig<
       output: {
         contactPoints: Array.isArray(data)
           ? data.map((cp: Record<string, unknown>) => ({
-              uid: (cp.uid as string) ?? null,
-              name: (cp.name as string) ?? null,
-              type: (cp.type as string) ?? null,
+              uid: (cp.uid as string) ?? '',
+              name: (cp.name as string) ?? '',
+              type: (cp.type as string) ?? '',
               settings: (cp.settings as Record<string, unknown>) ?? {},
               disableResolveMessage: (cp.disableResolveMessage as boolean) ?? false,
               provenance: (cp.provenance as string) ?? '',
@@ -91,14 +91,15 @@ export const listContactPointsTool: ToolConfig<
           uid: { type: 'string', description: 'Contact point UID' },
           name: { type: 'string', description: 'Contact point name' },
           type: { type: 'string', description: 'Notification type (email, slack, etc.)' },
-          settings: { type: 'object', description: 'Type-specific settings' },
+          settings: { type: 'json', description: 'Type-specific settings' },
           disableResolveMessage: {
             type: 'boolean',
             description: 'Whether resolve messages are disabled',
           },
           provenance: {
             type: 'string',
-            description: 'Provisioning source (empty if API-managed)',
+            description:
+              'Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI',
           },
         },
       },

@@ -16,16 +16,13 @@ import {
   resolveActiveKnowledgeBaseContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import {
-  createSingleDocument,
-  type DocumentData,
-  processDocumentsWithQueue,
-} from '@/lib/knowledge/documents/service'
+import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
+import { createSingleDocument, type DocumentData } from '@/lib/knowledge/documents/service'
 import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import {
   type KnowledgeDocumentUploadMetadata,
-  knowledgeDocumentUploadMetadataSchema,
+  persistedKnowledgeDocumentUploadMetadataSchema,
 } from '@/lib/knowledge/upload-metadata'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
@@ -39,15 +36,6 @@ import {
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-
-const PROCESSING_DISPATCH_FAILURE_MESSAGE = 'Knowledge document processing dispatch failed'
-
-class KnowledgeDocumentProcessingDispatchError extends Error {
-  constructor(cause: unknown) {
-    super(PROCESSING_DISPATCH_FAILURE_MESSAGE, { cause })
-    this.name = 'KnowledgeDocumentProcessingDispatchError'
-  }
-}
 
 export class KnowledgeDocumentUnsupportedMediaTypeError extends Error {
   constructor(message: string) {
@@ -97,11 +85,20 @@ export interface CompleteKnowledgeDocumentUploadResult {
 
 export const createKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadCreate,
-  resolveContext: ({ input }: { input: CreateKnowledgeDocumentUploadInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CreateKnowledgeDocumentUploadInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context, request }) {
     if (!request) throw new Error('Knowledge upload creation requires a request context')
     const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
@@ -149,11 +146,20 @@ export const createKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
 
 export const issueKnowledgeDocumentUploadParts = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadParts,
-  resolveContext: ({ input }: { input: IssueKnowledgeDocumentUploadPartsInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: IssueKnowledgeDocumentUploadPartsInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context, request }) {
     if (!request) throw new Error('Knowledge upload part issuance requires a request context')
     const session = await loadBoundKnowledgeDocumentUpload(principal, input, context)
@@ -170,11 +176,20 @@ export const issueKnowledgeDocumentUploadParts = defineAuthorizedKnowledgeUseCas
 
 export const cancelKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadCancel,
-  resolveContext: ({ input }: { input: KnowledgeDocumentUploadControlInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: KnowledgeDocumentUploadControlInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context }) {
     const session = await loadBoundKnowledgeDocumentUpload(principal, input, context)
     await reauthorizeKnowledgeDocumentUpload(principal, session, knowledgeOperations.uploadCancel)
@@ -192,11 +207,20 @@ export const cancelKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
 
 export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadComplete,
-  resolveContext: ({ input }: { input: CompleteKnowledgeDocumentUploadInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CompleteKnowledgeDocumentUploadInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({
     principal,
     input,
@@ -209,6 +233,13 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
     const requestId = generateRequestId()
     const recoveringUnprojectedRegistration =
       session.status === 'finalizing' && session.completedFileId === null
+    /**
+     * Filled by whichever completion branch establishes a document that still
+     * needs indexing, and acted on only after the session is durably completed.
+     * Registration and dispatch are two different transactions: the first must
+     * commit even when the second cannot run.
+     */
+    let pendingDispatch: PendingProcessingDispatch | null = null
     const result = await completeUploadSession<KnowledgeDocumentUploadCompletion>({
       session,
       loadCompleted: async (claimed) => {
@@ -261,21 +292,13 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
           )
         }
         if (bound.status === 'bound') {
-          if (
-            session.error === PROCESSING_DISPATCH_FAILURE_MESSAGE &&
-            bound.document.processingStatus === 'pending'
-          ) {
-            const billingAttribution = await resolveKnowledgeBillingAttribution(
-              principal,
-              freshContext
-            )
-            await dispatchKnowledgeDocumentProcessing(
-              bound.document,
-              freshContext.knowledgeBaseId,
+          if (bound.document.processingStatus === 'pending') {
+            pendingDispatch = {
+              document: bound.document,
+              knowledgeBaseId: freshContext.knowledgeBaseId,
               processingOptions,
-              requestId,
-              billingAttribution
-            )
+              billingAttribution: await resolveKnowledgeBillingAttribution(principal, freshContext),
+            }
           }
           return {
             value: {
@@ -339,13 +362,12 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
           throw error
         }
 
-        await dispatchKnowledgeDocumentProcessing(
-          created,
-          registrationContext.knowledgeBaseId,
+        pendingDispatch = {
+          document: created,
+          knowledgeBaseId: registrationContext.knowledgeBaseId,
           processingOptions,
-          requestId,
-          billingAttribution
-        )
+          billingAttribution,
+        }
         return {
           value: {
             document: created,
@@ -356,6 +378,7 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
         }
       },
     })
+    if (pendingDispatch) await queueKnowledgeDocumentProcessing(pendingDispatch, requestId)
     return {
       ...result,
       workspaceId: context.workspaceId,
@@ -383,31 +406,50 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
   },
 })
 
-async function dispatchKnowledgeDocumentProcessing(
-  document: CreatedKnowledgeDocument,
-  knowledgeBaseId: string,
-  processingOptions: KnowledgeDocumentUploadMetadata['processingOptions'],
-  requestId: string,
+/** Everything the indexing dispatch needs, captured while the completion still holds its lease. */
+interface PendingProcessingDispatch {
+  document: CreatedKnowledgeDocument
+  knowledgeBaseId: string
+  processingOptions: KnowledgeDocumentUploadMetadata['processingOptions']
   billingAttribution: Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>
+}
+
+/**
+ * Queues indexing for a document the completion has already made durable.
+ *
+ * It runs after `completeUploadSession` resolves, and a failure is recorded
+ * rather than raised, because by that point the caller's request has already
+ * succeeded: the object is stored, the document row exists, and the session is
+ * marked completed. A 500 raised after all of that has committed describes
+ * nothing the caller can act on — replaying the same request answers
+ * `200 completed`.
+ *
+ * The dispatch outcome is not lost by going unraised. `processDocumentsWithQueue`
+ * marks the document `failed` with its error when processing itself breaks, and
+ * {@link dispatchDocumentProcessing} records the failure on the row when the
+ * dispatch never got off the ground at all. Either way the error is visible on
+ * every subsequent read of the document, and the document can be re-queued
+ * through `PATCH /api/knowledge/{id}/documents/{documentId}` with
+ * `retryProcessing`.
+ */
+async function queueKnowledgeDocumentProcessing(
+  dispatch: PendingProcessingDispatch,
+  requestId: string
 ): Promise<void> {
   const processingDocument: DocumentData = {
-    documentId: document.id,
-    filename: document.filename,
-    fileUrl: document.fileUrl,
-    fileSize: document.fileSize,
-    mimeType: document.mimeType,
+    documentId: dispatch.document.id,
+    filename: dispatch.document.filename,
+    fileUrl: dispatch.document.fileUrl,
+    fileSize: dispatch.document.fileSize,
+    mimeType: dispatch.document.mimeType,
   }
-  try {
-    await processDocumentsWithQueue(
-      [processingDocument],
-      knowledgeBaseId,
-      processingOptions ?? {},
-      requestId,
-      billingAttribution
-    )
-  } catch (error) {
-    throw new KnowledgeDocumentProcessingDispatchError(error)
-  }
+  await dispatchDocumentProcessing({
+    documents: [processingDocument],
+    knowledgeBaseId: dispatch.knowledgeBaseId,
+    processingOptions: dispatch.processingOptions ?? {},
+    requestId,
+    billingAttribution: dispatch.billingAttribution,
+  })
 }
 
 async function loadBoundKnowledgeDocumentUpload(
@@ -437,19 +479,26 @@ async function reauthorizeKnowledgeDocumentUpload(
     throw new OrchestrationError('not_found', 'Upload session not found')
   }
   assertUploadSessionAuthBinding(session, principal)
-  const context = await resolveActiveKnowledgeBaseContext({
-    knowledgeBaseId: session.knowledgeBaseId,
-    assertedWorkspaceId: session.workspaceId,
-  })
+  const context = await resolveActiveKnowledgeBaseContext(
+    {
+      knowledgeBaseId: session.knowledgeBaseId,
+      assertedWorkspaceId: session.workspaceId,
+    },
+    principal
+  )
   await authorizeWorkspaceOperation(principal, operation, context, {
     delegation: knowledgeDelegationPolicy,
   })
   return context
 }
 
+/**
+ * Reads metadata back off a persisted session, so it uses the lenient schema:
+ * a session created before `recipe`/`lang` were constrained must still resume.
+ */
 function knowledgeDocumentMetadataFor(session: UploadSessionRecord) {
   const { authBinding: _authBinding, ...metadata } = session.metadata
-  return knowledgeDocumentUploadMetadataSchema.parse(metadata)
+  return persistedKnowledgeDocumentUploadMetadataSchema.parse(metadata)
 }
 
 function knowledgeDocumentInputFor(session: UploadSessionRecord) {

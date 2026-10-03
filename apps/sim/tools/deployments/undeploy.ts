@@ -2,9 +2,9 @@ import type {
   DeploymentsUndeployParams,
   DeploymentsUndeployResponse,
 } from '@/tools/deployments/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deploymentsUndeployTool: ToolConfig<
+export const deploymentsUndeployTool: InternalToolConfig<
   DeploymentsUndeployParams,
   DeploymentsUndeployResponse
 > = {
@@ -23,17 +23,8 @@ export const deploymentsUndeployTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/deployments/undeploy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-      return { workflowId: params.workflowId, workspaceId }
-    },
+  operation: {
+    input: (params) => ({ workflowId: params.workflowId }),
   },
 
   transformResponse: async (response) => response.json(),

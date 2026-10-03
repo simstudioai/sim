@@ -1,35 +1,32 @@
-// Common types for WordPress REST API tools
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-// Common parameters for all WordPress tools (WordPress.com OAuth)
-// Note: accessToken is injected by the OAuth system at runtime, not defined in tool params
+/**
+ * Common parameters for all WordPress.com OAuth tools. `accessToken` is injected by the
+ * OAuth system at runtime, not defined in tool params.
+ */
 interface WordPressBaseParams {
-  siteId: string // WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)
-  accessToken: string // OAuth access token (injected by OAuth system)
+  /** WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com) */
+  siteId: string
+  /** OAuth access token (injected by OAuth system) */
+  accessToken: string
 }
 
-// WordPress.com API base URL
 export const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 
-// Post status types
 export type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
 
-// Comment status types
 export type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
 
-// ============================================
-// POST OPERATIONS
-// ============================================
-
-// Create Post
 export interface WordPressCreatePostParams extends WordPressBaseParams {
   title: string
   content?: string
   status?: PostStatus
   excerpt?: string
-  categories?: string // Comma-separated category IDs
-  tags?: string // Comma-separated tag IDs
+  /** Comma-separated category IDs */
+  categories?: string
+  /** Comma-separated tag IDs */
+  tags?: string
   featuredMedia?: number
   slug?: string
 }
@@ -63,7 +60,6 @@ export interface WordPressCreatePostResponse extends ToolResponse {
   }
 }
 
-// Update Post
 export interface WordPressUpdatePostParams extends WordPressBaseParams {
   postId: number
   title?: string
@@ -82,10 +78,10 @@ export interface WordPressUpdatePostResponse extends ToolResponse {
   }
 }
 
-// Delete Post
 export interface WordPressDeletePostParams extends WordPressBaseParams {
   postId: number
-  force?: boolean // Bypass trash and force delete
+  /** Bypass trash and force delete */
+  force?: boolean
 }
 
 export interface WordPressDeletePostResponse extends ToolResponse {
@@ -95,7 +91,6 @@ export interface WordPressDeletePostResponse extends ToolResponse {
   }
 }
 
-// Get Post
 export interface WordPressGetPostParams extends WordPressBaseParams {
   postId: number
 }
@@ -106,7 +101,6 @@ export interface WordPressGetPostResponse extends ToolResponse {
   }
 }
 
-// List Posts
 export interface WordPressListPostsParams extends WordPressBaseParams {
   perPage?: number
   page?: number
@@ -127,13 +121,6 @@ export interface WordPressListPostsResponse extends ToolResponse {
   }
 }
 
-// Search Posts
-interface WordPressSearchPostsParams extends WordPressBaseParams {
-  query: string
-  perPage?: number
-  page?: number
-}
-
 interface WordPressSearchPostsResponse extends ToolResponse {
   output: {
     posts: WordPressPost[]
@@ -142,11 +129,6 @@ interface WordPressSearchPostsResponse extends ToolResponse {
   }
 }
 
-// ============================================
-// PAGE OPERATIONS
-// ============================================
-
-// Create Page
 export interface WordPressCreatePageParams extends WordPressBaseParams {
   title: string
   content?: string
@@ -187,7 +169,6 @@ export interface WordPressCreatePageResponse extends ToolResponse {
   }
 }
 
-// Update Page
 export interface WordPressUpdatePageParams extends WordPressBaseParams {
   pageId: number
   title?: string
@@ -206,7 +187,6 @@ export interface WordPressUpdatePageResponse extends ToolResponse {
   }
 }
 
-// Delete Page
 export interface WordPressDeletePageParams extends WordPressBaseParams {
   pageId: number
   force?: boolean
@@ -219,7 +199,6 @@ export interface WordPressDeletePageResponse extends ToolResponse {
   }
 }
 
-// Get Page
 export interface WordPressGetPageParams extends WordPressBaseParams {
   pageId: number
 }
@@ -230,7 +209,6 @@ export interface WordPressGetPageResponse extends ToolResponse {
   }
 }
 
-// List Pages
 export interface WordPressListPagesParams extends WordPressBaseParams {
   perPage?: number
   page?: number
@@ -249,14 +227,10 @@ export interface WordPressListPagesResponse extends ToolResponse {
   }
 }
 
-// ============================================
-// MEDIA OPERATIONS
-// ============================================
-
-// Upload Media
 export interface WordPressUploadMediaParams extends WordPressBaseParams {
   file: UserFile
-  filename?: string // Optional filename override
+  /** Optional filename override */
+  filename?: string
   title?: string
   caption?: string
   altText?: string
@@ -292,7 +266,6 @@ export interface WordPressUploadMediaResponse extends ToolResponse {
   }
 }
 
-// Get Media
 export interface WordPressGetMediaParams extends WordPressBaseParams {
   mediaId: number
 }
@@ -303,7 +276,6 @@ export interface WordPressGetMediaResponse extends ToolResponse {
   }
 }
 
-// List Media
 export interface WordPressListMediaParams extends WordPressBaseParams {
   perPage?: number
   page?: number
@@ -322,7 +294,6 @@ export interface WordPressListMediaResponse extends ToolResponse {
   }
 }
 
-// Delete Media
 export interface WordPressDeleteMediaParams extends WordPressBaseParams {
   mediaId: number
 }
@@ -334,11 +305,6 @@ export interface WordPressDeleteMediaResponse extends ToolResponse {
   }
 }
 
-// ============================================
-// COMMENT OPERATIONS
-// ============================================
-
-// Create Comment
 export interface WordPressCreateCommentParams extends WordPressBaseParams {
   postId: number
   content: string
@@ -370,18 +336,12 @@ export interface WordPressCreateCommentResponse extends ToolResponse {
   }
 }
 
-// Get Comment
-interface WordPressGetCommentParams extends WordPressBaseParams {
-  commentId: number
-}
-
 interface WordPressGetCommentResponse extends ToolResponse {
   output: {
     comment: WordPressComment
   }
 }
 
-// List Comments
 export interface WordPressListCommentsParams extends WordPressBaseParams {
   perPage?: number
   page?: number
@@ -400,7 +360,6 @@ export interface WordPressListCommentsResponse extends ToolResponse {
   }
 }
 
-// Update Comment
 export interface WordPressUpdateCommentParams extends WordPressBaseParams {
   commentId: number
   content?: string
@@ -413,7 +372,6 @@ export interface WordPressUpdateCommentResponse extends ToolResponse {
   }
 }
 
-// Delete Comment
 export interface WordPressDeleteCommentParams extends WordPressBaseParams {
   commentId: number
   force?: boolean
@@ -426,11 +384,6 @@ export interface WordPressDeleteCommentResponse extends ToolResponse {
   }
 }
 
-// ============================================
-// TAXONOMY OPERATIONS (Categories & Tags)
-// ============================================
-
-// Create Category
 export interface WordPressCreateCategoryParams extends WordPressBaseParams {
   name: string
   description?: string
@@ -455,7 +408,6 @@ export interface WordPressCreateCategoryResponse extends ToolResponse {
   }
 }
 
-// List Categories
 export interface WordPressListCategoriesParams extends WordPressBaseParams {
   perPage?: number
   page?: number
@@ -471,7 +423,6 @@ export interface WordPressListCategoriesResponse extends ToolResponse {
   }
 }
 
-// Get Category
 export interface WordPressGetCategoryParams extends WordPressBaseParams {
   categoryId: number
 }
@@ -482,7 +433,6 @@ export interface WordPressGetCategoryResponse extends ToolResponse {
   }
 }
 
-// Update Category
 export interface WordPressUpdateCategoryParams extends WordPressBaseParams {
   categoryId: number
   name?: string
@@ -497,7 +447,6 @@ export interface WordPressUpdateCategoryResponse extends ToolResponse {
   }
 }
 
-// Delete Category
 export interface WordPressDeleteCategoryParams extends WordPressBaseParams {
   categoryId: number
 }
@@ -509,7 +458,6 @@ export interface WordPressDeleteCategoryResponse extends ToolResponse {
   }
 }
 
-// Create Tag
 export interface WordPressCreateTagParams extends WordPressBaseParams {
   name: string
   description?: string
@@ -532,7 +480,6 @@ export interface WordPressCreateTagResponse extends ToolResponse {
   }
 }
 
-// List Tags
 export interface WordPressListTagsParams extends WordPressBaseParams {
   perPage?: number
   page?: number
@@ -548,7 +495,6 @@ export interface WordPressListTagsResponse extends ToolResponse {
   }
 }
 
-// Get Tag
 export interface WordPressGetTagParams extends WordPressBaseParams {
   tagId: number
 }
@@ -559,7 +505,6 @@ export interface WordPressGetTagResponse extends ToolResponse {
   }
 }
 
-// Update Tag
 export interface WordPressUpdateTagParams extends WordPressBaseParams {
   tagId: number
   name?: string
@@ -573,7 +518,6 @@ export interface WordPressUpdateTagResponse extends ToolResponse {
   }
 }
 
-// Delete Tag
 export interface WordPressDeleteTagParams extends WordPressBaseParams {
   tagId: number
 }
@@ -585,11 +529,6 @@ export interface WordPressDeleteTagResponse extends ToolResponse {
   }
 }
 
-// ============================================
-// USER OPERATIONS
-// ============================================
-
-// Get Current User
 export interface WordPressGetCurrentUserParams extends WordPressBaseParams {}
 
 interface WordPressUser {
@@ -613,7 +552,6 @@ export interface WordPressGetCurrentUserResponse extends ToolResponse {
   }
 }
 
-// List Users
 export interface WordPressListUsersParams extends WordPressBaseParams {
   perPage?: number
   page?: number
@@ -630,7 +568,6 @@ export interface WordPressListUsersResponse extends ToolResponse {
   }
 }
 
-// Get User
 export interface WordPressGetUserParams extends WordPressBaseParams {
   userId: number
 }
@@ -641,11 +578,6 @@ export interface WordPressGetUserResponse extends ToolResponse {
   }
 }
 
-// ============================================
-// SEARCH OPERATIONS
-// ============================================
-
-// Search Content
 export interface WordPressSearchContentParams extends WordPressBaseParams {
   query: string
   perPage?: number
@@ -670,7 +602,6 @@ export interface WordPressSearchContentResponse extends ToolResponse {
   }
 }
 
-// Union type for all WordPress responses
 export type WordPressResponse =
   | WordPressCreatePostResponse
   | WordPressUpdatePostResponse

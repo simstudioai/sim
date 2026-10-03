@@ -25,6 +25,7 @@
  * See docs: workflows/deployment/agent-events.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { isToolCallEndStatus, type ToolCallEndStatus } from '@/providers/stream-events'
 
 /** Lookup key. Lowercase because HTTP/2 lowercases on the wire; `Headers.get` is case-insensitive either way. */
@@ -34,6 +35,9 @@ export const AGENT_STREAM_PROTOCOL_HEADER = 'x-sim-stream-protocol' as const
 export const AGENT_STREAM_PROTOCOL_HEADER_LABEL = 'X-Sim-Stream-Protocol' as const
 
 export const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1' as const
+
+/** Additional capability for structured selected outputs in deployed chats. */
+export const CHAT_OUTPUT_PROTOCOL_V1 = 'chat-outputs-v1' as const
 
 export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
 
@@ -48,6 +52,13 @@ export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
 export interface ChatStreamChunkFrame {
   blockId: string
   chunk: string
+}
+
+/** Selected non-text output for negotiated deployed chats, preserving UserFile metadata. */
+export interface ChatStreamOutputFrame {
+  blockId: string
+  event: 'output'
+  data: unknown
 }
 
 /**
@@ -105,6 +116,7 @@ export interface ChatStreamStreamErrorFrame {
  */
 export type ChatStreamFrame =
   | ChatStreamChunkFrame
+  | ChatStreamOutputFrame
   | ChatStreamChunkResetFrame
   | ChatStreamThinkingFrame
   | ChatStreamToolFrame
@@ -112,17 +124,13 @@ export type ChatStreamFrame =
   | ChatStreamErrorFrame
   | ChatStreamStreamErrorFrame
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
-}
-
 /**
  * Answer text frame: `{ blockId, chunk }` with no `event` discriminator.
  * Positively defined so thinking/tool/terminal frames can never be appended
  * into the answer by a client that checks this first.
  */
 export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.blockId === 'string' &&
     typeof value.chunk === 'string' &&
@@ -132,12 +140,17 @@ export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame 
 }
 
 export function isChatChunkResetFrame(value: unknown): value is ChatStreamChunkResetFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return value.event === 'chunk_reset' && typeof value.blockId === 'string'
 }
 
+export function isChatOutputFrame(value: unknown): value is ChatStreamOutputFrame {
+  if (!isRecordLike(value)) return false
+  return value.event === 'output' && typeof value.blockId === 'string' && 'data' in value
+}
+
 export function isChatThinkingFrame(value: unknown): value is ChatStreamThinkingFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     value.event === 'thinking' &&
     typeof value.blockId === 'string' &&
@@ -146,7 +159,7 @@ export function isChatThinkingFrame(value: unknown): value is ChatStreamThinking
 }
 
 export function isChatToolFrame(value: unknown): value is ChatStreamToolFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     value.event === 'tool' &&
     typeof value.blockId === 'string' &&
@@ -163,17 +176,17 @@ export function isChatToolFrame(value: unknown): value is ChatStreamToolFrame {
 }
 
 export function isChatFinalFrame(value: unknown): value is ChatStreamFinalFrame {
-  if (!isRecord(value)) return false
-  return value.event === 'final' && isRecord(value.data)
+  if (!isRecordLike(value)) return false
+  return value.event === 'final' && isRecordLike(value.data)
 }
 
 export function isChatErrorFrame(value: unknown): value is ChatStreamErrorFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return value.event === 'error'
 }
 
 export function isChatStreamErrorFrame(value: unknown): value is ChatStreamStreamErrorFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return value.event === 'stream_error'
 }
 
@@ -188,6 +201,19 @@ export function isChatStreamErrorFrame(value: unknown): value is ChatStreamStrea
 export function clientAcceptsAgentStreamProtocol(
   requestHeaders: Headers | { get(name: string): string | null }
 ): boolean {
+  return acceptsStreamProtocol(requestHeaders, AGENT_STREAM_PROTOCOL_V1)
+}
+
+export function clientAcceptsChatOutputProtocol(
+  requestHeaders: Headers | { get(name: string): string | null }
+): boolean {
+  return acceptsStreamProtocol(requestHeaders, CHAT_OUTPUT_PROTOCOL_V1)
+}
+
+function acceptsStreamProtocol(
+  requestHeaders: Headers | { get(name: string): string | null },
+  protocol: string
+): boolean {
   const raw = requestHeaders.get(AGENT_STREAM_PROTOCOL_HEADER)
   if (!raw) {
     return false
@@ -199,7 +225,7 @@ export function clientAcceptsAgentStreamProtocol(
     .map((token) => token.trim().toLowerCase())
     .filter(Boolean)
 
-  return tokens.includes(AGENT_STREAM_PROTOCOL_V1)
+  return tokens.includes(protocol)
 }
 
 /** True when either agent-event policy is on, before protocol negotiation. */

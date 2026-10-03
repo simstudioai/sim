@@ -13,21 +13,9 @@ import {
   listWorkspaceFileFoldersOperation,
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
-
+import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-function toV2Folder(folder: { name: string; path: string; createdAt: Date; updatedAt: Date }) {
-  const path = folder.path.startsWith('/') ? folder.path : `/${folder.path}`
-  const parentPath = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) || '/' : '/'
-  return {
-    name: folder.name,
-    path,
-    parentPath,
-    createdAt: folder.createdAt.toISOString(),
-    updatedAt: folder.updatedAt.toISOString(),
-  }
-}
 
 export const GET = defineV2JsonRoute({
   contract: v2ListFileFoldersContract,
@@ -37,13 +25,19 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
+    scope: query.scope,
     parentPath: query.parentPath,
     search: query.search,
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
+    recursive: query.recursive,
+    depth: query.depth,
   }),
   useCase: listWorkspaceFileFoldersOperation,
-  present: ({ folders }) => ({ data: folders.map(toV2Folder), nextCursor: null }),
+  present: ({ folders }) => ({
+    data: folders.map(toWorkspaceFileFolderPathView),
+    nextCursor: null,
+  }),
 })
 
 export const POST = defineV2JsonRoute({
@@ -54,7 +48,7 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
   useCase: createWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: { folder: toV2Folder(folder) } }),
+  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -69,7 +63,7 @@ export const PATCH = defineV2JsonRoute({
     destinationPath: body.destinationPath,
   }),
   useCase: updateWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: { folder: toV2Folder(folder) } }),
+  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
 })
 
 export const DELETE = defineV2JsonRoute({

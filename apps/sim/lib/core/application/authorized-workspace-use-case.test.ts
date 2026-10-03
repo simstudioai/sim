@@ -1,45 +1,48 @@
-/**
- * @vitest-environment node
- */
 import type {
   DelegatedPrincipal,
-  PersonalApiKeyPrincipal,
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 
-const mocks = vi.hoisted(() => ({
-  events: [] as string[],
-  recordAudit: vi.fn(() => mocks.events.push('audit')),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPDATED: 'file.updated' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: mocks.recordAudit,
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
+import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
+
+const mocks = {
+  routingEnabled: networkConfigMockFns.mockIsOutboundRoutingEnabled,
+  resolveRoute: networkConfigMockFns.mockResolveOutboundRoute,
+  events: [] as string[],
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+mocks.recordAudit.mockImplementation(() => {
+  mocks.events.push('audit')
+})
 
 const operation = defineWorkspaceOperation({
   id: 'test.rename',
   minimumRole: 'write',
   workspaceApiKey: 'deny',
   principalKinds: ['session'],
+  capability: 'none',
 })
 
 const delegatedOperation = defineWorkspaceOperation({
@@ -48,6 +51,7 @@ const delegatedOperation = defineWorkspaceOperation({
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],
   delegatedServices: ['executor'],
+  capability: 'none',
 })
 
 const workspaceKeyOperation = defineWorkspaceOperation({
@@ -55,6 +59,19 @@ const workspaceKeyOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'allow',
   principalKinds: ['workspace_api_key'],
+  capability: 'none',
+})
+
+const resourcePolicyOperation = defineWorkspaceOperation({
+  id: 'test.resource_policy',
+  minimumRole: 'write',
+  workspaceApiKey: 'deny',
+  principalKinds: ['session'],
+  resourcePolicy: {
+    resourceType: 'credential_group',
+    action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
+  },
+  capability: 'none',
 })
 
 interface TestInput {
@@ -75,17 +92,39 @@ const canonicalContext: TestContext = {
   canonicalResourceId: 'resource-1',
 }
 
-const sessionPrincipal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal()
 
 describe('defineAuthorizedWorkspaceUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mocks.routingEnabled.mockReturnValue(false)
     mocks.events.length = 0
     mocks.resolvePermission.mockResolvedValue('write')
+  })
+
+  it('establishes outbound ownership after authorization and retains it through effects', async () => {
+    mocks.routingEnabled.mockReturnValue(true)
+    const useCase = defineAuthorizedWorkspaceUseCase({
+      operation,
+      resolveContext: async () => canonicalContext,
+      authorizationOptions: {},
+      async execute() {
+        expect(mocks.resolvePermission).toHaveBeenCalledOnce()
+        await resolveCurrentOutboundRoute()
+        return 'done'
+      },
+      async afterSuccess() {
+        await resolveCurrentOutboundRoute()
+      },
+    })
+    await expect(useCase.execute({ principal: sessionPrincipal, input: {} })).resolves.toBe('done')
+    expect(mocks.resolveRoute.mock.calls).toEqual([['organization-1'], ['organization-1']])
+    await resolveCurrentOutboundRoute()
+    expect(mocks.resolveRoute).toHaveBeenLastCalledWith(undefined)
+
+    mocks.resolveRoute.mockClear()
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(useCase.execute({ principal: sessionPrincipal, input: {} })).rejects.toThrow()
+    expect(mocks.resolveRoute).not.toHaveBeenCalled()
   })
 
   it('narrows definition callbacks while keeping public execution principal-safe', async () => {
@@ -106,11 +145,7 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
       },
     })
 
-    const disallowedPrincipal: PersonalApiKeyPrincipal = {
-      kind: 'personal_api_key',
-      userId: 'user-1',
-      keyId: 'key-1',
-    }
+    const disallowedPrincipal = createPersonalApiKeyPrincipal()
     await expect(
       useCase.execute({ principal: disallowedPrincipal, input: { resourceId: 'resource-1' } })
     ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
@@ -181,36 +216,103 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
     expect(mocks.events).toEqual(['execute', 'audit', 'afterSuccess'])
   })
 
-  it('supports zero or many semantic audit entries', async () => {
-    const buildUseCase = (auditCount: number) =>
+  it('runs resource authorization after workspace authorization and before business effects', async () => {
+    mocks.resolvePermission.mockImplementation(async () => {
+      mocks.events.push('workspaceAuthorization')
+      return 'write'
+    })
+    const execute = vi.fn(async () => {
+      mocks.events.push('execute')
+      return { ok: true as const }
+    })
+    const useCase = defineAuthorizedWorkspaceUseCase({
+      operation: resourcePolicyOperation,
+      resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) => {
+        mocks.events.push('canonicalLoad')
+        return canonicalContext
+      },
+      authorizationOptions: {},
+      authorizeResource({ resourcePolicy }) {
+        expect(resourcePolicy).toBe(resourcePolicyOperation.resourcePolicy)
+        mocks.events.push('resourceAuthorization')
+      },
+      execute,
+      projectAudit: () => ({
+        action: AuditAction.FILE_UPDATED,
+        resourceType: AuditResourceType.FILE,
+      }),
+      afterSuccess() {
+        mocks.events.push('afterSuccess')
+      },
+    })
+
+    await useCase.authorize?.({
+      principal: sessionPrincipal,
+      input: { resourceId: 'resource-1' },
+    })
+
+    expect(mocks.events).toEqual([
+      'canonicalLoad',
+      'workspaceAuthorization',
+      'resourceAuthorization',
+    ])
+    expect(execute).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+
+    mocks.events.length = 0
+    await expect(
+      useCase.execute({
+        principal: sessionPrincipal,
+        input: { resourceId: 'resource-1' },
+      })
+    ).resolves.toEqual({ ok: true })
+    expect(mocks.events).toEqual([
+      'canonicalLoad',
+      'workspaceAuthorization',
+      'resourceAuthorization',
+      'execute',
+      'audit',
+      'afterSuccess',
+    ])
+  })
+
+  it('requires policy-bound operations to define resource authorization', async () => {
+    const execute = vi.fn(async () => ({ ok: true as const }))
+    expect(() =>
       defineAuthorizedWorkspaceUseCase({
-        operation,
+        operation: resourcePolicyOperation,
         resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) =>
           canonicalContext,
         authorizationOptions: {},
-        async execute() {
-          return { auditCount }
-        },
-        projectAudit({ result }) {
-          return Array.from({ length: result.auditCount }, (_, index) => ({
-            action: AuditAction.FILE_UPDATED,
-            resourceType: AuditResourceType.FILE,
-            resourceId: `resource-${index}`,
-          }))
-        },
+        execute,
       })
+    ).toThrow('Operation test.resource_policy requires resource policy authorization')
 
-    await buildUseCase(0).execute({
-      principal: sessionPrincipal,
-      input: { resourceId: 'resource-1' },
-    })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
 
-    await buildUseCase(2).execute({
-      principal: sessionPrincipal,
-      input: { resourceId: 'resource-1' },
+  it('keeps non-policy resource authorization available to ordinary operations', async () => {
+    const authorizeResource = vi.fn()
+    const useCase = defineAuthorizedWorkspaceUseCase({
+      operation,
+      resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) =>
+        canonicalContext,
+      authorizationOptions: {},
+      authorizeResource,
+      async execute() {
+        return { ok: true as const }
+      },
     })
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(2)
+
+    await expect(
+      useCase.execute({
+        principal: sessionPrincipal,
+        input: { resourceId: 'resource-1' },
+      })
+    ).resolves.toEqual({ ok: true })
+    expect(authorizeResource).toHaveBeenCalledWith(
+      expect.objectContaining({ context: canonicalContext })
+    )
   })
 
   it('resolves domain-specific delegation options against canonical context', async () => {
@@ -319,11 +421,7 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
     })
 
     await useCase.execute({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
       input: { resourceId: 'resource-1' },
     })
 
@@ -342,5 +440,102 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
         },
       })
     )
+  })
+})
+
+describe('projected audit workspace attribution', () => {
+  it.each([
+    { override: undefined, expected: 'workspace-1' },
+    { override: 'workspace-2', expected: 'workspace-2' },
+    { override: null, expected: null },
+  ])('records the canonical workspace override $override', ({ override, expected }) => {
+    recordProjectedUseCaseAuditEntries(
+      operation,
+      'workspace-1',
+      sessionPrincipal,
+      undefined,
+      [
+        {
+          action: AuditAction.FILE_UPDATED,
+          resourceType: AuditResourceType.FILE,
+          workspaceId: override,
+        },
+      ],
+      'organization-1'
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        workspaceId: expected,
+        metadata: expect.objectContaining({ organizationId: 'organization-1' }),
+      })
+    )
+  })
+})
+
+/** Private per-call target scope is checked against canonical resources, not URL parameters. */
+describe('workspace invocation targeting', () => {
+  const contextFor = (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org-1',
+    allowPersonalApiKeys: true,
+  })
+  const scopedRead = defineAuthorizedWorkspaceUseCase({
+    operation,
+    resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+      contextFor(input.workspaceId),
+    async execute({ context }) {
+      return context.workspaceId
+    },
+  })
+  it('rejects an ID-only resource in another workspace and leaves later calls unscoped', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+    await expect(
+      withWorkspaceInvocationScope({ workspaceId: 'ws-1', organizationId: 'org-1' }, () =>
+        scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId: 'ws-2' } })
+      )
+    ).rejects.toThrow('selected workspace')
+    await expect(
+      scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId: 'ws-2' } })
+    ).resolves.toBe('ws-2')
+  })
+  it('isolates concurrent invocations and rejects a second top-level operation after a valid first', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+    await Promise.all(
+      ['ws-1', 'ws-2'].map((workspaceId) =>
+        withWorkspaceInvocationScope({ workspaceId }, async () => {
+          await expect(
+            scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId } })
+          ).resolves.toBe(workspaceId)
+          await expect(
+            scopedRead.execute({
+              principal: sessionPrincipal,
+              input: { workspaceId: workspaceId === 'ws-1' ? 'ws-2' : 'ws-1' },
+            })
+          ).rejects.toThrow('selected workspace')
+        })
+      )
+    )
+  })
+  it('allows explicit secondary operations only inside an admitted compound body and retains their permission checks', async () => {
+    const compound = defineAuthorizedWorkspaceUseCase({
+      operation,
+      resolveContext: () => contextFor('ws-1'),
+      execute: () =>
+        scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId: 'ws-2' } }),
+    })
+    mocks.resolvePermission.mockResolvedValue('write')
+    await expect(
+      withWorkspaceInvocationScope({ workspaceId: 'ws-1' }, () =>
+        compound.execute({ principal: sessionPrincipal, input: {} })
+      )
+    ).resolves.toBe('ws-2')
+    mocks.resolvePermission.mockImplementation((_user: string, workspaceId: string) =>
+      workspaceId === 'ws-1' ? 'write' : null
+    )
+    await expect(
+      withWorkspaceInvocationScope({ workspaceId: 'ws-1' }, () =>
+        compound.execute({ principal: sessionPrincipal, input: {} })
+      )
+    ).rejects.toThrow()
   })
 })

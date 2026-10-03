@@ -48,7 +48,7 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
         {onUploadFile && (
           <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
             <Upload />
-            Upload file
+            Upload
           </DropdownMenuItem>
         )}
         {onCreateFolder && (

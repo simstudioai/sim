@@ -1,7 +1,7 @@
 import type { RedisGetParams, RedisGetResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisGetTool: ToolConfig<RedisGetParams, RedisGetResponse> = {
+export const redisGetTool: InternalToolConfig<RedisGetParams, RedisGetResponse> = {
   id: 'redis_get',
   name: 'Redis Get',
   description: 'Get the value of a key from Redis.',
@@ -22,11 +22,8 @@ export const redisGetTool: ToolConfig<RedisGetParams, RedisGetResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'GET',
       args: [params.key],

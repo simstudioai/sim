@@ -21,9 +21,21 @@
  *    contracts tree, not the flat `v2/` directory — a contract in a
  *    subdirectory, or one that lives beside its non-v2 siblings, must never
  *    be able to escape coverage by virtue of where its file sits.
- * 4. Examples: documented request/response examples are parsed with the
- *    matching contract's actual Zod schemas — a doc example that the runtime
- *    would reject fails the build.
+ * 4. Examples, against two independent authorities:
+ *    a. The RUNTIME CONTRACT — request examples are parsed with the matching
+ *       contract's Zod body schema and response examples against its Zod
+ *       response schema, so a doc example the running API would reject fails
+ *       the build.
+ *    b. The PUBLISHED SCHEMA — every example node in the serialized document,
+ *       at any depth and on any status, is validated with Ajv against the
+ *       exact JSON Schema readers see, with formats enforced. Zod is not
+ *       consulted, so generator lossiness (a dropped regex flag, a bound
+ *       erased by `.transform()`, a malformed `date-time`) surfaces here
+ *       instead of shipping invisibly.
+ *
+ *    The two are complementary and their failures name their authority:
+ *    a runtime-contract failure means the example is wrong; a published-schema
+ *    failure means either the example or the generated schema is wrong.
  */
 
 import { readdirSync, readFileSync } from 'node:fs'
@@ -47,12 +59,19 @@ const SPEC_FILES = OPENAPI_SPEC_FILES
  * A stale entry — one whose contract no longer exists, or which has since
  * been documented — also fails, so the list cannot rot into a blanket
  * exemption.
+ *
+ * Being unpublished is about *addressability*, not about behaviour: both
+ * entries below answer in the canonical `{ error: { code, message } }` envelope
+ * like every documented route, and what a caller needs in order to perform the
+ * transfer is published on `transfer.url` in `contracts/v2/uploads.ts`.
  */
 const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
+  'POST /api/v2/chat':
+    'Conversational surface behind `sim chat`. The contract describes the JSON answer, but the CLI consumes the same endpoint as an NDJSON progress stream negotiated by Accept header — a protocol `checkV2Conventions` cannot describe as a published operation. Deliberately unpublished while the surface is CLI-only; document it when the JSON shape is committed to as public API.',
   'PUT /api/v2/uploads/{uploadId}':
-    'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key; carries no v2 feature gate and returns bare error bodies rather than the canonical v2 envelope. The URL is handed to the client by the session response and is never constructed from docs.',
+    'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key, so it carries neither the v2 API-key security scheme nor the rate-limit and feature-gate responses `checkV2Conventions` requires of a published operation. On a cloud deployment the same field points at object storage instead, so the endpoint is described by `transfer.url` — which publishes its method, headers, success status, and error codes — rather than by an operation of its own.',
   'PUT /api/v2/uploads/{uploadId}/parts/{partNumber}':
-    'Local-storage data plane for a signed multipart part upload. Authenticated by a per-part signed `token` query param minted by the documented part-URL operation, not by an API key; same non-canonical envelope and self-describing URL as the whole-object PUT above.',
+    'Local-storage data plane for a signed multipart part upload. Authenticated by a per-part signed `token` query param minted by the documented part-URL operation, not by an API key; same reasoning and same published `transfer.url` contract as the whole-object PUT above.',
 }
 
 /**
@@ -62,19 +81,18 @@ const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
  * capability.
  */
 const LEGACY_CORE_REPLACEMENTS = {
-  executeWorkflow: 'POST /api/v2/workflows/{id}/execute',
-  getWorkflowExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  cancelExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/cancel',
-  getJobStatus: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  listPausedExecutions: 'GET /api/v2/workflows/{id}/runs',
-  getPausedExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPauseContext: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  resumeExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/resume',
+  executeWorkflow: 'POST /api/v2/workflows/{workflowId}/execute',
+  getWorkflowExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  cancelExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/cancel',
+  getJobStatus: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  listPausedExecutions: 'GET /api/v2/workflows/{workflowId}/runs',
+  getPausedExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPauseContext: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  resumeExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/resume',
   getUsageLimits: 'GET /api/v2/billing/status',
 } as const
 
-const API_REFERENCE_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'zh'] as const
 const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/workflows',
   '(generated)/workflow-runs',
@@ -90,6 +108,8 @@ const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/custom-tools',
   '(generated)/credentials',
   '(generated)/secrets',
+  '(generated)/catalog',
+  '(generated)/meta',
 ] as const
 const REMOVED_API_REFERENCE_GROUPS = [
   '(generated)/execution',
@@ -141,7 +161,11 @@ function listContractFiles(dir: string): string[] {
     if (entry.isDirectory()) {
       if (entry.name === '__tests__') continue
       files.push(...listContractFiles(full))
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+    } else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.endsWith('.test.ts') &&
+      entry.name !== 'test-utils.ts'
+    ) {
       files.push(full)
     }
   }
@@ -230,13 +254,23 @@ function docPropertyNames(schema: unknown, spec: Json): Set<string> | null {
   return null
 }
 
-function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json {
-  return z.toJSONSchema(schema, {
+type SchemaIo = 'input' | 'output'
+
+const jsonSchemaCache = new WeakMap<z.ZodType, Map<SchemaIo, Json>>()
+
+function toJsonSchema(schema: z.ZodType, io: SchemaIo): Json {
+  const cached = jsonSchemaCache.get(schema)?.get(io)
+  if (cached) return cached
+  const converted = z.toJSONSchema(schema, {
     io,
     target: 'draft-2020-12',
     unrepresentable: 'any',
     cycles: 'ref',
   }) as Json
+  const byIo = jsonSchemaCache.get(schema) ?? new Map<SchemaIo, Json>()
+  byIo.set(io, converted)
+  jsonSchemaCache.set(schema, byIo)
+  return converted
 }
 
 const outputExampleValidator = new Ajv2020({
@@ -244,6 +278,10 @@ const outputExampleValidator = new Ajv2020({
   allErrors: true,
   validateFormats: false,
 })
+const outputValidatorCache = new WeakMap<
+  z.ZodType,
+  ReturnType<typeof outputExampleValidator.compile>
+>()
 
 function stripLegacySchemaIds(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripLegacySchemaIds)
@@ -256,11 +294,329 @@ function stripLegacySchemaIds(value: unknown): unknown {
 }
 
 function outputExampleError(schema: z.ZodType, value: unknown): string | null {
-  const validate = outputExampleValidator.compile(
-    stripLegacySchemaIds(toJsonSchema(schema, 'output'))
-  )
+  let validate = outputValidatorCache.get(schema)
+  if (!validate) {
+    validate = outputExampleValidator.compile(stripLegacySchemaIds(toJsonSchema(schema, 'output')))
+    outputValidatorCache.set(schema, validate)
+  }
   if (validate(value)) return null
   return outputExampleValidator.errorsText(validate.errors)
+}
+
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const
+const RFC3339_DATE_TIME =
+  /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/
+
+/**
+ * Strict RFC 3339 `date-time`. Ajv ships no format implementations of its own,
+ * so the published-schema pass registers the formats the specs actually use
+ * rather than depending on a transitive `ajv-formats` copy that resolves
+ * against a different Ajv build.
+ *
+ * `Date.parse` cannot stand in for the day bound: the ECMAScript Date Time
+ * String Format grammar accepts `DD` up to 31 and `MakeDay` silently rolls the
+ * overflow forward, so `2025-02-29` and `2025-04-31` both parse to a valid
+ * instant instead of `NaN`. February therefore carries the proleptic Gregorian
+ * leap rule explicitly. `:60` is allowed on purpose — RFC 3339 §5.6 permits a
+ * leap second in the `time-second` position.
+ */
+function isRfc3339DateTime(value: string): boolean {
+  const match = RFC3339_DATE_TIME.exec(value)
+  if (!match) return false
+  const [, year, month, day, hour, minute, second] = match.map(Number)
+  if (month < 1 || month > 12) return false
+  const leapYear = month === 2 && year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  if (day < 1 || day > DAYS_IN_MONTH[month - 1] + (leapYear ? 1 : 0)) return false
+  return hour <= 23 && minute <= 59 && second <= 60
+}
+
+const publishedExampleValidator = new Ajv2020({
+  strict: false,
+  allErrors: true,
+  validateFormats: true,
+  validateSchema: false,
+})
+publishedExampleValidator.addFormat('date-time', isRfc3339DateTime)
+publishedExampleValidator.addFormat('email', /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/)
+publishedExampleValidator.addFormat('uri', /^[A-Za-z][A-Za-z0-9+\-.]*:\S*$/)
+/** OpenAPI content encodings, not JSON Schema assertions — annotation only. */
+publishedExampleValidator.addFormat('binary', true)
+publishedExampleValidator.addFormat('csv', true)
+
+const pointerToken = (token: string) => token.replace(/~/g, '~0').replace(/\//g, '~1')
+
+/** JSON Schema keywords whose value is a single subschema. */
+const SUBSCHEMA_KEYWORDS = [
+  'items',
+  'not',
+  'contains',
+  'propertyNames',
+  'if',
+  'then',
+  'else',
+  'additionalProperties',
+  'unevaluatedItems',
+  'unevaluatedProperties',
+] as const
+/** JSON Schema keywords whose value is a name → subschema map. */
+const SUBSCHEMA_MAP_KEYWORDS = [
+  'properties',
+  'patternProperties',
+  '$defs',
+  'definitions',
+  'dependentSchemas',
+] as const
+/** JSON Schema keywords whose value is an array of subschemas. */
+const SUBSCHEMA_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'] as const
+
+interface PublishedExample {
+  /** Human-readable location, e.g. `POST /api/v2/tables 201 application/json`. */
+  label: string
+  /** Name of the example within that location. */
+  exampleName: string
+  /** JSON pointer to the schema the example must satisfy. */
+  schemaPointer: string
+  value: unknown
+}
+
+/**
+ * Every `example` / `examples` annotation inside a JSON Schema subtree,
+ * including nested `properties/*`, array items, and composition branches.
+ * Recursion follows JSON Schema keywords only, so an example's own payload is
+ * never mistaken for a schema.
+ */
+function collectSchemaExamples(
+  node: unknown,
+  pointer: string,
+  label: string,
+  out: PublishedExample[]
+): void {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return
+  const record = node as Json
+  if (record.example !== undefined) {
+    out.push({
+      label,
+      exampleName: 'schema.example',
+      schemaPointer: pointer,
+      value: record.example,
+    })
+  }
+  if (Array.isArray(record.examples)) {
+    for (const [index, value] of record.examples.entries()) {
+      out.push({
+        label,
+        exampleName: `schema.examples[${index}]`,
+        schemaPointer: pointer,
+        value,
+      })
+    }
+  }
+  for (const keyword of SUBSCHEMA_KEYWORDS) {
+    if (record[keyword] !== undefined) {
+      collectSchemaExamples(record[keyword], `${pointer}/${keyword}`, `${label}.${keyword}`, out)
+    }
+  }
+  for (const keyword of SUBSCHEMA_MAP_KEYWORDS) {
+    const map = record[keyword]
+    if (!map || typeof map !== 'object' || Array.isArray(map)) continue
+    for (const [name, sub] of Object.entries(map as Json)) {
+      collectSchemaExamples(
+        sub,
+        `${pointer}/${keyword}/${pointerToken(name)}`,
+        `${label}.${name}`,
+        out
+      )
+    }
+  }
+  for (const keyword of SUBSCHEMA_LIST_KEYWORDS) {
+    const list = record[keyword]
+    if (!Array.isArray(list)) continue
+    for (const [index, sub] of list.entries()) {
+      collectSchemaExamples(
+        sub,
+        `${pointer}/${keyword}/${index}`,
+        `${label}.${keyword}[${index}]`,
+        out
+      )
+    }
+  }
+}
+
+/**
+ * Examples on a Media Type, Parameter, or Header Object, all of which carry
+ * `example` / `examples` beside the `schema` those examples must satisfy.
+ */
+function collectSchemaHolderExamples(
+  holder: unknown,
+  pointer: string,
+  label: string,
+  spec: Json,
+  out: PublishedExample[]
+): void {
+  if (!holder || typeof holder !== 'object' || Array.isArray(holder)) return
+  const record = holder as Json
+  if (record.schema === undefined) return
+  const schemaPointer = `${pointer}/schema`
+  if (record.example !== undefined) {
+    out.push({ label, exampleName: 'example', schemaPointer, value: record.example })
+  }
+  for (const [name, raw] of Object.entries((record.examples as Json) ?? {})) {
+    const example = deref(raw, spec) as Json | undefined
+    if (example?.value !== undefined) {
+      out.push({ label, exampleName: name, schemaPointer, value: example.value })
+    }
+  }
+  collectSchemaExamples(record.schema, schemaPointer, label, out)
+}
+
+function collectContentExamples(
+  content: unknown,
+  pointer: string,
+  label: string,
+  spec: Json,
+  out: PublishedExample[]
+): void {
+  if (!content || typeof content !== 'object') return
+  for (const [contentType, media] of Object.entries(content as Json)) {
+    collectSchemaHolderExamples(
+      media,
+      `${pointer}/${pointerToken(contentType)}`,
+      `${label} ${contentType}`,
+      spec,
+      out
+    )
+  }
+}
+
+function collectParameterExamples(
+  parameters: unknown,
+  pointer: string,
+  label: string,
+  spec: Json,
+  out: PublishedExample[]
+): void {
+  if (!Array.isArray(parameters)) return
+  for (const [index, raw] of parameters.entries()) {
+    // A `$ref`d parameter is walked once at its definition site instead.
+    if (!raw || typeof raw !== 'object' || typeof (raw as Json).$ref === 'string') continue
+    const name = (raw as Json).name
+    collectSchemaHolderExamples(
+      raw,
+      `${pointer}/${index}`,
+      `${label} parameter "${typeof name === 'string' ? name : index}"`,
+      spec,
+      out
+    )
+  }
+}
+
+/**
+ * Every example node in the serialized document, reached structurally rather
+ * than through the contract registry: component schemas at any depth, shared
+ * responses and their error envelopes, and every operation's parameters,
+ * request body, and responses at every status — 4xx and 5xx included.
+ *
+ * `$ref`d containers are deliberately not followed here; each is walked once
+ * at its definition site, so no example is validated twice.
+ */
+function collectPublishedExamples(spec: Json): PublishedExample[] {
+  const out: PublishedExample[] = []
+  const components = (spec.components as Json) ?? {}
+
+  for (const [name, schema] of Object.entries((components.schemas as Json) ?? {})) {
+    collectSchemaExamples(
+      schema,
+      `/components/schemas/${pointerToken(name)}`,
+      `components.schemas.${name}`,
+      out
+    )
+  }
+  for (const section of ['parameters', 'headers'] as const) {
+    for (const [name, holder] of Object.entries((components[section] as Json) ?? {})) {
+      collectSchemaHolderExamples(
+        holder,
+        `/components/${section}/${pointerToken(name)}`,
+        `components.${section}.${name}`,
+        spec,
+        out
+      )
+    }
+  }
+  for (const section of ['requestBodies', 'responses'] as const) {
+    for (const [name, holder] of Object.entries((components[section] as Json) ?? {})) {
+      collectContentExamples(
+        (holder as Json)?.content,
+        `/components/${section}/${pointerToken(name)}/content`,
+        `components.${section}.${name}`,
+        spec,
+        out
+      )
+    }
+  }
+
+  for (const [p, rawItem] of Object.entries((spec.paths as Json) ?? {})) {
+    if (!rawItem || typeof rawItem !== 'object') continue
+    const item = rawItem as Json
+    const itemPointer = `/paths/${pointerToken(p)}`
+    collectParameterExamples(item.parameters, `${itemPointer}/parameters`, p, spec, out)
+    for (const [method, rawOp] of Object.entries(item)) {
+      if (!HTTP_METHODS.has(method) || !rawOp || typeof rawOp !== 'object') continue
+      const op = rawOp as Json
+      const opPointer = `${itemPointer}/${method}`
+      const label = `${method.toUpperCase()} ${p}`
+      collectParameterExamples(op.parameters, `${opPointer}/parameters`, label, spec, out)
+      if (op.requestBody && typeof (op.requestBody as Json).$ref !== 'string') {
+        collectContentExamples(
+          (op.requestBody as Json).content,
+          `${opPointer}/requestBody/content`,
+          `${label} request`,
+          spec,
+          out
+        )
+      }
+      for (const [status, rawResponse] of Object.entries((op.responses as Json) ?? {})) {
+        if (!rawResponse || typeof rawResponse !== 'object') continue
+        if (typeof (rawResponse as Json).$ref === 'string') continue
+        collectContentExamples(
+          (rawResponse as Json).content,
+          `${opPointer}/responses/${pointerToken(status)}/content`,
+          `${label} ${status}`,
+          spec,
+          out
+        )
+      }
+    }
+  }
+  return out
+}
+
+let publishedExamplesRead = 0
+let runtimeExamplesRead = 0
+
+/**
+ * Validates every collected example against the published document itself.
+ * The whole spec is registered under a synthetic URI so `$ref` and `$defs`
+ * resolve exactly as a reader's tooling would resolve them.
+ */
+function checkPublishedExamples(specFile: string, spec: Json): void {
+  const specUri = `https://sim.local/openapi/${specFile}`
+  if (!publishedExampleValidator.getSchema(specUri)) {
+    publishedExampleValidator.addSchema(spec, specUri)
+  }
+  const validators = new Map<string, ReturnType<typeof publishedExampleValidator.compile>>()
+  for (const example of collectPublishedExamples(spec)) {
+    publishedExamplesRead++
+    let validate = validators.get(example.schemaPointer)
+    if (!validate) {
+      validate = publishedExampleValidator.compile({ $ref: `${specUri}#${example.schemaPointer}` })
+      validators.set(example.schemaPointer, validate)
+    }
+    if (validate(example.value)) continue
+    fail(
+      specFile,
+      `${example.label}: example "${example.exampleName}" is rejected by the PUBLISHED JSON Schema at #${example.schemaPointer} — ${publishedExampleValidator.errorsText(validate.errors)}. Either the example is wrong or the generated schema is (a lost regex flag, a bound erased by .transform(), a malformed format value).`
+    )
+  }
 }
 
 interface Operation {
@@ -611,11 +967,12 @@ function checkExamples(operation: Operation, contract: ContractLike, name: strin
   if (contract.body) {
     for (const [contentType, rawMedia] of Object.entries(bodyContent)) {
       for (const [exampleName, value] of documentedExamples(rawMedia as Json, spec)) {
+        runtimeExamplesRead++
         const parsed = contract.body.safeParse(value)
         if (!parsed.success) {
           fail(
             specFile,
-            `${label}: ${contentType} request example "${exampleName}" rejected by ${name}: ${parsed.error.issues[0]?.message}`
+            `${label}: ${contentType} request example "${exampleName}" is rejected by the RUNTIME CONTRACT ${name} (Zod) — ${parsed.error.issues[0]?.message}. The running API would reject this request, so fix the example.`
           )
         }
       }
@@ -630,13 +987,14 @@ function checkExamples(operation: Operation, contract: ContractLike, name: strin
       const content = (response?.content as Json)?.['application/json'] as Json | undefined
       if (!content) continue
       for (const [exampleName, value] of documentedExamples(content, spec)) {
+        runtimeExamplesRead++
         const responseSchema =
           contract.response.statusSchemas?.[Number(status)] ?? contract.response.schema
         const validationError = outputExampleError(responseSchema, value)
         if (validationError) {
           fail(
             specFile,
-            `${label}: ${status} response example "${exampleName}" rejected by ${name}: ${validationError}`
+            `${label}: ${status} response example "${exampleName}" is rejected by the RUNTIME CONTRACT ${name} (Zod) — ${validationError}. The running API would never emit this body, so fix the example.`
           )
         }
       }
@@ -656,6 +1014,7 @@ for (const specFile of SPEC_FILES) {
   }
   const ops = collectOperations(specFile, spec)
   checkIntegrity(specFile, spec, ops)
+  checkPublishedExamples(specFile, spec)
 
   for (const operation of ops) {
     const key = `${operation.method.toUpperCase()} ${operation.path}`
@@ -724,12 +1083,16 @@ for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLAC
 
 const workflowMetaGroups = [
   {
+    tag: 'Workspace Sync',
+    file: 'content/docs/api-reference/(generated)/workspace-sync/meta.json',
+  },
+  {
     tag: 'Workflows',
-    file: 'content/docs/en/api-reference/(generated)/workflows/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflows/meta.json',
   },
   {
     tag: 'Workflow Runs',
-    file: 'content/docs/en/api-reference/(generated)/workflow-runs/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflow-runs/meta.json',
   },
 ] as const
 const visibleWorkflowOperationIds = new Set<string>()
@@ -760,30 +1123,37 @@ for (const [operationId, specFile] of globalOperationIds) {
   }
 }
 
-for (const locale of API_REFERENCE_LOCALES) {
-  const metaFile = `content/docs/${locale}/api-reference/meta.json`
-  const meta = JSON.parse(readFileSync(path.join(DOCS_DIR, metaFile), 'utf8')) as Json
-  if (!Array.isArray(meta.pages) || !meta.pages.every((page) => typeof page === 'string')) {
-    fail(metaFile, 'pages must be an array of page identifiers')
-    continue
-  }
-  const pages = new Set(meta.pages as string[])
+const API_REFERENCE_META_FILE = 'content/docs/api-reference/meta.json'
+const apiReferenceMeta = JSON.parse(
+  readFileSync(path.join(DOCS_DIR, API_REFERENCE_META_FILE), 'utf8')
+) as Json
+if (
+  !Array.isArray(apiReferenceMeta.pages) ||
+  !apiReferenceMeta.pages.every((page) => typeof page === 'string')
+) {
+  fail(API_REFERENCE_META_FILE, 'pages must be an array of page identifiers')
+} else {
+  const pages = new Set(apiReferenceMeta.pages as string[])
   for (const group of REQUIRED_API_REFERENCE_GROUPS) {
-    if (!pages.has(group)) fail(metaFile, `missing public v2 group ${group}`)
+    if (!pages.has(group)) fail(API_REFERENCE_META_FILE, `missing public v2 group ${group}`)
   }
   for (const group of REMOVED_API_REFERENCE_GROUPS) {
-    if (pages.has(group)) fail(metaFile, `obsolete legacy group ${group} must not be published`)
+    if (pages.has(group)) {
+      fail(API_REFERENCE_META_FILE, `obsolete legacy group ${group} must not be published`)
+    }
   }
 }
 
+const exampleCoverage = `${publishedExamplesRead} examples validated against the published JSON Schema, ${runtimeExamplesRead} against the runtime Zod contracts`
+
 if (errors.length > 0) {
   console.error(
-    `OpenAPI spec validation failed (${errors.length} issue${errors.length === 1 ? '' : 's'}):`
+    `OpenAPI spec validation failed (${errors.length} issue${errors.length === 1 ? '' : 's'}; ${exampleCoverage}):`
   )
   for (const message of errors) console.error(`  - ${message}`)
   process.exit(1)
 }
 const exemptCount = Object.keys(UNDOCUMENTED_V2_ROUTES).length
 console.log(
-  `OpenAPI spec validation passed: ${SPEC_FILES.length} specs, ${documentedKeys.size} operations, ${registry.size} contracts cross-checked (${exemptCount} explicitly undocumented).`
+  `OpenAPI spec validation passed: ${SPEC_FILES.length} specs, ${documentedKeys.size} operations, ${registry.size} contracts cross-checked (${exemptCount} explicitly undocumented); ${exampleCoverage}.`
 )

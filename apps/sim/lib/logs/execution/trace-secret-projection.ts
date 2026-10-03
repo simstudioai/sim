@@ -1537,7 +1537,6 @@ export async function enforceTraceSpanSecretInvariant(
 
     const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
       preserveNamedProvenanceLabels: true,
-      mode: 'render',
     })
     if (!matcher) return traceSpans
 
@@ -1566,7 +1565,6 @@ export async function projectTraceSpansForSecrets(
   try {
     const matcher = createResolvedSecretMatcher(options.registry.getActiveMatches(), {
       preserveNamedProvenanceLabels: true,
-      mode: 'render',
     })
     if (!matcher) return cloneTraceSpansForProjection(traceSpans)
 

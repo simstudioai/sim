@@ -46,7 +46,21 @@ export interface JsonRouteDefinition<
   operation: O
   mapInput(input: ParsedRequest<C>): I
   useCase: OperationUseCase<NoInfer<O>, I, R>
-  present(result: R): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+  /**
+   * Renders the surface body. The parsed request is passed alongside the result
+   * so a presenter can read the request's own params without the use case
+   * having to carry them back out.
+   *
+   * That second argument exists for pagination: a `nextCursor` is stamped with
+   * the sort and filters the page was read under, and those live in the query,
+   * not in the domain result. Threading them through the use case instead would
+   * make an application service carry an HTTP cursor-encoding concern purely so
+   * the presenter can see it again.
+   */
+  present(
+    result: R,
+    request: ParsedRequest<C>
+  ): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
 }
 
 export type JsonNextRouteHandler = (

@@ -1,0 +1,59 @@
+import { createExecutionContext } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const executeOperation = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/internal/llm/operations', () => ({
+  executeLlmProviderOperation: executeOperation,
+}))
+
+import { executeLlmTool } from '@/lib/internal/llm/execute-tool'
+import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+
+function request(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
+  return {
+    toolId: 'llm_chat',
+    input: {
+      provider: 'openai',
+      model: 'gpt-4o',
+      context: '[{"role":"user","content":"hello"}]',
+      workspaceId: 'untrusted-workspace',
+      workflowId: 'untrusted-workflow',
+    },
+    headers: new Headers({ 'x-sim-billing-attribution': 'attribution' }),
+    context: {
+      ...createExecutionContext({ workflowId: 'workflow-1' }),
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    },
+    requestId: 'request-1',
+    ...overrides,
+  }
+}
+
+describe('executeLlmTool', () => {
+  beforeEach(() => {
+    executeOperation.mockResolvedValue({ content: 'hello', model: 'gpt-4o' })
+  })
+
+  it('binds provider execution to trusted workflow and workspace scope', async () => {
+    const controller = new AbortController()
+    const executionRequest = request({ signal: controller.signal })
+    const response = await executeLlmTool(executionRequest)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ content: 'hello', model: 'gpt-4o' })
+    expect(executeOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        stream: false,
+      }),
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        headers: executionRequest.headers,
+        signal: controller.signal,
+      })
+    )
+  })
+})

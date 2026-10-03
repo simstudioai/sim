@@ -20,10 +20,10 @@ const HANDOFF_TOKEN_LENGTH = 32
 
 /**
  * The browser navigates straight to the desktop app's loopback listener once
- * the token is minted, so a redeem lands within seconds. Deliberately far
- * shorter than the plugin-wide 24h `expiresIn`: this token is a bearer
- * credential that grants a session, and `/one-time-token/verify` enforces the
- * expiry stored on the row, not the plugin option.
+ * the token is minted, so a redeem lands within seconds. Kept short because this
+ * token is a bearer credential that grants a session, and set here rather than
+ * inherited: `/one-time-token/verify` enforces the expiry stored on the row, so
+ * this TTL holds whatever the plugin-wide `expiresIn` happens to be.
  */
 const HANDOFF_TOKEN_TTL_MS = 3 * 60 * 1000
 

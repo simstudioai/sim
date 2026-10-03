@@ -1,7 +1,7 @@
 import type { MailSendParams, MailSendResult } from '@/tools/resend/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const resendSendTool: ToolConfig<MailSendParams, MailSendResult> = {
+export const resendSendTool: InternalToolConfig<MailSendParams, MailSendResult> = {
   id: 'resend_send',
   name: 'Send Email',
   description: 'Send an email using your own Resend API key and from address',
@@ -80,13 +80,8 @@ export const resendSendTool: ToolConfig<MailSendParams, MailSendResult> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mail/send',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: MailSendParams) => ({
+  operation: {
+    input: (params: MailSendParams) => ({
       resendApiKey: params.resendApiKey,
       fromAddress: params.fromAddress,
       to: params.to,

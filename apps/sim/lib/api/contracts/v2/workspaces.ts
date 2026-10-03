@@ -1,7 +1,13 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2PaginationFields,
+  v2SortFields,
+  v2TimestampSchema,
+} from '@/lib/api/contracts/v2/shared'
 
 export const v2WorkspaceParamsSchema = z
   .object({ workspaceId: workspaceIdSchema.describe('Workspace to retrieve.') })
@@ -19,11 +25,10 @@ export const v2WorkspaceSchema = z
       .int()
       .nonnegative()
       .describe('Number of effective members, including inherited organization administrators.'),
-    createdAt: z.string().datetime().describe('ISO 8601 timestamp when the workspace was created.'),
-    updatedAt: z
-      .string()
-      .datetime()
-      .describe('ISO 8601 timestamp when the workspace was last updated.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the workspace was created.'),
+    updatedAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the workspace was last updated.'
+    ),
   })
   .strict()
   .meta({
@@ -33,16 +38,41 @@ export const v2WorkspaceSchema = z
   })
 export type V2Workspace = z.output<typeof v2WorkspaceSchema>
 
+export const v2WorkspaceSortFields = ['name', 'createdAt', 'updatedAt'] as const
+export type V2WorkspaceSortBy = (typeof v2WorkspaceSortFields)[number]
+
+/**
+ * Below the v2 default of 50. A personal key can reach every workspace its
+ * owner belongs to, and an unbounded-feeling first page is the wrong default
+ * for a list a caller usually scans to pick one; the cursor is there for more.
+ */
+export const V2_WORKSPACES_DEFAULT_PAGE_SIZE = 25
+
+export const v2ListWorkspacesQuerySchema = z
+  .object({
+    ...v2SortFields(v2WorkspaceSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({
+      description: 'Maximum workspaces to return per page.',
+      fallback: V2_WORKSPACES_DEFAULT_PAGE_SIZE,
+    }),
+  })
+  .strict()
+
+export type V2ListWorkspacesQuery = z.output<typeof v2ListWorkspacesQuerySchema>
+
 export const v2WorkspaceMemberSchema = z
   .object({
-    email: z.email().describe('Member email address and public member identifier.'),
+    userId: z.string().describe('User identifier; use this identifier for member administration.'),
+    email: z.email().describe('Member email address.'),
     name: z.string().describe('Member display name.'),
     image: z.string().nullable().describe('Member profile image URL, or null when absent.'),
     role: z.enum(['admin', 'write', 'read']).describe('Effective role in the workspace.'),
     isExternal: z
       .boolean()
-      .describe('Whether access is inherited from outside the explicit workspace member list.'),
-    joinedAt: z.string().datetime().describe('ISO 8601 timestamp when access was granted.'),
+      .describe(
+        'Whether the member belongs to a different organization than the workspace. True only for an explicitly granted member whose own organization differs; inherited organization-administrator access is always reported as false, so this does not detect every outside caller.'
+      ),
+    joinedAt: v2TimestampSchema.describe('ISO 8601 timestamp when access was granted.'),
   })
   .meta({
     id: 'V2WorkspaceMember',
@@ -53,15 +83,7 @@ export type V2WorkspaceMember = z.output<typeof v2WorkspaceMemberSchema>
 
 export const v2ListWorkspaceMembersQuerySchema = z
   .object({
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum members to return. Defaults to 50 and cannot exceed 100.'),
-    cursor: z.string().min(1).optional().describe('Opaque cursor returned by the preceding page.'),
+    ...v2PaginationFields({ description: 'Maximum members to return per page.' }),
   })
   .strict()
 export type V2ListWorkspaceMembersQuery = z.output<typeof v2ListWorkspaceMembersQuerySchema>
@@ -74,8 +96,16 @@ export type V2WorkspaceMemberCursor = z.output<typeof v2WorkspaceMemberCursorSch
 export const v2GetWorkspaceContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workspaces/[workspaceId]',
+  query: noInputSchema,
   params: v2WorkspaceParamsSchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkspaceSchema) },
+})
+
+export const v2ListWorkspacesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workspaces',
+  query: v2ListWorkspacesQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2WorkspaceSchema) },
 })
 
 export const v2ListWorkspaceMembersContract = defineRouteContract({

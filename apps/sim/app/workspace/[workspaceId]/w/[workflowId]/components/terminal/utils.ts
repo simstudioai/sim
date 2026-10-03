@@ -1,8 +1,7 @@
 import type React from 'react'
 import { Ban, CircleX, Repeat, Split, TriangleAlert, Workflow } from '@sim/emcn/icons'
-import { hasWorkflowTypeRole } from '@sim/workflow-renderer'
 import { getBlock } from '@/blocks'
-import { isWorkflowBlockType } from '@/executor/constants'
+import { isSubExecutionBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 
@@ -92,23 +91,6 @@ export function getBlockColor(blockType: string): string {
     return SPECIAL_BLOCK_COLORS.cancelled
   }
   return '#6b7280'
-}
-
-/**
- * The type a log row's tile takes its accent from, or `undefined` when the row
- * must fall back to the block's own provider colour.
- *
- * Same rule the block toolbar applies, so a block is accented identically
- * wherever it is listed: a core block always takes the canvas role accent (an
- * unmapped one lands on `neutral`, exactly as it does in the toolbar), and
- * anything else — integrations, triggers, subflows — takes one only if it has a
- * role. That second clause is what leaves the terminal's synthesized
- * `error`/`validation`/`cancelled` rows on their own status fill: they carry no
- * config and no role, so they fall through to the provider-colour branch.
- */
-export function getEntryAccentType(blockType: string): string | undefined {
-  const isCoreBlock = getBlock(blockType)?.category === 'blocks'
-  return isCoreBlock || hasWorkflowTypeRole(blockType) ? blockType : undefined
 }
 
 /**
@@ -202,7 +184,7 @@ function collectWorkflowDescendants(
   const direct = workflowChildGroups.get(instanceKey) ?? []
   const result = [...direct]
   for (const entry of direct) {
-    if (isWorkflowBlockType(entry.blockType)) {
+    if (isSubExecutionBlockType(entry.blockType)) {
       // Use childWorkflowInstanceId when available (unique per-invocation) to correctly
       // separate children across loop iterations of the same workflow block.
       result.push(
@@ -499,7 +481,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
             return true
           })
           .map((block) => {
-            if (isWorkflowBlockType(block.blockType)) {
+            if (isSubExecutionBlockType(block.blockType)) {
               const instanceKey = block.childWorkflowInstanceId ?? block.blockId
               const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
               const rawChildren = allDescendants.map((c) => ({
@@ -542,7 +524,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
   const remainingRegularBlocks: ConsoleEntry[] = []
 
   for (const block of regularBlocks) {
-    if (isWorkflowBlockType(block.blockType)) {
+    if (isSubExecutionBlockType(block.blockType)) {
       const instanceKey = block.childWorkflowInstanceId ?? block.blockId
       const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
       const rawChildren = allDescendants.map((c) => ({

@@ -5,28 +5,30 @@ import {
   userTableRowSecretProvenance,
   userTableRows,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
+import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
-  isDurableSecretProvenanceEnforced,
-  reportUnrecordedDurableProvenance,
-} from '@/lib/execution/durable-secret-provenance-enforcement'
+  PROVENANCE_MAX_ENTRIES,
+  PROVENANCE_MAX_SERIALIZED_BYTES,
+} from '@/lib/execution/provenance-limits'
 import type { DbExecutor, DbTransaction } from '@/lib/table/planner'
 import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 import {
   isResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceEntryV1,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
   type ResolvedSecretTraceScopeV1,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
+const logger = createLogger('TableRowSecretProvenance')
+
 export const TABLE_ROW_SECRET_PROVENANCE_VERSION = 1
 
-const MAX_PROVENANCE_ROWS = 10_000
-const MAX_PROVENANCE_COLUMNS_PER_ROW = 10_000
-const MAX_PROVENANCE_ENTRIES_PER_ROW = 10_000
-const MAX_PROVENANCE_ENTRIES_PER_RESPONSE = 10_000
-const MAX_PROVENANCE_BYTES = 8 * 1024 * 1024
 const QUERY_CHUNK_SIZE = 1_000
 
 type StoredTableRowSecretProvenanceEntry = TableRowSecretProvenanceEntry
@@ -81,10 +83,44 @@ const STORED_ENTRY_KEYS = new Set([
   'sourceWorkspaceId',
 ])
 
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
+/**
+ * Why a durable table row write could not vouch for the cells it persisted.
+ *
+ * Shared by ordinary mutations and derived column transformations, so the same event covers
+ * every writer rather than only the paths that classify provenance in JavaScript.
+ */
+type UnvouchedTableRowWriteCause =
+  | 'incoming-provenance-incomplete'
+  | 'merge-base-unvouchable'
+  | 'merge-base-unnormalizable'
+  | 'merge-result-unnormalizable'
+  | 'derived-base-unvouchable'
+  | 'derived-base-unnormalizable'
+
+type UnvouchedTableRowWriteReport = {
+  cause: UnvouchedTableRowWriteCause
+  workspaceId: string
+  tableId: string
+  rowCount: number
+}
+
+/**
+ * Reports rows actually bound by the current transaction, which can still roll back later.
+ *
+ * Summarised per mutation rather than per row: one incomplete envelope marks every row of a batch,
+ * and a batch runs to a thousand rows. Error for the same reason the read side uses it — an
+ * unrecorded row is durable, and error is the only level surviving every default the logger falls
+ * back to.
+ */
+function reportUnvouchedTableRowWrite(
+  report: UnvouchedTableRowWriteReport,
+  mode: 'replace' | 'merge' | DerivedTableRowTransformation['mode']
+): void {
+  logger.error('Table row write staged unrecorded secret provenance', {
+    surface: 'table-row',
+    ...report,
+    mode,
+  })
 }
 
 function serializedBytes(value: unknown): number {
@@ -92,7 +128,7 @@ function serializedBytes(value: unknown): number {
 }
 
 function isStoredEntry(value: unknown): value is StoredTableRowSecretProvenanceEntry {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (!isRecordLike(value)) return false
   const record = value as Record<string, unknown>
   if (
     Reflect.ownKeys(record).some((key) => typeof key !== 'string' || !STORED_ENTRY_KEYS.has(key))
@@ -112,36 +148,71 @@ function isStoredEntry(value: unknown): value is StoredTableRowSecretProvenanceE
   )
 }
 
-function storedEntryKey(entry: StoredTableRowSecretProvenanceEntry): string {
-  return [
-    entry.columnId,
-    entry.encryptedValue,
-    entry.name ?? '',
-    entry.sourceUserId ?? '',
-    entry.sourceWorkspaceId ?? '',
-  ].join('\u0000')
+function normalizeStoredEntryBindings(
+  values: Iterable<unknown>
+): StoredTableRowSecretProvenanceEntry[] | undefined {
+  const deduplicated = new Map<string, StoredTableRowSecretProvenanceEntry>()
+  const budget = new SecretProvenanceBudget()
+  for (const entry of values) {
+    if (!isStoredEntry(entry)) return undefined
+    let minimumBytes = 0
+    for (const value of Object.values(entry)) {
+      if (typeof value === 'string') minimumBytes += Buffer.byteLength(value, 'utf8')
+      if (minimumBytes > PROVENANCE_MAX_SERIALIZED_BYTES) return undefined
+    }
+    const normalized = {
+      columnId: entry.columnId,
+      encryptedValue: entry.encryptedValue,
+      ...(entry.name ? { name: entry.name } : {}),
+      ...(entry.sourceUserId ? { sourceUserId: entry.sourceUserId } : {}),
+      ...(entry.sourceWorkspaceId ? { sourceWorkspaceId: entry.sourceWorkspaceId } : {}),
+    }
+    const key = JSON.stringify(normalized)
+    if (deduplicated.has(key)) continue
+    if (!budget.add(entry.encryptedValue, Buffer.byteLength(key, 'utf8'))) return undefined
+    deduplicated.set(key, normalized)
+  }
+  return [...deduplicated.values()].sort(
+    (left, right) =>
+      compareStrings(left.columnId, right.columnId) ||
+      compareStrings(left.encryptedValue, right.encryptedValue) ||
+      compareStrings(left.name ?? '', right.name ?? '') ||
+      compareStrings(left.sourceUserId ?? '', right.sourceUserId ?? '') ||
+      compareStrings(left.sourceWorkspaceId ?? '', right.sourceWorkspaceId ?? '')
+  )
 }
 
 function normalizeStoredEntries(value: unknown): StoredTableRowSecretProvenanceEntry[] | undefined {
-  if (
-    !Array.isArray(value) ||
-    value.length > MAX_PROVENANCE_ENTRIES_PER_ROW ||
-    !value.every(isStoredEntry)
-  ) {
-    return undefined
+  return Array.isArray(value) ? normalizeStoredEntryBindings(value) : undefined
+}
+
+function* storedEntriesFromColumns(
+  columns: [string, ResolvedSecretTraceProvenanceV1][]
+): Generator<StoredTableRowSecretProvenanceEntry> {
+  for (const [columnId, provenance] of columns) {
+    for (const entry of provenance.entries) {
+      yield {
+        columnId,
+        encryptedValue: entry.encryptedValue,
+        ...(entry.name ? { name: entry.name } : {}),
+        ...(provenance.scope?.userId ? { sourceUserId: provenance.scope.userId } : {}),
+        ...(provenance.scope?.workspaceId
+          ? { sourceWorkspaceId: provenance.scope.workspaceId }
+          : {}),
+      }
+    }
   }
-  const deduplicated = new Map<string, StoredTableRowSecretProvenanceEntry>()
-  for (const entry of value) deduplicated.set(storedEntryKey(entry), { ...entry })
-  const entries = [...deduplicated.values()].sort((left, right) =>
-    compareStrings(storedEntryKey(left), storedEntryKey(right))
-  )
-  if (
-    entries.length > MAX_PROVENANCE_ENTRIES_PER_ROW ||
-    serializedBytes(entries) > MAX_PROVENANCE_BYTES
-  ) {
-    return undefined
+}
+
+function* mergedStoredEntries(
+  existing: StoredTableRowSecretProvenanceEntry[],
+  incoming: StoredTableRowSecretProvenanceEntry[],
+  touchedColumns: Set<string>
+): Generator<StoredTableRowSecretProvenanceEntry> {
+  for (const entry of existing) {
+    if (!touchedColumns.has(entry.columnId)) yield entry
   }
-  return entries
+  yield* incoming
 }
 
 function toStoredEntries(provenance: TableRowSecretProvenanceWrite): {
@@ -153,7 +224,6 @@ function toStoredEntries(provenance: TableRowSecretProvenanceWrite): {
   const touchedColumns = new Set(columnEntries.map(([columnId]) => columnId))
   if (
     !provenance.complete ||
-    columnEntries.length > MAX_PROVENANCE_COLUMNS_PER_ROW ||
     columnEntries.some(
       ([columnId, columnProvenance]) =>
         !columnId ||
@@ -164,21 +234,7 @@ function toStoredEntries(provenance: TableRowSecretProvenanceWrite): {
     return { complete: false, touchedColumns, entries: [] }
   }
 
-  const entries: StoredTableRowSecretProvenanceEntry[] = []
-  for (const [columnId, columnProvenance] of columnEntries) {
-    for (const entry of columnProvenance.entries) {
-      entries.push({
-        columnId,
-        encryptedValue: entry.encryptedValue,
-        ...(entry.name ? { name: entry.name } : {}),
-        ...(columnProvenance.scope?.userId ? { sourceUserId: columnProvenance.scope.userId } : {}),
-        ...(columnProvenance.scope?.workspaceId
-          ? { sourceWorkspaceId: columnProvenance.scope.workspaceId }
-          : {}),
-      })
-    }
-  }
-  const normalized = normalizeStoredEntries(entries)
+  const normalized = normalizeStoredEntryBindings(storedEntriesFromColumns(columnEntries))
   return normalized
     ? { complete: true, touchedColumns, entries: normalized }
     : { complete: false, touchedColumns, entries: [] }
@@ -340,6 +396,7 @@ export async function mutateTableRowsWithSecretProvenance<T>(
       row_id: string
       status: 'exact' | 'unknown'
       entries: StoredTableRowSecretProvenanceEntry[]
+      cause?: UnvouchedTableRowWriteCause
     }
   >()
 
@@ -349,6 +406,9 @@ export async function mutateTableRowsWithSecretProvenance<T>(
     const incoming = toStoredEntries(mutation.provenance)
     let status: 'exact' | 'unknown' = incoming.complete ? 'exact' : 'unknown'
     let entries = incoming.entries
+    let cause: UnvouchedTableRowWriteCause | undefined = incoming.complete
+      ? undefined
+      : 'incoming-provenance-incomplete'
 
     if (options.mode === 'merge' && status === 'exact') {
       if (row?.secretProvenanceVersion === null) {
@@ -360,23 +420,28 @@ export async function mutateTableRowsWithSecretProvenance<T>(
       ) {
         const existing = normalizeStoredEntries(row.sidecarEntries)
         if (existing) {
-          const merged = normalizeStoredEntries([
-            ...existing.filter((entry) => !incoming.touchedColumns.has(entry.columnId)),
-            ...incoming.entries,
-          ])
+          const merged = normalizeStoredEntryBindings(
+            mergedStoredEntries(existing, incoming.entries, incoming.touchedColumns)
+          )
           if (merged) entries = merged
-          else status = 'unknown'
+          else {
+            status = 'unknown'
+            cause = 'merge-result-unnormalizable'
+          }
         } else {
           status = 'unknown'
+          cause = 'merge-base-unnormalizable'
         }
       } else {
         status = 'unknown'
+        cause = 'merge-base-unvouchable'
       }
     }
     pendingByRowId.set(mutation.rowId, {
       row_id: mutation.rowId,
       status,
       entries: status === 'exact' ? entries : [],
+      ...(cause ? { cause } : {}),
     })
   }
 
@@ -395,18 +460,22 @@ export async function mutateTableRowsWithSecretProvenance<T>(
   const pending = [...pendingByRowId.values()].filter((row) => affectedRowIds.has(row.row_id))
   for (let index = 0; index < pending.length; index += QUERY_CHUNK_SIZE) {
     const chunk = JSON.stringify(pending.slice(index, index + QUERY_CHUNK_SIZE))
-    await trx.execute(sql`
+    const unrecordedWrites = await trx.execute<UnvouchedTableRowWriteReport>(sql`
       WITH pending AS (
         SELECT *
         FROM jsonb_to_recordset(${chunk}::jsonb)
-          AS value(row_id text, status text, entries jsonb)
+          AS value(row_id text, status text, entries jsonb, cause text)
       ), bound AS (
         UPDATE ${userTableRows} AS target
         SET secret_provenance_version = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
         FROM pending
         WHERE target.id = pending.row_id
-        RETURNING target.id AS row_id, target.updated_at AS content_updated_at
-      )
+        RETURNING
+          target.id AS row_id,
+          target.updated_at AS content_updated_at,
+          target.workspace_id,
+          target.table_id
+      ), persisted AS (
       INSERT INTO ${userTableRowSecretProvenance} (
         row_id,
         content_updated_at,
@@ -427,7 +496,20 @@ export async function mutateTableRowsWithSecretProvenance<T>(
         status = EXCLUDED.status,
         entries = EXCLUDED.entries,
         updated_at = EXCLUDED.updated_at
+      RETURNING row_id, status
+      )
+      SELECT
+        bound.workspace_id AS "workspaceId",
+        bound.table_id AS "tableId",
+        pending.cause,
+        count(*)::integer AS "rowCount"
+      FROM bound
+      INNER JOIN pending ON pending.row_id = bound.row_id
+      INNER JOIN persisted ON persisted.row_id = bound.row_id
+      WHERE persisted.status = 'unknown'
+      GROUP BY bound.workspace_id, bound.table_id, pending.cause
     `)
+    for (const report of unrecordedWrites) reportUnvouchedTableRowWrite(report, options.mode)
   }
 
   return outcome.value
@@ -437,6 +519,14 @@ export async function mutateTableRowsWithSecretProvenance<T>(
  * Applies a trusted data transformation in bounded, keyset-paginated sets. Each page locks and
  * classifies the old payload, writes the matching sidecar, then restores the tracked marker only
  * after that sidecar exists in the same transaction.
+ *
+ * A cleared `secret_provenance_version` classifies as untracked whether or not a sidecar row
+ * survives beside it. The demote trigger clears the marker and advances `updated_at`, so any
+ * sidecar left behind is stale by construction and says nothing about the current payload —
+ * exactly the row {@link loadTableRowSecretProvenance} and
+ * {@link classifyTableRowSecretProvenanceForCopy} already read as legacy. Requiring the sidecar to
+ * be absent made this the one classifier that called such a row unknown, which turned an ordinary
+ * column operation into a bulk producer of durable unknowns.
  */
 export async function updateTableRowsWithDerivedSecretProvenance(
   trx: DbTransaction,
@@ -451,10 +541,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
       : []
   if (options.transformation.mode === 'remove-columns') {
     if (removedColumnIds.length === 0) return 0
-    if (
-      removedColumnIds.length > MAX_PROVENANCE_COLUMNS_PER_ROW ||
-      removedColumnIds.some((columnId) => columnId.length === 0)
-    ) {
+    if (removedColumnIds.some((columnId) => columnId.length === 0)) {
       throw new Error('Derived table row transformation contains invalid columns')
     }
   }
@@ -504,10 +591,12 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     const rowIds = page.map((row) => row.id)
     updatedCount += rowIds.length
 
-    await trx.execute(sql`
+    const unrecordedWrites = await trx.execute<UnvouchedTableRowWriteReport>(sql`
       WITH source AS MATERIALIZED (
         SELECT
           ${userTableRows.id} AS row_id,
+          ${userTableRows.workspaceId} AS workspace_id,
+          ${userTableRows.tableId} AS table_id,
           ${userTableRows.updatedAt} AS old_updated_at,
           ${userTableRows.secretProvenanceVersion} AS old_provenance_version,
           ${userTableRowSecretProvenance.rowId} AS provenance_row_id,
@@ -532,22 +621,35 @@ export async function updateTableRowsWithDerivedSecretProvenance(
         SELECT
           updated.row_id,
           updated.content_updated_at,
+          source.workspace_id,
+          source.table_id,
+          CASE
+            WHEN (
+              source.old_provenance_version = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
+              AND source.provenance_status = 'exact'
+              AND source.provenance_content_updated_at = source.old_updated_at
+            ) IS TRUE
+            THEN 'derived-base-unnormalizable'
+            ELSE 'derived-base-unvouchable'
+          END AS unrecorded_cause,
           CASE
             WHEN source.old_provenance_version IS NULL
-              AND source.provenance_row_id IS NULL
             THEN '[]'::jsonb
             WHEN source.old_provenance_version = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
               AND source.provenance_status = 'exact'
               AND source.provenance_content_updated_at = source.old_updated_at
               AND jsonb_typeof(source.provenance_entries) = 'array'
-              AND jsonb_array_length(
-                CASE
-                  WHEN jsonb_typeof(source.provenance_entries) = 'array'
-                  THEN source.provenance_entries
-                  ELSE '[]'::jsonb
-                END
-              ) <= ${MAX_PROVENANCE_ENTRIES_PER_ROW}
-              AND octet_length(source.provenance_entries::text) <= ${MAX_PROVENANCE_BYTES}
+              AND (
+                SELECT count(DISTINCT value.entry ->> 'encryptedValue')
+                FROM jsonb_array_elements(
+                  CASE
+                    WHEN jsonb_typeof(source.provenance_entries) = 'array'
+                    THEN source.provenance_entries
+                    ELSE '[]'::jsonb
+                  END
+                ) AS value(entry)
+              ) <= ${PROVENANCE_MAX_ENTRIES}
+              AND octet_length(source.provenance_entries::text) <= ${PROVENANCE_MAX_SERIALIZED_BYTES}
               AND NOT EXISTS (
                 SELECT 1
                 FROM jsonb_array_elements(
@@ -606,7 +708,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
           END AS exact_entries
         FROM updated
         INNER JOIN source ON source.row_id = updated.row_id
-      )
+      ), persisted AS (
       INSERT INTO ${userTableRowSecretProvenance} (
         row_id,
         content_updated_at,
@@ -626,6 +728,17 @@ export async function updateTableRowsWithDerivedSecretProvenance(
         status = EXCLUDED.status,
         entries = EXCLUDED.entries,
         updated_at = EXCLUDED.updated_at
+      RETURNING row_id, status
+      )
+      SELECT
+        classified.workspace_id AS "workspaceId",
+        classified.table_id AS "tableId",
+        classified.unrecorded_cause AS cause,
+        count(*)::integer AS "rowCount"
+      FROM classified
+      INNER JOIN persisted ON persisted.row_id = classified.row_id
+      WHERE persisted.status = 'unknown'
+      GROUP BY classified.workspace_id, classified.table_id, classified.unrecorded_cause
     `)
 
     await trx.execute(sql`
@@ -636,6 +749,10 @@ export async function updateTableRowsWithDerivedSecretProvenance(
         AND ${inArray(sql`target.id`, rowIds)}
         AND provenance.content_updated_at = target.updated_at
     `)
+
+    for (const report of unrecordedWrites) {
+      reportUnvouchedTableRowWrite(report, options.transformation.mode)
+    }
 
     afterId = rowIds[rowIds.length - 1]
     if (page.length < QUERY_CHUNK_SIZE) break
@@ -654,21 +771,43 @@ async function readTableRowsVersion(tableId: string, workspaceId: string): Promi
   return table?.rowsVersion ?? null
 }
 
+export type TableSnapshotModelMountSafety = 'safe' | 'unsafe-provenance' | 'stale'
+
 /**
- * Verifies that a version-pinned table contains no secret-bearing or unknown
- * cells before its opaque CSV bytes cross into a model-controlled sandbox.
+ * Classifies whether a version-pinned table snapshot can cross into a model-controlled sandbox.
+ * A version change takes precedence over provenance because stale bytes must never be mounted.
  */
-export async function isTableSnapshotSafeForModelMount(options: {
+export async function getTableSnapshotModelMountSafety(options: {
   tableId: string
   workspaceId: string
   rowsVersion: number
-}): Promise<boolean> {
+}): Promise<TableSnapshotModelMountSafety> {
   if ((await readTableRowsVersion(options.tableId, options.workspaceId)) !== options.rowsVersion) {
-    return false
+    return 'stale'
   }
 
-  const [unsafeRow] = await db
-    .select({ id: userTableRows.id })
+  /**
+   * A missing LEFT JOIN sidecar is an explicit absence, not SQL NULL in a negated safety
+   * predicate. Legacy and unrecorded rows follow the same policy as ordinary table reads;
+   * a current exact sidecar containing secrets cannot accompany an unredacted CSV mount.
+   */
+  const classification = sql`CASE
+    WHEN ${userTableRows.secretProvenanceVersion} IS NULL THEN 'safe'
+    WHEN (
+      ${userTableRows.secretProvenanceVersion} = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
+      AND ${userTableRowSecretProvenance.status} = 'exact'
+      AND ${userTableRowSecretProvenance.contentUpdatedAt} = ${userTableRows.updatedAt}
+    ) IS NOT TRUE THEN 'unrecorded'
+    WHEN ${userTableRowSecretProvenance.entries} = '[]'::jsonb THEN 'safe'
+    ELSE 'unsafe'
+  END`
+  const [counts] = await db
+    .select({
+      unsafeCount: sql<number | string>`count(*) FILTER (WHERE (${classification}) = 'unsafe')`,
+      unrecordedCount: sql<
+        number | string
+      >`count(*) FILTER (WHERE (${classification}) = 'unrecorded')`,
+    })
     .from(userTableRows)
     .leftJoin(
       userTableRowSecretProvenance,
@@ -677,61 +816,60 @@ export async function isTableSnapshotSafeForModelMount(options: {
     .where(
       and(
         eq(userTableRows.tableId, options.tableId),
-        eq(userTableRows.workspaceId, options.workspaceId),
-        sql`NOT (
-          ${userTableRows.secretProvenanceVersion} IS NULL
-          OR
-          (${userTableRows.secretProvenanceVersion} = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
-            AND ${userTableRowSecretProvenance.status} = 'exact'
-            AND ${userTableRowSecretProvenance.contentUpdatedAt} = ${userTableRows.updatedAt}
-            AND jsonb_typeof(${userTableRowSecretProvenance.entries}) = 'array'
-            AND jsonb_array_length(
-              CASE
-                WHEN jsonb_typeof(${userTableRowSecretProvenance.entries}) = 'array'
-                THEN ${userTableRowSecretProvenance.entries}
-                ELSE '[]'::jsonb
-              END
-            ) = 0)
-        )`
+        eq(userTableRows.workspaceId, options.workspaceId)
       )
     )
-    .limit(1)
 
-  if (unsafeRow) return false
+  if ((await readTableRowsVersion(options.tableId, options.workspaceId)) !== options.rowsVersion) {
+    return 'stale'
+  }
 
-  return (await readTableRowsVersion(options.tableId, options.workspaceId)) === options.rowsVersion
+  if (!counts || Number(counts.unsafeCount) > 0) return 'unsafe-provenance'
+  if (Number(counts.unrecordedCount) > 0) return 'unsafe-provenance'
+  return 'safe'
 }
 
-function aggregateStoredEntries(
-  entries: StoredTableRowSecretProvenanceEntry[],
-  scope: ResolvedSecretTraceScopeV1
-): ResolvedSecretTraceProvenanceEntryV1[] | undefined {
+/**
+ * Folds crossing entries into the distinct secrets the response actually carries.
+ *
+ * A response holds one entry per distinct `encryptedValue`, so its size is the workspace's secret
+ * catalog, not the page's cells. Collecting every cell's entry first and capping that count made a
+ * page refuse to vouch for a response it could have built — a page of 1,000 rows carrying 11
+ * distinct secrets each is 11,000 collected entries but only 11 reported ones. Folding as rows
+ * arrive means only the reported set is ever held, and only it is bounded.
+ */
+function createStoredEntryAggregator(scope: ResolvedSecretTraceScopeV1) {
   const byEncryptedValue = new Map<
     string,
     { names: Set<string>; hasForeignOrAnonymousSource: boolean }
   >()
-  for (const entry of entries) {
-    const aggregate = byEncryptedValue.get(entry.encryptedValue) ?? {
-      names: new Set<string>(),
-      hasForeignOrAnonymousSource: false,
-    }
-    const sameScope =
-      entry.sourceUserId === scope.userId && entry.sourceWorkspaceId === scope.workspaceId
-    if (sameScope && entry.name) aggregate.names.add(entry.name)
-    else aggregate.hasForeignOrAnonymousSource = true
-    byEncryptedValue.set(entry.encryptedValue, aggregate)
+  return {
+    /** False once the distinct secrets outgrow what one response may carry. */
+    add(entry: StoredTableRowSecretProvenanceEntry): boolean {
+      let aggregate = byEncryptedValue.get(entry.encryptedValue)
+      if (!aggregate) {
+        if (byEncryptedValue.size >= PROVENANCE_MAX_ENTRIES) return false
+        aggregate = { names: new Set<string>(), hasForeignOrAnonymousSource: false }
+        byEncryptedValue.set(entry.encryptedValue, aggregate)
+      }
+      const sameScope =
+        entry.sourceUserId === scope.userId && entry.sourceWorkspaceId === scope.workspaceId
+      if (sameScope && entry.name) aggregate.names.add(entry.name)
+      else aggregate.hasForeignOrAnonymousSource = true
+      return true
+    },
+    build(): ResolvedSecretTraceProvenanceEntryV1[] | undefined {
+      const result = [...byEncryptedValue.entries()]
+        .sort(([left], [right]) => compareStrings(left, right))
+        .map(([encryptedValue, aggregate]) => ({
+          encryptedValue,
+          ...(!aggregate.hasForeignOrAnonymousSource && aggregate.names.size === 1
+            ? { name: [...aggregate.names][0] }
+            : {}),
+        }))
+      return serializedBytes(result) <= PROVENANCE_MAX_SERIALIZED_BYTES ? result : undefined
+    },
   }
-  if (byEncryptedValue.size > MAX_PROVENANCE_ENTRIES_PER_RESPONSE) return undefined
-
-  const result = [...byEncryptedValue.entries()]
-    .sort(([left], [right]) => compareStrings(left, right))
-    .map(([encryptedValue, aggregate]) => ({
-      encryptedValue,
-      ...(!aggregate.hasForeignOrAnonymousSource && aggregate.names.size === 1
-        ? { name: [...aggregate.names][0] }
-        : {}),
-    }))
-  return serializedBytes(result) <= MAX_PROVENANCE_BYTES ? result : undefined
 }
 
 /**
@@ -742,27 +880,33 @@ function aggregateStoredEntries(
  */
 export async function loadTableRowSecretProvenance(
   rows: TableRowCrossing[],
-  scope: ResolvedSecretTraceScopeV1
+  scope: ResolvedSecretTraceScopeV1,
+  executor: DbExecutor = db
 ): Promise<ResolvedSecretTraceProvenanceV1> {
-  if (rows.length > MAX_PROVENANCE_ROWS) {
-    return { version: 1, complete: false, entries: [], scope }
-  }
   if (rows.length === 0) {
     return { version: 1, complete: true, entries: [], scope }
+  }
+
+  const incomplete = (cause: string): ResolvedSecretTraceProvenanceV1 => {
+    logger.error('Table row read could not establish secret provenance', {
+      surface: 'table-row',
+      cause,
+      rowCount: rows.length,
+      workspaceId: scope.workspaceId,
+      actorUserId: scope.userId,
+    })
+    return { version: 1, complete: false, entries: [], scope }
   }
 
   const crossingById = new Map<string, TableRowCrossing & { selectedColumnIds?: Set<string> }>()
   for (const row of rows) {
     const existing = crossingById.get(row.id)
     if (existing && !sameTimestamp(existing.updatedAt, row.updatedAt)) {
-      return { version: 1, complete: false, entries: [], scope }
+      return incomplete('duplicate-row-revision')
     }
     const selectedColumnIds = row.selectedValues
       ? new Set(Object.keys(row.selectedValues))
       : undefined
-    if (selectedColumnIds && selectedColumnIds.size > MAX_PROVENANCE_COLUMNS_PER_ROW) {
-      return { version: 1, complete: false, entries: [], scope }
-    }
     if (!existing) {
       crossingById.set(row.id, { ...row, selectedColumnIds })
       continue
@@ -774,16 +918,16 @@ export async function loadTableRowSecretProvenance(
     for (const columnId of selectedColumnIds) existing.selectedColumnIds.add(columnId)
   }
   const rowIds = [...crossingById.keys()]
-  const currentRows = await selectRowsWithSidecars(db, rowIds)
+  const currentRows = await selectRowsWithSidecars(executor, rowIds)
   const currentById = new Map(currentRows.map((row) => [row.id, row]))
-  const storedEntries: StoredTableRowSecretProvenanceEntry[] = []
+  const aggregator = createStoredEntryAggregator(scope)
 
-  let unrecordedRowCount = 0
   for (const rowId of rowIds) {
     const current = currentById.get(rowId)
     const crossing = crossingById.get(rowId)
-    if (!current || !crossing || !sameTimestamp(current.updatedAt, crossing.updatedAt)) {
-      return { version: 1, complete: false, entries: [], scope }
+    if (!current || !crossing) return incomplete('row-missing')
+    if (!sameTimestamp(current.updatedAt, crossing.updatedAt)) {
+      return incomplete('row-revision-mismatch')
     }
     if (current.secretProvenanceVersion === null) continue
     if (
@@ -791,40 +935,18 @@ export async function loadTableRowSecretProvenance(
       current.sidecarStatus !== 'exact' ||
       !current.sidecarIsCurrent
     ) {
-      /**
-       * One such row would otherwise void the whole page, and a page is what a `query_rows` block
-       * hands downstream — so a single row nobody recorded provenance for latched every run that
-       * read the table. Unenforced, the row contributes nothing, exactly like the legacy row above.
-       */
-      if (isDurableSecretProvenanceEnforced('table-row')) {
-        return { version: 1, complete: false, entries: [], scope }
-      }
-      unrecordedRowCount += 1
-      continue
+      return incomplete('row-sidecar-not-exact')
     }
     const parsed = normalizeStoredEntries(current.sidecarEntries)
-    if (!parsed) return { version: 1, complete: false, entries: [], scope }
-    storedEntries.push(
-      ...parsed.filter(
-        (entry) => !crossing.selectedColumnIds || crossing.selectedColumnIds.has(entry.columnId)
-      )
-    )
-    if (storedEntries.length > MAX_PROVENANCE_ENTRIES_PER_RESPONSE) {
-      return { version: 1, complete: false, entries: [], scope }
+    if (!parsed) return incomplete('row-sidecar-malformed')
+    for (const entry of parsed) {
+      if (crossing.selectedColumnIds && !crossing.selectedColumnIds.has(entry.columnId)) continue
+      if (!aggregator.add(entry)) return incomplete('row-provenance-budget-exceeded')
     }
   }
 
-  if (unrecordedRowCount > 0) {
-    reportUnrecordedDurableProvenance({
-      surface: 'table-row',
-      cause: 'row-sidecar-not-exact',
-      affectedCount: unrecordedRowCount,
-      ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
-    })
-  }
-
-  const entries = aggregateStoredEntries(storedEntries, scope)
-  if (!entries) return { version: 1, complete: false, entries: [], scope }
+  const entries = aggregator.build()
+  if (!entries) return incomplete('row-provenance-budget-exceeded')
   const provenance: ResolvedSecretTraceProvenanceV1 = {
     version: 1,
     complete: true,
@@ -833,5 +955,50 @@ export async function loadTableRowSecretProvenance(
   }
   return isResolvedSecretTraceProvenanceV1(provenance)
     ? provenance
-    : { version: 1, complete: false, entries: [], scope }
+    : incomplete('row-provenance-budget-exceeded')
+}
+
+/**
+ * Collects only returned row values while their database snapshot is still valid.
+ * A read captures inside one repeatable-read transaction spanning every batch of
+ * its page, so a row and the sidecar captured for it always come from the same
+ * snapshot; writers capture after stamping and before releasing row locks.
+ * Nothing is reloaded after commit.
+ */
+export class TableRowProvenanceReader {
+  private readonly accumulator: ResolvedSecretTraceProvenanceAccumulator
+
+  constructor(
+    private readonly scope: ResolvedSecretTraceScopeV1,
+    private readonly selectedColumnIds?: ReadonlySet<string>
+  ) {
+    this.accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+  }
+
+  async capture(
+    executor: DbExecutor,
+    rows: { id: string; updatedAt: Date | string; data: unknown }[]
+  ): Promise<void> {
+    this.accumulator.record(
+      await loadTableRowSecretProvenance(
+        rows.map((row) => {
+          const data = row.data as RowData
+          let selectedValues = data
+          if (this.selectedColumnIds) {
+            selectedValues = {}
+            for (const columnId of this.selectedColumnIds) {
+              if (Object.hasOwn(data, columnId)) selectedValues[columnId] = data[columnId]
+            }
+          }
+          return { id: row.id, updatedAt: row.updatedAt, selectedValues }
+        }),
+        this.scope,
+        executor
+      )
+    )
+  }
+
+  exportProvenance(): ResolvedSecretTraceProvenanceV1 {
+    return this.accumulator.exportProvenance()
+  }
 }

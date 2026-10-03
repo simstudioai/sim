@@ -14,10 +14,23 @@
  * one. That is why this build needs no `x64ArchFiles` rule.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash, timingSafeEqual } from 'node:crypto'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+
+const logger = createLogger('DesktopPtyPrebuilds')
 
 const REQUIRED_ARCHES = ['darwin-arm64', 'darwin-x64'] as const
 
@@ -49,8 +62,30 @@ function packageDir(arch: string): string {
   return join(workspaceRoot, 'node_modules', '@lydell', `node-pty-${arch}`)
 }
 
+function expectedIntegrity(arch: string, version: string): string {
+  const packageName = `@lydell/node-pty-${arch}`
+  const prefix = `"${packageName}": ["${packageName}@${version}"`
+  const entry = readFileSync(join(workspaceRoot, 'bun.lock'), 'utf8')
+    .split('\n')
+    .find((line) => line.trimStart().startsWith(prefix))
+  const integrity = entry ? /,\s*"(sha512-[^"]+)"\],?$/.exec(entry)?.[1] : undefined
+  if (!integrity) {
+    throw new Error(`Could not find the pinned integrity for ${packageName}@${version}`)
+  }
+  return integrity
+}
+
+function verifyIntegrity(bytes: Buffer, integrity: string, packageName: string): void {
+  const expected = Buffer.from(integrity.slice('sha512-'.length), 'base64')
+  const actual = createHash('sha512').update(bytes).digest()
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+    throw new Error(`Integrity check failed for ${packageName}`)
+  }
+}
+
 async function fetchPrebuild(arch: string, version: string): Promise<void> {
   const name = `node-pty-${arch}`
+  const packageName = `@lydell/${name}`
   const url = `https://registry.npmjs.org/@lydell/${name}/-/${name}-${version}.tgz`
   const response = await fetch(url)
   if (!response.ok) {
@@ -60,7 +95,9 @@ async function fetchPrebuild(arch: string, version: string): Promise<void> {
   const staging = mkdtempSync(join(tmpdir(), 'sim-pty-prebuild-'))
   try {
     const tarball = join(staging, 'package.tgz')
-    writeFileSync(tarball, Buffer.from(await response.arrayBuffer()))
+    const bytes = Buffer.from(await response.arrayBuffer())
+    verifyIntegrity(bytes, expectedIntegrity(arch, version), packageName)
+    writeFileSync(tarball, bytes)
     execFileSync('tar', ['-xzf', tarball, '-C', staging], { stdio: 'pipe' })
 
     const target = packageDir(arch)
@@ -77,10 +114,10 @@ async function run(): Promise<void> {
   for (const arch of REQUIRED_ARCHES) {
     const dir = packageDir(arch)
     if (existsSync(join(dir, 'prebuilds', arch, 'pty.node'))) {
-      console.log(`• node-pty prebuild present: ${arch}`)
+      logger.info('node-pty prebuild present', { arch })
       continue
     }
-    console.log(`• Fetching node-pty prebuild: ${arch}@${version}`)
+    logger.info('Fetching node-pty prebuild', { arch, version })
     await fetchPrebuild(arch, version)
     if (!existsSync(join(dir, 'prebuilds', arch, 'pty.node'))) {
       throw new Error(`Downloaded @lydell/node-pty-${arch} but pty.node is missing`)
@@ -89,6 +126,6 @@ async function run(): Promise<void> {
 }
 
 run().catch((error) => {
-  console.error(error)
+  logger.error('Could not ensure node-pty prebuilds', { message: getErrorMessage(error) })
   process.exit(1)
 })

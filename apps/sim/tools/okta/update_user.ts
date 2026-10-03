@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaApiError,
-  OktaUpdateUserParams,
-  OktaUpdateUserResponse,
-  OktaUser,
-} from '@/tools/okta/types'
+import type { OktaUpdateUserParams, OktaUpdateUserResponse, OktaUser } from '@/tools/okta/types'
+import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaUpdateUser')
@@ -85,21 +81,26 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}`
     },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
+    /**
+     * Blank values are dropped rather than sent.
+     *
+     * This is a partial merge, so any key present in `profile` overwrites the
+     * stored value — an empty string blanks the field in Okta. The block strips
+     * blanks before they reach here, but this tool is also `user-or-llm` and a
+     * model routinely emits `""` for a field it has nothing to say about, so
+     * the guard has to live on the tool itself.
+     */
     body: (params) => {
       const profile: Record<string, string> = {}
 
-      if (params.firstName !== undefined) profile.firstName = params.firstName
-      if (params.lastName !== undefined) profile.lastName = params.lastName
-      if (params.email !== undefined) profile.email = params.email
-      if (params.login !== undefined) profile.login = params.login
-      if (params.mobilePhone !== undefined) profile.mobilePhone = params.mobilePhone
-      if (params.title !== undefined) profile.title = params.title
-      if (params.department !== undefined) profile.department = params.department
+      if (params.firstName) profile.firstName = params.firstName
+      if (params.lastName) profile.lastName = params.lastName
+      if (params.email) profile.email = params.email
+      if (params.login) profile.login = params.login
+      if (params.mobilePhone) profile.mobilePhone = params.mobilePhone
+      if (params.title) profile.title = params.title
+      if (params.department) profile.department = params.department
 
       return { profile }
     },
@@ -107,14 +108,7 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to update user in Okta')
+      await throwOktaError(response, logger, 'Failed to update user in Okta')
     }
 
     const user: OktaUser = await response.json()

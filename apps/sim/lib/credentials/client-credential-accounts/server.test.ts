@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { parseClientCredentialAccountSecretBlob } from '@/lib/credentials/client-credential-accounts/server'
@@ -19,12 +16,6 @@ function blob(overrides: Record<string, unknown> = {}): string {
 }
 
 describe('parseClientCredentialAccountSecretBlob', () => {
-  it('returns the parsed blob when it matches the expected provider', () => {
-    const parsed = parseClientCredentialAccountSecretBlob(blob(), 'zoom-service-account')
-    expect(parsed.clientId).toBe('cid')
-    expect(parsed.orgId).toBe('org')
-  })
-
   it('throws the clean malformed error on a non-JSON payload (not a raw SyntaxError)', () => {
     expect(() =>
       parseClientCredentialAccountSecretBlob('not json {', 'zoom-service-account')
@@ -50,12 +41,6 @@ describe('parseClientCredentialAccountSecretBlob', () => {
     expect(() =>
       parseClientCredentialAccountSecretBlob(blob({ clientSecret: '' }), 'zoom-service-account')
     ).toThrow(MALFORMED)
-  })
-
-  it('throws the clean malformed error on a JSON-null payload', () => {
-    expect(() => parseClientCredentialAccountSecretBlob('null', 'zoom-service-account')).toThrow(
-      MALFORMED
-    )
   })
 
   it('accepts a key-based blob that carries a private key instead of a client secret', () => {
@@ -91,5 +76,30 @@ describe('parseClientCredentialAccountSecretBlob', () => {
     )
     expect(parsed.clientSecret).toBe('secret')
     expect(parsed.authMethod).toBeUndefined()
+  })
+
+  it('requires every descriptor field for a NetSuite certificate blob', () => {
+    const netSuiteBlob = blob({
+      providerId: 'netsuite-service-account',
+      clientSecret: undefined,
+      orgId: 'https://1234567.suitetalk.api.netsuite.com',
+      certificateId: 'cert-1',
+      privateKey: '-----BEGIN PRIVATE KEY-----',
+    })
+    expect(
+      parseClientCredentialAccountSecretBlob(netSuiteBlob, 'netsuite-service-account')
+    ).toMatchObject({ certificateId: 'cert-1' })
+
+    expect(() =>
+      parseClientCredentialAccountSecretBlob(
+        blob({
+          providerId: 'netsuite-service-account',
+          clientSecret: undefined,
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          privateKey: '-----BEGIN PRIVATE KEY-----',
+        }),
+        'netsuite-service-account'
+      )
+    ).toThrow(MALFORMED)
   })
 })

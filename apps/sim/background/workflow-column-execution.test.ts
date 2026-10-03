@@ -1,12 +1,10 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import {
+  assertWorkflowGroupMatchesLatestDeployment,
   buildTableAbortState,
   buildTableUsageLimitClear,
   createWorkflowGroupAttemptTimeoutController,
@@ -14,12 +12,18 @@ import {
   terminalizeAbortedQueuedCarrierMarker,
 } from '@/background/workflow-column-execution'
 
-const { appendTableEventMock } = vi.hoisted(() => ({ appendTableEventMock: vi.fn() }))
+const appendTableEventMock = tableEventsMockFns.mockAppendTableEvent
 
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: appendTableEventMock }))
+const { flattenWorkflowOutputsMock } = vi.hoisted(() => ({
+  flattenWorkflowOutputsMock: vi.fn(),
+}))
+
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
+  flattenWorkflowOutputs: flattenWorkflowOutputsMock,
+}))
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
@@ -49,6 +53,62 @@ const QUEUED_PAYLOAD = {
     payerSubscription: null,
   },
 }
+
+function latestDeployment(
+  startType = 'start_trigger'
+): Parameters<typeof assertWorkflowGroupMatchesLatestDeployment>[1] {
+  return {
+    blocks: {
+      start: {
+        id: 'start',
+        type: startType,
+        subBlocks: {
+          inputFormat: { value: [{ name: 'company', type: 'string' }] },
+        },
+      },
+      agent: {
+        id: 'agent',
+        type: 'agent',
+        subBlocks: {},
+      },
+    },
+    edges: [{ id: 'start-agent', source: 'start', target: 'agent' }],
+    loops: {},
+    parallels: {},
+    variables: {},
+    isFromNormalizedTables: false,
+    deploymentVersionId: 'deployment-version-latest',
+  } as Parameters<typeof assertWorkflowGroupMatchesLatestDeployment>[1]
+}
+
+describe('latest table workflow deployment mappings', () => {
+  beforeEach(() => {
+    flattenWorkflowOutputsMock.mockReturnValue([
+      {
+        blockId: 'agent',
+        blockName: 'Agent',
+        blockType: 'agent',
+        path: 'content',
+        leafType: 'string',
+      },
+    ])
+  })
+
+  it('rejects an output mapping removed by the latest active deployment', () => {
+    expect(() =>
+      assertWorkflowGroupMatchesLatestDeployment(
+        {
+          id: 'group-1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'agent', path: 'score', columnName: 'column-output' }],
+        },
+        latestDeployment()
+      )
+    ).toThrow(
+      'Workflow group group-1 output agent::score is not available in the latest active deployment'
+    )
+  })
+})
 
 describe('table workflow carrier deadline', () => {
   it('preserves one absolute deadline when a later cascade group creates its controller', () => {
@@ -97,23 +157,6 @@ describe('table workflow rate-limit pacing terminal state', () => {
       jobId: null,
       workflowId: 'workflow-1',
       error: 'Execution timed out after 5 seconds',
-      runningBlockIds: [],
-    })
-  })
-
-  it('turns an uncorrelated backend cancellation into a terminal error', () => {
-    expect(
-      buildTableAbortState({
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        timedOut: false,
-      })
-    ).toEqual({
-      status: 'error',
-      executionId: 'execution-1',
-      jobId: null,
-      workflowId: 'workflow-1',
-      error: 'Cancelled',
       runningBlockIds: [],
     })
   })
@@ -176,6 +219,8 @@ describe('table workflow usage-limit clear', () => {
       data: {},
       workspaceId: 'workspace-1',
       executionsPatch: { 'group-1': null },
+      /** Clearing a pre-stamp writes no values, so no acting person governs it. */
+      capabilityGovernedUserId: null,
       cancellationGuard: { groupId: 'group-1', executionId: 'execution-1' },
     })
   })

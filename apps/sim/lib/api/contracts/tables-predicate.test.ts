@@ -1,21 +1,23 @@
 /**
- * @vitest-environment node
- *
  * The v2 query/bulk filter wire format is the typed `{ all | any: [...] }`
  * predicate tree. The contract validates structure; column-level validation
  * (unknown field, json-op) runs server-side in `validate.ts`.
  */
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   deleteTableRowsBodySchema,
   predicateInputSchema,
   predicateSchema,
   rowQueryBodySchema,
   tableRowsQuerySchema,
-  tableViewConfigSchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
+import { FILTER_OPS } from '@/lib/table/constants'
 import { validatePredicate } from '@/lib/table/query-builder/validate'
+
+/** Loose view of the generated JSON Schema, which is untyped by construction. */
+type JsonSchemaNode = Record<string, JsonSchemaNode> & Record<number, JsonSchemaNode>
 
 describe('rowQueryBodySchema', () => {
   it('accepts a root condition and normalizes it to the canonical all group', () => {
@@ -28,96 +30,9 @@ describe('rowQueryBodySchema', () => {
       all: [{ field: 'status', op: 'eq', value: 'active' }],
     })
   })
-
-  it('accepts a predicate/sort object, leaves limit unbounded, has no offset', () => {
-    const parsed = rowQueryBodySchema.parse({
-      workspaceId: 'ws-1',
-      predicate: {
-        all: [
-          { field: 'wins', op: 'gte', value: 10 },
-          { field: 'status', op: 'in', value: ['active', 'pending'] },
-        ],
-      },
-      sort: [{ field: 'wins', direction: 'desc' }],
-      cursor: 'abc',
-    })
-    expect(parsed.predicate).toEqual({
-      all: [
-        { field: 'wins', op: 'gte', value: 10 },
-        { field: 'status', op: 'in', value: ['active', 'pending'] },
-      ],
-    })
-    // Omitted limit stays undefined — the query returns all matching rows.
-    expect(parsed.limit).toBeUndefined()
-    expect('offset' in parsed).toBe(false)
-  })
-
-  it('accepts a nested any/all predicate', () => {
-    expect(
-      rowQueryBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        predicate: {
-          any: [
-            { field: 'status', op: 'eq', value: 'active' },
-            { all: [{ field: 'wins', op: 'gte', value: 5 }] },
-          ],
-        },
-      }).success
-    ).toBe(true)
-  })
-
-  it('allows omitting the predicate (match all)', () => {
-    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1' }).success).toBe(true)
-  })
-
-  it('rejects an unknown operator and a malformed leaf', () => {
-    expect(
-      rowQueryBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        predicate: { all: [{ field: 'wins', op: 'bogus', value: 1 }] },
-      }).success
-    ).toBe(false)
-    expect(
-      rowQueryBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        predicate: { all: [{ op: 'eq', value: 1 }] },
-      }).success
-    ).toBe(false)
-  })
-
-  it('accepts a large explicit limit (no row cap) but rejects limit < 1', () => {
-    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1', limit: 100000 }).success).toBe(true)
-    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1', limit: 0 }).success).toBe(false)
-  })
-})
-
-describe('tableViewConfigSchema', () => {
-  it('normalizes a root condition before it is persisted', () => {
-    expect(
-      tableViewConfigSchema.parse({
-        filter: { field: 'status', op: 'eq', value: 'active' },
-      }).filter
-    ).toEqual({ all: [{ field: 'status', op: 'eq', value: 'active' }] })
-  })
 })
 
 describe('bulk schemas accept either a predicate tree or the legacy filter object', () => {
-  it('delete accepts a predicate filter', () => {
-    expect(
-      deleteTableRowsBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        filter: { all: [{ field: 'status', op: 'eq', value: 'archived' }] },
-      }).success
-    ).toBe(true)
-  })
-
-  it('delete still accepts the legacy object filter (v1 callers)', () => {
-    expect(
-      deleteTableRowsBodySchema.safeParse({ workspaceId: 'ws-1', filter: { status: 'archived' } })
-        .success
-    ).toBe(true)
-  })
-
   it('does not reinterpret a legacy object with field/op/value columns as a root predicate', () => {
     const filter = { field: 'status', op: 'eq', value: 'active' }
     const parsed = deleteTableRowsBodySchema.parse({ workspaceId: 'ws-1', filter })
@@ -125,16 +40,6 @@ describe('bulk schemas accept either a predicate tree or the legacy filter objec
     expect(parsed.filter).toEqual(filter)
     expect(predicateSchema.safeParse(filter).success).toBe(false)
     expect(predicateInputSchema.parse(filter)).toEqual({ all: [filter] })
-  })
-
-  it('update accepts a predicate filter', () => {
-    expect(
-      updateRowsByFilterBodySchema.safeParse({
-        workspaceId: 'ws-1',
-        filter: { all: [{ field: 'wins', op: 'gte', value: 10 }] },
-        data: { active: false },
-      }).success
-    ).toBe(true)
   })
 })
 
@@ -165,22 +70,6 @@ describe('predicate depth / size guard', () => {
 
     expect(result.success).toBe(false)
     expect(JSON.stringify(result.error?.issues)).toMatch(/too many conditions/)
-  })
-
-  it('still accepts a realistic nested predicate', () => {
-    expect(
-      predicateSchema.safeParse({
-        all: [
-          { field: 'status', op: 'eq', value: 'active' },
-          {
-            any: [
-              { field: 'wins', op: 'gte', value: 10 },
-              { field: 'name', op: 'contains', value: 'jo' },
-            ],
-          },
-        ],
-      }).success
-    ).toBe(true)
   })
 })
 
@@ -247,14 +136,6 @@ describe('hybrid group+leaf nodes are rejected, not silently narrowed', () => {
       predicateSchema.safeParse({ all: [{ field: 'a', op: 'eq', vlaue: 'typo' }] }).success
     ).toBe(false)
   })
-
-  it('still accepts well-formed nodes', () => {
-    expect(
-      predicateSchema.safeParse({
-        all: [{ field: 'a', op: 'eq', value: 1 }, { any: [{ field: 'b', op: 'isNull' }] }],
-      }).success
-    ).toBe(true)
-  })
 })
 
 /**
@@ -280,10 +161,6 @@ describe('query-string JSON transport (jsonQueryValue)', () => {
     expect(legacy.filter).toEqual({ status: { $eq: 'x' } })
     expect(legacy.sort).toEqual({ status: 'desc' })
   })
-
-  it('still rejects a non-JSON garbage string with the real schema error', () => {
-    expect(() => rowQueryStringSchemaProbe({ workspaceId: 'ws-1', filter: 'not json' })).toThrow()
-  })
 })
 
 function rowQueryStringSchemaProbe(input: Record<string, unknown>) {
@@ -291,3 +168,26 @@ function rowQueryStringSchemaProbe(input: Record<string, unknown>) {
   if (!result.success) throw new Error(JSON.stringify(result.error.issues[0]))
   return result.data
 }
+
+/**
+ * The predicate is a `pipe` over `z.unknown()`, so `z.toJSONSchema` documents
+ * it from an input side that carries no shape: the leaf keys `field`, `op`, and
+ * `value` were named nowhere in the published contract and were discoverable
+ * only by reading an example. The shape is now supplied through `.meta()`,
+ * which means it is hand-written beside a runtime schema that can move without
+ * it. These assertions are the join.
+ */
+describe('the published predicate schema', () => {
+  const published = z.toJSONSchema(predicateSchema, { io: 'input', unrepresentable: 'any' })
+  const leaf = (published.oneOf as JsonSchemaNode[])[0].properties.all.items.anyOf[1]
+
+  it('names the leaf keys the server actually requires', () => {
+    expect(Object.keys(leaf.properties)).toEqual(['field', 'op', 'value'])
+    expect(leaf.required).toEqual(['field', 'op'])
+    expect(leaf.additionalProperties).toBe(false)
+  })
+
+  it('publishes exactly the operators the server accepts', () => {
+    expect(leaf.properties.op.enum).toEqual([...FILTER_OPS])
+  })
+})

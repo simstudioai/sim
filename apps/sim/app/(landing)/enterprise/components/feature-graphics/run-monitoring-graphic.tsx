@@ -55,11 +55,7 @@ function fieldValue(field: LogField) {
       <span className='font-mono text-[var(--text-secondary)] text-caption'>{field.value}</span>
     )
   }
-  return (
-    <span className='truncate font-medium text-[var(--text-primary)] text-caption'>
-      {field.value}
-    </span>
-  )
+  return <span className='truncate text-[var(--text-primary)] text-caption'>{field.value}</span>
 }
 
 /**
@@ -74,7 +70,7 @@ function fieldValue(field: LogField) {
  * output" section
  * lifts its two-line JSON fragment onto the tile's highlight: a white
  * card in the audit tile's exact chrome (`--white` fill, 1px `--border-1`
- * hairline, rounded, `shadow-sm`), the run's payload presented as the
+ * hairline, rounded, `shadow-xs`), the run's payload presented as the
  * artifact worth watching.
  *
  * The only motion is the soft ring pulse on the live dot (from
@@ -125,9 +121,7 @@ export function RunMonitoringGraphic({
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-1.5 flex items-center justify-between gap-2'>
-            <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
-              {title}
-            </span>
+            <span className='min-w-0 truncate text-[var(--text-primary)] text-base'>{title}</span>
             <span className='flex shrink-0 items-center gap-1.5'>
               <span
                 className={cn('size-2 rounded-full bg-[var(--text-primary)]', styles.livePulse)}
@@ -151,7 +145,7 @@ export function RunMonitoringGraphic({
 
           <div className='mt-2'>
             <span className='block text-[var(--text-muted)] text-caption'>{outputLabel}</span>
-            <div className='mt-1.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 font-mono text-caption leading-[1.6] shadow-sm'>
+            <div className='mt-1.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 font-mono text-caption leading-[1.6] shadow-xs dark:bg-[var(--surface-4)]'>
               <div className='truncate whitespace-pre'>
                 <span className='text-[var(--text-muted)]'>{`{ "${outputPairs[0].key}": `}</span>
                 <span className='text-[var(--text-secondary)]'>{outputPairs[0].value}</span>

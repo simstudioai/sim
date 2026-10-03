@@ -1,6 +1,9 @@
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
-import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-page/types'
+import type {
+  SolutionsPageConfig,
+  SolutionsProductPageConfig,
+} from '@/app/(landing)/components/solutions-page/types'
 
 /**
  * JSON-LD for a solutions page - a `WebPage` (about a `WebApplication`) plus a
@@ -18,14 +21,18 @@ import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-p
  */
 
 interface SolutionsStructuredDataProps {
-  config: SolutionsPageConfig
+  config: SolutionsPageConfig | SolutionsProductPageConfig
 }
 
 export function SolutionsStructuredData({ config }: SolutionsStructuredDataProps) {
-  const { module, path, seoDescription, offersFreeTier = true, hero, rows } = config
+  const { module, path, seoDescription, offersFreeTier = true, hero } = config
   const url = `${SITE_URL}${path}`
   const featureList = Array.from(
-    new Set(rows.flatMap((row) => row.cards.map((card) => card.title)))
+    new Set(
+      'features' in config
+        ? config.features.map((feature) => feature.title)
+        : config.rows.flatMap((row) => row.cards.map((card) => card.title))
+    )
   )
 
   const jsonLd = {

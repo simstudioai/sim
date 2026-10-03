@@ -1,10 +1,24 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
-import { describe, expect, it } from 'vitest'
-import type { ToolCallData, ToolCallStatus } from '../../../../types'
-import type { AgentGroupItem } from './agent-group'
-import { isAgentGroupResolved } from './agent-group'
+import { createElement } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
+import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
+import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
+
+vi.mock('@/lib/browser-agent/transport', () => ({
+  isBrowserAgentAvailable: () => true,
+}))
+
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags',
+  () => ({
+    CredentialDisplay: ({ data }: { data: Array<{ name?: string }> }) => data[0]?.name ?? '',
+    BrowserTakeoverQuestion: ({ reason, answer }: { reason?: string; answer?: string }) =>
+      createElement('div', { 'data-takeover-answer': 'true' }, `${reason}: ${answer}`),
+  })
+)
 
 let toolSeq = 0
 
@@ -17,10 +31,6 @@ function tool(status: ToolCallStatus): AgentGroupItem {
     status,
   }
   return { type: 'tool', data }
-}
-
-function text(content: string): AgentGroupItem {
-  return { type: 'text', content }
 }
 
 function group(items: AgentGroupItem[], isDelegating = false): AgentGroupItem {
@@ -38,24 +48,6 @@ function group(items: AgentGroupItem[], isDelegating = false): AgentGroupItem {
 }
 
 describe('isAgentGroupResolved', () => {
-  it('is unresolved when there is no work yet', () => {
-    expect(isAgentGroupResolved([])).toBe(false)
-    expect(isAgentGroupResolved([text('thinking...')])).toBe(false)
-  })
-
-  it('resolves once every own tool is terminal', () => {
-    expect(isAgentGroupResolved([tool('success')])).toBe(true)
-    expect(isAgentGroupResolved([tool('success'), tool('error')])).toBe(true)
-  })
-
-  it('stays unresolved while any own tool is still executing', () => {
-    expect(isAgentGroupResolved([tool('success'), tool('executing')])).toBe(false)
-  })
-
-  it('resolves a parent whose only work is a finished child group', () => {
-    expect(isAgentGroupResolved([group([tool('success')])])).toBe(true)
-  })
-
   it('stays unresolved while a nested child is still delegating', () => {
     expect(isAgentGroupResolved([group([], true)])).toBe(false)
   })

@@ -19,7 +19,7 @@ export const notionConnectorMeta: ConnectorMeta = {
       options: [
         { label: 'Entire workspace', id: 'workspace' },
         { label: 'Specific database', id: 'database' },
-        { label: 'Specific page (and children)', id: 'page' },
+        { label: 'Specific page (and direct child pages)', id: 'page' },
       ],
     },
     {

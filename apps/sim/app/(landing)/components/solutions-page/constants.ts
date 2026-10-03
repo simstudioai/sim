@@ -21,7 +21,7 @@ import {
 export const SOLUTIONS_SPACING = {
   /**
    * The one horizontal gutter, owned solely by `SolutionsPage`. Matches the
-   * navbar and landing hero exactly (`px-20 max-lg:px-8 max-sm:px-5`) so
+   * navbar and landing hero exactly (`px-10 max-md:px-7 max-lg:px-8 max-xl:px-9`) so
    * solutions content starts on the wordmark's vertical line at every
    * breakpoint. Sections and cards never set their own gutter.
    */
@@ -74,7 +74,7 @@ export const SOLUTIONS_TEXT_MEASURE = {
  * Reserved fixed dimensions for the component-owned visual frames. A dropped-in
  * `ReactNode` renders into a frame of exactly these dimensions, so it can never
  * shift surrounding layout (CLS = 0) nor change its own frame padding. The node
- * fills `h-full w-full` inside; it owns nothing about the frame.
+ * fills `size-full` inside; it owns nothing about the frame.
  */
 export const SOLUTIONS_VISUAL = {
   /** Full-width hero visual aspect ratio - reserves height before paint. */
@@ -105,7 +105,7 @@ export const SOLUTIONS_VISUAL = {
   featureTileContainer: '[container-type:inline-size]',
   featureTileScale: '[--tile-scale:min(1,tan(atan2(100cqw,352px)))]',
   featureTileCanvas:
-    'h-[calc(100%/var(--tile-scale,1))] w-[calc(100%/var(--tile-scale,1))] origin-top-left [scale:var(--tile-scale,1)]',
+    'size-[calc(100%/var(--tile-scale,1))] origin-top-left [scale:var(--tile-scale,1)]',
   /**
    * Feature-tile minimum height - the `440px` design-space height, multiplied
    * by the tile's current scale so height tracks the zoomed content. The
@@ -124,7 +124,7 @@ export const SOLUTIONS_FEATURE_TILE_TONE = {
   light: {
     surface: 'bg-[var(--surface-3)]',
     title: 'text-[var(--text-primary)]',
-    description: 'text-[var(--text-muted)]',
+    description: 'text-[var(--text-secondary)]',
   },
   dark: {
     surface: 'bg-[var(--text-secondary)]',

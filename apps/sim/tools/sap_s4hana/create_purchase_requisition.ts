@@ -1,15 +1,10 @@
-import type { CreatePurchaseRequisitionParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  parseJsonInput,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { CreatePurchaseRequisitionParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildSapOperationBaseInput, parseJsonInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createPurchaseRequisitionTool: ToolConfig<
+export const createPurchaseRequisitionTool: InternalToolConfig<
   CreatePurchaseRequisitionParams,
-  SapProxyResponse
+  SapS4HanaResponse
 > = {
   id: 'sap_s4hana_create_purchase_requisition',
   name: 'SAP S/4HANA Create Purchase Requisition',
@@ -99,11 +94,8 @@ export const createPurchaseRequisitionTool: ToolConfig<
         'Additional A_PurchaseRequisitionHeader fields merged into the create payload (e.g., {"PurReqnDescription":"Office supplies"})',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const items = parseJsonInput<Array<Record<string, unknown>>>(params.items, 'items')
       if (!Array.isArray(items) || items.length === 0) {
         throw new Error('items must be a non-empty JSON array of purchase requisition items')
@@ -115,7 +107,7 @@ export const createPurchaseRequisitionTool: ToolConfig<
         to_PurchaseReqnItem: items,
       }
       return {
-        ...baseProxyBody(params),
+        ...buildSapOperationBaseInput(params),
         service: 'API_PURCHASEREQ_PROCESS_SRV',
         path: '/A_PurchaseRequisitionHeader',
         method: 'POST',
@@ -124,7 +116,6 @@ export const createPurchaseRequisitionTool: ToolConfig<
       }
     },
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

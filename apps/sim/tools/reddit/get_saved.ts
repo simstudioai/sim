@@ -1,4 +1,5 @@
 import { validatePathSegment } from '@/lib/core/security/input-validation'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import {
   COMMENT_LISTING_OUTPUT_PROPERTIES,
   POST_LISTING_OUTPUT_PROPERTIES,
@@ -127,7 +128,7 @@ export const getSavedTool: ToolConfig<GetSavedParams, GetSavedResponse> = {
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         Accept: 'application/json',
       }
     },

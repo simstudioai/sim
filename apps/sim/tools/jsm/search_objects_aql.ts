@@ -1,7 +1,7 @@
 import type { JsmSearchObjectsAqlParams, JsmSearchObjectsAqlResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmSearchObjectsAqlTool: ToolConfig<
+export const jsmSearchObjectsAqlTool: InternalToolConfig<
   JsmSearchObjectsAqlParams,
   JsmSearchObjectsAqlResponse
 > = {
@@ -79,11 +79,8 @@ export const jsmSearchObjectsAqlTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/assets/search',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

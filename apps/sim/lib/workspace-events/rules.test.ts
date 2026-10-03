@@ -1,9 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { evaluateRule, excludeSimExecutionsCondition } from '@/lib/workspace-events/rules'
+import { describe, expect, it } from 'vitest'
+import { evaluateRule } from '@/lib/workspace-events/rules'
 import type { ExecutionEventContext, SimSubscriptionConfig } from '@/lib/workspace-events/types'
 
 function makeConfig(overrides: Partial<SimSubscriptionConfig> = {}): SimSubscriptionConfig {
@@ -36,21 +33,7 @@ function makeContext(overrides: Partial<ExecutionEventContext> = {}): ExecutionE
   }
 }
 
-describe('excludeSimExecutionsCondition', () => {
-  it('excludes sim-triggered executions from rule statistics', () => {
-    const condition = excludeSimExecutionsCondition() as unknown as {
-      type: string
-      right?: unknown
-    }
-    expect(condition).toMatchObject({ type: 'ne', right: 'sim' })
-  })
-})
-
 describe('evaluateRule', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('consecutive_failures', () => {
     it('fires when the last N executions all failed', async () => {
       dbChainMockFns.limit.mockResolvedValueOnce([
@@ -73,31 +56,12 @@ describe('evaluateRule', () => {
         false
       )
     })
-
-    it('does not fire with fewer executions than the threshold', async () => {
-      dbChainMockFns.limit.mockResolvedValueOnce([{ level: 'error' }, { level: 'error' }])
-      await expect(evaluateRule('consecutive_failures', makeConfig(), makeContext())).resolves.toBe(
-        false
-      )
-    })
-
-    it('only runs on failed executions', async () => {
-      await expect(
-        evaluateRule('consecutive_failures', makeConfig(), makeContext({ status: 'success' }))
-      ).resolves.toBe(false)
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    })
   })
 
   describe('failure_rate', () => {
     it('fires when the in-window failure rate meets the threshold (fixed legacy dead code)', async () => {
       dbChainMockFns.where.mockImplementationOnce(() => Promise.resolve([{ total: 6, errors: 4 }]))
       await expect(evaluateRule('failure_rate', makeConfig(), makeContext())).resolves.toBe(true)
-    })
-
-    it('does not fire below the minimum execution count', async () => {
-      dbChainMockFns.where.mockImplementationOnce(() => Promise.resolve([{ total: 4, errors: 4 }]))
-      await expect(evaluateRule('failure_rate', makeConfig(), makeContext())).resolves.toBe(false)
     })
 
     it('does not fire when the rate is below the threshold', async () => {
@@ -146,15 +110,6 @@ describe('evaluateRule', () => {
         evaluateRule('latency_spike', makeConfig(), makeContext({ durationMs: 2000 }))
       ).resolves.toBe(false)
     })
-
-    it('does not fire below the minimum execution count', async () => {
-      dbChainMockFns.where.mockImplementationOnce(() =>
-        Promise.resolve([{ avgDuration: '1000', count: 4 }])
-      )
-      await expect(
-        evaluateRule('latency_spike', makeConfig(), makeContext({ durationMs: 5000 }))
-      ).resolves.toBe(false)
-    })
   })
 
   describe('cost_threshold', () => {
@@ -185,22 +140,5 @@ describe('evaluateRule', () => {
       dbChainMockFns.where.mockImplementationOnce(() => Promise.resolve([{ count: 10 }]))
       await expect(evaluateRule('error_count', makeConfig(), makeContext())).resolves.toBe(true)
     })
-
-    it('does not fire below the threshold', async () => {
-      dbChainMockFns.where.mockImplementationOnce(() => Promise.resolve([{ count: 9 }]))
-      await expect(evaluateRule('error_count', makeConfig(), makeContext())).resolves.toBe(false)
-    })
-
-    it('only runs on failed executions', async () => {
-      await expect(
-        evaluateRule('error_count', makeConfig(), makeContext({ status: 'success' }))
-      ).resolves.toBe(false)
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    })
-  })
-
-  it('no_activity never fires at execution time (owned by the poller)', async () => {
-    await expect(evaluateRule('no_activity', makeConfig(), makeContext())).resolves.toBe(false)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

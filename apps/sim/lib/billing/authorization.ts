@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
+import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getOrganizationCoverageForMember } from '@/lib/billing/core/subscription'
@@ -12,6 +14,44 @@ import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('BillingAuthorization')
+
+/**
+ * Prevent a billing reference from starting a second Stripe Checkout while a
+ * previously completed Checkout still has a payment in flight.
+ *
+ * Better Auth intentionally reuses an unbound `incomplete` placeholder when a
+ * customer retries an abandoned Checkout. Once Stripe has bound that row to a
+ * subscription, however, reusing it would create another Stripe subscription
+ * and make later webhooks race to own the same local row.
+ */
+async function assertNoBoundIncompleteSubscription(referenceId: string): Promise<void> {
+  const [pendingSubscription] = await db
+    .select({
+      id: subscription.id,
+      stripeSubscriptionId: subscription.stripeSubscriptionId,
+    })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.referenceId, referenceId),
+        eq(subscription.status, 'incomplete'),
+        isNotNull(subscription.stripeSubscriptionId)
+      )
+    )
+    .limit(1)
+
+  if (!pendingSubscription) return
+
+  logger.warn('Blocking checkout - Stripe subscription payment is still pending', {
+    referenceId,
+    subscriptionId: pendingSubscription.id,
+    stripeSubscriptionId: pendingSubscription.stripeSubscriptionId,
+  })
+  throw new APIError('CONFLICT', {
+    message:
+      'Your subscription payment is still processing. Wait for it to finish before starting another checkout. If this takes longer than expected, contact support.',
+  })
+}
 
 /**
  * Classify a `/subscription/upgrade` request as a personal checkout using
@@ -39,11 +79,9 @@ export function isPersonalCheckoutRequest(
 /**
  * Guard for personal (user-referenced) checkouts on `/subscription/upgrade`.
  *
- * A member of an organization with an entitled paid subscription is already
- * covered by that org — their usage pools to it and personal Pro
- * subscriptions are paused on join — so a personal checkout would bill the
- * same human twice. Throws {@link APIError} with a user-facing message; the
- * checkout UI surfaces it as-is.
+ * Blocks both a bound, incomplete Stripe subscription and a member already
+ * covered by an entitled organization subscription. Throws {@link APIError}
+ * with a user-facing message; the checkout UI surfaces it as-is.
  *
  * Called from the Better Auth `hooks.before` middleware, NOT from
  * `authorizeReference`: the Stripe plugin skips `authorizeReference`
@@ -54,6 +92,8 @@ export function isPersonalCheckoutRequest(
  * rejected rather than risking a duplicate subscription.
  */
 export async function assertPersonalCheckoutAllowed(userId: string): Promise<void> {
+  await assertNoBoundIncompleteSubscription(userId)
+
   const coverage = await getOrganizationCoverageForMember(userId)
 
   if (coverage.status === 'covered') {
@@ -90,6 +130,8 @@ export async function assertPersonalCheckoutAllowed(userId: string): Promise<voi
  * reason instead of a generic "Unauthorized":
  * - Organizations can only check out Team or Enterprise plans — a `pro_*`
  *   plan can never become org-referenced.
+ * - A bound, incomplete Stripe subscription must finish before another
+ *   checkout can start.
  * - Organizations cannot start a checkout while they already have an
  *   active subscription (prevents duplicates).
  * - Checkout is deferred while an Enterprise issuance is unresolved.
@@ -113,6 +155,10 @@ export async function authorizeSubscriptionReference(
     throw new APIError('FORBIDDEN', {
       message: 'Organizations can only subscribe to Team or Enterprise plans.',
     })
+  }
+
+  if (action === 'upgrade-subscription') {
+    await assertNoBoundIncompleteSubscription(referenceId)
   }
 
   if (action === 'upgrade-subscription' && (await hasPaidSubscription(referenceId))) {

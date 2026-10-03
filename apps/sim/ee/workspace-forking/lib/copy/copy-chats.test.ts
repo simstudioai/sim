@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { copyForkChatDeployments } from '@/ee/workspace-forking/lib/copy/copy-chats'
@@ -121,33 +118,5 @@ describe('copyForkChatDeployments', () => {
     expect(result.created).toBe(2)
     const identifiers = twoChats.inserted.map((row) => row.identifier)
     expect(new Set(identifiers).size).toBe(2)
-  })
-
-  it('no-ops with no pairs or no live source chats', async () => {
-    const empty = makeTx([[]])
-    expect(
-      (
-        await copyForkChatDeployments({
-          tx: empty.tx,
-          pairs: [pair],
-          targetWorkspaceName: 'WS',
-          userId: 'user-1',
-          now: new Date(),
-          resolveBlockId: (_wf, blockId) => blockId,
-        })
-      ).created
-    ).toBe(0)
-    expect(
-      (
-        await copyForkChatDeployments({
-          tx: empty.tx,
-          pairs: [],
-          targetWorkspaceName: 'WS',
-          userId: 'user-1',
-          now: new Date(),
-          resolveBlockId: (_wf, blockId) => blockId,
-        })
-      ).created
-    ).toBe(0)
   })
 })

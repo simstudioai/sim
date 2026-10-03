@@ -8,7 +8,7 @@ import {
   splitMultiSelectInput,
 } from '@/lib/table/select-options'
 import { selectValueToNames } from '@/lib/table/select-values'
-import type { JsonValue } from '@/lib/table/types'
+import type { FilterOp, JsonValue } from '@/lib/table/types'
 
 /**
  * Operators that make sense on a `select` column (whose values are opaque option
@@ -31,6 +31,37 @@ export const MULTI_SELECT_OPERATORS: ReadonlySet<string> = new Set([
   '$empty',
 ])
 
+/**
+ * The same allowlists in the v2 bare-operator grammar, applied inside
+ * `fieldPredicate` so both wire formats gate identically. Not derived from the
+ * `$` sets above by string surgery because the mapping is not 1:1 — `$empty`
+ * splits into `isEmpty`/`isNotEmpty`. `isNull`/`isNotNull` have no `$`
+ * equivalent and are allowed on both: a strict null check is meaningful on any
+ * column, select included.
+ *
+ * Exported so LLM enrichment can DERIVE the operator guidance it gives the
+ * model rather than restating it. A hand-copied list drifts, and the cost of
+ * drift here is a predicate the validator rejects at run time.
+ */
+export const SINGLE_SELECT_OPS: ReadonlySet<FilterOp> = new Set<FilterOp>([
+  'eq',
+  'ne',
+  'in',
+  'nin',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
+export const MULTI_SELECT_OPS: ReadonlySet<FilterOp> = new Set<FilterOp>([
+  'contains',
+  'ncontains',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
+
 export const selectColumnType: ColumnTypeDefinition = {
   id: 'select',
   label: 'Select',
@@ -50,9 +81,32 @@ export const selectColumnType: ColumnTypeDefinition = {
   },
 
   coerce(value, column) {
+    if (column.multiple) {
+      // `resolveSelectCellValue` DROPS parts that match no option, which is
+      // right for a display read of a cell whose option was since deleted, but
+      // is a silent discard on a write: `["green"]` would resolve to `[]` and
+      // store an empty cell for a value the caller asked to keep. A write only
+      // coerces when every part it named resolves — the same rule the single
+      // branch has always had, and the same rule `isCompatibleWith` uses for
+      // the bulk conversion.
+      const options = column.options ?? []
+      const parts = splitMultiSelectInput(value)
+      if (parts.some((part) => resolveSelectOptionId(part, options) === null)) return { ok: false }
+    }
     const resolved = resolveSelectCellValue(value, column)
-    // A multi target always resolves (to `[]` at worst); a single target that
-    // matches no option has nothing safe to store.
+    // A single target that matches no option has nothing safe to store.
+    return resolved === null ? { ok: false } : { ok: true, value: resolved }
+  },
+
+  salvage(value, column) {
+    // Where the write cannot fail, a multi cell keeps the members that DO
+    // resolve rather than being blanked: `Alpha, opt_b, ghost` from a CSV or a
+    // block output stores `[opt_a, opt_b]`, which is what it stored before the
+    // write path started refusing partial matches. Dropping one unmatched name
+    // is a smaller loss than erasing the two that matched. A single cell holds
+    // one option and has nothing partial to keep, so it stays blanked.
+    if (!column.multiple) return { ok: false }
+    const resolved = resolveSelectCellValue(value, column)
     return resolved === null ? { ok: false } : { ok: true, value: resolved }
   },
 

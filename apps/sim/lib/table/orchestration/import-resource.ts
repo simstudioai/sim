@@ -4,6 +4,7 @@ import { tableJobs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import {
   type V2CreateTableImportBody,
@@ -22,11 +23,18 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
-import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
+import {
+  CSV_DURABLE_MAX_FILE_SIZE_BYTES,
+  CSV_DURABLE_MAX_FILE_SIZE_MESSAGE,
+  type CsvSkippedRecord,
+} from '@/lib/table/import'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
-import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
+import {
+  markTableJobRunningInWorkspace,
+  type TableImportRejectionSummary,
+} from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
-import { createTable, getTableById } from '@/lib/table/service'
+import { assertWorkspaceTableCapacity, createTable, getTableById } from '@/lib/table/service'
 import type { TableImportJobPayload } from '@/lib/table/types'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
@@ -55,6 +63,10 @@ export interface TableImportResource {
   tableId: string | null
   status: TableImportStatus
   rowsProcessed: number
+  /** See {@link TableImportRejectionSummary}. Zeroed for an import that lost nothing. */
+  rowsRejected: number
+  cellsRejected: number
+  rejectedSamples: CsvSkippedRecord[]
   error: string | null
   createdAt: Date
   updatedAt: Date
@@ -85,8 +97,8 @@ async function createTableImportResourceCore(
 
   if (body.source.type === 'upload') {
     assertCsvFileName(body.source.name)
-    if (body.source.size > CSV_MAX_FILE_SIZE_BYTES) {
-      throw new OrchestrationError('validation', CSV_MAX_FILE_SIZE_MESSAGE)
+    if (body.source.size > CSV_DURABLE_MAX_FILE_SIZE_BYTES) {
+      throw new OrchestrationError('validation', CSV_DURABLE_MAX_FILE_SIZE_MESSAGE)
     }
     const upload = await createUploadSession({
       id: importId,
@@ -180,6 +192,15 @@ export async function getPrincipalTableImportUpload(params: {
   return upload
 }
 
+/**
+ * The import resource an in-flight upload session stands for, without touching
+ * it. Callers that also mutate the session (abort, complete) build their
+ * resource from the post-mutation record instead.
+ */
+export function tableImportResourceFromUpload(upload: UploadSessionRecord): TableImportResource {
+  return resourceFromUpload(upload, tableImportBodyFromUpload(upload))
+}
+
 export async function abortAuthorizedTableImportUpload(
   upload: UploadSessionRecord,
   principal: Principal
@@ -198,6 +219,17 @@ export async function getTableImportResource(params: {
   return record
 }
 
+/**
+ * The `table_jobs` row for an import id, or `null` when there is no import
+ * resource behind that id.
+ *
+ * `type = 'import'` is NOT sufficient to make a job one of these resources: the
+ * first-party CSV paths write import jobs with a null payload, and a job may
+ * carry a lifecycle status this resource has no public state for. Neither is a
+ * server fault — the id simply does not name a readable import — so both read
+ * back as `null` and surface as the 404 they are, rather than throwing an
+ * unclassified error that the v2 error policy can only render as a 500.
+ */
 export async function findTableImportResource(params: {
   importId: string
   assertedWorkspaceId?: string
@@ -217,16 +249,20 @@ export async function findTableImportResource(params: {
     .limit(1)
   if (!job) return null
   const payload = parseImportJobPayload(job.payload)
+  if (!payload) return null
+  const status = tableImportStatus(job.status)
+  if (!status) return null
   return {
     id: job.id,
     workspaceId: job.workspaceId,
     userId: payload.userId,
-    source: v2TableImportSourceSchema.parse(payload.source),
-    target: v2TableImportTargetSchema.parse(payload.target),
+    source: payload.source,
+    target: payload.target,
     options: payload.options,
     tableId: job.tableId,
-    status: tableImportStatus(job.status),
+    status,
     rowsProcessed: job.rowsProcessed,
+    ...parseRejectionSummary(job.payload),
     error: job.error,
     createdAt: job.startedAt,
     updatedAt: job.updatedAt,
@@ -281,6 +317,9 @@ export function toV2TableImport(record: TableImportResource): V2TableImport {
     target: record.target,
     tableId: record.tableId,
     rowsProcessed: record.rowsProcessed,
+    rowsRejected: record.rowsRejected,
+    cellsRejected: record.cellsRejected,
+    rejectedSamples: record.rejectedSamples,
     error: record.error,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
@@ -440,6 +479,9 @@ function resourceFromUpload(
     tableId: body.target.type === 'existing' ? body.target.tableId : null,
     status: uploadStatus(upload),
     rowsProcessed: 0,
+    rowsRejected: 0,
+    cellsRejected: 0,
+    rejectedSamples: [],
     error: null,
     createdAt: upload.createdAt,
     updatedAt: upload.updatedAt,
@@ -466,10 +508,70 @@ function importOptions(body: V2CreateTableImportBody): TableImportJobPayload['op
   }
 }
 
-function parseImportJobPayload(payload: unknown): TableImportJobPayload {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    throw new Error('Table import job is missing its payload')
+interface ParsedTableImportPayload {
+  userId: string
+  source: V2TableImportSource
+  target: V2TableImportTarget
+  options: TableImportJobPayload['options']
+}
+
+/**
+ * Reads the rejection summary the import runner merges into `table_jobs.payload`.
+ *
+ * Every field is defensive: the payload is schemaless jsonb, and jobs that ran before
+ * rejection accounting existed simply carry none — those read back as a clean import,
+ * which is what they were as far as anything can now tell.
+ */
+function parseRejectionSummary(payload: unknown): TableImportRejectionSummary {
+  const empty: TableImportRejectionSummary = {
+    rowsRejected: 0,
+    cellsRejected: 0,
+    rejectedSamples: [],
   }
+  if (!isRecordLike(payload)) return empty
+  const candidate = payload as Partial<TableImportRejectionSummary>
+  const samples = Array.isArray(candidate.rejectedSamples) ? candidate.rejectedSamples : []
+  return {
+    rowsRejected: parseRejectionCount(candidate.rowsRejected),
+    cellsRejected: parseRejectionCount(candidate.cellsRejected),
+    rejectedSamples: samples
+      .map(parseRejectedSample)
+      .filter((sample): sample is CsvSkippedRecord => sample !== null),
+  }
+}
+
+/**
+ * Narrows one persisted rejection sample to exactly the fields the strict response schema
+ * accepts, or `null` when it cannot be read as one.
+ *
+ * The array is read straight out of schemaless jsonb, so an element written by a different
+ * worker version — an extra key, a non-integer line, a missing message — would otherwise be
+ * handed unchanged to a `.strict()` schema and turn a read of the import into a 500.
+ */
+function parseRejectedSample(value: unknown): CsvSkippedRecord | null {
+  if (!isRecordLike(value)) return null
+  const candidate = value as Partial<CsvSkippedRecord>
+  if (typeof candidate.code !== 'string' || typeof candidate.message !== 'string') return null
+  const line =
+    typeof candidate.line === 'number' && Number.isInteger(candidate.line) && candidate.line >= 0
+      ? candidate.line
+      : null
+  return { code: candidate.code, line, message: candidate.message }
+}
+
+/** Reads a persisted count the response schema declares as a non-negative integer. */
+function parseRejectionCount(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0
+}
+
+/**
+ * Reads a `table_jobs.payload` as an import-resource payload, or `null` when it
+ * is not one. A null payload is the normal shape for the first-party CSV import
+ * paths, which write `type = 'import'` jobs without one, so failing to parse is
+ * an ordinary "not this resource" answer rather than an error condition.
+ */
+function parseImportJobPayload(payload: unknown): ParsedTableImportPayload | null {
+  if (!isRecordLike(payload)) return null
   const candidate = payload as Partial<TableImportJobPayload>
   if (
     candidate.kind !== 'table_import' ||
@@ -477,13 +579,30 @@ function parseImportJobPayload(payload: unknown): TableImportJobPayload {
     !candidate.options ||
     typeof candidate.options !== 'object'
   ) {
-    throw new Error('Table import job has an invalid payload')
+    return null
   }
-  v2TableImportSourceSchema.parse(candidate.source)
-  v2TableImportTargetSchema.parse(candidate.target)
-  return candidate as TableImportJobPayload
+  const source = v2TableImportSourceSchema.safeParse(candidate.source)
+  const target = v2TableImportTargetSchema.safeParse(candidate.target)
+  if (!source.success || !target.success) return null
+  return {
+    userId: candidate.userId,
+    source: source.data,
+    target: target.data,
+    options: candidate.options,
+  }
 }
 
+/**
+ * Everything about a target that can be refused before the CSV moves.
+ *
+ * Runs at session creation AND again when the upload completes. The table
+ * ceiling in particular has to be checked in both places and for different
+ * reasons: at completion because the authoritative gate lives in `createTable`'s
+ * transaction and the quota can be reached while a large file uploads, and at
+ * creation because otherwise the only answer a full workspace ever gets is a 403
+ * after it has already transferred up to 5 GiB to a presigned URL — leaving an
+ * orphaned object behind for a table that was never creatable.
+ */
 async function validateTarget(
   workspaceId: string,
   target: V2TableImportTarget,
@@ -493,6 +612,8 @@ async function validateTarget(
     if (resolvedFolderId && !(await findActiveFolder(resolvedFolderId, workspaceId, 'table'))) {
       throw new OrchestrationError('not_found', 'Folder not found in this workspace')
     }
+    const { maxTables } = await getWorkspaceTableLimits(workspaceId)
+    await assertWorkspaceTableCapacity(workspaceId, maxTables)
     return
   }
   await requireExistingTarget(workspaceId, target)
@@ -523,8 +644,8 @@ async function requireWorkspaceSource(
   if (!resolved || resolved.id !== fileId || resolved.workspaceId !== workspaceId) {
     throw new OrchestrationError('not_found', 'Workspace file not found')
   }
-  if (resolved.size > CSV_MAX_FILE_SIZE_BYTES) {
-    throw new OrchestrationError('validation', CSV_MAX_FILE_SIZE_MESSAGE)
+  if (resolved.size > CSV_DURABLE_MAX_FILE_SIZE_BYTES) {
+    throw new OrchestrationError('validation', CSV_DURABLE_MAX_FILE_SIZE_MESSAGE)
   }
   return resolved
 }
@@ -579,9 +700,15 @@ function assertCsvFileName(fileName: string): void {
   }
 }
 
-function tableImportStatus(status: string): TableImportStatus {
+/**
+ * The public lifecycle state for a job status, or `null` when the job is in a
+ * state this resource cannot represent. `table_jobs.status` is an unconstrained
+ * text column shared by every job kind, so a value outside the four documented
+ * import states means "no readable import here" — a 404 — not a server fault.
+ */
+function tableImportStatus(status: string): TableImportStatus | null {
   if (status !== 'running' && status !== 'ready' && status !== 'failed' && status !== 'canceled') {
-    throw new Error(`Invalid table import job status: ${status}`)
+    return null
   }
   return status
 }

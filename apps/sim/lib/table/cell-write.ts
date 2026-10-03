@@ -12,9 +12,9 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getValueAtPath } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import { appendTableEvent } from '@/lib/table/events'
-import { pluckByPath } from '@/lib/table/pluck'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import { writeExecutionsPatch } from '@/lib/table/rows/executions'
 import {
@@ -24,12 +24,12 @@ import {
 import type {
   RowData,
   RowExecutionMetadata,
-  RowExecutions,
   TableDefinition,
   TableRowSecretProvenanceWrite,
   WorkflowGroup,
 } from '@/lib/table/types'
 import { coerceRowValues } from '@/lib/table/validation'
+import type { BlockCompletionCallbackData } from '@/executor/execution/types'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowCellWrite')
@@ -94,6 +94,12 @@ export async function writeWorkflowGroupState(
           executionsPatch,
           cancellationGuard,
           secretProvenance: payload.secretProvenance,
+          /**
+           * A cell result carries no acting person down to this layer — the
+           * write has no `actorUserId` either, so any cascade it fires is
+           * already actorless on both the meter and the gate.
+           */
+          capabilityGovernedUserId: null,
         },
         table,
         requestId,
@@ -136,11 +142,13 @@ export async function writeWorkflowGroupState(
   // ("Open"), which the grid resolves as an option id, finds nothing, and
   // renders as an empty cell until the next refetch. Coerce a copy: the patch
   // object itself is identity-compared for the progress writer's retry
-  // bookkeeping, so it must not be mutated.
+  // bookkeeping, so it must not be mutated. The `null` policy mirrors what
+  // `updateRow` persists for a computed write, so the snapshot the client sees
+  // and the row on disk agree about a block output its column cannot hold.
   const rawEventOutputs = payload.eventOutputs ?? dataPatch
   const hasOutputs = rawEventOutputs && Object.keys(rawEventOutputs).length > 0
   const eventOutputs = hasOutputs ? { ...rawEventOutputs } : rawEventOutputs
-  if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema)
+  if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema, 'null')
   const runningBlockIds = payload.executionState.runningBlockIds
   const blockErrors = payload.executionState.blockErrors
   void appendTableEvent({
@@ -177,7 +185,10 @@ interface CreateWorkflowCellProgressWriterOptions {
 
 export interface WorkflowCellProgressWriter {
   onBlockStart: (blockId: string) => Promise<void>
-  onBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete: (
+    blockId: string,
+    data: Pick<BlockCompletionCallbackData, 'output' | 'resolvedSecretTraceProvenance'>
+  ) => Promise<void>
   waitForPendingWrites: () => Promise<void>
   finish: () => Promise<void>
   getEventOutputs: () => RowData
@@ -277,19 +288,12 @@ export function createWorkflowCellProgressWriter(
     scheduleWrite(undefined)
   }
 
-  const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
+  const onBlockComplete: WorkflowCellProgressWriter['onBlockComplete'] = async (blockId, data) => {
     const work = completionChain.then(async () => {
       const outputs = outputsByBlockId.get(blockId)
       if (!outputs) return
 
-      const callbackData =
-        output && typeof output === 'object' && 'output' in output
-          ? (output as {
-              output: unknown
-              resolvedSecretTraceProvenance?: unknown
-            })
-          : undefined
-      const blockResult = callbackData ? callbackData.output : output
+      const blockResult = data.output
       const blockErrorMessage =
         blockResult &&
         typeof blockResult === 'object' &&
@@ -302,7 +306,7 @@ export function createWorkflowCellProgressWriter(
         blockErrors[blockId] = blockErrorMessage
       } else {
         for (const outputMapping of outputs) {
-          const value = pluckByPath(blockResult, outputMapping.path)
+          const value = getValueAtPath(blockResult, outputMapping.path)
           if (value === undefined) continue
           changedData[outputMapping.columnName] = value as RowData[string]
           eventOutputs[outputMapping.columnName] = value as RowData[string]
@@ -311,7 +315,7 @@ export function createWorkflowCellProgressWriter(
         if (Object.keys(changedData).length > 0) {
           const provenance = await createTableRowSecretProvenanceFromEncryptedExecution(
             changedData,
-            callbackData?.resolvedSecretTraceProvenance
+            data.resolvedSecretTraceProvenance
           )
           for (const columnId of Object.keys(changedData)) {
             pendingSecretProvenance[columnId] = provenance.complete
@@ -408,11 +412,4 @@ export function buildOutputsByBlockId(
     map.set(out.blockId, list)
   }
   return map
-}
-
-/** Type-narrowing helper used by readers that can't assume `executions` is set. */
-export function readExecutions(
-  row: { executions?: RowExecutions } | null | undefined
-): RowExecutions {
-  return row?.executions ?? {}
 }

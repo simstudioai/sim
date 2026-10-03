@@ -7,7 +7,6 @@ import {
   DropdownMenuSubTrigger,
 } from '@sim/emcn'
 import { Folder } from '@sim/emcn/icons'
-import type { WorkflowFolder } from '@/stores/folders/types'
 
 export interface MoveOptionNode {
   value: string
@@ -26,8 +25,16 @@ export function parseMoveOptionValue(optionValue: string): string | null {
   return optionValue === ROOT_MOVE_OPTION_VALUE ? null : optionValue
 }
 
+/** The folder fields the move-option builders actually read, so any folder tree can use them. */
+export interface MoveOptionFolder {
+  id: string
+  name: string
+  parentId: string | null
+  sortOrder: number
+}
+
 export interface BuildMoveOptionsParams {
-  folders: WorkflowFolder[]
+  folders: readonly MoveOptionFolder[]
   rootLabel: string
   /**
    * Folder ids that must not appear as destinations — the folder being moved and every
@@ -53,7 +60,7 @@ export function buildMoveOptions({
   rootLabel,
   excludedFolderIds,
 }: BuildMoveOptionsParams): MoveOptionNode[] {
-  const childrenByParent = new Map<string | null, WorkflowFolder[]>()
+  const childrenByParent = new Map<string | null, MoveOptionFolder[]>()
   for (const folder of folders) {
     if (excludedFolderIds?.has(folder.id)) continue
     const parentId = folder.parentId ?? null
@@ -80,7 +87,9 @@ export function buildMoveOptions({
  * candidate instead of re-walking the tree. `seen` terminates a cycle, which the DB permits
  * between constraint checks.
  */
-export function buildDescendantIndex(folders: WorkflowFolder[]): Map<string, Set<string>> {
+export function buildDescendantIndex(
+  folders: readonly { id: string; parentId: string | null }[]
+): Map<string, Set<string>> {
   const childrenByParent = new Map<string, string[]>()
   for (const folder of folders) {
     if (!folder.parentId) continue
@@ -166,4 +175,39 @@ export function renderMoveOptions(
       {options.slice(1).map((option) => renderMoveOption(option, onMove))}
     </>
   )
+}
+
+/**
+ * Move destinations for a selection, with every selected folder and its subtree excluded — a
+ * folder cannot be filed into itself or anything beneath it.
+ *
+ * Shared because that exclusion is a correctness invariant, not a preference: hand-copying it
+ * per surface is how one list eventually offers a cyclic destination. Covers the single-folder
+ * case too — pass a one-element array.
+ *
+ * Expanding each selection to its descendants is deliberately belt-and-braces: {@link
+ * buildMoveOptions} descends from the root, so an excluded folder already takes its subtree out
+ * of the walk. The explicit expansion keeps the invariant true of the exclusion set itself, so
+ * it survives that walk ever being replaced by a flat render.
+ */
+export function buildMoveOptionsExcludingSubtrees({
+  folders,
+  rootLabel,
+  excludeFolderIds,
+  descendantsByFolderId,
+}: {
+  folders: readonly MoveOptionFolder[]
+  rootLabel: string
+  excludeFolderIds: readonly string[]
+  descendantsByFolderId: Map<string, Set<string>>
+}): MoveOptionNode[] {
+  if (excludeFolderIds.length === 0) return buildMoveOptions({ folders, rootLabel })
+
+  const excludedFolderIds = new Set<string>(excludeFolderIds)
+  for (const folderId of excludeFolderIds) {
+    for (const descendantId of descendantsByFolderId.get(folderId) ?? []) {
+      excludedFolderIds.add(descendantId)
+    }
+  }
+  return buildMoveOptions({ folders, rootLabel, excludedFolderIds })
 }

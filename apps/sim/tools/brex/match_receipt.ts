@@ -1,7 +1,10 @@
 import type { BrexMatchReceiptParams, BrexUploadReceiptResponse } from '@/tools/brex/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const brexMatchReceiptTool: ToolConfig<BrexMatchReceiptParams, BrexUploadReceiptResponse> = {
+export const brexMatchReceiptTool: InternalToolConfig<
+  BrexMatchReceiptParams,
+  BrexUploadReceiptResponse
+> = {
   id: 'brex_match_receipt',
   name: 'Brex Match Receipt',
   description: 'Upload a receipt file and let Brex automatically match it with existing expenses',
@@ -28,11 +31,12 @@ export const brexMatchReceiptTool: ToolConfig<BrexMatchReceiptParams, BrexUpload
     },
   },
 
-  request: {
-    url: '/api/tools/brex/upload-receipt',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ file: params.file, receiptName: params.receiptName }),
+    },
+    input: (params) => ({
       apiKey: params.apiKey,
       file: params.file,
       receiptName: params.receiptName,

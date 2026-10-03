@@ -1,4 +1,4 @@
-import type { EmbeddingTaskTypeName } from '@/lib/api/contracts/tools/embeddings'
+import type { EmbeddingTaskTypeName } from '@/lib/internal/embeddings/schema'
 import type { ToolResponse } from '@/tools/types'
 
 export interface EmbeddingsParams {

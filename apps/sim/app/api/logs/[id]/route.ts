@@ -1,39 +1,31 @@
-import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
 import { getLogDetailContract } from '@/lib/api/contracts/logs'
-import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { fetchLogDetail } from '@/lib/logs/fetch-log-detail'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+} from '@/lib/api/server/routes'
+import { internalLogsSessionOrExecutorAuth } from '@/lib/logs/api/route-policies'
+import { logOperations } from '@/lib/logs/application/operations'
+import { readLogDetailUseCase } from '@/lib/logs/application/read-log-detail'
 
-const logger = createLogger('LogDetailsByIdAPI')
+const errorPolicy = {
+  ...internalOrchestrationErrorPolicy,
+  unhandled: () => internalErrorResponse(500, { error: 'Failed to fetch log' }),
+}
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      return NextResponse.json(
-        { error: authResult.error || 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const parsed = await parseRequest(getLogDetailContract, request, context)
-    if (!parsed.success) return parsed.response
-
-    const { id } = parsed.data.params
-    const { workspaceId } = parsed.data.query
-
-    const data = await fetchLogDetail({
-      userId: authResult.userId,
-      workspaceId,
-      lookupColumn: 'id',
-      lookupValue: id,
-    })
-
-    if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-    logger.debug('Fetched log detail', { id, workspaceId })
-    return NextResponse.json({ data })
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: getLogDetailContract,
+  auth: internalLogsSessionOrExecutorAuth,
+  operation: logOperations.readDetail,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal log detail behavior' }),
+  errorPolicy,
+  mapInput: ({ params, query }, { principal, request }) => ({
+    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+    lookupColumn: 'id' as const,
+    lookupValue: params.id,
+    signal: request.signal,
+  }),
+  useCase: readLogDetailUseCase,
+  present: ({ detail }) => ({ data: detail }),
+})

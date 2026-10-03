@@ -3,20 +3,23 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Keeps public Knowledge search request materialization bounded to 2 MiB. */
+export const V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 
 /** POST /api/v2/knowledge/search — Vector / tag search across knowledge bases. */
 export const POST = defineV2JsonRoute({
   contract: v2SearchKnowledgeContract,
   auth: v2ApiKeyAuth,
+  /** Search is resource-read-only even though metering writes a usage record. */
   operation: knowledgeOperations.search,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.usage,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,
   parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
+    maxBodyBytes: V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES,
   },
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
@@ -25,8 +28,29 @@ export const POST = defineV2JsonRoute({
       : [body.knowledgeBaseIds],
     query: body.query,
     topK: body.topK,
+    surface: 'api' as const,
     tagFilters: body.tagFilters,
+    searchMode: body.searchMode,
+    rerankerEnabled: body.rerankerEnabled,
+    rerankerModel: body.rerankerModel,
+    rerankerInputCount: body.rerankerInputCount,
   }),
   useCase: searchKnowledge,
-  present: (result) => ({ data: result }),
+  /**
+   * Projected field by field rather than spread. The use-case result also
+   * carries `userId`, `workspaceId`, a `cost` breakdown with pricing internals,
+   * and a live resolved-secret trace registry; only Zod's default key-stripping
+   * keeps them off the wire today, so a single loosened or opaque field in the
+   * response schema would ship them.
+   */
+  present: (result) => ({
+    data: {
+      results: result.results,
+      query: result.query,
+      knowledgeBaseIds: result.knowledgeBaseIds,
+      topK: result.topK,
+      totalResults: result.totalResults,
+      rerankerStatus: result.rerankerStatus,
+    },
+  }),
 })

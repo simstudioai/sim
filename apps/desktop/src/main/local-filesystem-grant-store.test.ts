@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -42,6 +42,20 @@ describe('createEncryptedLocalFilesystemGrantStore', () => {
     await expect(readFile(filePath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('does not let an earlier save recreate the store after a later clear', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sim-localfs-store-'))
+    const filePath = join(directory, 'grants.json')
+    const store = createEncryptedLocalFilesystemGrantStore(filePath, testEncryption())
+    const grants = [{ id: 'grant-1', name: 'project', rootPath: '/private/project' }]
+
+    await store.load()
+    const saving = store.save(grants)
+    const clearing = store.clear()
+    await Promise.all([saving, clearing])
+
+    await expect(readFile(filePath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('does not write a plaintext fallback when OS encryption is unavailable', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sim-localfs-store-'))
     const filePath = join(directory, 'grants.json')
@@ -51,5 +65,22 @@ describe('createEncryptedLocalFilesystemGrantStore', () => {
       store.save([{ id: 'grant-1', name: 'project', rootPath: '/private/project' }])
     ).resolves.toBe(false)
     await expect(readFile(filePath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('preserves an invalid existing store until an explicit clear', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sim-localfs-store-'))
+    const filePath = join(directory, 'grants.json')
+    const original = '{not valid json'
+    await writeFile(filePath, original)
+    const store = createEncryptedLocalFilesystemGrantStore(filePath, testEncryption())
+    const grants = [{ id: 'grant-1', name: 'project', rootPath: '/private/project' }]
+
+    await expect(store.load()).resolves.toEqual([])
+    await expect(store.save(grants)).resolves.toBe(false)
+    await expect(readFile(filePath, 'utf8')).resolves.toBe(original)
+
+    await store.clear()
+    await expect(store.save(grants)).resolves.toBe(true)
+    await expect(store.load()).resolves.toEqual(grants)
   })
 })

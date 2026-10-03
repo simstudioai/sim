@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { a2aSendMessageTool } from '@/tools/a2a/send_message'
 import { agentphoneCreateCallTool } from '@/tools/agentphone/create_call'
@@ -35,6 +32,7 @@ import { googleTranslateTool } from '@/tools/google_translate/text'
 import { queryTool as greptileQueryTool } from '@/tools/greptile/query'
 import { discoverTool as hunterDiscoverTool } from '@/tools/hunter/discover'
 import { searchTool as linkupSearchTool } from '@/tools/linkup/search'
+import { requestHighlightsTool as logrocketRequestHighlightsTool } from '@/tools/logrocket/request_highlights'
 import { mem0SearchMemoriesTool } from '@/tools/mem0/search_memories'
 import { deepResearchTool as parallelDeepResearchTool } from '@/tools/parallel/deep_research'
 import { searchTextTool as pineconeSearchTextTool } from '@/tools/pinecone/search_text'
@@ -46,14 +44,14 @@ import { crawlTool as tavilyCrawlTool } from '@/tools/tavily/crawl'
 import { mapTool as tavilyMapTool } from '@/tools/tavily/map'
 import { searchTool as tavilySearchTool } from '@/tools/tavily/search'
 import { textractParserTool } from '@/tools/textract/parser'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import { zepAddMessagesTool } from '@/tools/zep/add_messages'
 
 function selectModelInput(
-  tool: ToolConfig,
+  tool: ExecutableToolConfig,
   params: Record<string, unknown>
 ): Record<string, unknown> {
-  const modelInput = tool.request.modelInput
+  const modelInput = tool.operation?.modelInput ?? tool.request?.modelInput
   expect(modelInput?.mode).toBe('project')
   if (modelInput?.mode !== 'project') throw new Error(`Expected ${tool.id} to project model input`)
   const selected = modelInput.select(params)
@@ -322,7 +320,7 @@ describe('model-facing integration selectors', () => {
   })
 
   it('projects only Textract query text when the QUERIES feature is active', () => {
-    const modelInput = textractParserTool.request.modelInput
+    const modelInput = textractParserTool.operation.modelInput
     if (modelInput?.mode !== 'project' || !modelInput.applyProjected) {
       throw new Error('Expected Textract queries to define a nested projector')
     }
@@ -343,6 +341,22 @@ describe('model-facing integration selectors', () => {
         { Text: '{{VENDOR_QUERY}}', Alias: 'vendor' },
       ],
     })
+  })
+
+  it('projects only the LogRocket Galileo question, never the session lookup or control fields', () => {
+    expect(
+      selectModelInput(logrocketRequestHighlightsTool, {
+        question: 'why did checkout fail',
+        userEmail: 'user@example.com',
+        userID: 'user-1',
+        startMs: '1700000000000',
+        endMs: '1700003600000',
+        webhookURL: 'https://example.com/hook',
+      })
+    ).toStrictEqual({ question: 'why did checkout fail' })
+    expect(
+      selectModelInput(logrocketRequestHighlightsTool, { userEmail: 'user@example.com' })
+    ).toStrictEqual({})
   })
 
   it('projects Tavily and Context.dev natural-language crawl or fanout instructions', () => {

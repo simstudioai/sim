@@ -7,23 +7,24 @@ import {
   v1UpdateTableColumnContract,
 } from '@/lib/api/contracts/v1/tables'
 import { parseRequest } from '@/lib/api/server'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { addTableColumn, deleteColumn } from '@/lib/table'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
   orchestrationErrorResponse,
+  orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  tableAccessPrincipal,
   v1ValidationErrorResponse,
   v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
@@ -56,10 +57,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -122,10 +123,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -143,10 +144,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       request,
     })
     if (!outcome.success || !outcome.table) {
-      return NextResponse.json(
-        { error: outcome.error ?? 'Failed to update column' },
-        { status: statusForOrchestrationError(outcome.errorCode) }
-      )
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to update column')
     }
 
     // Live-collab: tell open viewers the change landed so they refetch.
@@ -187,10 +185,10 @@ export const DELETE = withRouteHandler(
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
 
-      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
       if (scopeError) return scopeError
 
-      const result = await checkAccess(tableId, userId, 'write')
+      const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result

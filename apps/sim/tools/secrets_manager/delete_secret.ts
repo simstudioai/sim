@@ -2,9 +2,9 @@ import type {
   SecretsManagerDeleteSecretParams,
   SecretsManagerDeleteSecretResponse,
 } from '@/tools/secrets_manager/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteSecretTool: ToolConfig<
+export const deleteSecretTool: InternalToolConfig<
   SecretsManagerDeleteSecretParams,
   SecretsManagerDeleteSecretResponse
 > = {
@@ -52,11 +52,8 @@ export const deleteSecretTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/secrets_manager/delete-secret',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

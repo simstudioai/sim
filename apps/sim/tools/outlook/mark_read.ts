@@ -1,7 +1,10 @@
 import type { OutlookMarkReadParams, OutlookMarkReadResponse } from '@/tools/outlook/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const outlookMarkReadTool: ToolConfig<OutlookMarkReadParams, OutlookMarkReadResponse> = {
+export const outlookMarkReadTool: InternalToolConfig<
+  OutlookMarkReadParams,
+  OutlookMarkReadResponse
+> = {
   id: 'outlook_mark_read',
   name: 'Outlook Mark as Read',
   description: 'Mark an Outlook message as read',
@@ -27,13 +30,8 @@ export const outlookMarkReadTool: ToolConfig<OutlookMarkReadParams, OutlookMarkR
     },
   },
 
-  request: {
-    url: '/api/tools/outlook/mark-read',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: OutlookMarkReadParams) => ({
+  operation: {
+    input: (params: OutlookMarkReadParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
     }),

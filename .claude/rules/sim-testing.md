@@ -1,0 +1,174 @@
+---
+description: Test layers, naming, and Vitest mechanics for Sim
+paths:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.integration.ts"
+  - "**/e2e/**"
+---
+
+# Testing
+
+The testing principles are in the root `CLAUDE.md` → Testing. Before writing or changing any test,
+run the `test-audit` skill's authoring gate: a test that cannot name the bug it catches does not
+get written.
+
+## Layers
+
+What already catches bugs, in the order to reach for it:
+
+| Layer | What it proves | Where |
+|---|---|---|
+| Type-check, `next build` | shapes, imports, wiring | `bunx turbo run type-check`, CI build |
+| Repo audits | registry consistency, API contract boundaries, tool/block/icon invariants, migrations | `bun run check:audits` |
+| E2E / integration | real Postgres/Redis, real HTTP, packaged desktop app | `*.integration.ts`, `apps/sim/scripts/test-*-e2e.ts`, `apps/desktop/e2e/*.spec.ts` |
+| Unit | one isolated unit's listed failure modes | `*.test.ts(x)` |
+
+A unit test is justified only for a failure the layers above cannot see: security boundaries,
+billing math, executor semantics, parsers and algorithms with edge cases, cross-process wire
+contracts, and demonstrated regressions.
+
+## Naming
+
+| Suffix | Needs | Run with | In CI |
+|--------|-------|----------|-------|
+| `*.test.ts(x)` | nothing; global mocks from `vitest.setup.ts` | `vitest run` | Lint and Test job |
+| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`), optionally Redis (`TEST_REDIS_URL`) | `vitest run --mode integration` | `PostgreSQL integration` job, by glob |
+| `*.live.test.ts` | provider APIs, hosted sandboxes, local runtimes, or sibling checkouts | `vitest run --mode live <file>` (apps/sim) | never |
+| `apps/desktop/e2e/*.spec.ts` | the packaged Electron app | Playwright | desktop E2E workflow |
+| `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | its `package.json` script when one exists (`bun run test:scim:e2e`; `test:workflow-version-compare:e2e` adds `--no-env-file`), else `bun scripts/test-<suite>-e2e.ts` from apps/sim | End-to-end over real HTTP job |
+
+- A unit test lives next to its source: `feature.ts` → `feature.test.ts`. No network, no database,
+  no real timers.
+- Integration mode installs **no** global mocks: `vitest.integration.setup.ts` validates the env
+  contract, scrubs application env, and sets fixture env. Declare every fixture the suite needs with
+  `vi.mock` in the file.
+- `TEST_DATABASE_URL` must be loopback and its database name must contain a `test` segment
+  (`sim_test`); `TEST_REDIS_URL` must be loopback. `packages/db/testing/test-infrastructure.ts` owns
+  those checks. Isolate with a unique schema or generated IDs, and clean up in `afterAll`.
+- Integration files run one at a time against one shared database. A new `*.integration.ts` is
+  picked up by CI with no workflow change, and the run writes `test-results/integration.json`, which
+  CI uploads. Never add a passing suite to the quarantine list in `apps/sim/vitest.config.ts`.
+- `bun run test:integration` starts disposable Postgres and Redis containers, provisions the schema,
+  and runs both workspaces; pass filenames to narrow the `apps/sim` run.
+
+Name the `describe`/`it` for the behavior and the condition (`it('rejects a token issued for
+another workspace')`), never the implementation (`it('calls verifyToken')`).
+
+## E2E artifacts
+
+Every E2E or integration run ends with an artifact a reviewer can inspect and re-run: a JSON
+report of each check (name, status, duration, error), an HTTP status log, a Playwright trace, or a
+screenshot. Write it to a caller-supplied path (`<SUITE>_REPORT_PATH`) and have CI upload it.
+`apps/sim/scripts/test-scim-e2e.ts` is the reference: it asserts its environment is loopback and
+disposable, seeds with SQL, exercises the real HTTP boundary, cleans up its fixtures, and writes
+the report.
+
+## Unit test mechanics
+
+### Structure
+
+```typescript
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { describe, expect, it } from 'vitest'
+import { GET } from '@/app/api/<route>/route'
+
+describe('GET /api/my-route', () => {
+  it('returns 401 without a session', async () => {
+    authMockFns.mockGetSession.mockResolvedValue(null)
+    const res = await GET(createMockRequest('GET'))
+    expect(res.status).toBe(401)
+  })
+})
+```
+
+### Mocks
+
+`apps/sim/vitest.setup.ts` mocks the modules nearly every test touches. `@sim/testing` holds one
+central mock for every other module that more than a couple of tests mock. Never hand-roll a
+`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one.
+
+- **Global module**: don't `vi.mock` it; drive it through its knobs (table below).
+- **Any other module**: find its central mock by copying an existing use —
+  `rg "vi.mock\('<module id>', \(\) => \w+Mock\)" apps packages` — then
+  `vi.mock('<module id>', () => xMock)` and drive it with `xMockFns.mock<Export>` (alias to a local
+  name after the imports; inside another `vi.mock` factory reference `xMockFns.*` directly).
+  Defaults are `vi.fn(impl)`, so `mockReset()` restores them. Enums, constants and error classes are
+  faithful copies of production (the error classes are not `OrchestrationError`/`HttpError`
+  subclasses — throw the real class when a test needs that branch).
+- **No central mock yet** and you need it in a third file: add `packages/testing/src/mocks/<name>.mock.ts`
+  (`<name>Mock` + `<name>MockFns`, every runtime export of the real module, no heavy imports) and use
+  it everywhere, rather than writing the third local copy.
+- Import the one file you need (`@sim/testing/mocks/<file>`, `@sim/testing/helpers/<file>`,
+  `@sim/testing/factories/<file>`); the `@sim/testing` barrel costs module-fetch time per test file.
+
+Global (installed by `vitest.setup.ts` — knobs only, no `vi.mock`):
+
+| Module | Knobs (`@sim/testing/mocks/…`) |
+|---|---|
+| `@sim/logger` | `getMockLogger('<createLogger name>')` → that module's logger (`logger.mock`) |
+| `@/lib/auth` | `authMockFns.mockGetSession` (+ `auth.api.*`: `mockSignOut`, `mockSignInSSO`, `mockCreateUser`, …; `auth.$context.internalAdapter`: `mockCreateSession`, …) (`auth.mock`) |
+| `@/lib/auth/hybrid` | `hybridAuthMockFns` (`hybrid-auth.mock`) |
+| `@sim/db`, `drizzle-orm` | `dbChainMockFns.*`, `queueTableRows`, `resetDbChainMock`, `hasMockCondition`, `databaseMockFns.mockResolveDbUrl`; `@sim/db` re-exports every schema table; `sql` is a spy (`vi.mocked(sql).mock.calls`) (`database.mock`) |
+| `@sim/db/schema` | `schemaMock`, generated from `packages/db/schema.ts` (`bun run scripts/generate-schema-mock.ts`) (`schema.mock`) |
+| `@trigger.dev/sdk` | `triggerSdkMockFns` (`task()` returns its config, so call `.run`; `runs.*`, `tasks.*`, `idempotencyKeys`), `MockTriggerApiError` (`trigger-sdk.mock`) |
+| `@/components/icons` | stable stub per icon name — no knobs, never re-mock |
+| `@/lib/core/config/env` | `setEnv`, `resetEnvMock`, `envMockFns.getEnv` (`env.mock`) |
+| `@/lib/core/config/env-flags` | `setEnvFlags`, `resetEnvFlagsMock`, `envFlagsMockFns` (`env-flags.mock`) |
+| `@/lib/core/utils/urls` | `urlsMockFns.mockGetBaseUrl` …, `resetUrlsMock` (`urls.mock`) |
+| `@/lib/core/config/redis` | `redisConfigMockFns`, `resetRedisConfigMock` (`redis-config.mock`) |
+| `@/lib/core/utils/request` | `requestUtilsMockFns` (`request.mock`) |
+| `@sim/platform-authz/workflow` | `workflowAuthzMockFns` (`workflow-authz.mock`) |
+| `@/lib/environment/utils` | `environmentUtilsMockFns` (`environment-utils.mock`) |
+
+Also global, with no knobs — never re-mock: the console/terminal/execution stores,
+`@/blocks/registry`, `@/tools/registry`, `@/tools/metadata`, `@/tools/metadata-outputs`,
+`@trigger.dev/core/v3`. `apps/sim/vitest.setup.ts` is the authoritative list.
+
+Helpers — use these instead of redefining them:
+
+| Need | Helper |
+|---|---|
+| `Request` for a route/webhook | `createMockRequest({ method, url, body, rawBody, headers, searchParams })` or legacy `(method, body, headers, url)` (`mocks/request.mock`) |
+| Dynamic route context | `createRouteContext({ id: 'wf-1' })` (`helpers/http`) |
+| JSON `fetch` reply | `jsonResponse(body, status \| init)` (`helpers/http`) |
+| Principal | `createSessionPrincipal`, `createPersonalApiKeyPrincipal`, `createWorkspaceApiKeyPrincipal`, `createDelegatedPrincipal`, `createExecutorPrincipal` (`factories/principal.factory`; pass `audience` when it is checked) |
+| Sequencing | `createDeferred<T>()` (`helpers/deferred`) |
+| Settling async work | `flushMicrotasks(n)` (fake-timer safe), `flushMacrotask()` (`helpers/async`) |
+| Draining a stream | `collectStream(stream)` (`helpers/async`) |
+
+### Shared config
+
+Every workspace config extends the root `vitest.shared.ts`: mock history, spies, stubbed env and
+stubbed globals are reset before every test (`clearMocks`, `restoreMocks`, `unstubEnvs`,
+`unstubGlobals`), so never call `vi.clearAllMocks()`, `vi.restoreAllMocks()` or `vi.unstubAll*()` in
+hooks. Create `vi.spyOn`/`vi.stubEnv`/`vi.stubGlobal` in `beforeEach` or the test — one made at
+module scope or in `beforeAll` is undone before the first test. Integration mode keeps per-file
+fixtures (restore/unstub off). Node is the default environment — add
+`/** @vitest-environment jsdom */` only when the test needs the DOM.
+
+Those resets clear call history and undo spies, but not an implementation you install on a central
+mock's `vi.fn`: `xMockFns.mockFoo.mockReturnValue(...)` carries into later tests in the file. Prefer
+`*Once`; a test that installs a permanent one calls `mockFoo.mockReset()` (which restores the
+default) in `beforeEach`.
+
+### Performance rules
+
+The suite's wall time is bound by the single Vite server thread that serves every module fetch and
+`vi.mock` resolve, so the lever is fewer modules and fewer mocks per file, not more workers.
+
+1. `vi.hoisted()` + `vi.mock()` + static imports. Never `vi.resetModules()` + `vi.doMock()` +
+   dynamic `import()`, except for a module that caches a singleton at module scope.
+2. Never `vi.importActual()`/`importOriginal` to build a partial mock — use the central mock.
+3. Mock heavy graphs a test does not need and the setup does not already mock: `@/blocks`,
+   `@/triggers/registry`, `@/tools/generated/*`.
+4. No real timers: `vi.useFakeTimers()`, `flushMicrotasks()`, or `flushMacrotask()`.
+5. Absolute imports only.
+
+### Running
+
+`bun run --cwd apps/sim test <paths>` (other workspaces: `bun run --cwd <workspace> test <paths>`;
+integration: add `--mode integration`, or `bun run test:integration` for the Docker-backed run).
+Never `bunx vitest` — it fetches a different Vitest. Never pipe the runner through `grep`/`tail`
+where the pipe hides its exit code.

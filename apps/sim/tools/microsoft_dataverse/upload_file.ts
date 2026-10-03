@@ -2,16 +2,16 @@ import type {
   DataverseUploadFileParams,
   DataverseUploadFileResponse,
 } from '@/tools/microsoft_dataverse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const dataverseUploadFileTool: ToolConfig<
+export const dataverseUploadFileTool: InternalToolConfig<
   DataverseUploadFileParams,
   DataverseUploadFileResponse
 > = {
   id: 'microsoft_dataverse_upload_file',
   name: 'Upload File to Microsoft Dataverse',
   description:
-    'Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. The file content must be provided as a base64-encoded string.',
+    'Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'microsoft-dataverse' },
@@ -67,13 +67,8 @@ export const dataverseUploadFileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft-dataverse/upload-file',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       environmentUrl: params.environmentUrl,
       entitySetName: params.entitySetName,

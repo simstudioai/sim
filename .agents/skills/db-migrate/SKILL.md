@@ -34,7 +34,7 @@ Never put expand and contract in the same PR. If this PR both removes the code t
 | Change a column type | add a new column of the new type; dual-write | backfill, swap reads, drop old |
 | Add FK / CHECK | `ADD CONSTRAINT ... NOT VALID` | `VALIDATE CONSTRAINT` separately |
 | Index an existing table | `COMMIT;` breakpoint → `SET lock_timeout = 0` → `CREATE INDEX CONCURRENTLY IF NOT EXISTS` (see `packages/db/scripts/migrate.ts`) | — |
-| Drop an index | `COMMIT;` breakpoint → `DROP INDEX CONCURRENTLY` — plain `DROP INDEX` takes ACCESS EXCLUSIVE on the table | — |
+| Drop an index | `COMMIT;` breakpoint → `DROP INDEX CONCURRENTLY IF EXISTS` — plain `DROP INDEX` takes ACCESS EXCLUSIVE on the table | — |
 | Backfill data | batched + idempotent `UPDATE` (keyset/`WHERE`, bounded) | — |
 
 A `CREATE INDEX`, `ADD COLUMN`, or `ADD CONSTRAINT` against a table **created in the same migration** is always safe (no rows, no live traffic) — the lint already suppresses those.
@@ -53,6 +53,7 @@ workspaceId: text('workspace_id'),
 Format: `contract-pending(<precondition>): <what to drop> — <why it's safe once the precondition holds>`. The precondition names the PR/release that removes the last reader and **must be fully deployed** before the contract ships.
 
 - **The TODO list is a grep** — always accurate, never drifts: `grep -rn "contract-pending" packages/db apps/sim`. Run it when starting migration work to see what is owed.
+- While a drop is pending, tag each doomed column `@deprecated` and make every read of that table name its columns: no argless `select().from(t)`, `findFirst()` without `columns`, argless `.returning()`, or bare `getTableColumns(t)` — use `omit(getTableColumns(t), [...])`. `check:pending-drop-tables` enforces this.
 - For anything with a real owner or schedule, also open a tracking issue and put its number in the marker.
 - **Close the loop in the contract PR:** the contract migration's `-- migration-safe:` annotation references the expand, and you **delete the `contract-pending` marker** in the same PR:
   ```sql
@@ -74,8 +75,8 @@ The lint flags risky *shapes*; it cannot know whether a given drop is *safe righ
 1. Edit `packages/db/schema.ts`, then `cd packages/db && bunx drizzle-kit generate` to produce the SQL. If this is an expand that defers a drop, leave a `contract-pending` marker on the legacy column (see "Tracking the contract"). If this is the contract, delete the marker it resolves.
 2. Hand-edit the generated SQL where the playbook requires it: `CONCURRENTLY` + `COMMIT;` breakpoint for indexes on existing tables, `NOT VALID` for constraints, batching for backfills.
 3. Run `bun run check:migrations` (base defaults to `origin/staging`).
-   - **Hard errors** (`add-not-null-no-default`, `rename`, `index-not-concurrent`, `constraint-not-valid`, …): rewrite into expand/contract. Do **not** try to annotate them away — the lint won't accept it.
-   - **Annotate tier** (`drop-table`, `drop-column`, `drop-default`, `set-not-null`, `alter-type`, `drop-index`): only after you've confirmed steps 1–3 above, add a comment on the line directly above the statement:
+   - **Hard errors** (`add-not-null-no-default`, `rename`, `index-not-concurrent`, `concurrent-index-not-idempotent`, `concurrent-index-no-commit`, `drop-index-not-concurrent`, `concurrent-drop-index-not-idempotent`, `concurrent-drop-index-no-commit`, `constraint-not-valid`, …): rewrite into expand/contract. Do **not** try to annotate them away — the lint won't accept it.
+   - **Annotate tier** (`drop-table`, `drop-column`, `drop-constraint`, `drop-default`, `set-not-null`, `alter-type`): only after you've confirmed steps 1–3 above, add a comment on the line directly above the statement:
      ```sql
      -- migration-safe: `secret` read removed in v0.6.1 (#1234), shipped two deploys ago
      ALTER TABLE "webhook" DROP COLUMN "secret";

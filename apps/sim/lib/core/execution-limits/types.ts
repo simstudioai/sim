@@ -176,7 +176,7 @@ export function isTimeoutError(error: unknown): boolean {
   return false
 }
 
-export function getTimeoutErrorMessage(error: unknown, timeoutMs?: number): string {
+export function getTimeoutErrorMessage(timeoutMs?: number): string {
   if (timeoutMs) {
     const timeoutSeconds = Math.floor(timeoutMs / 1000)
     const timeoutMinutes = Math.floor(timeoutSeconds / 60)
@@ -236,13 +236,6 @@ export function getExecutionDeadlineAt(signal?: AbortSignal): Date | undefined {
   if (!signal) return undefined
   const deadline = signalDeadlines.get(signal)
   return deadline === undefined ? undefined : new Date(deadline)
-}
-
-/** Copies a known execution deadline onto a derived signal. */
-export function preserveExecutionDeadline(source: AbortSignal, target: AbortSignal): AbortSignal {
-  const deadline = signalDeadlines.get(source)
-  if (deadline !== undefined) signalDeadlines.set(target, deadline)
-  return target
 }
 
 /** Combines cancellation sources and carries their earliest known execution deadline. */

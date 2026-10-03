@@ -1,7 +1,6 @@
 import { z } from 'zod'
-import { userFileSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, userFileSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { cancelWorkflowExecutionReasonSchema } from '@/lib/api/contracts/workflows'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
 
@@ -11,11 +10,6 @@ export const logIdParamsSchema = z.object({
 
 export const executionIdParamsSchema = z.object({
   executionId: z.string().min(1),
-})
-
-export const cancelWorkflowExecutionParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  executionId: z.string().min(1, 'Invalid execution ID'),
 })
 
 const logFilterQuerySchema = z.object({
@@ -44,14 +38,57 @@ export const listLogsQuerySchema = logFilterQuerySchema.extend({
   limit: z.coerce.number().int().min(1).max(200).optional().default(100),
   sortBy: logSortBySchema,
   sortOrder: logSortOrderSchema,
+  /** Also run a COUNT(*) under the same filters and return it as `total`. */
+  includeTotal: z.coerce.boolean().optional(),
+  /** Skip fetching and sorting log rows; return total and any requested revision. */
+  countOnly: booleanQueryFlagSchema.optional(),
+  /** Include a fingerprint of matching rows and their sort values for change detection. */
+  includeRevision: booleanQueryFlagSchema.optional(),
+  /** Bound run start times for pagination; mutable fields remain live on the server. */
+  snapshotAt: z.union([z.literal('now'), z.iso.datetime()]).optional(),
+  /** Count or list runs started after the displayed snapshot, within the other filters. */
+  startedAfter: z.iso.datetime().optional(),
 })
+
+export type ListLogsQuery = z.input<typeof listLogsQuerySchema>
 
 export const logDetailQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
+/**
+ * Largest number of time buckets the dashboard stats read will build.
+ *
+ * The bound is load-bearing, not cosmetic. `segmentCount` reaches
+ * `buildDashboardStats` as the length of two densely materialized arrays — one
+ * per workflow, one for the workspace aggregate — so an unbounded value
+ * allocates without limit: `1e9` is a genuine 500. The lower bound is the
+ * quieter half — `0` does not throw, it makes `segmentMs` `Infinity` and every
+ * segment array empty, which serializes as `null` and hands the dashboard a
+ * shaped response with nothing in it. Both were reachable from the query
+ * string.
+ */
+export const MAX_STATS_SEGMENT_COUNT = 500
+
+/**
+ * Largest number of per-workflow series the dashboard stats read will return.
+ *
+ * `workflows` carries one entry per workflow that ran in the window, each with
+ * `segmentCount` segments, so the response grows with the workspace rather than
+ * with anything the caller asked for. Entries past the cap are dropped from
+ * `workflows` only — the workspace aggregates are computed from every row first,
+ * so the totals stay exact — and the truncation is reported rather than silent.
+ */
+export const MAX_STATS_WORKFLOWS = 200
+
 export const statsQueryParamsSchema = logFilterQuerySchema.extend({
-  segmentCount: z.coerce.number().optional().default(72),
+  segmentCount: z.coerce
+    .number()
+    .int('segmentCount must be a whole number')
+    .min(1, 'segmentCount must be at least 1')
+    .max(MAX_STATS_SEGMENT_COUNT, `segmentCount cannot exceed ${MAX_STATS_SEGMENT_COUNT}`)
+    .optional()
+    .default(72),
 })
 
 const workflowSummarySchema = z
@@ -191,8 +228,13 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
         id: z.string().describe('Trace-span identifier.'),
         name: z.string().describe('Trace-span name.'),
         type: z.string().describe('Trace-span category.'),
-        duration: z.number().describe('Legacy span duration in milliseconds.').optional(),
-        durationMs: z.number().describe('Span duration in milliseconds.').optional(),
+        duration: z.number().describe('Current trace-span duration in milliseconds.').optional(),
+        durationMs: z
+          .number()
+          .describe(
+            'Compatibility field for span duration in milliseconds. Read `duration` for current trace spans.'
+          )
+          .optional(),
         startTime: z.string().describe('ISO 8601 span start timestamp.').optional(),
         endTime: z.string().describe('ISO 8601 span end timestamp.').optional(),
         status: z.string().describe('Trace-span status.').optional(),
@@ -300,6 +342,11 @@ export type WorkflowLogRow = WorkflowLogSummary &
 export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),
   nextCursor: z.string().nullable(),
+  /** Server-resolved upper bound for a manually refreshed list. */
+  snapshotAt: z.iso.datetime().optional(),
+  revision: z.string().max(160).optional(),
+  /** Total rows matching the filters; present when `includeTotal` or `countOnly` was set. */
+  total: z.number().optional(),
 })
 
 export type ListLogsResponse = z.output<typeof listLogsResponseSchema>
@@ -325,6 +372,8 @@ export const dashboardStatsResponseSchema = z.object({
   aggregateSegments: z.array(segmentStatsSchema),
   totalRuns: z.number(),
   totalErrors: z.number(),
+  /** Runs holding a handled block error; present only when the read counted them. */
+  handledErrorRuns: z.number().optional(),
   avgLatency: z.number(),
   timeBounds: z.object({
     start: z.string(),
@@ -348,26 +397,10 @@ export const executionSnapshotDataSchema = z.object({
   }),
 })
 
-export const triggersQuerySchema = z.object({
-  workspaceId: z.string(),
-})
-export type TriggersQuery = z.output<typeof triggersQuerySchema>
-
-export const cancelWorkflowExecutionResponseSchema = z.object({
-  success: z.boolean(),
-  executionId: z.string(),
-  redisAvailable: z.boolean(),
-  durablyRecorded: z.boolean(),
-  locallyAborted: z.boolean(),
-  pausedCancelled: z.boolean(),
-  reason: cancelWorkflowExecutionReasonSchema,
-})
-
 export type SegmentStats = z.output<typeof segmentStatsSchema>
 export type WorkflowStats = z.output<typeof workflowStatsSchema>
 export type DashboardStatsResponse = z.output<typeof dashboardStatsResponseSchema>
 export type ExecutionSnapshotData = z.output<typeof executionSnapshotDataSchema>
-export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>
 
 export const listLogsContract = defineRouteContract({
   method: 'GET',
@@ -422,15 +455,5 @@ export const getExecutionSnapshotContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: executionSnapshotDataSchema,
-  },
-})
-
-export const cancelWorkflowExecutionContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workflows/[id]/executions/[executionId]/cancel',
-  params: cancelWorkflowExecutionParamsSchema,
-  response: {
-    mode: 'json',
-    schema: cancelWorkflowExecutionResponseSchema,
   },
 })

@@ -263,13 +263,16 @@ async function executeCode(request, executionId) {
           resolve(JSON.stringify({ error: 'Parent process disconnected' }))
           return
         }
-        sendIpcRequest({ type: 'fetch', fetchId, requestId, url, optionsJson }, (err) => {
-          const pending = pendingFetches.get(fetchId)
-          if (!pending) return
-          clearTimeout(pending.timeout)
-          pendingFetches.delete(fetchId)
-          pending.resolve(JSON.stringify({ error: `Fetch IPC send failed: ${err.message}` }))
-        })
+        sendIpcRequest(
+          { type: 'fetch', fetchId, executionId, requestId, url, optionsJson },
+          (err) => {
+            const pending = pendingFetches.get(fetchId)
+            if (!pending) return
+            clearTimeout(pending.timeout)
+            pendingFetches.delete(fetchId)
+            pending.resolve(JSON.stringify({ error: `Fetch IPC send failed: ${err.message}` }))
+          }
+        )
       })
     })
     await jail.set('__fetchRef', fetchCallback)
@@ -310,8 +313,12 @@ async function executeCode(request, executionId) {
         info: (...args) => __log(...args),
       };
 
-      // Set up fetch function that uses the host's secure fetch
-      async function fetch(url, options) {
+      // Set up fetch function that uses the host's secure fetch. The raw
+      // host bridge is captured in this closure so the hardening step below
+      // can undefine the global without breaking fetch().
+      (() => {
+      const __fetch = globalThis.__fetchRef;
+      const fetchImpl = async function fetch(url, options) {
         let optionsJson;
         if (options) {
           try {
@@ -323,7 +330,7 @@ async function executeCode(request, executionId) {
             throw new Error('fetch options exceed maximum payload size');
           }
         }
-        const resultJson = await __fetchRef.apply(undefined, [url, optionsJson], { result: { promise: true } });
+        const resultJson = await __fetch.apply(undefined, [url, optionsJson], { result: { promise: true } });
         let result;
         try {
           result = JSON.parse(resultJson);
@@ -355,7 +362,16 @@ async function executeCode(request, executionId) {
           blob: async () => { throw new Error('blob() not supported in sandbox'); },
           arrayBuffer: async () => { throw new Error('arrayBuffer() not supported in sandbox'); },
         };
-      }
+      };
+      // Same property attributes a top-level \`function fetch\` declaration
+      // produced, so user code sees an unchanged global.
+      Object.defineProperty(global, 'fetch', {
+        value: fetchImpl,
+        writable: true,
+        enumerable: true,
+        configurable: false
+      });
+      })();
 
       const sim = (() => {
         const broker = __brokerRef;
@@ -408,7 +424,7 @@ async function executeCode(request, executionId) {
       const undefined_globals = [
         'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
         'ExternalCopy', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
-        '__brokerRef', '__broker', '__callSimBroker'
+        '__fetchRef', '__brokerRef', '__broker', '__callSimBroker'
       ];
       for (const name of undefined_globals) {
         try {

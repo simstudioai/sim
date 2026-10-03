@@ -4,10 +4,10 @@ import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
+import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import {
@@ -16,6 +16,7 @@ import {
 } from '@/lib/workflows/application/workflow-folders'
 import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const logger = createLogger('CreateWorkflow')
 
@@ -40,7 +41,9 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
         ? await resolveWorkflowFolderPath(context.workspaceId, input.folderPath ?? '/')
         : {
             folderId: input.folderId,
-            index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow'),
+            index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
+              maxRows: MAX_FOLDERS_PER_WORKSPACE,
+            }),
           }
     if (resolution.folderId && !resolution.index.pathById.has(resolution.folderId)) {
       throw new OrchestrationError('not_found', 'Folder not found')
@@ -95,7 +98,10 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
     },
   }),
   async afterSuccess({ result }) {
-    await notifyWorkflowUpdated(result.workflow.id)
+    await Promise.all([
+      notifyWorkflowUpdated(result.workflow.id),
+      notifyWorkspaceWorkflowsChanged(result.workflow.workspaceId),
+    ])
     try {
       PlatformEvents.workflowCreated({
         workflowId: result.workflow.id,

@@ -4,15 +4,6 @@ export const PENDING_OAUTH_CREDENTIAL_DRAFT_KEY = 'sim.pending-oauth-credential-
 export const PENDING_CREDENTIAL_CREATE_REQUEST_KEY = 'sim.pending-credential-create-request'
 export const PENDING_CREDENTIAL_CREATE_REQUEST_EVENT = 'sim:pending-credential-create-request'
 
-interface PendingOAuthCredentialDraft {
-  workspaceId: string
-  providerId: string
-  displayName: string
-  existingCredentialIds: string[]
-  existingAccountIds: string[]
-  requestedAt: number
-}
-
 export interface PendingCredentialCreateRequest {
   workspaceId: string
   type: 'env_personal' | 'env_workspace'
@@ -27,23 +18,6 @@ function parseJson<T>(raw: string | null): T | null {
   } catch {
     return null
   }
-}
-
-export function readPendingOAuthCredentialDraft(): PendingOAuthCredentialDraft | null {
-  if (typeof window === 'undefined') return null
-  return parseJson<PendingOAuthCredentialDraft>(
-    window.sessionStorage.getItem(PENDING_OAUTH_CREDENTIAL_DRAFT_KEY)
-  )
-}
-
-export function writePendingOAuthCredentialDraft(payload: PendingOAuthCredentialDraft) {
-  if (typeof window === 'undefined') return
-  window.sessionStorage.setItem(PENDING_OAUTH_CREDENTIAL_DRAFT_KEY, JSON.stringify(payload))
-}
-
-export function clearPendingOAuthCredentialDraft() {
-  if (typeof window === 'undefined') return
-  window.sessionStorage.removeItem(PENDING_OAUTH_CREDENTIAL_DRAFT_KEY)
 }
 
 export function readPendingCredentialCreateRequest(): PendingCredentialCreateRequest | null {
@@ -78,12 +52,20 @@ interface OAuthReturnBase {
   displayName: string
   providerId: string
   preCount: number
-  workspaceId: string
+  baselineCredentials?: Array<{
+    id: string
+    accountId: string | null
+    updatedAt?: string
+  }>
+  workspaceId?: string
+  organizationId?: string
   reconnect?: boolean
   requestedAt: number
 }
 
 interface OAuthReturnWorkflow extends OAuthReturnBase {
+  workspaceId: string
+  organizationId?: never
   origin: 'workflow'
   workflowId: string
 }
@@ -96,6 +78,8 @@ interface OAuthReturnKBConnectors extends OAuthReturnBase {
   origin: 'kb-connectors'
   knowledgeBaseId: string
   connectorType?: string
+  connectorId?: string
+  sourceAccess?: 'members'
 }
 
 export type OAuthReturnContext =
@@ -113,10 +97,13 @@ export function readOAuthReturnContext(): OAuthReturnContext | null {
   return parseJson<OAuthReturnContext>(window.sessionStorage.getItem(OAUTH_RETURN_CONTEXT_KEY))
 }
 
+export function clearOAuthReturnContext(): void {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(OAUTH_RETURN_CONTEXT_KEY)
+}
+
 export function consumeOAuthReturnContext(): OAuthReturnContext | null {
   const ctx = readOAuthReturnContext()
-  if (ctx) {
-    window.sessionStorage.removeItem(OAUTH_RETURN_CONTEXT_KEY)
-  }
+  if (ctx) clearOAuthReturnContext()
   return ctx
 }

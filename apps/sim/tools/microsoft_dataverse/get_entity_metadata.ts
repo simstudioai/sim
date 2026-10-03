@@ -76,6 +76,12 @@ export const dataverseGetEntityMetadataTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/EntityDefinitions(LogicalName='${entityLogicalName}')${query}`
     },
     method: 'GET',
+    /**
+     * Dataverse endpoints redirect (file downloads issue a signed storage URL,
+     * and environment hosts redirect between regional origins), so drop the
+     * bearer token rather than forward it to whatever origin answers.
+     */
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'OData-MaxVersion': '4.0',

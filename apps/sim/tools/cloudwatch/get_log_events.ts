@@ -2,9 +2,9 @@ import type {
   CloudWatchGetLogEventsParams,
   CloudWatchGetLogEventsResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getLogEventsTool: ToolConfig<
+export const getLogEventsTool: InternalToolConfig<
   CloudWatchGetLogEventsParams,
   CloudWatchGetLogEventsResponse
 > = {
@@ -64,13 +64,8 @@ export const getLogEventsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/get-log-events',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

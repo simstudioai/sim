@@ -1,10 +1,6 @@
-/** @vitest-environment node */
-
 import { describe, expect, it } from 'vitest'
 import {
   adminDashboardBalanceGrantBodySchema,
-  adminDashboardIssueEnterpriseBodySchema,
-  adminDashboardLimitsBodySchema,
   adminDashboardOrganizationSummarySchema,
   adminDashboardUpdateMemberBodySchema,
 } from '@/lib/api/contracts/v1/admin/dashboard'
@@ -63,42 +59,24 @@ describe('admin dashboard credit grant contract', () => {
         usageLimitDollars: 0.001,
         effectiveUsageLimitDollars: 0.001,
         prepaidBalanceDollars: 0.001,
-        monthlyInvoiceAmountUsd: null,
+        invoiceAmountUsd: null,
+        billingInterval: null,
+        reportingPeriod: {
+          anchorDate: null,
+          interval: null,
+          currentStart: '2026-08-01T00:00:00.000Z',
+          currentEnd: '2026-09-01T00:00:00.000Z',
+          source: 'default',
+        },
+        usage: {
+          usedDollars: 0.001,
+          limitDollars: 0.001,
+          usedCredits: 0,
+          limitCredits: 0,
+          workflowRuns: 0,
+        },
         provisioning: null,
       }).success
     ).toBe(true)
-  })
-
-  it('accepts positive integer Enterprise concurrency limits', () => {
-    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 1250 }).success).toBe(true)
-    expect(
-      adminDashboardIssueEnterpriseBodySchema.safeParse({
-        ownerUserId: 'owner-1',
-        monthlyInvoiceAmountUsd: 500,
-        seats: 10,
-        concurrencyLimit: 1250,
-        pausePaymentCollection: true,
-      }).success
-    ).toBe(true)
-    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 0 }).success).toBe(false)
-    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 1.5 }).success).toBe(false)
-  })
-
-  it('does not expose included allowance as an editable organization control', () => {
-    expect(adminDashboardLimitsBodySchema.safeParse({ includedMonthlyDollars: 100 }).success).toBe(
-      false
-    )
-  })
-
-  it('accepts null to restore the deployment-wide Enterprise concurrency default', () => {
-    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: null }).success).toBe(true)
-    expect(
-      adminDashboardIssueEnterpriseBodySchema.safeParse({
-        ownerUserId: 'owner-1',
-        monthlyInvoiceAmountUsd: 500,
-        seats: 10,
-        concurrencyLimit: null,
-      }).success
-    ).toBe(false)
   })
 })

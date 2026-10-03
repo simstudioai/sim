@@ -2,48 +2,8 @@ import type {
   ElasticsearchClusterHealthParams,
   ElasticsearchClusterHealthResponse,
 } from '@/tools/elasticsearch/types'
+import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function buildBaseUrl(params: ElasticsearchClusterHealthParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
-    const parts = params.cloudId.split(':')
-    if (parts.length >= 2) {
-      try {
-        const decoded = Buffer.from(parts[1], 'base64').toString('utf-8')
-        const [esHost] = decoded.split('$')
-        if (esHost) {
-          return `https://${parts[0]}.${esHost}`
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    throw new Error('Invalid Cloud ID format')
-  }
-
-  if (!params.host) {
-    throw new Error('Host is required for self-hosted deployments')
-  }
-
-  return params.host.replace(/\/$/, '')
-}
-
-function buildAuthHeaders(params: ElasticsearchClusterHealthParams): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
-  if (params.authMethod === 'api_key' && params.apiKey) {
-    headers.Authorization = `ApiKey ${params.apiKey}`
-  } else if (params.authMethod === 'basic_auth' && params.username && params.password) {
-    const credentials = Buffer.from(`${params.username}:${params.password}`).toString('base64')
-    headers.Authorization = `Basic ${credentials}`
-  } else {
-    throw new Error('Invalid authentication configuration')
-  }
-
-  return headers
-}
 
 export const clusterHealthTool: ToolConfig<
   ElasticsearchClusterHealthParams,
@@ -100,10 +60,11 @@ export const clusterHealthTool: ToolConfig<
       required: false,
       description: 'Wait until cluster reaches this status: green, yellow, or red',
     },
-    timeout: {
+    clusterTimeout: {
       type: 'string',
       required: false,
-      description: 'Timeout for the wait operation (e.g., 30s, 1m)',
+      description:
+        'How long Elasticsearch waits for the cluster to reach the requested status, as an Elasticsearch time value (e.g., 30s, 1m). Not named "timeout": that name is reserved by the tool transport as a client-side abort deadline in milliseconds.',
     },
   },
 
@@ -116,8 +77,8 @@ export const clusterHealthTool: ToolConfig<
       if (params.waitForStatus) {
         queryParams.push(`wait_for_status=${params.waitForStatus}`)
       }
-      if (params.timeout) {
-        queryParams.push(`timeout=${encodeURIComponent(params.timeout)}`)
+      if (params.clusterTimeout) {
+        queryParams.push(`timeout=${encodeURIComponent(params.clusterTimeout)}`)
       }
       if (queryParams.length > 0) {
         url += `?${queryParams.join('&')}`
@@ -127,6 +88,7 @@ export const clusterHealthTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
   },
 
   transformResponse: async (response: Response) => {

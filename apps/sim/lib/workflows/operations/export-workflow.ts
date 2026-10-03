@@ -1,35 +1,16 @@
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  buildWorkflowReferenceManifest,
+  readReferenceValue,
+} from '@/lib/workflows/references/manifest'
+import { ENV_REF_PATTERN } from '@/lib/workflows/references/remap-references'
+import type { WorkflowReferenceManifest } from '@/lib/workflows/references/types'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
 } from '@/lib/workflows/sanitization/json-sanitizer'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
-
-/**
- * Server-only assembly of the public workflow-export payload, shared by the v1
- * and v2 export routes so both surfaces emit byte-identical envelopes.
- *
- * Unlike the admin export (`/api/v1/admin/workflows/[id]/export`), which emits
- * the raw state for backup/restore, this runs the payload through
- * `sanitizeForExport`, which nulls three classes of sub-block value:
- * - `password: true` fields, unless the value is a whole `{{ENV_VAR}}`
- *   reference, which is preserved so the import resolves it in the target
- *   workspace;
- * - `oauth-input` credentials;
- * - **workspace-scoped bindings** — selector fields and id-keyed fields that
- *   point at rows that do not exist in another workspace, cleared rather than
- *   carried across as dangling ids.
- *
- * The last class means an export is **not** a byte-for-byte clone even when
- * re-imported into the same workspace: those bindings come back empty and must
- * be re-selected. This matches the in-app export.
- *
- * Workflow **variables** are emitted as stored: they are plaintext workflow
- * configuration readable by anyone with workspace read (the same permission the
- * export routes require); secrets belong in environment variables, which travel
- * as unresolved `{{ENV_VAR}}` references.
- */
 
 /** The subset of the workflow record the export payload reads. */
 export interface ExportableWorkflowRecord {
@@ -61,8 +42,21 @@ export interface WorkflowExportEdge {
   markerEnd?: string
 }
 
+export interface BuildWorkflowExportPayloadOptions {
+  includeReferences?: boolean
+  /**
+   * Keep workspace-scoped resource bindings (table, knowledge base, document,
+   * folder, channel, and every other selector) so the payload round-trips into
+   * the workspace it came from without re-entering them. Credentials, passwords,
+   * and opaque table values are cleared regardless, so the default stays the
+   * sharing-safe export and this only widens a same-workspace copy.
+   */
+  includeWorkspaceBindings?: boolean
+}
+
 export interface WorkflowExportPayload {
   version: '1.0'
+  referenceManifest?: WorkflowReferenceManifest
   exportedAt: string
   workflow: {
     id: string
@@ -105,31 +99,104 @@ function toExportedEdge(edge: Edge): WorkflowExportEdge {
   }
 }
 
+/** Resource IDs travel in metadata; environment references require a retained expression. */
+function buildExportReferenceManifest(
+  sourceBlocks: ExportWorkflowState['state']['blocks'],
+  sanitizedBlocks: ExportWorkflowState['state']['blocks']
+): WorkflowReferenceManifest {
+  const manifest = buildWorkflowReferenceManifest(sourceBlocks)
+  return {
+    ...manifest,
+    references: manifest.references.flatMap((reference) => {
+      if (reference.kind !== 'env-var') return [reference]
+      const occurrences = reference.occurrences.filter((occurrence) => {
+        const block = Object.hasOwn(sanitizedBlocks, occurrence.blockId)
+          ? sanitizedBlocks[occurrence.blockId]
+          : undefined
+        const field =
+          block && Object.hasOwn(block.subBlocks, occurrence.subBlockKey)
+            ? block.subBlocks[occurrence.subBlockKey]
+            : undefined
+        const value = readReferenceValue(field?.value, occurrence.valuePath)
+        if (typeof value !== 'string') return false
+        for (const match of value.matchAll(ENV_REF_PATTERN)) {
+          if (match[1] === reference.sourceId) return true
+        }
+        return false
+      })
+      return occurrences.length ? [{ ...reference, occurrences }] : []
+    }),
+  }
+}
+
 /**
  * Loads the workflow's normalized state, sanitizes it, and assembles the
  * portable export envelope. Returns `null` when the workflow has no persisted
  * normalized state (the caller renders its own 404).
+ *
+ * Server-only assembly of the public workflow-export payload, shared by the v1
+ * and v2 export routes so both surfaces emit byte-identical envelopes.
+ *
+ * Unlike the admin export (`/api/v1/admin/workflows/[id]/export`), which emits
+ * the raw state for backup/restore, this runs the payload through
+ * `sanitizeForExport`, which nulls five classes of sub-block value:
+ * - `password: true` fields, unless the value is a whole `{{ENV_VAR}}`
+ *   reference, which is preserved so the import resolves it in the target
+ *   workspace;
+ * - `oauth-input` credentials;
+ * - sensitive nested `tool-input` params and params without authoritative metadata;
+ * - opaque credential-bearing values such as arbitrary table cells;
+ * - **workspace-scoped bindings** — selector fields and id-keyed fields that
+ *   point at rows that do not exist in another workspace, cleared rather than
+ *   carried across as dangling ids.
+ *
+ * The last two classes mean an export is **not** a byte-for-byte clone even when
+ * re-imported into the same workspace: those bindings and every table come back
+ * empty and must be re-entered. This matches the in-app export. The one
+ * relaxation is `includeWorkspaceBindings`, which keeps the workspace-scoped
+ * bindings — and only those — for a same-workspace round trip; the import
+ * reports whichever required bindings still arrive empty as warnings.
+ *
+ * Workflow **variables** are emitted as stored: they are plaintext workflow
+ * configuration readable by anyone with workspace read (the same permission the
+ * export routes require); secrets belong in environment variables, which travel
+ * as unresolved `{{ENV_VAR}}` references.
  */
 export async function buildWorkflowExportPayload(
-  workflowData: ExportableWorkflowRecord
+  workflowData: ExportableWorkflowRecord,
+  options: BuildWorkflowExportPayloadOptions = {}
 ): Promise<WorkflowExportPayload | null> {
   const normalizedData = await loadWorkflowFromNormalizedTables(workflowData.id)
   if (!normalizedData) return null
 
-  const sanitized = sanitizeForExport({
-    blocks: normalizedData.blocks,
-    edges: normalizedData.edges,
-    loops: normalizedData.loops,
-    parallels: normalizedData.parallels,
-    metadata: {
-      name: workflowData.name,
-      description: workflowData.description ?? undefined,
+  const sanitized = sanitizeForExport(
+    {
+      blocks: normalizedData.blocks,
+      edges: normalizedData.edges,
+      loops: normalizedData.loops,
+      parallels: normalizedData.parallels,
+      metadata: {
+        name: workflowData.name,
+        description: workflowData.description ?? undefined,
+      },
+      variables: parseWorkflowVariables(workflowData.variables),
     },
-    variables: parseWorkflowVariables(workflowData.variables),
-  })
+    {
+      includeReferences: options.includeReferences,
+      preserveWorkspaceBindings: options.includeWorkspaceBindings === true,
+    }
+  )
 
   return {
     version: '1.0',
+    ...(options.includeReferences
+      ? {
+          referenceManifest: buildExportReferenceManifest(
+            normalizedData.blocks,
+            sanitized.state.blocks
+          ),
+        }
+      : {}),
     exportedAt: sanitized.exportedAt,
     workflow: {
       id: workflowData.id,

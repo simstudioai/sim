@@ -1,14 +1,15 @@
-import type { GetOutboundDeliveryParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { GetOutboundDeliveryParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 import {
-  baseProxyBody,
   buildEntityQuery,
+  buildSapOperationBaseInput,
   quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
 } from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getOutboundDeliveryTool: ToolConfig<GetOutboundDeliveryParams, SapProxyResponse> = {
+export const getOutboundDeliveryTool: InternalToolConfig<
+  GetOutboundDeliveryParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_get_outbound_delivery',
   name: 'SAP S/4HANA Get Outbound Delivery',
   description:
@@ -96,19 +97,15 @@ export const getOutboundDeliveryTool: ToolConfig<GetOutboundDeliveryParams, SapP
         'Comma-separated navigation properties to expand (e.g., "to_DeliveryDocumentItem")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_OUTBOUND_DELIVERY_SRV;v=0002',
       path: `/A_OutbDeliveryHeader(${quoteOdataKey(params.deliveryDocument)})`,
       method: 'GET',
       query: buildEntityQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

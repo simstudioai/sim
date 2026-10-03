@@ -1,8 +1,6 @@
 import { db } from '@sim/db'
 import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, gte, lt, lte, or, sql } from 'drizzle-orm'
-import { getJobQueue } from '@/lib/core/async-jobs'
-import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 
 export type WorkflowExecutionStatus =
   | 'pending'
@@ -92,39 +90,4 @@ export async function listWorkflowExecutions(input: ListWorkflowExecutionsInput)
     data,
     nextCursor: hasMore && last ? { startedAt: last.startedAt, rowId: last.rowId } : null,
   }
-}
-
-/**
- * Checks the durable and queued execution records without trusting the workflow
- * id supplied by an HTTP path. Mutating callers must use this before operating
- * on an execution id because execution ids are globally unique, not nested DB
- * keys under a workflow.
- */
-export async function workflowExecutionBelongsToWorkflow(
-  executionId: string,
-  workflowId: string
-): Promise<boolean> {
-  const [logRows, pausedRows] = await Promise.all([
-    db
-      .select({ workflowId: workflowExecutionLogs.workflowId })
-      .from(workflowExecutionLogs)
-      .where(eq(workflowExecutionLogs.executionId, executionId))
-      .limit(1),
-    db
-      .select({ workflowId: pausedExecutions.workflowId })
-      .from(pausedExecutions)
-      .where(eq(pausedExecutions.executionId, executionId))
-      .limit(1),
-  ])
-
-  const durableWorkflowIds = [logRows[0]?.workflowId, pausedRows[0]?.workflowId].filter(
-    (value): value is string => typeof value === 'string'
-  )
-  if (durableWorkflowIds.length > 0) {
-    return durableWorkflowIds.every((value) => value === workflowId)
-  }
-
-  const queue = await getJobQueue()
-  const job = await queue.getJob(`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`)
-  return job?.metadata.workflowId === workflowId
 }

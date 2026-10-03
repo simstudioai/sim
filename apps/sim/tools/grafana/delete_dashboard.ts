@@ -62,9 +62,9 @@ export const deleteDashboardTool: ToolConfig<
     return {
       success: true,
       output: {
-        title: data.title || '',
+        title: (data.title as string) ?? null,
         message: data.message || 'Dashboard deleted',
-        id: data.id || 0,
+        id: (data.id as number) ?? null,
       },
     }
   },
@@ -73,6 +73,7 @@ export const deleteDashboardTool: ToolConfig<
     title: {
       type: 'string',
       description: 'The title of the deleted dashboard',
+      nullable: true,
     },
     message: {
       type: 'string',
@@ -81,6 +82,7 @@ export const deleteDashboardTool: ToolConfig<
     id: {
       type: 'number',
       description: 'The ID of the deleted dashboard',
+      nullable: true,
     },
   },
 }

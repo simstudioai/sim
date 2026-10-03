@@ -1,10 +1,11 @@
 import { Repeat, Split } from '@sim/emcn/icons'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { isOperationAllowed } from '@/lib/permission-groups/operation-access'
 import { toSearchToken } from '@/lib/search/tokens'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
-import { getAllBlocks } from '@/blocks'
+import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type {
   SearchBlockItem,
@@ -80,7 +81,7 @@ export const useSearchModalStore = create<SearchModalState>()(
         set({ isOpen: false })
       },
 
-      initializeData: (filterBlocks) => {
+      initializeData: (filterBlocks, isToolAllowed) => {
         const allBlocks = getAllBlocks()
         const filteredAllBlocks = filterBlocks(allBlocks) as typeof allBlocks
 
@@ -158,6 +159,10 @@ export const useSearchModalStore = create<SearchModalState>()(
         const allowedBlockTypes = new Set(tools.map((t) => t.type))
         const toolOperations: SearchToolOperationItem[] = getToolOperationsIndex()
           .filter((op) => allowedBlockTypes.has(op.blockType))
+          /* Selecting a result drops a block already set to that operation, so
+             the group's tool denylist has to apply here too — the block-level
+             allowlist above only decides whether the integration is offered. */
+          .filter((op) => isOperationAllowed(getBlock(op.blockType), op.operationId, isToolAllowed))
           .map((op) => {
             const aliasesStr = op.aliases?.length
               ? ` ${op.aliases.map(toSearchToken).join(' ')}`

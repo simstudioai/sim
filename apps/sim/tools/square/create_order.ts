@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineSquareKeyedSite,
+  type SquareDeliveryContextParams,
+  withSquareIdempotencyKey,
+} from '@/tools/square/idempotency'
 import type { CreateOrderParams, OrderResponse } from '@/tools/square/types'
 import {
   ORDER_METADATA_OUTPUT_PROPERTIES,
@@ -9,7 +13,15 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const squareCreateOrderTool: ToolConfig<CreateOrderParams, OrderResponse> = {
+const DELIVERY = defineSquareKeyedSite(
+  'square_create_order',
+  "a second, duplicate order would appear in the seller's order list"
+)
+
+export const squareCreateOrderTool: ToolConfig<
+  CreateOrderParams & SquareDeliveryContextParams,
+  OrderResponse
+> = {
   id: 'square_create_order',
   name: 'Square Create Order',
   description: 'Create an order with line items, taxes, discounts, and fulfillments',
@@ -42,10 +54,7 @@ export const squareCreateOrderTool: ToolConfig<CreateOrderParams, OrderResponse>
     url: () => `${SQUARE_BASE_URL}/v2/orders`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
-    body: (params) => ({
-      idempotency_key: params.idempotencyKey || generateId(),
-      order: params.order,
-    }),
+    body: (params) => withSquareIdempotencyKey(DELIVERY, params, { order: params.order }),
   },
 
   transformResponse: async (response) => {

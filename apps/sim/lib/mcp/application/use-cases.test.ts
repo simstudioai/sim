@@ -1,51 +1,59 @@
-/**
- * @vitest-environment node
- */
 import type { mcpServers } from '@sim/db/schema'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { events, mocks } = vi.hoisted(() => ({
+const { events, hoisted } = vi.hoisted(() => ({
   events: [] as string[],
-  mocks: {
-    loadContext: vi.fn(),
-    resolvePermission: vi.fn(),
+  hoisted: {
     idState: vi.fn(),
     create: vi.fn(),
     effects: vi.fn(),
-    audit: vi.fn(),
+    getServer: vi.fn(),
+    listServers: vi.fn(),
   },
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    MCP_SERVER_ADDED: 'mcp_server.added',
-    MCP_SERVER_UPDATED: 'mcp_server.updated',
-    MCP_SERVER_REMOVED: 'mcp_server.removed',
-  },
-  AuditResourceType: { MCP_SERVER: 'mcp_server' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/mcp/orchestration', () => ({
-  applyMcpServerMutationEffects: mocks.effects,
-  createMcpServer: mocks.create,
+  applyMcpServerMutationEffects: hoisted.effects,
+  createMcpServer: hoisted.create,
   deleteMcpServer: vi.fn(),
   updateMcpServer: vi.fn(),
 }))
 vi.mock('@/lib/mcp/queries', () => ({
-  getMcpServerIdState: mocks.idState,
-  getWorkspaceMcpServer: vi.fn(),
-  listWorkspaceMcpServers: vi.fn(),
+  getMcpServerIdState: hoisted.idState,
+  getWorkspaceMcpServer: hoisted.getServer,
+  listWorkspaceMcpServers: hoisted.listServers,
 }))
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 
-import { createMcpServerUseCase } from '@/lib/mcp/application/use-cases'
+import {
+  createMcpServerUseCase,
+  discoverMcpServerToolsUseCase,
+  discoverMcpToolsUseCase,
+  getMcpServerUseCase,
+} from '@/lib/mcp/application/use-cases'
+
+const mocks = {
+  ...hoisted,
+  discoverServerTools: mcpServiceMockFns.mockDiscoverServerTools,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 type McpServerRow = typeof mcpServers.$inferSelect
 const workspace = {
@@ -84,7 +92,6 @@ const server = {
 
 describe('MCP server application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
@@ -97,67 +104,166 @@ describe('MCP server application use cases', () => {
     })
     mocks.audit.mockImplementation(() => events.push('audit'))
     mocks.effects.mockImplementation(async () => events.push('effects'))
+    mocks.getServer.mockResolvedValue(server)
+    mocks.listServers.mockResolvedValue({ data: [server], nextCursorKeys: null })
+    mocks.discoverServerTools.mockResolvedValue([])
   })
 
-  it('keeps strict creation, compatibility attribution, audit, and effects in order', async () => {
-    const principal = {
-      kind: 'workspace_api_key' as const,
-      workspaceId: workspace.workspaceId,
-      keyId: 'workspace-key-1',
+  it('resolves a selected organization server through canonical scope and current permissions', async () => {
+    mocks.loadContext.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'org-1' })
+    const args = {
+      principal: { kind: 'session' as const, userId: 'reader' },
+      input: { organizationId: 'org-1', serverId: server.id },
     }
-
-    const result = await createMcpServerUseCase.execute({
-      principal,
-      input: {
-        workspaceId: workspace.workspaceId,
-        name: server.name,
-        url: server.url,
-        source: 'api',
-      },
+    await expect(getMcpServerUseCase.execute(args)).resolves.toMatchObject({
+      server: { id: server.id },
     })
-
-    expect(result.server.id).toBe(server.id)
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: workspace.workspaceId,
-        userId: workspace.billedAccountUserId,
-        existingServerBehavior: 'reject',
+    expect(mocks.getServer).toHaveBeenCalledWith({ serverId: server.id })
+    expect(mocks.loadContext).toHaveBeenCalledWith(server.workspaceId)
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(getMcpServerUseCase.execute(args)).rejects.toMatchObject({ code: 'forbidden' })
+  })
+  it('conceals an organization-selected server in another organization before discovery', async () => {
+    mocks.loadContext.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'other' })
+    await expect(
+      getMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { organizationId: 'org-1', serverId: server.id },
       })
-    )
-    expect(events).toEqual(['audit', 'effects'])
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: null,
-        metadata: expect.objectContaining({ operation: 'mcp_servers.create' }),
-      })
-    )
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
   })
 
+  it('does not return registration details after access is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(
+      getMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('distinguishes an absent scoped registration from a lookup outage', async () => {
+    const args = {
+      principal: { kind: 'session' as const, userId: 'reader' },
+      input: { workspaceId: workspace.workspaceId, serverId: 'foreign' },
+    }
+    mocks.getServer.mockResolvedValueOnce(null)
+    await expect(getMcpServerUseCase.execute(args)).rejects.toMatchObject({ code: 'not_found' })
+    mocks.getServer.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(getMcpServerUseCase.execute(args)).rejects.toThrow('database unavailable')
+  })
+
+  /**
+   * The message reaches the REST API and the CLI alike, so it names the
+   * operation and the server it collided with rather than an HTTP endpoint only
+   * one of those two callers can reach.
+   */
   it('rejects an existing live URL before mutation and audit', async () => {
     mocks.idState.mockResolvedValueOnce({ deleted: false })
 
     await expect(
       createMcpServerUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
       })
-    ).rejects.toMatchObject({ code: 'conflict' })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: expect.stringContaining('Update that server instead of creating a new one'),
+    })
+
+    mocks.idState.mockResolvedValueOnce({ deleted: false })
+    await expect(
+      createMcpServerUseCase.execute({
+        principal: createSessionPrincipal(),
+        input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+      })
+    ).rejects.toMatchObject({ message: expect.not.stringMatching(/\/api\/v2\//) })
 
     expect(mocks.create).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.effects).not.toHaveBeenCalled()
   })
 
-  it('fails fast when a post-audit domain effect fails', async () => {
-    mocks.effects.mockRejectedValueOnce(new Error('cache unavailable'))
+  /**
+   * A server id is derived from the workspace and endpoint URL, so re-registering
+   * a URL that was soft-deleted reuses the same row. That is a create from the
+   * caller's side — the resource they asked for did not exist a moment ago — so it
+   * must succeed with the create's 201 rather than collide with its own tombstone.
+   * The conflict guard therefore keys on the id state's `deleted` flag, not on
+   * whether the writer reported an update.
+   */
+  it('creates over a soft-deleted registration rather than colliding with its tombstone', async () => {
+    mocks.idState.mockResolvedValueOnce({ deleted: true })
+    mocks.create.mockResolvedValueOnce({
+      success: true,
+      serverId: server.id,
+      server,
+      updated: true,
+    })
+
+    const result = await createMcpServerUseCase.execute({
+      principal: createSessionPrincipal(),
+      input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+    })
+
+    expect(result.server.id).toBe(server.id)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ existingServerBehavior: 'reject' })
+    )
+    expect(events).toEqual(['audit', 'effects'])
+  })
+
+  /**
+   * The pre-check reads the id state outside the write, so two concurrent creates
+   * of the same URL can both pass it. The unique index is what actually decides,
+   * and its `23505` must surface as the same conflict the pre-check reports —
+   * otherwise the loser of the race gets a 500 for a condition the API defines.
+   */
+  it('reports the unique-index loser of a concurrent create as a conflict', async () => {
+    mocks.create.mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' })
+    )
 
     await expect(
       createMcpServerUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
       })
-    ).rejects.toThrow('cache unavailable')
+    ).rejects.toMatchObject({ code: 'conflict' })
 
-    expect(mocks.audit).toHaveBeenCalledOnce()
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.effects).not.toHaveBeenCalled()
+  })
+
+  it('rejects workspace-key tool discovery before protected loading', async () => {
+    await expect(
+      discoverMcpToolsUseCase.execute({
+        principal: createWorkspaceApiKeyPrincipal({
+          workspaceId: workspace.workspaceId,
+          keyId: 'workspace-key-1',
+        }),
+        input: { workspaceId: workspace.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.loadContext).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit managed connection ID for a Credential Group server', async () => {
+    mocks.getServer.mockResolvedValueOnce({ ...server, credentialGroupId: 'group-1' })
+
+    await expect(
+      discoverMcpServerToolsUseCase.execute({
+        principal: createPersonalApiKeyPrincipal(),
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Credential Group MCP servers require an explicit managed connection ID',
+    })
+
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
   })
 })

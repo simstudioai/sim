@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/log-projection'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -11,20 +11,27 @@ export interface ListWorkflowRunsInput extends Omit<ListWorkflowExecutionsInput,
   workflowId: string
 }
 
-function assertedWorkspaceId(principal: Principal): string | undefined {
-  return principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-    ? principal.workspaceId
-    : undefined
-}
-
 export const listWorkflowRuns = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.listRuns,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ListWorkflowRunsInput }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkspaceId(principal),
-    }),
-  async execute({ context, input }) {
+  resolveContext: ({ input }: { input: ListWorkflowRunsInput }) =>
+    resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId }),
+  async execute({ principal, context, input }) {
+    /**
+     * The per-run total this listing carries is the same figure `hideCostInfo`
+     * withholds on every other log surface, so it is projected here rather than
+     * in the presenter — the withholding travels with the read.
+     *
+     * {@link logProjectionSubjectUserId} names nobody for a workspace API key,
+     * which represents no user and therefore no group — the key's creator is
+     * never substituted — nor for an executor delegation, which carries a role
+     * and no capabilities. This listing publishes no cost sort or filter, so
+     * there is no query surface to refuse alongside the value.
+     */
+    const projection = await resolveLogFieldProjection(
+      logProjectionSubjectUserId(principal),
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
     const result = await listWorkflowExecutions({
       workflowId: context.workflowId,
       status: input.status,
@@ -35,6 +42,13 @@ export const listWorkflowRuns = defineAuthorizedWorkflowUseCase({
       cursor: input.cursor,
       order: input.order,
     })
-    return { ...result, workflowId: context.workflowId, order: input.order }
+    return {
+      ...result,
+      data: projection.hideCostInfo
+        ? result.data.map((row) => ({ ...row, costTotal: null }))
+        : result.data,
+      workflowId: context.workflowId,
+      order: input.order,
+    }
   },
 })

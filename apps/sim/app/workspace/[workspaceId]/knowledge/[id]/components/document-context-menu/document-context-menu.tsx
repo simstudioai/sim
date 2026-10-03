@@ -7,7 +7,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Eye, Pencil, Plus, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+import { Eye, Pencil, Plus, RefreshCw, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+import {
+  selectionActionLabel,
+  selectionToggleActionLabel,
+} from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface DocumentContextMenuProps {
   isOpen: boolean
@@ -18,6 +22,7 @@ interface DocumentContextMenuProps {
   onRename?: () => void
   onToggleEnabled?: () => void
   onViewTags?: () => void
+  onRetry?: () => void
   onDelete?: () => void
   onAddDocument?: () => void
   isDocumentEnabled?: boolean
@@ -26,9 +31,10 @@ interface DocumentContextMenuProps {
   disableToggleEnabled?: boolean
   disableDelete?: boolean
   disableAddDocument?: boolean
-  selectedCount?: number
+  selectedCount: number
   enabledCount?: number
   disabledCount?: number
+  hasExactToggleCount?: boolean
 }
 
 /**
@@ -45,6 +51,7 @@ export function DocumentContextMenu({
   onRename,
   onToggleEnabled,
   onViewTags,
+  onRetry,
   onDelete,
   onAddDocument,
   isDocumentEnabled = true,
@@ -53,24 +60,25 @@ export function DocumentContextMenu({
   disableToggleEnabled = false,
   disableDelete = false,
   disableAddDocument = false,
-  selectedCount = 1,
+  selectedCount,
   enabledCount = 0,
   disabledCount = 0,
+  hasExactToggleCount = true,
 }: DocumentContextMenuProps) {
   const isMultiSelect = selectedCount > 1
-
-  const getToggleLabel = () => {
-    if (isMultiSelect) {
-      if (disabledCount > 0) return 'Enable'
-      return 'Disable'
-    }
-    return isDocumentEnabled ? 'Disable' : 'Enable'
-  }
+  const toggleLabel = selectionToggleActionLabel({
+    selectedCount,
+    enabledCount,
+    disabledCount,
+    isSelectedItemEnabled: isDocumentEnabled,
+    hasExactAffectedCount: hasExactToggleCount,
+  })
 
   const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
   const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
-  const hasStateSection = !!onToggleEnabled
+  const hasStateSection = !!onToggleEnabled || (!isMultiSelect && !!onRetry)
   const hasDestructiveSection = !!onDelete
+  const hasActionsAboveDestructive = hasNavigationSection || hasEditSection || hasStateSection
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -108,11 +116,6 @@ export function DocumentContextMenu({
                 Open source
               </DropdownMenuItem>
             )}
-            {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && (
-                <DropdownMenuSeparator />
-              )}
-
             {!isMultiSelect && onRename && (
               <DropdownMenuItem disabled={disableRename} onSelect={onRename}>
                 <Pencil />
@@ -125,22 +128,24 @@ export function DocumentContextMenu({
                 Tags
               </DropdownMenuItem>
             )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
-              <DropdownMenuSeparator />
-            )}
-
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
-                {getToggleLabel()}
+                {toggleLabel}
+              </DropdownMenuItem>
+            )}
+            {!isMultiSelect && onRetry && (
+              <DropdownMenuItem onSelect={onRetry}>
+                <RefreshCw />
+                Retry
               </DropdownMenuItem>
             )}
 
-            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
+            {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
-                Delete
+                {selectionActionLabel('Delete', selectedCount)}
               </DropdownMenuItem>
             )}
           </>
@@ -148,7 +153,7 @@ export function DocumentContextMenu({
           onAddDocument && (
             <DropdownMenuItem disabled={disableAddDocument} onSelect={onAddDocument}>
               <Plus />
-              Add document
+              New documents
             </DropdownMenuItem>
           )
         )}

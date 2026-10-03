@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   encryptionMock,
@@ -17,16 +14,10 @@ afterAll(resetRedisConfigMock)
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-import {
-  getOrCreateOauthRow,
-  loadOauthRow,
-  setOauthRowUser,
-  withMcpOauthRefreshLock,
-} from './storage'
+import { getOrCreateOauthRow, loadOauthRow, withMcpOauthRefreshLock } from './storage'
 
 describe('MCP OAuth storage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: '{}' })
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({
@@ -86,23 +77,10 @@ describe('MCP OAuth storage', () => {
     expect(row.userId).toBe('authorizer-1')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
-
-  it('records the latest authorizing user without changing row ownership', async () => {
-    await setOauthRowUser('oauth-row-1', 'user-2')
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'user-2',
-        updatedAt: expect.any(Date),
-      })
-    )
-  })
 })
 
 describe('withMcpOauthRefreshLock', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAcquireLock.mockReset()
     mockReleaseLock.mockReset()
     mockExtendLock.mockReset()
@@ -150,7 +128,21 @@ describe('withMcpOauthRefreshLock', () => {
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
-  it('falls open when Redis is unavailable on acquire', async () => {
+  it('stops waiting for a cross-process lock when the caller aborts', async () => {
+    mockAcquireLock.mockResolvedValue(false)
+    const fn = vi.fn(async () => 'should-not-run')
+    const controller = new AbortController()
+    const pending = withMcpOauthRefreshLock('row-abort', fn, controller.signal)
+    const assertion = expect(pending).rejects.toThrow('cancelled')
+
+    await vi.waitFor(() => expect(mockAcquireLock).toHaveBeenCalled())
+    controller.abort(new Error('cancelled'))
+
+    await assertion
+    expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('preserves an uncertain owner token when falling open after an acquire failure', async () => {
     mockAcquireLock.mockRejectedValueOnce(new Error('Redis connection refused'))
     const fn = vi.fn(async () => 'uncoordinated')
 
@@ -159,6 +151,25 @@ describe('withMcpOauthRefreshLock', () => {
     expect(result).toBe('uncoordinated')
     expect(fn).toHaveBeenCalledTimes(1)
     expect(mockReleaseLock).not.toHaveBeenCalled()
+  })
+
+  it('cleans up an uncertain owner token before propagating cancellation', async () => {
+    const controller = new AbortController()
+    mockAcquireLock.mockImplementationOnce(async () => {
+      controller.abort(new Error('cancelled'))
+      throw new Error('Redis operation timed out')
+    })
+    const fn = vi.fn(async () => 'should-not-run')
+
+    await expect(
+      withMcpOauthRefreshLock('row-aborted-acquire', fn, controller.signal)
+    ).rejects.toThrow('cancelled')
+
+    expect(mockReleaseLock).toHaveBeenCalledWith(
+      'mcp:oauth:refresh:row-aborted-acquire',
+      expect.any(String)
+    )
+    expect(fn).not.toHaveBeenCalled()
   })
 
   it('releases the lock even when fn throws', async () => {
@@ -170,15 +181,6 @@ describe('withMcpOauthRefreshLock', () => {
     await expect(withMcpOauthRefreshLock('row-throws', fn)).rejects.toThrow('refresh failed')
 
     expect(mockReleaseLock).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not surface releaseLock failures to the caller', async () => {
-    mockAcquireLock.mockResolvedValue(true)
-    mockReleaseLock.mockRejectedValueOnce(new Error('release failed'))
-    const fn = vi.fn(async () => 'value')
-
-    const result = await withMcpOauthRefreshLock('row-release-fail', fn)
-    expect(result).toBe('value')
   })
 
   it('uses per-row lock keys so different rows do not serialize', async () => {

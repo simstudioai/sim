@@ -333,6 +333,13 @@ export type ReorderWorkflowsBody = z.input<typeof reorderWorkflowsBodySchema>
 
 export const executeWorkflowRunFromBlockSchema = z.object({
   startBlockId: requiredFieldSchema('Start block ID is required'),
+  /**
+   * Mocked upstream outputs keyed by block name or id: each entry becomes that
+   * block's state (marked executed) so the start block runs in isolation
+   * without a prior execution — and overlays the resolved snapshot when one
+   * exists. Names resolve server-side with the executor's own normalization.
+   */
+  variableInputs: z.record(z.string(), z.unknown()).optional(),
   sourceSnapshot: z
     .object({
       blockStates: z.record(z.string(), z.any()),
@@ -509,13 +516,6 @@ export const importWorkflowAsSuperuserBodySchema = z.object({
 
 export type ImportWorkflowAsSuperuserBody = z.input<typeof importWorkflowAsSuperuserBodySchema>
 
-export const importWorkflowAsSuperuserPermissiveBodySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    targetWorkspaceId: z.string().optional(),
-  })
-  .passthrough()
-
 export const importWorkflowAsSuperuserResponseSchema = z.object({
   success: z.literal(true),
   newWorkflowId: z.string(),
@@ -592,12 +592,21 @@ const workflowExecutionStatusEnum = z.enum([
 ])
 
 export const workflowExecutionPausedDetailSchema = z.object({
-  contextId: z.string().describe('Resume context identifier for the earliest active pause point.'),
-  pausedAt: z.string().describe('ISO 8601 timestamp when the execution entered the paused state.'),
-  resumeAt: z
+  contextId: z
     .string()
     .nullable()
-    .describe('Scheduled automatic-resume timestamp, or null when no resume time is set.'),
+    .describe('Resume context identifier, or null while every pause point is mid-resume.'),
+  pausedAt: z
+    .string()
+    .datetime()
+    .meta({ format: 'date-time' })
+    .describe('ISO 8601 timestamp when the execution entered the paused state.'),
+  resumeAt: z
+    .string()
+    .datetime()
+    .meta({ format: 'date-time' })
+    .nullable()
+    .describe('ISO 8601 scheduled automatic-resume timestamp, or null when no resume time is set.'),
   pauseKind: z
     .enum(['time', 'human'])
     .nullable()
@@ -609,7 +618,9 @@ export const workflowExecutionPausedDetailSchema = z.object({
   automaticResumeWaitingReason: z
     .string()
     .nullable()
-    .describe('Reason automatic resume is waiting, or null when it is not waiting.'),
+    .describe(
+      'Why automatic resume is waiting, or null when it is not — on a paused run, null means it is waiting on human input. Recorded whenever a resume attempt fails and cleared once one succeeds. A non-retryable or exhausted failure is prefixed `Automatic resume requires manual intervention: `.'
+    ),
   pausedExecutionId: z.string().describe('Persistent paused-execution record identifier.'),
   pausePointCount: z.number().describe('Number of pause points tracked for the execution.'),
   resumedCount: z.number().describe('Number of pause points that have resumed.'),
@@ -651,19 +662,19 @@ export const workflowExecutionStatusQuerySchema = z.object({
     ),
 })
 
-/**
- * Full cancellation-outcome vocabulary — mirrors
- * `CancelWorkflowExecutionReason` in `lib/execution/cancel-workflow-execution`
- * (contracts stay import-clean of server modules). The paused-HITL path emits
- * the two `paused_*` values; a narrower copy of this enum previously lived in
- * `contracts/logs.ts` and made the client reject those responses.
- */
+/** Mirrors the surface-neutral cancellation service's complete outcome vocabulary. */
 export const cancelWorkflowExecutionReasonSchema = z.enum([
   'recorded',
+  'already_cancelled',
+  'already_completed',
+  'already_failed',
   'redis_unavailable',
   'redis_write_failed',
   'paused_event_publish_failed',
   'paused_database_cancel_failed',
+  'queue_cancelled',
+  'active_resume_signal_failed',
+  'cancellation_not_finalized',
 ])
 
 const cancelWorkflowExecutionResponseSchema = z.object({
@@ -675,6 +686,8 @@ const cancelWorkflowExecutionResponseSchema = z.object({
   pausedCancelled: z.boolean(),
   reason: cancelWorkflowExecutionReasonSchema.optional(),
 })
+
+export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>
 
 const resumeWorkflowExecutionContextResponseSchema = z
   .object({
@@ -734,6 +747,7 @@ export const getWorkflowResponseDataSchema = z.object({
   deployedAt: z.coerce.date().nullable(),
   isPublicApi: z.boolean(),
   locked: z.boolean(),
+  forkSyncExcluded: z.boolean().default(false),
   runCount: z.number(),
   lastRunAt: z.coerce.date().nullable(),
   archivedAt: z.coerce.date().nullable(),

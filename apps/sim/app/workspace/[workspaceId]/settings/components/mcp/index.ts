@@ -1,1 +1,0 @@
-export { MCP } from './mcp'

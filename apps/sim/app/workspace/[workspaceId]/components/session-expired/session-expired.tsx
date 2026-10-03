@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Chip, useNativeSurfaceOcclusionReady } from '@sim/emcn'
+import { Chip, cn, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 
@@ -64,11 +64,16 @@ export function SessionExpired() {
 
   return (
     <main
-      className='fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-[var(--surface-1)] p-6'
-      style={{ opacity: nativeSurfaceReady ? 1 : 0 }}
+      className='fixed inset-0 z-[var(--z-takeover)] flex flex-col items-center justify-center gap-3 bg-[var(--bg)] p-6 text-center'
+      style={{ visibility: nativeSurfaceReady ? undefined : 'hidden' }}
       data-native-surface-occlusion='takeover'
     >
-      <p className='text-[var(--text-muted)] text-sm'>
+      <p
+        className={cn(
+          'text-sm',
+          failed ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
+        )}
+      >
         {failed ? `${subject}, but signing out failed.` : `${subject}. Signing you out…`}
       </p>
       {failed && (

@@ -1,7 +1,7 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
 
-export const runwayVideoTool: ToolConfig<VideoParams, VideoResponse> = {
+export const runwayVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_runway',
   name: 'Runway Gen-4 Video',
   description: 'Generate videos using Runway Gen-4 with world consistency and visual references',
@@ -59,32 +59,20 @@ export const runwayVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
     },
-    url: '/api/tools/video',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: VideoParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+    input: (params) => ({
       provider: 'runway',
       apiKey: params.apiKey,
-      model: 'gen-4-turbo', // Only gen4_turbo model is supported
+      model: 'gen-4-turbo',
       prompt: params.prompt,
       duration: params.duration || 5,
       aspectRatio: params.aspectRatio || '16:9',
       resolution: params.resolution || '720p',
       visualReference: params.visualReference,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

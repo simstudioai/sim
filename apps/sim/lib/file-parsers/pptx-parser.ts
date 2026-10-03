@@ -1,109 +1,108 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { FileParserError, isFileParserError } from '@/lib/file-parsers/errors'
+import { isEncryptedOoxmlContainer, isOle2Container } from '@/lib/file-parsers/ooxml-encryption'
+import { extractPresentationText } from '@/lib/file-parsers/ooxml-presentation'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
-import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
+import { assertOoxmlArchiveWithinLimits, isZipShaped } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('PptxParser')
 
+/**
+ * Extracts presentation text. PresentationML packages go through the slide XML
+ * walker, which keeps table rows together and skips layout placeholders. An OLE
+ * container is either an encrypted OOXML package, reported as such, or a legacy
+ * `.ppt`, which has no pure-JS extractor and is rejected as unsupported rather
+ * than scraped for printable bytes.
+ */
 export class PptxParser implements FileParser {
-  async parseFile(filePath: string): Promise<FileParseResult> {
-    try {
-      if (!filePath) {
-        throw new Error('No file path provided')
-      }
-
-      if (!existsSync(filePath)) {
-        throw new Error(`File not found: ${filePath}`)
-      }
-
-      logger.info(`Parsing PowerPoint file: ${filePath}`)
-
-      const buffer = await readFile(filePath)
-      return this.parseBuffer(buffer)
-    } catch (error) {
-      logger.error('PowerPoint file parsing error:', error)
-      throw new Error(`Failed to parse PowerPoint file: ${(error as Error).message}`)
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
+    if (!filePath) {
+      throw new Error('No file path provided')
     }
+
+    if (!existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`)
+    }
+
+    logger.info(`Parsing PowerPoint file: ${filePath}`)
+
+    const buffer = await readFile(filePath, { signal: options.signal })
+    return this.parseBuffer(buffer, options)
   }
 
-  async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
-    try {
-      logger.info('Parsing PowerPoint buffer, size:', buffer.length)
+  async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
+    logger.info('Parsing PowerPoint buffer, size:', buffer.length)
 
-      if (!buffer || buffer.length === 0) {
-        throw new Error('Empty buffer provided')
-      }
-
-      assertOoxmlArchiveWithinLimits(buffer)
-
-      let parseOfficeAsync
-      try {
-        const officeParser = await import('officeparser')
-        parseOfficeAsync = officeParser.parseOfficeAsync
-      } catch (importError) {
-        logger.warn('officeparser not available, using fallback extraction')
-        return this.fallbackExtraction(buffer)
-      }
-
-      try {
-        const result = await parseOfficeAsync(buffer)
-
-        if (!result || typeof result !== 'string') {
-          throw new Error('officeparser returned invalid result')
-        }
-
-        const content = sanitizeTextForUTF8(result.trim())
-
-        logger.info('PowerPoint parsing completed successfully with officeparser')
-
-        return {
-          content: content,
-          metadata: {
-            characterCount: content.length,
-            extractionMethod: 'officeparser',
-          },
-        }
-      } catch (extractError) {
-        logger.warn('officeparser failed, using fallback:', extractError)
-        return this.fallbackExtraction(buffer)
-      }
-    } catch (error) {
-      logger.error('PowerPoint buffer parsing error:', error)
-      throw new Error(`Failed to parse PowerPoint buffer: ${(error as Error).message}`)
+    options.signal?.throwIfAborted()
+    if (!buffer || buffer.length === 0) {
+      throw new FileParserError('empty_input', 'Empty buffer provided')
     }
+
+    assertOoxmlArchiveWithinLimits(buffer)
+
+    if (isZipShaped(buffer)) {
+      return this.parsePackage(buffer, options)
+    }
+
+    if (isOle2Container(buffer)) {
+      this.rejectOleContainer(buffer)
+    }
+
+    throw new FileParserError(
+      'invalid_format',
+      'The file is neither a PowerPoint package nor a legacy PowerPoint binary'
+    )
   }
 
-  private fallbackExtraction(buffer: Buffer): FileParseResult {
-    logger.info('Using fallback text extraction for PowerPoint file')
-
-    const text = buffer.toString('utf8', 0, Math.min(buffer.length, 200000))
-
-    const readableText = text
-      .match(/[\x20-\x7E\s]{4,}/g)
-      ?.filter(
-        (chunk) =>
-          chunk.trim().length > 10 &&
-          /[a-zA-Z]/.test(chunk) &&
-          !/^[\x00-\x1F]*$/.test(chunk) &&
-          !/^[^\w\s]*$/.test(chunk)
+  private async parsePackage(buffer: Buffer, options: FileParseOptions): Promise<FileParseResult> {
+    let extracted: string
+    try {
+      extracted = await extractPresentationText(buffer, options)
+    } catch (error) {
+      options.signal?.throwIfAborted()
+      if (isFileParserError(error)) throw error
+      throw new FileParserError(
+        'invalid_format',
+        'The PowerPoint container could not be read',
+        error
       )
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    }
 
-    const content = readableText
-      ? sanitizeTextForUTF8(readableText)
-      : 'Unable to extract text from PowerPoint file. Please ensure the file contains readable text content.'
+    const content = sanitizeTextForUTF8(extracted.trim())
+    if (!content) {
+      throw new FileParserError(
+        'no_extractable_text',
+        'No text could be extracted from this presentation'
+      )
+    }
 
     return {
       content,
       metadata: {
-        extractionMethod: 'fallback',
         characterCount: content.length,
-        warning: 'Basic text extraction used',
+        extractionMethod: 'ooxml-walker',
       },
     }
+  }
+
+  /**
+   * Neither OLE shape has a reader here: officeparser 5 only throws a generic
+   * error for both, so the encrypted case is recognized from the container's
+   * own stream directory instead.
+   */
+  private rejectOleContainer(buffer: Buffer): never {
+    if (isEncryptedOoxmlContainer(buffer)) {
+      throw new FileParserError(
+        'encrypted_file',
+        'This presentation is encrypted or password-protected'
+      )
+    }
+    throw new FileParserError(
+      'unsupported_type',
+      'Legacy .ppt presentations are not supported. Save the file as .pptx and retry.'
+    )
   }
 }

@@ -1,5 +1,5 @@
 import { type ReactNode, useId } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import {
@@ -51,7 +51,7 @@ interface SettingsResourceRowProps {
   /**
    * Interactive controls pinned to the row's end (chips, actions menu). These sit
    * ABOVE the row's own hit area, so their clicks are theirs. The row keeps them at
-   * their natural size — callers never need their own `flex-shrink-0`.
+   * their natural size — callers never need their own `shrink-0`.
    *
    * Decorative trailing content (a status badge, a tag) belongs in {@link badge}:
    * anything placed here swallows clicks meant for the row.
@@ -64,7 +64,7 @@ interface SettingsResourceRowProps {
    */
   badge?: ReactNode
   /**
-   * Makes the whole row activatable via a stretched overlay button. `trailing`
+   * Makes the whole row activatable via a control with a stretched hit area. `trailing`
    * stacks above it, so interactive trailing controls (menus, chips) keep
    * working — never nest an interactive `trailing` inside a caller-supplied
    * wrapper `<button>`, which is invalid HTML.
@@ -95,7 +95,7 @@ interface SettingsResourceRowProps {
 }
 
 /** The one navigation chevron for every settings resource row. */
-export const RESOURCE_ROW_ARROW_CLASSES = 'size-4 flex-shrink-0 text-[var(--text-icon)]'
+export const RESOURCE_ROW_ARROW_CLASSES = 'size-4 shrink-0 text-[var(--text-icon)]'
 
 /**
  * Single-column list of {@link SettingsResourceRow}s. The rows carry their own
@@ -117,7 +117,7 @@ export const RESOURCE_LIST_GRID =
   'grid grid-cols-[repeat(auto-fit,minmax(264px,1fr))] gap-x-6 gap-y-0.5'
 
 const PLAIN_BASE =
-  'flex size-[14px] flex-shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
+  'flex size-[14px] shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
 
 export function SettingsResourceRow({
   icon,
@@ -137,6 +137,7 @@ export function SettingsResourceRow({
 }: SettingsResourceRowProps) {
   const describedById = useId()
   const isTile = iconVariant === 'tile'
+  const isActivatable = !disabled && Boolean(onClick || href)
   const cluster = (
     <>
       {icon == null ? null : iconVariant === 'custom' ? (
@@ -156,13 +157,29 @@ export function SettingsResourceRow({
           {icon}
         </div>
       )}
-      <div className='flex min-w-0 flex-col justify-center gap-[1px] text-left'>
-        <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
-        {description != null && (
-          <span id={describedById} className='truncate text-[var(--text-muted)] text-caption'>
-            {description}
-          </span>
+      <div className='relative z-10 flex min-w-0 flex-col justify-center gap-[1px] text-left'>
+        {typeof title === 'string' ? (
+          <OverflowText
+            label={title}
+            className='text-[var(--text-body)] text-sm'
+            focusTarget={isActivatable ? 'nearest-interactive' : undefined}
+          />
+        ) : (
+          <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
         )}
+        {description != null &&
+          (typeof description === 'string' ? (
+            <span id={describedById} className='min-w-0'>
+              <OverflowText
+                label={description}
+                className='block text-[var(--text-muted)] text-caption'
+              />
+            </span>
+          ) : (
+            <span id={describedById} className='truncate text-[var(--text-muted)] text-caption'>
+              {description}
+            </span>
+          ))}
       </div>
     </>
   )
@@ -174,7 +191,7 @@ export function SettingsResourceRow({
   // Decoration and the chevron stay click-through so the row's right edge never
   // becomes a dead zone; only `trailing` takes pointer events back.
   const end = hasEnd ? (
-    <div className='pointer-events-none relative flex flex-shrink-0 items-center gap-2'>
+    <div className='pointer-events-none relative z-20 flex shrink-0 items-center gap-2'>
       {badge}
       {trailing != null && <div className='pointer-events-auto flex items-center'>{trailing}</div>}
       {navigable && <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />}
@@ -198,14 +215,13 @@ export function SettingsResourceRow({
     )
   }
 
-  // The ring renders on the stretched overlay, which is inset-0 over the row — so a
-  // keyboard focus outline traces the visible row even though the control is empty.
-  const overlayClass =
-    'absolute inset-0 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
+  const controlClass = cn(
+    clusterClass,
+    'min-w-0 flex-1 cursor-pointer focus-visible:outline-hidden',
+    'after:absolute after:inset-0 after:rounded-lg after:content-[""]',
+    'focus-visible:after:ring-2 focus-visible:after:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
+  )
 
-  // The hit area is a stretched overlay rather than a wrapper around the cluster:
-  // it lets the hover band span the full row (matching every hand-rolled settings
-  // list) while `trailing` — which may hold its own buttons — stacks above it.
   return (
     <div
       className={cn(
@@ -218,18 +234,21 @@ export function SettingsResourceRow({
           href={href}
           aria-label={clickLabel}
           aria-describedby={description != null ? describedById : undefined}
-          className={overlayClass}
-        />
+          className={controlClass}
+        >
+          {cluster}
+        </Link>
       ) : (
         <button
           type='button'
           onClick={onClick}
           aria-label={clickLabel}
           aria-describedby={description != null ? describedById : undefined}
-          className={overlayClass}
-        />
+          className={controlClass}
+        >
+          {cluster}
+        </button>
       )}
-      <div className={cn(clusterClass, 'pointer-events-none')}>{cluster}</div>
       {end}
     </div>
   )

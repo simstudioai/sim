@@ -2,9 +2,9 @@ import type { ToolResponse } from '@/tools/types'
 
 /**
  * Params accepted by the `managed_agent_run_session` tool. Values come from
- * the Managed Agent block's subblocks in their raw runtime shapes; the tool's
- * `directExecution` normalizes them before running the session. `accessToken`
- * is injected by the executor from the selected `credential`.
+ * the Managed Agent block's subblocks in their raw runtime shapes; the internal
+ * operation normalizes them before running the session. `accessToken` is injected
+ * by the executor from the selected `credential`.
  */
 export interface ManagedAgentRunSessionParams {
   /** Claude Platform service-account credential id (block picker value). */

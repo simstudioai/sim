@@ -1,0 +1,464 @@
+import { webhook, workflow } from '@sim/db/schema'
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  dbChainMockFns,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  posthogServerMock,
+  queueTableRows,
+  resetDbChainMock,
+  telemetryMock,
+  workflowAuthzMockFns,
+} from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  authorizeCredentialUseForAuth: vi.fn(),
+  configurePolling: vi.fn(),
+  createExternalWebhookSubscription: vi.fn(),
+  findConflictingWebhookPathOwner: vi.fn(),
+  getProviderHandler: vi.fn(),
+  resolveEnvVarsInObject: vi.fn(),
+  shouldRecreateExternalWebhookSubscription: vi.fn(),
+}))
+
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/auth/credential-access', () => ({
+  authorizeCredentialUseForAuth: mocks.authorizeCredentialUseForAuth,
+}))
+vi.mock('@/lib/webhooks/env-resolver', () => ({
+  resolveEnvVarsInObject: mocks.resolveEnvVarsInObject,
+}))
+vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
+  cleanupExternalWebhook: vi.fn(),
+  createExternalWebhookSubscription: mocks.createExternalWebhookSubscription,
+  shouldRecreateExternalWebhookSubscription: mocks.shouldRecreateExternalWebhookSubscription,
+}))
+vi.mock('@/lib/webhooks/providers', () => ({
+  getProviderHandler: mocks.getProviderHandler,
+}))
+vi.mock('@/lib/webhooks/utils.server', () => ({
+  findConflictingWebhookPathOwner: mocks.findConflictingWebhookPathOwner,
+}))
+
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { POST } from '@/app/api/webhooks/route'
+
+describe('POST /api/webhooks polling configuration', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'actor-1', name: 'Actor', email: 'actor@example.com' },
+      session: { id: 'session-1' },
+    })
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'workflow-1' },
+      workspacePermission: 'write',
+    })
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
+    mocks.findConflictingWebhookPathOwner.mockResolvedValue(null)
+    mocks.resolveEnvVarsInObject.mockImplementation(async (config) => config)
+    mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(false)
+    mocks.createExternalWebhookSubscription.mockResolvedValue({
+      updatedProviderConfig: {
+        host: '{{IMAP_HOST}}',
+        username: '{{IMAP_USERNAME}}',
+        password: '{{IMAP_PASSWORD}}',
+      },
+      externalSubscriptionCreated: false,
+    })
+    mocks.configurePolling.mockResolvedValue(true)
+    mocks.getProviderHandler.mockReturnValue({ configurePolling: mocks.configurePolling })
+  })
+
+  it('creates an active IMAP webhook instead of rebinding a historical row', async () => {
+    const savedWebhook = {
+      id: 'webhook-active',
+      workflowId: 'workflow-1',
+      blockId: 'block-1',
+      path: 'imap-hook',
+      provider: 'imap',
+      deploymentVersionId: 'deployment-1',
+      providerConfig: {
+        host: '{{IMAP_HOST}}',
+        username: '{{IMAP_USERNAME}}',
+        password: '{{IMAP_PASSWORD}}',
+      },
+      isActive: true,
+    }
+    queueTableRows(workflow, [
+      {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'canonical-workspace',
+        deploymentVersionId: 'deployment-1',
+      },
+    ])
+    // A historical row may exist, but the current-deployment lookup correctly returns none.
+    queueTableRows(webhook, [])
+    dbChainMockFns.returning.mockImplementationOnce(async () => {
+      const insertedValues = dbChainMockFns.values.mock.calls.at(-1)?.[0] as {
+        deploymentVersionId?: string | null
+      }
+      return [
+        {
+          ...savedWebhook,
+          deploymentVersionId: insertedValues.deploymentVersionId ?? null,
+        },
+      ]
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          path: 'imap-hook',
+          provider: 'imap',
+          providerConfig: savedWebhook.providerConfig,
+        },
+        {},
+        'http://localhost:3000/api/webhooks'
+      )
+    )
+
+    expect(response.status).toBe(201)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
+    )
+    expect(mocks.configurePolling).toHaveBeenCalledWith({
+      webhook: savedWebhook,
+      requestId: 'mock-request-id',
+      userId: 'actor-1',
+      workspaceId: 'canonical-workspace',
+      deploymentVersionId: 'deployment-1',
+    })
+  })
+
+  it('restores the previous IMAP deployment binding when polling setup fails', async () => {
+    const existingWebhook = {
+      id: 'webhook-1',
+      workflowId: 'workflow-1',
+      blockId: 'block-1',
+      path: 'imap-hook',
+      provider: 'imap',
+      deploymentVersionId: 'deployment-1',
+      providerConfig: {
+        host: '{{IMAP_HOST}}',
+        username: '{{IMAP_USERNAME}}',
+        password: '{{IMAP_PASSWORD}}',
+      },
+      isActive: true,
+    }
+    queueTableRows(workflow, [
+      {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'canonical-workspace',
+        deploymentVersionId: 'deployment-1',
+      },
+    ])
+    queueTableRows(webhook, [{ id: existingWebhook.id }])
+    queueTableRows(webhook, [existingWebhook])
+    dbChainMockFns.returning.mockImplementationOnce(async () => {
+      const updatedValues = dbChainMockFns.set.mock.calls.at(-1)?.[0] as {
+        deploymentVersionId?: string | null
+      }
+      return [
+        {
+          ...existingWebhook,
+          deploymentVersionId: updatedValues.deploymentVersionId ?? null,
+        },
+      ]
+    })
+    mocks.configurePolling.mockResolvedValue(false)
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          path: 'imap-hook',
+          provider: 'imap',
+          providerConfig: existingWebhook.providerConfig,
+        },
+        {},
+        'http://localhost:3000/api/webhooks'
+      )
+    )
+
+    expect(response.status).toBe(500)
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
+    )
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
+    )
+  })
+})
+
+const CREDENTIAL_ALLOWED = { ok: true, workspaceId: 'workspace-1' }
+const CREDENTIAL_DENIED = { ok: false, error: 'You do not have access to this credential.' }
+
+/** Mocks an actor with write access to `workflow-1` and no provider side effects. */
+function setupUpsertMocks(): void {
+  vi.clearAllMocks()
+  resetDbChainMock()
+  authMockFns.mockGetSession.mockResolvedValue({
+    user: { id: 'actor-1', name: 'Actor', email: 'actor@example.com' },
+    session: { id: 'session-1' },
+  })
+  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    allowed: true,
+    status: 200,
+    workflow: { id: 'workflow-1' },
+    workspacePermission: 'write',
+  })
+  workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
+  permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
+  mocks.findConflictingWebhookPathOwner.mockResolvedValue(null)
+  mocks.resolveEnvVarsInObject.mockImplementation(async (config) => config)
+  mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(false)
+  mocks.getProviderHandler.mockReturnValue({})
+  mocks.createExternalWebhookSubscription.mockResolvedValue({
+    updatedProviderConfig: {},
+    externalSubscriptionCreated: false,
+  })
+}
+
+function upsertRequest(providerConfig: Record<string, unknown> = {}) {
+  return createMockRequest('POST', {
+    workflowId: 'workflow-1',
+    path: 'inbound-orders',
+    provider: 'generic',
+    providerConfig,
+  })
+}
+
+/** The reads the create path makes, in the order the handler issues them. */
+function queueCreatePathRows(): void {
+  queueTableRows(workflow, [{ id: 'workflow-1', userId: 'actor-1', workspaceId: 'workspace-1' }])
+  queueTableRows(webhook, [])
+}
+
+/** The reads the update path makes: the path claim, then the existing row. */
+function queueUpdatePathRows(
+  isActive: boolean,
+  providerConfig: Record<string, unknown> = {}
+): void {
+  queueTableRows(workflow, [{ id: 'workflow-1', userId: 'actor-1', workspaceId: 'workspace-1' }])
+  queueTableRows(webhook, [{ id: 'webhook-1' }])
+  queueTableRows(webhook, [
+    {
+      id: 'webhook-1',
+      workflowId: 'workflow-1',
+      blockId: 'block-1',
+      path: 'inbound-orders',
+      provider: 'generic',
+      providerConfig,
+      isActive,
+    },
+  ])
+  dbChainMockFns.returning.mockImplementationOnce(async () => [
+    { id: 'webhook-1', workflowId: 'workflow-1', path: 'inbound-orders', isActive: true },
+  ])
+}
+
+describe('POST /api/webhooks triggers.webhook gate', () => {
+  beforeEach(setupUpsertMocks)
+
+  /**
+   * Making a workflow reachable from an inbound webhook is the only external
+   * exposure with no deploy-tab equivalent, so the group key has to stop it at
+   * creation or it is not withheld at all.
+   */
+  it('refuses to create a webhook when the group withholds webhook triggers', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueCreatePathRows()
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(403)
+    expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The upsert always writes `isActive: true`, so re-saving a dormant webhook is
+   * the same transition `PATCH /api/webhooks/[id]` gates — a workflow becoming
+   * reachable again — and has to be refused on the same terms.
+   */
+  it('refuses to reactivate a dormant webhook when the group withholds webhook triggers', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueUpdatePathRows(false)
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(403)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/webhooks credential references', () => {
+  beforeEach(setupUpsertMocks)
+
+  /**
+   * Subscription setup and polling mint tokens as the credential's owner, so a
+   * reference the actor cannot use must be refused before either runs.
+   */
+  it('refuses a credential the actor cannot use', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue({
+      ok: false,
+      error: 'Credential is not accessible from this workflow workspace',
+    })
+    queueCreatePathRows()
+
+    const response = await POST(upsertRequest({ credentialId: 'victim-credential' }))
+
+    expect(response.status).toBe(403)
+    expect(mocks.authorizeCredentialUseForAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, userId: 'actor-1' }),
+      { credentialId: 'victim-credential', workflowId: 'workflow-1' }
+    )
+    expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
+
+  it('refuses a credential id supplied through an env-var reference', async () => {
+    mocks.resolveEnvVarsInObject.mockImplementation(async (config) => ({
+      ...config,
+      credentialId: 'victim-credential',
+    }))
+    queueCreatePathRows()
+
+    const response = await POST(upsertRequest({ credentialId: '{{CREDENTIAL}}' }))
+
+    expect(response.status).toBe(400)
+    expect(mocks.authorizeCredentialUseForAuth).not.toHaveBeenCalled()
+    expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
+  })
+
+  /** The polling token resolver mints `providerConfig.userId`'s token when no credential is set. */
+  it('drops a client-supplied userId before subscribing or saving', async () => {
+    queueCreatePathRows()
+
+    const response = await POST(
+      upsertRequest({ userId: 'victim-user', eventType: 'record.created' })
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.createExternalWebhookSubscription).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ providerConfig: { eventType: 'record.created' } }),
+      expect.anything(),
+      'actor-1',
+      expect.anything()
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ providerConfig: { eventType: 'record.created' } })
+    )
+  })
+
+  /**
+   * A re-save that omits `credentialId` still acts with the stored credential
+   * (polling setup and subscription cleanup read it), so that credential is
+   * authorized and kept, while a stored `userId` is never carried forward.
+   */
+  it('authorizes and keeps the stored credential on a re-save that omits it', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_ALLOWED)
+    queueUpdatePathRows(true, { credentialId: 'stored-credential', userId: 'stored-user' })
+
+    const response = await POST(upsertRequest({ eventType: 'record.created' }))
+
+    expect(response.status).toBe(200)
+    expect(mocks.authorizeCredentialUseForAuth).toHaveBeenCalledWith(expect.anything(), {
+      credentialId: 'stored-credential',
+      workflowId: 'workflow-1',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerConfig: { eventType: 'record.created', credentialId: 'stored-credential' },
+      })
+    )
+  })
+
+  it('refuses a re-save whose stored credential the actor cannot use', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_DENIED)
+    queueUpdatePathRows(true, { credentialId: 'stored-credential' })
+
+    const response = await POST(upsertRequest({ eventType: 'record.created' }))
+
+    expect(response.status).toBe(403)
+    expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Clearing `credentialId` does not stop the save from acting with the stored
+   * credential: a recreate still cleans up the previous subscription with it.
+   */
+  it.each([null, ''])(
+    'still authorizes the stored credential when a re-save sends credentialId %j',
+    async (credentialId) => {
+      mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_DENIED)
+      mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
+      queueUpdatePathRows(true, { credentialId: 'stored-credential' })
+
+      const response = await POST(upsertRequest({ credentialId }))
+
+      expect(response.status).toBe(403)
+      expect(mocks.authorizeCredentialUseForAuth).toHaveBeenCalledWith(expect.anything(), {
+        credentialId: 'stored-credential',
+        workflowId: 'workflow-1',
+      })
+      expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    }
+  )
+
+  /** Recreation cleans up the previous subscription with the stored credential. */
+  it('authorizes both credentials when a rotation recreates the subscription', async () => {
+    mocks.authorizeCredentialUseForAuth.mockResolvedValue(CREDENTIAL_ALLOWED)
+    mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
+    queueUpdatePathRows(true, { credentialId: 'stored-credential' })
+
+    const response = await POST(upsertRequest({ credentialId: 'new-credential' }))
+
+    expect(response.status).toBe(200)
+    expect(mocks.authorizeCredentialUseForAuth.mock.calls.map(([, params]) => params)).toEqual([
+      { credentialId: 'new-credential', workflowId: 'workflow-1' },
+      { credentialId: 'stored-credential', workflowId: 'workflow-1' },
+    ])
+  })
+
+  /** The permission-group refusal keeps answering first, before any credential lookup. */
+  it('refuses a withheld creation before authorizing its credential', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueCreatePathRows()
+
+    const response = await POST(upsertRequest({ credentialId: 'victim-credential' }))
+
+    expect(response.status).toBe(403)
+    expect(mocks.authorizeCredentialUseForAuth).not.toHaveBeenCalled()
+  })
+})

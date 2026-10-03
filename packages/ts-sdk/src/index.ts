@@ -3,6 +3,29 @@ export interface SimStudioConfig {
   baseUrl?: string
 }
 
+/**
+ * The published package version. Kept in step with `package.json` by a test
+ * rather than read at runtime, so the SDK stays usable where there is no file
+ * system to read it from.
+ */
+export const SDK_VERSION = '0.2.1'
+
+/**
+ * Identifies this SDK to the API on every request, the way every official Sim
+ * client does, so a server log line or analytics event can say which client
+ * made the call. `X-Sim-Client-Info` is the header the server reads and works
+ * everywhere; `User-Agent` is added only where the runtime lets a script set it.
+ */
+const CLIENT_HEADERS: Readonly<Record<string, string>> = (() => {
+  const node = typeof process !== 'undefined' ? process.versions?.node : undefined
+  const runtime = node ? `; node/${node}` : ''
+  const headers: Record<string, string> = {
+    'X-Sim-Client-Info': `sdk-js/${SDK_VERSION}${runtime}`,
+  }
+  if (node) headers['User-Agent'] = `simstudio-ts-sdk/${SDK_VERSION} node/${node}`
+  return headers
+})()
+
 export interface LargeValueRef {
   __simLargeValueRef: true
   version: 1
@@ -17,12 +40,16 @@ export interface LargeValueRef {
 
 export interface WorkflowExecutionResult {
   success: boolean
+  executionId?: string
   output?: any
   error?: string
   logs?: any[]
   metadata?: {
     duration?: number
+    executionId?: string
     runId?: string
+    startTime?: string
+    endTime?: string
     [key: string]: any
   }
   traceSpans?: any[]
@@ -189,7 +216,12 @@ export class SimStudioClient {
 
   constructor(config: SimStudioConfig) {
     this.apiKey = config.apiKey
-    this.baseUrl = normalizeBaseUrl(config.baseUrl || 'https://sim.ai')
+    this.baseUrl = normalizeBaseUrl(config.baseUrl || 'https://www.sim.ai')
+  }
+
+  /** The headers every request carries: the credential and the client's identity. */
+  private requestHeaders(): Record<string, string> {
+    return { ...CLIENT_HEADERS, 'X-API-Key': this.apiKey }
   }
 
   /**
@@ -280,8 +312,8 @@ export class SimStudioClient {
       })
 
       const headers: Record<string, string> = {
+        ...this.requestHeaders(),
         'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey,
       }
 
       let workflowInput: any = {}
@@ -346,6 +378,8 @@ export class SimStudioClient {
           status?: 'completed' | 'failed' | 'paused' | 'cancelled'
           output?: unknown
           error?: WorkflowExecutionError | null
+          startedAt?: string
+          endedAt?: string
           durationMs?: number
         }
       }
@@ -366,13 +400,24 @@ export class SimStudioClient {
         }
       }
 
+      if (result.data.status === 'failed') {
+        throw new SimStudioError(
+          result.data.error?.message || 'Workflow execution failed',
+          result.data.error?.code || 'EXECUTION_FAILED'
+        )
+      }
+
       return {
-        success: result.data.status !== 'failed',
+        success: result.data.status === 'completed' || result.data.status === 'paused',
+        executionId: result.data.runId,
         output: result.data.output,
         error: result.data.error?.message,
         metadata: {
           duration: result.data.durationMs,
+          executionId: result.data.runId,
           runId: result.data.runId,
+          startTime: result.data.startedAt,
+          endTime: result.data.endedAt,
         },
         totalDuration: result.data.durationMs,
       }
@@ -401,9 +446,7 @@ export class SimStudioClient {
     try {
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'X-API-Key': this.apiKey,
-        },
+        headers: this.requestHeaders(),
       })
 
       if (!response.ok) {
@@ -454,7 +497,7 @@ export class SimStudioClient {
     try {
       const status = await this.getWorkflowStatus(workflowId)
       return status.isDeployed
-    } catch (error) {
+    } catch {
       return false
     }
   }
@@ -483,9 +526,7 @@ export class SimStudioClient {
     try {
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'X-API-Key': this.apiKey,
-        },
+        headers: this.requestHeaders(),
       })
 
       this.updateRateLimitInfo(response)
@@ -531,9 +572,7 @@ export class SimStudioClient {
     try {
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'X-API-Key': this.apiKey,
-        },
+        headers: this.requestHeaders(),
       })
 
       this.updateRateLimitInfo(response)
@@ -659,9 +698,7 @@ export class SimStudioClient {
     try {
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'X-API-Key': this.apiKey,
-        },
+        headers: this.requestHeaders(),
       })
 
       this.updateRateLimitInfo(response)

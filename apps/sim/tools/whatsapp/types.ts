@@ -112,11 +112,6 @@ export interface WhatsAppGetMediaParams {
   mediaId: string
   phoneNumberId: string
   accessToken: string
-  _context?: {
-    workspaceId?: string
-    workflowId?: string
-    executionId?: string
-  }
 }
 
 export interface WhatsAppGetMediaResponse extends ToolResponse {

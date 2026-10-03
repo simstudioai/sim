@@ -44,6 +44,7 @@ export function useFileShare(workspaceId: string, fileId: string, options?: { en
     queryFn: ({ signal }) => fetchFileShare(workspaceId, fileId, signal),
     enabled: Boolean(workspaceId) && Boolean(fileId) && (options?.enabled ?? true),
     staleTime: FILE_SHARE_STALE_TIME,
+    refetchOnMount: 'always',
   })
 }
 
@@ -62,10 +63,12 @@ export function useUpsertFileShare() {
       }),
     onSuccess: (data, { workspaceId, fileId }) => {
       queryClient.setQueryData(shareKeys.detail(workspaceId, fileId), data.share)
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
     },
     onError: (error) => {
       toast.error(error.message)
+    },
+    onSettled: (_data, _error, { workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
     },
   })
 }

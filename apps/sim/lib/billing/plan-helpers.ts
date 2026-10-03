@@ -14,9 +14,12 @@ import type { AnyColumn } from 'drizzle-orm'
 import { eq, like, or, type SQL } from 'drizzle-orm'
 import {
   CREDIT_TIERS,
+  CREDITS_PER_DOLLAR,
   DEFAULT_PRO_TIER_COST_LIMIT,
   DEFAULT_TEAM_TIER_COST_LIMIT,
+  MAX_CREDIT_TIER,
   MAX_TIER_CREDITS,
+  PRO_CREDIT_TIER,
 } from '@/lib/billing/constants'
 
 export type PlanCategory = 'free' | 'pro' | 'team' | 'enterprise'
@@ -100,6 +103,24 @@ export function getPlanTierDollars(plan: string | null | undefined): number {
 }
 
 /**
+ * Weekly refresh allowance for a plan, in dollars per seat per week.
+ *
+ * Fixed per tier, not a rate: sub-Max paid plans — pro_6000, team_6000, and
+ * legacy 'pro'/'team' — take the Pro allowance ($10/week = 2,000 credits);
+ * Max-allocation plans (pro_25000, team_25000) take the Max allowance
+ * ($20/week = 4,000 credits). Free and enterprise get 0.
+ *
+ * Deliberately NOT `isMaxTier` — that predicate includes enterprise, which
+ * must resolve to 0 here (enterprise has no refresh, matching its
+ * `getPlanTierDollars('enterprise') === 0` behavior under the old rate).
+ */
+export function getPlanWeeklyRefreshDollars(plan: string | null | undefined): number {
+  if (!isPaid(plan) || isEnterprise(plan)) return 0
+  const tier = getPlanTierCredits(plan) >= MAX_TIER_CREDITS ? MAX_CREDIT_TIER : PRO_CREDIT_TIER
+  return tier.weeklyRefreshCredits / CREDITS_PER_DOLLAR
+}
+
+/**
  * Return the broad plan category regardless of tier suffix.
  */
 export function getPlanType(plan: string | null | undefined): PlanCategory {
@@ -130,13 +151,6 @@ export function getPlanTypeForLimits(plan: string | null | undefined): PlanCateg
  */
 export function buildPlanName(type: 'pro' | 'team', credits: number): string {
   return `${type}_${credits}`
-}
-
-/**
- * Get the list of valid plan names for a given category.
- */
-export function getValidPlanNames(type: 'pro' | 'team'): string[] {
-  return CREDIT_TIERS.map((t) => buildPlanName(type, t.credits))
 }
 
 /**

@@ -11,8 +11,11 @@ const logger = createLogger('SocketIOConfig')
 const PING_TIMEOUT_MS = 60000
 /** Socket.IO ping interval - how often to send ping packets */
 const PING_INTERVAL_MS = 25000
-/** Maximum HTTP buffer size for Socket.IO messages */
-const MAX_HTTP_BUFFER_SIZE = 1e6
+/**
+ * Accommodates the existing 5 MiB collaborative-document boundary plus Yjs and Socket.IO framing.
+ * This remains a transport safety hatch, not a product-sized text limit.
+ */
+const MAX_HTTP_BUFFER_SIZE = 8 * 1024 * 1024
 
 let adapterPubClient: RedisClientType | null = null
 let adapterSubClient: RedisClientType | null = null

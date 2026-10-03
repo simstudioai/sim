@@ -6,9 +6,9 @@ import type {
   ElevenLabsAudioIsolationParams,
   ElevenLabsAudioResponse,
 } from '@/tools/elevenlabs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const elevenLabsAudioIsolationTool: ToolConfig<
+export const elevenLabsAudioIsolationTool: InternalToolConfig<
   ElevenLabsAudioIsolationParams,
   ElevenLabsAudioResponse
 > = {
@@ -32,28 +32,15 @@ export const elevenLabsAudioIsolationTool: ToolConfig<
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: selectElevenLabsAudioFileNameModelInput,
       applyProjected: applyProjectedElevenLabsAudioFileNameModelInput,
     },
-    url: '/api/tools/elevenlabs/audio',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: ElevenLabsAudioIsolationParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      operation: 'audio_isolation',
+    input: (params) => ({
       apiKey: params.apiKey,
       audioFile: params.audioFile,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

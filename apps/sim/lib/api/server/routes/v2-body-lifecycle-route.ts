@@ -1,7 +1,11 @@
+import type { Principal } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
-import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  methodMatchesContract,
+  requireJsonRouteDefinition,
+} from '@/lib/api/server/routes/definition'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -9,6 +13,7 @@ import type {
 } from '@/lib/api/server/routes/types'
 import {
   admitV2Request,
+  V2_PARSE_DEFAULTS,
   type V2ErrorPolicy,
   type V2RateLimitPolicy,
   V2RouteInfrastructureError,
@@ -21,7 +26,7 @@ import {
 } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
+import { v2Error, v2HttpError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 interface V2BodyLifecycleAdmission<
   O extends ApplicationOperation,
@@ -35,23 +40,18 @@ interface V2BodyLifecycleAdmission<
 
 interface V2BodyLifecycleContext<C extends JsonApiRouteContract, A> {
   request: NextRequest
-  principal: Awaited<ReturnType<typeof v2ApiKeyAuth.authenticate>>['principal']
+  principal: Principal
   parsed: ParsedRequest<C>
   admission: A
 }
 
-interface V2BodyLifecycleTransferContext<C extends JsonApiRouteContract, A, B>
+interface V2BodyLifecycleInputContext<C extends JsonApiRouteContract, A, B>
   extends V2BodyLifecycleContext<C, A> {
   body: B
 }
 
-interface V2BodyLifecycleInputContext<C extends JsonApiRouteContract, A, B, T>
-  extends V2BodyLifecycleTransferContext<C, A, B> {
-  transfer: T
-}
-
-interface V2BodyLifecycleSuccessContext<C extends JsonApiRouteContract, A, B, T, I, R>
-  extends V2BodyLifecycleInputContext<C, A, B, T> {
+interface V2BodyLifecycleSuccessContext<C extends JsonApiRouteContract, A, B, I, R>
+  extends V2BodyLifecycleInputContext<C, A, B> {
   input: I
   result: R
 }
@@ -62,7 +62,6 @@ interface V2BodyLifecycleRouteOptions<
   AI,
   A,
   B,
-  T,
   I,
   R,
 > {
@@ -74,12 +73,11 @@ interface V2BodyLifecycleRouteOptions<
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   admission: V2BodyLifecycleAdmission<O, C, AI, A>
   readBody(context: V2BodyLifecycleContext<C, A>): Promise<B>
-  transfer(context: V2BodyLifecycleTransferContext<C, A, B>): Promise<T>
-  mapInput(context: V2BodyLifecycleInputContext<C, A, B, T>): I
+  mapInput(context: V2BodyLifecycleInputContext<C, A, B>): I
   useCase: OperationUseCase<NoInfer<O>, I, R>
   present(result: R): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
   onSuccess?(
-    context: V2BodyLifecycleSuccessContext<C, A, B, T, NoInfer<I>, NoInfer<R>>
+    context: V2BodyLifecycleSuccessContext<C, A, B, NoInfer<I>, NoInfer<R>>
   ): void | Promise<void>
 }
 
@@ -94,10 +92,9 @@ export function defineV2BodyLifecycleRoute<
   AI,
   A,
   B,
-  T,
   I,
   R,
->(options: V2BodyLifecycleRouteOptions<C, O, AI, A, B, T, I, R>): JsonNextRouteHandler {
+>(options: V2BodyLifecycleRouteOptions<C, O, AI, A, B, I, R>): JsonNextRouteHandler {
   if (options.contract.body) {
     throw new Error(
       `${options.contract.method} ${options.contract.path} must omit its body schema so admission precedes body reads`
@@ -121,7 +118,7 @@ export function defineV2BodyLifecycleRoute<
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )
@@ -131,11 +128,13 @@ export function defineV2BodyLifecycleRoute<
         request,
         options.operation,
         options.auth,
-        options.rateLimit
+        options.rateLimit,
+        options.useCase
       )
       if (!routeAdmission.success) return routeAdmission.response
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
+        ...V2_PARSE_DEFAULTS,
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })
@@ -151,8 +150,7 @@ export function defineV2BodyLifecycleRoute<
         })
         const lifecycleContext = { request, principal, parsed: parsed.data, admission }
         const body = await options.readBody(lifecycleContext)
-        const transfer = await options.transfer({ ...lifecycleContext, body })
-        const inputContext = { ...lifecycleContext, body, transfer }
+        const inputContext = { ...lifecycleContext, body }
         const input = options.mapInput(inputContext)
         const result = await options.useCase.execute({ principal, input, request })
         const responseBody = options.contract.response.schema.parse(await options.present(result))
@@ -168,6 +166,7 @@ export function defineV2BodyLifecycleRoute<
       }
     },
     {
+      typedErrorResponse: ({ error }) => v2HttpError(error),
       unhandledErrorResponse: ({ error }) =>
         error instanceof V2RouteInfrastructureError
           ? v2Error('SERVICE_UNAVAILABLE', 'Service temporarily unavailable')

@@ -5,8 +5,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
+  cn,
   disclosureChevronClass,
-  handleKeyboardActivation,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -16,7 +16,6 @@ import {
 import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import clsx from 'clsx'
 import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -27,6 +26,7 @@ import {
   LogRowContextMenu,
   OutputPanel,
   StatusDisplay,
+  TerminalRowButton,
   ToggleButton,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
 import {
@@ -47,7 +47,7 @@ import {
   TERMINAL_CONFIG,
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
@@ -110,33 +110,25 @@ const BlockRow = memo(function BlockRow({
   const isCanceled = Boolean(entry.isCanceled)
 
   return (
-    <div
+    <TerminalRowButton
       data-entry-id={entry.id}
-      role='button'
-      tabIndex={0}
-      className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
-      onClick={(e) => {
-        e.stopPropagation()
-        onSelect(entry)
-      }}
-      onKeyDown={(event) =>
-        handleKeyboardActivation(event, () => onSelect(entry), { stopPropagation: true })
-      }
+      selected={isSelected}
+      onClick={() => onSelect(entry)}
     >
-      <div className={ROW_STYLES.content}>
+      <span className={ROW_STYLES.content}>
         <EntryBlockTile blockType={entry.blockType} />
         <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
           {entry.blockName}
         </span>
-      </div>
-      <span className={clsx(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
+      </span>
+      <span className={cn(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
           formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
         />
       </span>
-    </div>
+    </TerminalRowButton>
   )
 })
 
@@ -175,32 +167,23 @@ const IterationNodeRow = memo(function IterationNodeRow({
   return (
     <div className='flex min-w-0 flex-col'>
       {/* Iteration Header */}
-      <div
-        role='button'
-        tabIndex={0}
-        className={ROW_STYLES.row}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle()
-        }}
-        onKeyDown={(event) => handleKeyboardActivation(event, onToggle, { stopPropagation: true })}
-      >
-        <div className={ROW_STYLES.content}>
+      <TerminalRowButton aria-expanded={hasChildren ? isExpanded : undefined} onClick={onToggle}>
+        <span className={ROW_STYLES.content}>
           <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {iterationLabel}
           </span>
           {hasChildren && (
-            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+            <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
-        </div>
-        <span className={clsx(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
+        </span>
+        <span className={cn(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningChild}
             isCanceled={hasCanceledChild}
             formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
-      </div>
+      </TerminalRowButton>
 
       {/* Nested Blocks */}
       {renderChildren && isExpanded && hasChildren && (
@@ -258,33 +241,25 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
   return (
     <div className='flex min-w-0 flex-col'>
       {/* Subflow Header */}
-      <div
-        role='button'
-        tabIndex={0}
-        className={ROW_STYLES.row}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleNode(nodeId)
-        }}
-        onKeyDown={(event) =>
-          handleKeyboardActivation(event, () => onToggleNode(nodeId), { stopPropagation: true })
-        }
+      <TerminalRowButton
+        aria-expanded={hasChildren ? isExpanded : undefined}
+        onClick={() => onToggleNode(nodeId)}
       >
-        <div className={ROW_STYLES.content}>
+        <span className={ROW_STYLES.content}>
           <EntryBlockTile blockType={entry.blockType} />
           <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>{displayName}</span>
           {hasChildren && (
-            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+            <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
-        </div>
-        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
+        </span>
+        <span className={cn(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
             formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
-      </div>
+      </TerminalRowButton>
 
       {/* Nested Iterations */}
       {renderChildren && isExpanded && hasChildren && (
@@ -347,43 +322,31 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
   return (
     <div className='flex min-w-0 flex-col'>
       {/* Workflow Block Header */}
-      <div
-        role='button'
-        tabIndex={0}
-        className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
-        onClick={(e) => {
-          e.stopPropagation()
+      <TerminalRowButton
+        aria-expanded={hasChildren ? isExpanded : undefined}
+        selected={isSelected}
+        onClick={() => {
           if (!isSelected) onSelectEntry(entry)
           if (hasChildren) onToggleNode(nodeId)
         }}
-        onKeyDown={(event) =>
-          handleKeyboardActivation(
-            event,
-            () => {
-              if (!isSelected) onSelectEntry(entry)
-              if (hasChildren) onToggleNode(nodeId)
-            },
-            { stopPropagation: true }
-          )
-        }
       >
-        <div className={ROW_STYLES.content}>
+        <span className={ROW_STYLES.content}>
           <EntryBlockTile blockType={entry.blockType} />
           <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {entry.blockName}
           </span>
           {hasChildren && (
-            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+            <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
-        </div>
-        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
+        </span>
+        <span className={cn(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
             formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
-      </div>
+      </TerminalRowButton>
 
       {/* Nested Child Blocks — rendered through EntryNodeRow for full loop/parallel support */}
       {renderChildren && isExpanded && hasChildren && (
@@ -1201,7 +1164,7 @@ export const Terminal = memo(function Terminal() {
     <>
       <aside
         ref={terminalRef}
-        className={clsx(
+        className={cn(
           'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
@@ -1223,12 +1186,12 @@ export const Terminal = memo(function Terminal() {
         <div className='relative flex h-full'>
           {/* Left Section - Logs */}
           <div
-            className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
+            className={cn('flex flex-col', !selectedEntry && 'flex-1')}
             style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
+              className='group flex h-[30px] shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
@@ -1248,7 +1211,8 @@ export const Terminal = memo(function Terminal() {
                             toggleSort()
                           }}
                           aria-label='Sort by timestamp'
-                          className='!p-1.5 -m-1.5'
+                          iconPadding='md'
+                          className='-m-1.5'
                         >
                           {sortDirection === 'desc' ? (
                             <ArrowDown className='size-[14px]' />
@@ -1270,7 +1234,8 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             aria-label='Component Playground'
-                            className='!p-1.5 -m-1.5'
+                            iconPadding='md'
+                            className='-m-1.5'
                           >
                             <Palette className='size-[14px]' />
                           </Button>
@@ -1290,7 +1255,8 @@ export const Terminal = memo(function Terminal() {
                             variant='ghost'
                             onClick={handleExportConsole}
                             aria-label='Export console CSV'
-                            className='!p-1.5 -m-1.5'
+                            iconPadding='md'
+                            className='-m-1.5'
                           >
                             <Download className='size-[14px]' />
                           </Button>
@@ -1305,7 +1271,8 @@ export const Terminal = memo(function Terminal() {
                             variant='ghost'
                             onClick={handleClearConsole}
                             aria-label='Clear console'
-                            className='!p-1.5 -m-1.5'
+                            iconPadding='md'
+                            className='-m-1.5'
                           >
                             <Trash className='size-[14px]' />
                           </Button>
@@ -1325,7 +1292,8 @@ export const Terminal = memo(function Terminal() {
                           e.stopPropagation()
                         }}
                         aria-label='Terminal options'
-                        className='!p-1.5 -m-1.5'
+                        iconPadding='md'
+                        className='-m-1.5'
                       >
                         <MoreHorizontal className='size-[14px]' />
                       </Button>

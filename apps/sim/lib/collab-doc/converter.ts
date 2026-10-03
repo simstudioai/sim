@@ -8,16 +8,16 @@ import {
   yDocToProsemirrorJSON,
 } from '@tiptap/y-tiptap'
 import type * as Y from 'yjs'
+import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import {
-  parseMarkdownToDoc,
+  editorNormalForm,
   serializeDocToMarkdown,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-import { COLLAB_DOC_FIELD } from './normalize'
 
 /**
  * Server-side conversion between a file's markdown and its collaborative Yjs document.
@@ -45,6 +45,8 @@ function markdownSchema(): Schema {
   return cachedSchema
 }
 
+let cachedJsdomWindow: import('jsdom').DOMWindow | null = null
+
 /**
  * Ensure a DOM exists for the TipTap editor the markdown engine constructs. In a `jsdom`/browser
  * environment `window` + `document` already exist and this is a no-op; in a plain Node server it
@@ -56,27 +58,34 @@ function markdownSchema(): Schema {
  * `document`-only guard (plus a sticky flag) skipped this setup — leaving TipTap to throw "there is no
  * window object available". Re-checking the globals every call means a partial stub can never wedge it.
  * When `window` is missing we install a coherent jsdom window+document pair, overwriting any such stub.
+ *
+ * Both the guard and the install go through `globalThis` explicitly, and the jsdom window itself is a
+ * module-level singleton. The server bundler can give a bundled module a `window` binding that does
+ * NOT read `globalThis` (the documented reason TipTap/Yjs sit in `serverExternalPackages` — see
+ * `next.config.ts`); a bare-`window` guard paired with a `globalThis.window` install can therefore
+ * disagree forever, re-entering the install on every call. Reading and writing the same object makes
+ * the guard self-consistent, and the singleton caps this module at ONE jsdom window (megabytes each)
+ * per process even if some runtime still defeats the guard.
  */
 function ensureDomForTipTap(): void {
-  if (typeof window !== 'undefined' && typeof document !== 'undefined') return
-  // Lazy require so the client bundle never pulls jsdom in. Bind to `jsdomWindow`, NOT `window` — a
-  // local `const window` would shadow the global and put the `typeof window` guard above in its
-  // temporal dead zone ("Cannot access 'window' before initialization").
-  const { JSDOM } = require('jsdom') as typeof import('jsdom')
-  const { window: jsdomWindow } = new JSDOM('<!doctype html><html><body></body></html>')
+  if (typeof globalThis.window !== 'undefined' && typeof globalThis.document !== 'undefined') return
+  if (!cachedJsdomWindow) {
+    // Lazy require so the client bundle never pulls jsdom in.
+    const { JSDOM } = require('jsdom') as typeof import('jsdom')
+    cachedJsdomWindow = new JSDOM('<!doctype html><html><body></body></html>').window
+  }
   // double-cast-allowed: assigning the jsdom shims onto the global needs an
   // index-signature view of `globalThis`, whose declared type has none.
   const g = globalThis as unknown as Record<string, unknown>
-  g.window = jsdomWindow
-  g.document = jsdomWindow.document
-  g.navigator ??= jsdomWindow.navigator
+  g.window = cachedJsdomWindow
+  g.document = cachedJsdomWindow.document
+  g.navigator ??= cachedJsdomWindow.navigator
 }
 
 /** Convert a file's markdown to a fresh collaborative {@link Y.Doc} (cold-start seed). */
 export function markdownToYDoc(markdown: string): Y.Doc {
   ensureDomForTipTap()
-  const json = parseMarkdownToDoc(markdown)
-  return prosemirrorJSONToYDoc(markdownSchema(), json, COLLAB_DOC_FIELD)
+  return prosemirrorJSONToYDoc(markdownSchema(), editorNormalForm(markdown), COLLAB_DOC_FIELD)
 }
 
 /** Project a collaborative {@link Y.Doc}'s BODY back to markdown (no frontmatter). */
@@ -103,16 +112,19 @@ export function yDocToFileMarkdown(ydoc: Y.Doc): string {
 }
 
 /**
- * Apply new markdown content into an EXISTING collaborative {@link Y.Doc} as a minimal CRDT diff,
- * merging with any concurrent user edits rather than replacing the document. This is how the agent
- * writes into a live doc: `updateYFragment` computes exactly the changes between the fragment's
- * current content and the target and applies them as Yjs operations — the same primitive TipTap's
- * `ySyncPlugin` uses on every keystroke — so Yjs reconciles them with in-flight remote edits.
+ * Apply an external body change through TipTap's CRDT diff. Equivalent Markdown must not
+ * normalize the native tree: deleting an empty paragraph also deletes the target of delayed edits.
  */
 export function applyMarkdownToYDoc(ydoc: Y.Doc, markdown: string): void {
   ensureDomForTipTap()
   const schema = markdownSchema()
-  const target = ProseMirrorNode.fromJSON(schema, parseMarkdownToDoc(markdown))
+  const target = ProseMirrorNode.fromJSON(schema, editorNormalForm(markdown))
+  const currentProjection = ProseMirrorNode.fromJSON(
+    schema,
+    editorNormalForm(postProcessSerializedMarkdown(yDocToMarkdown(ydoc)))
+  )
+  if (currentProjection.eq(target)) return
+
   const fragment = ydoc.getXmlFragment(COLLAB_DOC_FIELD)
   // `updateYFragment` diffs against the fragment's CURRENT content, so it needs the fragment↔PM
   // binding metadata (the element/mark mapping the live editor's ySyncPlugin normally maintains).

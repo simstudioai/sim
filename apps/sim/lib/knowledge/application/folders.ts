@@ -1,6 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { folder } from '@sim/db/schema'
-import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import {
+  OrchestrationError,
+  type OrchestrationErrorCode,
+  throwOrchestrationFailure,
+} from '@/lib/core/orchestration/types'
 import {
   createFolderAtPath,
   deleteFolderByPath,
@@ -10,6 +14,7 @@ import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import {
   listActiveFolderRows,
   loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
   resolveFolderPathFromIndex,
 } from '@/lib/folders/queries'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -49,10 +54,7 @@ export interface DeleteKnowledgeFolderInput {
 }
 
 function throwFolderFailure(result: { error?: string; errorCode?: OrchestrationErrorCode }): never {
-  throw new OrchestrationError(
-    result.errorCode ?? 'internal',
-    result.error ?? 'Folder operation failed'
-  )
+  throwOrchestrationFailure(result, 'Folder operation failed')
 }
 
 export const listKnowledgeFolders = defineAuthorizedKnowledgeUseCase({
@@ -66,15 +68,10 @@ export const listKnowledgeFolders = defineAuthorizedKnowledgeUseCase({
       undefined,
       { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
     )
-    const parentId =
-      input.parentPath === undefined
-        ? undefined
-        : resolveFolderPathFromIndex(index, input.parentPath)
-    if (input.parentPath !== undefined && parentId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
-    }
+    const parentFilter = resolveFolderPathFilter(index, input.parentPath)
+    if (parentFilter.kind === 'noMatch') return { folders: [] }
     const folders = await listActiveFolderRows(context.workspaceId, 'knowledge_base', {
-      parentId,
+      parentId: parentFilter.kind === 'folder' ? parentFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,

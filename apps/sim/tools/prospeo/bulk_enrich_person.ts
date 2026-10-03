@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
@@ -15,6 +16,7 @@ export const bulkEnrichPersonTool: ToolConfig<
   name: 'Prospeo Bulk Enrich Person',
   description: 'Enrich up to 50 person records at once.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   hosting: prospeoHosting<ProspeoBulkEnrichPersonParams>((_params, output) => {
     // Prospeo reports the exact credits spent for the batch in total_cost.

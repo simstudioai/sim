@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nonEmptyIdSchema, versionNumberPathSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -23,17 +24,12 @@ export const deployedWorkflowStateSchema = z
 
 export const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.coerce.number().int().positive(),
+  version: versionNumberPathSchema,
 })
 
 export const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.union([z.number().int().positive(), z.literal('active')]),
-})
-
-export const deploymentVersionRouteParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.string().min(1, 'Invalid version'),
+  version: z.union([versionNumberPathSchema, z.literal('active')]),
 })
 
 export const updatePublicApiBodySchema = z.object({
@@ -198,6 +194,21 @@ export const deploymentVersionsResponseSchema = z.object({
 
 export type DeploymentVersionsResponse = z.output<typeof deploymentVersionsResponseSchema>
 
+/**
+ * Zod's default strip, deliberately not `.passthrough()`.
+ *
+ * The route builder responds with `schema.parse(body)`, so stripping is what
+ * holds this `read`-level status response to its narrow projection: a presenter
+ * that later widens it into the admin-gated detail fields cannot put them on
+ * the wire. `.strict()` would instead throw, and since `requestJson` parses with
+ * this same schema, a new bundle reading an older pod's wider payload mid
+ * rollout would take the whole chat tab down with it.
+ *
+ * Stripping is silent, so it is the last line rather than the only one:
+ * `WorkflowChatDeploymentStatus` types the projection at its source, and
+ * widening it needs a cast the boundary audit already refuses. See
+ * `readWorkflowChatDeploymentStatus` for why the projection is this narrow.
+ */
 export const chatDeploymentStatusSchema = z.object({
   isDeployed: z.boolean(),
   deployment: z
@@ -205,7 +216,6 @@ export const chatDeploymentStatusSchema = z.object({
       id: z.string(),
       identifier: z.string(),
     })
-    .passthrough()
     .nullable(),
 })
 
@@ -342,10 +352,16 @@ export const listDeploymentVersionsContract = defineRouteContract({
   },
 })
 
+const deploymentVersionStateQuerySchema = z.object({
+  expectedDeploymentVersionId: nonEmptyIdSchema.optional(),
+})
+export type DeploymentVersionStateQuery = z.input<typeof deploymentVersionStateQuerySchema>
+
 export const getDeploymentVersionStateContract = defineRouteContract({
   method: 'GET',
   path: '/api/workflows/[id]/deployments/[version]',
   params: deploymentVersionParamsSchema,
+  query: deploymentVersionStateQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({

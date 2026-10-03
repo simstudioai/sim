@@ -151,7 +151,6 @@ export const PolymarketBlock: BlockConfig = {
       placeholder: 'Event slug (required if no ID)',
       condition: { field: 'operation', value: ['get_event'] },
     },
-    // Series ID for get_series_by_id
     {
       id: 'seriesId',
       title: 'Series ID',
@@ -160,7 +159,6 @@ export const PolymarketBlock: BlockConfig = {
       required: true,
       condition: { field: 'operation', value: ['get_series_by_id'] },
     },
-    // Search query
     {
       id: 'query',
       title: 'Search Query',
@@ -169,7 +167,6 @@ export const PolymarketBlock: BlockConfig = {
       required: true,
       condition: { field: 'operation', value: ['search'] },
     },
-    // User wallet address for Data API operations
     {
       id: 'user',
       title: 'User Wallet Address',
@@ -186,7 +183,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_trades'] },
       mode: 'advanced',
     },
-    // Market/Event filter for positions and trades
     {
       id: 'market',
       title: 'Condition ID',
@@ -203,7 +199,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_positions', 'get_trades'] },
       mode: 'advanced',
     },
-    // Positions-specific filters
     {
       id: 'sizeThreshold',
       title: 'Size Threshold',
@@ -273,7 +268,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_positions'] },
       mode: 'advanced',
     },
-    // Trades-specific filters
     {
       id: 'tradeSide',
       title: 'Trade Side',
@@ -317,7 +311,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_trades'] },
       mode: 'advanced',
     },
-    // Activity-specific fields
     {
       id: 'activityUser',
       title: 'User Wallet Address',
@@ -411,7 +404,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_activity'] },
       mode: 'advanced',
     },
-    // Leaderboard-specific fields
     {
       id: 'leaderboardCategory',
       title: 'Category',
@@ -471,7 +463,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_leaderboard'] },
       mode: 'advanced',
     },
-    // Market Holders-specific fields
     {
       id: 'holdersMarket',
       title: 'Condition ID',
@@ -488,7 +479,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_holders'] },
       mode: 'advanced',
     },
-    // Token ID for CLOB operations
     {
       id: 'tokenId',
       title: 'Token ID',
@@ -508,7 +498,6 @@ export const PolymarketBlock: BlockConfig = {
         ],
       },
     },
-    // Side for price query
     {
       id: 'side',
       title: 'Side',
@@ -520,7 +509,6 @@ export const PolymarketBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_price'] },
       required: true,
     },
-    // Price history specific fields
     {
       id: 'interval',
       title: 'Interval',
@@ -585,7 +573,6 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
         generationType: 'timestamp',
       },
     },
-    // Filters for list operations
     {
       id: 'closed',
       title: 'Closed Status',
@@ -649,7 +636,6 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
       condition: { field: 'operation', value: ['get_markets', 'get_events'] },
       mode: 'advanced',
     },
-    // Pagination fields
     {
       id: 'limit',
       title: 'Limit',
@@ -783,7 +769,6 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           positionSortBy,
           positionSortDirection,
           positionTitle,
-          // Activity params
           activityUser,
           activityType,
           activityMarket,
@@ -793,25 +778,21 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           activitySortDirection,
           activityStart,
           activityEnd,
-          // Leaderboard params
           leaderboardCategory,
           leaderboardTimePeriod,
           leaderboardOrderBy,
           leaderboardUser,
           leaderboardUserName,
-          // Holders params
           holdersMarket,
           holdersMinBalance,
           ...rest
         } = params
         const cleanParams: Record<string, any> = {}
 
-        // Map marketSlug to slug for get_market
         if (operation === 'get_market' && marketSlug) {
           cleanParams.slug = marketSlug
         }
 
-        // Map eventSlug to slug for get_event
         if (operation === 'get_event' && eventSlug) {
           cleanParams.slug = eventSlug
         }
@@ -823,24 +804,20 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           cleanParams.order = orderEvents
         }
 
-        // Map positionEventId to eventId for positions and trades
         if ((operation === 'get_positions' || operation === 'get_trades') && positionEventId) {
           cleanParams.eventId = positionEventId
         }
 
-        // Map tradeSide to side for trades
         if (operation === 'get_trades' && tradeSide) {
           cleanParams.side = tradeSide
         }
 
-        // Map position-specific fields
         if (operation === 'get_positions') {
           if (positionSortBy) cleanParams.sortBy = positionSortBy
           if (positionSortDirection) cleanParams.sortDirection = positionSortDirection
           if (positionTitle) cleanParams.title = positionTitle
         }
 
-        // Map activity-specific fields
         if (operation === 'get_activity') {
           if (activityUser) cleanParams.user = activityUser
           if (activityType) cleanParams.type = activityType
@@ -853,7 +830,6 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           if (activityEnd) cleanParams.end = Number(activityEnd)
         }
 
-        // Map leaderboard-specific fields
         if (operation === 'get_leaderboard') {
           if (leaderboardCategory) cleanParams.category = leaderboardCategory
           if (leaderboardTimePeriod) cleanParams.timePeriod = leaderboardTimePeriod
@@ -862,13 +838,11 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           if (leaderboardUserName) cleanParams.userName = leaderboardUserName
         }
 
-        // Map holders-specific fields
         if (operation === 'get_holders') {
           if (holdersMarket) cleanParams.market = holdersMarket
           if (holdersMinBalance) cleanParams.minBalance = holdersMinBalance
         }
 
-        // Convert numeric fields from string to number for get_price_history
         if (operation === 'get_price_history') {
           if (rest.fidelity) cleanParams.fidelity = Number(rest.fidelity)
           if (rest.startTs) cleanParams.startTs = Number(rest.startTs)
@@ -905,29 +879,24 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     fidelity: { type: 'number', description: 'Data resolution in minutes' },
     startTs: { type: 'number', description: 'Start timestamp (Unix)' },
     endTs: { type: 'number', description: 'End timestamp (Unix)' },
-    // Positions-specific inputs
     sizeThreshold: { type: 'string', description: 'Minimum position size threshold' },
     redeemable: { type: 'string', description: 'Filter by redeemable status' },
     mergeable: { type: 'string', description: 'Filter by mergeable status' },
     positionSortBy: { type: 'string', description: 'Sort positions by field' },
     positionSortDirection: { type: 'string', description: 'Sort direction (ASC/DESC)' },
     positionTitle: { type: 'string', description: 'Filter positions by title' },
-    // Trades-specific inputs
     tradeSide: { type: 'string', description: 'Filter trades by side (BUY/SELL)' },
     takerOnly: { type: 'string', description: 'Filter to taker trades only' },
     filterType: { type: 'string', description: 'Trade filter type (CASH/TOKENS)' },
     filterAmount: { type: 'string', description: 'Minimum trade amount threshold' },
-    // List operation filters
     closed: { type: 'string', description: 'Filter by closed status' },
     order: { type: 'string', description: 'Sort field for markets' },
     orderEvents: { type: 'string', description: 'Sort field for events' },
     ascending: { type: 'string', description: 'Sort order (true/false)' },
     tagId: { type: 'string', description: 'Filter by tag ID' },
-    // Pagination
     limit: { type: 'string', description: 'Number of results per page' },
     offset: { type: 'string', description: 'Pagination offset' },
     page: { type: 'string', description: 'Page number for search' },
-    // Activity-specific inputs
     activityUser: { type: 'string', description: 'User wallet address for activity' },
     activityType: { type: 'string', description: 'Activity type filter' },
     activityMarket: { type: 'string', description: 'Condition ID filter for activity' },
@@ -937,18 +906,15 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     activitySortDirection: { type: 'string', description: 'Sort direction for activity' },
     activityStart: { type: 'string', description: 'Start timestamp for activity' },
     activityEnd: { type: 'string', description: 'End timestamp for activity' },
-    // Leaderboard-specific inputs
     leaderboardCategory: { type: 'string', description: 'Leaderboard category' },
     leaderboardTimePeriod: { type: 'string', description: 'Leaderboard time period' },
     leaderboardOrderBy: { type: 'string', description: 'Leaderboard order by field' },
     leaderboardUser: { type: 'string', description: 'Filter leaderboard by user' },
     leaderboardUserName: { type: 'string', description: 'Filter leaderboard by username' },
-    // Holders-specific inputs
     holdersMarket: { type: 'string', description: 'Condition ID for holders lookup' },
     holdersMinBalance: { type: 'string', description: 'Minimum balance threshold' },
   },
   outputs: {
-    // List operations
     markets: { type: 'json', description: 'Array of market objects (get_markets)' },
     events: { type: 'json', description: 'Array of event objects (get_events)' },
     tags: { type: 'json', description: 'Array of tag objects (get_tags)' },
@@ -958,15 +924,12 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     },
     positions: { type: 'json', description: 'Array of position objects (get_positions)' },
     trades: { type: 'json', description: 'Array of trade objects (get_trades)' },
-    // Single item operations
     market: { type: 'json', description: 'Single market object (get_market)' },
     event: { type: 'json', description: 'Single event object (get_event)' },
-    // Search
     results: {
       type: 'json',
       description: 'Search results with events, tags, profiles (search)',
     },
-    // CLOB operations
     orderbook: {
       type: 'json',
       description: 'Order book with bids and asks (get_orderbook)',
@@ -977,7 +940,6 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     history: { type: 'json', description: 'Price history entries (get_price_history)' },
     spread: { type: 'json', description: 'Spread value object (get_spread)' },
     tickSize: { type: 'string', description: 'Minimum tick size (get_tick_size)' },
-    // Data API operations
     activity: { type: 'json', description: 'Array of user activity entries (get_activity)' },
     leaderboard: { type: 'json', description: 'Array of leaderboard entries (get_leaderboard)' },
     holders: { type: 'json', description: 'Array of market holder groups (get_holders)' },

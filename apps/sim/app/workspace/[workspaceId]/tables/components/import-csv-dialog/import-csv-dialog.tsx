@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from 'react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -47,7 +47,7 @@ const CSV_PREVIEW_BYTES = 512 * 1024
 /**
  * Sentinel value for the "Do not import" option in the mapping combobox. The
  * whitespace is intentional: valid column names must match `NAME_PATTERN`
- * (`/^[a-z_][a-z0-9_]*$/i`), so no real column can share this value.
+ * (`/^[A-Za-z_][A-Za-z0-9_]*$/`), so no real column can share this value.
  */
 const SKIP_VALUE = '__ skip __'
 /**
@@ -395,10 +395,12 @@ export function ImportCsvDialog({
             </ChipModalField>
 
             <ChipModalField type='custom' title='Mode'>
-              <ButtonGroup value={mode} onValueChange={handleModeChange}>
-                <ButtonGroupItem value='append'>Append</ButtonGroupItem>
-                {canReplace && <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>}
-              </ButtonGroup>
+              <ChipButtonGroup value={mode} onValueChange={handleModeChange}>
+                <ChipButtonGroupItem value='append'>Append</ChipButtonGroupItem>
+                {canReplace && (
+                  <ChipButtonGroupItem value='replace'>Replace all rows</ChipButtonGroupItem>
+                )}
+              </ChipButtonGroup>
             </ChipModalField>
 
             <ChipModalField type='custom' title='Column mapping'>
@@ -500,6 +502,7 @@ export function ImportCsvDialog({
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
         cancelDisabled={importMutation.isPending}
+        defaultAction={mode === 'replace' ? 'none' : 'primary'}
         primaryAction={{
           label: importMutation.isPending
             ? mode === 'replace'

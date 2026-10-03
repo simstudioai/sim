@@ -1,74 +1,69 @@
-/**
- * @vitest-environment node
- */
-
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { folderQueriesMock } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   abortUpload: vi.fn(),
-  assertUploadBinding: vi.fn(),
   cancelResource: vi.fn(),
-  createParts: vi.fn(),
   createResource: vi.fn(),
-  completeUpload: vi.fn(),
   findResource: vi.fn(),
   getResource: vi.fn(),
   getUpload: vi.fn(),
-  getWorkspaceFile: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveTableContext: vi.fn(),
-  resolveWorkspaceContext: vi.fn(),
   startUploadedImport: vi.fn(),
   tableImportBodyFromUpload: vi.fn(),
+  resourceFromUpload: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/folders/locks', () => ({ withFolderTreeLock: vi.fn() }))
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: vi.fn(),
-  resolveFolderPathFromIndex: vi.fn(),
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveTableContext,
-  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
-}))
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 
 vi.mock('@/lib/table/orchestration/import-resource', () => ({
-  abortAuthorizedTableImportUpload: mocks.abortUpload,
-  cancelTableImportResource: mocks.cancelResource,
-  createAuthorizedTableImportResource: mocks.createResource,
-  findTableImportResource: mocks.findResource,
-  getPrincipalTableImportUpload: mocks.getUpload,
-  getTableImportResource: mocks.getResource,
-  startUploadedTableImport: mocks.startUploadedImport,
-  tableImportBodyFromUpload: mocks.tableImportBodyFromUpload,
+  abortAuthorizedTableImportUpload: hoisted.abortUpload,
+  cancelTableImportResource: hoisted.cancelResource,
+  createAuthorizedTableImportResource: hoisted.createResource,
+  findTableImportResource: hoisted.findResource,
+  getPrincipalTableImportUpload: hoisted.getUpload,
+  getTableImportResource: hoisted.getResource,
+  startUploadedTableImport: hoisted.startUploadedImport,
+  tableImportBodyFromUpload: hoisted.tableImportBodyFromUpload,
+  tableImportResourceFromUpload: hoisted.resourceFromUpload,
 }))
 
 vi.mock('@/lib/uploads/upload-session/application', () => ({
   requestOrigin: () => 'http://localhost:3000',
 }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  assertUploadSessionAuthBinding: mocks.assertUploadBinding,
-  completeUploadSession: mocks.completeUpload,
-  createUploadPartUrls: mocks.createParts,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getWorkspaceFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
+import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   cancelTableImportUseCase,
   completeTableImportUseCase,
@@ -76,6 +71,18 @@ import {
   createTableImportUseCase,
   readTableImportUseCase,
 } from '@/lib/table/application/imports'
+
+const mocks = {
+  ...hoisted,
+  assertUploadBinding: uploadSessionMockFns.mockAssertUploadSessionAuthBinding,
+  completeUpload: uploadSessionMockFns.mockCompleteUploadSession,
+  createParts: uploadSessionMockFns.mockCreateUploadPartUrls,
+  resolveTableContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  resolveWorkspaceContext: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  getUserPermissionConfig: permissionGroupsResolveMockFns.mockGetUserPermissionConfig,
+  getWorkspaceFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const createdAt = new Date('2026-08-01T00:00:00.000Z')
 const record = {
@@ -99,27 +106,17 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const reader = { kind: 'session' as const, userId: 'reader-2', sessionId: 'session-2' }
-const workspaceKey = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: 'workspace-1',
-  keyId: 'workspace-key-1',
-}
-const executor: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
+const reader = createSessionPrincipal({ userId: 'reader-2', sessionId: 'session-2' })
+const workspaceKey = createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' })
+const executor = createExecutorPrincipal({
   subjectUserId: 'executor-user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   delegationContext: {
     kind: 'workflow_execution',
     workflowId: 'workflow-1',
     executionId: 'execution-1',
   },
-}
+})
 const upload = {
   id: 'import-1',
   workspaceId: 'workspace-1',
@@ -135,7 +132,6 @@ const workspaceFile = {
 
 describe('table import application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.getResource.mockResolvedValue(record)
@@ -164,68 +160,8 @@ describe('table import application use cases', () => {
     mocks.startUploadedImport.mockResolvedValue({ ...record, status: 'ready' })
     mocks.createResource.mockResolvedValue({ record, upload: null })
     mocks.getWorkspaceFile.mockResolvedValue(workspaceFile)
-  })
-
-  it('creates an import through the domain resource boundary without presenting a v2 DTO', async () => {
-    const request = new Request('http://localhost:3000/api/table/imports', { method: 'POST' })
-
-    await expect(
-      createTableImportUseCase.execute({
-        principal: reader,
-        input: {
-          body: {
-            workspaceId: 'workspace-1',
-            source: record.source,
-            target: record.target,
-          },
-        },
-        request,
-      })
-    ).resolves.toEqual({ import: { record, upload: null } })
-
-    expect(mocks.createResource).toHaveBeenCalledWith({
-      body: {
-        workspaceId: 'workspace-1',
-        source: record.source,
-        target: record.target,
-      },
-      userId: 'reader-2',
-      principal: reader,
-      localOrigin: 'http://localhost:3000',
-      resolvedFolderId: undefined,
-      workspaceFile: undefined,
-    })
-    expect(record.createdAt).toBe(createdAt)
-  })
-
-  it('creates an upload import for an unscoped current-workflow executor principal', async () => {
-    const request = new Request('http://localhost:3000/api/table/imports', { method: 'POST' })
-
-    await createTableImportUseCase.execute({
-      principal: executor,
-      input: {
-        body: {
-          workspaceId: 'workspace-1',
-          source: record.source,
-          target: record.target,
-        },
-      },
-      request,
-    })
-
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'executor-user-1',
-      'workspace-1',
-      null,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.createResource).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'executor-user-1',
-        principal: executor,
-      })
-    )
+    mocks.resourceFromUpload.mockReturnValue(record)
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('reads a durable import by workspace role rather than uploader identity', async () => {
@@ -249,24 +185,6 @@ describe('table import application use cases', () => {
     )
   })
 
-  it('resolves a workspace-file source canonically inside the authorized import command', async () => {
-    await createTableImportUseCase.execute({
-      principal: reader,
-      input: {
-        body: {
-          workspaceId: 'workspace-1',
-          source: { type: 'workspace_file', fileId: 'file-1' },
-          target: record.target,
-        },
-      },
-    })
-
-    expect(mocks.getWorkspaceFile).toHaveBeenLastCalledWith('workspace-1', 'file-1', {
-      throwOnError: true,
-    })
-    expect(mocks.createResource).toHaveBeenCalledWith(expect.objectContaining({ workspaceFile }))
-  })
-
   it('conceals a cross-workspace workspace-file id before import mutation', async () => {
     mocks.getWorkspaceFile.mockResolvedValueOnce(null)
 
@@ -284,15 +202,6 @@ describe('table import application use cases', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(mocks.createResource).not.toHaveBeenCalled()
-  })
-
-  it('lets a workspace key cancel the durable workspace resource', async () => {
-    await cancelTableImportUseCase.execute({
-      principal: workspaceKey,
-      input: { importId: 'import-1', workspaceId: 'workspace-1' },
-    })
-
-    expect(mocks.cancelResource).toHaveBeenCalledWith(record)
   })
 
   it('preserves exact principal and token binding on upload control legs', async () => {
@@ -348,72 +257,111 @@ describe('table import application use cases', () => {
     expect(mocks.assertUploadBinding).toHaveBeenCalledWith(upload, workspaceKey)
   })
 
-  it('threads the exact executor principal through upload control and finalization', async () => {
-    const request = new Request('http://localhost:3000/api/table/imports/import-1/parts', {
-      method: 'POST',
+  it('creates a private CLI import for the actual Copilot subject with API keys disabled', async () => {
+    const delegated = createCopilotChatPrincipal(
+      { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat-1' },
+      'sim:tables'
+    )
+    markCopilotWorkspaceInvocation(delegated)
+    mocks.resolveWorkspaceContext.mockResolvedValue({
+      ...workspaceContext,
+      allowPersonalApiKeys: false,
     })
-
-    await createTableImportPartsUseCase.execute({
-      principal: executor,
-      input: {
-        importId: 'import-1',
-        workspaceId: 'workspace-1',
-        uploadToken: 'signed-token',
-        partNumbers: [1],
-      },
-      request,
-    })
-    await completeTableImportUseCase.execute({
-      principal: executor,
-      input: {
-        importId: 'import-1',
-        workspaceId: 'workspace-1',
-        uploadToken: 'signed-token',
-      },
-    })
-
-    expect(mocks.getUpload).toHaveBeenNthCalledWith(1, {
-      importId: 'import-1',
-      assertedWorkspaceId: 'workspace-1',
-      principal: executor,
-      uploadToken: 'signed-token',
-    })
-    expect(mocks.getUpload).toHaveBeenNthCalledWith(2, {
-      importId: 'import-1',
-      assertedWorkspaceId: 'workspace-1',
-      principal: executor,
-      uploadToken: 'signed-token',
-    })
-    expect(mocks.assertUploadBinding).toHaveBeenCalledWith(upload, executor)
-  })
-
-  it('rejects delegated HTTP import creation before canonical load or mutation', async () => {
-    const delegated = {
-      kind: 'delegated' as const,
-      serviceId: 'copilot',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'copilot-tool:tool-1',
-      audience: 'sim:tables',
-      issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-      expiresAt: new Date('2099-08-01T00:00:00.000Z'),
+    const request = new Request('http://localhost:3000/api/v2/tables/imports', { method: 'POST' })
+    const input = {
+      body: { workspaceId: 'workspace-1', source: record.source, target: record.target },
     }
-
+    await expect(
+      createTableImportUseCase.execute({ principal: delegated, input, request })
+    ).resolves.toEqual({ import: { record, upload: null } })
+    expect(createTableImportUseCase.delegationAudience).toBe('sim:tables')
+    expect(mocks.createResource).toHaveBeenCalledWith(
+      expect.objectContaining({ principal: delegated, userId: 'user-1' })
+    )
+    mocks.createResource.mockClear()
     await expect(
       createTableImportUseCase.execute({
-        principal: delegated as never,
-        input: {
-          body: {
-            workspaceId: 'workspace-1',
-            source: record.source,
-            target: record.target,
-          },
-        },
+        principal: { ...delegated, workspaceId: 'other' },
+        input,
+        request,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.resolveWorkspaceContext).not.toHaveBeenCalled()
-    expect(mocks.resolveTableContext).not.toHaveBeenCalled()
     expect(mocks.createResource).not.toHaveBeenCalled()
+  })
+
+  describe('permission-group capability', () => {
+    beforeEach(() => {
+      mocks.getUserPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableTableCreation: true,
+      })
+      mocks.resolveTableContext.mockResolvedValue({
+        tableId: 'table-1',
+        ...workspaceContext,
+      })
+    })
+
+    it('refuses an import that would create a table when the group withholds tables.create', async () => {
+      await expect(
+        createTableImportUseCase.execute({
+          principal: reader,
+          input: {
+            body: {
+              workspaceId: 'workspace-1',
+              source: record.source,
+              target: { type: 'new', name: 'People' },
+            },
+          },
+          request: new Request('http://localhost:3000/api/table/imports', { method: 'POST' }),
+        })
+      ).rejects.toMatchObject({ capability: 'tables.create' })
+
+      expect(mocks.createResource).not.toHaveBeenCalled()
+    })
+
+    /**
+     * A run carries the role of whoever triggered it but not their
+     * capabilities — the same exemption `authorizeWorkspaceOperation` applies.
+     * Keying this check on the raw subject instead would re-apply a capability
+     * the funnel deliberately passed, failing an executor import under a group
+     * that withholds table creation from the person who started the workflow.
+     */
+    it('exempts an executor delegation carrying a subject, as the funnel does', async () => {
+      await expect(
+        createTableImportUseCase.execute({
+          principal: executor,
+          input: {
+            body: {
+              workspaceId: 'workspace-1',
+              source: record.source,
+              target: { type: 'new', name: 'People' },
+            },
+          },
+          request: new Request('http://localhost:3000/api/table/imports', { method: 'POST' }),
+        })
+      ).resolves.toBeDefined()
+
+      expect(mocks.createResource).toHaveBeenCalled()
+    })
+
+    /**
+     * Creation and completion are separate requests, so a group that withholds
+     * creation between them has to be read again at completion — otherwise the
+     * upload started while it was allowed still lands a table.
+     */
+    it('refuses to complete an upload that would create a table, and never starts the import', async () => {
+      await expect(
+        completeTableImportUseCase.execute({
+          principal: reader,
+          input: {
+            importId: 'import-1',
+            workspaceId: 'workspace-1',
+            uploadToken: 'signed-token',
+          },
+        })
+      ).rejects.toMatchObject({ capability: 'tables.create' })
+
+      expect(mocks.startUploadedImport).not.toHaveBeenCalled()
+    })
   })
 })

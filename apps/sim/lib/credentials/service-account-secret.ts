@@ -24,6 +24,7 @@ import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
 } from '@/lib/credentials/principal'
+import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -33,6 +34,7 @@ import {
   getTokenServiceAccountValidator,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -48,9 +50,11 @@ export interface ServiceAccountSecretFields {
   botToken?: string
   apiToken?: string
   domain?: string
+  atlassianProduct?: AtlassianProduct
   serviceAccountJson?: string
   clientId?: string
   clientSecret?: string
+  certificateId?: string
   orgId?: string
   dataCenter?: string
   authMethod?: string
@@ -95,7 +99,8 @@ async function buildAtlassianServiceAccountSecret(
     )
   }
   const normalizedDomain = normalizeAtlassianDomain(domain)
-  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain)
+  const product = fields.atlassianProduct ?? 'jira'
+  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain, product)
   const principal: ServiceAccountPrincipal = {
     kind: 'user',
     id: validation.accountId,
@@ -108,6 +113,7 @@ async function buildAtlassianServiceAccountSecret(
     apiToken,
     domain: normalizedDomain,
     cloudId: validation.cloudId,
+    atlassianProduct: product,
     atlassianAccountId: validation.accountId,
     metadata: serviceAccountPrincipalMetadata(principal),
   })
@@ -262,12 +268,11 @@ async function buildTokenServiceAccountSecret(
 }
 
 /**
- * Builds a client-credential service-account secret (OAuth client id/secret +
- * provider org identifier) for any provider registered in
- * `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the triple by minting a
- * real access token via the provider's registered minter (also capturing the
- * derived identity for the display name and audit log), then persists the raw
- * fields in the encrypted blob so execution-time resolution can re-mint.
+ * Builds a client-credential service-account secret for any provider registered
+ * in `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the provider-specific
+ * descriptor fields by minting a real access token (also capturing the derived
+ * identity for the display name and audit log), then persists those fields in
+ * the encrypted blob so execution-time resolution can re-mint.
  */
 async function buildClientCredentialAccountSecret(
   providerId: string,
@@ -295,6 +300,9 @@ async function buildClientCredentialAccountSecret(
   // the unused one encrypted at rest on the credential.
   const submitted: ClientCredentialAccountFields = {
     clientId: fields.clientId?.trim() ?? '',
+    certificateId: usesField('certificateId')
+      ? fields.certificateId?.trim() || undefined
+      : undefined,
     orgId: fields.orgId?.trim() ?? '',
     dataCenter: fields.dataCenter?.trim() || undefined,
     authMethod: resolvedAuthMethod,
@@ -364,6 +372,11 @@ export async function verifyAndBuildServiceAccountSecret(
   providerId: string,
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
+  if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
+    throw new ServiceAccountSecretError(
+      'Connect a GitHub App installation through your organization’s Search integrations'
+    )
+  }
   const builder = Object.hasOwn(SERVICE_ACCOUNT_SECRET_BUILDERS, providerId)
     ? SERVICE_ACCOUNT_SECRET_BUILDERS[providerId]
     : undefined

@@ -1,0 +1,147 @@
+---
+title: Troubleshooting
+description: The failures whose cause is not obvious from the error message
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Most command errors print to stderr and exit `1`. `sim whoami` and
+`sim workflows runs wait` use additional codes to distinguish outcomes; see
+[Exit codes](/cli/scripting#exit-codes). The cases below explain failures whose
+cause may not be obvious from the message.
+
+Start with `sim whoami`. It prints the resolved endpoint, workspace, and output
+format, **and where each came from** — which explains most surprises on its own —
+then checks the resolved key against the API. Add `--no-verify` to skip the check
+and stay offline.
+
+## A command targets the wrong workspace or deployment
+
+Each setting resolves independently, and a flag beats the environment, which
+beats the profile. A stale `SIM_WORKSPACE` in your shell silently outranks the
+workspace you configured.
+
+```bash
+sim whoami
+```
+
+API-key pairing sets the default workspace selected on its approval page.
+After OAuth login, set one with `sim configure --set-workspace <id>`.
+The default target does not restrict your credential: use `--workspace` to reach
+another workspace that credential can access.
+
+## An error ends in `— run: sim login --profile <name>`
+
+The API rejected the key with a `401`. Either it was revoked, or it belongs to a
+different deployment than the endpoint you are pointed at — a key minted against
+a local stack will not authenticate against production. Check the endpoint before
+re-authenticating:
+
+```bash
+sim whoami --profile <name>
+```
+
+## `Could not reach https://www.sim.ai: <reason>`
+
+The request never got a response: DNS, TLS, a proxy, or a self-hosted stack that
+is not running. Confirm the endpoint the CLI actually used with `sim whoami`, and
+that it has the right scheme and port:
+
+```bash
+sim configure --set-endpoint http://localhost:3000 --profile local
+```
+
+## A JSON flag rejects a value that looks like valid JSON
+
+Your shell consumed the quotes. Wrap the whole value in single quotes, or read it
+from a file:
+
+```bash
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter '{"all":[{"field":"status","op":"eq","value":"open"}]}'
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
+```
+
+## A value looks truncated
+
+`table` clips long cells to keep rows on one line. The data is not truncated —
+switch to a machine format to see it in full:
+
+```bash
+sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json
+```
+
+## In an interactive terminal, `sim files get` refuses to print to the terminal
+
+Writing arbitrary binary to an interactive terminal can corrupt it, so non-text
+content has to go to a file or a pipe:
+
+```bash
+sim files get wf_8Kd2NpVrY6zTfQa3XwBmS -o ./image.png
+sim files get wf_8Kd2NpVrY6zTfQa3XwBmS | shasum
+```
+
+## A stored output format is invalid
+
+A higher-priority source still wins, so you can repair the profile without
+editing the file by hand:
+
+```bash
+sim --output table configure --set-output json
+```
+
+## A command is missing that the documentation describes
+
+The docs track the current release, so a command that exists here and not in
+`sim --help` usually means the installed CLI is older than the feature. Compare
+`sim --version` against the published version and upgrade:
+
+```bash
+sim --version
+```
+
+Run `sim update` to update the active global installation. If this older release
+does not yet have the `update` command, upgrade with the package manager you installed it with — using a different
+one installs a second copy instead of replacing the executable on your `PATH`:
+
+<Tabs items={['npm', 'pnpm', 'bun', 'Yarn Classic']}>
+  <Tab value="npm">
+    ```bash
+    npm install -g sim@latest
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```bash
+    pnpm add -g sim@latest
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add -g sim@latest
+    ```
+  </Tab>
+  <Tab value="Yarn Classic">
+    ```bash
+    yarn global add sim@latest
+    ```
+  </Tab>
+</Tabs>
+
+The CLI also shows an optional update notice through a cached daily check on
+eligible interactive invocations. Your command continues, and you choose when to
+run `sim update`. Checks stay quiet when stderr is redirected, in CI, and under
+`npm exec` or `npx`.
+
+## An update notice appears in output I am parsing
+
+It should not: the notice is written to stderr, never stdout, so `--output json`
+piped to `jq` is unaffected. If something merges the two streams, silence it:
+
+```bash
+export SIM_NO_UPDATE_CHECK=1
+```
+
+## Anything else
+
+An unexpected error prints a stack trace. That is a bug in the CLI — please
+[open an issue](https://github.com/simstudioai/sim/issues) with the command you
+ran, the trace, and the output of `sim --version`.

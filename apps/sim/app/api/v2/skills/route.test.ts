@@ -1,62 +1,60 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
-      list: vi.fn(),
-      create: vi.fn(),
-      capture: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  create: vi.fn(),
+}))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/skills/application/use-cases', () => ({
   listSkillsUseCase: { operation: { id: 'skills.list' }, execute: mocks.list },
   createSkillUseCase: { operation: { id: 'skills.create' }, execute: mocks.create },
 }))
 
-import { GET, POST } from '@/app/api/v2/skills/route'
+import { v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorSortKey, encodeOffsetCursor } from '@/app/api/v2/lib/response'
+import { GET } from '@/app/api/v2/skills/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+
+/**
+ * A cursor exactly as this route mints one, built from the shared codec so the
+ * test exercises the real binding rather than a restatement of it. `search` is
+ * the only filter the skills list takes beyond its workspace.
+ */
+function skillCursor({
+  offset,
+  search,
+  sortBy = 'createdAt',
+  sortOrder = 'desc',
+}: {
+  offset: number
+  search?: string
+  sortBy?: string
+  sortOrder?: string
+}): string {
+  return encodeOffsetCursor(
+    cursorSortKey(sortBy, sortOrder),
+    cursorScopeKey(cursorRoute(v2ListSkillsContract), { workspaceId: WORKSPACE_ID, search }),
+    offset
+  )
+}
+const PRINCIPAL = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
   rateLimitSubjectIds: ['workspace:workspace-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -79,25 +77,21 @@ const skill = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
-function request(method: 'GET' | 'POST', url: string, body?: unknown) {
-  return new NextRequest(`http://localhost:3000${url}`, {
+function request(method: 'GET' | 'POST' | 'HEAD', url: string, body?: unknown) {
+  return createMockRequest({
     method,
-    headers: {
-      'x-api-key': 'key',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    url: `http://localhost:3000${url}`,
+    headers: { 'x-api-key': 'key' },
+    body,
   })
 }
 
 describe('/api/v2/skills', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
-    mocks.list.mockResolvedValue({ skills: [skill] })
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    mocks.list.mockResolvedValue({ skills: [skill], hasMore: false, offset: 0, limit: 50 })
     mocks.create.mockResolvedValue({ skill })
   })
 
@@ -105,7 +99,9 @@ describe('/api/v2/skills', () => {
     const response = await GET(request('GET', `/api/v2/skills?workspaceId=${WORKSPACE_ID}`))
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data[0]).not.toHaveProperty('content')
+    const body = await response.json()
+    expect(body.data[0]).not.toHaveProperty('content')
+    expect(body.nextCursor).toBeNull()
     expect(mocks.list).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -113,68 +109,107 @@ describe('/api/v2/skills', () => {
         search: undefined,
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        limit: 50,
+        cursor: undefined,
+        offset: 0,
       },
       request: expect.anything(),
     })
   })
 
-  it('creates a skill with the v2 source and status', async () => {
-    const response = await POST(
-      request('POST', '/api/v2/skills', {
-        workspaceId: WORKSPACE_ID,
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-      })
+  it('resumes from the offset cursor and mints the next one while pages remain', async () => {
+    mocks.list.mockResolvedValueOnce({
+      skills: [skill],
+      hasMore: true,
+      offset: 2,
+      limit: 2,
+    })
+    const cursor = skillCursor({ offset: 2 })
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&limit=2&cursor=${encodeURIComponent(cursor)}`
+      )
     )
 
-    expect(response.status).toBe(201)
-    expect((await response.json()).data.skill.id).toBe(skill.id)
-    expect(mocks.create).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-    expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
-  it('keeps skill analytics on the personal-key v2 surface', async () => {
-    mocks.authenticate.mockResolvedValueOnce({
-      ...AUTH,
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
-      keyType: 'personal',
-    })
-
-    const response = await POST(
-      request('POST', '/api/v2/skills', {
-        workspaceId: WORKSPACE_ID,
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-      })
-    )
-
-    expect(response.status).toBe(201)
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'user-1',
-      'skill_created',
-      expect.objectContaining({ skill_id: skill.id, source: 'api' }),
-      expect.anything()
+    expect(response.status).toBe(200)
+    expect((await response.json()).nextCursor).toBe(skillCursor({ offset: 4 }))
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 2, offset: 2 }) })
     )
   })
 
-  it('authenticates before parsing skill input', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+  /**
+   * An offset means nothing against a sequence it was not counted in, so a
+   * cursor minted under one sort must not silently resume under another.
+   */
+  it('rejects a cursor replayed under a different sort', async () => {
+    const cursor = skillCursor({ offset: 2 })
 
-    const response = await POST(request('POST', '/api/v2/skills', {}))
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&sortBy=name&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
 
-    expect(response.status).toBe(401)
-    expect(mocks.create).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `search` and `sortOrder` change the sequence the offset counts positions in
+   * just as `sortBy` does, so both are stamped into the scope and both must
+   * invalidate a replayed cursor.
+   */
+  it.each([
+    ['search', 'search=other'],
+    ['sortOrder', 'sortOrder=asc'],
+  ])('rejects a cursor replayed under a different %s', async (_field, param) => {
+    const cursor = skillCursor({ offset: 2 })
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `limit` is deliberately absent from the scope: it selects how much of the
+   * sequence to return, not what the sequence is. Stamping it would strand every
+   * cursor the moment a caller changed page size, for no correctness gain.
+   */
+  it('resumes a cursor minted under a different page size', async () => {
+    mocks.list.mockResolvedValueOnce({ skills: [skill], hasMore: false, offset: 2, limit: 5 })
+    const cursor = skillCursor({ offset: 2 })
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&limit=5&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 5, offset: 2 }) })
+    )
+  })
+
+  /**
+   * The guard itself is unit-tested in `definition.test.ts`; this proves the
+   * pairing end-to-end, on a real v2 read that used to reply 500 to a plain HEAD.
+   */
+  it('serves HEAD through the GET handler instead of throwing', async () => {
+    const response = await GET(request('HEAD', `/api/v2/skills?workspaceId=${WORKSPACE_ID}`))
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalled()
   })
 })

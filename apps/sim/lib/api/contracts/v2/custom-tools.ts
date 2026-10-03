@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   customToolFunctionParametersSchema,
   customToolSchemaSchema,
@@ -8,8 +8,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -81,8 +83,8 @@ export const v2CustomToolSchema = z
     schema: v2CustomToolDeclarationSchema,
     /** The tool's implementation body, executed in Sim's sandboxed function runtime. */
     code: z.string().describe('Tool implementation executed in the sandboxed function runtime.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the tool was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the tool was last updated.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the tool was created.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the tool was last updated.'),
   })
   .meta({
     id: 'V2CustomTool',
@@ -90,18 +92,6 @@ export const v2CustomToolSchema = z
     description: 'A workspace custom tool and its callable function declaration.',
   })
 export type V2CustomTool = z.output<typeof v2CustomToolSchema>
-
-/** `{ customTool }` payload for single-tool reads and mutations. */
-export const v2CustomToolDataSchema = z
-  .object({
-    customTool: v2CustomToolSchema.describe('The custom tool.'),
-  })
-  .meta({
-    id: 'V2CustomToolData',
-    title: 'Custom tool data',
-    description: 'A single workspace custom tool payload.',
-  })
-export type V2CustomToolData = z.output<typeof v2CustomToolDataSchema>
 
 export const v2CustomToolDeleteDataSchema = z
   .object({
@@ -116,13 +106,15 @@ export const v2CustomToolDeleteDataSchema = z
 export type V2CustomToolDeleteData = z.output<typeof v2CustomToolDeleteDataSchema>
 
 export const v2CustomToolParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('Custom tool to retrieve, update, or delete.'),
+  customToolId: nonEmptyIdSchema.describe('Unique custom tool identifier.'),
 })
 export type V2CustomToolParams = z.output<typeof v2CustomToolParamsSchema>
 
-export const v2CustomToolWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
-})
+export const v2CustomToolWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
+  })
+  .strict()
 export type V2CustomToolWorkspaceQuery = z.output<typeof v2CustomToolWorkspaceQuerySchema>
 
 /** A custom tool's natural name field is `title`, so that is what `search` matches. */
@@ -130,10 +122,13 @@ export const v2CustomToolSortFields = ['title', 'createdAt', 'updatedAt'] as con
 
 export type V2CustomToolSortBy = (typeof v2CustomToolSortFields)[number]
 
-export const v2ListCustomToolsQuerySchema = v2CustomToolWorkspaceQuerySchema.extend({
-  search: v2SearchSchema.describe('Case-insensitive substring match against the tool title.'),
-  ...v2SortFields(v2CustomToolSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-})
+export const v2ListCustomToolsQuerySchema = v2CustomToolWorkspaceQuerySchema
+  .extend({
+    search: v2SearchSchema.describe('Case-insensitive substring match against the tool title.'),
+    ...v2SortFields(v2CustomToolSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum custom tools to return per page.' }),
+  })
+  .strict()
 
 export type V2ListCustomToolsQuery = z.output<typeof v2ListCustomToolsQuerySchema>
 
@@ -170,9 +165,9 @@ export const v2UpdateCustomToolBodySchema = z
 export type V2UpdateCustomToolBody = z.input<typeof v2UpdateCustomToolBodySchema>
 
 /**
- * Custom tool list. The per-workspace set is small and bounded, so the full set
- * is returned as a single page (`nextCursor` is always `null`); the canonical
- * cursor envelope keeps the v2 list surface uniform.
+ * Custom tool list, keyset-paginated over the active sort. Nothing capped the
+ * per-workspace set, and each row carries its full `code` and `schema`, so the
+ * response grew without bound before pagination.
  */
 export const v2ListCustomToolsContract = defineRouteContract({
   method: 'GET',
@@ -187,39 +182,41 @@ export const v2ListCustomToolsContract = defineRouteContract({
 export const v2CreateCustomToolContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/custom-tools',
+  query: noInputSchema,
   body: v2CreateCustomToolBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
     status: 201,
   },
 })
 
 export const v2GetCustomToolContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/custom-tools/[id]',
+  path: '/api/v2/custom-tools/[customToolId]',
   params: v2CustomToolParamsSchema,
   query: v2CustomToolWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
   },
 })
 
 export const v2UpdateCustomToolContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/custom-tools/[id]',
+  path: '/api/v2/custom-tools/[customToolId]',
+  query: noInputSchema,
   params: v2CustomToolParamsSchema,
   body: v2UpdateCustomToolBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
   },
 })
 
 export const v2DeleteCustomToolContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/custom-tools/[id]',
+  path: '/api/v2/custom-tools/[customToolId]',
   params: v2CustomToolParamsSchema,
   query: v2CustomToolWorkspaceQuerySchema,
   response: {

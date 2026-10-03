@@ -9,19 +9,20 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, exists, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
-import { isRecord, type SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { invalidateDeployedStateCache } from '@/lib/workflows/persistence/utils'
+import {
+  clearDependentsOnRemap,
+  type ForkRemapKind,
+  remapForkSubBlocks,
+} from '@/lib/workflows/references/remap-references'
 import {
   FORK_DOCUMENT_ID_PATTERN,
   type ForkFailedResource,
 } from '@/ee/workspace-forking/lib/copy/copy-resources'
 import type { ForkCopyResolver } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
-import {
-  clearDependentsOnRemap,
-  type ForkRemapKind,
-  remapForkSubBlocks,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
 
 const logger = createLogger('WorkspaceForkCleanupFailed')
 
@@ -179,11 +180,7 @@ export async function clearFailedForkResourceReferences(params: {
 
   let affectedWorkflowIds: Set<string> = new Set()
   try {
-    affectedWorkflowIds = await clearFailedReferencesInWorkflows(
-      childWorkspaceId,
-      failedByKind,
-      requestId
-    )
+    affectedWorkflowIds = await clearFailedReferencesInWorkflows(childWorkspaceId, failedByKind)
   } catch (error) {
     clearingSucceeded = false
     logger.error(`[${requestId}] Failed to clear references for failed fork resources`, {
@@ -261,8 +258,7 @@ export async function clearFailedForkResourceReferences(params: {
  */
 export async function clearFailedReferencesInWorkflows(
   childWorkspaceId: string,
-  failedByKind: Map<ForkRemapKind, Set<string>>,
-  requestId: string
+  failedByKind: Map<ForkRemapKind, Set<string>>
 ): Promise<Set<string>> {
   const resolve = buildFailedResolver(failedByKind)
   const affectedWorkflowIds = new Set<string>()
@@ -325,13 +321,13 @@ export function rewriteDeploymentVersionState(
   state: unknown,
   resolve: ForkCopyResolver
 ): { state: unknown; changed: boolean } {
-  if (!isRecord(state) || !isRecord(state.blocks)) return { state, changed: false }
+  if (!isRecordLike(state) || !isRecordLike(state.blocks)) return { state, changed: false }
 
   let nextBlocks: Record<string, unknown> | null = null
   for (const [blockId, block] of Object.entries(state.blocks)) {
-    if (!isRecord(block)) continue
+    if (!isRecordLike(block)) continue
     const blockType = typeof block.type === 'string' ? block.type : undefined
-    if (!blockType || !isRecord(block.subBlocks)) continue
+    if (!blockType || !isRecordLike(block.subBlocks)) continue
     const { subBlocks: cleared, changed } = clearFailedSubBlockReferences(
       block.subBlocks as SubBlockRecord,
       blockType,

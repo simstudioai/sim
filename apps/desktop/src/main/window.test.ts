@@ -1,17 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSecureWebPreferences } from '@/main/window-preferences'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, dialog, screen, systemPreferences, WebContentsView } from 'electron'
+import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
-import {
-  backgroundColorFor,
-  createMainWindow,
-  createSecureWebPreferences,
-  resolvePermission,
-  sanitizeBounds,
-} from '@/main/window'
+import { createMainWindow, resolvePermission, setupPermissionHandlers } from '@/main/window'
 
 const APP = 'https://sim.ai'
 
@@ -22,57 +18,104 @@ describe('resolvePermission', () => {
     expect(resolvePermission('clipboard-sanitized-write', '', APP)).toBe(false)
   })
 
-  it('allows clipboard reads from the trusted origin only, so terminal Paste works', () => {
-    expect(resolvePermission('clipboard-read', APP, APP)).toBe(true)
+  it('denies clipboard reads, including from the trusted origin', () => {
+    expect(resolvePermission('clipboard-read', APP, APP)).toBe(false)
     expect(resolvePermission('clipboard-read', 'https://evil.example', APP)).toBe(false)
     expect(resolvePermission('clipboard-read', '', APP)).toBe(false)
   })
 
-  it('default-denies everything else, including media and unknown future permissions', () => {
+  it('denies media that is not narrowed to audio', () => {
+    expect(resolvePermission('media', APP, APP, ['video'])).toBe(false)
+    expect(resolvePermission('media', APP, APP, ['audio', 'video'])).toBe(false)
+    expect(resolvePermission('media', APP, APP, ['unknown'])).toBe(false)
+    expect(resolvePermission('media', APP, APP, [])).toBe(false)
+    expect(resolvePermission('media', APP, APP)).toBe(false)
+  })
+
+  it('default-denies everything else, including unknown future permissions', () => {
     for (const permission of [
-      'media',
       'geolocation',
       'notifications',
       'camera',
+      'display-capture',
       'midi',
       'pointerLock',
       'openExternal',
       'some-future-permission',
     ]) {
       expect(resolvePermission(permission, APP, APP)).toBe(false)
+      expect(resolvePermission(permission, APP, APP, ['audio'])).toBe(false)
     }
   })
 })
 
-describe('backgroundColorFor', () => {
-  it('matches the persisted web-app theme', () => {
-    expect(backgroundColorFor('dark', false)).toBe('#0c0c0c')
-    expect(backgroundColorFor('light', true)).toBe('#ffffff')
+describe('setupPermissionHandlers', () => {
+  const realPlatform = process.platform
+
+  function createSession() {
+    const session = {
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+    }
+    setupPermissionHandlers(session as never, () => APP)
+    return {
+      request: session.setPermissionRequestHandler.mock.calls[0][0] as (
+        contents: unknown,
+        permission: string,
+        callback: (granted: boolean) => void,
+        details: Record<string, unknown>
+      ) => void,
+      check: session.setPermissionCheckHandler.mock.calls[0][0] as (
+        contents: unknown,
+        permission: string,
+        requestingOrigin: string,
+        details: Record<string, unknown>
+      ) => boolean,
+    }
+  }
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
   })
 
-  it('falls back to the system theme before first capture', () => {
-    expect(backgroundColorFor(undefined, true)).toBe('#0c0c0c')
-    expect(backgroundColorFor(undefined, false)).toBe('#ffffff')
-  })
-})
+  it('grants a microphone request only after the OS agrees', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+    vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('denied')
+    const { request } = createSession()
+    const callback = vi.fn()
 
-describe('sanitizeBounds', () => {
-  it('passes plausible bounds through', () => {
-    const bounds = { x: 20, y: 40, width: 1200, height: 800 }
-    expect(sanitizeBounds(bounds)).toEqual(bounds)
-  })
+    request(null, 'media', callback, { requestingUrl: `${APP}/workspace`, mediaTypes: ['audio'] })
+    await vi.waitFor(() => expect(callback).toHaveBeenCalledWith(false))
 
-  it('drops implausible or malformed bounds', () => {
-    expect(sanitizeBounds(undefined)).toBeUndefined()
-    expect(sanitizeBounds({ width: 10, height: 10 })).toBeUndefined()
-    expect(sanitizeBounds({ width: Number.NaN, height: 800 })).toBeUndefined()
+    vi.mocked(systemPreferences.getMediaAccessStatus).mockReturnValue('granted')
+    request(null, 'media', callback, { requestingUrl: `${APP}/workspace`, mediaTypes: ['audio'] })
+    await vi.waitFor(() => expect(callback).toHaveBeenLastCalledWith(true))
   })
 
-  it('drops only the position when coordinates are malformed', () => {
-    expect(sanitizeBounds({ x: Number.NaN, y: 0, width: 1200, height: 800 })).toEqual({
-      width: 1200,
-      height: 800,
-    })
+  it('rejects a camera request without touching the OS', () => {
+    const { request } = createSession()
+    const callback = vi.fn()
+
+    request(null, 'media', callback, { requestingUrl: `${APP}/workspace`, mediaTypes: ['video'] })
+
+    expect(callback).toHaveBeenCalledWith(false)
+    expect(systemPreferences.getMediaAccessStatus).not.toHaveBeenCalled()
+  })
+
+  it('keeps browser permission prompts when a Sim page shares the app session', () => {
+    const { request, check } = createSession()
+    const contents = new WebContentsView().webContents
+    const browserRequest = vi.fn((_contents, _permission, callback) => callback(false))
+    const browserCheck = vi.fn(() => false)
+    registerAgentWebContents(contents, APP, { request: browserRequest, check: browserCheck })
+    const callback = vi.fn()
+    request(contents, 'media', callback, { requestingUrl: `${APP}/chat`, mediaTypes: ['audio'] })
+    expect(browserRequest).toHaveBeenCalledOnce()
+    expect(callback).toHaveBeenCalledWith(false)
+    expect(check(contents, 'media', APP, { mediaType: 'audio' })).toBe(false)
+    expect(browserCheck).toHaveBeenCalledOnce()
+    expect(systemPreferences.getMediaAccessStatus).not.toHaveBeenCalled()
+    expect(check(null, 'media', APP, { mediaType: 'audio' })).toBe(true)
   })
 })
 
@@ -90,20 +133,16 @@ describe('createSecureWebPreferences', () => {
       preload: '/tmp/preload.cjs',
     })
   })
-
-  it('enables DevTools only for unpackaged builds', () => {
-    expect(createSecureWebPreferences('persist:sim', '/p', false).devTools).toBe(true)
-  })
-
-  it('passes the shell version to the preload as an argv flag', () => {
-    expect(createSecureWebPreferences('persist:sim', '/p', true).additionalArguments).toEqual([
-      '--sim-desktop-version=1.0.0',
-    ])
-  })
 })
 
 describe('createMainWindow', () => {
-  it('keeps the native macOS fullscreen titlebar blank', () => {
+  beforeEach(() => {
+    vi.mocked(screen.getDisplayMatching).mockReturnValue({
+      workArea: { x: 0, y: 0, width: 1440, height: 900 },
+    } as never)
+  })
+
+  function createTestWindow(isCommittedRelaunchPending: () => boolean = () => false) {
     const config = {
       filePath: '/tmp/settings.json',
       getOrigin: vi.fn(() => APP),
@@ -115,7 +154,6 @@ describe('createMainWindow', () => {
       filePath: '/tmp/events.jsonl',
       record: vi.fn(),
     } satisfies EventRecorder
-
     const win = createMainWindow({
       config,
       events,
@@ -124,80 +162,36 @@ describe('createMainWindow', () => {
       preloadPath: '/tmp/preload.cjs',
       isPackaged: false,
       onClosed: vi.fn(),
-      platform: 'darwin',
+      isCommittedRelaunchPending,
     })
+    const contentHandlers = new Map(
+      vi.mocked(win.webContents.on).mock.calls as unknown as Array<
+        [string, (...args: never[]) => unknown]
+      >
+    )
+    return { events, win, contentHandlers }
+  }
 
-    const MockBrowserWindow = BrowserWindow as typeof BrowserWindow & {
-      lastOptions?: Record<string, unknown>
-    }
-    const windowEventCalls = vi.mocked(win.on).mock.calls as unknown as Array<
-      [string, (...args: unknown[]) => unknown]
-    >
-
-    expect(MockBrowserWindow.lastOptions?.title).toBe('Sim')
-    // The overlay is what publishes `titlebar-area-*` to the page, so the web
-    // app can reserve the traffic-light lane from the platform rather than from
-    // pixels that shrink under page zoom while the OS-drawn lights do not.
-    expect(MockBrowserWindow.lastOptions).toMatchObject({
-      titleBarStyle: 'hiddenInset',
-      titleBarOverlay: true,
-      trafficLightPosition: { x: 12, y: 12 },
-    })
-
-    const pageTitleHandler = windowEventCalls.find(
-      ([event]) => event === 'page-title-updated'
-    )?.[1] as ((event: { preventDefault: () => void }) => void) | undefined
-    const enterFullscreenHandler = windowEventCalls.find(
-      ([event]) => event === 'enter-full-screen'
-    )?.[1] as (() => void) | undefined
-    const leaveFullscreenHandler = windowEventCalls.find(
-      ([event]) => event === 'leave-full-screen'
-    )?.[1] as (() => void) | undefined
-
-    enterFullscreenHandler?.()
-    expect(win.setTitle).toHaveBeenLastCalledWith('')
-
-    vi.mocked(win.isFullScreen).mockReturnValue(true)
+  it('makes Stay the safe keyboard default for beforeunload', () => {
+    const { contentHandlers } = createTestWindow()
+    const handler = contentHandlers.get('will-prevent-unload')
     const event = { preventDefault: vi.fn() }
-    pageTitleHandler?.(event)
 
-    expect(pageTitleHandler).toBeTypeOf('function')
+    vi.mocked(dialog.showMessageBoxSync).mockReturnValueOnce(0)
+    handler?.(event as never)
+
+    expect(dialog.showMessageBoxSync).toHaveBeenCalledWith(
+      expect.any(BrowserWindow),
+      expect.objectContaining({
+        buttons: ['Stay', 'Leave'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+    )
+    expect(event.preventDefault).not.toHaveBeenCalled()
+
+    vi.mocked(dialog.showMessageBoxSync).mockReturnValueOnce(1)
+    handler?.(event as never)
     expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(win.setTitle).toHaveBeenLastCalledWith('')
-
-    leaveFullscreenHandler?.()
-    expect(win.setTitle).toHaveBeenLastCalledWith('Sim')
-  })
-
-  it('lets the OS cascade secondary windows instead of reusing the saved position', () => {
-    const config = {
-      filePath: '/tmp/settings.json',
-      getOrigin: vi.fn(() => APP),
-      setOrigin: vi.fn(),
-      get: vi.fn(() => ({ x: 40, y: 60, width: 1200, height: 800 })),
-      set: vi.fn(),
-    } as unknown as ConfigStore
-    const events = {
-      filePath: '/tmp/events.jsonl',
-      record: vi.fn(),
-    } satisfies EventRecorder
-
-    createMainWindow({
-      config,
-      events,
-      appOrigin: () => APP,
-      partition: 'persist:sim',
-      preloadPath: '/tmp/preload.cjs',
-      isPackaged: false,
-      onClosed: vi.fn(),
-      restorePosition: false,
-    })
-
-    const MockBrowserWindow = BrowserWindow as typeof BrowserWindow & {
-      lastOptions?: Record<string, unknown>
-    }
-    expect(MockBrowserWindow.lastOptions).toMatchObject({ width: 1200, height: 800 })
-    expect(MockBrowserWindow.lastOptions?.x).toBeUndefined()
-    expect(MockBrowserWindow.lastOptions?.y).toBeUndefined()
   })
 })

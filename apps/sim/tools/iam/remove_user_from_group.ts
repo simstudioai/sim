@@ -1,7 +1,7 @@
 import type { IAMGroupMembershipResponse, IAMRemoveUserFromGroupParams } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const removeUserFromGroupTool: ToolConfig<
+export const removeUserFromGroupTool: InternalToolConfig<
   IAMRemoveUserFromGroupParams,
   IAMGroupMembershipResponse
 > = {
@@ -43,11 +43,8 @@ export const removeUserFromGroupTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/iam/remove-user-from-group',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

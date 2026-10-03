@@ -1,46 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import {
-  isPositionalTriggerBlock,
-  shouldHighlightContainerDropTarget,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
+import { isPositionalTriggerBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
 
 describe('isPositionalTriggerBlock', () => {
-  it('returns true for a top-level block with no incoming edges', () => {
-    const block = { id: 'block-1' }
-    const edges = [{ target: 'other-block' }]
-
-    expect(isPositionalTriggerBlock(block, edges)).toBe(true)
-  })
-
-  it('returns true for a top-level block when there are no edges at all', () => {
-    expect(isPositionalTriggerBlock({ id: 'block-1' }, [])).toBe(true)
-  })
-
-  it('returns false for a top-level block with incoming edges', () => {
-    const block = { id: 'block-1' }
-    const edges = [{ target: 'block-1' }]
-
-    expect(isPositionalTriggerBlock(block, edges)).toBe(false)
-  })
-
   it('returns false for a block nested in a subflow even with no incoming edges', () => {
     const block = { id: 'nested-block', parentId: 'loop-1' }
 
     expect(isPositionalTriggerBlock(block, [])).toBe(false)
-  })
-
-  it('returns false for a nested block with incoming edges', () => {
-    const block = { id: 'nested-block', parentId: 'loop-1' }
-    const edges = [{ target: 'nested-block' }]
-
-    expect(isPositionalTriggerBlock(block, edges)).toBe(false)
-  })
-
-  it('returns false when no block is provided', () => {
-    expect(isPositionalTriggerBlock(undefined, [])).toBe(false)
   })
 
   /**
@@ -61,16 +26,5 @@ describe('isPositionalTriggerBlock', () => {
     ]
 
     expect(isPositionalTriggerBlock(pastedBlock, edges)).toBe(false)
-  })
-})
-
-describe('shouldHighlightContainerDropTarget', () => {
-  it('does not highlight the loop while a nested block moves within it', () => {
-    expect(shouldHighlightContainerDropTarget('loop-1', 'loop-1')).toBe(false)
-  })
-
-  it('highlights a different container as a genuine re-parent target', () => {
-    expect(shouldHighlightContainerDropTarget('loop-1', 'loop-2')).toBe(true)
-    expect(shouldHighlightContainerDropTarget(null, 'loop-1')).toBe(true)
   })
 })

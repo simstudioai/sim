@@ -1,33 +1,14 @@
+import { isPlainRecord } from '@sim/utils/object'
+import { isWholeEnvVarReference } from '@/lib/workflows/blocks/fallback-models'
+import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
+import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
-import {
-  buildCanonicalIndex,
-  buildSubBlockValues,
-  evaluateSubBlockCondition,
-  hasAdvancedValues,
-  isSubBlockFeatureEnabled,
-  isSubBlockVisibleForMode,
-  type SubBlockCondition,
-} from '@/lib/workflows/subblocks/visibility'
+import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
+import { evaluateSubBlockCondition, isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
+import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-
-// Credential types based on actual patterns in the codebase
-enum CredentialType {
-  OAUTH = 'oauth',
-  SECRET = 'secret', // password: true (covers API keys, bot tokens, passwords, etc.)
-}
-
-// Type for credential requirement
-export interface CredentialRequirement {
-  type: CredentialType
-  serviceId?: string // For OAuth (e.g., 'google-drive', 'slack')
-  label: string // Human-readable label
-  blockType: string // The block type that requires this
-  subBlockId: string // The subblock ID for reference
-  required: boolean
-}
 
 /**
  * Resource-selector types NOT cleared by the workspace rule below. Everything else the resource
@@ -66,6 +47,8 @@ const WORKSPACE_SPECIFIC_TYPES: ReadonlySet<string> = new Set<string>([
  * type-keyed registry above cannot supply, so this list stays explicit.
  */
 const WORKSPACE_SPECIFIC_FIELDS = new Set([
+  'credentialId',
+  'oauthCredential',
   'knowledgeBaseId',
   'tagFilters',
   'documentTags',
@@ -75,126 +58,40 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
   'projectId',
   'channelId',
   'folderId',
+  'sandboxId',
 ])
 
 /**
- * Extract required credentials from a workflow state
- * This analyzes all blocks and their subblocks to identify credential requirements
+ * The workspace-specific fields that name a credential rather than a resource.
+ * Cleared even when {@link WorkflowSanitizationOptions.preserveWorkspaceBindings}
+ * keeps the rest: the flag exists for a same-workspace round trip of resource
+ * selections, and credentials stay on the sharing-safe rule alongside
+ * `oauth-input` and `password` fields.
  */
-export function extractRequiredCredentials(
-  state: Partial<WorkflowState> | null | undefined
-): CredentialRequirement[] {
-  const credentials: CredentialRequirement[] = []
-  const seen = new Set<string>()
-
-  if (!state?.blocks) {
-    return credentials
-  }
-
-  // Process each block
-  Object.values(state.blocks).forEach((block: BlockState) => {
-    if (!block?.type) return
-
-    const blockConfig = getBlock(block.type)
-    if (!blockConfig) return
-
-    // Add OAuth credential if block has OAuth auth mode
-    if (blockConfig.authMode === AuthMode.OAuth) {
-      const blockName = blockConfig.name || block.type
-      const key = `oauth-${block.type}`
-
-      if (!seen.has(key)) {
-        seen.add(key)
-        credentials.push({
-          type: CredentialType.OAUTH,
-          serviceId: block.type,
-          label: `Credential for ${blockName}`,
-          blockType: block.type,
-          subBlockId: 'oauth',
-          required: true,
-        })
-      }
-    }
-
-    // Process password fields (API keys, tokens, etc)
-    blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
-      if (!isSubBlockVisible(block, subBlockConfig)) return
-      if (!subBlockConfig.password) return
-
-      const blockName = blockConfig.name || block.type
-      const suffix = block?.triggerMode ? ' Trigger' : ''
-      const fieldLabel = subBlockConfig.title || formatFieldName(subBlockConfig.id)
-      const key = `secret-${block.type}-${subBlockConfig.id}-${block?.triggerMode ? 'trigger' : 'default'}`
-
-      if (!seen.has(key)) {
-        seen.add(key)
-        credentials.push({
-          type: CredentialType.SECRET,
-          label: `${fieldLabel} for ${blockName}${suffix}`,
-          blockType: block.type,
-          subBlockId: subBlockConfig.id,
-          required: subBlockConfig.required !== false,
-        })
-      }
-    })
-  })
-
-  /** Helper to check visibility, respecting mode and conditions */
-  function isSubBlockVisible(block: BlockState, subBlockConfig: SubBlockConfig): boolean {
-    if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
-
-    const values = buildSubBlockValues(block?.subBlocks || {})
-    const blockConfig = getBlock(block.type)
-    const blockSubBlocks = blockConfig?.subBlocks || []
-    const canonicalIndex = buildCanonicalIndex(blockSubBlocks)
-    const effectiveAdvanced =
-      (block?.advancedMode ?? false) || hasAdvancedValues(blockSubBlocks, values, canonicalIndex)
-    const canonicalModeOverrides = block.data?.canonicalModes
-
-    if (subBlockConfig.mode === 'trigger' && !block?.triggerMode) return false
-    if (block?.triggerMode && subBlockConfig.mode && subBlockConfig.mode !== 'trigger') return false
-
-    if (
-      !isSubBlockVisibleForMode(
-        subBlockConfig,
-        effectiveAdvanced,
-        canonicalIndex,
-        values,
-        canonicalModeOverrides
-      )
-    ) {
-      return false
-    }
-
-    return evaluateSubBlockCondition(subBlockConfig.condition as SubBlockCondition, values)
-  }
-
-  // Sort: OAuth first, then secrets, alphabetically within each type
-  credentials.sort((a, b) => {
-    if (a.type !== b.type) {
-      return a.type === CredentialType.OAUTH ? -1 : 1
-    }
-    return a.label.localeCompare(b.label)
-  })
-
-  return credentials
-}
+const CREDENTIAL_BINDING_FIELDS: ReadonlySet<string> = new Set(['credentialId', 'oauthCredential'])
 
 /**
- * Format field name to be human-readable
+ * Sub-block values whose interior cannot be projected safely once the payload leaves the
+ * workspace.
+ *
+ * Tables are arbitrary key/value rows used for authorization headers and sandbox environment
+ * variables. Their cells carry no password metadata — nothing distinguishes
+ * `Authorization: Bearer sk-…` from `Content-Type: application/json` — so the whole value is
+ * withheld. Tool inputs are handled separately through the search-replace parameter codecs.
+ *
+ * Which surfaces withhold these values, what that costs, and the shape a future relaxation must
+ * take are recorded on {@link WorkflowSanitizationOptions.redactOpaqueCredentialInputs}, the flag
+ * that governs both this set and the tool-input branch.
  */
-function formatFieldName(fieldName: string): string {
-  return fieldName
-    .replace(/[_-]/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ')
+const OPAQUE_CREDENTIAL_BEARING_TYPES: ReadonlySet<string> = new Set(['table'])
+
+interface MutableSubBlockState extends Omit<SubBlockState, 'value'> {
+  value: unknown
 }
 
 /** Block state with mutable subBlocks for sanitization */
 interface MutableBlockState extends Omit<BlockState, 'subBlocks'> {
-  subBlocks: Record<string, SubBlockState | null | undefined>
+  subBlocks: Record<string, MutableSubBlockState | null | undefined>
   data?: Record<string, unknown>
 }
 
@@ -248,6 +145,173 @@ interface SanitizedWorkflowState {
   [key: string]: unknown
 }
 
+export interface WorkflowSanitizationOptions {
+  preserveEnvVars?: boolean
+  /** Allows only registered non-secret tool identities in portable exports. */
+  preserveReferenceMetadata?: boolean
+  /**
+   * Keep workspace-scoped resource bindings — table, knowledge base, document,
+   * file, folder, channel, and every other selector the resource registry knows
+   * — instead of clearing them. For a same-workspace round trip (`workflows
+   * export` then `workflows import` into the workspace it came from) those ids
+   * still resolve, and clearing them was the reason a re-imported workflow could
+   * not run. Credentials (`oauth-input`, {@link CREDENTIAL_BINDING_FIELDS}),
+   * passwords, and opaque table values are cleared regardless: the flag widens
+   * what a payload carries, never what leaves the trust boundary as a secret.
+   */
+  preserveWorkspaceBindings?: boolean
+  /**
+   * Withhold values whose interior cannot be projected safely once the payload leaves the
+   * workspace — whole `table` values (see {@link OPAQUE_CREDENTIAL_BEARING_TYPES}) and every
+   * `tool-input` parameter with no authoritative codec metadata.
+   *
+   * Governed surfaces are every caller that passes this flag: the public execution-snapshot
+   * projection, the pinned deployment-version read, and — since #6591 — workflow export, which
+   * reaches the in-app Export as JSON button, the folder and multi-select ZIPs, and the v1/v2
+   * export APIs.
+   *
+   * The accepted cost on the export surface is that an export is lossy for tables and does not
+   * round-trip: non-secret configuration (api `params`, cloudwatch dimensions, response `headers`,
+   * sts `tags`) is withheld alongside the secrets, and a whole-`{{ENV_VAR}}` reference inside a
+   * cell is withheld too, unlike the same reference in a `password: true` field. Withholding was
+   * chosen over per-cell heuristics because the sub-blocks that motivate the loss — every header
+   * table and the `browser_use`/`stagehand`/`daytona` variable tables — are exactly the ones a
+   * pasted bearer token lands in, and an export file leaves the trust boundary. Relaxing this
+   * needs a per-sub-block opt-in that fails closed for tables added later, not a wider default;
+   * `import-export-roundtrip` pins the current loss so the trade cannot be reversed silently.
+   */
+  redactOpaqueCredentialInputs?: boolean
+}
+
+type CredentialSanitizationConfig = Pick<
+  SubBlockConfig,
+  'id' | 'type' | 'password' | 'canonicalParamId'
+>
+
+function isEnvironmentVariableReference(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')
+}
+
+/** Whether a sub-block config holds a reference scoped to this workspace. */
+function isWorkspaceBindingConfig(config: CredentialSanitizationConfig): boolean {
+  return (
+    WORKSPACE_SPECIFIC_TYPES.has(config.type) ||
+    WORKSPACE_SPECIFIC_FIELDS.has(config.id) ||
+    (config.canonicalParamId != null && WORKSPACE_SPECIFIC_FIELDS.has(config.canonicalParamId))
+  )
+}
+
+/** Whether a sub-block config names a credential, which no export option preserves. */
+function isCredentialBindingConfig(config: CredentialSanitizationConfig): boolean {
+  return (
+    config.type === 'oauth-input' ||
+    CREDENTIAL_BINDING_FIELDS.has(config.id) ||
+    (config.canonicalParamId != null && CREDENTIAL_BINDING_FIELDS.has(config.canonicalParamId))
+  )
+}
+
+/**
+ * Keeps a fallback list's models and drops every row key that is not a whole
+ * environment-variable reference. The editor only ever writes references, but the
+ * realtime subblock-value op runs no validator, so this is what guarantees a raw
+ * key can never leave the workspace in an export or template.
+ */
+function sanitizeFallbackModelsValue(
+  value: unknown,
+  options: WorkflowSanitizationOptions
+): unknown {
+  if (!Array.isArray(value)) return value
+  return value.map((row) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return row
+    const { apiKey, ...rest } = row as Record<string, unknown>
+    return options.preserveEnvVars && isWholeEnvVarReference(apiKey) ? { ...rest, apiKey } : rest
+  })
+}
+
+/**
+ * Sanitizes nested tool parameters using the same codecs as workflow search and fork remapping.
+ * Only parameters resolved from a registered definition retain non-sensitive values. Custom, MCP,
+ * and unknown schemas lack reliable secret annotations, so their generic parameters are withheld.
+ */
+function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOptions): unknown {
+  const { array, wasString } = coerceObjectArray(value)
+  if (!array) return null
+  if (wasString && !options.preserveReferenceMetadata) return null
+  const tools = parseStoredToolInputValue(array)
+  if (tools.length !== array.length) return null
+
+  let sanitizedValue: unknown = array
+  tools.forEach((tool, toolIndex) => {
+    const storedTool = array[toolIndex]
+    if (!isPlainRecord(storedTool)) {
+      throw new Error(`Parsed tool input at index ${toolIndex} lost its object shape`)
+    }
+    if (storedTool.params != null && !isPlainRecord(storedTool.params)) {
+      sanitizedValue = setValueAtPath(sanitizedValue, [toolIndex, 'params'], null)
+      return
+    }
+
+    const configs = getToolInputParamConfigs({ tool, toolIndex })
+    const configByParamKey = new Map<
+      string,
+      { config: CredentialSanitizationConfig; authoritative: boolean }
+    >()
+    configs.forEach(({ paramId, config, authoritative }) => {
+      configByParamKey.set(paramId, { config, authoritative })
+      if (config.canonicalParamId) {
+        configByParamKey.set(config.canonicalParamId, { config, authoritative })
+      }
+    })
+
+    Object.entries(tool.params ?? {}).forEach(([paramKey, paramValue]) => {
+      const resolved = configByParamKey.get(paramKey)
+      const nextValue = resolved?.authoritative
+        ? sanitizeConfiguredSubBlockValue(paramValue, resolved.config, options)
+        : options.preserveReferenceMetadata &&
+            (tool.type === 'mcp' || tool.type === 'mcp-server-advanced') &&
+            paramKey === 'toolName' &&
+            typeof paramValue === 'string' &&
+            /^[\w.-]{1,256}$/.test(paramValue)
+          ? paramValue
+          : null
+      sanitizedValue = setValueAtPath(sanitizedValue, [toolIndex, 'params', paramKey], nextValue)
+    })
+  })
+
+  return wasString ? JSON.stringify(sanitizedValue) : sanitizedValue
+}
+
+function sanitizeConfiguredSubBlockValue(
+  value: unknown,
+  config: CredentialSanitizationConfig,
+  options: WorkflowSanitizationOptions
+): unknown {
+  if (config.type === 'oauth-input') return null
+  if (
+    options.preserveReferenceMetadata &&
+    config.type === 'mcp-tool-selector' &&
+    typeof value === 'string' &&
+    /^[\w.-]{1,512}$/.test(value)
+  )
+    return value
+  if (options.redactOpaqueCredentialInputs && config.type === 'tool-input') {
+    return sanitizeToolInputValue(value, options)
+  }
+  if (options.redactOpaqueCredentialInputs && OPAQUE_CREDENTIAL_BEARING_TYPES.has(config.type)) {
+    return null
+  }
+  if (config.password === true) {
+    return options.preserveEnvVars && isEnvironmentVariableReference(value) ? value : null
+  }
+  if (config.type === 'model-fallback-list') {
+    return sanitizeFallbackModelsValue(value, options)
+  }
+  if (isWorkspaceBindingConfig(config)) {
+    if (!options.preserveWorkspaceBindings || isCredentialBindingConfig(config)) return null
+  }
+  return value
+}
+
 /**
  * Sanitize workflow state by removing all credentials and workspace-specific data
  * This is used for both template creation and workflow export to ensure consistency
@@ -257,9 +321,7 @@ interface SanitizedWorkflowState {
  */
 export function sanitizeWorkflowForSharing(
   state: Partial<WorkflowState> | null | undefined,
-  options: {
-    preserveEnvVars?: boolean // Keep {{VAR}} references for export
-  } = {}
+  options: WorkflowSanitizationOptions = {}
 ): SanitizedWorkflowState {
   const sanitized = structuredClone(state) as SanitizedWorkflowState
 
@@ -281,35 +343,11 @@ export function sanitizeWorkflowForSharing(
         if (block.subBlocks?.[subBlockConfig.id]) {
           const subBlock = block.subBlocks[subBlockConfig.id]
 
-          // Clear OAuth credentials (type: 'oauth-input')
-          if (subBlockConfig.type === 'oauth-input') {
-            block.subBlocks[subBlockConfig.id]!.value = null
-          }
-
-          // Clear secret fields (password: true)
-          else if (subBlockConfig.password === true) {
-            // Preserve environment variable references if requested
-            if (
-              options.preserveEnvVars &&
-              typeof subBlock?.value === 'string' &&
-              subBlock.value.startsWith('{{') &&
-              subBlock.value.endsWith('}}')
-            ) {
-              // Keep the env var reference
-            } else {
-              block.subBlocks[subBlockConfig.id]!.value = null
-            }
-          }
-
-          // Clear workspace-specific selectors
-          else if (WORKSPACE_SPECIFIC_TYPES.has(subBlockConfig.type)) {
-            block.subBlocks[subBlockConfig.id]!.value = null
-          }
-
-          // Clear workspace-specific fields by ID
-          else if (WORKSPACE_SPECIFIC_FIELDS.has(subBlockConfig.id)) {
-            block.subBlocks[subBlockConfig.id]!.value = null
-          }
+          block.subBlocks[subBlockConfig.id]!.value = sanitizeConfiguredSubBlockValue(
+            subBlock?.value,
+            subBlockConfig,
+            options
+          )
         }
       })
     }
@@ -317,8 +355,20 @@ export function sanitizeWorkflowForSharing(
     // Process subBlocks without config (fallback)
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([key, subBlock]) => {
+        if (options.redactOpaqueCredentialInputs && subBlock) {
+          if (subBlock.type === 'tool-input') {
+            subBlock.value = sanitizeToolInputValue(subBlock.value, options)
+          } else if (OPAQUE_CREDENTIAL_BEARING_TYPES.has(subBlock.type)) {
+            subBlock.value = null
+          }
+        }
+
         // Clear workspace-specific fields by key name
-        if (WORKSPACE_SPECIFIC_FIELDS.has(key) && subBlock) {
+        if (
+          WORKSPACE_SPECIFIC_FIELDS.has(key) &&
+          subBlock &&
+          (!options.preserveWorkspaceBindings || CREDENTIAL_BINDING_FIELDS.has(key))
+        ) {
           subBlock.value = null
         }
       })
@@ -332,7 +382,7 @@ export function sanitizeWorkflowForSharing(
           block.data![key] = null
         }
         // Clear workspace-specific data
-        if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
+        if (WORKSPACE_SPECIFIC_FIELDS.has(key) && !options.preserveWorkspaceBindings) {
           block.data![key] = null
         }
       })
@@ -342,22 +392,67 @@ export function sanitizeWorkflowForSharing(
   return sanitized
 }
 
-/**
- * Sanitize workflow state for templates (removes credentials and workspace data)
- * Wrapper for backward compatibility
- */
-export function sanitizeCredentials(
-  state: Partial<WorkflowState> | null | undefined
-): SanitizedWorkflowState {
-  return sanitizeWorkflowForSharing(state, { preserveEnvVars: false })
+/** A required workspace binding an export cleared, keyed the way a caller sets it. */
+export interface StrippedWorkspaceBinding {
+  blockId: string
+  blockName: string
+  /** The canonical param id of a picker/manual pair, else the sub-block id. */
+  field: string
+}
+
+function isRequiredSubBlock(config: SubBlockConfig, values: Record<string, unknown>): boolean {
+  if (!config.required) return false
+  if (config.required === true) return true
+  return evaluateSubBlockCondition(config.required, values)
 }
 
 /**
- * Sanitize workflow state for export (preserves env vars)
- * Convenience wrapper for workflow export
+ * The required workspace bindings of a state that arrived empty — what
+ * {@link sanitizeWorkflowForSharing} clears on export and nothing on the import
+ * path can restore.
+ *
+ * Reported per canonical group: a picker and its manual twin are one binding to
+ * the caller, and the group is empty only when every member is. A binding
+ * whose sub-block is hidden by its `condition` (a document selector on a
+ * knowledge block set to `search`) or not required in the current mode is not
+ * reported, so the list is exactly the fields the workflow cannot run without.
+ * Credentials are left to the sharing rule that always clears them; disabled
+ * blocks are skipped because execution skips them too.
  */
-export function sanitizeForExport(
-  state: Partial<WorkflowState> | null | undefined
-): SanitizedWorkflowState {
-  return sanitizeWorkflowForSharing(state, { preserveEnvVars: true })
+export function collectStrippedWorkspaceBindings(
+  state: Pick<Partial<WorkflowState>, 'blocks'> | null | undefined
+): StrippedWorkspaceBinding[] {
+  const findings: StrippedWorkspaceBinding[] = []
+  for (const [blockId, block] of Object.entries(state?.blocks ?? {})) {
+    if (!block?.type || block.enabled === false) continue
+    const blockConfig = getBlock(block.type)
+    if (!blockConfig) continue
+
+    const subBlocks = block.subBlocks ?? {}
+    const values: Record<string, unknown> = {}
+    for (const [id, subBlock] of Object.entries(subBlocks)) values[id] = subBlock?.value
+
+    const groups = new Map<string, { present: boolean; hasValue: boolean; required: boolean }>()
+    for (const config of blockConfig.subBlocks ?? []) {
+      if (!isWorkspaceBindingConfig(config) || isCredentialBindingConfig(config)) continue
+      const key = config.canonicalParamId ?? config.id
+      const group = groups.get(key) ?? { present: false, hasValue: false, required: false }
+      if (Object.hasOwn(subBlocks, config.id)) group.present = true
+      if (isNonEmptyValue(values[config.id])) group.hasValue = true
+      if (
+        evaluateSubBlockCondition(config.condition, values) &&
+        isRequiredSubBlock(config, values)
+      ) {
+        group.required = true
+      }
+      groups.set(key, group)
+    }
+
+    for (const [field, group] of groups) {
+      if (group.present && group.required && !group.hasValue) {
+        findings.push({ blockId, blockName: block.name || blockId, field })
+      }
+    }
+  }
+  return findings
 }

@@ -1,10 +1,10 @@
 name: Desktop Release (macOS)
 
 # Builds, signs, notarizes, and uploads the desktop app to an existing GitHub
-# release. Ordering is load-bearing: scripts/create-single-release.ts skips
-# creation when the tag already exists, so this workflow must never create the
-# release itself — it only uploads assets after create-release ran (wired via
-# workflow_call from ci.yml with needs: [create-release]).
+# release. Stable releases live in this source repository; dev and staging
+# releases live in simstudioai/sim-desktop-releases. Ordering is load-bearing:
+# scripts/create-single-release.ts skips creation when the stable tag already
+# exists, so this workflow must never create a release itself.
 
 on:
   workflow_call:
@@ -19,10 +19,8 @@ on:
         type: boolean
         default: true
       sign:
-        description: Sign and notarize with the Apple Developer identity. When
-          false (prerelease testing before the signing secrets exist) the build
-          is packaged unsigned; installed shells detect this and offer manual
-          downloads instead of Squirrel installs.
+        description: Sign and notarize with the Apple Developer identity. Unsigned
+          builds are workflow artifacts only and cannot be published.
         required: false
         type: boolean
         default: true
@@ -49,23 +47,96 @@ permissions:
 jobs:
   build-sign-notarize:
     name: Build, Sign, Notarize
-    runs-on: macos-14
+    runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
+
+      # Prerelease versions carry their environment in the tag: -dev.N is a
+      # dev build, -staging.N a staging build. Legacy -alpha/-beta tags remain
+      # accepted while already-published builds age out. The channel decides the app's
+      # identity (name/bundle id — a separate app per environment, installable
+      # side by side) and the default origin baked into the bundle, which in
+      # turn selects the update feed the installed app polls.
+      - name: Resolve channel identity
+        id: channel
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$VERSION" in
+            *-dev.*|*-alpha.*)
+              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
+            *-staging.*|*-beta.*)
+              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
+            *)
+              NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN=''; RELEASE_REPOSITORY="$GITHUB_REPOSITORY"; TOKEN_KIND=stable ;;
+          esac
+          {
+            echo "name=$NAME"
+            echo "app_id=$APP_ID"
+            echo "origin=$ORIGIN"
+            echo "release_repository=$RELEASE_REPOSITORY"
+            echo "token_kind=$TOKEN_KIND"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building $NAME ($APP_ID) for $RELEASE_REPOSITORY; default origin: ${ORIGIN:-production}"
+
+      - name: Validate release source
+        env:
+          PUBLISH: ${{ inputs.publish }}
+          SIGN: ${{ inputs.sign }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Refusing to build: '$VERSION' is not a vX.Y.Z release tag."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$TOKEN_KIND" != stable ]; then
+            echo "::error::Manual desktop releases must use a stable source-repository tag."
+            exit 1
+          fi
+          if [ "$PUBLISH" = true ] && [ "$SIGN" != true ]; then
+            echo "::error::Desktop releases must be signed before publication."
+            exit 1
+          fi
+          if [ "$TOKEN_KIND" = stable ]; then
+            TAG_COMMIT="$(git rev-parse "refs/tags/${VERSION}^{commit}")"
+            HEAD_COMMIT="$(git rev-parse HEAD)"
+            if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+              echo "::error::Requested tag $VERSION points to $TAG_COMMIT, but the checkout is $HEAD_COMMIT."
+              exit 1
+            fi
+          fi
+
+      - name: Validate release authentication
+        if: ${{ inputs.publish }}
+        env:
+          DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
+        run: |
+          if [ "$TOKEN_KIND" = prerelease ] && [ -z "$DESKTOP_RELEASE_TOKEN" ]; then
+            echo "::error::DESKTOP_RELEASE_TOKEN is required to publish prereleases to $RELEASE_REPOSITORY."
+            exit 1
+          fi
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.2
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
       - name: Cache Electron binaries
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/Library/Caches/electron
@@ -80,47 +151,36 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           SEMVER="${VERSION#v}"
-          if ! [[ "$SEMVER" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.].+)?$ ]]; then
-            echo "Refusing to build: '$VERSION' is not a vX.Y.Z release tag" >&2
-            exit 1
-          fi
-          npm pkg set version="$SEMVER" --prefix apps/desktop
+          cd apps/desktop
+          bun pm pkg set version="$SEMVER"
+          cd ../..
           INJECTED="$(node -p "require('./apps/desktop/package.json').version")"
           if [ "$INJECTED" != "$SEMVER" ]; then
             echo "Version injection mismatch: wanted $SEMVER got $INJECTED" >&2
             exit 1
           fi
 
-      # Prerelease versions carry their environment in the tag: -alpha.N is a
-      # dev build, -beta.N a staging build. The channel decides the app's
-      # identity (name/bundle id — a separate app per environment, installable
-      # side by side) and the default origin baked into the bundle, which in
-      # turn selects the update feed the installed app polls.
-      - name: Resolve channel identity
-        id: channel
-        env:
-          VERSION: ${{ inputs.version }}
+      - name: Verify desktop source
         run: |
-          case "$VERSION" in
-            *-alpha.*)
-              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai ;;
-            *-beta.*)
-              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai ;;
-            *)
-              NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN='' ;;
-          esac
-          {
-            echo "name=$NAME"
-            echo "app_id=$APP_ID"
-            echo "origin=$ORIGIN"
-          } >> "$GITHUB_OUTPUT"
-          echo "Building $NAME ($APP_ID) default origin: ${ORIGIN:-production}"
+          bun run --cwd apps/desktop lint:check
+          bun run --cwd apps/desktop type-check
+          bun run --cwd apps/desktop test
 
       - name: Bundle main and preload
         working-directory: apps/desktop
         env:
           SIM_DESKTOP_DEFAULT_ORIGIN: ${{ steps.channel.outputs.origin }}
         run: bun run build
+
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
+
+      - name: Run Electron smoke tests
+        working-directory: apps/desktop
+        env:
+          SIM_DESKTOP_DEFAULT_ORIGIN: ${{ steps.channel.outputs.origin }}
+        run: bun run test:e2e
 
       - name: Write App Store Connect API key
         if: ${{ inputs.sign }}
@@ -131,12 +191,47 @@ jobs:
           printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
 
+      - name: Import Apple signing certificate
+        if: ${{ inputs.sign }}
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/desktop-signing.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/desktop-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          printf '%s' "$CSC_LINK" | base64 --decode > "$CERTIFICATE_PATH"
+          chmod 600 "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" -P "$CSC_KEY_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+
+          EXISTING_KEYCHAINS=("$KEYCHAIN_PATH")
+          while IFS= read -r EXISTING_KEYCHAIN; do
+            EXISTING_KEYCHAIN="${EXISTING_KEYCHAIN#*\"}"
+            EXISTING_KEYCHAIN="${EXISTING_KEYCHAIN%\"}"
+            if [ "$EXISTING_KEYCHAIN" != "$KEYCHAIN_PATH" ]; then
+              EXISTING_KEYCHAINS+=("$EXISTING_KEYCHAIN")
+            fi
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "${EXISTING_KEYCHAINS[@]}"
+
+          SIGNING_IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+          if ! grep -q 'Developer ID Application' <<< "$SIGNING_IDENTITIES"; then
+            echo '::error::The signing certificate does not contain a valid Developer ID Application identity.'
+            exit 1
+          fi
+
       - name: Package, sign, and notarize
         if: ${{ inputs.sign }}
         working-directory: apps/desktop
         env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_KEYCHAIN: ${{ runner.temp }}/desktop-signing.keychain-db
           # Absolute path — @electron/notarize reads this via Node fs, which
           # does not expand a leading '~'.
           APPLE_API_KEY: ${{ runner.temp }}/appstoreconnect/AuthKey.p8
@@ -149,9 +244,16 @@ jobs:
           bunx electron-builder --mac --publish never
           -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID"
 
-      # Unsigned prerelease path: no Developer ID, no notarization. The
-      # binaries end up ad-hoc/linker-signed, which runs locally but gets
-      # quarantined when downloaded — fine for testing the update pipeline.
+      - name: Remove Apple signing credentials
+        if: ${{ always() && inputs.sign }}
+        run: |
+          security delete-keychain "$RUNNER_TEMP/desktop-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/desktop-signing.p12"
+          rm -f "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
+
+      # Unsigned artifact-only path: no Developer ID or notarization. The bundle
+      # is ad-hoc signed with Hardened Runtime off for local workflow testing and
+      # must never be published.
       - name: Package unsigned
         if: ${{ !inputs.sign }}
         working-directory: apps/desktop
@@ -161,52 +263,204 @@ jobs:
           APP_ID: ${{ steps.channel.outputs.app_id }}
         run: >
           bunx electron-builder --mac --publish never -c.mac.notarize=false
+          -c.mac.identity=- -c.mac.hardenedRuntime=false
           -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID"
+
+      - name: Validate packaged artifacts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          SEMVER="${VERSION#v}"
+          RELEASE_DIR=apps/desktop/release
+          YML="$(find "$RELEASE_DIR" -maxdepth 1 -name '*-mac.yml' -print)"
+          if [ "$(printf '%s\n' "$YML" | sed '/^$/d' | wc -l | tr -d ' ')" != 1 ]; then
+            echo "::error::Expected exactly one updater manifest in $RELEASE_DIR."
+            exit 1
+          fi
+          if [ "$(basename "$YML")" != latest-mac.yml ]; then
+            mv "$YML" "$RELEASE_DIR/latest-mac.yml"
+          fi
+          ARTIFACTS=(
+            "$RELEASE_DIR/Sim-${SEMVER}-universal.dmg"
+            "$RELEASE_DIR/Sim-${SEMVER}-universal.dmg.blockmap"
+            "$RELEASE_DIR/Sim-${SEMVER}-universal.zip"
+            "$RELEASE_DIR/Sim-${SEMVER}-universal.zip.blockmap"
+            "$RELEASE_DIR/latest-mac.yml"
+          )
+          for ARTIFACT in "${ARTIFACTS[@]}"; do
+            if [ ! -f "$ARTIFACT" ]; then
+              echo "::error::Expected desktop artifact is missing: $ARTIFACT"
+              exit 1
+            fi
+          done
+          if [ "$(find "$RELEASE_DIR" -maxdepth 1 \( -name '*.dmg' -o -name '*.zip' -o -name '*.blockmap' \) | wc -l | tr -d ' ')" != 4 ]; then
+            echo "::error::Unexpected package artifacts were produced; refusing a wildcard upload."
+            find "$RELEASE_DIR" -maxdepth 1 -type f -print
+            exit 1
+          fi
+          if ! grep -Fxq "version: $SEMVER" "$RELEASE_DIR/latest-mac.yml"; then
+            echo "::error::Updater manifest version does not match $VERSION."
+            exit 1
+          fi
+          URLS="$(sed -nE 's/^[[:space:]]*(-[[:space:]]*)?url:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\2/p' "$RELEASE_DIR/latest-mac.yml" | sort)"
+          EXPECTED_URLS="$(printf '%s\n' "Sim-${SEMVER}-universal.zip" "Sim-${SEMVER}-universal.dmg" | sort)"
+          if [ "$URLS" != "$EXPECTED_URLS" ]; then
+            echo "::error::Updater manifest contains unexpected artifact URLs."
+            exit 1
+          fi
+          if ! grep -Fxq "path: Sim-${SEMVER}-universal.zip" "$RELEASE_DIR/latest-mac.yml"; then
+            echo "::error::Updater manifest path does not reference the verified zip artifact."
+            exit 1
+          fi
+          hdiutil verify "$RELEASE_DIR/Sim-${SEMVER}-universal.dmg"
+          unzip -tq "$RELEASE_DIR/Sim-${SEMVER}-universal.zip"
 
       - name: Validate signature and notarization
         if: ${{ inputs.sign }}
+        env:
+          APP_ID: ${{ steps.channel.outputs.app_id }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          VERSION: ${{ inputs.version }}
         run: |
-          DMG="$(ls apps/desktop/release/*.dmg | head -1)"
-          xcrun stapler validate "$DMG"
-          hdiutil attach "$DMG" -mountpoint /tmp/sim-dmg -nobrowse -quiet
-          spctl --assess --type execute --verbose /tmp/sim-dmg/*.app
-          codesign --verify --deep --strict /tmp/sim-dmg/*.app
-          hdiutil detach /tmp/sim-dmg -quiet
+          SEMVER="${VERSION#v}"
+          DMG="apps/desktop/release/Sim-${SEMVER}-universal.dmg"
+          ZIP="apps/desktop/release/Sim-${SEMVER}-universal.zip"
+          MOUNT_POINT="$RUNNER_TEMP/sim-dmg"
+          ZIP_DIR="$(mktemp -d "$RUNNER_TEMP/sim-zip.XXXXXX")"
+          validate_identity() {
+            local APP_BUNDLE="$1"
+            local ACTUAL_APP_ID ACTUAL_NAME SIGNATURE
+            ACTUAL_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_BUNDLE/Contents/Info.plist")"
+            ACTUAL_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$APP_BUNDLE/Contents/Info.plist")"
+            SIGNATURE="$(codesign -dv --verbose=4 "$APP_BUNDLE" 2>&1)"
+            if [ "$ACTUAL_APP_ID" != "$APP_ID" ] || [ "$ACTUAL_NAME" != "$PRODUCT_NAME" ]; then
+              echo "::error::Unexpected packaged identity: $ACTUAL_NAME ($ACTUAL_APP_ID)."
+              exit 1
+            fi
+            if ! grep -Fxq "TeamIdentifier=$APPLE_TEAM_ID" <<< "$SIGNATURE"; then
+              echo "::error::The app was not signed by the expected Apple team."
+              exit 1
+            fi
+            if ! grep -Eq 'flags=.*runtime' <<< "$SIGNATURE"; then
+              echo "::error::The app was not signed with Hardened Runtime."
+              exit 1
+            fi
+          }
+          mkdir -p "$MOUNT_POINT"
+          hdiutil attach "$DMG" -mountpoint "$MOUNT_POINT" -nobrowse -quiet
+          trap 'hdiutil detach "$MOUNT_POINT" -quiet || true; rm -rf "$ZIP_DIR"' EXIT
+          APP_BUNDLE="$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "::error::The signed DMG does not contain an app bundle."
+            exit 1
+          fi
+          xcrun stapler validate "$APP_BUNDLE"
+          spctl --assess --type execute --verbose "$APP_BUNDLE"
+          codesign --verify --deep --strict "$APP_BUNDLE"
+          validate_identity "$APP_BUNDLE"
+          unzip -q "$ZIP" -d "$ZIP_DIR"
+          ZIP_APP="$(find "$ZIP_DIR" -maxdepth 2 -name '*.app' -print -quit)"
+          if [ -z "$ZIP_APP" ]; then
+            echo "::error::The updater ZIP does not contain an app bundle."
+            exit 1
+          fi
+          xcrun stapler validate "$ZIP_APP"
+          spctl --assess --type execute --verbose "$ZIP_APP"
+          codesign --verify --deep --strict "$ZIP_APP"
+          validate_identity "$ZIP_APP"
+          hdiutil detach "$MOUNT_POINT" -quiet
+          rm -rf "$ZIP_DIR"
+          trap - EXIT
+
+      - name: Run packaged Electron smoke suite
+        working-directory: apps/desktop
+        run: |
+          APP_BUNDLE="$(find release -maxdepth 2 -name '*.app' -print -quit)"
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "::error::Packaged app bundle was not found."
+            exit 1
+          fi
+          EXECUTABLE="$(find "$APP_BUNDLE/Contents/MacOS" -maxdepth 1 -type f -perm -111 -print -quit)"
+          if [ -z "$EXECUTABLE" ]; then
+            echo "::error::Packaged app executable was not found."
+            exit 1
+          fi
+          SIM_DESKTOP_EXECUTABLE="$EXECUTABLE" bunx playwright test e2e/packaged-smoke.spec.ts
 
       - name: Upload artifacts to the release
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
+          SOURCE_RELEASE_TOKEN: ${{ github.token }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
           VERSION: ${{ inputs.version }}
         run: |
-          # electron-builder's GitHub provider always names the manifest
-          # latest-mac.yml (channels are a generic-provider concept), and the
-          # update feed expects exactly that asset name on every release —
-          # normalize defensively in case a config change ever produces a
-          # channel-named manifest.
-          YML="$(find apps/desktop/release -maxdepth 1 -name '*-mac.yml' | head -1)"
-          if [ -z "$YML" ]; then
-            echo "::error::No *-mac.yml updater manifest found in apps/desktop/release"
+          case "$TOKEN_KIND" in
+            prerelease) GH_TOKEN="$DESKTOP_RELEASE_TOKEN" ;;
+            stable) GH_TOKEN="$SOURCE_RELEASE_TOKEN" ;;
+            *)
+              echo "::error::Unknown desktop release token kind: $TOKEN_KIND"
+              exit 1 ;;
+          esac
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::No GitHub token is available to publish to $RELEASE_REPOSITORY."
             exit 1
           fi
-          if [ "$(basename "$YML")" != "latest-mac.yml" ]; then
-            mv "$YML" apps/desktop/release/latest-mac.yml
+          export GH_TOKEN
+          if ! RELEASE_ID="$(
+            gh release view "$VERSION" --repo "$RELEASE_REPOSITORY" \
+              --json databaseId --jq '.databaseId'
+          )"; then
+            echo "::error::Release $VERSION does not exist in $RELEASE_REPOSITORY."
+            exit 1
           fi
-          gh release upload "$VERSION" \
-            apps/desktop/release/*.dmg \
-            apps/desktop/release/*.zip \
-            apps/desktop/release/*.blockmap \
-            apps/desktop/release/latest-mac.yml \
-            --clobber
+          if ! [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Release $VERSION returned an invalid database ID."
+            exit 1
+          fi
+          RELEASE_JSON="$(gh api "repos/${RELEASE_REPOSITORY}/releases/${RELEASE_ID}")"
+          SEMVER="${VERSION#v}"
+          ARTIFACTS=(
+            "apps/desktop/release/Sim-${SEMVER}-universal.dmg"
+            "apps/desktop/release/Sim-${SEMVER}-universal.dmg.blockmap"
+            "apps/desktop/release/Sim-${SEMVER}-universal.zip"
+            "apps/desktop/release/Sim-${SEMVER}-universal.zip.blockmap"
+            "apps/desktop/release/latest-mac.yml"
+          )
+          upload_or_verify() {
+            local ARTIFACT="$1"
+            local NAME SIZE DIGEST REMOTE REMOTE_SIZE REMOTE_DIGEST
+            NAME="$(basename "$ARTIFACT")"
+            SIZE="$(stat -f%z "$ARTIFACT")"
+            DIGEST="sha256:$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
+            REMOTE="$(jq -c --arg name "$NAME" '.assets[] | select(.name == $name)' <<< "$RELEASE_JSON")"
+            if [ -n "$REMOTE" ]; then
+              REMOTE_SIZE="$(jq -r '.size' <<< "$REMOTE")"
+              REMOTE_DIGEST="$(jq -r '.digest // empty' <<< "$REMOTE")"
+              if [ "$REMOTE_SIZE" != "$SIZE" ] || [ "$REMOTE_DIGEST" != "$DIGEST" ]; then
+                echo "::error::Existing release asset $NAME does not match this build."
+                exit 1
+              fi
+              echo "Verified existing release asset $NAME; skipping upload."
+              return
+            fi
+            gh release upload "$VERSION" "$ARTIFACT" --repo "$RELEASE_REPOSITORY"
+          }
+          for ARTIFACT in "${ARTIFACTS[@]:0:4}"; do
+            upload_or_verify "$ARTIFACT"
+          done
+          upload_or_verify "${ARTIFACTS[4]}"
 
       - name: Upload artifacts to the workflow run
         if: ${{ !inputs.publish }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sim-desktop-${{ inputs.version }}
           path: |
             apps/desktop/release/*.dmg
             apps/desktop/release/*.zip
             apps/desktop/release/*.blockmap
-            apps/desktop/release/*-mac.yml
+            apps/desktop/release/latest-mac.yml
           retention-days: 7

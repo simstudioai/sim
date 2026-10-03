@@ -7,14 +7,17 @@ import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { getErrorMessage } from '@sim/utils/errors'
+import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
-import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
+import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
+  Predicate,
+  SortDirection,
   TableLocks,
   TableMetadata,
   TablePredicate,
@@ -24,10 +27,16 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { isEmptyCellValue } from '@/lib/table/deps'
+import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
-import { useTimezone } from '@/hooks/queries/general-settings'
+import { LOCK_TOOLTIPS } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
+import { useTimezoneState } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -48,18 +57,18 @@ import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTable } from '../../hooks'
-import type { EditingCell, QueryOptions, SaveReason } from '../../types'
+import type { EditingCell, QueryOptions, RowInsertTarget, SaveReason } from '../../types'
 import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
 import type { ColumnConfig } from '../column-config-sidebar'
+import { ColumnDropdown } from '../column-dropdown'
 import { ContextMenu } from '../context-menu'
-import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import { RemoteSelectionOverlay } from './remote-selection-overlay'
-import { TableFind } from './table-find'
+import { exceedsTablePasteRowLimit, parseBoundedTsv } from './table-paste'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
 import {
@@ -75,6 +84,7 @@ import {
   drainTargetForChip,
   type ExecStatusMix,
   expandToDisplayColumns,
+  horizontalEdgeScrollVelocity,
   isCellInSelection,
   moveCell,
   ROW_SELECTION_ALL,
@@ -91,10 +101,14 @@ const logger = createLogger('TableView')
 
 const EMPTY_RUNNING_BY_ROW: Readonly<Record<string, number>> = Object.freeze({})
 const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
+const EMPTY_FIND_MATCH_COLUMNS: ReadonlyMap<string, ReadonlySet<string>> = Object.freeze(new Map())
+const EMPTY_FILTER_CONDITIONS: readonly Predicate[] = Object.freeze([])
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 const ROW_HEIGHT_ESTIMATE = 35
+const COLUMN_DRAG_SCROLL_HOT_ZONE_PX = 48
+const COLUMN_DRAG_SCROLL_MAX_VELOCITY_PX = 14
 
 /**
  * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
@@ -161,6 +175,7 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  tableRowTtlEnabled: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
   remoteSelections: RemoteTableSelection[]
   /** Broadcast the local viewer's cell selection to the table presence room. */
@@ -195,6 +210,8 @@ interface TableGridProps {
   onOpenEnrichmentDetails: (rowId: string, groupId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
+  /** Opens the add-row form, which inserts a complete row at `insertAt` (appends when omitted). */
+  onOpenAddRowModal: (insertAt?: RowInsertTarget) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
   /**
@@ -238,6 +255,14 @@ interface TableGridProps {
   onSelectionChange: (state: SelectionSnapshot) => void
   /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
   queryOptions: QueryOptions
+  /**
+   * Narrows the active filter with the conditions matching one cell's value
+   * ("Filter by cell value"). The wrapper owns the filter, so the grid only
+   * reports the conditions the clicked cell produced.
+   */
+  onFilterByCellValue?: (conditions: readonly Predicate[]) => void
+  onSortColumn?: (columnId: string, direction: SortDirection) => void
+  onClearSort?: () => void
   /**
    * **Column ids** to hide from the grid. Owned by the wrapper because the filter
    * panel's Columns section edits the same list and the active view persists it.
@@ -323,6 +348,7 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
  */
 function writeLoadedRowsWithChip(opts: {
   clipboardData: DataTransfer | null
+  workspaceId: string
   rows: TableRowType[]
   complete: boolean
   buildCells: (row: TableRowType) => string[]
@@ -343,9 +369,18 @@ function writeLoadedRowsWithChip(opts: {
     'text/plain',
     rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
   )
-  attachSelectionContextToClipboard(opts.clipboardData, context)
+  attachSelectionContextToClipboard(opts.clipboardData, context, opts.workspaceId)
   toast.success(`Copied ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`)
   return true
+}
+
+/**
+ * Whether new rows must go through the add-row form instead of a blank grid row.
+ * A blank row only works when the grid can fill it in afterwards: typing into it
+ * is an update, and the server rejects an empty row when any column is required.
+ */
+function needsAddRowForm(updateLocked: boolean | undefined, columns: ColumnDefinition[]): boolean {
+  return Boolean(updateLocked) || columns.some((column) => column.required)
 }
 
 /**
@@ -415,6 +450,7 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  tableRowTtlEnabled,
   remoteSelections,
   emitCellSelection,
   locks,
@@ -427,6 +463,7 @@ export function TableGrid({
   onOpenExecutionDetails,
   onOpenEnrichmentDetails,
   onOpenRowModal,
+  onOpenAddRowModal,
   onRequestDeleteRows,
   onRequestDeleteAllByFilter,
   onRequestDeleteColumns,
@@ -438,6 +475,9 @@ export function TableGrid({
   onStopRow,
   onSelectionChange,
   queryOptions,
+  onFilterByCellValue,
+  onSortColumn,
+  onClearSort,
   hiddenColumns,
   viewLayout,
   viewLayoutKey = null,
@@ -452,6 +492,10 @@ export function TableGrid({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
+  const tableIdRef = useRef(tableId)
+  tableIdRef.current = tableId
   const posthog = usePostHog()
 
   useEffect(() => {
@@ -466,11 +510,9 @@ export function TableGrid({
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelection>(ROW_SELECTION_NONE)
   const [isColumnSelection, setIsColumnSelection] = useState(false)
-  // Find (Cmd/Ctrl+F): `findQuery` is the live input, `submittedQuery` is the
-  // last Enter/search-triggered term the query hook runs on.
+  // Find (Cmd/Ctrl+F): `findQuery` is the live input.
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
-  const [submittedQuery, setSubmittedQuery] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
   const [isJumping, setIsJumping] = useState(false)
   // Bumped on every navigation so the reveal effect re-runs even when the target
@@ -478,6 +520,18 @@ export function TableGrid({
   const [pendingMatchTick, setPendingMatchTick] = useState(0)
   const findInputRef = useRef<HTMLInputElement>(null)
   const pendingMatchRef = useRef<TableFindMatch | null>(null)
+  /** Monotonic id for the in-flight match jump; see `goToMatch`. */
+  const goToMatchSeqRef = useRef(0)
+  /** The match the cursor is on, by identity rather than position, so a
+   *  reordered result set can re-point at the same cell. */
+  const activeMatchRef = useRef<TableFindMatch | null>(null)
+  /** Term the auto-reveal has already run for, so a background refetch of the
+   *  same term doesn't re-jump the viewport. */
+  const autoRevealedTermRef = useRef('')
+  /** Whether the selection currently sits on the match at `currentMatchIndex`.
+   *  False when the auto-reveal was skipped, so next/prev knows to land on that
+   *  index rather than step past it. */
+  const cursorIsOnMatchRef = useRef(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
@@ -517,6 +571,8 @@ export function TableGrid({
   const seededLayoutKeyRef = useRef<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const columnDragPointerXRef = useRef<number | null>(null)
+  const columnDragScrollFrameRef = useRef<number | null>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
   const isDraggingRef = useRef(false)
@@ -544,7 +600,6 @@ export function TableGrid({
     workflows,
     columns,
     tableWorkflowGroups,
-    workflowStates,
     columnSourceInfo,
     ensureAllRowsLoaded,
     ensureRowsLoadedUpTo,
@@ -555,6 +610,9 @@ export function TableGrid({
     // (and one the server rejects outright).
     filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
+
+  /** Sort is single-column, so only the first spec entry can be active. */
+  const activeSort = queryOptions.sort?.[0]
 
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
@@ -654,15 +712,14 @@ export function TableGrid({
   // requires the delete lock clear too — mirror that here or the affordance
   // stays live on an append-only table and only fails on click.
   const canDestroyColumn = canMutateSchema && !locks?.deleteLocked
-  // Duplicate inserts a full copied row in one shot, so unlike the blank-row
-  // paths it needs the insert lock only — it is valid on an append-only table.
+  /**
+   * Inserts that carry the whole row in one request (Duplicate, paste-append, the
+   * add-row form) need only the insert lock, so they stay valid on an append-only
+   * table. New row, Shift+Enter, and Insert row fall back to that form whenever
+   * `needsAddRowForm` says a blank row can't work.
+   */
   const canInsertFullRow = userPermissions.canEdit && !locks?.insertLocked
-  // Manual grid entry is "add an empty row, then type into its cells" — the
-  // typing is an update. So a *useful* manual add needs BOTH insert and update
-  // unlocked; on an append-only table (update locked) it would leave a blank
-  // row the user can't fill. The control stays visible and explains itself via
-  // `onBlockedAction`. Full-row inserts still flow through CSV import / API /
-  // blocks / Mothership, which the insert lock alone governs server-side.
+  /** A blank grid row is filled in by typing, which is an update, so it needs both locks off. */
   const canManualAddRow = userPermissions.canEdit && !locks?.insertLocked && !locks?.updateLocked
   const canEditCellRef = useRef(canEditCell)
   canEditCellRef.current = canEditCell
@@ -670,8 +727,8 @@ export function TableGrid({
   canManualAddRowRef.current = canManualAddRow
   const canInsertFullRowRef = useRef(canInsertFullRow)
   canInsertFullRowRef.current = canInsertFullRow
-  // Read by the closure-free double-click handler to tell "locked" apart from
-  // "no write permission" — only the former gets the explanation modal.
+  // Read by the closure-free save and keyboard handlers to tell "locked" apart
+  // from "no write permission" — only the former gets the explanation toast.
   const updateLockedRef = useRef(locks?.updateLocked)
   updateLockedRef.current = locks?.updateLocked
   const onBlockedActionRef = useRef(onBlockedAction)
@@ -682,6 +739,8 @@ export function TableGrid({
   // Refs for callback props read inside effects with stable empty deps.
   const onOpenRowModalRef = useRef(onOpenRowModal)
   onOpenRowModalRef.current = onOpenRowModal
+  const onOpenAddRowModalRef = useRef(onOpenAddRowModal)
+  onOpenAddRowModalRef.current = onOpenAddRowModal
 
   const {
     contextMenu,
@@ -692,9 +751,12 @@ export function TableGrid({
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
-  const timeZone = useTimezone()
+  const timezoneState = useTimezoneState()
+  const timeZone = timezoneState.timezone
   const timeZoneRef = useRef(timeZone)
   timeZoneRef.current = timeZone
+  const timezoneStateRef = useRef(timezoneState)
+  timezoneStateRef.current = timezoneState
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
@@ -861,7 +923,11 @@ export function TableGrid({
    *  so solo editing never pays the map build. */
   const columnIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) displayColumns.forEach((col, index) => map.set(col.key, index))
+    if (remoteSelections.length > 0) {
+      displayColumns.forEach((col, index) => {
+        map.set(col.key, index)
+      })
+    }
     return map
   }, [displayColumns, remoteSelections.length])
 
@@ -870,7 +936,11 @@ export function TableGrid({
    *  solo editing never pays the O(n) map build on a refetch. */
   const rowIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) rows.forEach((row, index) => map.set(row.id, index))
+    if (remoteSelections.length > 0) {
+      rows.forEach((row, index) => {
+        map.set(row.id, index)
+      })
+    }
     return map
   }, [rows, remoteSelections.length])
 
@@ -1075,7 +1145,51 @@ export function TableGrid({
     emitCellSelection({ anchor, focus, editing: editingCell !== null })
   }, [selectionAnchor, selectionFocus, editingCell, rows, displayColumns, emitCellSelection])
 
-  const { data: findData, isFetching: isFindFetching } = useFindTableRows({
+  /**
+   * The term the search actually runs on: the live input, debounced so results
+   * follow typing without a request per keystroke.
+   *
+   * Owned here rather than via `useDebounce` because closing or clearing has to
+   * take effect IMMEDIATELY and cancel anything pending. `useDebounce` is
+   * trailing-edge and keeps serving its last value until the next timer fires,
+   * so after Esc it still holds the old term — and a guard on the *input* can't
+   * mask that, because the first keystroke of the next search makes the input
+   * non-empty again while the debounce is still holding the previous term. The
+   * result would be the old search replayed from cache (highlights, count and a
+   * viewport jump) under a box showing one fresh character. Cmd+F, Esc, Cmd+F
+   * is an ordinary correction, so that window gets hit.
+   */
+  const trimmedFindQuery = findQuery.trim()
+  const [submittedQuery, setSubmittedQuery] = useState('')
+  useEffect(() => {
+    if (!findOpen || trimmedFindQuery.length === 0) {
+      setSubmittedQuery('')
+      return
+    }
+    const timer = setTimeout(() => setSubmittedQuery(trimmedFindQuery), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [findOpen, trimmedFindQuery])
+
+  const trimmedFindQueryRef = useRef(trimmedFindQuery)
+  trimmedFindQueryRef.current = trimmedFindQuery
+
+  /**
+   * Adopt the typed term now instead of waiting out the debounce. Enter uses
+   * this while the two disagree: navigating there would step through the
+   * PREVIOUS term's matches — `keepPreviousData` still holds them — and land on
+   * a cell that doesn't match the box. Pressing Enter means "search this now",
+   * so it commits rather than navigates, and the auto-reveal takes it from
+   * there. The pending timer is harmless: it later sets the same string.
+   */
+  const handleFindSubmit = useCallback(() => {
+    setSubmittedQuery(trimmedFindQueryRef.current)
+  }, [])
+
+  const {
+    data: findData,
+    isFetching: isFindFetching,
+    isPlaceholderData: isFindPlaceholder,
+  } = useFindTableRows({
     workspaceId,
     tableId,
     q: submittedQuery,
@@ -1090,6 +1204,11 @@ export function TableGrid({
    * to a cell that isn't rendered.
    */
   const findMatches = useMemo<readonly TableFindMatch[]>(() => {
+    // `keepPreviousData` serves the previous term's matches while a new term
+    // loads, which is what keeps the counter steady mid-typing — but with an
+    // empty term the query is disabled, so that placeholder would otherwise
+    // linger as highlights over a cleared search box.
+    if (submittedQuery.length === 0) return EMPTY_FIND_MATCHES
     const raw = findData?.matches
     if (!raw || raw.length === 0) return EMPTY_FIND_MATCHES
     // `m.column` is the stable column id (the JSONB storage key); index display
@@ -1102,14 +1221,57 @@ export function TableGrid({
           a.ordinal - b.ordinal ||
           (colIndexByKey.get(a.column) ?? 0) - (colIndexByKey.get(b.column) ?? 0)
       )
-  }, [findData, displayColumns])
+  }, [findData, displayColumns, submittedQuery])
+
+  /**
+   * Match column ids grouped by row id, so a row can mark its matching cells in
+   * O(1) without scanning the whole match list. Rebuilt only when the match set
+   * changes; `DataRow` is memoized on the per-row `Set`, so rows without a match
+   * keep the same `undefined` and never re-render for a search.
+   */
+  const findMatchColumnsByRowId = useMemo<ReadonlyMap<string, ReadonlySet<string>>>(() => {
+    if (findMatches.length === 0) return EMPTY_FIND_MATCH_COLUMNS
+    const byRow = new Map<string, Set<string>>()
+    for (const match of findMatches) {
+      const existing = byRow.get(match.rowId)
+      if (existing) existing.add(match.column)
+      else byRow.set(match.rowId, new Set([match.column]))
+    }
+    return byRow
+  }, [findMatches])
+
+  /**
+   * Whether the matches on screen actually belong to the submitted term.
+   *
+   * False while a term's own results are still in flight — `keepPreviousData`
+   * keeps serving the PREVIOUS term's matches until they land, and the first
+   * search of a session has no data at all. Navigation is gated on this:
+   * committing with Enter makes the typed and submitted terms agree instantly,
+   * so without it a second Enter would step through the old term's matches.
+   *
+   * A background refetch of the SAME term keeps this true — its data is still
+   * for this key — so an SSE row update doesn't disable the arrows mid-search.
+   */
+  const findResultsAreCurrent =
+    submittedQuery.length > 0 && findData !== undefined && !isFindPlaceholder
 
   const findMatchesRef = useRef(findMatches)
   findMatchesRef.current = findMatches
+  const findResultsAreCurrentRef = useRef(findResultsAreCurrent)
+  findResultsAreCurrentRef.current = findResultsAreCurrent
   const currentMatchIndexRef = useRef(currentMatchIndex)
   currentMatchIndexRef.current = currentMatchIndex
   const findOpenRef = useRef(findOpen)
   findOpenRef.current = findOpen
+
+  /**
+   * Whether `match` is still in the live result set. Both the paging await and
+   * the deferred reveal can outlast a refetch that removed it, and revealing a
+   * cell that no longer matches would select a non-hit and mark the cursor as
+   * sitting on a result.
+   */
+  const isStillAMatch = (match: TableFindMatch) =>
+    findMatchesRef.current.some((m) => m.rowId === match.rowId && m.column === match.column)
 
   /** Loads the row containing match `index` (wrapping), then queues the cell reveal. */
   const goToMatch = useCallback(async (index: number) => {
@@ -1118,17 +1280,61 @@ export function TableGrid({
     const wrapped = ((index % matches.length) + matches.length) % matches.length
     const match = matches[wrapped]
     setCurrentMatchIndex(wrapped)
+    // Claim the target NOW, not when the reveal lands. Paging is awaited below,
+    // and a same-term refetch during that window would otherwise re-point the
+    // cursor at the cell we are navigating AWAY from.
+    activeMatchRef.current = match
     setIsJumping(true)
+    // Paging to a distant match can outlast the next keystroke now that the
+    // search runs as the user types. Stamp this jump and drop it on return if a
+    // newer one started, or the grid would land on a superseded term's match.
+    const seq = ++goToMatchSeqRef.current
     try {
       await ensureRowsLoadedUpToRef.current(match.ordinal + 1)
     } finally {
-      setIsJumping(false)
+      if (seq === goToMatchSeqRef.current) setIsJumping(false)
+    }
+    if (seq !== goToMatchSeqRef.current) return
+    // The match set can change while we page — find hangs off the rows cache,
+    // so any row write or SSE update refetches it. If the target is gone,
+    // revealing it would select a cell that no longer matches and mark the
+    // cursor as sitting on a result, which then makes the next step skip the
+    // match that replaced it.
+    if (!isStillAMatch(match)) {
+      activeMatchRef.current = null
+      cursorIsOnMatchRef.current = false
+      return
     }
     // Defer the anchor set to the reveal effect: it must run after the freshly
     // loaded rows have committed, else scrollToIndex clamps to the stale count.
     pendingMatchRef.current = match
     setPendingMatchTick((t) => t + 1)
   }, [])
+
+  /**
+   * Editing the query strands a jump still paging toward the previous term's
+   * match: without this, that jump can finish, pass its own sequence check, and
+   * reveal a cell that no longer matches — most visibly when the new term's
+   * first hit isn't loaded, so nothing else moves the selection afterwards.
+   *
+   * Declared above BOTH the reveal and the auto-reveal effects so it runs
+   * first. Effects fire in declaration order, so if a queued reveal and a
+   * keystroke land in the same commit, a cancel declared later would clear
+   * `pendingMatchRef` only after the reveal had already applied the stale match.
+   *
+   * Keyed on the LIVE input, not the debounced term: during the debounce window
+   * the submitted term still names the old search, so keying on it would leave
+   * that jump valid for another `SEARCH_DEBOUNCE_MS` after the box already
+   * shows something else. Clearing and closing land here too — both blank the
+   * input.
+   */
+  useEffect(() => {
+    goToMatchSeqRef.current++
+    pendingMatchRef.current = null
+    cursorIsOnMatchRef.current = false
+    activeMatchRef.current = null
+    setIsJumping(false)
+  }, [trimmedFindQuery, findOpen])
 
   /**
    * Reveal the pending match's cell once its row is in the loaded window. Keyed
@@ -1139,6 +1345,23 @@ export function TableGrid({
   useEffect(() => {
     const match = pendingMatchRef.current
     if (!match) return
+    // Last gate before the selection moves: the queue-to-reveal hop is another
+    // commit the result set can change under, so re-check here too rather than
+    // trusting the check `goToMatch` made before its await.
+    if (!isStillAMatch(match)) {
+      pendingMatchRef.current = null
+      // Release the cursor only if this reveal still owns it. A pending reveal
+      // waits here for its row to load, and the user can start a newer jump in
+      // that window — which has already claimed the ref. Clearing it blindly
+      // would strand that newer jump with no identity to re-point from, which
+      // is the skip-on-next failure this guard exists to prevent.
+      const active = activeMatchRef.current
+      if (active && active.rowId === match.rowId && active.column === match.column) {
+        activeMatchRef.current = null
+        cursorIsOnMatchRef.current = false
+      }
+      return
+    }
     const rowIndex = rows.findIndex((r) => r.id === match.rowId)
     if (rowIndex === -1) return
     const colIndex = displayColumns.findIndex((c) => c.key === match.column)
@@ -1148,34 +1371,149 @@ export function TableGrid({
     setIsColumnSelection(false)
     setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setSelectionFocus(null)
+    cursorIsOnMatchRef.current = true
     setSelectionAnchor({ rowIndex, colIndex })
   }, [rows, displayColumns, pendingMatchTick])
 
-  /** New result set (new submitted term) → reset to and reveal the first match. */
+  /**
+   * Re-point the cursor at the match it is actually on after the set changes.
+   *
+   * The cursor is stored as an index, but the list underneath it is mutable: a
+   * row insert or delete elsewhere in the table reorders matches for the SAME
+   * term, and index 1 can silently become a different cell. Stepping from it
+   * would then revisit the cell the user is on, or skip its neighbour. Matching
+   * on (rowId, column) — the match's identity — keeps the cursor attached to the
+   * cell rather than the position.
+   *
+   * When the active match is gone from the set — its row deleted, its cell
+   * edited so it no longer matches — the cursor is released instead: it is no
+   * longer sitting on a hit, so the next step must LAND on the clamped index
+   * rather than move past it. Without that, deleting the match under the cursor
+   * makes Next skip the one that took its place.
+   */
   useEffect(() => {
-    setCurrentMatchIndex(0)
-    if (findMatches.length > 0) goToMatch(0)
-  }, [findMatches, goToMatch])
+    const active = activeMatchRef.current
+    if (!active || findMatches.length === 0) return
+    const index = findMatches.findIndex(
+      (m) => m.rowId === active.rowId && m.column === active.column
+    )
+    if (index === -1) {
+      activeMatchRef.current = null
+      cursorIsOnMatchRef.current = false
+      setCurrentMatchIndex((i) => Math.min(i, findMatches.length - 1))
+      return
+    }
+    if (index !== currentMatchIndexRef.current) setCurrentMatchIndex(index)
+  }, [findMatches])
 
-  const handleFindSubmit = useCallback(() => {
-    setSubmittedQuery(findQuery.trim())
-  }, [findQuery])
+  /**
+   * A new TERM resets to its first match and reveals it.
+   *
+   * Keyed on the term, not on `findMatches` identity: the find query hangs off
+   * the rows cache, so any row write or SSE update refetches it, and keying on
+   * the result set would yank a user reading match 7 back to match 1 whenever
+   * a workflow cell landed.
+   *
+   * The reveal is skipped when the match is outside the loaded window.
+   * `ensureRowsLoadedUpTo` pages sequentially, so a selective term whose first
+   * hit is 50k rows down would fire ~50 serial round trips — per typing pause,
+   * now that the search is live. Highlights and the count still cover the whole
+   * table; only the viewport jump waits for a deliberate Enter or next-click.
+   *
+   * That deliberate path still runs the same unbounded, uncancellable paging it
+   * always has; this only stops typing from triggering it. Bounding it properly
+   * wants a fetch-at-offset on the rows endpoint, which is a server change.
+   */
+  useEffect(() => {
+    if (submittedQuery.length === 0) {
+      // Clearing the box has to un-latch, or retyping the same term — the
+      // ordinary "did I typo that?" correction — would match the stale latch
+      // and neither reset the cursor nor reveal anything.
+      autoRevealedTermRef.current = ''
+      return
+    }
+    // Wait for THIS term's own result set. `keepPreviousData` leaves
+    // `findMatches` describing the previous term while the new one loads, and
+    // on the session's first search there is no previous data at all — so
+    // `isPlaceholderData` is false while the query is still pending. Latching
+    // in either window would burn the one auto-reveal this term gets.
+    if (isFindPlaceholder || isFindFetching) return
+    if (autoRevealedTermRef.current === submittedQuery) return
+    autoRevealedTermRef.current = submittedQuery
+    setCurrentMatchIndex(0)
+    cursorIsOnMatchRef.current = false
+    activeMatchRef.current = null
+    const first = findMatches[0]
+    if (!first) return
+    if (!rowsRef.current.some((r) => r.id === first.rowId)) return
+    goToMatch(0)
+  }, [submittedQuery, findMatches, isFindPlaceholder, isFindFetching, goToMatch])
+
+  /**
+   * Step to the next/previous match — or, when the cursor is not on a match
+   * yet, to the current index itself. That second case is the term whose first
+   * hit the auto-reveal skipped because its row wasn't loaded: `+1` there would
+   * silently step over the very match the user pressed Enter to reach, and it
+   * would only come back around after wrapping the whole list.
+   */
+  /**
+   * The index the next step counts from, clamped into the CURRENT match set.
+   *
+   * A row write or SSE update can shrink or reorder the matches for a term the
+   * user is still navigating; the term latch deliberately leaves the cursor
+   * alone in that case, so the stored index can now point past the end. Stepping
+   * from it would wrap off a stale base and land somewhere unrelated to the
+   * match on screen. Clamping here rather than in the two callers keeps the
+   * stepping base and the displayed index in agreement.
+   */
+  const stepBaseIndex = () =>
+    Math.min(currentMatchIndexRef.current, Math.max(0, findMatchesRef.current.length - 1))
 
   const handleFindNext = useCallback(() => {
-    goToMatch(currentMatchIndexRef.current + 1)
+    if (!findResultsAreCurrentRef.current) return
+    const index = stepBaseIndex()
+    goToMatch(cursorIsOnMatchRef.current ? index + 1 : index)
   }, [goToMatch])
 
   const handleFindPrev = useCallback(() => {
-    goToMatch(currentMatchIndexRef.current - 1)
+    if (!findResultsAreCurrentRef.current) return
+    const index = stepBaseIndex()
+    goToMatch(cursorIsOnMatchRef.current ? index - 1 : index)
   }, [goToMatch])
 
+  /**
+   * Closes the bar and leaves no trace of the search: the term, the highlights
+   * (via the emptied term), and the match cursor all go.
+   *
+   * The cell selection is deliberately left where it is. Restoring the cell the
+   * user was on before opening find reads nicely, but deciding whether the
+   * current selection belongs to find or to the user is not answerable here —
+   * the grid has ~15 places that move the selection and no notion of who owns
+   * it, so every heuristic (compare the anchor, also check the focus, clear on
+   * click, clear on keydown) mis-fires on some ordinary gesture: extending a
+   * range from a match, clicking the match cell itself, arrowing away and back,
+   * Cmd+Z, or Cmd+F to refocus the bar. Leaving the cursor on the last match is
+   * what Sheets does and what this grid already did before find was reworked.
+   */
   const handleFindClose = useCallback(() => {
     setFindOpen(false)
     setFindQuery('')
-    setSubmittedQuery('')
+    setCurrentMatchIndex(0)
     pendingMatchRef.current = null
+    // Strands any jump still paging toward a match, so it can't reveal a cell
+    // after the bar is gone.
+    goToMatchSeqRef.current++
+    autoRevealedTermRef.current = ''
+    cursorIsOnMatchRef.current = false
+    activeMatchRef.current = null
+    setIsJumping(false)
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
+
+  /** The grid's own Escape handler is bound once and closes find through the
+   *  same path as the bar's Escape, so the two can't drift. */
+  const handleFindCloseRef = useRef(handleFindClose)
+  handleFindCloseRef.current = handleFindClose
 
   const columnRename = useInlineRename({
     // `columnName` is the column id; record the prior display name + id so undo
@@ -1203,20 +1541,40 @@ export function TableGrid({
     []
   )
 
+  /** The right-clicked cell's column. One lookup shared by every menu item that
+   *  needs it, rather than a scan per item. */
+  const contextMenuColumn = contextMenu.columnName
+    ? columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
+    : undefined
+
   function handleContextMenuEditCell() {
     if (contextMenu.row && contextMenu.columnName) {
-      const column = columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
-      if (column && columnTypeOf(column).editor === 'toggle') {
+      if (contextMenuColumn && columnTypeOf(contextMenuColumn).editor === 'toggle') {
         toggleBooleanCell(
           contextMenu.row.id,
           contextMenu.columnName,
           contextMenu.row.data[contextMenu.columnName]
         )
-      } else if (column) {
+      } else if (contextMenuColumn) {
         setEditingCell({ rowId: contextMenu.row.id, columnName: contextMenu.columnName })
         setInitialCharacter(null)
       }
     }
+    closeContextMenu()
+  }
+
+  /** Conditions matching the right-clicked cell; empty when it has none the
+   *  filter grammar can express (see `cellValueFilterConditions`). Gated on
+   *  `isOpen` because closing the menu leaves `row`/`columnName` set, and this
+   *  would otherwise rebuild on every render of the grid for the rest of the
+   *  session. */
+  const contextMenuFilterConditions =
+    contextMenu.isOpen && contextMenu.row && contextMenu.columnName
+      ? cellValueFilterConditions(contextMenuColumn, contextMenu.row.data[contextMenu.columnName])
+      : EMPTY_FILTER_CONDITIONS
+
+  function handleContextMenuFilterByCellValue() {
+    onFilterByCellValue?.(contextMenuFilterConditions)
     closeContextMenu()
   }
 
@@ -1273,6 +1631,11 @@ export function TableGrid({
     const anchorId = contextMenu.row.id
     // Fractional ordering: express intent by neighbor id, not integer position.
     const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
+    if (needsAddRowForm(updateLockedRef.current, schemaColumnsRef.current)) {
+      closeContextMenu()
+      onOpenAddRowModalRef.current(intent)
+      return
+    }
     createRef.current(
       { data: {}, ...intent },
       {
@@ -1301,7 +1664,7 @@ export function TableGrid({
   // cascade re-runs dependents on its own) instead of every group on the row.
   let contextMenuGroupId: string | null = null
   if (contextMenu.row && contextMenu.columnName) {
-    const _col = columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
+    const _col = contextMenuColumn
     const _gid = _col?.workflowGroupId
     if (_col && _gid) {
       const _exec = contextMenu.row.executions?.[_gid]
@@ -1412,6 +1775,13 @@ export function TableGrid({
   // Stable identity so <AddRowButton>'s React.memo still bails out; lock state
   // is read from refs instead of being closed over.
   const handleAddRowClick = useCallback(() => {
+    if (
+      canInsertFullRowRef.current &&
+      needsAddRowForm(updateLockedRef.current, schemaColumnsRef.current)
+    ) {
+      onOpenAddRowModalRef.current()
+      return
+    }
     if (!canManualAddRowRef.current) {
       onBlockedActionRef.current('add-row')
       return
@@ -1725,54 +2095,176 @@ export function TableGrid({
     )
   }, [])
 
-  const handleColumnDragStart = useCallback((columnName: string) => {
-    setDragColumnName(columnName)
-    setSelectionAnchor(null)
-    setSelectionFocus(null)
-    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
-    setIsColumnSelection(false)
+  const stopColumnDragAutoScroll = useCallback(() => {
+    columnDragPointerXRef.current = null
+    if (columnDragScrollFrameRef.current !== null) {
+      cancelAnimationFrame(columnDragScrollFrameRef.current)
+      columnDragScrollFrameRef.current = null
+    }
   }, [])
 
-  const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
-    const dragged = dragColumnNameRef.current
-    const cols = schemaColumnsRef.current
-    const targetCol = cols.find((c) => getColumnId(c) === columnName)
-    const targetGid = targetCol?.workflowGroupId
+  const handleColumnDragLeave = useCallback(() => {
+    dropTargetColumnNameRef.current = null
+    setDropTargetColumnName(null)
+  }, [])
 
-    // Suppress drop targeting while hovering siblings of the dragged column's
-    // own group: reordering inside a group is meaningless (the group renders
-    // as a unit) and the chasing indicator just flickers.
-    if (dragged) {
+  const updateColumnDropTarget = useCallback(
+    (columnName: string, side: 'left' | 'right') => {
+      const dragged = dragColumnNameRef.current
+      if (!dragged) return
+
+      const cols = schemaColumnsRef.current
       const draggedGid = cols.find((c) => getColumnId(c) === dragged)?.workflowGroupId
-      if (draggedGid && draggedGid === targetGid) {
-        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+      const targetGid = cols.find((c) => getColumnId(c) === columnName)?.workflowGroupId
+      if (
+        (draggedGid && draggedGid === targetGid) ||
+        pinnedColumnsRef.current.includes(dragged) !== pinnedColumnsRef.current.includes(columnName)
+      ) {
+        handleColumnDragLeave()
         return
+      }
+
+      if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
+      dropTargetColumnNameRef.current = columnName
+      dropSideRef.current = side
+      setDropTargetColumnName(columnName)
+      setDropSide(side)
+    },
+    [handleColumnDragLeave]
+  )
+
+  function updateColumnDropTargetAtX(pointerX: number) {
+    const thead = theadRef.current
+    const scrollEl = scrollRef.current
+    const headerRow = thead?.rows.item((thead?.rows.length ?? 0) - 1)
+    if (!thead || !scrollEl || !headerRow) {
+      handleColumnDragLeave()
+      return
+    }
+
+    const headerRowRect = headerRow.getBoundingClientRect()
+    const headerY = headerRowRect.top + headerRowRect.height / 2
+    const hoveredElement = document.elementFromPoint(pointerX, headerY)
+    let header = hoveredElement?.closest<HTMLElement>('th[data-column-drag-target]') ?? null
+    if (!header || !headerRow.contains(header)) {
+      const scrollRect = scrollEl.getBoundingClientRect()
+      const pinnedRight = Math.min(scrollRect.right, scrollRect.left + pinnedStickyLeftEdge)
+      let nearestDistance = Number.POSITIVE_INFINITY
+      header = null
+
+      for (const candidate of headerRow.querySelectorAll<HTMLElement>(
+        'th[data-column-drag-target]'
+      )) {
+        const candidateName = candidate.dataset.columnDragTarget
+        if (!candidateName) continue
+
+        const rect = candidate.getBoundingClientRect()
+        const isPinned = pinnedColumnsRef.current.includes(candidateName)
+        const left = Math.max(rect.left, isPinned ? scrollRect.left : pinnedRight)
+        const right = Math.min(rect.right, isPinned ? pinnedRight : scrollRect.right)
+        if (right <= left) continue
+
+        const distance = pointerX < left ? left - pointerX : pointerX > right ? pointerX - right : 0
+        if (distance < nearestDistance) {
+          nearestDistance = distance
+          header = candidate
+        }
       }
     }
 
-    // Reorder is restricted to within a single zone so a cross-zone drop
-    // indicator never appears for an insertion the grid would refuse.
-    if (dragged) {
-      const pinned = pinnedColumnsRef.current
-      if (pinned.includes(dragged) !== pinned.includes(columnName)) {
-        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-        return
+    if (!header) {
+      handleColumnDragLeave()
+      return
+    }
+
+    let columnName = header.dataset.columnDragTarget
+    if (!columnName) {
+      handleColumnDragLeave()
+      return
+    }
+
+    const targetGroupId = header.dataset.columnDragGroup
+    let { left, right } = header.getBoundingClientRect()
+    if (targetGroupId) {
+      const targetColumn = columnsRef.current.find((column) => column.key === columnName)
+      const groupStart = targetColumn
+        ? columnsRef.current[targetColumn.groupStartColIndex]
+        : undefined
+      if (!groupStart || groupStart.workflowGroupId !== targetGroupId) {
+        throw new Error(`Missing rendered start column for workflow group ${targetGroupId}`)
+      }
+      columnName = groupStart.key
+
+      const groupHeaders = thead.querySelectorAll<HTMLElement>('th[data-column-drag-group]')
+      for (const groupHeader of groupHeaders) {
+        if (groupHeader.dataset.columnDragGroup !== targetGroupId) continue
+        const rect = groupHeader.getBoundingClientRect()
+        left = Math.min(left, rect.left)
+        right = Math.max(right, rect.right)
       }
     }
 
-    // Workflow groups: skip per-`<th>` writes and let `handleScrollDragOver`
-    // do the bookkeeping. The scroll handler computes side from the group's
-    // full bounds, so it stays stable across sibling cursor moves; the per-th
-    // events would otherwise oscillate name + side as the cursor crosses each
-    // sibling's midpoint.
-    if (targetGid) return
+    updateColumnDropTarget(columnName, pointerX < left + (right - left) / 2 ? 'left' : 'right')
+  }
 
-    if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
-    setDropTargetColumnName(columnName)
-    setDropSide(side)
-  }, [])
+  function startColumnDragAutoScroll(pointerX: number) {
+    columnDragPointerXRef.current = pointerX
+    if (columnDragScrollFrameRef.current !== null) return
+
+    const tick = () => {
+      columnDragScrollFrameRef.current = null
+      const scrollEl = scrollRef.current
+      const currentPointerX = columnDragPointerXRef.current
+      if (!scrollEl || currentPointerX === null || !dragColumnNameRef.current) return
+
+      const scrollRect = scrollEl.getBoundingClientRect()
+      const velocity = horizontalEdgeScrollVelocity({
+        pointerX: currentPointerX,
+        visibleLeft: scrollRect.left + pinnedStickyLeftEdge,
+        visibleRight: scrollRect.right,
+        hotZone: COLUMN_DRAG_SCROLL_HOT_ZONE_PX,
+        maxVelocity: COLUMN_DRAG_SCROLL_MAX_VELOCITY_PX,
+      })
+      if (velocity === 0) return
+
+      const previousScrollLeft = scrollEl.scrollLeft
+      scrollEl.scrollLeft += velocity
+      if (scrollEl.scrollLeft !== previousScrollLeft) {
+        updateColumnDropTargetAtX(currentPointerX)
+        columnDragScrollFrameRef.current = requestAnimationFrame(tick)
+      }
+    }
+
+    columnDragScrollFrameRef.current = requestAnimationFrame(tick)
+  }
+
+  useEffect(() => stopColumnDragAutoScroll, [stopColumnDragAutoScroll])
+
+  const handleColumnDragStart = useCallback(
+    (columnName: string) => {
+      stopColumnDragAutoScroll()
+      dragColumnNameRef.current = columnName
+      setDragColumnName(columnName)
+      setSelectionAnchor(null)
+      setSelectionFocus(null)
+      setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
+      setIsColumnSelection(false)
+    },
+    [stopColumnDragAutoScroll]
+  )
+
+  const handleColumnDragOver = useCallback(
+    (columnName: string, side: 'left' | 'right') => {
+      const cols = schemaColumnsRef.current
+      const targetCol = cols.find((c) => getColumnId(c) === columnName)
+      if (targetCol?.workflowGroupId) return
+      updateColumnDropTarget(columnName, side)
+    },
+    [updateColumnDropTarget]
+  )
 
   const handleColumnDragEnd = useCallback(() => {
+    stopColumnDragAutoScroll()
     const dragged = dragColumnNameRef.current
     if (!dragged) {
       setDragColumnName(null)
@@ -1804,7 +2296,9 @@ export function TableGrid({
       const draggedGid = colByName.get(dragged)?.workflowGroupId
 
       const orderIndex = new Map<string, number>()
-      currentOrder.forEach((n, i) => orderIndex.set(n, i))
+      currentOrder.forEach((n, i) => {
+        orderIndex.set(n, i)
+      })
 
       // Compute the contiguous run covering the dragged column. For a plain
       // column this is just [fromIndex, fromIndex]. For a group member it spans
@@ -1907,64 +2401,27 @@ export function TableGrid({
     setDragColumnName(null)
     setDropTargetColumnName(null)
     setDropSide('left')
-  }, [])
-
-  const handleColumnDragLeave = useCallback(() => {
-    dropTargetColumnNameRef.current = null
-    setDropTargetColumnName(null)
-  }, [])
+  }, [stopColumnDragAutoScroll])
 
   function handleScrollDragOver(e: React.DragEvent) {
-    if (!dragColumnNameRef.current) return
+    const draggedName = dragColumnNameRef.current
+    if (!draggedName) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
 
     const scrollEl = scrollRef.current
     if (!scrollEl) return
-    const scrollRect = scrollEl.getBoundingClientRect()
-    const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
-
-    const cols = columnsRef.current
-    const draggedGid = cols.find((c) => c.key === dragColumnNameRef.current)?.workflowGroupId
-    let left = checkboxColWidth
-    let i = 0
-    while (i < cols.length) {
-      const col = cols[i]
-      // Treat fanned-out groups as monolithic drop targets; accumulate across siblings.
-      // Clamp `groupSize` to remaining columns: dragover fires constantly and can
-      // race a column removal where the cached `groupSize` outpaces `cols.length`.
-      const groupSize = Math.min(col.groupSize, cols.length - i)
-      let groupWidth = 0
-      for (let j = 0; j < groupSize; j++) {
-        groupWidth += columnWidthsRef.current[cols[i + j].key] ?? COL_WIDTH
-      }
-      if (cursorX < left + groupWidth) {
-        // Inside the dragged column's own group → no-op drop, no indicator.
-        if (draggedGid && col.workflowGroupId === draggedGid) {
-          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-          return
-        }
-        const pinned = pinnedColumnsRef.current
-        const draggedName = dragColumnNameRef.current
-        if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.key)) {
-          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-          return
-        }
-        const midX = left + groupWidth / 2
-        const side = cursorX < midX ? 'left' : 'right'
-        if (col.key !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
-          setDropTargetColumnName(col.key)
-          setDropSide(side)
-        }
-        return
-      }
-      left += groupWidth
-      i += groupSize
+    if (pinnedColumnsRef.current.includes(draggedName)) {
+      stopColumnDragAutoScroll()
+    } else {
+      startColumnDragAutoScroll(e.clientX)
     }
+    updateColumnDropTargetAtX(e.clientX)
   }
 
   function handleScrollDrop(e: React.DragEvent) {
     e.preventDefault()
+    stopColumnDragAutoScroll()
   }
 
   useEffect(() => {
@@ -2290,7 +2747,16 @@ export function TableGrid({
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
       const column = columnsRef.current.find((c) => c.key === columnName)
       if (column && columnTypeOf(column).editor === 'toggle') {
-        if (!options?.toggleBoolean || !canEditCellRef.current) return
+        if (!options?.toggleBoolean) return
+        // A toggle writes on the click itself, so there is no read-only editor to
+        // fall back to — an update-locked table has to explain the refusal here,
+        // the same way the Enter/Space keyboard paths do.
+        if (!canEditCellRef.current) {
+          if (canEditRef.current && updateLockedRef.current) {
+            onBlockedActionRef.current('edit-cell')
+          }
+          return
+        }
         const row = rowsRef.current.find((r) => r.id === rowId)
         if (row) {
           toggleBooleanCell(rowId, columnName, row.data[columnName])
@@ -2310,23 +2776,24 @@ export function TableGrid({
     (rowId: string, columnName: string, columnKey: string) => {
       const column = columnsRef.current.find((c) => c.key === columnKey)
       if (column && columnTypeOf(column).editor === 'toggle') return
-
-      // Double-click means "edit this cell". On an update-locked table, say so
-      // rather than opening the expanded viewer — which looks like an editor
-      // that silently refuses to save. Only for users who could otherwise edit:
-      // without write access the lock isn't why they can't, and they still get
-      // the read-only expanded viewer below.
-      if (canEditRef.current && updateLockedRef.current) {
-        onBlockedActionRef.current('edit-cell')
+      // A read-only view of an empty cell has nothing to show or copy.
+      if (
+        !canEditCellRef.current &&
+        isEmptyCellValue(rowsRef.current.find((r) => r.id === rowId)?.data[columnName])
+      ) {
         return
       }
 
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
-      // Types with a bounded value edit in place (calendar picker, numeric
-      // input); only free-form prose opens the big expanded popover.
-      if (column && !columnTypeOf(column).expandable && canEditCellRef.current) {
+      // Editors open for anyone with write access. On an update-locked table
+      // they open read-only, so the value can still be selected and copied;
+      // `handleInlineSave` stays as a backstop that refuses any change with the
+      // lock explanation. Types with a bounded value edit in place (calendar
+      // picker, numeric input); only free-form prose opens the big expanded
+      // popover.
+      if (column && !columnTypeOf(column).expandable && canEditRef.current) {
         setEditingCell({ rowId, columnName })
         setInitialCharacter(null)
         return
@@ -2438,10 +2905,7 @@ export function TableGrid({
       if (e.key === 'Escape') {
         e.preventDefault()
         if (findOpenRef.current) {
-          setFindOpen(false)
-          setFindQuery('')
-          setSubmittedQuery('')
-          pendingMatchRef.current = null
+          handleFindCloseRef.current()
           return
         }
         if (dragColumnNameRef.current) {
@@ -2538,14 +3002,22 @@ export function TableGrid({
 
       if (e.shiftKey && e.key === 'Enter') {
         if (!canEditRef.current) return
-        // Same manual-add path as the Add row button, so it owes the same
-        // explanation rather than silently doing nothing on a locked table.
+        const row = currentRows[anchor.rowIndex]
+        // Mirrors handleAddRowClick; keep the two new-row paths in sync.
+        if (
+          row &&
+          canInsertFullRowRef.current &&
+          needsAddRowForm(updateLockedRef.current, schemaColumnsRef.current)
+        ) {
+          e.preventDefault()
+          onOpenAddRowModalRef.current({ afterRowId: row.id })
+          return
+        }
         if (!canManualAddRowRef.current) {
           e.preventDefault()
           onBlockedActionRef.current('add-row')
           return
         }
-        const row = currentRows[anchor.rowIndex]
         if (!row) return
         e.preventDefault()
         const position = row.position + 1
@@ -2569,23 +3041,24 @@ export function TableGrid({
       if (e.key === 'Enter' || e.key === 'F2') {
         if (!canEditRef.current) return
         e.preventDefault()
-        // The primary keyboard edit path — same lock notice as double-click and
-        // Space, rather than a keypress that silently does nothing.
-        if (updateLockedRef.current) {
-          onBlockedActionRef.current('edit-cell')
-          return
-        }
-        if (!canEditCellRef.current) return
         const col = cols[anchor.colIndex]
         if (!col) return
 
         const row = currentRows[anchor.rowIndex]
         if (!row) return
 
+        // The keyboard twin of double-click: the editor opens read-only on an
+        // update-locked table. A toggle writes on the keypress itself, so it
+        // explains the lock here instead.
         if (columnTypeOf(col).editor === 'toggle') {
+          if (updateLockedRef.current) {
+            onBlockedActionRef.current('edit-cell')
+            return
+          }
           toggleBooleanCellRef.current(row.id, col.key, row.data[col.key])
           return
         }
+        if (!canEditCellRef.current && isEmptyCellValue(row.data[col.key])) return
         setEditingCell({ rowId: row.id, columnName: col.key })
         setInitialCharacter(null)
         return
@@ -2594,8 +3067,8 @@ export function TableGrid({
       if (e.key === ' ' && !e.shiftKey) {
         if (!canEditRef.current) return
         e.preventDefault()
-        // Space opens the same row editor as double-click, so it follows the
-        // update lock too — otherwise the form fills in and only 423s on save.
+        // Space opens the whole-row editor, which explains the update lock up
+        // front — otherwise the form fills in and only 423s on save.
         if (updateLockedRef.current) {
           onBlockedActionRef.current('edit-cell')
           return
@@ -2979,11 +3452,12 @@ export function TableGrid({
           const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
           const handled = writeLoadedRowsWithChip({
             clipboardData: e.clipboardData,
+            workspaceId: workspaceIdRef.current,
             rows: selectedRows,
             complete: true,
             buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
             context: buildTableSelectionContext({
-              tableId,
+              tableId: tableIdRef.current,
               tableName: tableNameRef.current,
               // Every selected id, not just the loaded page: the chip carries
               // ids and the server re-fetches them, so an unloaded row still
@@ -3026,12 +3500,13 @@ export function TableGrid({
         // in the rest — so the chip path applies only once all of them are here.
         const handled = writeLoadedRowsWithChip({
           clipboardData: e.clipboardData,
+          workspaceId: workspaceIdRef.current,
           rows: currentRows,
           complete: currentRows.length >= selectAllTotalRef.current,
           buildCells: (row) =>
             colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           context: buildTableSelectionContext({
-            tableId,
+            tableId: tableIdRef.current,
             tableName: tableNameRef.current,
             rowIds: currentRows.map((row) => row.id),
             columnIds: selectedColumnIds(cols, sel),
@@ -3058,12 +3533,14 @@ export function TableGrid({
         if (row) rangeRowIds.push(row.id)
       }
       const rangeContext = buildTableSelectionContext({
-        tableId,
+        tableId: tableIdRef.current,
         tableName: tableNameRef.current,
         rowIds: rangeRowIds,
         columnIds: selectedColumnIds(cols, sel),
       })
-      if (rangeContext) attachSelectionContextToClipboard(e.clipboardData, rangeContext)
+      if (rangeContext) {
+        attachSelectionContextToClipboard(e.clipboardData, rangeContext, workspaceIdRef.current)
+      }
 
       const lines: string[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {
@@ -3183,15 +3660,42 @@ export function TableGrid({
       const text = e.clipboardData?.getData('text/plain')
       if (!text) return
 
-      const pasteRows = text
-        .split(/\r?\n/)
-        .filter((line, idx, arr) => !(idx === arr.length - 1 && line === ''))
-        .map((line) => line.split('\t'))
-
-      if (pasteRows.length === 0) return
+      const admission = assessTextPaste({
+        pastedText: text,
+        maxPastedBytes: PASTE_LIMITS.STRUCTURED_BYTES,
+      })
+      if (!admission.accepted) {
+        toast.warning('Paste is too large for the table editor', {
+          description: `Paste up to ${formatPasteLimit(PASTE_LIMITS.STRUCTURED_BYTES)} at once, or use CSV import for larger datasets.`,
+        })
+        return
+      }
+      if (exceedsTablePasteRowLimit(text, TABLE_LIMITS.MAX_BATCH_INSERT_SIZE)) {
+        toast.warning('Paste has too many rows', {
+          description: `Paste up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE.toLocaleString()} rows at once, or use CSV import for larger datasets.`,
+        })
+        return
+      }
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
+      const parsedPaste = parseBoundedTsv(text, currentCols.length - currentAnchor.colIndex)
+      const pasteRows = parsedPaste.rows
+      if (pasteRows.length === 0) return
+
+      const touchesDateEditor = pasteRows.some((pasteRow) =>
+        pasteRow.some((_, offset) => {
+          const column = currentCols[currentAnchor.colIndex + offset]
+          return column ? columnTypeOf(column).editor === 'date' : false
+        })
+      )
+      if (touchesDateEditor) {
+        const message = getTimezoneEditBlockedMessage(timezoneStateRef.current)
+        if (message) {
+          toast.error(message)
+          return
+        }
+      }
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -3282,10 +3786,12 @@ export function TableGrid({
         )
       }
 
-      const maxPasteCols = Math.max(...pasteRows.map((pr) => pr.length))
       setSelectionFocus({
         rowIndex: currentAnchor.rowIndex + pasteRows.length - 1,
-        colIndex: Math.min(currentAnchor.colIndex + maxPasteCols - 1, currentCols.length - 1),
+        colIndex: Math.min(
+          currentAnchor.colIndex + parsedPaste.maxColumns - 1,
+          currentCols.length - 1
+        ),
       })
     }
 
@@ -3374,7 +3880,24 @@ export function TableGrid({
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
       const column = columnsRef.current.find((c) => c.key === columnName)
+      if (column && columnTypeOf(column).editor === 'date') {
+        const message = getTimezoneEditBlockedMessage(timezoneStateRef.current)
+        if (message) {
+          toast.error(message)
+          setEditingCell(null)
+          setInitialCharacter(null)
+          return
+        }
+      }
       const changed = !cellValuesEqual(oldValue, normalizedValue, column)
+
+      if (changed && updateLockedRef.current) {
+        onBlockedActionRef.current('edit-cell')
+        setEditingCell(null)
+        setInitialCharacter(null)
+        scrollRef.current?.focus({ preventScroll: true })
+        return
+      }
 
       if (changed) {
         pushUndoRef.current({
@@ -4184,21 +4707,30 @@ export function TableGrid({
   }
 
   return (
-    <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
+    <div
+      ref={containerRef}
+      data-paste-max-bytes={PASTE_LIMITS.STRUCTURED_BYTES}
+      className='flex h-full flex-col overflow-hidden'
+    >
       <div className='relative flex min-h-0 flex-1'>
         {findOpen && (
-          <TableFind
+          <FindBar
+            ariaLabel='Find in table'
             query={findQuery}
             onQueryChange={setFindQuery}
-            onSubmit={handleFindSubmit}
             onNext={handleFindNext}
             onPrev={handleFindPrev}
+            onSubmit={handleFindSubmit}
             onClose={handleFindClose}
+            isStale={trimmedFindQuery !== submittedQuery}
+            canNavigate={findResultsAreCurrent}
             count={findMatches.length}
-            currentIndex={currentMatchIndex}
+            // Clamped, not stored: a background refetch of the same term can
+            // shrink the match set under a cursor the user already paged, and
+            // an unclamped index renders "8 of 5".
+            currentIndex={Math.min(currentMatchIndex, Math.max(0, findMatches.length - 1))}
             truncated={findData?.truncated ?? false}
-            isLoading={isFindFetching || isJumping}
-            isDirty={findQuery.trim() !== submittedQuery}
+            isLoading={isFindFetching || isJumping || trimmedFindQuery !== submittedQuery}
             inputRef={findInputRef}
           />
         )}
@@ -4206,7 +4738,7 @@ export function TableGrid({
           ref={scrollRef}
           tabIndex={-1}
           className={cn(
-            'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
+            'min-h-0 flex-1 overflow-auto overscroll-none outline-hidden',
             resizingColumn && 'select-none'
           )}
           data-table-scroll
@@ -4237,7 +4769,12 @@ export function TableGrid({
                         <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
                         {headerGroups.map((g) => {
                           const firstCol = displayColumns[g.startColIndex]
-                          const stickyLeft = firstCol ? pinnedOffsets.get(firstCol.key) : undefined
+                          if (!firstCol) {
+                            throw new Error(
+                              `Missing display column for header group at index ${g.startColIndex}`
+                            )
+                          }
+                          const stickyLeft = pinnedOffsets.get(firstCol.key)
                           if (g.kind === 'workflow') {
                             const lastCol = displayColumns[g.startColIndex + g.size - 1]
                             return (
@@ -4246,7 +4783,8 @@ export function TableGrid({
                                 workflowId={g.workflowId}
                                 size={g.size}
                                 startColIndex={g.startColIndex}
-                                columnName={firstCol?.name ?? ''}
+                                columnName={firstCol.name}
+                                columnKey={firstCol.key}
                                 column={firstCol}
                                 workflows={workflows}
                                 isGroupSelected={
@@ -4261,6 +4799,12 @@ export function TableGrid({
                                 groupName={workflowGroupById.get(g.groupId)?.name}
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
+                                schemaLockedReason={
+                                  locks?.schemaLocked ? LOCK_TOOLTIPS.schema : undefined
+                                }
+                                deleteLockedReason={
+                                  locks?.deleteLocked ? LOCK_TOOLTIPS.delete : undefined
+                                }
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
                                 hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
@@ -4315,17 +4859,18 @@ export function TableGrid({
                                 onDragLeave={
                                   userPermissions.canEdit ? handleColumnDragLeave : undefined
                                 }
-                                isPinned={firstCol ? pinnedColumnSet.has(firstCol.key) : false}
+                                isPinned={pinnedColumnSet.has(firstCol.key)}
                                 onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                                 stickyLeft={stickyLeft}
                                 isLastPinned={lastCol?.key === lastPinnedColKey}
                               />
                             )
                           }
-                          const isLastFrz = firstCol?.key === lastPinnedColKey
+                          const isLastFrz = firstCol.key === lastPinnedColKey
                           return (
                             <th
                               key={`meta-${g.startColIndex}`}
+                              data-column-drag-target={firstCol.key}
                               className={cn(
                                 'border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]',
                                 stickyLeft !== undefined && 'z-[11]',
@@ -4401,7 +4946,18 @@ export function TableGrid({
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
+                            schemaLockedReason={
+                              locks?.schemaLocked ? LOCK_TOOLTIPS.schema : undefined
+                            }
+                            deleteLockedReason={
+                              locks?.deleteLocked ? LOCK_TOOLTIPS.delete : undefined
+                            }
                             onViewWorkflow={handleViewWorkflow}
+                            onSortColumn={onSortColumn}
+                            onClearSort={onClearSort}
+                            sortDirection={
+                              activeSort?.field === column.key ? activeSort.direction : undefined
+                            }
                             isPinned={colIsPinned}
                             onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                             stickyLeft={colStickyLeft}
@@ -4410,11 +4966,12 @@ export function TableGrid({
                         )
                       })}
                       {userPermissions.canEdit && (
-                        <NewColumnDropdown
+                        <ColumnDropdown
+                          columns={columns}
+                          tableRowTtlEnabled={tableRowTtlEnabled}
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}
-                          onBlocked={() => onBlockedAction('add-column')}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
                           onPickEnrichment={onOpenEnrichments}
@@ -4460,6 +5017,7 @@ export function TableGrid({
                                 row={row}
                                 columns={displayColumns}
                                 workspaceId={workspaceId}
+                                timezoneStatus={timezoneState.status}
                                 rowIndex={index}
                                 isFirstRow={index === 0}
                                 editingColumnName={
@@ -4468,6 +5026,7 @@ export function TableGrid({
                                 initialCharacter={
                                   editingCell?.rowId === row.id ? initialCharacter : null
                                 }
+                                editorsReadOnly={Boolean(locks?.updateLocked)}
                                 pendingCellValue={
                                   pendingUpdate && pendingUpdate.rowId === row.id
                                     ? pendingUpdate.data
@@ -4494,6 +5053,7 @@ export function TableGrid({
                                 activeDispatches={activeDispatches}
                                 pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
                                 lastPinnedColKey={lastPinnedColKey}
+                                findMatchColumns={findMatchColumnsByRowId.get(row.id)}
                               />
                             )
                           })}
@@ -4555,7 +5115,10 @@ export function TableGrid({
             )}
           </div>
           {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
-            <AddRowButton onClick={handleAddRowClick} />
+            <AddRowButton
+              onClick={handleAddRowClick}
+              blockedReason={locks?.insertLocked ? LOCK_TOOLTIPS.insert : undefined}
+            />
           )}
         </div>
       </div>
@@ -4574,6 +5137,11 @@ export function TableGrid({
           Boolean(contextMenuEnrichment)
         }
         canEditCell={!contextMenuIsWorkflowColumn}
+        onFilterByCellValue={
+          onFilterByCellValue && contextMenuFilterConditions.length > 0
+            ? handleContextMenuFilterByCellValue
+            : undefined
+        }
         selectedRowCount={selectedRowCount}
         onRunWorkflows={
           userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
@@ -4592,7 +5160,7 @@ export function TableGrid({
         hasWorkflowColumns={hasWorkflowColumns}
         workflowCellScoped={Boolean(contextMenuGroupId)}
         disableEdit={!canEditCell}
-        disableInsert={!canManualAddRow}
+        disableInsert={!canInsertFullRow}
         disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
         onAddToChat={addToChatRowIds.length > 0 ? handleAddSelectionToChat : undefined}
@@ -4608,7 +5176,8 @@ export function TableGrid({
         rows={rows}
         columns={displayColumns}
         onSave={handleInlineSave}
-        canEdit={canEditCell}
+        canEdit={userPermissions.canEdit}
+        saveBlockedReason={locks?.updateLocked ? LOCK_TOOLTIPS.update : undefined}
         scrollContainer={scrollRef.current}
       />
     </div>

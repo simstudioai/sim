@@ -1,55 +1,55 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { publicSharesMock } from '@sim/testing/mocks/public-shares.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  listFolderRows: vi.fn(),
-  listTables: vi.fn(),
-  listWorkflows: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveTableWorkspace: vi.fn(),
-  resolveWorkflowWorkspace: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => actual === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/folders/queries', () => ({
-  listActiveFolderRows: mocks.listFolderRows,
-  loadActiveFolderPathIndex: mocks.loadFolderIndex,
-  resolveFolderPathFromIndex: (index: { idByPath: Map<string, string> }, path: string) =>
-    path === '/' ? null : index.idByPath.get(path),
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkflowWorkspace,
-}))
-vi.mock('@/lib/workflows/queries', () => ({
-  InvalidWorkflowListCursorError: class InvalidWorkflowListCursorError extends Error {},
-  listWorkspaceWorkflows: mocks.listWorkflows,
-}))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveTableWorkspaceContext: mocks.resolveTableWorkspace,
-}))
-vi.mock('@/lib/table', () => ({
-  createTable: vi.fn(),
-  deleteTable: vi.fn(),
-  getTableById: vi.fn(),
-  getWorkspaceTableLimits: vi.fn(),
-  moveTableToFolder: vi.fn(),
-  queryTables: mocks.listTables,
-  renameTable: vi.fn(),
-  updateTableDescription: vi.fn(),
-}))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: vi.fn() }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { listTableFoldersUseCase } from '@/lib/table/application/folders'
 import { listTablesUseCase } from '@/lib/table/application/tables'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { listWorkflowFolders } from '@/lib/workflows/application/workflow-folders'
+import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
+
+const mocks = {
+  listTables: tableMockFns.mockQueryTables,
+  listWorkflows: workflowsQueriesMockFns.mockListWorkspaceWorkflows,
+  resolveTableWorkspace: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  listFolderRows: folderQueriesMockFns.mockListActiveFolderRows,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  queryWorkspaceFiles: workspaceUploadsMockFns.mockQueryWorkspaceFiles,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  resolveWorkspaceFileWorkspace: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolveWorkflowWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
 
 const context = {
   workspaceId: 'workspace-1',
@@ -57,7 +57,7 @@ const context = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 const folderIndex = {
   idByPath: new Map<string, string>(),
   pathById: new Map<string, string>(),
@@ -66,7 +66,6 @@ const folderIndex = {
 
 describe('workflow and table application folder caps', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowWorkspace.mockResolvedValue(context)
     mocks.resolveTableWorkspace.mockResolvedValue(context)
@@ -74,6 +73,8 @@ describe('workflow and table application folder caps', () => {
     mocks.listFolderRows.mockResolvedValue([])
     mocks.listWorkflows.mockResolvedValue({ data: [], nextCursorKeys: null })
     mocks.listTables.mockResolvedValue({ tables: [], nextKeys: null })
+    mocks.resolveWorkspaceFileWorkspace.mockResolvedValue(context)
+    mocks.queryWorkspaceFiles.mockResolvedValue({ files: [], nextKeys: null })
   })
 
   it.each([
@@ -141,6 +142,21 @@ describe('workflow and table application folder caps', () => {
           },
         }),
     ],
+    [
+      'file',
+      () =>
+        queryWorkspaceFilePage.execute({
+          principal,
+          input: {
+            workspaceId: context.workspaceId,
+            folderPath: '/Folder',
+            sortBy: 'name',
+            sortOrder: 'asc',
+            limit: 25,
+            cursorSort: 'name:asc',
+          },
+        }),
+    ],
   ] as const)('bounds the %s paged-resource folder index', async (resourceType, execute) => {
     await execute()
 
@@ -150,5 +166,42 @@ describe('workflow and table application folder caps', () => {
       undefined,
       { maxRows: MAX_FOLDERS_PER_WORKSPACE }
     )
+  })
+})
+
+/**
+ * A `folderPath` that names no active folder is a filter nothing satisfies, not
+ * a missing collection. Answering `404 Folder not found` made the folder filter
+ * the only one of each list's filters whose miss was an error rather than an
+ * empty page, and turned a folder deleted mid-walk into a failed pagination
+ * loop. The row query must not run at all: without a folder id there is nothing
+ * to constrain it, so issuing it would return the whole unfiltered set.
+ */
+describe('a list folder filter that matches no folder', () => {
+  const MISSING = '/does-not-exist'
+
+  beforeEach(() => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    mocks.resolveWorkflowWorkspace.mockResolvedValue(context)
+    mocks.resolveTableWorkspace.mockResolvedValue(context)
+    mocks.resolveWorkspaceFileWorkspace.mockResolvedValue(context)
+    mocks.loadFolderIndex.mockResolvedValue(folderIndex)
+  })
+
+  it('returns an empty workflow page without querying rows', async () => {
+    const result = await listWorkflows.execute({
+      principal,
+      input: {
+        workspaceId: context.workspaceId,
+        folderPath: MISSING,
+        deployedOnly: false,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 25,
+      },
+    })
+
+    expect(result).toMatchObject({ workflows: [], nextCursorKeys: null })
+    expect(mocks.listWorkflows).not.toHaveBeenCalled()
   })
 })

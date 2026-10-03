@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
@@ -109,6 +106,7 @@ describe('resolveEnterpriseEntitlement', () => {
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.dataDrains).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.forking).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.accessControl).toBe(false)
+      expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.customBlocks).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.organizations).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.sso).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.sandboxes).toBe(false)

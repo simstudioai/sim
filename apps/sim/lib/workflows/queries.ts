@@ -1,16 +1,16 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import type { WorkflowListItem } from '@/lib/api/contracts/workflows'
 import {
   type CursorKey,
-  encodeKeyset,
   type KeysetKey,
-  keysetAfter,
   keysetColumns,
+  keysetPage,
   type ListSortOrder,
   listOrderBy,
   numberKey,
+  resumeKeyset,
   searchFilter,
   textKey,
   timestampKey,
@@ -62,16 +62,11 @@ const WORKFLOW_SORTS = {
   ],
 } satisfies Record<WorkflowSortBy, readonly KeysetKey<WorkspaceWorkflowListRow>[]>
 
-export class InvalidWorkflowListCursorError extends Error {
-  constructor() {
-    super('Cursor does not match the requested workflow sort')
-    this.name = 'InvalidWorkflowListCursorError'
-  }
-}
-
 export interface ListWorkspaceWorkflowsInput {
   workspaceId: string
   folderId?: string | null
+  /** `active` (default) or `archived`; `all` is deliberately unavailable here. */
+  scope?: 'active' | 'archived'
   deployedOnly: boolean
   search?: string
   sortBy: WorkflowSortBy
@@ -83,10 +78,7 @@ export interface ListWorkspaceWorkflowsInput {
 /** Cursor-paged active workflow query used by the public workflow adapter. */
 export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput) {
   const keys = WORKFLOW_SORTS[input.sortBy]
-  const resumeAfter = input.cursorKeys
-    ? keysetAfter(keys, input.cursorKeys, input.sortOrder)
-    : undefined
-  if (resumeAfter === null) throw new InvalidWorkflowListCursorError()
+  const resumeAfter = resumeKeyset(keys, input.cursorKeys, input.sortOrder)
 
   const folderCondition: SQL | undefined =
     input.folderId === undefined
@@ -114,7 +106,7 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
     .where(
       and(
         eq(workflow.workspaceId, input.workspaceId),
-        isNull(workflow.archivedAt),
+        input.scope === 'archived' ? isNotNull(workflow.archivedAt) : isNull(workflow.archivedAt),
         folderCondition,
         input.deployedOnly ? eq(workflow.isDeployed, true) : undefined,
         searchFilter(workflow.name, input.search),
@@ -124,13 +116,7 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
     .orderBy(...listOrderBy(keysetColumns(keys), input.sortOrder))
     .limit(input.limit + 1)
 
-  const hasMore = rows.length > input.limit
-  const data = rows.slice(0, input.limit)
-  const last = data.at(-1)
-  return {
-    data,
-    nextCursorKeys: hasMore && last ? encodeKeyset(keys, last) : null,
-  }
+  return keysetPage(keys, rows, input.limit)
 }
 
 /**
@@ -138,12 +124,22 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
  * the editor route and public metadata route derive their own response from
  * this read rather than issuing independent block/workflow queries.
  */
-export async function loadWorkflowReadSnapshot(workflowId: string) {
+export async function loadWorkflowReadSnapshot(workflowId: string, workspaceId: string) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
     const [normalizedData, [workflowRecord]] = await Promise.all([
       loadWorkflowFromNormalizedTables(workflowId, tx),
-      tx.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
+      tx
+        .select()
+        .from(workflow)
+        .where(
+          and(
+            eq(workflow.id, workflowId),
+            eq(workflow.workspaceId, workspaceId),
+            isNull(workflow.archivedAt)
+          )
+        )
+        .limit(1),
     ])
     return { normalizedData, workflowRecord: workflowRecord ?? null }
   })

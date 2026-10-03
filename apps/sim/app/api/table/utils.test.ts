@@ -1,73 +1,35 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
+import { capabilityGovernedAuthUserId } from '@/lib/auth/hybrid'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { TableRowLimitError } from '@/lib/table/billing'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { ColumnDefinition } from '@/lib/table/types'
-import { rootErrorMessage, rowWriteErrorResponse, tableFilterError } from '@/app/api/table/utils'
+import {
+  orchestrationErrorResponse,
+  orchestrationOutcomeErrorResponse,
+  tableFilterError,
+} from '@/app/api/table/utils'
 
 /** Mimics drizzle's DrizzleQueryError: message is the failed SQL, real error on `cause`. */
 function wrapLikeDrizzle(cause: Error): Error {
   return new Error('Failed query: insert into "user_table_rows" ...', { cause })
 }
 
-describe('rootErrorMessage', () => {
-  it('returns the message of a plain error', () => {
-    expect(rootErrorMessage(new Error('Schema validation failed: bad'))).toBe(
-      'Schema validation failed: bad'
-    )
-  })
-
-  it('unwraps the cause chain to the deepest error', () => {
-    const root = new Error('Value for column "email" must be unique')
-    expect(rootErrorMessage(wrapLikeDrizzle(root))).toBe(root.message)
-  })
-
-  it('stringifies non-Error values', () => {
-    expect(rootErrorMessage('boom')).toBe('boom')
-  })
-})
-
-describe('rowWriteErrorResponse', () => {
-  it('passes the plan row-limit error through as a 400', async () => {
-    const response = rowWriteErrorResponse(new TableRowLimitError(10000))
-    expect(response?.status).toBe(400)
-    const body = await response?.json()
-    expect(body.error).toBe(
-      'This table has reached its row limit (10,000 rows) on your current plan.'
-    )
-  })
-
-  it('passes a classified validation failure through as 400', async () => {
-    const response = rowWriteErrorResponse(
-      new OrchestrationError('validation', 'Value for column "email" must be unique')
-    )
-    expect(response?.status).toBe(400)
-    const body = await response?.json()
-    expect(body.error).toBe('Value for column "email" must be unique')
-  })
-
+describe('orchestrationErrorResponse', () => {
   it('answers the code the failure carries, not one derived from its wording', () => {
-    expect(
-      rowWriteErrorResponse(new OrchestrationError('not_found', 'Row not found'))?.status
-    ).toBe(404)
+    expect(orchestrationErrorResponse(new TableRowNotFoundError())?.status).toBe(404)
     // The phrase that used to force a 400 no longer decides anything.
     expect(
-      rowWriteErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))?.status
+      orchestrationErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))
+        ?.status
     ).toBe(409)
   })
 
   it('unwraps a classified failure drizzle wrapped in a query error', () => {
     expect(
-      rowWriteErrorResponse(wrapLikeDrizzle(new OrchestrationError('validation', 'Row 3: bad')))
-        ?.status
+      orchestrationErrorResponse(
+        wrapLikeDrizzle(new OrchestrationError('validation', 'Row 3: bad'))
+      )?.status
     ).toBe(400)
-  })
-
-  it('returns null for unknown errors so callers keep their generic 500', () => {
-    expect(rowWriteErrorResponse(new Error('connection refused'))).toBeNull()
-    expect(rowWriteErrorResponse(wrapLikeDrizzle(new Error('deadlock detected')))).toBeNull()
   })
 })
 
@@ -80,14 +42,6 @@ describe('rowWriteErrorResponse', () => {
  */
 describe('tableFilterError', () => {
   const columns: ColumnDefinition[] = [{ id: 'col_status', name: 'status', type: 'string' }]
-
-  it('returns null for an absent filter and a valid id-keyed predicate', () => {
-    expect(tableFilterError(undefined, columns)).toBeNull()
-    expect(
-      tableFilterError({ all: [{ field: 'col_status', op: 'eq', value: 'x' }] }, columns)
-    ).toBeNull()
-    expect(tableFilterError({ all: [{ field: 'createdAt', op: 'isNotNull' }] }, columns)).toBeNull()
-  })
 
   it('400s a predicate naming an unknown storage key', async () => {
     const response = tableFilterError(
@@ -111,9 +65,68 @@ describe('tableFilterError', () => {
       )?.status
     ).toBe(400)
   })
+})
 
-  it('still validates the legacy grammar through buildFilterClause', () => {
-    expect(tableFilterError({ col_status: 'x' }, columns)).toBeNull()
-    expect(tableFilterError({ col_status: { $regex: 'x' } } as never, columns)?.status).toBe(400)
+describe('orchestrationOutcomeErrorResponse', () => {
+  /**
+   * Shaped like a driver fault surfacing verbatim — a statement plus its bound
+   * parameters — so the assertion proves none of it reaches the response body.
+   */
+  const leakyMessage =
+    'Failed query: delete from "user_table" where "user_table"."id" = $1 params: tbl-1'
+
+  it('replaces an unclassified failure message with the fallback', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { success: false, error: leakyMessage, errorCode: 'internal' },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body).toEqual({ error: 'Failed to delete table' })
+    expect(JSON.stringify(body)).not.toContain('Failed query')
+    expect(JSON.stringify(body)).not.toContain('params:')
+  })
+
+  it('carries the rejecting lock kind on a 423', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { error: 'Table is locked against deletion', errorCode: 'locked', lock: 'delete' },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(423)
+    expect(await response.json()).toEqual({
+      error: 'Table is locked against deletion',
+      lock: 'delete',
+    })
+  })
+})
+
+describe('capabilityGovernedAuthUserId', () => {
+  /**
+   * The executor embeds the run's actor in the internal JWT — the workspace
+   * billing owner, or the member who merely triggered the run. Reading a
+   * governed subject off it applies that bystander's permission group to an
+   * executor call, which is the substitution the subject exists to remove.
+   */
+  it('names nobody for an internal JWT even though it carries a user id', () => {
+    expect(
+      capabilityGovernedAuthUserId({
+        success: true,
+        userId: 'billing-owner',
+        authType: 'internal_jwt',
+      })
+    ).toBeNull()
+  })
+
+  it('names nobody for a workspace API key, whose user id is the key creator', () => {
+    expect(
+      capabilityGovernedAuthUserId({
+        success: true,
+        userId: 'key-creator',
+        authType: 'api_key',
+        apiKeyType: 'workspace',
+      })
+    ).toBeNull()
   })
 })

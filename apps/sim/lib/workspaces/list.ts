@@ -14,6 +14,7 @@ import {
   type WorkspaceInviteFlags,
 } from '@/lib/workspaces/policy'
 import { listAccessibleWorkspaceRowsForUser, type WorkspaceScope } from '@/lib/workspaces/utils'
+import { listRecentWorkspaceIds, sortByVisitRecency } from '@/lib/workspaces/visits'
 
 type WorkspaceRow = typeof workspaceTable.$inferSelect
 
@@ -22,10 +23,19 @@ export type WorkspaceWithInviteFlags = WorkspaceRow &
   WorkspaceInviteFlags & {
     role: 'owner' | 'admin' | 'member'
     permissions: PermissionType
+    /**
+     * The viewer's admin access to this workspace derives from their
+     * organization role. `role: 'admin'` alone cannot say so — an explicit
+     * workspace admin looks identical — and the two differ in what the viewer
+     * can do: derived access has no permission row to give up, so leaving is
+     * refused by `DELETE /api/workspaces/members/[id]`.
+     */
+    isOrgAdmin: boolean
   }
 
 /** The GET /api/workspaces payload assembled by {@link listWorkspacesForViewer}. */
 export interface WorkspaceListPayload {
+  /** Most recently visited first, then newest first. */
   workspaces: WorkspaceWithInviteFlags[]
   lastActiveWorkspaceId: string | null
   /** Workspace ids the viewer pinned to the top of the switcher. */
@@ -39,7 +49,11 @@ export interface WorkspaceListPayload {
  * billed user / organization).
  */
 async function buildWorkspacesWithInviteFlags(
-  userWorkspaces: Array<{ workspace: WorkspaceRow; permissionType: PermissionType }>,
+  userWorkspaces: Array<{
+    workspace: WorkspaceRow
+    permissionType: PermissionType
+    viaOrgAdmin: boolean
+  }>,
   userId: string
 ): Promise<WorkspaceWithInviteFlags[]> {
   const nonOrgBilledUserIds = [
@@ -70,7 +84,7 @@ async function buildWorkspacesWithInviteFlags(
     }),
   ])
 
-  return userWorkspaces.map(({ workspace: workspaceDetails, permissionType }) => {
+  return userWorkspaces.map(({ workspace: workspaceDetails, permissionType, viaOrgAdmin }) => {
     const billedPlanCategory: PlanCategory =
       workspaceDetails.workspaceMode === WORKSPACE_MODE.ORGANIZATION
         ? workspaceDetails.organizationId
@@ -88,6 +102,7 @@ async function buildWorkspacesWithInviteFlags(
             ? ('admin' as const)
             : ('member' as const),
       permissions: permissionType,
+      isOrgAdmin: viaOrgAdmin,
       ...resolveInviteFlags(invitePolicy, workspaceDetails.billedAccountUserId === userId),
     }
   })
@@ -95,13 +110,12 @@ async function buildWorkspacesWithInviteFlags(
 
 /**
  * Read-only assembly of the GET /api/workspaces payload for a viewer: accessible
- * workspaces with role/invite flags, the viewer's last active workspace id, and
- * the workspace creation policy.
+ * workspaces with role/invite flags in visit order, the viewer's last active
+ * workspace id, pins, and the workspace creation policy.
  *
  * Unlike the route, this performs no writes — no default-workspace creation and
- * no orphaned-workflow repair. It exists for the workspace layout's sidebar
- * prefetch, which only runs after host-context authorization has proven the
- * viewer already has at least one accessible workspace.
+ * no orphaned-workflow repair. Sidebar prefetch leaves empty lists uncached so
+ * the client can still reach the route's default-workspace creation path.
  */
 export async function listWorkspacesForViewer(params: {
   userId: string
@@ -111,7 +125,7 @@ export async function listWorkspacesForViewer(params: {
   const { userId, activeOrganizationId, scope = 'active' } = params
 
   /** Workspace pins ride along here; see `pinnedResourceTypeSchema` for why. */
-  const [creationPolicy, workspaces, userSettings, workspacePins] = await Promise.all([
+  const [creationPolicy, workspaces, userSettings, workspacePins, recentIds] = await Promise.all([
     getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
     listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
       buildWorkspacesWithInviteFlags(rows, userId)
@@ -125,11 +139,16 @@ export async function listWorkspacesForViewer(params: {
       .select({ resourceId: pinnedItem.resourceId })
       .from(pinnedItem)
       .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
+    listRecentWorkspaceIds(userId),
   ])
+  const orderedWorkspaces = sortByVisitRecency(workspaces, recentIds)
+  const [mostRecent] = orderedWorkspaces
+  const lastVisitedId = mostRecent && recentIds.includes(mostRecent.id) ? mostRecent.id : null
 
   return {
-    workspaces,
-    lastActiveWorkspaceId: userSettings[0]?.lastActiveWorkspaceId ?? null,
+    workspaces: orderedWorkspaces,
+    /** Visits supersede the settings column, which only predates them. */
+    lastActiveWorkspaceId: lastVisitedId ?? userSettings[0]?.lastActiveWorkspaceId ?? null,
     pinnedWorkspaceIds: workspacePins.map((row) => row.resourceId),
     creationPolicy,
   }

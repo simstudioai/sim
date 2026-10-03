@@ -1,27 +1,32 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
-import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   type ActiveWorkspaceFileContext,
-  fetchServableWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { downloadFileStream } from '@/lib/uploads/core/storage-service'
-import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import {
-  formatFileSize,
-  MAX_RENDERED_DOCUMENT_BYTES,
-  needsRenderedArtifact,
-} from '@/lib/uploads/utils/file-utils'
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { downloadFileStream } from '@/lib/uploads/core/storage-service'
+import { MAX_RENDERED_DOCUMENT_BYTES, needsRenderedArtifact } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  hasWorkspaceFileDeliveryObserver,
+  reportWorkspaceFileDelivery,
+} from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface DownloadWorkspaceFileInput {
   fileId: string
   assertedWorkspaceId?: string
+  /** Trusted runtime callers can request the classification bound to the streamed bytes. */
+  includeSecretProvenance?: boolean
 }
 
 export interface DownloadWorkspaceFileResult {
@@ -37,6 +42,7 @@ export interface DownloadWorkspaceFileStreamResult extends DownloadWorkspaceFile
    */
   contentLength: number
   contentType: string
+  secretProvenance?: WorkspaceFileSecretProvenance
 }
 
 /** Audits the bytes actually handed out, which for a generated doc is not `file.size`. */
@@ -76,39 +82,19 @@ export const downloadWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
   projectAudit: ({ result }) => projectDownloadAudit(result.file),
 })
 
-/**
- * Resolves a generation-source record to its compiled artifact.
- *
- * The record's declared size bounds nothing here — a source is text and orders
- * of magnitude smaller than what it renders to — so the artifact is checked
- * against its own ceiling. Note this rejects an oversized artifact rather than
- * preventing it being read: the artifact store fetch is not itself streaming-
- * bounded, so the bytes are resident before the check rejects them.
- *
- * An artifact that is still compiling is retryable rather than a fault, so it
- * surfaces as `conflict` — a 500 would give the caller no reason to try again.
- */
-async function resolveRenderedArtifact(file: DownloadWorkspaceFileResult['file']) {
-  try {
-    return await fetchServableWorkspaceFileBuffer(file, {
-      maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
-    })
-  } catch (error) {
-    if (isDocNotReadyError(error)) {
-      throw new OrchestrationError('conflict', docNotReadyMessage())
-    }
-    if (isPayloadSizeLimitError(error)) {
-      throw new OrchestrationError(
-        'payload_too_large',
-        `"${file.name}" renders to more than ${formatFileSize(MAX_RENDERED_DOCUMENT_BYTES)} and is too large to download.`
-      )
-    }
-    throw error
-  }
+function resolveRenderedArtifact(
+  file: DownloadWorkspaceFileResult['file'],
+  filePrincipal: Principal
+) {
+  return resolveRenderedWorkspaceArtifact(file, filePrincipal, {
+    maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
+  })
 }
 
 async function executeDownloadWorkspaceFileStream({
+  input,
   context,
+  principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.download,
   DownloadWorkspaceFileInput,
@@ -118,7 +104,32 @@ async function executeDownloadWorkspaceFileStream({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
+  const secretProvenance =
+    input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
+      ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+          fileId: file.id,
+          key: file.key,
+          context: file.storageContext ?? 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+        })
+      : undefined
+  await reportWorkspaceFileDelivery(secretProvenance)
+  return streamWorkspaceFileRecord(
+    file,
+    principal,
+    input.includeSecretProvenance ? secretProvenance : undefined
+  )
+}
 
+/**
+ * Streams the bytes a record points at. Version downloads pass a record whose key, size, and type
+ * describe a previous version, so both surfaces serve through one path.
+ */
+export async function streamWorkspaceFileRecord(
+  file: DownloadWorkspaceFileResult['file'],
+  principal: Principal,
+  secretProvenance?: WorkspaceFileSecretProvenance
+): Promise<DownloadWorkspaceFileStreamResult> {
   /**
    * AI-generated docs store their generation SOURCE as the primary file and keep
    * the rendered binary in a separate artifact store, so streaming `file.key`
@@ -129,7 +140,7 @@ async function executeDownloadWorkspaceFileStream({
    * double peak memory.
    */
   if (needsRenderedArtifact(file.type, file.name)) {
-    const { buffer, contentType } = await resolveRenderedArtifact(file)
+    const { buffer, contentType } = await resolveRenderedArtifact(file, principal)
     return {
       file,
       stream: new ReadableStream<Uint8Array>({
@@ -142,6 +153,7 @@ async function executeDownloadWorkspaceFileStream({
       }),
       contentLength: buffer.length,
       contentType,
+      ...(secretProvenance ? { secretProvenance } : {}),
     }
   }
 
@@ -154,6 +166,7 @@ async function executeDownloadWorkspaceFileStream({
     stream: nodeReadableToWebStream(stream),
     contentLength: file.size,
     contentType: file.type || 'application/octet-stream',
+    ...(secretProvenance ? { secretProvenance } : {}),
   }
 }
 

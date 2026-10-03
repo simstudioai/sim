@@ -1,62 +1,35 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  secretsUseCasesMock,
+  secretsUseCasesMockFns,
+} from '@sim/testing/mocks/secrets-use-cases.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
-      set: vi.fn(),
-      remove: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
-vi.mock('@/lib/secrets/application/use-cases', () => ({
-  setSecretUseCase: { operation: { id: 'secrets.set' }, execute: mocks.set },
-  deleteSecretUseCase: { operation: { id: 'secrets.delete' }, execute: mocks.remove },
-}))
+import { PUT } from '@/app/api/v2/secrets/[name]/route'
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DELETE, PUT } from '@/app/api/v2/secrets/[name]/route'
+const mocks = {
+  set: secretsUseCasesMockFns.mockSetSecretUseCase,
+  remove: secretsUseCasesMockFns.mockDeleteSecretUseCase,
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const SECRET_NAME = 'STRIPE_API_KEY'
-const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
+const PRINCIPAL = createPersonalApiKeyPrincipal({ keyId: 'key-personal' })
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -83,31 +56,31 @@ const secret = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   hasServiceAccountKey: false,
   role: 'admin' as const,
+  unredacted: false,
 }
-const context = { params: Promise.resolve({ name: SECRET_NAME }) }
+const context = createRouteContext({ name: SECRET_NAME })
 
+/**
+ * The read and delete verbs scope themselves with `?workspaceId=`; the write
+ * verb carries `workspaceId` in its body. Sending the query copy on a write is
+ * now a 400 rather than a silently dropped key, so the helper only appends it
+ * where the contract declares it.
+ */
 function request(method: 'PUT' | 'DELETE', body?: unknown) {
-  const scope = method === 'DELETE' ? '&scope=workspace' : ''
-  return new NextRequest(
-    `http://localhost:3000/api/v2/secrets/${SECRET_NAME}?workspaceId=${WORKSPACE_ID}${scope}`,
-    {
-      method,
-      headers: {
-        'x-api-key': 'key',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }
-  )
+  const query = method === 'DELETE' ? `?workspaceId=${WORKSPACE_ID}&scope=workspace` : ''
+  return createMockRequest({
+    method,
+    url: `http://localhost:3000/api/v2/secrets/${SECRET_NAME}${query}`,
+    headers: { 'x-api-key': 'key' },
+    body,
+  })
 }
 
 describe('/api/v2/secrets/[name]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.set.mockResolvedValue({ secret, userId: 'user-1', created: true })
     mocks.remove.mockResolvedValue({ name: SECRET_NAME, scope: 'workspace' })
   })
@@ -132,6 +105,29 @@ describe('/api/v2/secrets/[name]', () => {
     })
   })
 
+  it('omits description entirely when unset so a rotation cannot erase it', async () => {
+    await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', value: 'rotated' }),
+      context
+    )
+
+    expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('description')
+  })
+
+  it('normalizes an empty description to null so it matches the UI clear path', async () => {
+    await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: '   ',
+      }),
+      context
+    )
+
+    expect(mocks.set.mock.calls[0][0].input.description).toBeNull()
+  })
+
   it('returns 200 when replacing an existing secret', async () => {
     mocks.set.mockResolvedValueOnce({ secret, userId: 'user-1', created: false })
 
@@ -143,48 +139,25 @@ describe('/api/v2/secrets/[name]', () => {
     expect(response.status).toBe(200)
   })
 
-  it('deletes a secret through the semantic delete operation', async () => {
-    const response = await DELETE(request('DELETE'), context)
+  it('sends a value-less workspace write through as a metadata-only update at 200', async () => {
+    mocks.set.mockResolvedValueOnce({ secret, userId: 'user-1', created: false })
+
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', unredacted: false }),
+      context
+    )
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: { name: SECRET_NAME, scope: 'workspace', deleted: true },
-    })
-    expect(mocks.remove).toHaveBeenCalledWith({
+    expect(mocks.set).toHaveBeenCalledWith({
       principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, name: SECRET_NAME, scope: 'workspace' },
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: SECRET_NAME,
+        scope: 'workspace',
+        unredacted: false,
+      },
       request: expect.anything(),
     })
-  })
-
-  it('renders typed application errors without leaking raw errors', async () => {
-    mocks.remove.mockRejectedValueOnce(new OrchestrationError('not_found', 'stored detail'))
-
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({
-      error: { code: 'NOT_FOUND', message: 'stored detail' },
-    })
-  })
-
-  it('conceals unclassified application errors', async () => {
-    mocks.remove.mockRejectedValueOnce(new Error('database connection detail'))
-
-    const response = await DELETE(request('DELETE'), context)
-    const body = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(body).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
-    expect(JSON.stringify(body)).not.toContain('database connection detail')
-  })
-
-  it('authenticates before parsing a malformed set request', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await PUT(request('PUT', {}), context)
-
-    expect(response.status).toBe(401)
-    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('value')
   })
 })

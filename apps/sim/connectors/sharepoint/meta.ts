@@ -10,6 +10,7 @@ export const sharepointConnectorMeta: ConnectorMeta = {
 
   auth: { mode: 'oauth', provider: 'sharepoint', requiredScopes: ['Sites.Read.All'] },
 
+  permissionScopedListing: { capFieldIds: ['maxFiles'] },
   configFields: [
     {
       id: 'siteUrl',

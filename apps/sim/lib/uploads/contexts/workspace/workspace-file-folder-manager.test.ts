@@ -1,12 +1,30 @@
-/**
- * @vitest-environment node
- */
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { describe, expect, it } from 'vitest'
+const { mockAcquireFolderMutationLock, mockDeduplicateFolderName } = vi.hoisted(() => ({
+  mockAcquireFolderMutationLock: vi.fn(),
+  mockDeduplicateFolderName: vi.fn(),
+}))
+
+vi.mock('@/lib/folders/locks', () => ({
+  acquireFolderMutationLock: mockAcquireFolderMutationLock,
+}))
+
+vi.mock('@/lib/folders/naming', () => ({
+  deduplicateFolderName: mockDeduplicateFolderName,
+}))
+
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import {
+  archiveWorkspaceFileFolderIfEmpty,
   buildWorkspaceFileFolderPathMap,
+  ensureWorkspaceFileFolderPath,
+  listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
-} from './workspace-file-folder-manager'
+  relocateWorkspaceFileFolderByPath,
+  WorkspaceFileFolderConflictError,
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 
 describe('workspace file folder paths', () => {
   it('builds nested paths from parent relationships', () => {
@@ -21,6 +39,16 @@ describe('workspace file folder paths', () => {
     expect(paths.get('archive')).toBe('Archive')
   })
 
+  it('escapes slashes within folder names without changing hierarchy delimiters', () => {
+    const paths = buildWorkspaceFileFolderPathMap([
+      { id: 'legal', name: 'Finance/Legal', parentId: null },
+      { id: 'quarterly', name: 'Quarterly', parentId: 'legal' },
+    ])
+
+    expect(paths.get('legal')).toBe('Finance\\/Legal')
+    expect(paths.get('quarterly')).toBe('Finance\\/Legal/Quarterly')
+  })
+
   it('rejects names that would create ambiguous paths', () => {
     expect(normalizeWorkspaceFileItemName('Reports', 'Folder')).toBe('Reports')
     expect(() => normalizeWorkspaceFileItemName('A/B', 'Folder')).toThrow(
@@ -29,5 +57,186 @@ describe('workspace file folder paths', () => {
     expect(() => normalizeWorkspaceFileItemName('..', 'File')).toThrow(
       'File name cannot contain path separators or dot segments'
     )
+  })
+
+  it('rejects oversized ensured paths before persisting any folders', async () => {
+    await expect(
+      ensureWorkspaceFileFolderPath({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        pathSegments: Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'nested'),
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`,
+    })
+  })
+})
+
+describe('workspace file folder failure classification', () => {
+  it('classifies a duplicate folder name as a conflict for every surface', () => {
+    const error = new WorkspaceFileFolderConflictError('Reports')
+    const classified = asOrchestrationError(error)
+
+    expect(classified?.code).toBe('conflict')
+    expect(statusForOrchestrationError(classified?.code)).toBe(409)
+    expect(error.message).toBe('A folder named "Reports" already exists in this location')
+  })
+
+  it('classifies a conflict raised inside a wrapping transaction error', () => {
+    const wrapped = new Error('insert into "folder" ...', {
+      cause: new WorkspaceFileFolderConflictError('Reports'),
+    })
+
+    expect(asOrchestrationError(wrapped)?.code).toBe('conflict')
+  })
+})
+
+describe('listWorkspaceFileFolders', () => {
+  const now = new Date('2026-08-17T12:00:00.000Z')
+  const activeParent = {
+    id: 'parent-1',
+    resourceType: 'file',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    name: 'Engineering',
+    parentId: null,
+    sortOrder: 0,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const archivedChild = {
+    ...activeParent,
+    id: 'child-1',
+    name: 'Archive',
+    parentId: 'parent-1',
+    deletedAt: now,
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('resolves an archived folder path through its still-active ancestors', async () => {
+    queueTableRows(schemaMock.folder, [archivedChild])
+    queueTableRows(schemaMock.folder, [activeParent, archivedChild])
+
+    const folders = await listWorkspaceFileFolders('workspace-1', { scope: 'archived' })
+
+    expect(folders).toHaveLength(1)
+    expect(folders[0].path).toBe('Engineering/Archive')
+  })
+})
+
+describe('archiveWorkspaceFileFolderIfEmpty', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockAcquireFolderMutationLock.mockReset()
+  })
+
+  it('archives an empty folder under the folder mutation lock', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'folder-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'folder-1' }])
+
+    await expect(
+      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
+    ).resolves.toBe(true)
+
+    expect(mockAcquireFolderMutationLock).toHaveBeenCalledWith(
+      expect.anything(),
+      'workspace-1',
+      'file'
+    )
+  })
+
+  it('refuses to archive a folder that still holds an active file', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'folder-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'file-1' }])
+
+    await expect(
+      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
+    ).rejects.toMatchObject({ code: 'conflict', message: 'Folder is not empty' })
+
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+  })
+
+  it('refuses to archive a folder with an active child folder', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'folder-1' }])
+      .mockResolvedValueOnce([{ id: 'child-1' }])
+      .mockResolvedValueOnce([])
+
+    await expect(
+      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+})
+
+describe('relocateWorkspaceFileFolderByPath', () => {
+  const now = new Date('2026-08-17T12:00:00.000Z')
+  const source = {
+    id: 'folder-source',
+    resourceType: 'file',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    name: 'xp-files',
+    parentId: null,
+    sortOrder: 0,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const archive = { ...source, id: 'folder-archive', name: 'fx-archive' }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    mockAcquireFolderMutationLock.mockReset()
+  })
+
+  /**
+   * `mv` semantics: `/xp-files` moved to an existing `/fx-archive` lands at
+   * `/fx-archive/xp-files` instead of being refused as a name collision, while
+   * a destination naming no folder is still the source's new full path.
+   */
+  it('moves a folder into a destination that names an existing folder', async () => {
+    queueTableRows(schemaMock.folder, [source, archive])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...source, parentId: 'folder-archive' }])
+
+    const result = await relocateWorkspaceFileFolderByPath({
+      workspaceId: 'workspace-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result.path).toBe('/fx-archive/xp-files')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'xp-files', parentId: 'folder-archive' })
+    )
+    expect(mockAcquireFolderMutationLock).toHaveBeenCalledWith(
+      expect.anything(),
+      'workspace-1',
+      'file'
+    )
+  })
+
+  it('still refuses a move whose source already exists under the destination', async () => {
+    const taken = { ...source, id: 'folder-taken', parentId: 'folder-archive' }
+
+    queueTableRows(schemaMock.folder, [source, archive, taken])
+
+    await expect(
+      relocateWorkspaceFileFolderByPath({
+        workspaceId: 'workspace-1',
+        path: '/xp-files',
+        destinationPath: '/fx-archive',
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
   })
 })

@@ -55,9 +55,7 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.default,
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
   useCase: createWorkflowFolder,
-  present: ({ folder, index }) => ({
-    data: { folder: toV2WorkflowFolder(folder, index) },
-  }),
+  present: ({ folder, index }) => ({ data: toV2WorkflowFolder(folder, index) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -72,9 +70,7 @@ export const PATCH = defineV2JsonRoute({
     destinationPath: body.destinationPath,
   }),
   useCase: relocateWorkflowFolder,
-  present: ({ folder, index }) => ({
-    data: { folder: toV2WorkflowFolder(folder, index) },
-  }),
+  present: ({ folder, index }) => ({ data: toV2WorkflowFolder(folder, index) }),
 })
 
 export const DELETE = defineV2JsonRoute({

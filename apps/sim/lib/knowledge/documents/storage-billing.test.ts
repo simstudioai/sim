@@ -1,49 +1,42 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockApplyStorageUsageDeltasInTx,
-  mockCheckStorageQuota,
-  mockCheckStorageQuotaForBillingContext,
-  mockDecrementStorageUsageForBillingContextInTx,
-  mockIncrementStorageUsageForBillingContextInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-  mockGetFileMetadataByKeys,
-} = vi.hoisted(() => ({
-  mockApplyStorageUsageDeltasInTx: vi.fn(),
-  mockCheckStorageQuota: vi.fn(),
-  mockCheckStorageQuotaForBillingContext: vi.fn(),
-  mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockGetFileMetadataByKeys: vi.fn(),
+const { mockEnqueueKnowledgeDocumentProcessing } = vi.hoisted(() => ({
+  mockEnqueueKnowledgeDocumentProcessing: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,
-  checkStorageQuota: mockCheckStorageQuota,
-  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
-  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: vi.fn(),
-  getFileMetadataByKeys: mockGetFileMetadataByKeys,
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+
+vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
+  enqueueKnowledgeDocumentProcessing: mockEnqueueKnowledgeDocumentProcessing,
 }))
 
 import {
+  ConnectorSyncDeletionGuardError,
   createDocumentRecords,
   createSingleDocument,
   hardDeleteDocuments,
 } from '@/lib/knowledge/documents/service'
+
+const mockGetFileMetadataByKeys = uploadsMetadataMockFns.mockGetFileMetadataByKeys
+const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
+const mockCheckStorageQuota = billingStorageMockFns.mockCheckStorageQuota
+const mockCheckStorageQuotaForBillingContext =
+  billingStorageMockFns.mockCheckStorageQuotaForBillingContext
+const mockDecrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockDecrementStorageUsageForBillingContextInTx
+const mockIncrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 const STORAGE_CONTEXT = {
   workspaceId: 'workspace-1',
@@ -55,7 +48,6 @@ const STORAGE_CONTEXT = {
 
 describe('knowledge document storage attribution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       {
@@ -70,6 +62,7 @@ describe('knowledge document storage attribution', () => {
     mockApplyStorageUsageDeltasInTx.mockResolvedValue(undefined)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockGetFileMetadataByKeys.mockResolvedValue([])
+    mockEnqueueKnowledgeDocumentProcessing.mockResolvedValue('outbox-1')
   })
 
   it.each(['external-collaborator', 'personal-api-key-user'])(
@@ -104,69 +97,6 @@ describe('knowledge document storage attribution', () => {
     }
   )
 
-  it('notifies the workspace payer after a single document transaction commits', async () => {
-    let transactionCommitted = false
-    dbChainMockFns.transaction.mockImplementationOnce(
-      async (callback: (tx: typeof dbChainMock.db) => unknown) => {
-        const result = await callback(dbChainMock.db)
-        transactionCommitted = true
-        return result
-      }
-    )
-    mockMaybeNotifyStorageLimitForBillingContext.mockImplementationOnce(() => {
-      expect(transactionCommitted).toBe(true)
-    })
-
-    await createSingleDocument(
-      {
-        filename: 'note.txt',
-        fileUrl: 'data:text/plain;base64,SGVsbG8=',
-        fileSize: 5,
-        mimeType: 'text/plain',
-      },
-      'knowledge-base-1',
-      'request-1',
-      'external-collaborator'
-    )
-
-    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      STORAGE_CONTEXT,
-      5
-    )
-    expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 5)
-  })
-
-  it('resolves admission before opening the document transaction', async () => {
-    let transactionOpen = false
-    mockResolveStorageBillingContext.mockImplementationOnce(async () => {
-      expect(transactionOpen).toBe(false)
-      return STORAGE_CONTEXT
-    })
-    dbChainMockFns.transaction.mockImplementationOnce(
-      async (callback: (tx: typeof dbChainMock.db) => unknown) => {
-        transactionOpen = true
-        try {
-          return await callback(dbChainMock.db)
-        } finally {
-          transactionOpen = false
-        }
-      }
-    )
-
-    await createSingleDocument(
-      {
-        filename: 'note.txt',
-        fileUrl: 'data:text/plain;base64,SGVsbG8=',
-        fileSize: 5,
-        mimeType: 'text/plain',
-      },
-      'knowledge-base-1',
-      'request-1',
-      'external-collaborator'
-    )
-  })
-
   it.each(['kb', 'knowledge-base'])(
     'uses server-known %s file metadata size for quota, ledger, and document row',
     async (keyPrefix) => {
@@ -177,7 +107,7 @@ describe('knowledge document storage attribution', () => {
           key: storageKey,
           workspaceId: 'workspace-1',
           userId: 'external-collaborator',
-          size: 8,
+          sizeBytes: 8,
         },
       ])
       mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(13)
@@ -231,13 +161,47 @@ describe('knowledge document storage attribution', () => {
     dbChainMockFns.for.mockResolvedValueOnce([
       { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
     ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'doc-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        fileSize: 100,
+        uploadedBy: 'external-collaborator',
+        connectorId: null,
+      },
+    ])
 
     const deletedCount = await hardDeleteDocuments(['doc-1', 'doc-2'], 'request-1')
 
     expect(deletedCount).toBe(1)
     expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
       workspaceDeltas: [{ context: STORAGE_CONTEXT, deltaBytes: -100 }],
+      legacyDeltas: [],
+    })
+  })
+
+  it('uses bytes from the deleted row after a concurrent source revision', async () => {
+    const snapshot = {
+      id: 'doc-1',
+      knowledgeBaseId: 'knowledge-base-1',
+      fileUrl: 'data:text/plain;base64,QQ==',
+      fileSize: 100,
+      uploadedBy: 'external-collaborator',
+      connectorId: null,
+      workspaceId: 'workspace-1',
+      kbUserId: 'knowledge-owner',
+    }
+    dbChainMockFns.where.mockResolvedValueOnce([snapshot])
+    dbChainMockFns.for.mockResolvedValueOnce([
+      { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...snapshot, fileSize: 200 }])
+
+    await expect(hardDeleteDocuments(['doc-1'], 'request-1')).resolves.toBe(1)
+
+    expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
+      workspaceDeltas: [{ context: STORAGE_CONTEXT, deltaBytes: -200 }],
       legacyDeltas: [],
     })
   })
@@ -258,12 +222,21 @@ describe('knowledge document storage attribution', () => {
     dbChainMockFns.for.mockResolvedValueOnce([
       { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
     ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'connector-doc' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'connector-doc',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        fileSize: 500,
+        uploadedBy: null,
+        connectorId: 'connector-1',
+      },
+    ])
 
     const deletedCount = await hardDeleteDocuments(['connector-doc'], 'request-1')
 
     expect(deletedCount).toBe(1)
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mockResolveStorageBillingContext).toHaveBeenCalledWith('workspace-1')
     expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
       workspaceDeltas: [],
       legacyDeltas: [],
@@ -271,12 +244,102 @@ describe('knowledge document storage attribution', () => {
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })
 
-  it('splits hard deletion into bounded 250-document transactions', async () => {
-    const documentIds = Array.from({ length: 251 }, (_, index) => `doc-${index}`)
+  it('refuses connector reconciliation deletion after the sync lock is lost', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([
+      {
+        id: 'connector-doc',
+        knowledgeBaseId: 'knowledge-base-1',
+        fileUrl: 'data:text/plain;base64,QQ==',
+        fileSize: 500,
+        uploadedBy: null,
+        connectorId: 'connector-1',
+        workspaceId: 'workspace-1',
+        kbUserId: 'knowledge-owner',
+      },
+    ])
+    dbChainMockFns.for
+      .mockResolvedValueOnce([
+        { id: 'knowledge-base-1', workspaceId: 'workspace-1', userId: 'knowledge-owner' },
+      ])
+      .mockResolvedValueOnce([])
 
-    await expect(hardDeleteDocuments(documentIds, 'request-1')).resolves.toBe(0)
+    await expect(
+      hardDeleteDocuments(['connector-doc'], 'request-1', 'connector-1', undefined, {
+        connectorId: 'connector-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        syncLockToken: 'sync-1',
+      })
+    ).rejects.toBeInstanceOf(ConnectorSyncDeletionGuardError)
 
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization document storage deletion', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockGetFileMetadataByKeys.mockResolvedValue([])
+    mockApplyStorageUsageDeltasInTx.mockResolvedValue(undefined)
+  })
+
+  it.each(['connector-1', null])(
+    'never decrements personal storage for an organization document (connector: %s)',
+    async (connectorId) => {
+      queueTableRows(schemaMock.document, [
+        {
+          id: 'org-doc',
+          knowledgeBaseId: 'org-kb',
+          fileUrl: null,
+          fileSize: 100,
+          uploadedBy: 'creator',
+          connectorId,
+          workspaceId: null,
+          organizationId: 'org-1',
+          kbUserId: 'creator',
+        },
+      ])
+      queueTableRows(schemaMock.knowledgeBase, [
+        { id: 'org-kb', workspaceId: null, organizationId: 'org-1', userId: 'creator' },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        {
+          id: 'org-doc',
+          knowledgeBaseId: 'org-kb',
+          fileUrl: null,
+          fileSize: 100,
+          uploadedBy: 'creator',
+          connectorId,
+        },
+      ])
+      await expect(hardDeleteDocuments(['org-doc'], 'request-1')).resolves.toBe(1)
+      expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+      expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
+        workspaceDeltas: [],
+        legacyDeltas: [],
+      })
+    }
+  )
+
+  it('refuses a document deletion after its canonical organization changes', async () => {
+    queueTableRows(schemaMock.document, [
+      {
+        id: 'org-doc',
+        knowledgeBaseId: 'org-kb',
+        fileUrl: null,
+        fileSize: 100,
+        uploadedBy: 'creator',
+        connectorId: 'connector-1',
+        workspaceId: null,
+        organizationId: 'org-1',
+        kbUserId: 'creator',
+      },
+    ])
+    queueTableRows(schemaMock.knowledgeBase, [
+      { id: 'org-kb', workspaceId: null, organizationId: 'org-2', userId: 'creator' },
+    ])
+    await expect(hardDeleteDocuments(['org-doc'], 'request-1')).rejects.toThrow(
+      'storage ownership changed'
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 })

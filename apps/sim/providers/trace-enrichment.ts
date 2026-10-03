@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { BlockTokens, IterationToolCall, ProviderTimingSegment } from '@/executor/types'
 import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import {
@@ -128,7 +129,7 @@ function parseToolCallArguments(rawArguments: string): Record<string, unknown> |
   if (typeof rawArguments !== 'string') return ''
   try {
     const parsed = JSON.parse(rawArguments)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (isRecordLike(parsed)) {
       return parsed as Record<string, unknown>
     }
     return rawArguments

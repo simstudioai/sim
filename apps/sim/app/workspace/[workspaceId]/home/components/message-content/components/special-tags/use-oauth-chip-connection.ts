@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
   buildOAuthChatCompleteAuthorizeUrl,
@@ -21,8 +20,10 @@ import {
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
+import { isAppSurfacePath } from '@/lib/navigation/paths'
 import type { OAuthProvider } from '@/lib/oauth/types'
 import { parseProvider, providerIdsForService } from '@/lib/oauth/utils'
+import { useCredentialWorkspaceId } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'
@@ -38,12 +39,21 @@ const OAUTH_POPUP_POLL_INTERVAL_MS = 400
 const OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS = 10 * 60 * 1000
 
 /**
- * Same-origin pages an OAuth flow can die on without reaching the return leg —
  * Better Auth sends pre-state failures (usually a denied consent) to its global
- * error page, and the custom-provider callbacks exit to the workspace root.
- * Neither publishes a verdict, so a popup sitting on one is finished.
+ * error page, which publishes no verdict.
  */
-const OAUTH_POPUP_TERMINAL_PATHS = new Set(['/oauth-error', '/workspace'])
+const OAUTH_ERROR_PATH = '/oauth-error'
+
+/**
+ * Same-origin pages an OAuth flow can die on without reaching the return leg —
+ * the Better Auth error page, or anywhere in the signed-in app, which is where the
+ * custom-provider callbacks exit to. The app entry forwards on the server to the
+ * organization or a workspace, so any app surface counts, not just the entry
+ * itself. None of them publishes a verdict, so a popup sitting on one is finished.
+ */
+function isOAuthPopupTerminalPath(pathname: string): boolean {
+  return pathname === OAUTH_ERROR_PATH || isAppSurfacePath(pathname)
+}
 
 /**
  * What the opener can actually prove about a popup it launched. `ended` needs
@@ -64,7 +74,7 @@ function observePopup(popup: { window: Window } | null): PopupObservation {
   if (closed) return 'unobservable'
   try {
     const { origin, pathname } = popup.window.location
-    if (origin === window.location.origin && OAUTH_POPUP_TERMINAL_PATHS.has(pathname)) {
+    if (origin === window.location.origin && isOAuthPopupTerminalPath(pathname)) {
       return 'ended'
     }
   } catch {
@@ -80,6 +90,39 @@ function observePopup(popup: { window: Window } | null): PopupObservation {
  */
 function isPopupStillOpen(popup: { window: Window } | null): boolean {
   return observePopup(popup) === 'live'
+}
+
+export interface OAuthChipTarget {
+  /** Provider the authorize URL connects; falls back to the tag's own slug. */
+  providerId: string
+  /** Present when the URL re-authorizes an existing credential in place. */
+  reconnectCredentialId?: string
+}
+
+/**
+ * Reads the connect target out of an authorize URL. Shared with the credential
+ * card's recap, which has to look up a row's stored attempt without mounting
+ * the row — the attempt key is derived from exactly these two fields.
+ */
+export function resolveOAuthChipTarget(connectUrl?: string, provider?: string): OAuthChipTarget {
+  if (!connectUrl) return { providerId: provider ?? '' }
+  let url: URL
+  try {
+    url = new URL(connectUrl)
+  } catch {
+    return { providerId: provider ?? '' }
+  }
+  const reconnectCredentialId = url.searchParams.get('credentialId') ?? undefined
+  if (url.pathname === '/api/auth/instagram/authorize') {
+    return { providerId: 'instagram', reconnectCredentialId }
+  }
+  if (url.pathname === '/api/auth/shopify/authorize') {
+    return { providerId: 'shopify', reconnectCredentialId }
+  }
+  if (url.pathname === '/api/auth/trello/authorize') {
+    return { providerId: 'trello', reconnectCredentialId }
+  }
+  return { providerId: url.searchParams.get('providerId') ?? provider ?? '', reconnectCredentialId }
 }
 
 interface UseOAuthChipConnectionParams {
@@ -134,31 +177,14 @@ export function useOAuthChipConnection({
   controlId,
   onConnected,
 }: UseOAuthChipConnectionParams): OAuthChipConnection {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
 
   // A connect URL carrying a credentialId re-authorizes that existing
   // credential in place (reconnect) rather than creating a new one.
-  const reconnectCredentialId = useMemo(() => {
-    if (!connectUrl) return undefined
-    try {
-      return new URL(connectUrl).searchParams.get('credentialId') ?? undefined
-    } catch {
-      return undefined
-    }
-  }, [connectUrl])
-
-  const providerId = useMemo(() => {
-    if (!connectUrl) return provider ?? ''
-    try {
-      const url = new URL(connectUrl)
-      if (url.pathname === '/api/auth/instagram/authorize') return 'instagram'
-      if (url.pathname === '/api/auth/shopify/authorize') return 'shopify'
-      if (url.pathname === '/api/auth/trello/authorize') return 'trello'
-      return url.searchParams.get('providerId') ?? provider ?? ''
-    } catch {
-      return provider ?? ''
-    }
-  }, [connectUrl, provider])
+  const { providerId, reconnectCredentialId } = useMemo(
+    () => resolveOAuthChipTarget(connectUrl, provider),
+    [connectUrl, provider]
+  )
 
   const baseProviderId = parseProvider(providerId as OAuthProvider).baseProvider
   const {

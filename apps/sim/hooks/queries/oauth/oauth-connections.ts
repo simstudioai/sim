@@ -1,22 +1,21 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ConnectedAccount,
-  disconnectOAuthContract,
-  listConnectedAccountsContract,
   listOAuthConnectionsContract,
   type OAuthAccountSummary,
   type OAuthConnection,
 } from '@/lib/api/contracts/oauth-connections'
 import { client } from '@/lib/auth/auth-client'
+import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
+import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
 export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
-export const OAUTH_CONNECTED_ACCOUNTS_STALE_TIME = 60 * 1000
 
 /**
  * Query key factory for OAuth connection queries.
@@ -56,6 +55,18 @@ function defineServices(): ServiceInfo[] {
   return servicesList
 }
 
+/**
+ * Resolves the service catalog merged with the caller's connections.
+ *
+ * A failed request resolves with the bare catalog rather than rejecting, so
+ * consumers keep correct service names and ids when the merge data is
+ * unavailable. The cost is that `isConnected`/`accounts` then report *unknown*
+ * as *disconnected*, which the result cannot distinguish. Read connection
+ * state from the workspace credentials query (`useWorkspaceCredentials`), which
+ * surfaces its own errors; a consumer that must branch on `isConnected` here
+ * needs this fallback removed first, or it will tell a connected user they are
+ * not.
+ */
 async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[]> {
   try {
     const serviceDefinitions = defineServices()
@@ -128,6 +139,7 @@ export function useOAuthConnections() {
 interface ConnectServiceParams {
   providerId: string
   callbackURL: string
+  draftId?: string
 }
 
 /**
@@ -138,43 +150,65 @@ export function useConnectOAuthService() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ providerId, callbackURL }: ConnectServiceParams) => {
-      if (providerId === 'trello') {
-        const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/trello/authorize?returnUrl=${returnUrl}`
-        return { success: true }
-      }
-
-      if (providerId === 'instagram') {
-        const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/instagram/authorize?returnUrl=${returnUrl}`
-        return { success: true }
-      }
-
-      if (providerId === 'shopify') {
-        const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
-        return { success: true }
-      }
-
-      // Desktop app: OAuth cannot run in the embedded window (Google/Microsoft
-      // block embedded user agents, and better-auth binds the flow's state to
-      // the initiating browser's cookies), so the whole flow is handed to the
-      // system browser and returns via the app's loopback. Completion arrives
-      // through onOAuthConnectComplete (see useDesktopOAuthConnectListener),
-      // which refreshes caches and shows the connected toast.
+    mutationFn: async ({ providerId, callbackURL, draftId }: ConnectServiceParams) => {
+      /**
+       * Desktop keeps the entire provider flow in the system browser so the
+       * authorization route's state cookies and callback use one cookie jar.
+       */
       const desktopBridge = getDesktopBridge()
       if (desktopBridge?.beginOAuthConnect) {
-        const opened = await desktopBridge.beginOAuthConnect(providerId)
+        const opened = await desktopBridge.beginOAuthConnect(
+          providerId,
+          draftId ? { draftId } : undefined
+        )
         if (!opened) {
           throw new Error('Could not open your browser to connect this account.')
         }
         return { success: true }
       }
 
+      if (providerId === 'trello') {
+        const returnUrl = encodeURIComponent(callbackURL)
+        const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
+        window.location.href = `/api/auth/trello/authorize?returnUrl=${returnUrl}${draftQuery}`
+        return { success: true }
+      }
+
+      if (providerId === 'instagram') {
+        const returnUrl = encodeURIComponent(callbackURL)
+        const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
+        window.location.href = `/api/auth/instagram/authorize?returnUrl=${returnUrl}${draftQuery}`
+        return { success: true }
+      }
+
+      if (providerId === 'shopify') {
+        const returnUrl = encodeURIComponent(callbackURL)
+        const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
+        window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}${draftQuery}`
+        return { success: true }
+      }
+
+      if (providerId === 'quickbooks') {
+        if (!draftId) {
+          throw new Error('QuickBooks authorization requires a credential connection draft.')
+        }
+        const authorizeUrl = new URL('/api/auth/oauth2/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('draftId', draftId)
+        authorizeUrl.searchParams.set('callbackURL', callbackURL)
+        window.location.href = authorizeUrl.toString()
+        return { success: true }
+      }
+
+      const stateCallbackUrl = new URL(callbackURL)
+      if (draftId) {
+        stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
+      }
+
+      const scopes = getPerRequestOAuthLinkScopes(providerId)
       await client.oauth2.link({
         providerId,
-        callbackURL,
+        callbackURL: stateCallbackUrl.toString(),
+        ...(scopes && { scopes }),
       })
 
       return { success: true }
@@ -188,94 +222,5 @@ export function useConnectOAuthService() {
   })
 }
 
-interface DisconnectServiceParams {
-  provider: string
-  providerId?: string
-  serviceId: string
-  accountId?: string
-}
-
-/**
- * Disconnects an OAuth service account.
- * Performs optimistic update and rolls back on failure.
- */
-export function useDisconnectOAuthService() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ provider, providerId, accountId }: DisconnectServiceParams) => {
-      return requestJson(disconnectOAuthContract, {
-        body: {
-          provider,
-          providerId,
-          accountId,
-        },
-      })
-    },
-    onMutate: async ({ serviceId, accountId }) => {
-      await queryClient.cancelQueries({ queryKey: oauthConnectionsKeys.connections() })
-
-      const previousServices = queryClient.getQueryData<ServiceInfo[]>(
-        oauthConnectionsKeys.connections()
-      )
-
-      if (previousServices) {
-        queryClient.setQueryData<ServiceInfo[]>(
-          oauthConnectionsKeys.connections(),
-          previousServices.map((svc) => {
-            if (svc.id === serviceId) {
-              const updatedAccounts =
-                accountId && svc.accounts ? svc.accounts.filter((acc) => acc.id !== accountId) : []
-              return {
-                ...svc,
-                accounts: updatedAccounts,
-                isConnected: updatedAccounts.length > 0,
-              }
-            }
-            return svc
-          })
-        )
-      }
-
-      return { previousServices }
-    },
-    onError: (_err, _variables, context) => {
-      if (context?.previousServices) {
-        queryClient.setQueryData(oauthConnectionsKeys.connections(), context.previousServices)
-      }
-      logger.error('Failed to disconnect service')
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
-    },
-  })
-}
-
 /** Connected OAuth account for a specific provider. */
 export type { ConnectedAccount }
-
-async function fetchConnectedAccounts(
-  provider: string,
-  signal?: AbortSignal
-): Promise<ConnectedAccount[]> {
-  const data = await requestJson(listConnectedAccountsContract, {
-    query: { provider },
-    signal,
-  })
-  return data.accounts
-}
-
-/**
- * Fetches connected accounts for a specific OAuth provider.
- * @param provider - The provider ID (e.g., 'slack', 'google')
- * @param options - Query options including enabled flag
- */
-export function useConnectedAccounts(provider: string, options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: oauthConnectionsKeys.account(provider),
-    queryFn: ({ signal }) => fetchConnectedAccounts(provider, signal),
-    enabled: options?.enabled ?? true,
-    staleTime: OAUTH_CONNECTED_ACCOUNTS_STALE_TIME,
-    placeholderData: keepPreviousData,
-  })
-}

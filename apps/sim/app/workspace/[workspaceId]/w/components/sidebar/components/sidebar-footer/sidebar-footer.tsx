@@ -1,63 +1,96 @@
 'use client'
 
 import type { ComponentType } from 'react'
+import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
+import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import {
   Chip,
   chipContentLabelClass,
+  chipPrimaryFillTokens,
   chipVariants,
   cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
+  OverflowText,
   Skeleton,
 } from '@sim/emcn'
-import { BookOpen, Credit, HelpCircle, Settings, Trash, Users } from '@sim/emcn/icons'
+import { BookOpen, Download, HelpCircle, LogOut, Settings } from '@sim/emcn/icons'
+import { useRouter } from 'next/navigation'
 import { SlackIcon } from '@/components/icons'
-import { useSession } from '@/lib/auth/auth-client'
-import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
+import { signOutAndRedirect } from '@/lib/auth/sign-out'
+import { getDesktopUpdates } from '@/lib/desktop'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { getUserColor } from '@/lib/workspaces/colors'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
+import {
+  SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useUserProfile } from '@/hooks/queries/user-profile'
-import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
+import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-/**
- * Settings destinations reachable from the profile menu, in display order. Labels
- * and icons mirror the settings navigation entries they open, so the menu and the
- * settings sidebar never disagree about what a section is called.
- *
- * Which of them a given viewer actually gets is decided in {@link SidebarFooter} —
- * the same gates the settings sidebar and the section route apply, so the menu
- * never lists a page the server would refuse.
- */
-const PROFILE_MENU_ITEMS: readonly {
-  section: SettingsSection
+function hasAvailableDesktopUpdate(state: DesktopUpdateState): boolean {
+  return state.status === 'available' || state.status === 'downloading' || state.status === 'ready'
+}
+
+function desktopUpdateActionLabel(state: DesktopUpdateState): string {
+  if (state.status === 'downloading') {
+    return state.percent === undefined
+      ? 'Downloading update…'
+      : `Downloading update ${state.percent}%`
+  }
+  return state.status === 'ready' ? 'Restart to update' : 'Update'
+}
+
+/** Compact primary update circle using the same footprint as the surrounding sidebar icons. */
+function DesktopUpdateIcon({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        className,
+        'flex size-[17px] shrink-0 items-center justify-center rounded-full',
+        chipPrimaryFillTokens
+      )}
+    >
+      {/* Download's default viewBox is asymmetric around its paths. Center the
+          artwork itself, not merely its SVG box, inside the avatar-sized circle. */}
+      <Download className='size-[11px]' viewBox='-1.75 -1.75 24 24' />
+    </div>
+  )
+}
+
+interface SidebarNavigationLink {
   label: string
   icon: ComponentType<{ className?: string }>
-}[] = [
-  { section: 'general', label: 'Settings', icon: Settings },
-  { section: 'billing', label: 'Subscription', icon: Credit },
-  { section: 'teammates', label: 'Teammates', icon: Users },
-  { section: 'recently-deleted', label: 'Recently deleted', icon: Trash },
-]
+  href: string
+  onNavigate: () => void
+}
 
 interface SidebarFooterProps {
-  workspaceId: string
+  /**
+   * True while the scroll region above still hides rows beyond its bottom edge —
+   * the same test the divider under the pinned nav applies at the top. The bar's
+   * top rule is drawn only then, so a list that fits meets the footer with no line.
+   */
+  showDivider: boolean
   isCollapsed: boolean
   showCollapsedTooltips: boolean
-  onOpenSettings: (section: SettingsSection) => void
+  accountSettingsHref: string
+  onOpenAccountSettings: () => void
+  navigationLinks: readonly SidebarNavigationLink[]
   onOpenDocs: () => void
   onJoinSlack: () => void
   onContactSupport: () => void
 }
 
 /**
- * Pinned bottom bar of the workspace sidebar: the viewer's avatar and name, which
- * open a menu of their settings destinations, plus a help menu.
+ * Shared account and Help menus for the workspace and organization sidebars.
  *
  * Expanded, the two share one row — the profile claims the free width so the help
  * button lands hard right, mirroring the collapse control in the workspace header.
@@ -79,46 +112,31 @@ interface SidebarFooterProps {
  * than remounting a trigger mid-animation.
  */
 export function SidebarFooter({
-  workspaceId,
+  showDivider,
   isCollapsed,
   showCollapsedTooltips,
-  onOpenSettings,
+  accountSettingsHref,
+  onOpenAccountSettings,
+  navigationLinks,
   onOpenDocs,
   onJoinSlack,
   onContactSupport,
 }: SidebarFooterProps) {
   const { data: profile } = useUserProfile()
-  const { data: session } = useSession()
-  const hostContext = useWorkspaceHostContext()
-  const { isInvitationsDisabled } = useWorkspaceInvitePolicy(workspaceId)
+  const router = useRouter()
+  const updateState = useDesktopUpdateState()
 
   const name = profile ? profile.name?.trim() || profile.email : ''
+  const updateAvailable = hasAvailableDesktopUpdate(updateState)
+  const canSignOut = Boolean(profile && profile.id !== ANONYMOUS_USER_ID)
 
-  /**
-   * Subscription is dropped for viewers the Billing page would turn away — a
-   * deployment with billing off, or anyone who is not the payer (on an
-   * organization-hosted workspace, every member who is not an org admin). The
-   * settings sidebar hides its own Billing entry on exactly this test.
-   */
-  const menuItems = PROFILE_MENU_ITEMS.filter(
-    (item) =>
-      item.section !== 'billing' || canViewWorkspaceBillingSettings(hostContext, session?.user?.id)
-  )
-
-  /**
-   * Teammates is a dead end on a plan that cannot invite, so a blocked viewer is
-   * sent to the plan itself instead — which resolves to the upgrade page for
-   * anyone who cannot manage the payer. With billing off there is nowhere to send
-   * them and no upgrade to make, so the row simply does nothing. This is the gate
-   * the workspace switcher's "Manage workspace" entry carried before this menu
-   * took the section over.
-   */
-  const handleSelectSection = (section: SettingsSection) => {
-    if (section === 'teammates' && isInvitationsDisabled) {
-      if (isBillingEnabled) onOpenSettings('billing')
-      return
+  const handleUpdateSelect = () => {
+    const updates = getDesktopUpdates()
+    if (updateState.status === 'ready') {
+      updates?.install()
+    } else if (updateState.status === 'available') {
+      updates?.check()
     }
-    onOpenSettings(section)
   }
 
   /**
@@ -128,17 +146,17 @@ export function SidebarFooter({
    * left to see. The workspace header's logo sidesteps the same rule the same way.
    */
   const avatar = !profile ? (
-    <Skeleton className='size-[16px] flex-shrink-0 rounded-full' />
+    <Skeleton className='size-[16px] shrink-0 rounded-full' />
   ) : profile.image ? (
     <img
       src={profile.image}
       alt=''
       referrerPolicy='no-referrer'
-      className='size-[16px] flex-shrink-0 rounded-full object-cover'
+      className='size-[16px] shrink-0 rounded-full object-cover'
     />
   ) : (
     <div
-      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-full text-[9px] text-white leading-none'
+      className='flex size-[16px] shrink-0 items-center justify-center rounded-full text-[9px] text-white leading-none'
       style={{ backgroundColor: getUserColor(profile.id) }}
     >
       {name.charAt(0).toUpperCase()}
@@ -174,15 +192,20 @@ export function SidebarFooter({
           <button
             type='button'
             data-item-id='profile'
-            className={
-              isCollapsed
-                ? cn(chipVariants({ fullWidth: true }), 'min-w-0')
-                : cn(chipVariants(), 'max-w-full')
-            }
+            className={cn(
+              chipVariants({ fullWidth: isCollapsed }),
+              isCollapsed ? 'min-w-0' : 'max-w-full',
+              SIDEBAR_RAIL_CHIP_CLASS
+            )}
           >
             {avatar}
             {profile ? (
-              <span className={cn('sidebar-collapse-hide', chipContentLabelClass)}>{name}</span>
+              <OverflowText
+                label={name}
+                className={cn('sidebar-collapse-hide flex-1', chipContentLabelClass)}
+                tooltipEnabled={!isCollapsed && !showCollapsedTooltips}
+                focusTarget='nearest-interactive'
+              />
             ) : (
               /* Fixed width — the chip hugs its content, so a flexible bar would collapse to nothing. */
               <Skeleton className='sidebar-collapse-hide h-[14px] w-[96px] rounded-sm' />
@@ -191,12 +214,43 @@ export function SidebarFooter({
         </DropdownMenuTrigger>
       </SidebarTooltip>
       <DropdownMenuContent align='start' side='top' sideOffset={4}>
-        {menuItems.map(({ section, label, icon: Icon }) => (
-          <DropdownMenuItem key={section} onSelect={() => handleSelectSection(section)}>
-            <Icon className='size-[14px]' />
-            {label}
+        {[
+          {
+            label: 'Settings',
+            icon: Settings,
+            href: accountSettingsHref,
+            onNavigate: onOpenAccountSettings,
+          },
+          ...navigationLinks,
+        ].map(({ label, icon: Icon, href, onNavigate }) => (
+          <DropdownMenuItem key={href} asChild>
+            <SettingsIntentLink
+              href={href}
+              onNavigate={(event) => {
+                event.preventDefault()
+                useSettingsDirtyStore.getState().requestLeave(() => {
+                  rememberSettingsReturnUrl(href)
+                  onNavigate()
+                })
+              }}
+            >
+              <Icon className='size-[14px]' />
+              <DropdownMenuItemLabel label={label} />
+            </SettingsIntentLink>
           </DropdownMenuItem>
         ))}
+        {canSignOut && (
+          <DropdownMenuItem
+            onSelect={() => {
+              useSettingsDirtyStore.getState().requestLeave(() => {
+                void signOutAndRedirect(router.push)
+              })
+            }}
+          >
+            <LogOut className='size-[14px]' />
+            Sign out
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -216,23 +270,38 @@ export function SidebarFooter({
    */
   const helpMenu = (
     <DropdownMenu>
-      <SidebarTooltip label='Help' enabled={showCollapsedTooltips}>
+      <SidebarTooltip
+        label={updateAvailable ? 'Help — update available' : 'Help'}
+        enabled={showCollapsedTooltips}
+      >
         <DropdownMenuTrigger asChild>
           <Chip
             data-item-id='help'
-            aria-label='Help'
-            leftIcon={HelpCircle}
+            aria-label={updateAvailable ? 'Help, update available' : 'Help'}
+            leftIcon={updateAvailable ? DesktopUpdateIcon : HelpCircle}
             fullWidth={isCollapsed}
             /* Never shrinks: while the rail animates open the row is briefly wider
                than the rail, and a shrinking chip would be squeezed onto the avatar.
                Holding its size pushes it past the edge, where the aside's clip hides
                it until there is room. */
-            className='flex-shrink-0'
+            className={cn('shrink-0', SIDEBAR_RAIL_CHIP_CLASS)}
           />
         </DropdownMenuTrigger>
       </SidebarTooltip>
       {/* Anchored to whichever edge the trigger sits on, so the menu never overhangs the rail. */}
       <DropdownMenuContent align={isCollapsed ? 'start' : 'end'} side='top' sideOffset={4}>
+        {updateAvailable && (
+          <>
+            <DropdownMenuItem
+              onSelect={handleUpdateSelect}
+              disabled={updateState.status === 'downloading'}
+            >
+              <img src='/favicon/favicon-32x32.png' alt='' className='size-[14px] rounded-[3px]' />
+              {desktopUpdateActionLabel(updateState)}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem onSelect={onOpenDocs}>
           <BookOpen className='size-[14px]' />
           Docs
@@ -252,7 +321,8 @@ export function SidebarFooter({
   return (
     <div
       className={cn(
-        'flex flex-shrink-0 border-t px-2 pt-[9px] pb-2',
+        'flex shrink-0 border-t px-2 pt-[9px] pb-2 transition-colors duration-150',
+        !showDivider && 'border-transparent',
         isCollapsed ? cn(SIDEBAR_ITEM_GAP_CLASS, 'flex-col-reverse') : 'items-center'
       )}
     >
@@ -262,7 +332,7 @@ export function SidebarFooter({
           exactly the chip's 30px instead of a line box padded by the strut's
           half-leading, which would deepen the bar below the chip. Collapsed, it
           stretches to the rail on its own and the chip fills it. */}
-      <div className={cn('flex', !isCollapsed && 'flex-1')}>{profileMenu}</div>
+      <div className={cn('flex min-w-0', !isCollapsed && 'flex-1')}>{profileMenu}</div>
       {helpMenu}
     </div>
   )

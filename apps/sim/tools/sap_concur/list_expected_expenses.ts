@@ -1,15 +1,14 @@
-import type { ListExpectedExpensesParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListExpectedExpensesParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listExpectedExpensesTool: ToolConfig<
+export const listExpectedExpensesTool: InternalToolConfig<
   ListExpectedExpensesParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_list_expected_expenses',
   name: 'SAP Concur List Expected Expenses',
@@ -72,29 +71,101 @@ export const listExpectedExpensesTool: ToolConfig<
       description: 'User UUID acting on the request (optional)',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       const query: Record<string, string> = {}
       if (params.userId?.trim()) query.userId = params.userId.trim()
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}/expenses`,
         method: 'GET',
         ...(Object.keys(query).length > 0 ? { query } : {}),
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
-      description:
-        'Array of expected expense objects. Each entry includes id, href, expenseType {id,name}, transactionDate, transactionAmount, postedAmount, approvedAmount, remainingAmount, businessPurpose, location, exchangeRate, allocations, tripData, parentRequest {href, id}, comments {href, id}.',
+      type: 'array',
+      description: 'Array of expected expense objects',
+      items: {
+        type: 'json',
+        properties: {
+          id: { type: 'string', description: 'Expected expense identifier', optional: true },
+          href: { type: 'string', description: 'Self-link', optional: true },
+          expenseType: {
+            type: 'json',
+            description: 'Expense type {id, name}',
+            optional: true,
+          },
+          transactionDate: {
+            type: 'string',
+            description: 'Transaction date',
+            optional: true,
+          },
+          transactionAmount: {
+            type: 'json',
+            description: 'Transaction amount {value, currency}',
+            optional: true,
+          },
+          postedAmount: {
+            type: 'json',
+            description: 'Posted amount {value, currency}',
+            optional: true,
+          },
+          approvedAmount: {
+            type: 'json',
+            description: 'Approved amount {value, currency}',
+            optional: true,
+          },
+          remainingAmount: {
+            type: 'json',
+            description: 'Remaining amount on the expected expense',
+            optional: true,
+          },
+          businessPurpose: {
+            type: 'string',
+            description: 'Business purpose of the expense',
+            optional: true,
+          },
+          location: {
+            type: 'json',
+            description:
+              'Location {id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType}',
+            optional: true,
+          },
+          exchangeRate: {
+            type: 'json',
+            description: 'Exchange rate {value, operation}',
+            optional: true,
+          },
+          allocations: {
+            type: 'json',
+            description: 'Budget allocations array',
+            optional: true,
+          },
+          tripData: {
+            type: 'json',
+            description:
+              'Trip data {agencyBooked, selfBooked, tripType (ONE_WAY|ROUND_TRIP), legs[{id, returnLeg, startDate, startTime, startLocationDetail, startLocation, endLocation, class {code,value}, travelExceptionReasonCodes}], segmentType {category, code}}',
+            optional: true,
+          },
+          parentRequest: {
+            type: 'json',
+            description:
+              'Parent travel request resource link {href, id}. Documented on the single-expense GET, not on this list endpoint',
+            optional: true,
+          },
+          comments: {
+            type: 'json',
+            description:
+              'Comments sub-resource link {href, id}. Documented on the single-expense GET, not on this list endpoint',
+            optional: true,
+          },
+        },
+      },
     },
   },
 }

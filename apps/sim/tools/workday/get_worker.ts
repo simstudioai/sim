@@ -1,7 +1,7 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { WorkdayGetWorkerParams, WorkdayGetWorkerResponse } from '@/tools/workday/types'
 
-export const getWorkerTool: ToolConfig<WorkdayGetWorkerParams, WorkdayGetWorkerResponse> = {
+export const getWorkerTool: InternalToolConfig<WorkdayGetWorkerParams, WorkdayGetWorkerResponse> = {
   id: 'workday_get_worker',
   name: 'Get Workday Worker',
   description:
@@ -41,13 +41,8 @@ export const getWorkerTool: ToolConfig<WorkdayGetWorkerParams, WorkdayGetWorkerR
     },
   },
 
-  request: {
-    url: '/api/tools/workday/get-worker',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

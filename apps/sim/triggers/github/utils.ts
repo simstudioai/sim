@@ -1,96 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
-
-/**
- * Shared repository output schema
- */
-export const repositoryOutputs = {
-  id: {
-    type: 'number',
-    description: 'Repository ID',
-  },
-  node_id: {
-    type: 'string',
-    description: 'Repository node ID',
-  },
-  name: {
-    type: 'string',
-    description: 'Repository name',
-  },
-  full_name: {
-    type: 'string',
-    description: 'Repository full name (owner/repo)',
-  },
-  private: {
-    type: 'boolean',
-    description: 'Whether the repository is private',
-  },
-  html_url: {
-    type: 'string',
-    description: 'Repository HTML URL',
-  },
-  description: {
-    type: 'string',
-    description: 'Repository description',
-  },
-  fork: {
-    type: 'boolean',
-    description: 'Whether the repository is a fork',
-  },
-  url: {
-    type: 'string',
-    description: 'Repository API URL',
-  },
-  homepage: {
-    type: 'string',
-    description: 'Repository homepage URL',
-  },
-  size: {
-    type: 'number',
-    description: 'Repository size in KB',
-  },
-  stargazers_count: {
-    type: 'number',
-    description: 'Number of stars',
-  },
-  watchers_count: {
-    type: 'number',
-    description: 'Number of watchers',
-  },
-  language: {
-    type: 'string',
-    description: 'Primary programming language',
-  },
-  forks_count: {
-    type: 'number',
-    description: 'Number of forks',
-  },
-  open_issues_count: {
-    type: 'number',
-    description: 'Number of open issues',
-  },
-  default_branch: {
-    type: 'string',
-    description: 'Default branch name',
-  },
-  owner: {
-    login: {
-      type: 'string',
-      description: 'Owner username',
-    },
-    id: {
-      type: 'number',
-      description: 'Owner ID',
-    },
-    avatar_url: {
-      type: 'string',
-      description: 'Owner avatar URL',
-    },
-    html_url: {
-      type: 'string',
-      description: 'Owner profile URL',
-    },
-  },
-} as const
+import { isRecordLike, toRecord } from '@sim/utils/object'
 
 /**
  * Shared sender/user output schema
@@ -187,7 +95,7 @@ export function isGitHubEventMatch(
   }
 
   if (config.validator) {
-    return config.validator(isRecordLike(payload) ? payload : {})
+    return config.validator(toRecord(payload))
   }
 
   return true

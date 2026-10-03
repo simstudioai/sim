@@ -1,7 +1,15 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  NO_DENIED_OPERATIONS,
+  OPERATION_SUBBLOCK_ID,
+} from '@/lib/permission-groups/operation-access'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { staleSelectionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useFetchedOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
@@ -9,10 +17,22 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useWorkspaceOrganizationAccounts } from '@/hooks/queries/organization-accounts'
+import { useDebounce } from '@/hooks/use-debounce'
+import { useOperationAccess } from '@/hooks/use-operation-access'
+import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: DropdownOption[] = []
+
+const EMPTY_SUB_BLOCKS: SubBlockConfig[] = []
+
+/** Shared empty list, so a multi-select with no value keeps a stable identity across renders. */
+const EMPTY_MULTI_VALUES: string[] = []
 
 /** Selected-value badges shown before folding the rest into a "+N" badge. */
 const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
@@ -29,14 +49,19 @@ type DropdownOption =
       id: string
       icon?: React.ComponentType<{ className?: string }>
       hidden?: boolean
+      reactiveCondition?: SubBlockConfig['reactiveCondition']
     }
 
 /**
  * Props for the Dropdown component
  */
 interface DropdownProps {
-  /** Static options array or function that returns options */
-  options: DropdownOption[] | (() => DropdownOption[])
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: DropdownOption[] | ((params?: { values: Record<string, unknown> }) => DropdownOption[])
   /** Default value to select when no value is set */
   defaultValue?: string
   /** Unique identifier for the block */
@@ -55,13 +80,10 @@ interface DropdownProps {
   placeholder?: string
   /** Enable multi-select mode */
   multiSelect?: boolean
-  /** Async function to fetch options dynamically */
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  /** Async function to fetch a single option's label by ID (for hydration) */
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
+  /** Drop the hosting workflow from a `sim.workflows` list. */
+  selectorExcludeSelf?: boolean
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
   /** Enable search input in dropdown */
@@ -90,14 +112,14 @@ export const Dropdown = memo(function Dropdown({
   disabled,
   placeholder = 'Select an option...',
   multiSelect = false,
-  fetchOptions,
-  fetchOptionById,
+  selectorKey,
+  selectorExcludeSelf,
   dependsOn,
   searchable = false,
   preserveLabelCase = false,
 }: DropdownProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const { isToolAllowed } = usePermissionConfig()
+  const { getDeniedOperations, resolveDefaultOperation, isPermissionLoading } = useOperationAccess()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
@@ -106,6 +128,17 @@ export const Dropdown = memo(function Dropdown({
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
 
   const blockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
+  const canonicalModes = useWorkflowStore((state) => state.blocks[blockId]?.data?.canonicalModes)
+  const triggerMode = useWorkflowStore((state) => Boolean(state.blocks[blockId]?.triggerMode))
+  const workspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
+  const organizationAccounts = useWorkspaceOrganizationAccounts(
+    workspaceId ?? undefined,
+    blockType === 'credential' && subBlockId === OPERATION_SUBBLOCK_ID
+  )
+  const hideOrganizationOperations =
+    blockType === 'credential' &&
+    subBlockId === OPERATION_SUBBLOCK_ID &&
+    organizationAccounts.data?.allowed !== true
   const blockConfig = blockType ? getBlock(blockType) : null
 
   const previousModeRef = useRef<string | null>(null)
@@ -124,32 +157,70 @@ export const Dropdown = memo(function Dropdown({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const singleValue = multiSelect ? null : (value as string | null | undefined)
-  const multiValues = multiSelect
-    ? Array.isArray(value)
-      ? value
-      : value
-        ? [value as string]
-        : []
-    : null
+  const multiValues = useMemo(() => {
+    if (!multiSelect) return null
+    if (Array.isArray(value)) return value
+    return value ? [value as string] : EMPTY_MULTI_VALUES
+  }, [multiSelect, value])
 
+  // Derived option lists read the block's own values (a model's valid reasoning efforts);
+  // `dependsOn` already re-renders this control when one of those siblings changes.
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockValues = useSubBlockStore((state) =>
+    activeWorkflowId ? state.workflowValues[activeWorkflowId]?.[blockId] : undefined
+  )
   const evaluatedOptions = useMemo(() => {
-    return typeof options === 'function' ? options() : options
-  }, [options])
+    if (typeof options === 'function') return options({ values: blockValues ?? {} })
+    return options ?? EMPTY_OPTIONS
+  }, [options, blockValues])
+
+  const reactiveOptions = useMemo(
+    () =>
+      evaluatedOptions.filter(
+        (option): option is Exclude<DropdownOption, string> =>
+          typeof option !== 'string' && Boolean(option.reactiveCondition)
+      ),
+    [evaluatedOptions]
+  )
+  const hiddenCredentialOptions = useReactiveConditions(
+    blockConfig?.subBlocks ?? EMPTY_SUB_BLOCKS,
+    blockId,
+    activeWorkflowId,
+    canonicalModes,
+    triggerMode,
+    reactiveOptions
+  )
+
+  const [selectorSearch, setSelectorSearch] = useState('')
+  const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSelectorSearch = selectorSearch.trim() === '' ? '' : debouncedSelectorSearch
 
   const {
     fetchedOptions,
     isLoadingOptions,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
+    hasLoadedOptions,
     fetchError,
     hydratedOption,
+    hydratedOptions,
+    isDynamic,
+    loadMore,
+    loadAll,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
+    subBlockId,
     dependsOnFields,
-    fetchOptions,
-    fetchOptionById,
+    selectorKey,
+    selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
+    search: activeSelectorSearch,
     valueToHydrate: singleValue,
+    valuesToHydrate: multiValues ?? undefined,
     localOptions: evaluatedOptions,
   })
 
@@ -171,9 +242,7 @@ export const Dropdown = memo(function Dropdown({
 
   const allOptions = useMemo(() => {
     let opts: DropdownOption[] =
-      fetchOptions && normalizedFetchedOptions.length > 0
-        ? normalizedFetchedOptions
-        : evaluatedOptions
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : evaluatedOptions
 
     if (hydratedOption) {
       const alreadyPresent = opts.some((o) =>
@@ -184,31 +253,49 @@ export const Dropdown = memo(function Dropdown({
       }
     }
 
+    for (const option of [...hydratedOptions].reverse()) {
+      const alreadyPresent = opts.some((existing) =>
+        typeof existing === 'string' ? existing === option.id : existing.id === option.id
+      )
+      if (!alreadyPresent) opts = [option, ...opts]
+    }
+
+    // A multi-select can only drop a value by clicking its row; a selection the
+    // loaded list no longer carries gets one so it can be removed in place.
+    if (multiValues && isDynamic) {
+      const stale = staleSelectionOptions({
+        selected: multiValues,
+        optionIds: new Set(opts.map((o) => (typeof o === 'string' ? o : o.id))),
+        // An empty list from a completed fetch is authoritative too (every column deleted).
+        listLoaded: hasLoadedOptions,
+      })
+      if (stale.length > 0) opts = [...opts, ...stale]
+    }
+
     return opts
-  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
+  }, [
+    isDynamic,
+    normalizedFetchedOptions,
+    evaluatedOptions,
+    hydratedOption,
+    hydratedOptions,
+    multiValues,
+    hasLoadedOptions,
+  ])
 
   /**
    * Operation IDs whose resolved tool is denied by the caller's permission
-   * group. Only the `operation` selector of a block with a tool selector is
-   * gated. Denied operations are hidden from the picker (still resolvable for
-   * label display); the server is the authoritative gate regardless.
+   * group. Only the `operation` selector is gated. Denied operations are hidden
+   * from the picker (still resolvable for label display); the server is the
+   * authoritative gate regardless.
    */
   const deniedOperationIds = useMemo(() => {
-    const denied = new Set<string>()
-    if (subBlockId !== 'operation') return denied
-    const selectTool = blockConfig?.tools?.config?.tool
-    if (!selectTool) return denied
-    for (const opt of allOptions) {
-      const optionId = typeof opt === 'string' ? opt : opt.id
-      try {
-        const toolId = selectTool({ operation: optionId })
-        if (toolId && !isToolAllowed(toolId)) denied.add(optionId)
-      } catch {
-        // Unresolvable from the operation alone — leave it visible; the server still enforces.
-      }
-    }
-    return denied
-  }, [subBlockId, blockConfig, allOptions, isToolAllowed])
+    if (subBlockId !== OPERATION_SUBBLOCK_ID) return NO_DENIED_OPERATIONS
+    return getDeniedOperations(
+      blockConfig,
+      allOptions.map((opt) => (typeof opt === 'string' ? opt : opt.id))
+    )
+  }, [subBlockId, blockConfig, allOptions, getDeniedOperations])
 
   const comboboxOptions = useMemo((): ComboboxOption[] => {
     const toLabel = (raw: string) => (preserveLabelCase ? raw : raw.toLowerCase())
@@ -220,10 +307,26 @@ export const Dropdown = memo(function Dropdown({
         label: toLabel(opt.label),
         value: opt.id,
         icon: 'icon' in opt ? opt.icon : undefined,
-        hidden: opt.hidden || deniedOperationIds.has(opt.id),
+        hidden:
+          opt.hidden ||
+          hiddenCredentialOptions.has(opt.id) ||
+          deniedOperationIds.has(opt.id) ||
+          (hideOrganizationOperations &&
+            [
+              'find_organization_account',
+              'list_organization_accounts',
+              'find_organization_mcp_connection',
+              'list_organization_mcp_connections',
+            ].includes(opt.id)),
       }
     })
-  }, [allOptions, deniedOperationIds, preserveLabelCase])
+  }, [
+    allOptions,
+    deniedOperationIds,
+    preserveLabelCase,
+    hideOrganizationOperations,
+    hiddenCredentialOptions,
+  ])
 
   const optionMap = useMemo(() => {
     return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))
@@ -232,17 +335,22 @@ export const Dropdown = memo(function Dropdown({
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined
 
-    const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
-    if (defaultValue !== undefined) {
-      // Don't seed a denied operation as the default; use the first allowed option.
-      if (deniedOperationIds.has(defaultValue)) {
-        return firstSelectable?.value
-      }
-      return defaultValue
+    /**
+     * The operation field defaults through the permission gate, which withholds
+     * a value until the group config has loaded. Seeding the static first
+     * option in that window would persist an operation the group denies —
+     * nothing revisits a field that already holds a value, so the correction
+     * that arrives with the config would never apply.
+     */
+    if (subBlockId === OPERATION_SUBBLOCK_ID) {
+      const selectableIds = comboboxOptions.filter((opt) => !opt.hidden).map((opt) => opt.value)
+      return resolveDefaultOperation(blockConfig, selectableIds, defaultValue)
     }
 
-    return firstSelectable?.value
-  }, [defaultValue, comboboxOptions, deniedOperationIds, multiSelect])
+    if (defaultValue !== undefined) return defaultValue
+
+    return comboboxOptions.find((opt) => !opt.hidden)?.value
+  }, [defaultValue, comboboxOptions, multiSelect, subBlockId, blockConfig, resolveDefaultOperation])
 
   useEffect(() => {
     if (multiSelect || defaultOptionValue === undefined) {
@@ -289,7 +397,7 @@ export const Dropdown = memo(function Dropdown({
       }
 
       return []
-    } catch (error) {
+    } catch {
       return []
     }
   }
@@ -437,14 +545,23 @@ export const Dropdown = memo(function Dropdown({
       onChange={handleChange}
       onMultiSelectChange={handleMultiSelectChange}
       placeholder={placeholder}
-      disabled={disabled}
+      /* The operation list only drops denied entries once the config resolves,
+         and a pick here persists — matching the agent tool selector. */
+      disabled={disabled || (subBlockId === OPERATION_SUBBLOCK_ID && isPermissionLoading)}
       editable={false}
       onOpenChange={handleOpenChange}
       overlayContent={multiSelectOverlay ?? singleSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
+      isLoadingMore={isFetchingMore}
+      isLoadingAll={isLoadingAll}
+      hasMore={hasMore}
+      truncated={truncated}
+      onLoadMore={loadMore}
+      onLoadAll={loadAll}
       error={fetchError}
       searchable={isSearchable}
+      onSearchChange={setSelectorSearch}
       searchPlaceholder='Search...'
     />
   )

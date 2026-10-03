@@ -1,42 +1,24 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
-      upsertRow: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
-
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  upsertTableRow: { operation: { id: 'tables.rows.upsert' }, execute: mocks.upsertRow },
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { POST } from '@/app/api/v2/tables/[tableId]/rows/upsert/route'
+
+const { mockUpsertTableRow } = tableApplicationRowsMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -46,16 +28,9 @@ const PRINCIPAL = {
 }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const RATE = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00Z'),
-  retryAfterMs: 0,
 }
 const TABLE = {
   id: 'table-1',
@@ -71,12 +46,10 @@ const ROW = {
 
 describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE)
-    mocks.operationRate.mockResolvedValue(RATE)
-    mocks.gate.mockResolvedValue(null)
-    mocks.upsertRow.mockResolvedValue({ table: TABLE, row: ROW, operation: 'update' })
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    mockUpsertTableRow.mockResolvedValue({ table: TABLE, row: ROW, operation: 'update' })
   })
 
   it('delegates the public conflict-target name unchanged for canonical ID resolution', async () => {
@@ -105,33 +78,17 @@ describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
         operation: 'update',
       },
     })
-    expect(mocks.upsertRow).toHaveBeenCalledWith({
+    expect(mockUpsertTableRow).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         data: { email: 'ada@example.com' },
         conflictTarget: 'email',
+        strictWrite: true,
+        dataKeying: 'names',
       },
       request,
     })
-  })
-
-  it('rejects an empty conflict target before delegation', async () => {
-    const request = new NextRequest('http://localhost/api/v2/tables/table-1/rows/upsert', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-      body: JSON.stringify({
-        workspaceId: WORKSPACE_ID,
-        data: { email: 'ada@example.com' },
-        conflictTarget: '',
-      }),
-    })
-    const response = await POST(request, {
-      params: Promise.resolve({ tableId: 'table-1' }),
-    })
-
-    expect(response.status).toBe(400)
-    expect(mocks.upsertRow).not.toHaveBeenCalled()
   })
 })

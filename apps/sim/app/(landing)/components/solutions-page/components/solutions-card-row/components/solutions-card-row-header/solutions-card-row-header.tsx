@@ -21,15 +21,15 @@ export function SolutionsCardRowHeader({ row, headingId }: SolutionsCardRowHeade
     <div className='flex flex-col items-start gap-3 text-left'>
       <h2
         id={headingId}
-        className='max-w-[540px] text-balance font-medium text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'
+        className='max-w-[540px] text-balance text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'
       >
         {row.title}
       </h2>
-      <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-muted)] leading-[1.6]'>
+      <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-secondary)] leading-[1.6]'>
         {row.subtitle}
       </p>
       {row.note ? (
-        <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-muted)] leading-[1.6]'>
+        <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-secondary)] leading-[1.6]'>
           {row.note}
         </p>
       ) : null}

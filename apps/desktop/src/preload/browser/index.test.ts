@@ -2,18 +2,11 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { electronMockFns } from '@/test/electron-mock'
 
-const { ipcOn, ipcSend } = vi.hoisted(() => ({
-  ipcOn: vi.fn(),
-  ipcSend: vi.fn(),
-}))
+vi.mock('electron', () => import('@/test/electron-mock'))
 
-vi.mock('electron', () => ({
-  ipcRenderer: {
-    on: ipcOn,
-    send: ipcSend,
-  },
-}))
+const { mockIpcRendererSend: ipcSend } = electronMockFns
 
 afterEach(() => {
   vi.useRealTimers()
@@ -58,6 +51,8 @@ describe('browser credential preload', () => {
       origin: window.location.origin,
       hasLoginForm: false,
       hasPasswordField: false,
+      targetId: null,
+      bounds: null,
     })
 
     // No DOM mutation here: this models stylesheet/layout completion after
@@ -69,6 +64,8 @@ describe('browser credential preload', () => {
       origin: window.location.origin,
       hasLoginForm: true,
       hasPasswordField: true,
+      targetId: expect.any(String),
+      bounds: null,
     })
 
     await vi.advanceTimersByTimeAsync(3_000)
@@ -82,6 +79,8 @@ describe('browser credential preload', () => {
       origin: window.location.origin,
       hasLoginForm: false,
       hasPasswordField: false,
+      targetId: null,
+      bounds: null,
     })
   })
 })

@@ -1,3 +1,5 @@
+'use client'
+
 import type { ReactNode } from 'react'
 import { ChipLink, cn } from '@sim/emcn'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
@@ -9,17 +11,7 @@ interface IntegrationTabsHeaderProps {
   rightSlot?: ReactNode
 }
 
-/**
- * Top-of-page tab header shared by the Integrations and Skills pages — two halves
- * of one surface, so each highlights itself and links to its sibling.
- *
- * Lives in the shared workspace components rather than under `integrations/`
- * because both pages own it equally; its former home made Skills reach across into
- * a sibling feature for its own chrome.
- *
- * The `gap-1` is explicit because chips carry no outer margin — the parent owns the
- * space between them.
- */
+/** Shared navigation for workspace integrations and skills. */
 export function IntegrationTabsHeader({
   active,
   workspaceId,

@@ -1,14 +1,15 @@
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
+import { materializeExecutionDataForDisplayWithBlockOutputs } from '@/lib/logs/execution/trace-store'
 import {
-  collectFunctionalBlockOutputs,
-  type FunctionalExecutionDataSource,
-} from '@/lib/logs/execution/functional-outputs'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+  type LogFieldProjection,
+  projectCostTotal,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
@@ -27,7 +28,7 @@ import type { PausePoint } from '@/executor/types'
 
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-interface ExecutionDataShape extends FunctionalExecutionDataSource {
+interface ExecutionDataShape {
   finalOutput?: { error?: string } & Record<string, unknown>
   error?: { message?: string } | string
   completionFailure?: string
@@ -119,14 +120,173 @@ function projectQueueJob(
   }
 }
 
+interface ResumeAttemptRow {
+  id: string
+  parentExecutionId: string
+  status: string
+  queuedAt: Date
+  claimedAt: Date | null
+  completedAt: Date | null
+  failureReason: string | null
+}
+
+type SettledResumeAttemptRow = ResumeAttemptRow & { status: 'completed' | 'failed' }
+
+function isSettledResumeAttempt(
+  attempt: ResumeAttemptRow | undefined
+): attempt is SettledResumeAttemptRow {
+  return attempt?.status === 'completed' || attempt?.status === 'failed'
+}
+
+/**
+ * Projects a finished resume attempt as its own run resource.
+ *
+ * A resume never writes a log row of its own: it continues the paused run and
+ * records under the parent's execution ID, so once its queue entry settles the
+ * run it continued is the only durable record of what it did. The attempt
+ * keeps its own ID and timings, and borrows the rest from that run.
+ *
+ * A `completed` attempt is one whose segment ran to its end — the workflow
+ * finished, failed, or paused again — so the run's state is the answer,
+ * including when a later resume has since moved the run on (which is why an
+ * active run reports no end time). A `failed` attempt never finished its
+ * segment and may have left the run paused for another attempt; it reads as
+ * failed with its recorded reason unless the run itself was cancelled or failed
+ * with a more specific error.
+ */
+function projectSettledResumeAttempt(
+  executionId: string,
+  attempt: SettledResumeAttemptRow,
+  run: WorkflowExecutionStatusResponse
+): WorkflowExecutionStatusResponse {
+  const startedAt = attempt.claimedAt ?? attempt.queuedAt
+  const continuesInRun =
+    attempt.status === 'completed' && (run.status === 'queued' || run.status === 'running')
+  const endedAt = continuesInRun ? null : attempt.completedAt
+  const resource: WorkflowExecutionStatusResponse = {
+    ...run,
+    executionId,
+    startedAt: startedAt.toISOString(),
+    endedAt: endedAt?.toISOString() ?? null,
+    totalDurationMs: endedAt ? Math.max(0, endedAt.getTime() - startedAt.getTime()) : null,
+  }
+  if (attempt.status === 'completed') return resource
+
+  const cancelled = run.status === 'cancelled'
+  return {
+    ...resource,
+    status: cancelled ? 'cancelled' : 'failed',
+    level: cancelled ? 'info' : 'error',
+    paused: null,
+    error: cancelled
+      ? null
+      : ((run.status === 'failed' ? run.error : null) ??
+        attempt.failureReason ??
+        'Resume execution failed'),
+    finalOutput: null,
+    blockOutputs: null,
+  }
+}
+
 export interface GetWorkflowExecutionStatusInput {
   workflowId: string
   executionId: string
   includeOutput: boolean
   selectedOutputs: string[]
+  /**
+   * The workspace the caller already authorized against. Passed in rather than
+   * read off the log row because this resource also answers from the job queue,
+   * for a run that has no log row yet — and that branch must be projected too.
+   */
+  workspaceId: string
+  /**
+   * The user whose permission group governs the projection, or `null`/`undefined`
+   * when none does — a workspace API key (which authorizes as the workspace and
+   * whose reported user is only the key's creator) and an executor delegation
+   * (which carries a role but no capabilities) both read whole.
+   *
+   * Required rather than optional on purpose: a new consumer of this read has to
+   * name its subject to compile, instead of silently inheriting an unprojected
+   * response.
+   */
+  viewerUserId: string | null | undefined
+  /** The workspace's organization, when the caller already loaded it. */
+  workspaceOrganizationId?: string | null
 }
 
+/**
+ * Applies a viewer's log projection to a run-detail resource.
+ *
+ * `finalOutput` and `blockOutputs` are the run-shaped spellings of `finalOutput`
+ * and `blockExecutions` on the withheld list in `withheldExecutionData` — the
+ * same per-block execution detail the log-detail path strips — so
+ * `logs.trace_spans` withholds them here too. A caller that could still name a
+ * block in `selectedOutputs` and get its output back would read exactly what the
+ * detail surface refuses, one query parameter later.
+ *
+ * `status`, `error` and the timings stay: these are projections, not gates, and
+ * withholding whether a run failed is not what the two capabilities restrict.
+ *
+ * permission-group-enforced: logs.trace_spans
+ * permission-group-enforced: logs.cost
+ */
+function projectExecutionStatus(
+  status: WorkflowExecutionStatusResponse,
+  projection: LogFieldProjection
+): WorkflowExecutionStatusResponse {
+  if (!projection.hideCostInfo && !projection.hideTraceSpans) return status
+  return {
+    ...status,
+    cost: projectCostTotal(status.cost?.total ?? null, projection),
+    finalOutput: projection.hideTraceSpans ? null : status.finalOutput,
+    blockOutputs: projection.hideTraceSpans ? null : status.blockOutputs,
+  }
+}
+
+/** A projected status resource together with the projection that produced it. */
+export interface ProjectedWorkflowExecutionStatus {
+  status: WorkflowExecutionStatusResponse
+  projection: LogFieldProjection
+}
+
+/**
+ * Reads the execution status resource, projected for the viewer, and reports
+ * the projection alongside it.
+ *
+ * Projection lives in this shared read rather than in each of its route
+ * adapters so the rule has one copy and the next consumer inherits it, and it
+ * runs after the caller's authorization, on whichever branch answered.
+ *
+ * The projection is returned rather than kept private because a caller that
+ * appends more of the run's execution data to this resource has to withhold it
+ * on the same terms — a run's output *files* are the clearest case. Deriving
+ * that answer from the applied projection is what keeps the two from drifting;
+ * resolving the viewer's group a second time would be a second copy of the rule.
+ */
+export async function getProjectedWorkflowExecutionStatus(
+  input: GetWorkflowExecutionStatusInput
+): Promise<ProjectedWorkflowExecutionStatus | null> {
+  const status = await readWorkflowExecutionStatus(input)
+  if (!status) return null
+  const projection = await resolveLogFieldProjection(
+    input.viewerUserId,
+    input.workspaceId,
+    input.workspaceOrganizationId
+  )
+  return { status: projectExecutionStatus(status, projection), projection }
+}
+
+/**
+ * The projected status resource alone, for a caller that renders nothing beyond
+ * it.
+ */
 export async function getWorkflowExecutionStatus(
+  input: GetWorkflowExecutionStatusInput
+): Promise<WorkflowExecutionStatusResponse | null> {
+  return (await getProjectedWorkflowExecutionStatus(input))?.status ?? null
+}
+
+async function readWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
 ): Promise<WorkflowExecutionStatusResponse | null> {
   const { workflowId, executionId, includeOutput, selectedOutputs } = input
@@ -154,24 +314,28 @@ export async function getWorkflowExecutionStatus(
     )
     .limit(1)
 
-  const [activeResume] = await db
+  const [resumeAttempt] = await db
     .select({
       id: resumeQueue.id,
+      parentExecutionId: resumeQueue.parentExecutionId,
       status: resumeQueue.status,
       queuedAt: resumeQueue.queuedAt,
       claimedAt: resumeQueue.claimedAt,
+      completedAt: resumeQueue.completedAt,
+      failureReason: resumeQueue.failureReason,
     })
     .from(resumeQueue)
     .innerJoin(pausedExecutions, eq(resumeQueue.pausedExecutionId, pausedExecutions.id))
     .where(
-      and(
-        eq(resumeQueue.newExecutionId, executionId),
-        eq(pausedExecutions.workflowId, workflowId),
-        inArray(resumeQueue.status, ['pending', 'claimed'] as const)
-      )
+      and(eq(resumeQueue.newExecutionId, executionId), eq(pausedExecutions.workflowId, workflowId))
     )
-    .orderBy(sql`case when ${resumeQueue.status} = 'claimed' then 0 else 1 end`)
+    .orderBy(sql`case ${resumeQueue.status} when 'claimed' then 0 when 'pending' then 1 else 2 end`)
     .limit(1)
+
+  const activeResume =
+    resumeAttempt?.status === 'pending' || resumeAttempt?.status === 'claimed'
+      ? resumeAttempt
+      : undefined
 
   const hasTerminalLog =
     logRow?.status === 'completed' || logRow?.status === 'failed' || logRow?.status === 'cancelled'
@@ -212,7 +376,14 @@ export async function getWorkflowExecutionStatus(
     }
   }
 
-  if (!logRow) return null
+  if (!logRow) {
+    if (!isSettledResumeAttempt(resumeAttempt)) return null
+    const run = await readWorkflowExecutionStatus({
+      ...input,
+      executionId: resumeAttempt.parentExecutionId,
+    })
+    return run ? projectSettledResumeAttempt(executionId, resumeAttempt, run) : null
+  }
 
   const [pausedRow] = await db
     .select({
@@ -242,18 +413,15 @@ export async function getWorkflowExecutionStatus(
   if (isCurrentlyPaused && pausedRow) {
     const points = normalizePausePoints(pausedRow.pausePoints)
     const earliest = pickEarliestPausePoint(points)
-    if (!earliest) {
-      throw new Error('Paused execution has no active resume context')
-    }
     const automaticResumeWaiting = getAutomaticResumeWaitingMetadata(pausedRow.metadata)
     paused = {
-      contextId: earliest.contextId,
+      contextId: earliest?.contextId ?? null,
       pausedAt: pausedRow.pausedAt.toISOString(),
-      resumeAt: pausedRow.nextResumeAt?.toISOString() ?? earliest.resumeAt ?? null,
-      pauseKind: earliest.pauseKind,
-      blockedOnBlockId: earliest.blockId ?? null,
+      resumeAt: pausedRow.nextResumeAt?.toISOString() ?? earliest?.resumeAt ?? null,
+      pauseKind: earliest?.pauseKind ?? null,
+      blockedOnBlockId: earliest?.blockId ?? null,
       automaticResumeWaitingReason:
-        automaticResumeWaiting?.reason ?? earliest.automaticResumeWaitingReason ?? null,
+        automaticResumeWaiting?.reason ?? earliest?.automaticResumeWaitingReason ?? null,
       pausedExecutionId: pausedRow.id,
       pausePointCount: points.length,
       resumedCount: pausedRow.resumedCount,
@@ -262,16 +430,19 @@ export async function getWorkflowExecutionStatus(
 
   const cost = logRow.costTotal != null ? { total: Number(logRow.costTotal) } : null
 
-  // Heavy execution data may live in object storage; resolve the pointer
-  // before reading error / finalOutput / traceSpans (no-op for inline rows).
-  const executionData = (await materializeExecutionData(
+  const requestedBlockIds = [
+    ...new Set(selectedOutputs.map((selector) => selector.split('.')[0]).filter(Boolean)),
+  ]
+  const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
     logRow.executionData as Record<string, unknown> | null,
     {
       workspaceId: logRow.workspaceId,
       workflowId: logRow.workflowId,
       executionId: logRow.executionId,
-    }
-  )) as ExecutionDataShape | undefined
+    },
+    requestedBlockIds
+  )
+  const executionData = materialized.executionData as ExecutionDataShape
 
   const error = status === 'failed' ? extractError(executionData) : null
 
@@ -282,7 +453,7 @@ export async function getWorkflowExecutionStatus(
 
   const blockOutputs =
     selectedOutputs.length > 0
-      ? pickSelectedOutputs(selectedOutputs, collectFunctionalBlockOutputs(executionData))
+      ? pickSelectedOutputs(selectedOutputs, materialized.blockOutputs)
       : null
 
   return {

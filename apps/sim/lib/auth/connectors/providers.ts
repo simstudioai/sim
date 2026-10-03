@@ -1,20 +1,39 @@
 import { createHash } from 'crypto'
-import { getOAuth2Tokens } from '@better-auth/core/oauth2'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
+import { getOAuthState } from 'better-auth/api'
+import { getOAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
 import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { exchangeAtlassianAuthorizationCode } from '@/lib/oauth/atlassian-token'
+import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { createGitHubRepositoriesProvider } from '@/lib/oauth/github-repositories'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
+import {
+  assertMicrosoftDataverseLegacyOAuthCallbackScopes,
+  bindMicrosoftDataverseEnvironmentToUserInfo,
+  getBoundMicrosoftDataverseEnvironment,
+  resolveMicrosoftDataverseOAuthCallbackScopes,
+} from '@/lib/oauth/microsoft-dataverse'
+import {
+  exchangeMondayAuthorizationCode,
+  MONDAY_OAUTH_AUTHORIZATION_URL,
+  MONDAY_OAUTH_TOKEN_URL,
+} from '@/lib/oauth/monday'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
 /**
@@ -72,6 +91,33 @@ interface AttioWorkspaceMemberResponse {
     last_name?: string | null
     email_address?: string | null
     avatar_url?: string | null
+  }
+}
+
+interface MondayUserInfoResponse {
+  data?: {
+    me?: {
+      id?: string | number
+      name?: string | null
+      email?: string | null
+    } | null
+  }
+  errors?: unknown[]
+}
+
+/**
+ * Shape of `GET https://api.bitbucket.org/2.0/user` for the authenticated user.
+ * @see https://developer.atlassian.com/cloud/bitbucket/rest/api-group-users/#api-user-get
+ */
+interface BitbucketCurrentUserResponse {
+  account_id?: string | null
+  uuid?: string | null
+  display_name?: string | null
+  nickname?: string | null
+  links?: {
+    avatar?: {
+      href?: string | null
+    }
   }
 }
 
@@ -148,6 +194,11 @@ function salesforceConnector(providerId: string, loginHost: string): GenericOAut
  */
 export function buildConnectorProviders(): GenericOAuthConfig[] {
   const providers: GenericOAuthConfig[] = [
+    createGitHubRepositoriesProvider({
+      clientId: env.GITHUB_APP_CLIENT_ID as string,
+      clientSecret: env.GITHUB_APP_CLIENT_SECRET as string,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/github-repositories`,
+    }),
     {
       providerId: 'google-email',
       clientId: env.GOOGLE_CLIENT_ID as string,
@@ -548,6 +599,43 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'google-chat',
+      clientId: env.GOOGLE_CLIENT_ID as string,
+      clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      accessType: 'offline',
+      scopes: getCanonicalScopesForProvider('google-chat'),
+      prompt: 'consent',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-chat`,
+      getUserInfo: async (tokens) => {
+        try {
+          const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}` },
+          })
+          if (!response.ok) {
+            await response.text().catch(() => {})
+            logger.error('Failed to fetch Google user info', { status: response.status })
+            throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+          }
+          const profile = await response.json()
+          const now = new Date()
+          return {
+            id: `${profile.sub}-${generateId()}`,
+            name: profile.name || 'Google User',
+            email: profile.email,
+            image: profile.picture || undefined,
+            emailVerified: profile.email_verified || false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Error in Google getUserInfo', { error })
+          throw error
+        }
+      },
+    },
+
+    {
       providerId: 'google-meet',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
@@ -711,20 +799,57 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
     {
+      providerId: 'microsoft-word',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+      scopes: getCanonicalScopesForProvider('microsoft-word'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-word`,
+      getUserInfo: async (tokens) => {
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-word')
+      },
+    },
+    {
       providerId: 'microsoft-dataverse',
       clientId: env.MICROSOFT_CLIENT_ID as string,
       clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
       authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
       tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
-      scopes: getCanonicalScopesForProvider('microsoft-dataverse'),
+      /**
+       * Better Auth appends connector scopes to link-request scopes. Dataverse audiences are
+       * request-specific, so every allowed link supplies its exact grant and this base stays empty.
+       */
+      scopes: [],
       responseType: 'code',
       accessType: 'offline',
       authentication: 'basic',
       pkce: true,
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-dataverse`,
       getUserInfo: async (tokens) => {
-        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse')
+        const oauthState = await getOAuthState()
+        const environmentUrl = getBoundMicrosoftDataverseEnvironment(oauthState?.callbackURL)
+        if (!environmentUrl) {
+          assertMicrosoftDataverseLegacyOAuthCallbackScopes(
+            tokens.scopes,
+            getCanonicalScopesForProvider('microsoft-dataverse')
+          )
+          return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse')
+        }
+        tokens.scopes = resolveMicrosoftDataverseOAuthCallbackScopes(
+          oauthState?.callbackURL,
+          tokens.scopes
+        )
+        return bindMicrosoftDataverseEnvironmentToUserInfo(
+          getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse'),
+          tokens.scopes
+        )
       },
     },
     {
@@ -742,6 +867,28 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-planner`,
       getUserInfo: async (tokens) => {
         return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-planner')
+      },
+    },
+
+    {
+      providerId: 'microsoft-powerbi',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
+      getUserInfo: async (tokens) => {
+        const canonicalScopes = getCanonicalScopesForProvider('microsoft-powerbi')
+        tokens.scopes = tokens.scopes?.map((scope) => {
+          const qualified = `https://analysis.windows.net/powerbi/api/${scope}`
+          return canonicalScopes.includes(qualified) ? qualified : scope
+        })
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
       },
     },
 
@@ -1044,10 +1191,9 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
         // error_description: '...' }. The status-only guard therefore never
         // fires, so surface the actual error/description instead of collapsing
         // every failure into one opaque "no access token" string.
-        const errorObj =
-          data && typeof data === 'object' && !Array.isArray(data)
-            ? (data as { error?: unknown; error_description?: unknown })
-            : {}
+        const errorObj = isRecordLike(data)
+          ? (data as { error?: unknown; error_description?: unknown })
+          : {}
         const zohoError = typeof errorObj.error === 'string' ? errorObj.error : undefined
         const zohoErrorDescription =
           typeof errorObj.error_description === 'string' ? errorObj.error_description : undefined
@@ -1137,6 +1283,140 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Zoho Desk getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
+      providerId: 'manageengine-sdp',
+      // Shares the Zoho API-console client with zoho-desk: Zoho scopes are
+      // chosen per authorization request, not per registered client, so one
+      // client serves both products.
+      clientId: env.ZOHO_CLIENT_ID as string,
+      clientSecret: env.ZOHO_CLIENT_SECRET as string,
+      authorizationUrl: 'https://accounts.zoho.com/oauth/v2/auth',
+      tokenUrl: 'https://accounts.zoho.com/oauth/v2/token',
+      scopes: getCanonicalScopesForProvider('manageengine-sdp'),
+      responseType: 'code',
+      pkce: true,
+      accessType: 'offline',
+      prompt: 'consent',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/manageengine-sdp`,
+      // Zoho only issues a refresh token when access_type=offline AND
+      // prompt=consent are present on the authorize request, and it expects
+      // comma-separated scopes rather than the default space-delimited list.
+      authorizationUrlParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+        scope: getCanonicalScopesForProvider('manageengine-sdp').join(','),
+      },
+      getToken: async ({ code, redirectURI, codeVerifier }) => {
+        const tokenParams = new URLSearchParams({
+          client_id: env.ZOHO_CLIENT_ID as string,
+          client_secret: env.ZOHO_CLIENT_SECRET as string,
+          code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectURI,
+        })
+        // PKCE is enabled, so better-auth sent a code_challenge on the authorize
+        // request. The exchange MUST echo the matching code_verifier or Zoho
+        // rejects the request shape (invalid_request).
+        if (codeVerifier) tokenParams.set('code_verifier', codeVerifier)
+
+        const response = await fetch('https://accounts.zoho.com/oauth/v2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenParams.toString(),
+        })
+
+        const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+          maxBytes: 1024 * 1024,
+          label: 'ManageEngine ServiceDesk Plus token response',
+        }).catch(() => null)
+
+        // Zoho answers a failed exchange with HTTP 200 and an `error` key, so
+        // the status alone is not a sufficient success test.
+        const zohoError =
+          data && typeof data.error === 'string' ? (data.error as string) : undefined
+        if (!response.ok || !data || zohoError) {
+          logger.error('ManageEngine ServiceDesk Plus OAuth token exchange failed', {
+            status: response.status,
+            zohoError: zohoError ?? null,
+          })
+          throw new Error(
+            `ManageEngine ServiceDesk Plus OAuth token exchange failed (HTTP ${response.status}${
+              zohoError ? `, ${zohoError}` : ''
+            })`
+          )
+        }
+
+        const tokens = getOAuth2Tokens(data)
+        if (!tokens.accessToken) {
+          throw new Error(
+            'ManageEngine ServiceDesk Plus OAuth token response did not include an access token'
+          )
+        }
+
+        // Unlike zoho-desk, no data-center marker is persisted: the SDP API
+        // host is not derivable from Zoho's `api_domain` (the regional apexes
+        // differ — sdpondemand.manageengine.eu but servicedeskplus.net.au), so
+        // the block selects it explicitly from a closed list instead.
+        //
+        // Zoho's token response does not consistently carry `scope`; falling
+        // back to the requested scopes keeps the credential picker from showing
+        // a permanent "needs update" badge on every connection.
+        const reportedScopes =
+          typeof data.scope === 'string' ? data.scope.split(/[\s,]+/).filter(Boolean) : []
+        tokens.scopes = reportedScopes.length
+          ? reportedScopes
+          : getCanonicalScopesForProvider('manageengine-sdp')
+        return tokens
+      },
+      getUserInfo: async (tokens) => {
+        try {
+          const response = await fetch('https://accounts.zoho.com/oauth/user/info', {
+            headers: { Authorization: `Zoho-oauthtoken ${tokens.accessToken}` },
+          })
+
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: 1024 * 1024,
+              label: 'ManageEngine ServiceDesk Plus profile error response',
+            }).catch(() => {})
+            logger.error('Error fetching ManageEngine ServiceDesk Plus user info:', {
+              status: response.status,
+              statusText: response.statusText,
+            })
+            return null
+          }
+
+          const profile = await readResponseJsonWithLimit<{
+            ZUID?: number | string
+            Display_Name?: string
+            Email?: string
+          }>(response, {
+            maxBytes: 1024 * 1024,
+            label: 'ManageEngine ServiceDesk Plus profile response',
+          })
+
+          const zuid = profile.ZUID?.toString()
+          if (!zuid) {
+            logger.error('Invalid ManageEngine ServiceDesk Plus profile response:', profile)
+            return null
+          }
+
+          const now = new Date()
+          return {
+            id: `${zuid}-${generateId()}`,
+            name: profile.Display_Name || 'ManageEngine User',
+            email: profile.Email || syntheticConnectorEmail('manageengine-sdp', zuid),
+            emailVerified: Boolean(profile.Email),
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Error in ManageEngine ServiceDesk Plus getUserInfo:', { error })
           return null
         }
       },
@@ -1315,9 +1595,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
+      authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/confluence`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'confluence',
+          clientId: env.CONFLUENCE_CLIENT_ID as string,
+          clientSecret: env.CONFLUENCE_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {
@@ -1366,9 +1656,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
+      authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/jira`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'jira',
+          clientId: env.JIRA_CLIENT_ID as string,
+          clientSecret: env.JIRA_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {
@@ -1456,6 +1756,112 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'bitbucket',
+      clientId: env.BITBUCKET_CLIENT_ID as string,
+      clientSecret: env.BITBUCKET_CLIENT_SECRET as string,
+      authorizationUrl: 'https://bitbucket.org/site/oauth2/authorize',
+      tokenUrl: 'https://bitbucket.org/site/oauth2/access_token',
+      userInfoUrl: 'https://api.bitbucket.org/2.0/user',
+      scopes: getCanonicalScopesForProvider('bitbucket'),
+      responseType: 'code',
+      pkce: false,
+      authentication: 'basic',
+      accessTokenExpiresIn: 7200,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/bitbucket`,
+      getToken: async ({ code, redirectURI }) => {
+        const basicAuth = Buffer.from(
+          `${env.BITBUCKET_CLIENT_ID as string}:${env.BITBUCKET_CLIENT_SECRET as string}`
+        ).toString('base64')
+        const response = await fetch('https://bitbucket.org/site/oauth2/access_token', {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${basicAuth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            code,
+            grant_type: 'authorization_code',
+            redirect_uri: redirectURI,
+          }).toString(),
+        })
+        const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+          maxBytes: 1024 * 1024,
+          label: 'Bitbucket OAuth token response',
+        })
+
+        if (!response.ok || !isRecordLike(data)) {
+          logger.error('Bitbucket OAuth token exchange failed', { status: response.status })
+          throw new Error(`Bitbucket OAuth token exchange failed with HTTP ${response.status}`)
+        }
+
+        const tokens = getOAuth2Tokens(data)
+        if (!tokens.accessToken) {
+          throw new Error('Bitbucket OAuth token response did not include an access token')
+        }
+
+        const grantedScopes = data.scopes ?? data.scope
+        if (typeof grantedScopes === 'string') {
+          tokens.scopes = grantedScopes.split(/\s+/).filter(Boolean)
+        } else if (Array.isArray(grantedScopes)) {
+          tokens.scopes = grantedScopes.filter(
+            (scope): scope is string => typeof scope === 'string'
+          )
+        }
+
+        return tokens
+      },
+      getUserInfo: async (tokens) => {
+        try {
+          const signal = AbortSignal.timeout(15_000)
+          const response = await fetch('https://api.bitbucket.org/2.0/user', {
+            headers: {
+              Authorization: `Bearer ${tokens.accessToken}`,
+            },
+            signal,
+          })
+
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: 1024 * 1024,
+              label: 'Bitbucket OAuth user info error response',
+              signal,
+            }).catch(() => {})
+            logger.error('Error fetching Bitbucket user info:', {
+              status: response.status,
+              statusText: response.statusText,
+            })
+            return null
+          }
+
+          const data = await readResponseJsonWithLimit<BitbucketCurrentUserResponse>(response, {
+            maxBytes: 1024 * 1024,
+            label: 'Bitbucket OAuth user info response',
+            signal,
+          })
+          const stableId = data.account_id ?? data.uuid
+          if (!stableId) {
+            logger.error('Bitbucket user info did not include an account_id or uuid')
+            return null
+          }
+
+          const now = new Date()
+          return {
+            id: `${stableId}-${generateId()}`,
+            name: data.display_name || data.nickname || 'Bitbucket User',
+            email: syntheticConnectorEmail('bitbucket', stableId),
+            image: data.links?.avatar?.href || undefined,
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Error in Bitbucket getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
       providerId: 'notion',
       clientId: env.NOTION_CLIENT_ID as string,
       clientSecret: env.NOTION_CLIENT_SECRET as string,
@@ -1521,27 +1927,47 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'monday',
       clientId: env.MONDAY_CLIENT_ID as string,
       clientSecret: env.MONDAY_CLIENT_SECRET as string,
-      authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
-      tokenUrl: 'https://auth.monday.com/oauth2/token',
+      authorizationUrl: MONDAY_OAUTH_AUTHORIZATION_URL,
+      tokenUrl: MONDAY_OAUTH_TOKEN_URL,
       userInfoUrl: 'https://api.monday.com/v2',
       scopes: getCanonicalScopesForProvider('monday'),
       responseType: 'code',
-      pkce: false,
+      pkce: true,
+      authentication: 'post',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+      authorizationUrlParams: { force_install_if_needed: 'true' },
+      getToken: async ({ code, codeVerifier, redirectURI }) => {
+        if (!codeVerifier) {
+          throw new Error('Monday OAuth token exchange requires a PKCE verifier')
+        }
+        return exchangeMondayAuthorizationCode({
+          clientId: env.MONDAY_CLIENT_ID as string,
+          clientSecret: env.MONDAY_CLIENT_SECRET as string,
+          code,
+          codeVerifier,
+          redirectUri: redirectURI,
+        })
+      },
       getUserInfo: async (tokens) => {
         try {
-          const response = await fetch('https://api.monday.com/v2', {
+          const signal = AbortSignal.timeout(15_000)
+          const response = await fetch(MONDAY_API_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'API-Version': '2024-10',
+              'API-Version': MONDAY_API_VERSION,
               Authorization: tokens.accessToken ?? '',
             },
             body: JSON.stringify({ query: '{ me { id name email } }' }),
+            signal,
           })
 
           if (!response.ok) {
-            await response.text().catch(() => {})
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Monday OAuth user info error response',
+              signal,
+            }).catch(() => {})
             logger.error('Error fetching Monday.com user info:', {
               status: response.status,
               statusText: response.statusText,
@@ -1549,16 +1975,33 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
             return null
           }
 
-          const data = await response.json()
+          const data = await readResponseJsonWithLimit<MondayUserInfoResponse>(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Monday OAuth user info response',
+            signal,
+          })
+          if (data.errors?.length) {
+            logger.error('Monday.com user info returned GraphQL errors', {
+              errorCount: data.errors.length,
+            })
+            return null
+          }
           const user = data.data?.me
-          if (!user) return null
+          const userId =
+            typeof user?.id === 'string' || typeof user?.id === 'number'
+              ? String(user.id)
+              : undefined
+          if (!user || !userId) return null
+
+          const email = typeof user.email === 'string' ? user.email : undefined
+          const name = typeof user.name === 'string' ? user.name : undefined
 
           const now = new Date()
           return {
-            id: `${user.id.toString()}-${generateId()}`,
-            name: user.name || 'Monday.com User',
-            email: user.email || syntheticConnectorEmail('monday', user.id),
-            emailVerified: !!user.email,
+            id: `${userId}-${generateId()}`,
+            name: name || 'Monday.com User',
+            email: email || syntheticConnectorEmail('monday', userId),
+            emailVerified: !!email,
             createdAt: now,
             updatedAt: now,
           }
@@ -1588,7 +2031,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           const response = await fetch('https://oauth.reddit.com/api/v1/me', {
             headers: {
               Authorization: `Bearer ${tokens.accessToken}`,
-              'User-Agent': 'sim-studio/1.0',
+              'User-Agent': REDDIT_USER_AGENT,
             },
           })
 
@@ -2319,9 +2762,9 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'docusign',
       clientId: env.DOCUSIGN_CLIENT_ID as string,
       clientSecret: env.DOCUSIGN_CLIENT_SECRET as string,
-      authorizationUrl: 'https://account-d.docusign.com/oauth/auth',
-      tokenUrl: 'https://account-d.docusign.com/oauth/token',
-      userInfoUrl: 'https://account-d.docusign.com/oauth/userinfo',
+      authorizationUrl: getDocusignOAuthUrl('/oauth/auth'),
+      tokenUrl: getDocusignOAuthUrl('/oauth/token'),
+      userInfoUrl: getDocusignOAuthUrl('/oauth/userinfo'),
       scopes: getCanonicalScopesForProvider('docusign'),
       responseType: 'code',
       accessType: 'offline',
@@ -2331,7 +2774,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
         try {
           logger.info('Fetching DocuSign user profile')
 
-          const response = await fetch('https://account-d.docusign.com/oauth/userinfo', {
+          const response = await fetch(getDocusignOAuthUrl('/oauth/userinfo'), {
             headers: {
               Authorization: `Bearer ${tokens.accessToken}`,
             },
