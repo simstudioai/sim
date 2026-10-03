@@ -43,22 +43,37 @@ async function prepareDestination(
   args: ExecuteServerSelectorArgs
 ): Promise<PreparedOracleEpcmDestination> {
   args.signal?.throwIfAborted()
-  const access = args.credential?.access
-  if (access?.credentialType !== 'service_account' || !access.resolvedCredentialId) {
-    throw new SelectorConnectionUnavailableError()
-  }
-  const resolved = await resolveOAuthAccountId(access.resolvedCredentialId)
-  args.signal?.throwIfAborted()
-  if (
-    resolved?.credentialType !== 'service_account' ||
-    resolved.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
-  ) {
-    throw new SelectorConnectionUnavailableError()
+  const credential = args.credential
+  if (!credential) throw new SelectorConnectionUnavailableError()
+  let credentialId: string
+  if (credential.organization) {
+    if (
+      credential.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID ||
+      !credential.suppliedId
+    ) {
+      throw new SelectorConnectionUnavailableError()
+    }
+    credentialId = credential.suppliedId
+  } else {
+    const access = credential.access
+    if (access?.credentialType !== 'service_account' || !access.resolvedCredentialId) {
+      throw new SelectorConnectionUnavailableError()
+    }
+    const resolved = await resolveOAuthAccountId(access.resolvedCredentialId)
+    args.signal?.throwIfAborted()
+    if (
+      resolved?.credentialType !== 'service_account' ||
+      resolved.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
+    ) {
+      throw new SelectorConnectionUnavailableError()
+    }
+    credentialId = access.resolvedCredentialId
   }
   const token = await resolveSelectorCredentialBundle({
-    credential: args.credential,
+    credential,
     protectedValues: args.protectedValues,
   })
+  args.signal?.throwIfAborted()
   if (!token.instanceUrl) throw new SelectorConnectionUnavailableError()
   let instanceUrl: string
   try {
@@ -67,7 +82,7 @@ async function prepareDestination(
     throw new SelectorConnectionUnavailableError()
   }
   return {
-    oauthCredential: access.resolvedCredentialId,
+    oauthCredential: credentialId,
     accessToken: token.accessToken,
     instanceUrl,
   }
