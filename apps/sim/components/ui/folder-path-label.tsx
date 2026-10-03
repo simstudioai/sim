@@ -19,7 +19,7 @@ export function collapseFolderPath(segments: readonly string[]): string[] {
   return [segments[0], ELLIPSIS, segments[segments.length - 1]]
 }
 
-export interface FolderPathLabelProps {
+interface FolderPathLabelProps {
   /** Root-first ancestor names of the row's resource. */
   segments: readonly string[]
   /**

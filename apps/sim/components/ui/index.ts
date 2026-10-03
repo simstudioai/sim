@@ -1,9 +1,5 @@
 export { ActivityStatus } from '@/components/ui/activity-status'
-export {
-  collapseFolderPath,
-  FolderPathLabel,
-  type FolderPathLabelProps,
-} from './folder-path-label'
+export { FolderPathLabel } from './folder-path-label'
 export { GeneratedPasswordInput } from './generated-password-input'
 export { Progress } from './progress'
 export {
