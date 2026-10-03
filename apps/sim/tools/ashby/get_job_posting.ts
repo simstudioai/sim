@@ -6,6 +6,7 @@ interface AshbyGetJobPostingParams {
   jobPostingId: string
   jobBoardId?: string
   expandJob?: boolean
+  includeUnpublishedJobPostings?: boolean
 }
 
 interface AshbyDescriptionPart {
@@ -114,6 +115,12 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
       visibility: 'user-or-llm',
       description: 'Whether to expand and include the related job object in the response',
     },
+    includeUnpublishedJobPostings: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Allow retrieval of an unpublished or draft job posting',
+    },
   },
 
   request: {
@@ -126,6 +133,9 @@ export const getJobPostingTool: ToolConfig<AshbyGetJobPostingParams, AshbyGetJob
       }
       if (params.jobBoardId) body.jobBoardId = params.jobBoardId.trim()
       if (params.expandJob) body.expand = ['job']
+      if (params.includeUnpublishedJobPostings !== undefined) {
+        body.includeUnpublishedJobPostings = params.includeUnpublishedJobPostings
+      }
       return body
     },
   },

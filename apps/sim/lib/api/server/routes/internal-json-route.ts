@@ -1,12 +1,16 @@
-import type {
-  DelegatedPrincipal,
-  Principal,
-  SessionPrincipal,
-  WorkflowExecutionDelegatedPrincipal,
+import {
+  type DelegatedPrincipal,
+  describePrincipalAuth,
+  type Principal,
+  resolvePrincipalSubjectUserId,
+  type SessionPrincipal,
+  type WorkflowExecutionDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
+import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import {
   methodMatchesContract,
   requireJsonRouteDefinition,
@@ -33,7 +37,12 @@ import {
   InvalidInternalDelegationBindingError,
 } from '@/lib/auth/internal-delegation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
+import { enforceUserRateLimit, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export class InternalUnauthenticatedError extends Error {
@@ -67,19 +76,19 @@ export function createInternalSessionOrExecutorAuth(
 
   return {
     async authenticate(request, params) {
-      if (request.headers.has('x-api-key')) {
+      if (request.headers.has(API_KEY_HEADER)) {
         throw new InternalUnauthenticatedError('Authentication required')
       }
 
       const authorization = request.headers.get('authorization')
       if (!authorization) return internalSessionAuth.authenticate()
-      if (!authorization.startsWith('Bearer ')) {
+      if (!authorization.startsWith(BEARER_PREFIX)) {
         throw new InternalUnauthenticatedError('Authentication required')
       }
 
       let delegation
       try {
-        delegation = await verifyInternalDelegationToken(authorization.slice('Bearer '.length))
+        delegation = await verifyInternalDelegationToken(authorization.slice(BEARER_PREFIX.length))
       } catch (error) {
         if (!(error instanceof InvalidInternalDelegationTokenError)) throw error
         throw new InternalUnauthenticatedError('Authentication required')
@@ -98,19 +107,49 @@ export function createInternalSessionOrExecutorAuth(
   }
 }
 
-interface InternalRateLimitPolicy {
+interface InternalNoRateLimitPolicy {
   readonly kind: 'none'
   readonly reason: string
   enforce(request: NextRequest, principal: Principal): Promise<void>
 }
 
+interface InternalUserRateLimitPolicy {
+  readonly kind: 'user'
+  readonly bucketName: string
+  enforce(request: NextRequest, principal: Principal): Promise<NextResponse | null>
+}
+
+type InternalRateLimitPolicy = InternalNoRateLimitPolicy | InternalUserRateLimitPolicy
+
 export const internalRateLimits = {
-  none({ reason }: { reason: string }): InternalRateLimitPolicy {
+  none({ reason }: { reason: string }): InternalNoRateLimitPolicy {
     if (!reason.trim()) throw new Error('A rate-limit exemption reason is required')
     return {
       kind: 'none',
       reason,
       async enforce() {},
+    }
+  },
+  user({
+    bucketName,
+    config,
+  }: {
+    bucketName: string
+    config?: TokenBucketConfig
+  }): InternalUserRateLimitPolicy {
+    if (!bucketName.trim()) throw new Error('A user rate-limit bucket name is required')
+    return {
+      kind: 'user',
+      bucketName,
+      async enforce(_request, principal) {
+        const userId = resolvePrincipalSubjectUserId(principal)
+        if (!userId) {
+          throw new Error(
+            `User rate limit cannot resolve a subject for ${principal.kind} principal`
+          )
+        }
+        return enforceUserRateLimit(bucketName, userId, config)
+      },
     }
   },
 } as const
@@ -142,7 +181,10 @@ export const internalOrchestrationErrorPolicy: InternalErrorPolicy = {
     const classified = asOrchestrationError(error)
     if (!classified) return null
     return internalErrorResponse(statusForOrchestrationError(classified.code), {
-      error: classified.message,
+      error: messageForOrchestrationError(
+        { error: classified.message, errorCode: classified.code },
+        'Internal server error'
+      ),
     })
   },
   unhandled() {
@@ -199,15 +241,33 @@ type InternalJsonParseOptions = Pick<
   'maxBodyBytes' | 'validationErrorResponse'
 >
 
-type InternalJsonPresenter<C extends JsonApiRouteContract, R> = [R] extends [
-  ContractJsonResponse<C>,
-]
-  ? {
-      present?(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
-  : {
-      present(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
+/**
+ * What a presenter may render from, beyond the use case's result.
+ *
+ * A surface that serves more than one caller kind can owe them different wire
+ * shapes for the same domain result — the internal table row routes answer a
+ * session in stable column ids and a workflow execution in column names. That is
+ * presentation, not domain, so it belongs in the adapter rather than the use
+ * case. {@link InternalJsonRouteOptions.responseHeaders} and
+ * {@link InternalJsonRouteOptions.finalizeResponse} already receive this pair;
+ * this closes the same gap for `present`.
+ */
+export interface InternalJsonPresenterContext<I, P extends Principal> {
+  principal: P
+  input: I
+}
+
+type InternalJsonPresentFn<C extends JsonApiRouteContract, I, R, P extends Principal> = (
+  result: NoInfer<R>,
+  context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
+) => ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+
+/** The presenter is optional exactly when the result already is the response body. */
+type InternalJsonPresenter<C extends JsonApiRouteContract, I, R, P extends Principal> = [
+  R,
+] extends [ContractJsonResponse<C>]
+  ? { present?: InternalJsonPresentFn<C, I, R, P> }
+  : { present: InternalJsonPresentFn<C, I, R, P> }
 
 type InternalJsonRouteOptions<
   C extends JsonApiRouteContract,
@@ -231,6 +291,8 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+  /** Headers applied last to every response path, including authentication and parse failures. */
+  staticResponseHeaders?: HeadersInit
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
   finalizeResponse?(args: {
     request: NextRequest
@@ -239,7 +301,7 @@ type InternalJsonRouteOptions<
     result: NoInfer<R>
     body: ContractJsonResponse<C>
   }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
-} & InternalJsonPresenter<C, R>
+} & InternalJsonPresenter<C, I, R, P>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
   return NextResponse.json(withRequestId(descriptor.body), {
@@ -268,6 +330,11 @@ function appendFinalizedHeaders(base: HeadersInit | undefined, additions?: Heade
   const headers = new Headers(base)
   if (!additions) return headers
   new Headers(additions).forEach((value, key) => {
+    /** A finalizer may clear several cookies at once; each needs its own header line. */
+    if (key === 'set-cookie') {
+      headers.append(key, value)
+      return
+    }
     if (headers.has(key)) {
       throw new Error(`Internal JSON response finalizer cannot replace header "${key}"`)
     }
@@ -306,8 +373,10 @@ export function defineInternalJsonRoute<
         }
         throw error
       }
+      setRequestAuth(describePrincipalAuth(principal))
 
-      await options.rateLimit.enforce(request, principal)
+      const rateLimitResponse = await options.rateLimit.enforce(request, principal)
+      if (rateLimitResponse) return responseWithRequestId(rateLimitResponse)
       if (options.beforeParse) {
         try {
           await options.beforeParse({ request, principal, params: rawParams })
@@ -333,7 +402,7 @@ export function defineInternalJsonRoute<
           request,
         })
         await options.onSuccess?.({ principal, input, result })
-        const body = options.present ? await options.present(result) : result
+        const body = options.present ? await options.present(result, { principal, input }) : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
@@ -383,5 +452,13 @@ export function defineInternalJsonRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  return async (request, context) => {
+    const response = await wrapped(request, context)
+    if (options.staticResponseHeaders) {
+      new Headers(options.staticResponseHeaders).forEach((value, key) => {
+        response.headers.set(key, value)
+      })
+    }
+    return response
+  }
 }

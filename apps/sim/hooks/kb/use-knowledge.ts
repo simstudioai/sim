@@ -57,6 +57,21 @@ export function useDocument(knowledgeBaseId: string, documentId: string) {
   }
 }
 
+/** Stable identity so an absent page does not re-fire callers' document effects. */
+const EMPTY_DOCUMENTS: DocumentData[] = []
+
+/**
+ * Whether any of these documents still has indexing work outstanding.
+ *
+ * Exported so a caller driving its own poll cadence reads the same rule this
+ * hook does rather than repeating the status literals.
+ */
+export function hasProcessingDocuments(documents: Pick<DocumentData, 'processingStatus'>[]) {
+  return documents.some(
+    (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
+  )
+}
+
 /**
  * Hook to fetch and manage documents for a knowledge base
  * Uses React Query as single source of truth
@@ -118,17 +133,13 @@ export function useKnowledgeBaseDocuments(
     }
   )
 
-  const documents = query.data?.documents ?? []
+  const documents = query.data?.documents ?? EMPTY_DOCUMENTS
   const pagination = query.data?.pagination ?? {
     total: 0,
     limit: requestLimit,
     offset: requestOffset,
     hasMore: false,
   }
-
-  const hasProcessingDocs = documents.some(
-    (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
-  )
 
   const refreshDocuments = useCallback(async () => {
     await queryClient.invalidateQueries({
@@ -158,7 +169,6 @@ export function useKnowledgeBaseDocuments(
     isFetching: query.isFetching,
     isPlaceholderData: query.isPlaceholderData,
     error: query.error ? getErrorMessage(query.error) : null,
-    hasProcessingDocuments: hasProcessingDocs,
     refreshDocuments,
     updateDocument,
   }
@@ -168,8 +178,8 @@ export function useKnowledgeBaseDocuments(
  * Hook to fetch and manage knowledge bases list
  * Uses React Query as single source of truth
  */
-export function useKnowledgeBasesList(workspaceId?: string) {
-  const query = useKnowledgeBasesQuery(workspaceId)
+export function useKnowledgeBasesList(workspaceId?: string, options?: { includeCounts?: boolean }) {
+  const query = useKnowledgeBasesQuery(workspaceId, options)
 
   return {
     knowledgeBases: query.data ?? [],

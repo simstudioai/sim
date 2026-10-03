@@ -52,7 +52,7 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
         researchPlan: params.researchPlan,
       }),
     },
-    url: 'https://api.sixtyfour.ai/enrich-lead',
+    url: 'https://api.sixtyfour.ai/people-intelligence',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

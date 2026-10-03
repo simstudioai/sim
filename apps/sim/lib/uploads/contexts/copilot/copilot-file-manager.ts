@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CopilotFileManager')
@@ -52,11 +54,15 @@ export async function uploadCopilotFile(options: {
   contentType: string
   userId: string
 }): Promise<CopilotStoredFile> {
+  const storageKey = `copilot/${generateId()}/${buildStorageKeySegment('', options.fileName)}`
   const fileInfo = await uploadFile({
     file: options.buffer,
     fileName: options.fileName,
     contentType: options.contentType,
     context: 'copilot',
+    customKey: storageKey,
+    preserveKey: true,
+    cleanupOnMetadataFailure: true,
     metadata: {
       userId: options.userId,
       originalName: options.fileName,
@@ -77,7 +83,7 @@ export async function uploadCopilotFile(options: {
     id: fileInfo.key,
     key: fileInfo.key,
     context: 'copilot',
-    name: fileInfo.name,
+    name: options.fileName,
     url,
     size: fileInfo.size,
     type: fileInfo.type,
@@ -91,15 +97,24 @@ export async function uploadCopilotFile(options: {
  * Uses the unified storage service with explicit copilot context.
  * Handles S3, Azure Blob, and local storage automatically.
  *
+ * `maxBytes` is required for the same reason it is on `fetchWorkspaceFileBuffer`:
+ * the stored object is admitted far above what one request may hold resident, so a
+ * caller that omits a ceiling inherits "unbounded" inside the shared app process.
+ *
  * @param key File storage key
+ * @param options.maxBytes Hard ceiling; throws `PayloadSizeLimitError` when exceeded
  * @returns File buffer
  * @throws Error if file not found or download fails
  */
-export async function downloadCopilotFile(key: string): Promise<Buffer> {
+export async function downloadCopilotFile(
+  key: string,
+  options: { maxBytes: number }
+): Promise<Buffer> {
   try {
     const fileBuffer = await downloadFile({
       key,
       context: 'copilot',
+      maxBytes: options.maxBytes,
     })
 
     logger.info(`Successfully downloaded copilot file: ${key}`, {

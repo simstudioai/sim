@@ -12,17 +12,16 @@ import {
 interface SaveViewModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Pre-filled when renaming an existing view; empty when saving a new one. */
+  /** Pre-filled when renaming an existing view; empty when creating a new one. */
   initialName?: string
-  /** `new` starts blank and is configured after; `create` captures what is
-   *  already applied; `rename` retitles an existing view. */
-  mode: 'new' | 'create' | 'rename'
+  /** `new` starts blank and is configured after; `rename` retitles an existing view. */
+  mode: 'new' | 'rename'
   onSubmit: (name: string) => void
   isSubmitting: boolean
 }
 
 /**
- * Names a view — used both for "Save as view" and for renaming an existing one.
+ * Names a new view or renames an existing one.
  * A view name is free-form (no identifier rules), so the only guard is emptiness.
  */
 export function SaveViewModal({
@@ -43,7 +42,7 @@ export function SaveViewModal({
   }
 
   const trimmed = name.trim()
-  const title = mode === 'new' ? 'New view' : mode === 'create' ? 'Save as view' : 'Rename view'
+  const title = mode === 'new' ? 'New view' : 'Rename view'
 
   const handleSubmit = () => {
     if (!trimmed || isSubmitting) return
@@ -68,7 +67,14 @@ export function SaveViewModal({
         onCancel={() => onOpenChange(false)}
         cancelDisabled={isSubmitting}
         primaryAction={{
-          label: isSubmitting ? 'Saving...' : 'Save',
+          label:
+            mode === 'new'
+              ? isSubmitting
+                ? 'Creating...'
+                : 'Create'
+              : isSubmitting
+                ? 'Saving...'
+                : 'Save',
           onClick: handleSubmit,
           disabled: !trimmed || isSubmitting,
         }}

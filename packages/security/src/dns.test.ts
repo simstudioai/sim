@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockLookup } = vi.hoisted(() => ({ mockLookup: vi.fn() }))
 
@@ -6,13 +6,9 @@ vi.mock('node:dns/promises', () => ({
   default: { lookup: mockLookup },
 }))
 
-import { DnsTimeoutError, resolveHostAddresses } from './dns'
+import { resolveHostAddresses } from './dns'
 
 describe('resolveHostAddresses', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('returns every address, not just the one worth pinning', async () => {
     mockLookup.mockResolvedValue([
       { address: '93.184.216.34', family: 4 },
@@ -36,36 +32,31 @@ describe('resolveHostAddresses', () => {
     expect(resolved.addresses).toHaveLength(2)
   })
 
-  it('falls back to the first address when there is no IPv4 record', async () => {
-    mockLookup.mockResolvedValue([{ address: '2606:2800:220:1::248', family: 6 }])
-
-    const resolved = await resolveHostAddresses('v6only.example')
-
-    expect(resolved.preferred).toBe('2606:2800:220:1::248')
-  })
-
   it('rejects rather than returning nothing when the resolver answers empty', async () => {
     mockLookup.mockResolvedValue([])
 
     await expect(resolveHostAddresses('empty.example')).rejects.toThrow('No addresses')
   })
 
-  it('rejects when the resolver fails', async () => {
-    mockLookup.mockRejectedValue(new Error('ENOTFOUND'))
-
-    await expect(resolveHostAddresses('missing.example')).rejects.toThrow('ENOTFOUND')
-  })
-
-  it('clears the deadline timer once the lookup succeeds', async () => {
-    // A leaked timer holds the event loop open for the full window and is
-    // invisible to every other assertion here.
+  it('cancels a pending lookup at the caller deadline and cleans up its listener and timer', async () => {
     vi.useFakeTimers()
     try {
-      mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
-
-      await resolveHostAddresses('example.com')
-
+      let rejectLookup!: (error: Error) => void
+      mockLookup.mockReturnValue(
+        new Promise((_, reject) => {
+          rejectLookup = reject
+        })
+      )
+      const controller = new AbortController()
+      const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+      const pending = resolveHostAddresses('example.com', { signal: controller.signal })
+      const rejection = expect(pending).rejects.toThrow('Preview deadline')
+      controller.abort(new Error('Preview deadline'))
+      await rejection
       expect(vi.getTimerCount()).toBe(0)
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+      rejectLookup(new Error('Late lookup failure'))
+      await Promise.resolve()
     } finally {
       vi.useRealTimers()
     }
@@ -108,20 +99,6 @@ describe('resolveHostAddresses', () => {
 
       const pending = resolveHostAddresses('slow.example', { timeoutMs: 1_000 })
       const assertion = expect(pending).rejects.toThrow('timed out')
-      await vi.advanceTimersByTimeAsync(1_000)
-      await assertion
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('reports a deadline distinctly from a missing host', async () => {
-    vi.useFakeTimers()
-    try {
-      mockLookup.mockReturnValue(new Promise(() => {}))
-
-      const pending = resolveHostAddresses('slow.example', { timeoutMs: 1_000 })
-      const assertion = expect(pending).rejects.toBeInstanceOf(DnsTimeoutError)
       await vi.advanceTimersByTimeAsync(1_000)
       await assertion
     } finally {

@@ -66,9 +66,9 @@ const tagInputVariants = cva(
     variants: {
       variant: {
         default:
-          'items-center rounded-sm py-1.5 focus-within:outline-none dark:bg-[var(--surface-5)]',
+          'items-center rounded-sm py-1.5 focus-within:outline-hidden dark:bg-[var(--surface-5)]',
         block:
-          'min-h-[112px] content-start items-start rounded-lg py-2 focus-within:outline-none dark:bg-[var(--surface-4)]',
+          'min-h-[112px] content-start items-start rounded-lg py-2 focus-within:outline-hidden dark:bg-[var(--surface-4)]',
       },
     },
     defaultVariants: {
@@ -117,6 +117,8 @@ interface TagInputProps extends VariantProps<typeof tagInputVariants> {
    * Return true if the value was valid and added, false if invalid.
    */
   onAdd: (value: string) => boolean
+  /** Batch counterpart used by paste/file import to avoid one render per value. */
+  onAddMany?: (values: string[]) => void
   /** Callback when a tag is removed (receives value, index, and isValid) */
   onRemove: (value: string, index: number, isValid: boolean) => void
   /** Callback when the input value changes (useful for clearing errors) */
@@ -212,6 +214,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
     {
       items,
       onAdd,
+      onAddMany,
       onRemove,
       onInputChange,
       placeholder = 'Enter values',
@@ -255,11 +258,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           const extractValues = fileInputOptions?.extractValues
           if (extractValues) {
             const values = extractValues(text)
-            values.forEach((value) => onAdd(value))
+            if (onAddMany) onAddMany(values)
+            else values.forEach((value) => onAdd(value))
           }
         } catch {}
       },
-      [fileInputOptions?.extractValues, onAdd]
+      [fileInputOptions?.extractValues, onAdd, onAddMany]
     )
 
     const handleDragOver = React.useCallback(
@@ -346,12 +350,18 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       (e: React.ClipboardEvent<HTMLInputElement>) => {
         e.preventDefault()
         const pastedText = e.clipboardData.getData('text')
-        const pastedValues = pastedText.split(/[\s,;]+/).filter(Boolean)
-        pastedValues.forEach((value) => {
-          onAdd(value.trim())
-        })
+        const pastedValues = Array.from(
+          new Set(
+            pastedText
+              .split(/[\s,;]+/)
+              .map((value) => value.trim())
+              .filter(Boolean)
+          )
+        )
+        if (onAddMany) onAddMany(pastedValues)
+        else pastedValues.forEach((value) => onAdd(value))
       },
-      [onAdd]
+      [onAdd, onAddMany]
     )
 
     const handleBlur = React.useCallback(() => {
@@ -445,9 +455,9 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               placeholder={hasItems ? placeholderWithTags : placeholder}
               size={hasItems ? placeholderWithTags?.length || 10 : placeholder?.length || 12}
               className={cn(
-                'appearance-none border-none bg-transparent align-middle font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
+                'appearance-none border-none bg-transparent align-middle font-sans outline-hidden placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 text-inherit text-sm leading-5'
+                  ? 'absolute top-0 left-0 size-full p-0 text-inherit text-sm leading-5'
                   : 'h-5 w-auto min-w-0 p-0 text-[var(--text-body)] text-sm leading-5',
                 inputClassName
               )}
@@ -472,7 +482,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   inputRef.current?.focus()
                 }
               }}
-              className='relative flex flex-shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
+              className='relative flex shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-hidden'
               disabled={disabled}
               aria-label='Add tag'
             >

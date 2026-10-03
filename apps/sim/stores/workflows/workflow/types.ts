@@ -17,7 +17,7 @@ import type {
   Variable,
   WorkflowState,
 } from '@sim/workflow-types/workflow'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 
 export type {
   BlockData,

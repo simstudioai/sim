@@ -18,14 +18,19 @@ const EXCLUDED: Record<string, string> = {
   'check:audits': 'this runner',
   'check:migrations': 'needs a git base ref argument',
   'check:api-validation': 'superseded by the :strict variant, which this runner does run',
+  'check:dead-code': 'check:unused-exports gates the same issues in its single knip pass',
 }
 
 /**
  * Generated-artifact checks that live outside the `check:*` namespace. Listed explicitly
  * because the `*:check` namespace also holds checks that need a sibling repo or network.
+ *
+ * `images:check` is deliberately absent: it renders the chart, and this job has no Helm.
+ * It runs in `.github/workflows/helm.yml`, whose path filter covers its generator.
  */
 const EXTRA_AUDITS = [
   'tool-metadata:check',
+  'deployment-config:check',
   'integration-catalog:check',
   'docs:check',
   'agent-stream-docs:check',

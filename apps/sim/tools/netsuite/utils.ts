@@ -113,15 +113,27 @@ export function buildSubresourcePath(value: string): Array<{ value: string; labe
 }
 
 export function normalizePagination(
-  requestedLimit?: number,
-  requestedOffset?: number
+  requestedLimit?: unknown,
+  requestedOffset?: unknown
 ): { limit: number; offset: number } {
-  const limit = requestedLimit ?? DEFAULT_PAGE_LIMIT
-  const offset = requestedOffset ?? 0
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) {
+  const limitInput = requestedLimit === '' ? undefined : requestedLimit
+  const offsetInput = requestedOffset === '' ? undefined : requestedOffset
+  const limit = limitInput ?? DEFAULT_PAGE_LIMIT
+  const offset = offsetInput ?? 0
+  if (
+    typeof limit !== 'number' ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_PAGE_LIMIT
+  ) {
     throw new Error(`Limit must be an integer between 1 and ${MAX_PAGE_LIMIT}`)
   }
-  if (!Number.isInteger(offset) || offset < 0 || offset % limit !== 0) {
+  if (
+    typeof offset !== 'number' ||
+    !Number.isInteger(offset) ||
+    offset < 0 ||
+    offset % limit !== 0
+  ) {
     throw new Error('Offset must be a non-negative integer divisible by limit')
   }
   if (offset + limit > MAX_RESULT_COUNT) {
@@ -451,6 +463,7 @@ async function readSuiteTalkBody(
     maxBytes: response.ok ? MAX_INLINE_MATERIALIZATION_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES,
     label: response.ok ? 'NetSuite response' : 'NetSuite error response',
     signal,
+    allowNoBodyFallback: response.status === 202,
   })
   if (!text.trim()) return null
   try {

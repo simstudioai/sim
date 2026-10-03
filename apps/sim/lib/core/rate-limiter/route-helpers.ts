@@ -56,22 +56,57 @@ export async function enforceUserRateLimit(
   return buildRateLimitResponse(resetAt)
 }
 
-/**
- * Apply a per-IP token bucket to an unauthenticated route. The `unknown` IP
- * fallback shares one global bucket per route so it cannot be amplified by
- * `X-Forwarded-For: unknown` spoofing.
- */
+async function enforceIpRateLimitWithPolicy(
+  bucketName: string,
+  request: NextRequest,
+  config: TokenBucketConfig,
+  unresolvedClientPolicy: 'deny' | 'defer',
+  resourceId?: string
+): Promise<NextResponse | null> {
+  const ip = getClientIp(request)
+  if (!ip) {
+    logger.warn('Unable to resolve client IP for public rate limit', {
+      bucket: bucketName,
+      resourceId,
+      unresolvedClientPolicy,
+    })
+    return unresolvedClientPolicy === 'deny'
+      ? buildRateLimitResponse(new Date(Date.now() + config.refillIntervalMs))
+      : null
+  }
+  const scope = resourceId ? `resource:${resourceId}:` : ''
+  const key = `route:${bucketName}:${scope}ip:${ip}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
+  if (allowed) return null
+  logger.warn('IP rate limit exceeded', { bucket: bucketName, resourceId, ip })
+  return buildRateLimitResponse(resetAt)
+}
+
+/** Apply a per-IP token bucket and fail closed when the client cannot be resolved safely. */
 export async function enforceIpRateLimit(
   bucketName: string,
   request: NextRequest,
   config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
 ): Promise<NextResponse | null> {
-  const ip = getClientIp(request)
-  const key = `route:${bucketName}:ip:${ip}`
-  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
-  if (allowed) return null
-  logger.warn('IP rate limit exceeded', { bucket: bucketName, ip })
-  return buildRateLimitResponse(resetAt)
+  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'deny')
+}
+
+/**
+ * Apply a per-IP bucket when resolvable, deferring unresolved clients to an
+ * independent non-IP limit that the caller must enforce before any side effect.
+ *
+ * Pass `resourceId` to give each resource its own per-IP budget — the caller
+ * that pairs this with {@link enforceResourceRateLimit} wants both scoped the
+ * same way. It belongs here rather than interpolated into `bucketName`, which
+ * is emitted as a log field and has to stay low-cardinality.
+ */
+export async function enforceIpRateLimitWithIndependentBackstop(
+  bucketName: string,
+  request: NextRequest,
+  config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT,
+  resourceId?: string
+): Promise<NextResponse | null> {
+  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'defer', resourceId)
 }
 
 /**
@@ -96,19 +131,29 @@ export async function enforceRecipientRateLimit(
 }
 
 /**
- * Apply a per-workspace token bucket. Use for routes whose cost is borne by the
- * workspace rather than the acting user — a shared budget any member spends
- * against, so N admins cannot each get a full allowance.
+ * Apply a token bucket to one resource, independently of who is calling.
+ *
+ * The backstop for a cost borne by a resource's owner rather than by its
+ * caller: a deployed chat runs its owner's workflow on their plan bucket,
+ * credits and concurrency reservation for anyone holding the link, so a per-IP
+ * limit alone leaves the owner exposed to attempts spread across addresses and
+ * to callers whose proxy chain resolves to no IP at all. Pair it with
+ * {@link enforceIpRateLimitWithIndependentBackstop}, which is the "deferring
+ * unresolved clients to an independent non-IP limit" half of the same shape.
+ *
+ * Consult the per-IP bucket first and return on its refusal: debiting both
+ * unconditionally would let one flooding IP drain the resource's budget at full
+ * speed and 429 the legitimate audience with it.
  */
-export async function enforceWorkspaceRateLimit(
+export async function enforceResourceRateLimit(
   bucketName: string,
-  workspaceId: string,
-  config: TokenBucketConfig = DEFAULT_USER_ROUTE_LIMIT
+  resourceId: string,
+  config: TokenBucketConfig
 ): Promise<NextResponse | null> {
-  const key = `route:${bucketName}:workspace:${workspaceId}`
+  const key = `route:${bucketName}:resource:${resourceId}`
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null
-  logger.warn('Workspace rate limit exceeded', { bucket: bucketName, workspaceId })
+  logger.warn('Resource rate limit exceeded', { bucket: bucketName, resourceId })
   return buildRateLimitResponse(resetAt)
 }
 

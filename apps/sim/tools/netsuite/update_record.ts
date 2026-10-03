@@ -1,13 +1,12 @@
 import type { NetSuiteResponse, NetSuiteUpdateRecordParams } from '@/tools/netsuite/types'
-import {
-  buildRecordPath,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  optionalTrim,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteUpdateRecordTool: ToolConfig<NetSuiteUpdateRecordParams, NetSuiteResponse> = {
+export const netsuiteUpdateRecordTool: InternalToolConfig<
+  NetSuiteUpdateRecordParams,
+  NetSuiteResponse
+> = {
   id: 'netsuite_update_record',
   name: 'NetSuite Update Record',
   description: 'Update fields on an existing NetSuite record with PATCH.',
@@ -39,23 +38,9 @@ export const netsuiteUpdateRecordTool: ToolConfig<NetSuiteUpdateRecordParams, Ne
       description: 'Comma-separated sublists whose existing lines should be replaced',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'PATCH',
-        path: buildRecordPath(
-          { value: params.recordType, label: 'Record type' },
-          { value: params.recordId, label: 'Record ID' }
-        ),
-        success: { status: 204, body: 'none' },
-        responseLocation: 'resource',
-        query: { replace: optionalTrim(params.replace, 'Replace sublists') },
-        body: params.body,
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

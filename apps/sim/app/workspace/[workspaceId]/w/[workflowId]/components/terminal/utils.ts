@@ -1,7 +1,7 @@
 import type React from 'react'
 import { Ban, CircleX, Repeat, Split, TriangleAlert, Workflow } from '@sim/emcn/icons'
 import { getBlock } from '@/blocks'
-import { isWorkflowBlockType } from '@/executor/constants'
+import { isSubExecutionBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 
@@ -184,7 +184,7 @@ function collectWorkflowDescendants(
   const direct = workflowChildGroups.get(instanceKey) ?? []
   const result = [...direct]
   for (const entry of direct) {
-    if (isWorkflowBlockType(entry.blockType)) {
+    if (isSubExecutionBlockType(entry.blockType)) {
       // Use childWorkflowInstanceId when available (unique per-invocation) to correctly
       // separate children across loop iterations of the same workflow block.
       result.push(
@@ -481,7 +481,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
             return true
           })
           .map((block) => {
-            if (isWorkflowBlockType(block.blockType)) {
+            if (isSubExecutionBlockType(block.blockType)) {
               const instanceKey = block.childWorkflowInstanceId ?? block.blockId
               const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
               const rawChildren = allDescendants.map((c) => ({
@@ -524,7 +524,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
   const remainingRegularBlocks: ConsoleEntry[] = []
 
   for (const block of regularBlocks) {
-    if (isWorkflowBlockType(block.blockType)) {
+    if (isSubExecutionBlockType(block.blockType)) {
       const instanceKey = block.childWorkflowInstanceId ?? block.blockId
       const allDescendants = collectWorkflowDescendants(instanceKey, workflowChildGroups)
       const rawChildren = allDescendants.map((c) => ({

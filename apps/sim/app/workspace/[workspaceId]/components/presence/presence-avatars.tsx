@@ -35,10 +35,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
           referrerPolicy='no-referrer'
         />
       )}
-      <AvatarFallback
-        style={{ background: color }}
-        className='border-0 font-semibold text-[7px] text-white leading-none'
-      >
+      <AvatarFallback style={{ background: color }} className='border-0 font-semibold text-white'>
         {initials}
       </AvatarFallback>
     </Avatar>
@@ -89,7 +86,7 @@ export function PresenceAvatars({
   }
 
   return (
-    <div className={cn('-space-x-1 flex flex-shrink-0 items-center', className)}>
+    <div className={cn('-space-x-1 flex shrink-0 items-center', className)}>
       {overflowCount > 0 && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -98,7 +95,7 @@ export function PresenceAvatars({
               style={{ zIndex: 0 }}
               aria-label={`${overflowCount} more ${overflowCount === 1 ? 'user' : 'users'}`}
             >
-              <AvatarFallback className='border-0 bg-[#404040] font-semibold text-[7px] text-white leading-none'>
+              <AvatarFallback className='border-0 bg-gray-700 font-semibold text-[7px] text-white'>
                 +{overflowCount}
               </AvatarFallback>
             </Avatar>

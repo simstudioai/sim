@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_FILE_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillDownloadAttachmentTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillDownloadAttachmentTool: InternalToolConfig<
+  WindchillParams,
+  WindchillResponse
+> = {
   id: 'windchill_download_attachment',
   name: 'Windchill Download Attachment',
   description: 'Download a document attachment into a canonical UserFile',
@@ -53,12 +56,8 @@ export const windchillDownloadAttachmentTool: ToolConfig<WindchillParams, Windch
       description: 'Optional downloaded file name override',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_download_attachment', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_download_attachment', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_download_attachment', response),

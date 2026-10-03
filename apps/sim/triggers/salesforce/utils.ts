@@ -1,4 +1,4 @@
-import { extractSalesforceObjectTypeFromPayload } from '@/lib/webhooks/providers/salesforce'
+import { extractSalesforceObjectTypeFromPayload } from '@/lib/webhooks/providers/salesforce-payload'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 import { normalizeToken } from '@/triggers/utils/tokens'

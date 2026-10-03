@@ -18,6 +18,7 @@ import {
 } from '@sim/emcn'
 import { Check, Duplicate, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
 import {
   FIELD_TYPE_LABELS,
@@ -25,7 +26,6 @@ import {
   SUPPORTED_FIELD_TYPES,
   TAG_SLOT_CONFIG,
 } from '@/lib/knowledge/constants'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -54,13 +54,13 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
           const DocumentIcon = getDocumentIcon('', doc.name)
           return (
             <div key={doc.id} className='flex items-center gap-2 border-b p-2 last:border-b-0'>
-              <DocumentIcon className='size-4 flex-shrink-0 text-[var(--text-muted)]' />
+              <DocumentIcon className='size-4 shrink-0 text-[var(--text-muted)]' />
               <span className='min-w-0 max-w-[120px] truncate text-[var(--text-primary)] text-caption'>
                 {doc.name}
               </span>
               {doc.tagValue && (
                 <>
-                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />
                   <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
                     {doc.tagValue}
                   </span>
@@ -258,6 +258,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         <ChipModalBody>
           <ChipModalField
             type='custom'
+            submitOnEnter={false}
             title={
               <>
                 Tags:{' '}
@@ -296,11 +297,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                       {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                     </span>
-                    <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                    <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />
                     <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
                       {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
                     </span>
-                    <div className='flex flex-shrink-0 items-center gap-1'>
+                    <div className='flex shrink-0 items-center gap-1'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
@@ -424,6 +425,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
         <ChipModalFooter
           onCancel={() => handleClose(false)}
+          defaultAction='none'
           primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
         />
       </ChipModal>

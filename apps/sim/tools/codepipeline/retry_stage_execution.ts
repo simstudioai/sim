@@ -2,9 +2,9 @@ import type {
   CodePipelineRetryStageExecutionParams,
   CodePipelineRetryStageExecutionResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const retryStageExecutionTool: ToolConfig<
+export const retryStageExecutionTool: InternalToolConfig<
   CodePipelineRetryStageExecutionParams,
   CodePipelineRetryStageExecutionResponse
 > = {
@@ -58,13 +58,8 @@ export const retryStageExecutionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/retry-stage-execution',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

@@ -1,34 +1,61 @@
-import { execSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createLogger } from '@sim/logger'
-import ffmpeg from 'fluent-ffmpeg'
+import { toError } from '@sim/utils/errors'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
+import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
+import { FFMPEG_BASE_ARGS, resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
 
 const logger = createLogger('MediaFfmpeg')
 
-let ffmpegInitialized = false
+const INSTALL_HINT =
+  'Install: brew install ffmpeg (macOS) / apk add ffmpeg (Alpine) / apt-get install ffmpeg (Ubuntu)'
+
+/**
+ * Wall-clock budget for one media operation, shared by every child process it
+ * spawns. The budget is per-operation rather than per-command because `concat`
+ * runs a full re-encode per input: a per-command timeout would let N inputs
+ * multiply into N timeouts on a CPU-bound instance that serves every other
+ * request at the same time.
+ */
+const OPERATION_TIMEOUT_MS = 10 * 60 * 1000
+
+/** Per-probe ceiling, additionally bounded by whatever remains of the operation budget. */
+const PROBE_TIMEOUT_MS = 30 * 1000
+
+/** Headroom for ffprobe's JSON report on a container with many streams. */
+const PROBE_MAX_OUTPUT_BYTES = 4 * 1024 * 1024
+
+const {
+  minScaleDimension: MIN_SCALE_DIMENSION,
+  maxScaleDimension: MAX_SCALE_DIMENSION,
+  maxScalePixels: MAX_SCALE_PIXELS,
+} = FFMPEG_LIMITS
+
+let binariesInitialized = false
 let ffmpegPath: string | null = null
+let ffprobePath: string | null = null
+
+function resolveBinary(binary: string): string | null {
+  return resolveExecutable(binary)
+}
 
 /** Lazy system FFmpeg binary resolution, mirroring lib/audio/extractor.ts. */
 function ensureFfmpeg(): void {
-  if (ffmpegInitialized) {
-    if (!ffmpegPath) {
-      throw new Error(
-        'FFmpeg not found. Install: brew install ffmpeg (macOS) / apk add ffmpeg (Alpine) / apt-get install ffmpeg (Ubuntu)'
-      )
-    }
-    return
+  if (!binariesInitialized) {
+    binariesInitialized = true
+    ffmpegPath = resolveBinary('ffmpeg')
+    ffprobePath = resolveBinary('ffprobe')
+    if (!ffmpegPath) logger.warn('[FFmpeg] No FFmpeg binary found at init time')
   }
-  ffmpegInitialized = true
+  if (!ffmpegPath) throw new Error(`FFmpeg not found. ${INSTALL_HINT}`)
+}
 
-  try {
-    const cmd = process.platform === 'win32' ? 'where ffmpeg' : 'which ffmpeg'
-    ffmpegPath = execSync(cmd, { encoding: 'utf-8' }).trim().split('\n')[0]
-    ffmpeg.setFfmpegPath(ffmpegPath)
-  } catch {
-    logger.warn('[FFmpeg] No FFmpeg binary found at init time')
-  }
+function ensureFfprobe(): string {
+  ensureFfmpeg()
+  if (!ffprobePath) throw new Error(`FFprobe not found. ${INSTALL_HINT}`)
+  return ffprobePath
 }
 
 export type FfmpegOperation =
@@ -84,6 +111,28 @@ export interface FfmpegResult {
   probe?: MediaProbe
 }
 
+export interface FfmpegRunOptions {
+  /**
+   * Kills the running child process when the caller cancels. Copilot's tool
+   * signal fires only on an explicit user stop, never on a passive transport
+   * disconnect, so a wired encode stops when the user asks and not before.
+   */
+  signal?: AbortSignal
+}
+
+/** Per-operation execution bounds, shared by every child process the operation spawns. */
+interface FfmpegRunContext {
+  /** Absolute wall-clock deadline for the whole operation. */
+  deadlineAt: number
+  signal?: AbortSignal
+}
+
+const CANCELLED_MESSAGE = 'FFmpeg cancelled'
+
+function timedOutMessage(): string {
+  return `FFmpeg exceeded the ${Math.round(OPERATION_TIMEOUT_MS / 1000)}s media operation limit. Use shorter inputs, fewer clips, or a smaller target size.`
+}
+
 const MIME_TO_EXT: Record<string, string> = {
   'video/mp4': 'mp4',
   'video/mpeg': 'mp4',
@@ -132,7 +181,13 @@ const EXT_TO_MIME: Record<string, string> = {
 }
 
 function extFromMime(mime: string): string {
-  return MIME_TO_EXT[mime] || mime.split('/')[1] || 'bin'
+  const normalizedMime = mime.split(';', 1)[0].trim().toLowerCase()
+  if (Object.hasOwn(MIME_TO_EXT, normalizedMime)) {
+    return MIME_TO_EXT[normalizedMime]
+  }
+
+  const subtype = normalizedMime.split('/')[1]
+  return subtype && /^[a-z0-9][a-z0-9.+_-]{0,63}$/.test(subtype) ? subtype : 'bin'
 }
 
 function mimeFromExt(ext: string): string {
@@ -179,6 +234,34 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Extensions this module will build an output path from: letters and digits only.
+ *
+ * `format` reaches the tool as an unconstrained string and is the one
+ * caller-controlled value that becomes a path. Because the pattern admits no `.`
+ * and no separator, `out.${ext}` is always a single path segment, so the joined
+ * path cannot leave the temp directory — the containment is the pattern, not a
+ * second check that could drift away from it.
+ */
+const OUTPUT_EXT_PATTERN = /^[a-z0-9]{1,12}$/
+
+/**
+ * Resolve a temp-dir output path for a caller-supplied extension.
+ *
+ * Unvalidated, `path.join(dir, 'out.' + '../../../../tmp/x.mp4')` resolves to
+ * `/tmp/x.mp4`: FFmpeg writes wherever the traversal points, the bytes are
+ * attacker-influenced media, and the temp-directory cleanup never sees the file
+ * because it was never inside the directory being removed.
+ */
+function outputPathForExt(dir: string, ext: string): string {
+  if (!OUTPUT_EXT_PATTERN.test(ext)) {
+    throw new Error(
+      `Unsupported output format "${ext}" — use a plain extension such as mp4, mp3, wav, or gif`
+    )
+  }
+  return path.join(dir, `out.${ext}`)
+}
+
 async function writeInput(dir: string, file: MediaFile, index: number): Promise<string> {
   const ext = extFromMime(file.mimeType)
   const filePath = path.join(dir, `in-${index}.${ext}`)
@@ -186,44 +269,108 @@ async function writeInput(dir: string, file: MediaFile, index: number): Promise<
   return filePath
 }
 
-function runCommand(command: ffmpeg.FfmpegCommand, outputPath: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    command
-      .on('end', () => resolve())
-      .on('error', (err) => reject(new Error(`FFmpeg error: ${err.message}`)))
-      .save(outputPath)
-  })
-}
+/**
+ * Run one FFmpeg command under the operation's deadline and cancellation signal.
+ *
+ * Without this, a transcode has no bound at all: `.save()` resolves whenever
+ * FFmpeg happens to finish, so a long input or an oversized filter graph pins
+ * the instance's cores for as long as it likes and survives the request that
+ * asked for it.
+ */
+async function runCommand(
+  ctx: FfmpegRunContext,
+  args: string[],
+  outputPath: string,
+  cwd?: string
+): Promise<void> {
+  if (ctx.signal?.aborted) throw new Error(CANCELLED_MESSAGE)
+  const remaining = ctx.deadlineAt - Date.now()
+  if (remaining <= 0) throw new Error(timedOutMessage())
 
-export async function probeMedia(file: MediaFile): Promise<MediaProbe> {
-  return withTempDir(async (dir) => {
-    const inputPath = await writeInput(dir, file, 0)
-    return probeFile(inputPath)
-  })
-}
-
-function probeFile(filePath: string): Promise<MediaProbe> {
   ensureFfmpeg()
-  return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) {
-        reject(new Error(`FFprobe error: ${err.message}`))
-        return
-      }
-      const video = metadata.streams.find((s) => s.codec_type === 'video')
-      const audio = metadata.streams.find((s) => s.codec_type === 'audio')
-      resolve({
-        durationSeconds: Number(metadata.format?.duration) || 0,
-        format: metadata.format?.format_name || 'unknown',
-        width: video?.width,
-        height: video?.height,
-        videoCodec: video?.codec_name,
-        audioCodec: audio?.codec_name,
-        hasAudio: Boolean(audio),
-        hasVideo: Boolean(video),
-      })
+  try {
+    await runExecutable(ffmpegPath as string, [...FFMPEG_BASE_ARGS, ...args, outputPath], {
+      cwd,
+      maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
+      signal: ctx.signal,
+      timeoutMs: remaining,
     })
-  })
+  } catch (error) {
+    const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string }
+    if (failure.name === 'AbortError' || ctx.signal?.aborted) {
+      throw new Error(CANCELLED_MESSAGE)
+    }
+    if (failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+      throw new Error('FFmpeg error: process output was too large to read')
+    }
+    if (failure.killed) throw new Error(timedOutMessage())
+    throw new Error(`FFmpeg error: ${failure.stderr?.trim() || toError(error).message}`)
+  }
+}
+
+interface FfprobeReport {
+  streams?: Array<{
+    codec_type?: string
+    codec_name?: string
+    width?: number
+    height?: number
+  }>
+  format?: { duration?: string | number; format_name?: string }
+}
+
+/**
+ * Probe through the shared `execFile` boundary so the child is killed on a
+ * deadline or cancellation and its diagnostic output is bounded. `concat`
+ * probes once per input, so an unbounded prober would scale with the request.
+ */
+async function probeFile(ctx: FfmpegRunContext, filePath: string): Promise<MediaProbe> {
+  const binary = ensureFfprobe()
+  const timeout = Math.min(PROBE_TIMEOUT_MS, ctx.deadlineAt - Date.now())
+  if (timeout <= 0) throw new Error(timedOutMessage())
+
+  let stdout: string
+  try {
+    ;({ stdout } = await runExecutable(
+      binary,
+      ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', filePath],
+      {
+        timeoutMs: timeout,
+        maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
+        signal: ctx.signal,
+      }
+    ))
+  } catch (error) {
+    const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string }
+    if (failure.name === 'AbortError') throw new Error(CANCELLED_MESSAGE)
+    // Node kills the child for an oversized report too, so check that before
+    // reading `killed` as "we ran out of time".
+    if (failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+      throw new Error('FFprobe error: probe report was too large to read')
+    }
+    if (failure.killed) throw new Error(timedOutMessage())
+    throw new Error(`FFprobe error: ${failure.stderr?.trim() || failure.message}`)
+  }
+
+  let report: FfprobeReport
+  try {
+    report = JSON.parse(stdout) as FfprobeReport
+  } catch {
+    throw new Error('FFprobe error: probe output was not readable')
+  }
+
+  const streams = report.streams ?? []
+  const video = streams.find((s) => s.codec_type === 'video')
+  const audio = streams.find((s) => s.codec_type === 'audio')
+  return {
+    durationSeconds: Number(report.format?.duration) || 0,
+    format: report.format?.format_name || 'unknown',
+    width: video?.width,
+    height: video?.height,
+    videoCodec: video?.codec_name,
+    audioCodec: audio?.codec_name,
+    hasAudio: Boolean(audio),
+    hasVideo: Boolean(video),
+  }
 }
 
 /**
@@ -233,14 +380,22 @@ function probeFile(filePath: string): Promise<MediaProbe> {
 export async function runFfmpegOperation(
   operation: FfmpegOperation,
   inputs: MediaFile[],
-  options: FfmpegOptions = {}
+  options: FfmpegOptions = {},
+  runOptions: FfmpegRunOptions = {}
 ): Promise<FfmpegResult> {
   if (inputs.length === 0) {
     throw new Error('At least one input file is required')
   }
 
+  const ctx: FfmpegRunContext = {
+    deadlineAt: Date.now() + OPERATION_TIMEOUT_MS,
+    signal: runOptions.signal,
+  }
+
   if (operation === 'probe') {
-    return { probe: await probeMedia(inputs[0]) }
+    return withTempDir(async (dir) => ({
+      probe: await probeFile(ctx, await writeInput(dir, inputs[0], 0)),
+    }))
   }
 
   return withTempDir(async (dir) => {
@@ -249,67 +404,70 @@ export async function runFfmpegOperation(
     switch (operation) {
       case 'overlay_audio':
       case 'mux':
-        return overlayAudio(dir, inputPaths, options)
+        return overlayAudio(ctx, dir, inputPaths, options)
       case 'mix_audio':
-        return mixAudio(dir, inputPaths, options)
+        return mixAudio(ctx, dir, inputPaths, options)
       case 'concat':
-        return concat(dir, inputPaths)
+        return concat(ctx, dir, inputPaths)
       case 'trim':
-        return trim(dir, inputPaths[0], inputs[0], options)
+        return trim(ctx, dir, inputPaths[0], inputs[0], options)
       case 'scale_pad':
-        return scalePad(dir, inputPaths[0], options)
+        return scalePad(ctx, dir, inputPaths[0], options)
       case 'overlay_image':
-        return overlayImage(dir, inputPaths, options)
+        return overlayImage(ctx, dir, inputPaths, options)
       case 'add_text':
-        return addText(dir, inputPaths[0], options)
+        return addText(ctx, dir, inputPaths[0], options)
       case 'fade':
-        return fade(dir, inputPaths[0], inputs[0], options)
+        return fade(ctx, dir, inputPaths[0], inputs[0], options)
       case 'extract_audio':
-        return extractAudio(dir, inputPaths[0], options)
+        return extractAudio(ctx, dir, inputPaths[0], options)
       case 'convert':
-        return convert(dir, inputPaths[0], options)
+        return convert(ctx, dir, inputPaths[0], options)
       case 'thumbnail':
-        return thumbnail(dir, inputPaths[0], options)
+        return thumbnail(ctx, dir, inputPaths[0], options)
       default:
         throw new Error(`Unsupported ffmpeg operation: ${operation}`)
     }
   })
 }
 
+/**
+ * Size the output before buffering it. The input budget does not bound this:
+ * `concat` re-encodes at CRF 18 and `convert` can target a lossless format, so
+ * a bounded input routinely produces a much larger output.
+ */
 async function readOut(outputPath: string, ext: string): Promise<FfmpegResult> {
+  const { size } = await fs.stat(outputPath)
+  if (size > MAX_MEDIA_BYTES) {
+    throw new Error(
+      `FFmpeg produced ${size} bytes, above the ${MAX_MEDIA_BYTES} byte media limit. Use a shorter input or a smaller target size.`
+    )
+  }
   const buffer = await fs.readFile(outputPath)
   return { buffer, ext, contentType: mimeFromExt(ext) }
 }
 
 async function overlayAudio(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPaths: string[],
   options: FfmpegOptions
 ): Promise<FfmpegResult> {
   if (inputPaths.length < 2) throw new Error('overlay_audio requires [video, audio]')
   const outputPath = path.join(dir, 'out.mp4')
-  const command = ffmpeg().input(inputPaths[0])
+  const args = ['-i', inputPaths[0]]
   if (options.loopToVideo) {
-    command.input(inputPaths[1]).inputOptions(['-stream_loop', '-1'])
+    args.push('-stream_loop', '-1', '-i', inputPaths[1])
   } else {
-    command.input(inputPaths[1])
+    args.push('-i', inputPaths[1])
   }
-  command.outputOptions([
-    '-map',
-    '0:v:0',
-    '-map',
-    '1:a:0',
-    '-c:v',
-    'copy',
-    '-c:a',
-    'aac',
-    '-shortest',
-  ])
-  await runCommand(command, outputPath)
+  args.push('-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-shortest')
+  await runCommand(ctx, args, outputPath)
   return readOut(outputPath, 'mp4')
 }
 
 async function mixAudio(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPaths: string[],
   options: FfmpegOptions
@@ -318,22 +476,26 @@ async function mixAudio(
   const outputPath = path.join(dir, 'out.mp3')
   const voiceVol = options.volume ?? 1
   const musicVol = options.musicVolume ?? 0.3
-  const command = ffmpeg()
-    .input(inputPaths[0])
-    .input(inputPaths[1])
-    .complexFilter([
-      `[0:a]volume=${voiceVol}[v]`,
-      `[1:a]volume=${musicVol}[m]`,
-      `[v][m]amix=inputs=2:duration=longest:dropout_transition=0[a]`,
-    ])
-    .outputOptions(['-map', '[a]'])
-  await runCommand(command, outputPath)
+  const filter = [
+    `[0:a]volume=${voiceVol}[v]`,
+    `[1:a]volume=${musicVol}[m]`,
+    `[v][m]amix=inputs=2:duration=longest:dropout_transition=0[a]`,
+  ].join(';')
+  await runCommand(
+    ctx,
+    ['-i', inputPaths[0], '-i', inputPaths[1], '-filter_complex', filter, '-map', '[a]'],
+    outputPath
+  )
   return readOut(outputPath, 'mp3')
 }
 
-async function concat(dir: string, inputPaths: string[]): Promise<FfmpegResult> {
+async function concat(
+  ctx: FfmpegRunContext,
+  dir: string,
+  inputPaths: string[]
+): Promise<FfmpegResult> {
   if (inputPaths.length < 2) throw new Error('concat requires at least 2 clips')
-  const probes = await Promise.all(inputPaths.map(probeFile))
+  const probes = await Promise.all(inputPaths.map((p) => probeFile(ctx, p)))
   probes.forEach((p, i) => {
     if (!p.hasVideo) {
       throw new Error(
@@ -341,8 +503,10 @@ async function concat(dir: string, inputPaths: string[]): Promise<FfmpegResult> 
       )
     }
   })
-  const width = probes[0].width || 1280
-  const height = probes[0].height || 720
+  // Clamped, not rejected: these describe the caller's own file rather than a
+  // value they asserted, but a container is free to declare a frame size far
+  // larger than anything worth normalizing to.
+  const { width, height } = clampProbedFrame(probes[0].width || 1280, probes[0].height || 720)
   const fps = 30
 
   // Normalize every clip to identical codec/size/fps/pixfmt, and SYNTHESIZE silent
@@ -352,47 +516,50 @@ async function concat(dir: string, inputPaths: string[]): Promise<FfmpegResult> 
   const normalized: string[] = []
   for (let i = 0; i < inputPaths.length; i++) {
     const out = path.join(dir, `norm-${i}.mp4`)
-    const cmd = ffmpeg().input(inputPaths[i])
+    const args = ['-i', inputPaths[i]]
     const maps: string[] = ['-map', '0:v:0']
     const extra: string[] = []
     if (probes[i].hasAudio) {
       maps.push('-map', '0:a:0')
     } else {
-      cmd
-        .input('anullsrc=channel_layout=stereo:sample_rate=48000')
-        .inputOptions(['-f', 'lavfi', '-t', String(probes[i].durationSeconds || 1)])
+      args.push(
+        '-f',
+        'lavfi',
+        '-t',
+        String(probes[i].durationSeconds || 1),
+        '-i',
+        'anullsrc=channel_layout=stereo:sample_rate=48000'
+      )
       maps.push('-map', '1:a:0')
       extra.push('-shortest')
     }
-    cmd
-      .videoFilters(
-        `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p`
-      )
-      .outputOptions([
-        ...maps,
-        '-c:v',
-        'libx264',
-        '-preset',
-        'medium',
-        '-crf',
-        '18',
-        '-pix_fmt',
-        'yuv420p',
-        '-r',
-        String(fps),
-        '-video_track_timescale',
-        '90000',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '192k',
-        '-ar',
-        '48000',
-        '-ac',
-        '2',
-        ...extra,
-      ])
-    await runCommand(cmd, out)
+    args.push(
+      '-vf',
+      `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p`,
+      ...maps,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'medium',
+      '-crf',
+      '18',
+      '-pix_fmt',
+      'yuv420p',
+      '-r',
+      String(fps),
+      '-video_track_timescale',
+      '90000',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '192k',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      ...extra
+    )
+    await runCommand(ctx, args, out)
     normalized.push(out)
   }
 
@@ -403,15 +570,16 @@ async function concat(dir: string, inputPaths: string[]): Promise<FfmpegResult> 
     normalized.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n')
   )
   const outputPath = path.join(dir, 'out.mp4')
-  const concatCmd = ffmpeg()
-    .input(listPath)
-    .inputOptions(['-f', 'concat', '-safe', '0'])
-    .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
-  await runCommand(concatCmd, outputPath)
+  await runCommand(
+    ctx,
+    ['-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', '-movflags', '+faststart'],
+    outputPath
+  )
   return readOut(outputPath, 'mp4')
 }
 
 async function trim(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPath: string,
   input: MediaFile,
@@ -420,39 +588,117 @@ async function trim(
   const ext = extFromMime(input.mimeType)
   const outputPath = path.join(dir, `out.${ext}`)
   const start = options.start ?? 0
-  const command = ffmpeg(inputPath).setStartTime(start)
+  // Output-side -ss (after -i) preserves fluent-ffmpeg's setStartTime
+  // semantics: frame-accurate trim starts instead of keyframe-snapped ones.
+  const args = ['-i', inputPath, '-ss', String(start)]
   if (options.end !== undefined) {
-    command.setDuration(Math.max(0, options.end - start))
+    args.push('-t', String(Math.max(0, options.end - start)))
   }
-  await runCommand(command, outputPath)
+  await runCommand(ctx, args, outputPath)
   return readOut(outputPath, ext)
 }
 
+/**
+ * Fit a probed source frame inside the same budget `scale_pad` enforces.
+ *
+ * Clamping each axis on its own is not enough: two axes at the per-axis ceiling
+ * are 4096x4096, nearly double the area limit, and that target is baked into the
+ * same `scale=`/`pad=` graph. Scale the pair down together instead, so aspect
+ * ratio survives and one ceiling governs both entry points.
+ *
+ * Dimensions come back even because the normalization encodes yuv420p, which
+ * has no odd-sized frame.
+ */
+function clampProbedFrame(width: number, height: number): { width: number; height: number } {
+  let w = clampProbedAxis(width)
+  let h = clampProbedAxis(height)
+  const area = w * h
+  if (area > MAX_SCALE_PIXELS) {
+    const ratio = Math.sqrt(MAX_SCALE_PIXELS / area)
+    w = clampProbedAxis(w * ratio)
+    h = clampProbedAxis(h * ratio)
+  }
+  return { width: w, height: h }
+}
+
+/**
+ * Floors rather than rounds, which is what makes the area bound hold.
+ *
+ * The scale factor lands both axes on a product of exactly the budget, so any
+ * axis allowed to round *up* can put the pair back over it — and when both round
+ * up and both land even, nothing pulls them back. Flooring keeps each axis at or
+ * below its exact target, so the product cannot exceed the budget. Probed
+ * dimensions are already integers, so this only ever bites on the scaled path.
+ */
+function clampProbedAxis(value: number): number {
+  const bounded = Math.min(Math.max(Math.floor(value), MIN_SCALE_DIMENSION), MAX_SCALE_DIMENSION)
+  return bounded - (bounded % 2)
+}
+
+function resolveScaleDimension(value: number, label: string): number {
+  if (!Number.isFinite(value)) {
+    throw new Error(`scale_pad ${label} must be a finite number`)
+  }
+  const rounded = Math.round(value)
+  if (rounded < MIN_SCALE_DIMENSION || rounded > MAX_SCALE_DIMENSION) {
+    throw new Error(
+      `scale_pad ${label} must be between ${MIN_SCALE_DIMENSION} and ${MAX_SCALE_DIMENSION} pixels (received ${rounded})`
+    )
+  }
+  return rounded
+}
+
+/**
+ * Bound the scale targets before they reach the filter graph. libavfilter sizes
+ * its per-frame buffers from these numbers, so an unbounded pair — `scale=30000:30000`
+ * is ~2.7 GB a frame — is a multi-gigabyte allocation in a child process that
+ * shares the instance's memory, for every frame of the input.
+ */
 async function scalePad(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPath: string,
   options: FfmpegOptions
 ): Promise<FfmpegResult> {
-  let width = options.width
-  let height = options.height
-  if ((!width || !height) && options.aspectRatio && ASPECT_TARGETS[options.aspectRatio]) {
-    width = ASPECT_TARGETS[options.aspectRatio].w
-    height = ASPECT_TARGETS[options.aspectRatio].h
+  let requestedWidth = options.width
+  let requestedHeight = options.height
+  if (
+    (!requestedWidth || !requestedHeight) &&
+    options.aspectRatio &&
+    ASPECT_TARGETS[options.aspectRatio]
+  ) {
+    requestedWidth = ASPECT_TARGETS[options.aspectRatio].w
+    requestedHeight = ASPECT_TARGETS[options.aspectRatio].h
   }
-  if (!width || !height) {
+  if (!requestedWidth || !requestedHeight) {
     throw new Error('scale_pad requires width+height or a known aspectRatio (e.g. 9:16)')
   }
-  const outputPath = path.join(dir, 'out.mp4')
-  const command = ffmpeg(inputPath)
-    .videoFilters(
-      `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1`
+  const width = resolveScaleDimension(requestedWidth, 'width')
+  const height = resolveScaleDimension(requestedHeight, 'height')
+  if (width * height > MAX_SCALE_PIXELS) {
+    throw new Error(
+      `scale_pad ${width}x${height} is ${width * height} pixels, above the ${MAX_SCALE_PIXELS} pixel limit (4K). Choose a smaller frame`
     )
-    .outputOptions(['-c:a', 'copy'])
-  await runCommand(command, outputPath)
+  }
+
+  const outputPath = path.join(dir, 'out.mp4')
+  await runCommand(
+    ctx,
+    [
+      '-i',
+      inputPath,
+      '-vf',
+      `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
+      '-c:a',
+      'copy',
+    ],
+    outputPath
+  )
   return readOut(outputPath, 'mp4')
 }
 
 async function overlayImage(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPaths: string[],
   options: FfmpegOptions
@@ -460,16 +706,29 @@ async function overlayImage(
   if (inputPaths.length < 2) throw new Error('overlay_image requires [video, image]')
   const xy = OVERLAY_POSITION[options.position || 'top-right'] || OVERLAY_POSITION['top-right']
   const outputPath = path.join(dir, 'out.mp4')
-  const command = ffmpeg()
-    .input(inputPaths[0])
-    .input(inputPaths[1])
-    .complexFilter([`[0:v][1:v]overlay=${xy}[v]`])
-    .outputOptions(['-map', '[v]', '-map', '0:a?', '-c:a', 'copy'])
-  await runCommand(command, outputPath)
+  await runCommand(
+    ctx,
+    [
+      '-i',
+      inputPaths[0],
+      '-i',
+      inputPaths[1],
+      '-filter_complex',
+      `[0:v][1:v]overlay=${xy}[v]`,
+      '-map',
+      '[v]',
+      '-map',
+      '0:a?',
+      '-c:a',
+      'copy',
+    ],
+    outputPath
+  )
   return readOut(outputPath, 'mp4')
 }
 
 async function addText(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPath: string,
   options: FfmpegOptions
@@ -505,69 +764,81 @@ async function addText(
     `y=${pos.y}`,
   ].join(':')
   const outputPath = path.join(dir, 'out.mp4')
-  const command = ffmpeg(inputPath, { cwd: dir })
-    .videoFilters(`drawtext=${drawtext}`)
-    .outputOptions(['-c:a', 'copy'])
-  await runCommand(command, outputPath)
+  await runCommand(
+    ctx,
+    ['-i', inputPath, '-vf', `drawtext=${drawtext}`, '-c:a', 'copy'],
+    outputPath,
+    dir
+  )
   return readOut(outputPath, 'mp4')
 }
 
 async function fade(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPath: string,
   input: MediaFile,
   _options: FfmpegOptions
 ): Promise<FfmpegResult> {
-  const probe = await probeFile(inputPath)
+  const probe = await probeFile(ctx, inputPath)
   const duration = probe.durationSeconds || 0
   const fadeDur = Math.min(0.5, duration / 4 || 0.5)
   const outStart = Math.max(0, duration - fadeDur)
   const isVideo = input.mimeType.startsWith('video/') || probe.hasVideo
   const ext = isVideo ? 'mp4' : extFromMime(input.mimeType)
   const outputPath = path.join(dir, `out.${ext}`)
-  const command = ffmpeg(inputPath)
+  const args = ['-i', inputPath]
   if (isVideo) {
-    command.videoFilters([`fade=t=in:st=0:d=${fadeDur}`, `fade=t=out:st=${outStart}:d=${fadeDur}`])
+    args.push(
+      '-vf',
+      [`fade=t=in:st=0:d=${fadeDur}`, `fade=t=out:st=${outStart}:d=${fadeDur}`].join(',')
+    )
   }
-  command.audioFilters([`afade=t=in:st=0:d=${fadeDur}`, `afade=t=out:st=${outStart}:d=${fadeDur}`])
-  await runCommand(command, outputPath)
+  args.push(
+    '-af',
+    [`afade=t=in:st=0:d=${fadeDur}`, `afade=t=out:st=${outStart}:d=${fadeDur}`].join(',')
+  )
+  await runCommand(ctx, args, outputPath)
   return readOut(outputPath, ext)
 }
 
 async function extractAudio(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPath: string,
   options: FfmpegOptions
 ): Promise<FfmpegResult> {
   const ext = (options.format || 'mp3').toLowerCase()
-  const outputPath = path.join(dir, `out.${ext}`)
-  const command = ffmpeg(inputPath).noVideo()
-  await runCommand(command, outputPath)
+  const outputPath = outputPathForExt(dir, ext)
+  await runCommand(ctx, ['-i', inputPath, '-vn'], outputPath)
   return readOut(outputPath, ext)
 }
 
 async function convert(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPath: string,
   options: FfmpegOptions
 ): Promise<FfmpegResult> {
   if (!options.format) throw new Error('convert requires a target format')
   const ext = options.format.toLowerCase()
-  const outputPath = path.join(dir, `out.${ext}`)
-  await runCommand(ffmpeg(inputPath), outputPath)
+  const outputPath = outputPathForExt(dir, ext)
+  await runCommand(ctx, ['-i', inputPath], outputPath)
   return readOut(outputPath, ext)
 }
 
 async function thumbnail(
+  ctx: FfmpegRunContext,
   dir: string,
   inputPath: string,
   options: FfmpegOptions
 ): Promise<FfmpegResult> {
   const outputPath = path.join(dir, 'out.jpg')
-  const command = ffmpeg(inputPath)
-    .seekInput(options.start ?? 0)
-    .frames(1)
-  await runCommand(command, outputPath)
+  await runCommand(
+    ctx,
+    ['-ss', String(options.start ?? 0), '-i', inputPath, '-frames:v', '1'],
+    outputPath
+  )
   return readOut(outputPath, 'jpg')
 }
 

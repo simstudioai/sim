@@ -4,6 +4,7 @@ import { isLoopbackHostname } from '@sim/security/ssrf'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { s3ConnectorMeta } from '@/connectors/s3/meta'
@@ -523,7 +524,7 @@ async function listObjectsPage(
 
   const response = await secureFetchWithRetry(
     url,
-    { method: 'GET', headers, stripAuthOnRedirect: true },
+    { profile: 'configuredEndpoint', method: 'GET', headers, stripAuthOnRedirect: true },
     retryOptions
   )
 
@@ -616,6 +617,7 @@ export const s3Connector: ConnectorConfig = {
       const url = buildUrl(ctx, encodedPath, '')
 
       const response = await secureFetchWithRetry(url, {
+        profile: 'configuredEndpoint',
         method: 'GET',
         headers,
         stripAuthOnRedirect: true,
@@ -657,7 +659,7 @@ export const s3Connector: ConnectorConfig = {
           sizeLimitSkipReason(MAX_FILE_SIZE)
         )
       }
-      const raw = body.toString('utf-8')
+      const raw = decodeTextBuffer(body).text
       const content = MARKUP_EXTENSIONS.has(getExtension(key)) ? htmlToPlainText(raw) : raw
       if (!content.trim()) return null
 

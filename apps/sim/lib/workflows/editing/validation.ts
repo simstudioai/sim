@@ -1,0 +1,1990 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
+import { isPlainRecord, omit } from '@sim/utils/object'
+import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
+import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
+import {
+  FALLBACK_TUNING_KNOBS,
+  FALLBACK_TUNING_LABELS,
+  getTuningOptionsForModel,
+  isTuningValueValidForModel,
+  isWholeEnvVarReference,
+  MAX_FALLBACK_MODELS,
+  normalizeTuningValues,
+} from '@/lib/workflows/blocks/fallback-models'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
+import {
+  type ReferenceValidationOptions,
+  type SelectorReference,
+  validateSelectorIds,
+} from '@/lib/workflows/editing/selector-validator'
+import { containsReference } from '@/lib/workflows/sanitization/references'
+import { getSkillById } from '@/lib/workflows/skills/operations'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
+import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
+import { getBlock } from '@/blocks/registry'
+import type { SubBlockConfig } from '@/blocks/types'
+import { getModelOptions } from '@/blocks/utils'
+import { overlayVisibility } from '@/blocks/visibility/context'
+import { BlockType, EDGE, normalizeName } from '@/executor/constants'
+import {
+  getHostedModels,
+  isAutoModel,
+  isCustomModelId,
+  isKnownModelId,
+  suggestModelIdsForUnknownModel,
+} from '@/providers/models'
+import { isPiByokOnlyMode } from '@/providers/pi-providers'
+import { getTool } from '@/tools/utils'
+import {
+  TRIGGER_ROUTING_FIELD,
+  TRIGGER_RUNTIME_SUBBLOCK_IDS,
+  TRIGGER_WEBHOOK_URL_FIELD,
+} from '@/triggers/constants'
+import type {
+  EdgeHandleValidationResult,
+  EditWorkflowOperation,
+  ValidationError,
+  ValidationResult,
+  ValueValidationResult,
+} from './types'
+import { SELECTOR_TYPES } from './types'
+
+const validationLogger = createLogger('EditWorkflowValidation')
+const agentToolLintLogger = createLogger('EditWorkflowAgentToolLint')
+
+/**
+ * Finds an existing block with the same normalized name.
+ */
+export function findBlockWithDuplicateNormalizedName(
+  blocks: Record<string, any>,
+  name: string,
+  excludeBlockId: string
+): [string, any] | undefined {
+  const normalizedName = normalizeName(name)
+  return Object.entries(blocks).find(
+    ([blockId, block]: [string, any]) =>
+      blockId !== excludeBlockId && normalizeName(block.name || '') === normalizedName
+  )
+}
+
+/**
+ * The input keys the edit engine actually writes onto a container block's
+ * `data`.
+ *
+ * `loop` and `parallel` are not registry blocks, so without this they fell
+ * through to the unknown-block-type branch, which returns every supplied key as
+ * valid. The engine then wrote only the keys it recognises and discarded the
+ * rest without a word, so a caller who guessed `count` instead of `iterations`
+ * was told the edit applied while the loop kept its old bound — and `atomic`,
+ * which refuses on exactly these errors, had nothing to refuse on.
+ */
+const CONTAINER_BLOCK_INPUT_FIELDS: Record<'loop' | 'parallel', ReadonlySet<string>> = {
+  loop: new Set(['loopType', 'iterations', 'collection', 'condition']),
+  parallel: new Set(['parallelType', 'count', 'collection']),
+}
+
+function isContainerBlockType(blockType: string): blockType is 'loop' | 'parallel' {
+  return blockType === 'loop' || blockType === 'parallel'
+}
+
+/**
+ * Validates and filters inputs against a block's subBlock configuration
+ * Returns valid inputs and any validation errors encountered
+ */
+export function validateInputsForBlock(
+  blockType: string,
+  inputs: Record<string, any>,
+  blockId: string,
+  existingValues: Record<string, unknown> = {},
+  enforceToolBindingContract = false
+): ValidationResult {
+  const errors: ValidationError[] = []
+
+  // Synthesized by sanitizeForCopilot in the read view; derived, never stored.
+  // Rejected before the unknown-block-type early return below so it can never be
+  // written regardless of block type.
+  if (TRIGGER_WEBHOOK_URL_FIELD in inputs) {
+    errors.push({
+      blockId,
+      blockType,
+      field: TRIGGER_WEBHOOK_URL_FIELD,
+      value: inputs[TRIGGER_WEBHOOK_URL_FIELD],
+      error: `"${TRIGGER_WEBHOOK_URL_FIELD}" is read-only. The webhook URL is auto-assigned by Sim and cannot be changed by the agent or the user.`,
+    })
+    inputs = omit(inputs, [TRIGGER_WEBHOOK_URL_FIELD])
+  }
+
+  if (TRIGGER_ROUTING_FIELD in inputs) {
+    errors.push({
+      blockId,
+      blockType,
+      field: TRIGGER_ROUTING_FIELD,
+      value: inputs[TRIGGER_ROUTING_FIELD],
+      error: `"${TRIGGER_ROUTING_FIELD}" is read-only. Event routing is derived from the selected credential and cannot be edited on the block.`,
+    })
+    inputs = omit(inputs, [TRIGGER_ROUTING_FIELD])
+  }
+
+  if (isContainerBlockType(blockType)) {
+    const containerFields = CONTAINER_BLOCK_INPUT_FIELDS[blockType]
+    const containerInputs: Record<string, any> = {}
+    for (const [key, value] of Object.entries(inputs)) {
+      if (containerFields.has(key)) {
+        containerInputs[key] = value
+        continue
+      }
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Unknown input field "${key}" for block type "${blockType}" (expected one of: ${[...containerFields].join(', ')})`,
+      })
+    }
+    return { validInputs: containerInputs, errors }
+  }
+
+  const blockConfig = getBlock(blockType)
+
+  if (!blockConfig) {
+    // Unknown block type - return inputs as-is (let it fail later if invalid)
+    validationLogger.warn(`Unknown block type: ${blockType}, skipping validation`)
+    return { validInputs: inputs, errors }
+  }
+
+  const validatedInputs: Record<string, any> = {}
+  const subBlockMap = new Map<string, SubBlockConfig[]>()
+  const conditionValues = { ...existingValues, ...inputs }
+
+  for (const subBlock of blockConfig.subBlocks) {
+    const variants = subBlockMap.get(subBlock.id) ?? []
+    variants.push(subBlock)
+    subBlockMap.set(subBlock.id, variants)
+  }
+
+  for (const [key, value] of Object.entries(inputs)) {
+    // Skip runtime subblock IDs
+    if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
+      continue
+    }
+
+    const variants = subBlockMap.get(key)
+    let subBlockConfig = variants?.at(-1)
+    if (variants && variants.length > 1) {
+      for (const variant of variants) {
+        if (evaluateSubBlockCondition(variant.condition, conditionValues)) {
+          subBlockConfig = variant
+        }
+      }
+    }
+
+    // If subBlock doesn't exist in config, report it rather than dropping it
+    if (!subBlockConfig) {
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Unknown input field "${key}" for block type "${blockType}"`,
+      })
+      continue
+    }
+
+    // Display-only fields (e.g. webhookUrlDisplay, samplePayload) are computed or
+    // static in the UI; a written value would be dead state the UI never shows.
+    if (subBlockConfig.readOnly === true) {
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Field "${key}" on block type "${blockType}" is a read-only display field and cannot be set`,
+      })
+      continue
+    }
+
+    if (subBlockConfig.hideFromCopilot === true) {
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Field "${key}" on block type "${blockType}" is server-managed and cannot be set by Copilot`,
+      })
+      continue
+    }
+
+    /**
+     * Conditions choose the schema when an ID has multiple declarations. Keep
+     * accepting dormant fields: if no variant matches, use the existing last
+     * declaration fallback. Missing selector values are not inferred defaults.
+     */
+
+    if (enforceToolBindingContract && subBlockConfig.type === 'tool-input') {
+      const error = validateToolBindingAuthoring(blockType, value, existingValues[key])
+      if (error) {
+        errors.push({ blockId, blockType, field: key, value, error })
+        continue
+      }
+    }
+
+    // Validate value based on subBlock type
+    const validationResult = validateValueForSubBlockType(
+      subBlockConfig,
+      value,
+      key,
+      blockType,
+      blockId
+    )
+    if (validationResult.valid) {
+      validatedInputs[key] = validationResult.value
+    } else if (validationResult.error) {
+      errors.push(validationResult.error)
+    }
+  }
+
+  return { validInputs: validatedInputs, errors }
+}
+
+/** Tool-entry `type` values that are valid but are not registry block types. */
+const KNOWN_NON_BLOCK_TOOL_TYPES = new Set(['custom-tool', 'mcp', 'workflow'])
+
+/**
+ * Validates a single entry in an agent block's `tools` (tool-input) array and
+ * returns a human-readable error string for LLM feedback, or null when valid.
+ *
+ * Targets the shapes that silently fail to attach (the entry is stored but the
+ * wrench icon never renders and/or the runtime drops the tool so the agent never
+ * sees it): a custom tool missing `type: 'custom-tool'`, a custom tool with
+ * neither `customToolId` nor an inline `schema.function`, an MCP tool missing
+ * its `params.serverId`/`params.toolName`, a raw OpenAI function schema pasted
+ * into the array, and unrecognized tool types.
+ */
+function validateAgentToolEntry(item: any, index: number): string | null {
+  const where = `tools[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be a tool object`
+  }
+
+  const type = item.type
+
+  // Raw OpenAI function schema pasted directly into the array (common mistake).
+  // Keyed on type === 'function' (OpenAI's exact discriminator) so a real
+  // integration tool that happens to carry a `function` property is not
+  // misreported here - it falls through to the block-type check below.
+  if (
+    type === 'function' &&
+    item.function &&
+    typeof item.function === 'object' &&
+    typeof item.function.name === 'string'
+  ) {
+    return `${where} looks like a raw function schema. A custom tool must be {"type":"custom-tool","customToolId":"<id>"} (preferred) or {"type":"custom-tool","schema":{"type":"function","function":{...}},"code":"..."}`
+  }
+
+  if (typeof type !== 'string' || type.trim() === '') {
+    return `${where} is missing a string "type". Custom tools require "type":"custom-tool" (without it the tool will not attach or show its icon); use "mcp" for MCP tools or an integration block type (e.g. "exa") otherwise`
+  }
+
+  if (
+    type === MCP_SERVER_ADVANCED_TOOL_TYPE &&
+    item.operationPolicy !== undefined &&
+    !mcpOperationPolicySchema.safeParse(item.operationPolicy).success
+  ) {
+    return `${where} has an invalid MCP operations access policy`
+  }
+
+  if (type === 'custom-tool') {
+    const hasReference = typeof item.customToolId === 'string' && item.customToolId.trim() !== ''
+    const fn = item.schema?.function
+    const hasInlineSchema =
+      !!fn &&
+      typeof fn.name === 'string' &&
+      fn.name.trim() !== '' &&
+      !!fn.parameters &&
+      typeof fn.parameters === 'object'
+    if (!hasReference && !hasInlineSchema) {
+      return `${where} (custom-tool) must include "customToolId" (the "id" from agent/custom-tools/{name}.json - not the filename, not schema.function.name) or an inline "schema.function" with "name" and "parameters"`
+    }
+    return null
+  }
+
+  if (type === 'mcp') {
+    const serverId = item.params?.serverId
+    const toolName = item.params?.toolName
+    const ok =
+      typeof serverId === 'string' &&
+      serverId.trim() !== '' &&
+      typeof toolName === 'string' &&
+      toolName.trim() !== ''
+    if (!ok) {
+      return `${where} (mcp) must include params.serverId and params.toolName`
+    }
+    return null
+  }
+
+  if (type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+    const serverId = item.params?.serverId
+    if (typeof serverId !== 'string' || !serverId.trim()) {
+      return `${where} (${MCP_SERVER_ADVANCED_TOOL_TYPE}) must include params.serverId`
+    }
+    return null
+  }
+
+  // Integration/block-based tool: the type must be a real registry block that
+  // actually exposes callable tools. A known block with an empty tools.access
+  // (control-flow blocks like condition/loop/parallel/router, or the agent block
+  // itself) can't attach as an agent tool, so the addition would not apply
+  // correctly even though the type "exists".
+  if (!KNOWN_NON_BLOCK_TOOL_TYPES.has(type)) {
+    const block = getBlock(type)
+    if (!block) {
+      return `${where} has unrecognized tool type "${type}". Use "custom-tool" for custom tools, "mcp" for MCP tools, or a valid integration block type`
+    }
+    if (!Array.isArray(block.tools?.access) || block.tools.access.length === 0) {
+      return `${where} block type "${type}" cannot be attached as an agent tool (it exposes no callable tools)`
+    }
+    if (!isIntegrationDeploymentAvailableForVisibility(type, overlayVisibility())) {
+      return `${where} block type "${type}" is unavailable in this deployment`
+    }
+
+    const operationConfig = block.subBlocks?.find((subBlock) => subBlock.id === 'operation')
+    if (operationConfig?.options) {
+      let validOperations: string[]
+      try {
+        const options =
+          typeof operationConfig.options === 'function'
+            ? operationConfig.options()
+            : operationConfig.options
+        validOperations = options.map((option) => option.id)
+      } catch (error) {
+        return `${where} could not validate operations for block type "${type}": ${toError(error).message}`
+      }
+
+      const operation = item.operation
+      if (
+        validOperations.length > 1 &&
+        (typeof operation !== 'string' || operation.trim() === '')
+      ) {
+        return `${where} block type "${type}" requires an operation. Valid operations: ${validOperations.join(', ')}`
+      }
+      if (
+        operation !== undefined &&
+        (typeof operation !== 'string' || !validOperations.includes(operation))
+      ) {
+        return `${where} block type "${type}" has invalid operation "${String(operation)}". Valid operations: ${validOperations.join(', ')}. Use one of the block operation ids above; it may differ from the underlying tool id.`
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Validates a single entry in an agent block's `skills` (skill-input) array.
+ * Skills are a SEPARATE array from tools; each entry references a workspace or
+ * builtin skill by `skillId`. Returns an error string or null when valid.
+ */
+function validateAgentSkillEntry(item: any, index: number): string | null {
+  const where = `skills[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be a skill object like {"skillId":"<id>","name":"<name>"}`
+  }
+  if (typeof item.skillId !== 'string' || item.skillId.trim() === '') {
+    if (typeof item.id === 'string') {
+      return `${where} uses "id" but skills require "skillId" (the "id" from agent/skills/{name}.json)`
+    }
+    if (typeof item.type === 'string' || item.schema || item.customToolId) {
+      return `${where} looks like a tool entry. Skills go in the SEPARATE "skills" array and need only {"skillId":"<id>"} - no "type"/"schema"/"customToolId"`
+    }
+    return `${where} must include "skillId" (the "id" from agent/skills/{name}.json)`
+  }
+  return null
+}
+
+/** Parses a JSON-string array input; any other value passes through to the array check. */
+function parseArrayInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+const ROUTER_ROUTE_KEYS: ReadonlySet<string> = new Set(['id', 'title', 'value'])
+const ROUTER_ROUTE_SHAPE =
+  'a route is {id?, title, value}; "value" holds the description the model reads'
+
+/**
+ * Validates one router route against the shape the runtime reads.
+ *
+ * `generateRouterV2Prompt` shows the model each route's `value` as its
+ * description, so a route that carries the description under another key
+ * (`description`, `prompt`) is stored intact yet presented as having no
+ * description at all, and every request falls through to the first route.
+ * The stray key is named so the caller can see what to rename; `id` is
+ * optional because the engine rewrites route ids on write.
+ *
+ * Unknown keys are only named when `value` is unusable: the editor persists
+ * its own UI state (`showTags`, cursor position) beside the three keys, so a
+ * stored route echoed back must not be refused for carrying it.
+ */
+function validateRouterRouteEntry(route: unknown, index: number): string | null {
+  const where = `Invalid route at index ${index}`
+  if (route === null || typeof route !== 'object' || Array.isArray(route)) {
+    return `${where}: expected an object — ${ROUTER_ROUTE_SHAPE}`
+  }
+
+  const record = route as Record<string, unknown>
+  const problems: string[] = []
+  if (typeof record.title !== 'string' || record.title.trim() === '') {
+    problems.push('"title" must be a non-empty string')
+  }
+  if (typeof record.value !== 'string' || record.value.trim() === '') {
+    problems.push(
+      record.value === undefined ? 'missing "value"' : '"value" must be a non-empty string'
+    )
+    const unknownKeys = Object.keys(record).filter((key) => !ROUTER_ROUTE_KEYS.has(key))
+    if (unknownKeys.length > 0) {
+      const keys = unknownKeys.map((key) => `"${key}"`).join(', ')
+      problems.push(`unknown ${unknownKeys.length === 1 ? 'key' : 'keys'} ${keys}`)
+    }
+  }
+  if (problems.length === 0) return null
+  return `${where}: ${problems.join(', ')} — ${ROUTER_ROUTE_SHAPE}`
+}
+
+/**
+ * Validates one fallback-model row. Returns an error string or null when valid.
+ *
+ * Refuses rather than repairs: an unknown model, sim-auto, or a raw key is an
+ * authoring mistake the caller must see. A missing React-key `id` is the one
+ * thing filled in, since it carries no meaning.
+ */
+function validateFallbackModelEntry(item: any, index: number): string | null {
+  const where = `fallbackModels[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be an object { model, apiKey? }`
+  }
+  const model = typeof item.model === 'string' ? item.model.trim() : ''
+  if (model === '') {
+    return `${where} is missing a string "model"`
+  }
+  if (isAutoModel(model)) {
+    return `${where}: sim-auto cannot be a fallback model; it already routes and falls back on its own`
+  }
+  if (!isKnownModelId(model) && !isCustomModelId(model)) {
+    const suggestions = suggestModelIdsForUnknownModel(model)
+    const suggestionText =
+      suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+    return `${where}: unknown model id "${model}".${suggestionText}`
+  }
+  if (item.apiKey !== undefined && item.apiKey !== null && item.apiKey !== '') {
+    if (!isWholeEnvVarReference(item.apiKey)) {
+      return `${where}.apiKey must be a whole {{ENV_VAR}} reference; put the key in an environment variable instead of pasting it`
+    }
+  }
+  for (const knob of FALLBACK_TUNING_KNOBS) {
+    const value = item[knob]
+    if (value === undefined || value === null || value === '') continue
+    if (typeof value !== 'string' || !isTuningValueValidForModel(model, knob, value)) {
+      const options = getTuningOptionsForModel(model, knob)
+      const hint = options
+        ? ` Valid options: ${options.join(', ')}.`
+        : ` ${model} has no such setting.`
+      return `${where}.${knob}: "${String(value)}" is not a ${FALLBACK_TUNING_LABELS[knob].toLowerCase()} option for ${model}.${hint}`
+    }
+  }
+  return null
+}
+
+/**
+ * Validates a value against its expected subBlock type
+ * Returns validation result with the value or an error
+ */
+export function validateValueForSubBlockType(
+  subBlockConfig: SubBlockConfig,
+  value: any,
+  fieldName: string,
+  blockType: string,
+  blockId: string
+): ValueValidationResult {
+  const { type } = subBlockConfig
+
+  // Handle null/undefined - allow clearing fields
+  if (value === null || value === undefined) {
+    return { valid: true, value }
+  }
+
+  switch (type) {
+    case 'dropdown': {
+      // Validate against allowed options
+      const options =
+        typeof subBlockConfig.options === 'function'
+          ? subBlockConfig.options()
+          : subBlockConfig.options
+      if (options && Array.isArray(options)) {
+        const validIds = options.map((opt) => opt.id)
+        const values = subBlockConfig.multiSelect && Array.isArray(value) ? value : [value]
+        const isEmptyRequiredMultiSelect =
+          subBlockConfig.multiSelect && subBlockConfig.required && values.length === 0
+        if (isEmptyRequiredMultiSelect || values.some((item) => !validIds.includes(item))) {
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Invalid dropdown value "${value}" for field "${fieldName}". Valid options: ${validIds.join(', ')}`,
+            },
+          }
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'slider': {
+      // Validate numeric range
+      const numValue = typeof value === 'number' ? value : Number(value)
+      if (Number.isNaN(numValue)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid slider value "${value}" for field "${fieldName}" - must be a number`,
+          },
+        }
+      }
+      // Clamp to range (allow but warn)
+      let clampedValue = numValue
+      if (subBlockConfig.min !== undefined && numValue < subBlockConfig.min) {
+        clampedValue = subBlockConfig.min
+      }
+      if (subBlockConfig.max !== undefined && numValue > subBlockConfig.max) {
+        clampedValue = subBlockConfig.max
+      }
+      return {
+        valid: true,
+        value: subBlockConfig.integer ? Math.round(clampedValue) : clampedValue,
+      }
+    }
+
+    case 'switch': {
+      // Must be boolean
+      if (typeof value !== 'boolean') {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid switch value "${value}" for field "${fieldName}" - must be true or false`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'file-upload': {
+      // File upload should be an object with specific properties or null
+      if (value === null) return { valid: true, value: null }
+      if (typeof value !== 'object') {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid file-upload value for field "${fieldName}" - expected object with name and path properties, or null`,
+          },
+        }
+      }
+      // Validate file object has required properties
+      if (value && (!value.name || !value.path)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid file-upload object for field "${fieldName}" - must have "name" and "path" properties`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'input-format':
+    case 'table': {
+      // Should be an array
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid ${type} value for field "${fieldName}" - expected an array`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'router-input': {
+      const parsedValue = parseArrayInput(value)
+      if (!Array.isArray(parsedValue)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid ${type} value for field "${fieldName}" - expected a JSON array`,
+          },
+        }
+      }
+
+      const routeErrors = parsedValue
+        .map((route: unknown, index: number) => validateRouterRouteEntry(route, index))
+        .filter((err): err is string => err !== null)
+      if (routeErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: routeErrors.join('; '),
+          },
+        }
+      }
+
+      return { valid: true, value }
+    }
+
+    case 'condition-input':
+    case 'knowledge-tag-filters':
+    case 'document-tag-entry': {
+      const parsedValue = parseArrayInput(value)
+      if (!Array.isArray(parsedValue)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid ${type} value for field "${fieldName}" - expected a JSON array`,
+          },
+        }
+      }
+
+      return { valid: true, value }
+    }
+
+    case 'tool-input': {
+      // Should be an array of tool objects
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid tool-input value for field "${fieldName}" - expected an array of tool objects`,
+          },
+        }
+      }
+      const toolErrors = value
+        .map((item, index) => validateAgentToolEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (toolErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid tool ${toolErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${toolErrors.join('; ')}`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'model-fallback-list': {
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid model-fallback-list value for field "${fieldName}" - expected an array of { model, apiKey? } objects`,
+          },
+        }
+      }
+      if (value.length > MAX_FALLBACK_MODELS) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `"${fieldName}" allows at most ${MAX_FALLBACK_MODELS} fallback models`,
+          },
+        }
+      }
+      const fallbackErrors = value
+        .map((item, index) => validateFallbackModelEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (fallbackErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid fallback ${fallbackErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${fallbackErrors.join('; ')}`,
+          },
+        }
+      }
+      return {
+        valid: true,
+        value: value.map((item: Record<string, unknown> & { model: string }) => ({
+          id: typeof item.id === 'string' && item.id ? item.id : generateShortId(),
+          model: item.model.trim(),
+          ...(isWholeEnvVarReference(item.apiKey) ? { apiKey: item.apiKey.trim() } : {}),
+          ...normalizeTuningValues(item),
+        })),
+      }
+    }
+
+    case 'skill-input': {
+      // Should be an array of skill reference objects ({ skillId, name? })
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid skill-input value for field "${fieldName}" - expected an array of skill objects`,
+          },
+        }
+      }
+      const skillErrors = value
+        .map((item, index) => validateAgentSkillEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (skillErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid skill ${skillErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${skillErrors.join('; ')}`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'code': {
+      // A JSON-language code field holds a document, and callers naturally hand
+      // that document over as an object or array; store the JSON text the editor
+      // shows and the block's runtime parses.
+      if (subBlockConfig.language === 'json' && typeof value === 'object') {
+        return { valid: true, value: JSON.stringify(value) }
+      }
+      // Code must be a string (content can be JS, Python, JSON, SQL, HTML, etc.)
+      if (typeof value !== 'string') {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid code value for field "${fieldName}" - expected a string, got ${typeof value}`,
+          },
+        }
+      }
+      return { valid: true, value }
+    }
+
+    case 'response-format': {
+      // Allow empty/null
+      if (value === null || value === undefined || value === '') {
+        return { valid: true, value }
+      }
+      // Allow objects (will be stringified later by normalizeResponseFormat)
+      if (typeof value === 'object') {
+        return { valid: true, value }
+      }
+      // If string, must be valid JSON
+      if (typeof value === 'string') {
+        try {
+          JSON.parse(value)
+          return { valid: true, value }
+        } catch {
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Invalid response-format value for field "${fieldName}" - string must be valid JSON`,
+            },
+          }
+        }
+      }
+      // Reject numbers, booleans, etc.
+      return {
+        valid: false,
+        error: {
+          blockId,
+          blockType,
+          field: fieldName,
+          value,
+          error: `Invalid response-format value for field "${fieldName}" - expected a JSON string or object`,
+        },
+      }
+    }
+
+    case 'short-input':
+    case 'long-input':
+    case 'combobox': {
+      const usesProviderCatalog =
+        fieldName === 'model' && subBlockConfig.options === getModelOptions
+
+      if (usesProviderCatalog) {
+        const stringValue = typeof value === 'string' ? value : String(value)
+        const trimmed = stringValue.trim()
+        // sim-auto is a valid model value on hosted Sim only (mirrors the
+        // options array the agent reads: it is absent from self-hosted
+        // snapshots, so writes of it there are rejected as unknown).
+        if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
+          return { valid: true, value: trimmed.toLowerCase() }
+        }
+        if (trimmed !== '' && !isKnownModelId(trimmed) && !isCustomModelId(trimmed)) {
+          const suggestions = suggestModelIdsForUnknownModel(trimmed)
+          const suggestionText =
+            suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models, use a supported provider namespace, e.g. "azure/my-deployment", "azure-anthropic/my-deployment", "bedrock/my-inference-profile", "vertex/my-model", "ollama/llama3.1:8b", or "openrouter/provider/model".${suggestionText}`,
+            },
+          }
+        }
+        return { valid: true, value: trimmed }
+      }
+
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        return { valid: true, value: String(value) }
+      }
+      return { valid: true, value }
+    }
+
+    // Selector types - allow strings (IDs) or arrays of strings
+    case 'oauth-input':
+    case 'knowledge-base-selector':
+    case 'document-selector':
+    case 'file-selector':
+    case 'project-selector':
+    case 'channel-selector':
+    case 'folder-selector':
+    case 'mcp-server-selector':
+    case 'mcp-tool-selector':
+    case 'workflow-selector': {
+      if (subBlockConfig.multiSelect && Array.isArray(value)) {
+        return { valid: true, value }
+      }
+      if (typeof value === 'string') {
+        return { valid: true, value }
+      }
+      return {
+        valid: false,
+        error: {
+          blockId,
+          blockType,
+          field: fieldName,
+          value,
+          error: `Invalid selector value for field "${fieldName}" - expected a string${subBlockConfig.multiSelect ? ' or array of strings' : ''}`,
+        },
+      }
+    }
+
+    default:
+      // For unknown types, pass through
+      return { valid: true, value }
+  }
+}
+
+/**
+ * Validates source handle is valid for the block type
+ */
+export function validateSourceHandleForBlock(
+  sourceHandle: string,
+  sourceBlockType: string,
+  sourceBlock: any
+): EdgeHandleValidationResult {
+  if (sourceHandle === 'error') {
+    return { valid: true }
+  }
+
+  switch (sourceBlockType) {
+    case 'loop':
+      if (sourceHandle === 'loop-start-source' || sourceHandle === 'loop-end-source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for loop block. Valid handles: loop-start-source, loop-end-source, error`,
+      }
+
+    case 'parallel':
+      if (sourceHandle === 'parallel-start-source' || sourceHandle === 'parallel-end-source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for parallel block. Valid handles: parallel-start-source, parallel-end-source, error`,
+      }
+
+    case 'condition': {
+      const conditionsValue = sourceBlock?.subBlocks?.conditions?.value
+      if (!conditionsValue) {
+        return {
+          valid: false,
+          error: `Invalid condition handle "${sourceHandle}" - no conditions defined`,
+        }
+      }
+
+      // validateConditionHandle accepts simple format (if, else-if-0, else),
+      // legacy format (condition-{blockId}-if), and internal ID format (condition-{uuid})
+      return validateConditionHandle(sourceHandle, sourceBlock.id, conditionsValue)
+    }
+
+    case 'router':
+      if (sourceHandle === 'source' || sourceHandle.startsWith(EDGE.ROUTER_PREFIX)) {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for router block. Valid handles: source, ${EDGE.ROUTER_PREFIX}{targetId}, error`,
+      }
+
+    case 'router_v2': {
+      const routesValue = sourceBlock?.subBlocks?.routes?.value
+      if (!routesValue) {
+        return {
+          valid: false,
+          error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+        }
+      }
+
+      // validateRouterHandle accepts simple format (route-0, route-1),
+      // legacy format (router-{blockId}-route-1), and internal ID format (router-{uuid})
+      return validateRouterHandle(sourceHandle, sourceBlock.id, routesValue)
+    }
+
+    default:
+      if (sourceHandle === 'source') {
+        return { valid: true }
+      }
+      return {
+        valid: false,
+        error: `Invalid source handle "${sourceHandle}" for ${sourceBlockType} block. Valid handles: source, error`,
+      }
+  }
+}
+
+/**
+ * Validates condition handle references a valid condition in the block.
+ * Accepts multiple formats:
+ * - Simple format: "if", "else-if-0", "else-if-1", "else"
+ * - Legacy semantic format: "condition-{blockId}-if", "condition-{blockId}-else-if"
+ * - Internal ID format: "condition-{conditionId}"
+ *
+ * Returns the normalized handle (condition-{conditionId}) for storage.
+ */
+export function validateConditionHandle(
+  sourceHandle: string,
+  blockId: string,
+  conditionsValue: string | any[]
+): EdgeHandleValidationResult {
+  let conditions: any[]
+  if (typeof conditionsValue === 'string') {
+    try {
+      conditions = JSON.parse(conditionsValue)
+    } catch {
+      return {
+        valid: false,
+        error: `Cannot validate condition handle "${sourceHandle}" - conditions is not valid JSON`,
+      }
+    }
+  } else if (Array.isArray(conditionsValue)) {
+    conditions = conditionsValue
+  } else {
+    return {
+      valid: false,
+      error: `Cannot validate condition handle "${sourceHandle}" - conditions is not an array`,
+    }
+  }
+
+  if (!Array.isArray(conditions) || conditions.length === 0) {
+    return {
+      valid: false,
+      error: `Invalid condition handle "${sourceHandle}" - no conditions defined`,
+    }
+  }
+
+  // Build a map of all valid handle formats -> normalized handle (condition-{conditionId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `condition-${blockId}-`
+  let elseIfIndex = 0
+
+  for (const condition of conditions) {
+    if (!condition.id) continue
+
+    const normalizedHandle = `condition-${condition.id}`
+    const title = condition.title?.toLowerCase()
+
+    // Always accept internal ID format
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    if (title === 'if') {
+      // Simple format: "if"
+      handleToNormalized.set('if', normalizedHandle)
+      // Legacy format: "condition-{blockId}-if"
+      handleToNormalized.set(`${legacySemanticPrefix}if`, normalizedHandle)
+    } else if (title === 'else if') {
+      // Simple format: "else-if-0", "else-if-1", etc. (0-indexed)
+      handleToNormalized.set(`else-if-${elseIfIndex}`, normalizedHandle)
+      // Legacy format: "condition-{blockId}-else-if" for first, "condition-{blockId}-else-if-2" for second
+      if (elseIfIndex === 0) {
+        handleToNormalized.set(`${legacySemanticPrefix}else-if`, normalizedHandle)
+      } else {
+        handleToNormalized.set(
+          `${legacySemanticPrefix}else-if-${elseIfIndex + 1}`,
+          normalizedHandle
+        )
+      }
+      elseIfIndex++
+    } else if (title === 'else') {
+      // Simple format: "else"
+      handleToNormalized.set('else', normalizedHandle)
+      // Legacy format: "condition-{blockId}-else"
+      handleToNormalized.set(`${legacySemanticPrefix}else`, normalizedHandle)
+    }
+  }
+
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
+  }
+
+  // Build list of valid simple format options for error message
+  const simpleOptions: string[] = []
+  elseIfIndex = 0
+  for (const condition of conditions) {
+    const title = condition.title?.toLowerCase()
+    if (title === 'if') {
+      simpleOptions.push('if')
+    } else if (title === 'else if') {
+      simpleOptions.push(`else-if-${elseIfIndex}`)
+      elseIfIndex++
+    } else if (title === 'else') {
+      simpleOptions.push('else')
+    }
+  }
+
+  return {
+    valid: false,
+    error: `Invalid condition handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
+  }
+}
+
+/**
+ * Validates router handle references a valid route in the block.
+ * Accepts multiple formats:
+ * - Simple format: "route-0", "route-1", "route-2" (0-indexed)
+ * - Legacy semantic format: "router-{blockId}-route-1" (1-indexed)
+ * - Internal ID format: "router-{routeId}"
+ *
+ * Returns the normalized handle (router-{routeId}) for storage.
+ */
+export function validateRouterHandle(
+  sourceHandle: string,
+  blockId: string,
+  routesValue: string | any[]
+): EdgeHandleValidationResult {
+  let routes: any[]
+  if (typeof routesValue === 'string') {
+    try {
+      routes = JSON.parse(routesValue)
+    } catch {
+      return {
+        valid: false,
+        error: `Cannot validate router handle "${sourceHandle}" - routes is not valid JSON`,
+      }
+    }
+  } else if (Array.isArray(routesValue)) {
+    routes = routesValue
+  } else {
+    return {
+      valid: false,
+      error: `Cannot validate router handle "${sourceHandle}" - routes is not an array`,
+    }
+  }
+
+  if (!Array.isArray(routes) || routes.length === 0) {
+    return {
+      valid: false,
+      error: `Invalid router handle "${sourceHandle}" - no routes defined`,
+    }
+  }
+
+  // Build a map of all valid handle formats -> normalized handle (router-{routeId})
+  const handleToNormalized = new Map<string, string>()
+  const legacySemanticPrefix = `router-${blockId}-`
+
+  for (let i = 0; i < routes.length; i++) {
+    const route = routes[i]
+    if (!route.id) continue
+
+    const normalizedHandle = `router-${route.id}`
+
+    // Always accept internal ID format: router-{uuid}
+    handleToNormalized.set(normalizedHandle, normalizedHandle)
+
+    // Simple format: route-0, route-1, etc. (0-indexed)
+    handleToNormalized.set(`route-${i}`, normalizedHandle)
+
+    // Legacy 1-indexed route number format: router-{blockId}-route-1
+    handleToNormalized.set(`${legacySemanticPrefix}route-${i + 1}`, normalizedHandle)
+
+    // Accept normalized title format: router-{blockId}-{normalized-title}
+    if (route.title && typeof route.title === 'string') {
+      const normalizedTitle = route.title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+      if (normalizedTitle) {
+        handleToNormalized.set(`${legacySemanticPrefix}${normalizedTitle}`, normalizedHandle)
+      }
+    }
+  }
+
+  const normalizedHandle = handleToNormalized.get(sourceHandle)
+  if (normalizedHandle) {
+    return { valid: true, normalizedHandle }
+  }
+
+  // Build list of valid simple format options for error message
+  const simpleOptions = routes.map((_, i) => `route-${i}`)
+
+  return {
+    valid: false,
+    error: `Invalid router handle "${sourceHandle}". Valid handles: ${simpleOptions.join(', ')}`,
+  }
+}
+
+/**
+ * Validates target handle is valid (must be 'target')
+ */
+export function validateTargetHandle(targetHandle: string): EdgeHandleValidationResult {
+  if (targetHandle === 'target') {
+    return { valid: true }
+  }
+  return {
+    valid: false,
+    error: `Invalid target handle "${targetHandle}". Expected "target"`,
+  }
+}
+
+/**
+ * Whether a block may be added to a graph by this viewer.
+ *
+ * Two questions, not one: whether the viewer can see the block at all
+ * (deployment visibility — an unrevealed preview block, a kill-switched type)
+ * and whether their permission group's integration allowlist permits it.
+ * Refusing to *add* something a viewer cannot see is right.
+ *
+ * Refusing to *store* it is not, which is why the persist-time guard in
+ * `@/lib/workflows/persistence/block-access-guard` checks the allowlist alone:
+ * a graph exported before a block was gated must still save.
+ */
+export function isBlockTypeAllowed(
+  blockType: string,
+  permissionConfig: PermissionGroupConfig | null
+): boolean {
+  if (!isIntegrationDeploymentAvailableForVisibility(blockType, overlayVisibility())) return false
+  if (isBlockTypeAccessControlExempt(blockType)) {
+    return true
+  }
+  if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
+    return true
+  }
+  return permissionConfig.allowedIntegrations.includes(
+    resolveAccessControlBlockType(blockType).toLowerCase()
+  )
+}
+
+/**
+ * A credential/resource reference whose value does not resolve to an accessible
+ * workspace entity (the "set in basic mode but the dropdown shows nothing" case).
+ * Structurally compatible with the copilot WorkflowLintUnresolvedReference.
+ */
+export interface UnresolvedSelectorReference {
+  blockId: string
+  blockName?: string
+  blockType?: string
+  field: string
+  value: string | string[]
+  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+  reason: string
+}
+
+/**
+ * External selector IDs (Slack channels, Drive files, Jira projects, folders,
+ * MCP tools) are validated only at run time, so a clean Tier-2 result is not
+ * proof those references resolve. Surface this in the lint output.
+ */
+export const UNRESOLVABLE_AT_LINT_NOTE =
+  'Credential/resource resolution covers oauth credentials, knowledge bases, documents, workflows, and MCP servers. External selector IDs (Slack channels, Drive files, Jira projects, folders, MCP tools) are validated only at run time.'
+
+/**
+ * Walk a workflow state and collect selector/credential fields to validate.
+ * For canonical pairs only the ACTIVE member is collected (an intentionally-empty
+ * inactive member is never flagged). oauth-input credentials are included only
+ * when `options.includeCredentials` is set. Complete standalone diagnostics also
+ * inspect active manual inputs using their canonical selector's resource type and
+ * ignore fields whose operation condition is inactive. Advisory writes retain their
+ * existing selector-only behavior.
+ */
+function collectSelectorFields(
+  workflowState: any,
+  options: { includeCredentials?: boolean; requireComplete?: boolean } = {}
+): SelectorReference[] {
+  const fields: SelectorReference[] = []
+
+  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
+    const blockData = block as any
+    const blockType = blockData.type
+    if (!blockType) continue
+
+    const blockConfig = getBlock(blockType)
+    if (!blockConfig) continue
+
+    // Scoped to the block's active surface: a trigger field sharing a `canonicalParamId` with an
+    // action pair matches neither of its members, so an unscoped index skipped every trigger
+    // selector as "inactive" while still validating the dormant action ones.
+    const activeSubBlocks = getCanonicalSubBlocksForSurface(
+      blockConfig.subBlocks,
+      blockData.triggerMode === true
+    )
+    const canonicalIndex = buildCanonicalIndex(activeSubBlocks)
+    const allValues = buildSubBlockValues(blockData.subBlocks || {})
+    const canonicalModeOverrides = blockData.data?.canonicalModes
+
+    for (const subBlockConfig of activeSubBlocks) {
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
+      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+      const basicMember =
+        options.requireComplete && group?.basicId
+          ? activeSubBlocks.find((config) => config.id === group.basicId)
+          : undefined
+      const selectorType = SELECTOR_TYPES.has(subBlockConfig.type)
+        ? subBlockConfig.type
+        : basicMember?.type
+      if (!selectorType || !SELECTOR_TYPES.has(selectorType)) continue
+      if (
+        options.requireComplete &&
+        !evaluateSubBlockCondition(subBlockConfig.condition, allValues)
+      )
+        continue
+
+      // oauth-input credentials are only validated when explicitly requested
+      // (the edit path pre-validates them separately; the lint opts in).
+      if (selectorType === 'oauth-input' && !options.includeCredentials) continue
+
+      // For canonical pairs, only validate the active member's value so an
+      // intentionally-empty inactive member is never flagged.
+      if (group && isCanonicalPair(group)) {
+        const mode = resolveCanonicalMode(group, allValues, canonicalModeOverrides)
+        const isActiveMember =
+          mode === 'advanced'
+            ? group.advancedIds.includes(subBlockConfig.id)
+            : group.basicId === subBlockConfig.id
+        if (!isActiveMember) continue
+      }
+
+      const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
+      if (!subBlockValue) continue
+
+      // Handle comma-separated values for multi-select
+      let values: string | string[] = subBlockValue
+      if (typeof subBlockValue === 'string' && subBlockValue.includes(',')) {
+        values = subBlockValue
+          .split(',')
+          .map((v: string) => v.trim())
+          .filter(Boolean)
+      }
+
+      fields.push({
+        blockId,
+        blockType,
+        blockName: blockData.name,
+        fieldName: subBlockConfig.id,
+        selectorType,
+        value: values,
+      })
+    }
+  }
+
+  return fields
+}
+
+/**
+ * Lint-facing Tier-2 resolution: validate every ACTIVE credential/resource
+ * member (including oauth-input) against the workspace and return the references
+ * that do not resolve to an accessible entity. This is the "set in basic mode
+ * but the dropdown shows nothing" check, using the same resolver the dropdown
+ * options come from. Advisory callers skip failed lookups; complete diagnostics propagate them.
+ */
+export async function collectUnresolvedReferences(
+  workflowState: any,
+  context: { userId: string; workspaceId?: string },
+  options: ReferenceValidationOptions = {}
+): Promise<UnresolvedSelectorReference[]> {
+  const logger = createLogger('EditWorkflowResolutionLint')
+  const references: UnresolvedSelectorReference[] = []
+
+  const selectorsToValidate = collectSelectorFields(workflowState, {
+    includeCredentials: true,
+    requireComplete: options.requireComplete,
+  })
+  if (selectorsToValidate.length === 0) {
+    return references
+  }
+
+  for (const selector of selectorsToValidate) {
+    let result: Awaited<ReturnType<typeof validateSelectorIds>>
+    try {
+      result = options.resolveSelector
+        ? await options.resolveSelector(selector)
+        : await validateSelectorIds(selector.selectorType, selector.value, context, options)
+    } catch (error) {
+      logger.warn('Selector resolution failed', {
+        blockId: selector.blockId,
+        fieldName: selector.fieldName,
+        error: toError(error).message,
+      })
+      if (options.requireComplete) throw error
+      continue
+    }
+
+    if (result.invalid.length > 0) {
+      const kind = selector.selectorType === 'oauth-input' ? 'credential' : 'resource'
+      const warningInfo = result.warning ? `. ${result.warning}` : ''
+      references.push({
+        blockId: selector.blockId,
+        blockType: selector.blockType,
+        blockName: selector.blockName,
+        field: selector.fieldName,
+        value: selector.value,
+        kind,
+        reason: `${selector.selectorType} ID(s) ${result.invalid.join(', ')} do not resolve to an accessible ${kind}${warningInfo}`,
+      })
+    }
+  }
+
+  return references
+}
+
+export interface AgentToolReference {
+  blockId: string
+  blockName?: string
+  blockType: 'agent'
+  field: 'tools' | 'skills'
+  value: string
+  kind: 'custom-tool' | 'mcp-tool' | 'skill'
+}
+
+export interface AgentToolReferenceValidationOptions extends ReferenceValidationOptions {
+  /** Undefined means no missing-reference finding; the caller owns unchecked notes. */
+  resolveAgentTool?: (reference: AgentToolReference) => Promise<string | undefined>
+}
+
+/**
+ * Walk attached references once. Standalone diagnostics resolve through authorized
+ * application reads; advisory writes keep their existing best-effort lookups.
+ * Inline custom tools can execute their schema when the stored ID is unavailable.
+ */
+export async function collectUnresolvedAgentToolReferences(
+  workflowState: unknown,
+  context: { userId: string; workspaceId?: string },
+  options: AgentToolReferenceValidationOptions = {}
+): Promise<UnresolvedSelectorReference[]> {
+  const references: UnresolvedSelectorReference[] = []
+  if (
+    !context.workspaceId ||
+    !isPlainRecord(workflowState) ||
+    !isPlainRecord(workflowState.blocks)
+  ) {
+    return references
+  }
+  for (const [blockId, block] of Object.entries(workflowState.blocks)) {
+    if (!isPlainRecord(block) || block.type !== 'agent' || !isPlainRecord(block.subBlocks)) continue
+    const blockName = typeof block.name === 'string' ? block.name : undefined
+    for (const field of ['tools', 'skills'] as const) {
+      const subBlock = block.subBlocks[field]
+      if (!isPlainRecord(subBlock) || !Array.isArray(subBlock.value)) continue
+      for (const entry of subBlock.value) {
+        if (!isPlainRecord(entry)) continue
+        let kind: AgentToolReference['kind']
+        let value: unknown
+        if (field === 'skills') {
+          kind = 'skill'
+          value = entry.skillId
+        } else if (entry.type === 'custom-tool' && !entry.schema) {
+          kind = 'custom-tool'
+          value = entry.customToolId
+        } else if (
+          (entry.type === 'mcp' || entry.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
+          isPlainRecord(entry.params)
+        ) {
+          kind = 'mcp-tool'
+          value = entry.params.serverId
+        } else continue
+        if (typeof value !== 'string' || value.trim() === '') continue
+        if (kind === 'mcp-tool' && containsReference(value)) continue
+        const reference: AgentToolReference = {
+          blockId,
+          blockName,
+          blockType: 'agent',
+          field,
+          value,
+          kind,
+        }
+        try {
+          const reason = options.resolveAgentTool
+            ? await options.resolveAgentTool(reference)
+            : await resolveAdvisoryAgentToolReference(
+                reference,
+                { userId: context.userId, workspaceId: context.workspaceId },
+                options
+              )
+          if (reason) references.push({ ...reference, reason })
+        } catch (error) {
+          agentToolLintLogger.warn('Agent tool reference resolution failed', {
+            blockId,
+            kind,
+            value,
+            error: toError(error).message,
+          })
+          if (options.requireComplete) throw error
+        }
+      }
+    }
+  }
+  return references
+}
+
+/** Existing write-time observations remain advisory and keep their public result wording. */
+async function resolveAdvisoryAgentToolReference(
+  reference: AgentToolReference,
+  context: { userId: string; workspaceId: string },
+  options: ReferenceValidationOptions
+): Promise<string | undefined> {
+  const { value, kind } = reference
+  if (kind === 'custom-tool') {
+    const found = await getCustomToolById({ toolId: value, ...context })
+    if (!found)
+      return `custom tool id "${value}" does not resolve to a custom tool in this workspace - create it with manage_custom_tool and use the returned id, otherwise the agent will not see the tool`
+  } else if (kind === 'mcp-tool') {
+    const result = await validateSelectorIds('mcp-server-selector', value, context, options)
+    if (result.invalid.length > 0)
+      return `MCP server "${value}" does not resolve to an enabled MCP server in this workspace`
+  } else {
+    const found = await getSkillById({ skillId: value, workspaceId: context.workspaceId })
+    if (!found)
+      return `skill id "${value}" does not resolve to a builtin or workspace skill - use manage_skill (operation "list") to get valid ids`
+  }
+  return undefined
+}
+
+/**
+ * Pre-validates credential and apiKey inputs in operations before they are applied.
+ * - Validates oauth-input (credential) IDs are accessible to the user in the workflow workspace
+ * - Filters out apiKey inputs when isHosted is true and the key is platform-managed: either a
+ *   hosted LLM model (model in getHostedModels) or a block whose active tool declares
+ *   `hosting` (e.g. Fal-backed video/image generators) - the canonical signal also used by
+ *   injectHostedKeyIfNeeded at execution. The Pi Coding Agent block in Create PR mode is
+ *   exempt from the hosted-model rule because it always runs on the user's own key
+ * - Also validates credentials and apiKeys in nestedNodes (blocks inside loop/parallel)
+ * Returns validation errors for any removed inputs.
+ */
+export async function preValidateCredentialInputs(
+  operations: EditWorkflowOperation[],
+  context: { userId: string; workspaceId?: string },
+  workflowState?: Record<string, unknown>
+): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
+  const { isHosted } = await import('@/lib/core/config/env-flags')
+
+  const logger = createLogger('PreValidateCredentials')
+  const errors: ValidationError[] = []
+
+  // Collect credential and apiKey inputs that need validation/filtering
+  const credentialInputs: Array<{
+    operationIndex: number
+    blockId: string
+    blockType: string
+    fieldName: string
+    value: string
+    nestedBlockId?: string
+  }> = []
+
+  const hostedApiKeyInputs: Array<{
+    operationIndex: number
+    blockId: string
+    blockType: string
+    fieldName: string
+    reason: 'hosted_model' | 'hosted_tool'
+    model?: string
+    nestedBlockId?: string
+  }> = []
+
+  const hostedModelsLower = isHosted ? new Set(getHostedModels().map((m) => m.toLowerCase())) : null
+
+  /**
+   * Collect credential inputs from a block's inputs based on its block config
+   */
+  function collectCredentialInputs(
+    blockConfig: ReturnType<typeof getBlock>,
+    inputs: Record<string, unknown>,
+    opIndex: number,
+    blockId: string,
+    blockType: string,
+    nestedBlockId?: string
+  ) {
+    if (!blockConfig) return
+
+    for (const subBlockConfig of blockConfig.subBlocks) {
+      if (subBlockConfig.type !== 'oauth-input') continue
+
+      const inputValue = inputs[subBlockConfig.id]
+      if (!inputValue || typeof inputValue !== 'string' || inputValue.trim() === '') continue
+
+      credentialInputs.push({
+        operationIndex: opIndex,
+        blockId,
+        blockType,
+        fieldName: subBlockConfig.id,
+        value: inputValue,
+        nestedBlockId,
+      })
+    }
+  }
+
+  /**
+   * Check if apiKey should be filtered for a block with the given model.
+   *
+   * The Pi Coding Agent in Create PR mode is exempt: it hands the model key to
+   * a sandbox, so Sim never covers it with a hosted key and the block needs the
+   * user's own key even for hosted models. Its other modes keep the model
+   * client in Sim and follow the normal rule.
+   */
+  function collectHostedApiKeyInput(
+    inputs: Record<string, unknown>,
+    toolParams: Record<string, unknown>,
+    opIndex: number,
+    blockId: string,
+    blockType: string,
+    nestedBlockId?: string
+  ) {
+    if (!hostedModelsLower || !inputs.apiKey) return
+    if (blockType === BlockType.PI && isPiByokOnlyMode(toolParams.mode)) return
+    const modelValue = toolParams.model
+    if (!modelValue || typeof modelValue !== 'string') return
+
+    if (hostedModelsLower.has(modelValue.toLowerCase())) {
+      hostedApiKeyInputs.push({
+        operationIndex: opIndex,
+        blockId,
+        blockType,
+        fieldName: 'apiKey',
+        reason: 'hosted_model',
+        model: modelValue,
+        nestedBlockId,
+      })
+    }
+  }
+
+  /**
+   * Collect inputs targeting a hosted tool's key param. `tool.hosting` is the canonical
+   * "Sim provides this key" signal — the same one injectHostedKeyIfNeeded uses at execution. It
+   * names the managed field (`apiKeyParam`) and gates per-provider (`enabled`). We resolve the
+   * tool the block's current inputs select (via the block's `tools.config.tool` selector), so
+   * multi-provider blocks (video routing falai -> video_falai) and per-provider gates
+   * (image_generate, falai-only) match execution exactly. The UI hides these fields, but the
+   * copilot can still author them, so strip them here.
+   */
+  function collectHostedToolApiKeyInput(
+    blockConfig: ReturnType<typeof getBlock>,
+    inputs: Record<string, unknown>,
+    toolParams: Record<string, unknown>,
+    opIndex: number,
+    blockId: string,
+    blockType: string,
+    nestedBlockId?: string
+  ) {
+    if (!isHosted || !blockConfig?.tools) return
+
+    // Resolve which tool(s) the current inputs select. With a selector there is exactly one active
+    // tool; without one (or if the selector throws on partial params), every accessible tool is a
+    // candidate — failing toward considering all hosted params so a key can't slip through.
+    const accessToolIds = blockConfig.tools.access ?? []
+    let candidateToolIds: string[]
+    const toolSelector = blockConfig.tools.config?.tool
+    if (toolSelector) {
+      try {
+        candidateToolIds = [toolSelector(toolParams)]
+      } catch {
+        candidateToolIds = accessToolIds
+      }
+    } else {
+      candidateToolIds = accessToolIds
+    }
+
+    const managedFieldIds = new Set<string>()
+    for (const toolId of candidateToolIds) {
+      const tool = getTool(toolId)
+      if (!tool?.hosting) continue
+      // The enabled predicate is tool-defined; guard it so a throw can't break edit_workflow. On
+      // a throw the hosting state is unknown, so fail toward treating the key as managed (strip)
+      // rather than preserving a key that may actually be platform-managed.
+      if (tool.hosting.enabled) {
+        let isManaged: boolean
+        try {
+          isManaged = tool.hosting.enabled(toolParams)
+        } catch {
+          isManaged = true
+        }
+        if (!isManaged) continue
+      }
+      managedFieldIds.add(tool.hosting.apiKeyParam)
+    }
+
+    for (const fieldId of managedFieldIds) {
+      const value = inputs[fieldId]
+      if (typeof value !== 'string' || value.trim() === '') continue
+
+      const alreadyCollected = hostedApiKeyInputs.some(
+        (e) =>
+          e.operationIndex === opIndex &&
+          e.blockId === blockId &&
+          e.nestedBlockId === nestedBlockId &&
+          e.fieldName === fieldId
+      )
+      if (alreadyCollected) continue
+
+      hostedApiKeyInputs.push({
+        operationIndex: opIndex,
+        blockId,
+        blockType,
+        fieldName: fieldId,
+        reason: 'hosted_tool',
+        nestedBlockId,
+      })
+    }
+  }
+
+  const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined
+  const snapshotBlock = (blockId: string) => asRecord(asRecord(workflowState?.blocks)?.[blockId])
+
+  // nestedNodes can nest recursively (a loop/parallel child can itself contain nestedNodes), and
+  // the apply path processes them recursively — so find a descendant's inputs at any depth.
+  const findNestedInputs = (
+    nodes: unknown,
+    targetId: string
+  ): Record<string, unknown> | undefined => {
+    const map = asRecord(nodes)
+    if (!map) return undefined
+    for (const [id, node] of Object.entries(map)) {
+      if (id === targetId) return asRecord(asRecord(node)?.inputs)
+      const found = findNestedInputs(asRecord(node)?.nestedNodes, targetId)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  const validType = (type: unknown): string | undefined =>
+    typeof type === 'string' && type.trim() ? type : undefined
+
+  // Visit every block an op touches — its main block and each nestedNodes descendant (recursively,
+  // since loop/parallel children can themselves contain nestedNodes) — keyed by the block's own id.
+  const visitOpBlocks = (
+    op: EditWorkflowOperation,
+    opIndex: number,
+    visit: (b: {
+      opIndex: number
+      stateKey: string
+      reportBlockId: string
+      rawType: string | undefined
+      inputs: Record<string, unknown> | undefined
+      nestedBlockId?: string
+    }) => void
+  ) => {
+    visit({
+      opIndex,
+      stateKey: op.block_id,
+      reportBlockId: op.block_id,
+      rawType: op.params?.type as string | undefined,
+      inputs: asRecord(op.params?.inputs),
+    })
+    const walk = (nodes: unknown, parentBlockId: string) => {
+      const map = asRecord(nodes)
+      if (!map) return
+      for (const [childId, childBlock] of Object.entries(map)) {
+        const child = asRecord(childBlock)
+        visit({
+          opIndex,
+          stateKey: childId,
+          reportBlockId: parentBlockId,
+          rawType: child?.type as string | undefined,
+          inputs: asRecord(child?.inputs),
+          nestedBlockId: childId,
+        })
+        walk(child?.nestedNodes, parentBlockId)
+      }
+    }
+    walk(op.params?.nestedNodes, op.block_id)
+  }
+
+  // Pass 1: fold every op into each block's FINAL effective state (type + values) for the batch,
+  // seeded from the snapshot. Deciding strips against the final state (not a forward prefix) makes
+  // order irrelevant — a key set before a later op makes the block hosted is still caught.
+  const finalType = new Map<string, string | undefined>()
+  const finalValues = new Map<string, Record<string, unknown>>()
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, rawType, inputs }) => {
+      const priorType = finalType.has(stateKey)
+        ? finalType.get(stateKey)
+        : (snapshotBlock(stateKey)?.type as string | undefined)
+      // Only advance the type to one apply will honor: a registry-known type. An unknown type
+      // (apply skips the change and keeps the existing block) must not poison the fallback, or a
+      // later type-less apiKey edit would be judged against a block config that never applies.
+      const candidate = validType(rawType)
+      const resolved = (candidate && getBlock(candidate) ? candidate : undefined) ?? priorType
+      if (resolved) finalType.set(stateKey, resolved)
+      if (isHosted) {
+        const priorValues =
+          finalValues.get(stateKey) ??
+          buildSubBlockValues(
+            (snapshotBlock(stateKey)?.subBlocks as Record<string, { value?: unknown }>) ?? {}
+          )
+        finalValues.set(stateKey, { ...priorValues, ...(inputs ?? {}) })
+      }
+    })
+  }
+
+  // Pass 2: for each op, strip the managed fields it actually sets, judged against the block's
+  // final state. Both top-level and nested blocks route through the same visit so they can't drift.
+  for (const [opIndex, op] of operations.entries()) {
+    visitOpBlocks(op, opIndex, ({ stateKey, reportBlockId, inputs, nestedBlockId }) => {
+      const blockType = finalType.get(stateKey)
+      if (!inputs || !blockType) return
+      const blockConfig = getBlock(blockType)
+      if (!blockConfig) return
+
+      collectCredentialInputs(blockConfig, inputs, opIndex, reportBlockId, blockType, nestedBlockId)
+
+      // Hosted collectors no-op off hosted Sim, so only resolve the effective state when it matters.
+      if (isHosted) {
+        const toolParams = finalValues.get(stateKey) ?? inputs
+        collectHostedApiKeyInput(
+          inputs,
+          toolParams,
+          opIndex,
+          reportBlockId,
+          blockType,
+          nestedBlockId
+        )
+        collectHostedToolApiKeyInput(
+          blockConfig,
+          inputs,
+          toolParams,
+          opIndex,
+          reportBlockId,
+          blockType,
+          nestedBlockId
+        )
+      }
+    })
+  }
+
+  const hasCredentialsToValidate = credentialInputs.length > 0
+  const hasHostedApiKeysToFilter = hostedApiKeyInputs.length > 0
+
+  if (!hasCredentialsToValidate && !hasHostedApiKeysToFilter) {
+    return { filteredOperations: operations, errors }
+  }
+
+  // Deep clone operations so we can modify them
+  const filteredOperations = structuredClone(operations)
+
+  // Filter out apiKey inputs for hosted models and add validation errors
+  if (hasHostedApiKeysToFilter) {
+    logger.info('Filtering platform-managed apiKey inputs', { count: hostedApiKeyInputs.length })
+
+    const stripMessage = (input: (typeof hostedApiKeyInputs)[number]): string =>
+      input.reason === 'hosted_tool'
+        ? `Cannot set "${input.fieldName}" for "${input.blockType}" - it is managed by Sim on the hosted platform. Leave "${input.fieldName}" unset.`
+        : `Cannot set API key for hosted model "${input.model}" - API keys are managed by the platform when using hosted models`
+
+    for (const apiKeyInput of hostedApiKeyInputs) {
+      const op = filteredOperations[apiKeyInput.operationIndex]
+      const field = apiKeyInput.fieldName
+
+      // Handle nested block apiKey filtering
+      if (apiKeyInput.nestedBlockId) {
+        const nestedInputs = findNestedInputs(op.params?.nestedNodes, apiKeyInput.nestedBlockId)
+        if (nestedInputs?.[field]) {
+          nestedInputs[field] = undefined
+          logger.debug('Filtered platform-managed apiKey in nested block', {
+            parentBlockId: apiKeyInput.blockId,
+            nestedBlockId: apiKeyInput.nestedBlockId,
+            field,
+            reason: apiKeyInput.reason,
+            model: apiKeyInput.model,
+          })
+
+          errors.push({
+            blockId: apiKeyInput.nestedBlockId,
+            blockType: apiKeyInput.blockType,
+            field,
+            value: '[redacted]',
+            error: stripMessage(apiKeyInput),
+          })
+        }
+      } else if (op.params?.inputs?.[field]) {
+        // Handle main block apiKey filtering
+        op.params.inputs[field] = undefined
+        logger.debug('Filtered platform-managed apiKey', {
+          blockId: apiKeyInput.blockId,
+          field,
+          reason: apiKeyInput.reason,
+          model: apiKeyInput.model,
+        })
+
+        errors.push({
+          blockId: apiKeyInput.blockId,
+          blockType: apiKeyInput.blockType,
+          field,
+          value: '[redacted]',
+          error: stripMessage(apiKeyInput),
+        })
+      }
+    }
+  }
+
+  // Validate credential inputs
+  if (hasCredentialsToValidate) {
+    logger.info('Pre-validating credential inputs', {
+      credentialCount: credentialInputs.length,
+      userId: context.userId,
+    })
+
+    const allCredentialIds = credentialInputs.map((c) => c.value)
+    const validationResult = await validateSelectorIds('oauth-input', allCredentialIds, context)
+    const invalidSet = new Set(validationResult.invalid)
+
+    if (invalidSet.size > 0) {
+      for (const credInput of credentialInputs) {
+        if (!invalidSet.has(credInput.value)) continue
+
+        const op = filteredOperations[credInput.operationIndex]
+
+        // Handle nested block credential removal
+        if (credInput.nestedBlockId) {
+          const nestedInputs = findNestedInputs(op.params?.nestedNodes, credInput.nestedBlockId)
+          if (nestedInputs?.[credInput.fieldName]) {
+            delete nestedInputs[credInput.fieldName]
+            logger.info('Removed invalid credential from nested block', {
+              parentBlockId: credInput.blockId,
+              nestedBlockId: credInput.nestedBlockId,
+              field: credInput.fieldName,
+              invalidValue: credInput.value,
+            })
+          }
+        } else if (op.params?.inputs?.[credInput.fieldName]) {
+          // Handle main block credential removal
+          delete op.params.inputs[credInput.fieldName]
+          logger.info('Removed invalid credential from operation', {
+            blockId: credInput.blockId,
+            field: credInput.fieldName,
+            invalidValue: credInput.value,
+          })
+        }
+
+        const warningInfo = validationResult.warning ? `. ${validationResult.warning}` : ''
+        const errorBlockId = credInput.nestedBlockId ?? credInput.blockId
+        errors.push({
+          blockId: errorBlockId,
+          blockType: credInput.blockType,
+          field: credInput.fieldName,
+          value: credInput.value,
+          error: `Invalid credential ID "${credInput.value}" for ${credInput.blockType}.${credInput.fieldName} — the field was removed from the block. Read environment/credentials.json for connected credential ids, or use oauth_get_auth_link (via the auth agent) to connect the provider first; never invent credential ids${warningInfo}`,
+        })
+      }
+
+      logger.warn('Filtered out invalid credentials', {
+        invalidCount: invalidSet.size,
+      })
+    }
+  }
+
+  return { filteredOperations, errors }
+}

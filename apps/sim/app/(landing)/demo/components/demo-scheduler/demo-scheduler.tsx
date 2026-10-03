@@ -2,12 +2,48 @@
 
 import { useEffect } from 'react'
 import Cal, { getCalApi } from '@calcom/embed-react'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useTheme } from 'next-themes'
+import { trackGoogleAdsConversion, trackGoogleEvent } from '@/lib/analytics/google'
+import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
+import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
 
-/** The Cal.com event the demo books - set `NEXT_PUBLIC_CAL_LINK` to override. */
 const CAL_NAMESPACE = 'demo'
-const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK ?? 'team/sim/demo'
+const DEFAULT_CAL_ORIGIN = 'https://app.cal.com'
+const DEFAULT_CAL_LINK = 'team/sim/demo'
+
+interface CalEmbedConfig {
+  calLink: string
+  calOrigin: string
+  embedJsUrl: string
+}
+
+function parseCalEmbedConfig(link: string): CalEmbedConfig {
+  const url = new URL(link.replace(/^\/+/, ''), `${DEFAULT_CAL_ORIGIN}/`)
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw new Error('Cal link must use HTTP(S) without embedded credentials')
+  }
+
+  const calLink = `${url.pathname.replace(/^\/+/, '')}${url.search}`
+  if (!calLink) throw new Error('Cal link must include an event path')
+
+  return {
+    calLink,
+    calOrigin: url.origin,
+    embedJsUrl: `${url.origin}/embed/embed.js`,
+  }
+}
+
+/** Resolves the configured booker, falling back safely when the environment value is invalid. */
+export function resolveCalEmbedConfig(configuredLink?: string): CalEmbedConfig {
+  try {
+    return parseCalEmbedConfig(configuredLink?.trim() || DEFAULT_CAL_LINK)
+  } catch {
+    return parseCalEmbedConfig(DEFAULT_CAL_LINK)
+  }
+}
+
+const CAL_EMBED = resolveCalEmbedConfig(process.env.NEXT_PUBLIC_CAL_LINK)
 
 /**
  * Sim's brand color, matching the `--brand-agent` token. The embed renders in a
@@ -15,34 +51,12 @@ const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK ?? 'team/sim/demo'
  */
 const CAL_BRAND_COLOR = '#6f3dfa'
 
-/**
- * X (Twitter) conversion event fired when a demo is actually booked, so ad
- * delivery optimizes toward bookings rather than form submits.
- */
-const X_DEMO_BOOKED_EVENT_ID = 'tw-q5xbl-q5xbn'
-
 interface DemoSchedulerProps {
   /** The captured lead used to prefill the Cal.com booking. */
   lead: DemoLead
 }
 
 let calEmbedPreloaded = false
-
-/**
- * Fires the X conversion once the Cal.com booking is confirmed. There is no
- * standalone confirmation page to drop the pixel snippet into — Cal renders the
- * "you're booked" state inside its cross-origin iframe — so the embed's
- * `bookingSuccessfulV2` event is the confirmation.
- *
- * Module-scope so the same function identity can be handed to both `on` and
- * `off`. `window.twq` is only defined where {@link LandingLayout} renders the
- * pixel base code, so the optional call is a second guard for the window
- * between mount and `uwt.js` finishing — the stub `twq` queues calls made
- * before the script loads and replays them.
- */
-function trackDemoBooked(): void {
-  window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
-}
 
 /**
  * Warm the Cal.com embed before the scheduler mounts. Loads `embed.js` and
@@ -57,9 +71,9 @@ function trackDemoBooked(): void {
 export function preloadCalEmbed(): void {
   if (calEmbedPreloaded) return
   calEmbedPreloaded = true
-  getCalApi({ namespace: CAL_NAMESPACE })
+  getCalApi({ namespace: CAL_NAMESPACE, embedJsUrl: CAL_EMBED.embedJsUrl })
     .then((cal) => {
-      cal('preload', { calLink: CAL_LINK })
+      cal('preload', { calLink: CAL_EMBED.calLink })
     })
     .catch(() => {
       calEmbedPreloaded = false
@@ -71,55 +85,75 @@ export function preloadCalEmbed(): void {
  * {@link DemoLead}. Rendered inside the card chrome owned by {@link DemoBooking}
  * and lazy-loaded, so the embed script never touches the initial landing bundle.
  *
- * The embed is pinned to the page's light theme and Sim's brand color, and the
+ * The embed follows the page's theme and carries Sim's brand color, and the
  * captured name/email/notes prefill the booking so the visitor never retypes. It
  * fills the panel (`flex-1`), which the parent sizes to the form's height, so the
  * card stays the same height across the form→calendar transition.
  */
 export function DemoScheduler({ lead }: DemoSchedulerProps) {
+  const { marketing, measurement } = useTrackingConsent()
+  const { resolvedTheme } = useTheme()
+  const calTheme = resolvedTheme === 'dark' ? 'dark' : 'light'
+
   useEffect(() => {
     let cancelled = false
-    const api = getCalApi({ namespace: CAL_NAMESPACE })
+    const trackDemoBooked = () => {
+      if (measurement) {
+        trackGoogleEvent('get_a_demo', {
+          page_path: '/demo',
+          form_name: 'sim_demo',
+          booking_status: 'scheduled',
+        })
+      }
+      if (marketing) {
+        trackGoogleAdsConversion('demo_booked')
+        window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
+      }
+    }
+    const api = getCalApi({ namespace: CAL_NAMESPACE, embedJsUrl: CAL_EMBED.embedJsUrl })
     api
       .then((cal) => {
         if (cancelled) return
         cal('ui', {
           hideEventTypeDetails: true,
+          theme: calTheme,
           styles: { branding: { brandColor: CAL_BRAND_COLOR } },
         })
-        // Matches the layout's pixel gating - a self-hosted deployment loads no
-        // base pixel, so it must not subscribe an ad-tracking callback either.
-        if (isHosted) cal('on', { action: 'bookingSuccessfulV2', callback: trackDemoBooked })
+        if (measurement || marketing) {
+          cal('on', { action: 'bookingSuccessfulV2', callback: trackDemoBooked })
+        }
       })
       .catch(() => {})
     return () => {
       cancelled = true
-      if (!isHosted) return
+      if (!measurement && !marketing) return
       api
         .then((cal) => cal('off', { action: 'bookingSuccessfulV2', callback: trackDemoBooked }))
         .catch(() => {})
     }
-  }, [])
+  }, [calTheme, marketing, measurement])
 
   return (
     <div className='flex h-full min-w-0 flex-col p-6 max-sm:p-5'>
       <h2 className='text-[var(--text-primary)] text-xl leading-[1.2]'>
         Pick a time{lead.name ? `, ${lead.name}` : ''}
       </h2>
-      <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
+      <p className='mt-1.5 text-[var(--text-secondary)] text-sm'>
         Choose a slot that works for your team and we'll send a calendar invite.
       </p>
       <div className='mt-5 min-h-0 flex-1'>
         <Cal
           namespace={CAL_NAMESPACE}
-          calLink={CAL_LINK}
-          style={{ width: '100%', height: '100%', overflow: 'auto' }}
+          calLink={CAL_EMBED.calLink}
+          calOrigin={CAL_EMBED.calOrigin}
+          embedJsUrl={CAL_EMBED.embedJsUrl}
+          className='size-full overflow-auto'
           config={{
             name: lead.name,
             email: lead.email,
             notes: lead.notes,
-            theme: 'light',
-            'ui.color-scheme': 'light',
+            theme: calTheme,
+            'ui.color-scheme': calTheme,
             layout: 'month_view',
             useSlotsViewOnSmallScreen: 'true',
           }}

@@ -2,7 +2,6 @@ import { NetSuiteIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
-import type { NetSuiteResponse } from '@/tools/netsuite/types'
 
 const RECORD_TYPE_OPERATIONS = [
   'netsuite_list_records',
@@ -116,7 +115,7 @@ function parseJson(value: unknown, label: string): unknown {
   }
 }
 
-export const NetSuiteBlock: BlockConfig<NetSuiteResponse> = {
+export const NetSuiteBlock: BlockConfig = {
   type: 'netsuite',
   name: 'Oracle NetSuite',
   description: 'Manage NetSuite records, queries, datasets, batches, and async jobs',

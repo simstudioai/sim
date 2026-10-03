@@ -5,7 +5,7 @@ import { vi } from 'vitest'
  * `createEnv` with `skipValidation: true`, so values arrive as raw strings
  * (or occasionally booleans/numbers when injected programmatically).
  */
-export type EnvMockValue = string | boolean | number | undefined
+type EnvMockValue = string | boolean | number | undefined
 
 /**
  * Default mock environment values for testing. These seed the shared stateful
@@ -106,15 +106,15 @@ function getEnvDefaultImpl(variable: string): string | undefined {
 }
 
 /** Mirrors the real `isTruthy` from `@/lib/core/config/env`. */
-export const isTruthyImpl = (value: string | boolean | number | undefined): boolean =>
+const isTruthyImpl = (value: string | boolean | number | undefined): boolean =>
   typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value)
 
 /** Mirrors the real `isFalsy` from `@/lib/core/config/env`. */
-export const isFalsyImpl = (value: string | boolean | number | undefined): boolean =>
+const isFalsyImpl = (value: string | boolean | number | undefined): boolean =>
   typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false
 
 /** Mirrors the real `envBoolean` from `@/lib/core/config/env`. */
-export function envBooleanImpl(value: boolean | string | undefined | null): boolean | undefined {
+function envBooleanImpl(value: boolean | string | undefined | null): boolean | undefined {
   if (typeof value === 'boolean') return value
   if (value === undefined || value === null || value === '') return undefined
   const normalized = String(value).trim().toLowerCase()
@@ -122,7 +122,7 @@ export function envBooleanImpl(value: boolean | string | undefined | null): bool
 }
 
 /** Mirrors the real `envNumber` from `@/lib/core/config/env`. */
-export function envNumberImpl(
+function envNumberImpl(
   value: number | string | undefined | null,
   fallback: number,
   options: { min?: number; integer?: boolean } = {}
@@ -136,7 +136,7 @@ export function envNumberImpl(
   ) {
     return value
   }
-  if (value === undefined || value === null || value === '') return fallback
+  if (value === undefined || value === null || String(value).trim() === '') return fallback
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= min && (!options.integer || Number.isInteger(parsed))
     ? parsed
@@ -156,7 +156,7 @@ export const envMockFns = {
 /**
  * Creates a mock getEnv function that returns values from the provided env object.
  */
-export function createMockGetEnv(envValues: Record<string, string | undefined> = defaultMockEnv) {
+function createMockGetEnv(envValues: Record<string, string | undefined> = defaultMockEnv) {
   return vi.fn((key: string) => envValues[key])
 }
 
@@ -201,4 +201,11 @@ export const envMock = {
   isFalsy: isFalsyImpl,
   envBoolean: envBooleanImpl,
   envNumber: envNumberImpl,
+  /**
+   * Mirrors `PUBLIC_ENV_ATTRIBUTE` in `apps/sim/lib/core/config/env.ts`. The
+   * literal is repeated rather than imported because packages never import from
+   * `apps/*`; keep the two in step if the attribute is ever renamed.
+   */
+  PUBLIC_ENV_ATTRIBUTE: 'data-public-env',
+  publicEnvMissingAtModuleInit: false,
 }

@@ -2,9 +2,9 @@ import type {
   CodePipelineEnableStageTransitionParams,
   CodePipelineEnableStageTransitionResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const enableStageTransitionTool: ToolConfig<
+export const enableStageTransitionTool: InternalToolConfig<
   CodePipelineEnableStageTransitionParams,
   CodePipelineEnableStageTransitionResponse
 > = {
@@ -54,13 +54,8 @@ export const enableStageTransitionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/enable-stage-transition',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

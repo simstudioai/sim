@@ -1,0 +1,110 @@
+/**
+ * The progressive blur ramp behind `EdgeFade`.
+ *
+ * One strip carries five stacked layers over the same box. Each blurs harder
+ * than the one below it and is masked to a window that sits one step closer to
+ * the screen edge, so backdrop filters compound where the windows overlap and
+ * the blur climbs from nothing at the inner edge to its full strength at the
+ * outer one - a ramp, not the single band a lone `backdrop-filter` gives.
+ *
+ * `--edge-fade-direction` is set by the strip and points from the inner edge
+ * (0%) to the screen edge (100%), so one set of window stops serves all four
+ * edges. Each window is three steps wide against a one-step stride, so it
+ * overlaps both of its neighbours and no step boundary can read as a band.
+ * Smoothness comes from that overlap rather than from the layer count, which
+ * is why five layers ramp as cleanly as eight for a fraction of the fill cost:
+ * every layer is a separate backdrop read, and the rail recomputes all of them
+ * on every frame it scrolls.
+ */
+
+.edgeTop {
+  --edge-fade-direction: to top;
+}
+
+.edgeBottom {
+  --edge-fade-direction: to bottom;
+}
+
+.edgeLeft {
+  --edge-fade-direction: to left;
+}
+
+.edgeRight {
+  --edge-fade-direction: to right;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(var(--edge-fade-blur));
+  backdrop-filter: blur(var(--edge-fade-blur));
+  -webkit-mask-image: linear-gradient(
+    var(--edge-fade-direction),
+    transparent var(--edge-fade-from),
+    #000 var(--edge-fade-in),
+    #000 var(--edge-fade-out),
+    transparent var(--edge-fade-to)
+  );
+  mask-image: linear-gradient(
+    var(--edge-fade-direction),
+    transparent var(--edge-fade-from),
+    #000 var(--edge-fade-in),
+    #000 var(--edge-fade-out),
+    transparent var(--edge-fade-to)
+  );
+}
+
+.layer0 {
+  --edge-fade-blur: 0.3px;
+  --edge-fade-from: 0%;
+  --edge-fade-in: 20%;
+  --edge-fade-out: 40%;
+  --edge-fade-to: 60%;
+}
+
+.layer1 {
+  --edge-fade-blur: 1px;
+  --edge-fade-from: 20%;
+  --edge-fade-in: 40%;
+  --edge-fade-out: 60%;
+  --edge-fade-to: 80%;
+}
+
+.layer2 {
+  --edge-fade-blur: 2px;
+  --edge-fade-from: 40%;
+  --edge-fade-in: 60%;
+  --edge-fade-out: 80%;
+  --edge-fade-to: 100%;
+}
+
+.layer3 {
+  --edge-fade-blur: 4px;
+  --edge-fade-from: 60%;
+  --edge-fade-in: 80%;
+  --edge-fade-out: 100%;
+  --edge-fade-to: 120%;
+}
+
+.layer4 {
+  --edge-fade-blur: 8px;
+  --edge-fade-from: 80%;
+  --edge-fade-in: 100%;
+  --edge-fade-out: 120%;
+  --edge-fade-to: 140%;
+}
+
+/**
+ * The ground wash that closes the strip. It paints above the blur so blurred
+ * content still dissolves into the page colour, and its mask squares off the
+ * gradient's own falloff so the wash has no visible end either. The colour
+ * itself is a Tailwind token on the element.
+ */
+.wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(var(--edge-fade-direction), transparent, #000);
+  mask-image: linear-gradient(var(--edge-fade-direction), transparent, #000);
+}

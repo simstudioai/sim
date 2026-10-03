@@ -1,0 +1,101 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockCreateConnection, mockNetConnect, mockTypedParameterNull } = vi.hoisted(() => {
+  class MockTypedParameter {}
+  return {
+    mockCreateConnection: vi.fn(),
+    mockNetConnect: vi.fn(),
+    mockTypedParameterNull: vi.fn(() => new MockTypedParameter()),
+  }
+})
+
+vi.mock('node:net', () => ({
+  default: { connect: mockNetConnect },
+}))
+
+vi.mock('mysql2/promise', () => ({
+  default: {
+    createConnection: mockCreateConnection,
+    TypedParameter: { NULL: mockTypedParameterNull },
+  },
+}))
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+import {
+  createMysqlConnection,
+  executeMysqlCommand,
+  type MysqlConnectionConfig,
+} from '@/lib/internal/mysql/client'
+
+const { mockValidateDatabaseHost } = inputValidationMockFns
+
+const CONNECTION_CONFIG: MysqlConnectionConfig = {
+  host: 'db.example.com',
+  port: 3306,
+  database: 'application',
+  username: 'application',
+  password: 'secret',
+  ssl: 'required',
+}
+
+describe('MySQL client', () => {
+  beforeEach(() => {
+    mockValidateDatabaseHost.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '93.184.216.34',
+      originalHostname: 'db.example.com',
+    })
+    mockCreateConnection.mockResolvedValue({ end: vi.fn(), destroy: vi.fn() })
+    mockNetConnect.mockReturnValue({ setNoDelay: vi.fn(), destroy: vi.fn() })
+  })
+
+  it('does not create a connection when DNS validation fails', async () => {
+    mockValidateDatabaseHost.mockResolvedValue({
+      isValid: false,
+      error: 'host resolves to a blocked IP address',
+    })
+
+    await expect(createMysqlConnection(CONNECTION_CONFIG)).rejects.toThrow(
+      'host resolves to a blocked IP address'
+    )
+    expect(mockCreateConnection).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['disabled', undefined],
+    ['required', { rejectUnauthorized: true }],
+    ['preferred', { rejectUnauthorized: false }],
+  ] as const)('pins the validated IP and preserves ssl=%s', async (ssl, expectedSsl) => {
+    await createMysqlConnection({ ...CONNECTION_CONFIG, ssl })
+
+    const options = mockCreateConnection.mock.calls[0][0]
+    expect(options.host).toBe('db.example.com')
+    expect(options.ssl).toEqual(expectedSsl)
+    const socket = options.stream()
+    expect(mockNetConnect).toHaveBeenCalledWith({
+      host: '93.184.216.34',
+      port: 3306,
+      timeout: 10000,
+    })
+    expect(socket.setNoDelay).toHaveBeenCalledWith(true)
+  })
+
+  it.each([
+    new Map([['key', 'value']]),
+    new Set(['value']),
+    /value/,
+    Object.assign(Object.create(null) as Record<string, unknown>, { key: 'value' }),
+  ])('rejects non-plain structured bind values: %s', async (value) => {
+    const connection = { execute: vi.fn(), destroy: vi.fn() }
+
+    await expect(executeMysqlCommand(connection as never, 'SELECT ?', [value])).rejects.toThrow(
+      'MySQL bind values must contain only supported scalar or structured values'
+    )
+    expect(connection.execute).not.toHaveBeenCalled()
+  })
+})

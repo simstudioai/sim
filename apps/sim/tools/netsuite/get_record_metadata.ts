@@ -1,10 +1,7 @@
 import type { NetSuiteGetRecordMetadataParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  encodePathSegment,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 const METADATA_ACCEPT = {
   default: 'application/json',
@@ -12,13 +9,13 @@ const METADATA_ACCEPT = {
   json_schema: 'application/schema+json',
 } as const
 
-function getMetadataAccept(format: NetSuiteGetRecordMetadataParams['format']): string {
+export function getMetadataAccept(format: NetSuiteGetRecordMetadataParams['format']): string {
   const accept = METADATA_ACCEPT[format ?? 'default']
   if (!accept) throw new Error('Metadata format must be default, openapi, or json_schema')
   return accept
 }
 
-export const netsuiteGetRecordMetadataTool: ToolConfig<
+export const netsuiteGetRecordMetadataTool: InternalToolConfig<
   NetSuiteGetRecordMetadataParams,
   NetSuiteResponse
 > = {
@@ -42,18 +39,9 @@ export const netsuiteGetRecordMetadataTool: ToolConfig<
       description: 'Metadata representation: default, openapi, or json_schema',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'GET',
-        path: `/services/rest/record/v1/metadata-catalog/${encodePathSegment(params.recordType, 'Record type')}`,
-        success: { status: 200, body: 'object' },
-        headers: { Accept: getMetadataAccept(params.format) },
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

@@ -7,17 +7,14 @@ import { searchKnowledge } from '@/lib/knowledge/application/search'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/**
- * Mirrors the internal Knowledge-search cap in `app/api/knowledge/search/route.ts`
- * so the public surface is never more permissive than the internal one. Kept as a
- * literal because the internal route declares the same literal inline.
- */
+/** Keeps public Knowledge search request materialization bounded to 2 MiB. */
 export const V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 
 /** POST /api/v2/knowledge/search — Vector / tag search across knowledge bases. */
 export const POST = defineV2JsonRoute({
   contract: v2SearchKnowledgeContract,
   auth: v2ApiKeyAuth,
+  /** Search is resource-read-only even though metering writes a usage record. */
   operation: knowledgeOperations.search,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,
@@ -31,6 +28,7 @@ export const POST = defineV2JsonRoute({
       : [body.knowledgeBaseIds],
     query: body.query,
     topK: body.topK,
+    surface: 'api' as const,
     tagFilters: body.tagFilters,
     searchMode: body.searchMode,
     rerankerEnabled: body.rerankerEnabled,

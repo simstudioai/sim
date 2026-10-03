@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
@@ -14,6 +15,7 @@ export const searchPersonTool: ToolConfig<ProspeoSearchPersonParams, ProspeoSear
     name: 'Prospeo Search Person',
     description: 'Search for leads using 20+ filters to build targeted contact lists.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
     hosting: prospeoHosting<ProspeoSearchPersonParams>((_params, output) => {
       // 1 credit per page that returns at least one result; free on 30-day dedup.

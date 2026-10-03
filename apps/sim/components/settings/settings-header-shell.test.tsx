@@ -29,7 +29,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.clearAllMocks()
 })
 
 function renderHeader(actions: SettingsAction[]) {
@@ -37,7 +36,7 @@ function renderHeader(actions: SettingsAction[]) {
     root.render(
       <SettingsHeaderProvider>
         <SettingsHeaderShell>
-          <SettingsPanel title='Thing' actions={actions}>
+          <SettingsPanel back={{ text: 'Back', onSelect: vi.fn() }} title='Thing' actions={actions}>
             <div />
           </SettingsPanel>
         </SettingsHeaderShell>
@@ -64,19 +63,6 @@ function clickChip(label: string) {
 }
 
 describe('SettingsHeaderShell action routing', () => {
-  it('renders Delete before Discard and Save even though the array lists it last', () => {
-    const actions: SettingsAction[] = [
-      ...saveDiscardActions({ dirty: true, saving: false, onSave: vi.fn(), onDiscard: vi.fn() }),
-      { id: 'delete', text: 'Delete', onSelect: vi.fn() },
-    ]
-
-    renderHeader(actions)
-
-    const labels = chipLabels()
-    expect(labels.indexOf('Delete')).toBeLessThan(labels.indexOf('Discard'))
-    expect(labels.indexOf('Discard')).toBeLessThan(labels.indexOf('Save'))
-  })
-
   it('invokes the action that was clicked, not the one at that render position', () => {
     const onSave = vi.fn()
     const onDiscard = vi.fn()

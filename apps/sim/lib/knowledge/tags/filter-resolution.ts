@@ -2,7 +2,7 @@ import { KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE } from '@/lib/api/contract
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
-import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { getDocumentTagDefinitionsByKnowledgeBaseIds } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
@@ -87,8 +87,8 @@ export async function resolveKnowledgeTagFilters(
   const filtersWithIdentifiers = filters.map((filter) => {
     const rawTagName: unknown = filter.tagName
     const rawTagId: unknown = filter.tagId
-    const tagName = typeof rawTagName === 'string' ? rawTagName.trim() : undefined
-    const tagId = typeof rawTagId === 'string' ? rawTagId.trim() : undefined
+    const tagName = typeof rawTagName === 'string' ? rawTagName.trim() : ''
+    const tagId = typeof rawTagId === 'string' ? rawTagId.trim() : ''
     const hasInvalidTagName = rawTagName !== undefined && !tagName
     const hasInvalidTagId = rawTagId !== undefined && !tagId
     if (hasInvalidTagName || hasInvalidTagId || Boolean(tagName) === Boolean(tagId)) {
@@ -108,21 +108,16 @@ export async function resolveKnowledgeTagFilters(
     )
   }
 
-  const definitionEntries = await Promise.all(
-    knowledgeBaseIds.map(
-      async (knowledgeBaseId) =>
-        [knowledgeBaseId, await getDocumentTagDefinitions(knowledgeBaseId)] as const
-    )
-  )
-  const definitionsByKnowledgeBase = new Map(definitionEntries)
+  const definitionsByKnowledgeBase =
+    await getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
   const invalidTagIds: string[] = []
-  const singleKnowledgeBaseDefinitions = definitionEntries[0]?.[1] ?? []
+  const singleKnowledgeBaseDefinitions = definitionsByKnowledgeBase.get(knowledgeBaseIds[0]) ?? []
   const normalizedFilters = filtersWithIdentifiers.flatMap<KnowledgeTagNameFilter>(
     ({ filter, tagName, tagId }) => {
       if (!tagId) {
         return [
           {
-            tagName: tagName!,
+            tagName,
             operator: filter.operator,
             value: filter.value,
             valueTo: filter.valueTo,
@@ -155,7 +150,8 @@ export async function resolveKnowledgeTagFilters(
   }
 
   const sharedDefinitions = new Map<string, { tagSlot: string; fieldType: string }>()
-  for (const [, definitions] of definitionEntries) {
+  for (const knowledgeBaseId of knowledgeBaseIds) {
+    const definitions = definitionsByKnowledgeBase.get(knowledgeBaseId)!
     const currentByName = new Map(
       definitions.map((definition) => [
         definition.displayName,

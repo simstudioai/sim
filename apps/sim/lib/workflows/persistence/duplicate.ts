@@ -17,9 +17,10 @@ import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
-import { and, eq, isNull, min } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import {
   remapConditionIdsInSubBlocks,
   remapVariableIdsInSubBlocks,
@@ -27,6 +28,7 @@ import {
   type SubBlockRecord,
   sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
+import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
@@ -64,6 +66,9 @@ interface DuplicateWorkflowResult {
   blocksCount: number
   edgesCount: number
   subflowsCount: number
+  /** Stamped by this function, so a caller can present the copy without re-reading it. */
+  createdAt: Date
+  updatedAt: Date
 }
 
 async function assertTargetFolderMutable(
@@ -183,37 +188,7 @@ export async function duplicateWorkflow(
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
     await assertTargetFolderMutable(tx, targetFolderId, targetWorkspaceId)
 
-    const workflowParentCondition = targetFolderId
-      ? eq(workflow.folderId, targetFolderId)
-      : isNull(workflow.folderId)
-    const folderParentCondition = targetFolderId
-      ? eq(folderTable.parentId, targetFolderId)
-      : isNull(folderTable.parentId)
-
-    const [[workflowMinResult], [folderMinResult]] = await Promise.all([
-      tx
-        .select({ minOrder: min(workflow.sortOrder) })
-        .from(workflow)
-        .where(and(eq(workflow.workspaceId, targetWorkspaceId), workflowParentCondition)),
-      tx
-        .select({ minOrder: min(folderTable.sortOrder) })
-        .from(folderTable)
-        .where(
-          and(
-            eq(folderTable.workspaceId, targetWorkspaceId),
-            eq(folderTable.resourceType, 'workflow'),
-            folderParentCondition
-          )
-        ),
-    ])
-    const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
-      number | null
-    >((currentMin, candidate) => {
-      if (candidate == null) return currentMin
-      if (currentMin == null) return candidate
-      return Math.min(currentMin, candidate)
-    }, null)
-    const sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
+    const sortOrder = await nextWorkflowSortOrder(targetWorkspaceId, targetFolderId, tx)
 
     // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
     const varIdMapping = new Map<string, string>()
@@ -225,36 +200,30 @@ export async function duplicateWorkflow(
       tx
     )
 
-    await tx.insert(workflow).values({
-      id: newWorkflowId,
-      userId,
-      workspaceId: targetWorkspaceId,
-      folderId: targetFolderId,
-      sortOrder,
-      name: deduplicatedName,
-      description: description || source.description,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      locked: false,
-      // Duplicate variables with new IDs and new workflowId
-      variables: (() => {
-        const sourceVars = (source.variables as Record<string, Variable>) || {}
-        const remapped: Record<string, Variable> = {}
-        for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
-          const newVarId = generateId()
-          varIdMapping.set(oldVarId, newVarId)
-          remapped[newVarId] = {
-            ...variable,
-            id: newVarId,
-            workflowId: newWorkflowId,
-          }
-        }
-        return remapped
-      })(),
-    })
+    // Duplicate variables with new IDs and new workflowId
+    const variables: Record<string, Variable> = {}
+    const sourceVars = (source.variables as Record<string, Variable>) || {}
+    for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
+      const newVarId = generateId()
+      varIdMapping.set(oldVarId, newVarId)
+      variables[newVarId] = { ...variable, id: newVarId, workflowId: newWorkflowId }
+    }
+
+    // A duplicate is a new workflow, so it takes the workspace's fork-sync policy rather
+    // than inheriting the source's participation, and starts unlocked like any new one.
+    await tx.insert(workflow).values(
+      await buildNewWorkflowRow(tx, {
+        id: newWorkflowId,
+        userId,
+        workspaceId: targetWorkspaceId,
+        folderId: targetFolderId,
+        sortOrder,
+        name: deduplicatedName,
+        description: description || source.description,
+        now,
+        variables,
+      })
+    )
 
     // Copy all blocks from source workflow with new IDs
     const sourceBlocks = await tx
@@ -436,7 +405,6 @@ export async function duplicateWorkflow(
             updatedConfig = structuredClone(subflow.config) as LoopConfig | ParallelConfig
 
             // Update the config ID to match the new subflow ID
-
             ;(updatedConfig as any).id = newSubflowId
 
             /**
@@ -509,6 +477,8 @@ export async function duplicateWorkflow(
       blocksCount: sourceBlocks.length,
       edgesCount: sourceEdges.length,
       subflowsCount: sourceSubflows.length,
+      createdAt: now,
+      updatedAt: now,
     }
   }
 

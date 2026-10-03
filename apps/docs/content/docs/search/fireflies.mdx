@@ -1,0 +1,32 @@
+---
+title: Fireflies
+description: Search meeting titles and spoken transcripts with each member’s Fireflies account
+---
+
+Fireflies live Search uses **Member accounts**. Each person authorizes their own Fireflies account through the managed MCP connection. Search can read only meetings that account can access now.
+
+## Connect
+
+1. An admin enables **Fireflies** under **Settings → Sources**, using **Member accounts**.
+2. Each teammate opens **Integrations → Fireflies → Connect** and completes Fireflies authorization.
+3. Search for a topic, phrase, or name mentioned in a meeting.
+
+The managed Fireflies provider must be configured before Connect is available. Live Search uses the fixed official endpoint `https://api.fireflies.ai/mcp`. The API-key connection used by the Fireflies knowledge-base connector is a separate ingestion path and does not authorize member live Search.
+
+## Query guidance
+
+Use concise words or a phrase, such as `security approval`, `customer onboarding`, or `September launch`. Fireflies accepts a maximum of 255 characters in the search term. Sim explicitly searches both meeting titles and spoken transcript sentences.
+
+Supply meeting dates through `startDate` and `endDate`, with an exclusive end bound. Sim widens native date-only bounds to cover the requested instants, then checks the actual returned meeting date. Fireflies does not expose a transcript modification time; modification-date filters cannot establish matching transcripts.
+
+Do not use Gmail operators, GitHub qualifiers, or Fireflies’ experimental search mini-grammar in the query. Sim uses the stable `fireflies_get_transcripts` tool with JSON output, adding `scope: "all"` when the query contains a keyword. Date-only listings omit keyword scope. Continue with the returned numeric cursor on the same account and query. Each page returns up to 49 meetings, reserving one provider result to confirm that another page exists.
+
+## Evidence and reads
+
+Search results contain meeting metadata and AI-generated summaries. A summary is not a verbatim quote. Read a result to obtain the transcript’s speaker names and timestamps, together with a separately labeled summary. Ongoing meetings return a snapshot of speech recorded so far. Very large transcripts are bounded and visibly marked when truncated.
+
+Every operation rechecks the member’s current grant, provider configuration, and organization/workspace access. Search uses a fixed allowlist of read tools, validates their advertised schemas, and cannot invoke sharing, deletion, or other write operations.
+
+Provider quotas, meeting permissions, and the Fireflies plan still apply. A provider failure or unsupported response format is reported explicitly rather than appearing as a complete search with no matches.
+
+See [Fireflies MCP tools](https://docs.fireflies.ai/mcp-tools/overview) for the current tool and plan capabilities.

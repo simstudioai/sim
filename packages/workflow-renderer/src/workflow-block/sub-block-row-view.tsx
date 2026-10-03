@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { cn } from '@sim/emcn'
 import { OverflowSpan } from '../lib/overflow-span'
+import type { CodePreview } from '../types'
 import { InlineChip } from './inline-chip'
 
 /**
@@ -16,6 +17,8 @@ export interface SubBlockRowViewProps {
   displayValue?: string
   /** Render the value in a monospace font (e.g. filter expressions). */
   isMonospace?: boolean
+  /** Rich preview for an inline code value; ordinary values keep the text tooltip. */
+  codePreview?: CodePreview
   /**
    * Leading icon for the `meta` variant; without one the variant falls back
    * to the labeled `row` presentation.
@@ -46,6 +49,7 @@ export function SubBlockRowView({
   title,
   displayValue,
   isMonospace,
+  codePreview,
   icon: Icon,
   variant = 'row',
 }: SubBlockRowViewProps) {
@@ -54,7 +58,8 @@ export function SubBlockRowView({
       <InlineChip>
         <OverflowSpan
           value={displayValue ?? title}
-          className={cn('min-w-0 truncate', isMonospace && 'font-mono')}
+          className={cn('min-w-0', isMonospace && 'font-mono')}
+          codePreview={codePreview}
         />
       </InlineChip>
     )
@@ -65,7 +70,7 @@ export function SubBlockRowView({
       <OverflowSpan
         value={displayValue ?? title}
         className={cn(
-          'min-w-0 truncate text-sm',
+          'min-w-0 text-sm',
           variant === 'statement-primary'
             ? 'font-medium text-[var(--text-primary)]'
             : 'text-[var(--text-muted)]'
@@ -77,11 +82,11 @@ export function SubBlockRowView({
   if (variant === 'meta' && Icon) {
     return (
       <div className='flex min-w-0 items-center gap-2'>
-        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <OverflowSpan
           value={displayValue ?? '-'}
           className={cn(
-            'min-w-0 flex-1 truncate text-left text-[var(--text-primary)] text-sm',
+            'min-w-0 flex-1 text-left text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'
           )}
         />
@@ -94,7 +99,7 @@ export function SubBlockRowView({
       <div className='flex items-center'>
         <OverflowSpan
           value={title}
-          className='min-w-0 truncate text-[var(--text-muted)] text-sm capitalize'
+          className='min-w-0 text-[var(--text-muted)] text-sm capitalize'
         />
       </div>
     )
@@ -104,17 +109,16 @@ export function SubBlockRowView({
     <div className='flex h-5 items-center gap-2'>
       <OverflowSpan
         value={title}
-        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
+        className='min-w-0 text-[var(--text-tertiary)] text-sm capitalize'
       />
       {displayValue !== undefined && (
-        <span
+        <OverflowSpan
+          value={displayValue}
           className={cn(
-            'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
+            'flex-1 text-right text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'
           )}
-        >
-          {displayValue}
-        </span>
+        />
       )}
     </div>
   )

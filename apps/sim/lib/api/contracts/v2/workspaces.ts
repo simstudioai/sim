@@ -5,6 +5,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2PaginationFields,
+  v2SortFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
@@ -37,9 +38,32 @@ export const v2WorkspaceSchema = z
   })
 export type V2Workspace = z.output<typeof v2WorkspaceSchema>
 
+export const v2WorkspaceSortFields = ['name', 'createdAt', 'updatedAt'] as const
+export type V2WorkspaceSortBy = (typeof v2WorkspaceSortFields)[number]
+
+/**
+ * Below the v2 default of 50. A personal key can reach every workspace its
+ * owner belongs to, and an unbounded-feeling first page is the wrong default
+ * for a list a caller usually scans to pick one; the cursor is there for more.
+ */
+export const V2_WORKSPACES_DEFAULT_PAGE_SIZE = 25
+
+export const v2ListWorkspacesQuerySchema = z
+  .object({
+    ...v2SortFields(v2WorkspaceSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({
+      description: 'Maximum workspaces to return per page.',
+      fallback: V2_WORKSPACES_DEFAULT_PAGE_SIZE,
+    }),
+  })
+  .strict()
+
+export type V2ListWorkspacesQuery = z.output<typeof v2ListWorkspacesQuerySchema>
+
 export const v2WorkspaceMemberSchema = z
   .object({
-    email: z.email().describe('Member email address and public member identifier.'),
+    userId: z.string().describe('User identifier; use this identifier for member administration.'),
+    email: z.email().describe('Member email address.'),
     name: z.string().describe('Member display name.'),
     image: z.string().nullable().describe('Member profile image URL, or null when absent.'),
     role: z.enum(['admin', 'write', 'read']).describe('Effective role in the workspace.'),
@@ -75,6 +99,13 @@ export const v2GetWorkspaceContract = defineRouteContract({
   query: noInputSchema,
   params: v2WorkspaceParamsSchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkspaceSchema) },
+})
+
+export const v2ListWorkspacesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workspaces',
+  query: v2ListWorkspacesQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2WorkspaceSchema) },
 })
 
 export const v2ListWorkspaceMembersContract = defineRouteContract({

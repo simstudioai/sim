@@ -2,9 +2,9 @@ import type {
   IdentityCenterAssignmentStatusResponse,
   IdentityCenterCheckAssignmentStatusParams,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const checkAssignmentStatusTool: ToolConfig<
+export const checkAssignmentStatusTool: InternalToolConfig<
   IdentityCenterCheckAssignmentStatusParams,
   IdentityCenterAssignmentStatusResponse
 > = {
@@ -42,15 +42,13 @@ export const checkAssignmentStatusTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Request ID returned from Create or Delete Account Assignment',
+      description:
+        'Request ID returned from Create Account Assignment. Deletion request IDs are not accepted — use Check Assignment Deletion Status for those.',
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/check-assignment-status',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

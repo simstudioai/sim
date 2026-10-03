@@ -207,14 +207,10 @@ async function fetchChatDeploymentStatus(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<ChatDeploymentStatus> {
-  const data = await requestJson(getChatDeploymentStatusContract, {
+  return requestJson(getChatDeploymentStatusContract, {
     params: { id: workflowId },
     signal,
   })
-  return {
-    isDeployed: data.isDeployed ?? false,
-    deployment: data.deployment ?? null,
-  }
 }
 
 /**
@@ -466,9 +462,16 @@ export function useGenerateVersionDescription() {
       onStreamChunk,
       signal,
     }: GenerateVersionDescriptionVariables): Promise<string> => {
-      const { generateWorkflowDiffSummary, formatDiffSummaryForDescriptionAsync } = await import(
-        '@/lib/workflows/comparison/compare'
-      )
+      /*
+       * Deep paths, not the barrel: `describe` carries the block/selector
+       * registries and `apps/sim` has no `sideEffects: false`, so a barrel
+       * import would re-anchor that graph into this route's initial chunk.
+       */
+      const [{ generateWorkflowDiffSummary }, { formatDiffSummaryForDescriptionAsync }] =
+        await Promise.all([
+          import('@/lib/workflows/comparison/compare'),
+          import('@/lib/workflows/comparison/describe'),
+        ])
 
       const currentState = await fetchDeploymentVersionState(workflowId, version, signal)
 

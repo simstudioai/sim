@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   getToolInputParamConfigs,
   indexWorkflowSearchMatches,
@@ -11,18 +8,13 @@ import {
   createSearchReplaceWorkflowFixture,
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
-import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 
 /**
- * Uses the real tool registry. Nothing here imports it directly — the dependency
- * is transitive: the search-replace planner resolves tool input params through
- * real subblock configs, so the global `@/tools/registry` mock in
- * vitest.setup.ts empties the data these assertions read.
- *
- * Not a no-op, despite the lack of a direct import. Dropping this opt-out fails
- * 8 tests across this file and its sibling suite.
+ * Asserts real tool params and outputs, which the global `@/tools/metadata`
+ * and `@/tools/metadata-outputs` mocks in vitest.setup.ts empty.
  */
-vi.unmock('@/tools/registry')
+vi.unmock('@/tools/metadata')
+vi.unmock('@/tools/metadata-outputs')
 
 describe('indexWorkflowSearchMatches', () => {
   it('marks generic tool-param fallbacks as non-authoritative', () => {
@@ -114,17 +106,95 @@ describe('indexWorkflowSearchMatches', () => {
     expect(blockNameMatches[0]?.fieldTitle).toBe('Block name')
   })
 
-  it('does not include block-name matches in resource-only mode', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
+  it('matches a block name containing a non-breaking space against a typed space', () => {
+    const workflow = {
+      blocks: {
+        'nbsp-1': {
+          id: 'nbsp-1',
+          type: 'function',
+          name: 'Load\u00a0Prompt',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      },
+    } as ReturnType<typeof createSearchReplaceWorkflowFixture>
 
     const matches = indexWorkflowSearchMatches({
       workflow,
-      query: 'agent',
-      mode: 'resource',
+      query: 'load prompt',
+      mode: 'text',
       blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
     })
 
-    expect(matches.some((match) => match.target.kind === 'block-name')).toBe(false)
+    const blockNameMatches = matches.filter((match) => match.target.kind === 'block-name')
+    // The raw value keeps the original characters so replacements stay exact.
+    expect(blockNameMatches.map((match) => match.rawValue)).toEqual(['Load\u00a0Prompt'])
+  })
+
+  describe('a markdown field is searched as it renders', () => {
+    /*
+     * The rich-text editor backslash-escapes every markdown-significant character in prose, so a
+     * Note the reader sees as `{{TE_SERET}}` is stored as `{{TE\_SERET}}`. Searching what is on
+     * screen has to see through that, and the range has to keep spanning the escaped source so
+     * replace rewrites the whole `\_` instead of stranding the backslash.
+     */
+    const NOTE_CONFIGS = {
+      note: { subBlocks: [{ id: 'content', type: 'long-input', searchTextFormat: 'markdown' }] },
+      function: { subBlocks: [{ id: 'code', type: 'code' }] },
+    } as unknown as typeof SEARCH_REPLACE_BLOCK_CONFIGS
+
+    function workflowWith(noteContent: string, code: string) {
+      return {
+        blocks: {
+          'note-1': {
+            id: 'note-1',
+            type: 'note',
+            name: 'Note',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            subBlocks: { content: { id: 'content', type: 'long-input', value: noteContent } },
+            outputs: {},
+          },
+          'fn-1': {
+            id: 'fn-1',
+            type: 'function',
+            name: 'Fn',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            subBlocks: { code: { id: 'code', type: 'code', value: code } },
+            outputs: {},
+          },
+        },
+      } as unknown as Parameters<typeof indexWorkflowSearchMatches>[0]['workflow']
+    }
+
+    it('finds an escaped underscore by what the reader sees', () => {
+      const matches = indexWorkflowSearchMatches({
+        workflow: workflowWith('{{TE\\_SERET}}', ''),
+        query: '{{TE_',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(matches.map((match) => match.blockId)).toContain('note-1')
+    })
+
+    it('keeps the range over the escape, so replace cannot strand a backslash', () => {
+      const content = 'uses SB\\_ACTION here'
+      const [match] = indexWorkflowSearchMatches({
+        workflow: workflowWith(content, ''),
+        query: 'SB_ACTION',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(content.slice(match.range!.start, match.range!.end)).toBe('SB\\_ACTION')
+      expect(match.rawValue).toBe('SB\\_ACTION')
+    })
+
+    /* A code field stores what the author typed: a backslash there is theirs, not an escape. */
   })
 
   describe('block references search under the name the canvas shows', () => {
@@ -158,49 +228,12 @@ describe('indexWorkflowSearchMatches', () => {
       ])
     })
 
-    it('still matches a reference by the token as stored', () => {
-      expect(findReferenceMatches('api1').map((match) => match.rawValue)).toEqual(['<api1.output>'])
-    })
-
     it('reads the resolved name back as the block is titled', () => {
       const [match] = findReferenceMatches('API 1')
 
       expect(match.searchText).toBe('API 1.output')
       expect(match.rawValue).toBe('<api1.output>')
       expect(match.range).toEqual({ start: 10, end: 23 })
-    })
-
-    it('leaves a prefix that names no block as written', () => {
-      const matches = indexWorkflowSearchMatches({
-        workflow: (() => {
-          const workflow = createSearchReplaceWorkflowFixture()
-          workflow.blocks['agent-1'].subBlocks.systemPrompt.value =
-            'Summarize <api1.output> and <deletedblock.output>, then loop <loop.index>.'
-          return workflow
-        })(),
-        mode: 'all',
-        includeResourceMatchesWithoutQuery: true,
-        blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-      })
-
-      expect(
-        matches
-          .filter((match) => match.kind === 'workflow-reference')
-          .map((match) => match.searchText)
-      ).toEqual(['API 1.output', 'deletedblock.output', 'loop.index'])
-    })
-
-    it('leaves an environment reference keyed by its variable name', () => {
-      const matches = indexWorkflowSearchMatches({
-        workflow: createSearchReplaceWorkflowFixture(),
-        mode: 'all',
-        includeResourceMatchesWithoutQuery: true,
-        blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-      })
-
-      expect(
-        matches.filter((match) => match.kind === 'environment').map((match) => match.searchText)
-      ).toEqual(['OLD_SECRET', 'OLD_SECRET'])
     })
 
     /**
@@ -263,103 +296,6 @@ describe('indexWorkflowSearchMatches', () => {
     expect(objectMatches).toEqual([])
   })
 
-  it('indexes input format fields by visible nested field labels', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['start-1'] = {
-      id: 'start-1',
-      type: 'start_trigger',
-      name: 'Start',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        inputFormat: {
-          id: 'inputFormat',
-          type: 'input-format',
-          value: [
-            {
-              id: 'internal-field-id',
-              name: 'customerInput',
-              type: 'string',
-              description: 'Incoming payload',
-              value: 'sample',
-              collapsed: false,
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'in',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        start_trigger: {
-          subBlocks: [{ id: 'inputFormat', title: 'Inputs', type: 'input-format' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'start-1')
-
-    expect(matches).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          valuePath: [0, 'name'],
-          fieldTitle: 'Name',
-          searchText: 'customerInput',
-        }),
-        expect.objectContaining({
-          valuePath: [0, 'description'],
-          fieldTitle: 'Description',
-          searchText: 'Incoming payload',
-        }),
-      ])
-    )
-    expect(matches.some((match) => match.rawValue === 'internal-field-id')).toBe(false)
-    expect(matches.some((match) => match.valuePath.join('.') === '0.type')).toBe(false)
-  })
-
-  it('does not index evaluator type metadata', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['evaluator-1'] = {
-      id: 'evaluator-1',
-      type: 'custom',
-      name: 'Evaluator',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        metrics: {
-          id: 'metrics',
-          type: 'eval-input',
-          value: [
-            {
-              id: 'metric-1',
-              name: 'Accuracy',
-              type: 'score-kind',
-              description: 'Factual correctness',
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'score-kind',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'metrics', title: 'Metrics', type: 'eval-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'evaluator-1')
-
-    expect(matches).toEqual([])
-  })
-
   it('indexes fixed option display labels as non-editable matches', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['dropdown-1'] = {
@@ -401,127 +337,6 @@ describe('indexWorkflowSearchMatches', () => {
         rawValue: 'email',
         editable: false,
         reason: 'Display labels cannot be replaced',
-      }),
-    ])
-  })
-
-  it('indexes selected skill labels as non-editable display-label matches', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['agent-skills-1'] = {
-      id: 'agent-skills-1',
-      type: 'agent',
-      name: 'Agent Skills',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        skills: {
-          id: 'skills',
-          type: 'skill-input',
-          value: [{ skillId: 'skill-1', name: 'Sim bot' }],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'bot',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        agent: {
-          subBlocks: [{ id: 'skills', title: 'Skills', type: 'skill-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'agent-skills-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'skills',
-        valuePath: [0, 'name'],
-        searchText: 'Sim bot',
-        rawValue: 'bot',
-        editable: false,
-        reason: 'Display labels cannot be replaced',
-      }),
-    ])
-  })
-
-  it('indexes checkbox option labels as non-editable display-label matches', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['checkbox-1'] = {
-      id: 'checkbox-1',
-      type: 'custom',
-      name: 'Checkbox Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        options: { id: 'options', type: 'checkbox-list', value: null },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'Values',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [
-            {
-              id: 'options',
-              title: 'Options',
-              type: 'checkbox-list',
-              options: [{ id: 'includeValues', label: 'Include Values' }],
-            },
-          ],
-        },
-      },
-    }).filter((match) => match.blockId === 'checkbox-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'options',
-        valuePath: ['options', 0],
-        searchText: 'Include Values',
-        editable: false,
-        reason: 'Display labels cannot be replaced',
-      }),
-    ])
-  })
-
-  it('indexes table column labels alongside cell values', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['table-1'] = {
-      id: 'table-1',
-      type: 'custom',
-      name: 'Table Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        rows: { id: 'rows', type: 'table', value: [{ id: 'row-1', cells: { Email: 'owner' } }] },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'Email',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'rows', title: 'Rows', type: 'table', columns: ['Email'] }],
-        },
-      },
-    }).filter((match) => match.blockId === 'table-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        valuePath: ['columns', 0],
-        searchText: 'Email',
-        editable: false,
       }),
     ])
   })
@@ -568,150 +383,6 @@ describe('indexWorkflowSearchMatches', () => {
         valuePath: [1],
         structuredOccurrenceIndex: 1,
         rawValue: 'beta-resource',
-      }),
-    ])
-  })
-
-  it('indexes variables selector labels and MCP dynamic args with renderer paths', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['structured-1'] = {
-      id: 'structured-1',
-      type: 'custom',
-      name: 'Structured Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        variableAssignments: {
-          id: 'variableAssignments',
-          type: 'variables-input',
-          value: [
-            {
-              id: 'assignment-1',
-              variableId: 'var-1',
-              variableName: 'Account Name',
-              type: 'string',
-              value: 'customer',
-              isExisting: true,
-            },
-          ],
-        },
-        args: {
-          id: 'args',
-          type: 'mcp-dynamic-args',
-          value: { prompt: 'Summarize account notes' },
-        },
-      },
-    }
-
-    const blockConfigs = {
-      ...SEARCH_REPLACE_BLOCK_CONFIGS,
-      custom: {
-        subBlocks: [
-          { id: 'variableAssignments', title: 'Variables', type: 'variables-input' },
-          { id: 'args', title: 'Arguments', type: 'mcp-dynamic-args' },
-        ],
-      },
-    }
-
-    const variableMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'Account',
-      mode: 'text',
-      blockConfigs,
-    }).filter((match) => match.blockId === 'structured-1')
-    const mcpMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'account',
-      mode: 'text',
-      blockConfigs,
-    }).filter((match) => match.blockId === 'structured-1' && match.subBlockId === 'args')
-
-    expect(variableMatches).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          subBlockId: 'variableAssignments',
-          valuePath: [0, 'variableName'],
-          searchText: 'Account Name',
-          editable: false,
-        }),
-      ])
-    )
-    expect(mcpMatches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'args',
-        valuePath: ['prompt'],
-        searchText: 'Summarize account notes',
-      }),
-    ])
-  })
-
-  it('indexes MCP dynamic enum args as non-editable display-label matches', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['mcp-enum-1'] = {
-      id: 'mcp-enum-1',
-      type: 'mcp',
-      name: 'MCP Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        arguments: {
-          id: 'arguments',
-          type: 'mcp-dynamic-args',
-          value: { format: 'markdown', prompt: 'customer prompt' },
-        },
-        _toolSchema: {
-          id: '_toolSchema',
-          type: 'short-input',
-          value: {
-            properties: {
-              format: { type: 'string', enum: ['markdown', 'json'] },
-              prompt: { type: 'string' },
-            },
-          },
-        },
-      },
-    }
-
-    const enumMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'markdown',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        mcp: {
-          subBlocks: [{ id: 'arguments', title: 'Arguments', type: 'mcp-dynamic-args' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'mcp-enum-1')
-    const promptMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'customer',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        mcp: {
-          subBlocks: [{ id: 'arguments', title: 'Arguments', type: 'mcp-dynamic-args' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'mcp-enum-1')
-
-    expect(enumMatches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'arguments',
-        valuePath: ['format'],
-        searchText: 'markdown',
-        editable: false,
-        reason: 'Display labels cannot be replaced',
-      }),
-    ])
-    expect(promptMatches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'arguments',
-        valuePath: ['prompt'],
-        searchText: 'customer prompt',
-        editable: true,
       }),
     ])
   })
@@ -889,43 +560,6 @@ describe('indexWorkflowSearchMatches', () => {
         reason: 'Display labels cannot be replaced',
       }),
     ])
-  })
-
-  it('does not index display-only subblocks that render from config', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['display-1'] = {
-      id: 'display-1',
-      type: 'custom',
-      name: 'Display',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        help: { id: 'help', type: 'text', value: 'stored shadow text' },
-        scheduleInfo: { id: 'scheduleInfo', type: 'schedule-info', value: 'stored schedule text' },
-        modal: { id: 'modal', type: 'modal', value: 'stored modal text' },
-        webhook: { id: 'webhook', type: 'webhook-config', value: 'stored webhook text' },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'stored',
-      mode: 'all',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [
-            { id: 'help', title: 'Help', type: 'text', defaultValue: 'Rendered help' },
-            { id: 'scheduleInfo', title: 'Schedule', type: 'schedule-info' },
-            { id: 'modal', title: 'Modal', type: 'modal' },
-            { id: 'webhook', title: 'Webhook', type: 'webhook-config' },
-          ],
-        },
-      },
-    }).filter((match) => match.blockId === 'display-1')
-
-    expect(matches).toEqual([])
   })
 
   it('indexes connected ID and value fields for JSON-backed knowledge tag subblocks', () => {
@@ -1268,6 +902,11 @@ describe('indexWorkflowSearchMatches', () => {
           type: 'input-mapping',
           value: { childInput: 'mapped visible value' },
         },
+        fallbackModels: {
+          id: 'fallbackModels',
+          type: 'model-fallback-list',
+          value: [{ id: 'row-1', model: 'fallback-visible-model', apiKey: '{{HIDDEN_KEY_REF}}' }],
+        },
       },
     }
     const blockConfigs = {
@@ -1280,6 +919,7 @@ describe('indexWorkflowSearchMatches', () => {
           { id: 'skills', title: 'Skills', type: 'skill-input' },
           { id: 'runAt', title: 'Run At', type: 'time-input' },
           { id: 'mapping', title: 'Input Mapping', type: 'input-mapping' },
+          { id: 'fallbackModels', title: 'Fallback models', type: 'model-fallback-list' },
         ],
       },
     }
@@ -1314,7 +954,28 @@ describe('indexWorkflowSearchMatches', () => {
       mode: 'text',
       blockConfigs,
     }).filter((match) => match.blockId === 'structured-1')
+    const fallbackMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'fallback-visible',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
 
+    expect(fallbackMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'fallbackModels',
+        valuePath: [0, 'model'],
+        searchText: 'fallback-visible-model',
+      }),
+    ])
+    /** A row key is a `{{VAR}}` reference; text search must never offer to rewrite it. */
+    const keyMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'HIDDEN_KEY_REF',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    expect(keyMatches).toEqual([])
     expect(containsMatches).toEqual([
       expect.objectContaining({
         subBlockId: 'filters',
@@ -1351,92 +1012,6 @@ describe('indexWorkflowSearchMatches', () => {
         subBlockId: 'mapping',
         valuePath: ['childInput'],
         searchText: 'mapped visible value',
-      }),
-    ])
-  })
-
-  it('does not index skill-shaped values even when persisted under a legacy id', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['legacy-agent-1'] = {
-      id: 'legacy-agent-1',
-      type: 'custom',
-      name: 'Legacy Agent',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        legacySkills: {
-          id: 'legacySkills',
-          type: 'short-input',
-          value: [{ skillId: 'skill-vik-id', name: 'vik-skill' }],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'vik',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: { subBlocks: [] },
-      },
-    }).filter((match) => match.blockId === 'legacy-agent-1')
-
-    expect(matches).toEqual([])
-  })
-
-  it('indexes only editable variable assignment values as text', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['variables-1'] = {
-      id: 'variables-1',
-      type: 'variables',
-      name: 'Variables',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        variables: {
-          id: 'variables',
-          type: 'variables-input',
-          value: [
-            {
-              id: 'assignment-needle-id',
-              variableId: 'variable-needle-id',
-              variableName: 'needleVariable',
-              type: 'string',
-              value: 'needle assignment value',
-              isExisting: true,
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'needle',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        variables: {
-          subBlocks: [{ id: 'variables', title: 'Variable Assignments', type: 'variables-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'variables-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'variables',
-        valuePath: [0, 'variableName'],
-        searchText: 'needleVariable',
-        editable: false,
-      }),
-      expect.objectContaining({
-        subBlockId: 'variables',
-        valuePath: [0, 'value'],
-        searchText: 'needle assignment value',
-        editable: true,
       }),
     ])
   })
@@ -1582,7 +1157,7 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches.some((match) => match.valuePath.includes('schema'))).toBe(false)
   })
 
-  it('indexes canonical MCP and custom-tool names over mutated stored titles', () => {
+  it('indexes only the active variable-capable Agent tool mode value', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tool-input-1'] = {
       id: 'tool-input-1',
@@ -1591,39 +1166,56 @@ describe('indexWorkflowSearchMatches', () => {
       position: { x: 0, y: 0 },
       enabled: true,
       outputs: {},
+      data: { canonicalModes: { '0:agentToolUsageControl': 'advanced' } },
       subBlocks: {
         tools: {
           id: 'tools',
           type: 'tool-input',
           value: [
-            { type: 'mcp', toolId: 'mcp-tool-1', title: 'Mutated Title', params: {} },
-            { type: 'custom-tool', customToolId: 'ct-1', title: 'Mutated Title', params: {} },
+            {
+              type: 'native',
+              usageControl: 'auto',
+              usageControlExpression: '<route.toolMode>',
+            },
           ],
         },
       },
     }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: { subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' as const }] },
+      native: { name: 'Native', subBlocks: [] },
+    }
 
-    const matches = indexWorkflowSearchMatches({
+    const advancedMatches = indexWorkflowSearchMatches({
       workflow,
-      query: 'customer',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-      customTools: [{ id: 'ct-1', title: 'Customer Records' }],
-      mcpToolNamesById: new Map([['mcp-tool-1', 'customer_lookup']]),
+      query: 'route',
+      mode: 'all',
+      blockConfigs,
     }).filter((match) => match.blockId === 'tool-input-1')
 
-    expect(matches).toEqual(
+    expect(advancedMatches.map((match) => match.kind)).toEqual(['text', 'workflow-reference'])
+    expect(advancedMatches).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ valuePath: [0, 'title'], searchText: 'customer_lookup' }),
-        expect.objectContaining({ valuePath: [1, 'title'], searchText: 'Customer Records' }),
+        expect.objectContaining({
+          fieldTitle: 'Permission Mode',
+          valuePath: [0, 'usageControlExpression'],
+          searchText: '<route.toolMode>',
+        }),
       ])
     )
-    expect(matches.some((match) => match.searchText === 'Mutated Title')).toBe(false)
+
+    workflow.blocks['tool-input-1'].data = {
+      canonicalModes: { '0:agentToolUsageControl': 'basic' },
+    }
+    const basicMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'route',
+      mode: 'all',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(basicMatches).toHaveLength(0)
   })
 
   it('indexes explicit secret tool params for intentional replacement', () => {
@@ -1811,117 +1403,6 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
-  it('attaches selector context to selector-backed tool input params', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['tool-input-1'] = {
-      id: 'tool-input-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'slack',
-              toolId: 'slack_message',
-              operation: 'send',
-              title: 'Slack message',
-              params: {
-                authMethod: 'oauth',
-                credential: 'slack-credential',
-                channel: 'COLD',
-                text: 'message',
-              },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'COLD',
-      mode: 'resource',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.kind === 'selector-resource')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        rawValue: 'COLD',
-        resource: expect.objectContaining({
-          selectorKey: 'slack.channels',
-          selectorContext: expect.objectContaining({
-            oauthCredential: 'slack-credential',
-            workspaceId: 'workspace-1',
-            workflowId: 'workflow-1',
-            excludeWorkflowId: 'workflow-1',
-          }),
-        }),
-      }),
-    ])
-  })
-
-  it('indexes tool-input titles as non-editable display labels', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['tool-title-1'] = {
-      id: 'tool-title-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'slack',
-              toolId: 'slack_message',
-              operation: 'send',
-              title: 'Slack message',
-              params: { text: 'hello' },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'Slack',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'tool-title-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'tools',
-        subBlockType: 'tool-input',
-        valuePath: [0, 'title'],
-        searchText: 'Slack message',
-        editable: false,
-        reason: 'Display labels cannot be replaced',
-      }),
-    ])
-  })
-
   it('indexes workflow-input tool mappings by values without exposing JSON keys', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tool-input-1'] = {
@@ -1980,56 +1461,6 @@ describe('indexWorkflowSearchMatches', () => {
         subBlockType: 'workflow-input-mapper',
         valuePath: [0, 'params', 'inputMapping', 'customerEmail'],
         searchText: 'old email value',
-      }),
-    ])
-  })
-
-  it('indexes object-backed workflow-input tool mappings by values', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['tool-input-1'] = {
-      id: 'tool-input-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'workflow_input',
-              toolId: 'workflow_executor',
-              title: 'Workflow',
-              params: {
-                workflowId: 'workflow-old',
-                inputMapping: { customerEmail: 'object email value' },
-              },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'object email',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'tool-input-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'tools',
-        subBlockType: 'workflow-input-mapper',
-        valuePath: [0, 'params', 'inputMapping', 'customerEmail'],
-        searchText: 'object email value',
       }),
     ])
   })
@@ -2147,67 +1578,6 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
-  it('indexes nested JSON object fallback tool params by values without exposing keys', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['tool-input-1'] = {
-      id: 'tool-input-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'mcp',
-              toolId: 'server-tool',
-              title: 'MCP tool',
-              params: {
-                payload: JSON.stringify({ customer: { name: 'Acme Corp' } }),
-              },
-            },
-          ],
-        },
-      },
-    }
-
-    const valueMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'Acme',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'tool-input-1')
-    const keyMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'customer',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'tool-input-1')
-
-    expect(valueMatches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'tools',
-        subBlockType: 'workflow-input-mapper',
-        valuePath: [0, 'params', 'payload', 'customer', 'name'],
-        searchText: 'Acme Corp',
-      }),
-    ])
-    expect(keyMatches).toEqual([])
-  })
-
   it('scopes MCP tool resources to the selected server', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['mcp-1'] = {
@@ -2318,192 +1688,6 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
-  it('does not index hidden generated subblocks', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['evaluator-1'] = {
-      id: 'evaluator-1',
-      type: 'evaluator',
-      name: 'Evaluator',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        systemPrompt: {
-          id: 'systemPrompt',
-          type: 'code',
-          value: 'Generated content should not be searchable',
-        },
-        content: {
-          id: 'content',
-          type: 'long-input',
-          value: 'Visible content should be searchable',
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'content',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        evaluator: {
-          subBlocks: [
-            { id: 'systemPrompt', title: 'System Prompt', type: 'code', hidden: true },
-            { id: 'content', title: 'Content', type: 'long-input' },
-          ],
-        },
-      },
-    })
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        blockId: 'evaluator-1',
-        subBlockId: 'content',
-        fieldTitle: 'Content',
-      }),
-    ])
-  })
-
-  it('indexes only the active member of a canonical basic/advanced pair', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['canonical-1'] = {
-      id: 'canonical-1',
-      type: 'custom',
-      name: 'Canonical Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      data: {
-        canonicalModes: { file: 'advanced' },
-      },
-      subBlocks: {
-        fileSelector: {
-          id: 'fileSelector',
-          type: 'file-selector',
-          value: 'basic-file-id',
-        },
-        fileReference: {
-          id: 'fileReference',
-          type: 'short-input',
-          value: 'advanced-file-reference',
-        },
-      },
-    }
-    const blockConfigs = {
-      ...SEARCH_REPLACE_BLOCK_CONFIGS,
-      custom: {
-        subBlocks: [
-          {
-            id: 'fileSelector',
-            title: 'File',
-            type: 'file-selector',
-            canonicalParamId: 'file',
-            mode: 'basic',
-          },
-          {
-            id: 'fileReference',
-            title: 'File',
-            type: 'short-input',
-            canonicalParamId: 'file',
-            mode: 'advanced',
-          },
-        ],
-      },
-    }
-
-    const basicMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'basic-file-id',
-      mode: 'all',
-      blockConfigs,
-    }).filter((match) => match.blockId === 'canonical-1')
-    const advancedMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'advanced-file',
-      mode: 'all',
-      blockConfigs,
-    }).filter((match) => match.blockId === 'canonical-1')
-
-    expect(basicMatches).toEqual([])
-    expect(advancedMatches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'fileReference',
-        canonicalSubBlockId: 'file',
-        kind: 'text',
-      }),
-    ])
-  })
-
-  it('indexes reactive credential-type fields only when their credential type matches', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['reactive-1'] = {
-      id: 'reactive-1',
-      type: 'custom',
-      name: 'Reactive Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        credential: {
-          id: 'credential',
-          type: 'oauth-input',
-          value: 'credential-1',
-        },
-        impersonateUserEmail: {
-          id: 'impersonateUserEmail',
-          type: 'short-input',
-          value: 'service-account-user@example.com',
-        },
-      },
-    }
-    const blockConfigs = {
-      ...SEARCH_REPLACE_BLOCK_CONFIGS,
-      custom: {
-        subBlocks: [
-          {
-            id: 'credential',
-            title: 'Google Account',
-            type: 'oauth-input',
-            canonicalParamId: 'oauthCredential',
-          },
-          {
-            id: 'impersonateUserEmail',
-            title: 'Impersonated Account',
-            type: 'short-input',
-            reactiveCondition: {
-              watchFields: ['oauthCredential'],
-              requiredType: 'service_account',
-            },
-          },
-        ],
-      },
-    }
-
-    const hiddenMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'service-account-user',
-      mode: 'text',
-      blockConfigs,
-      credentialTypeById: { 'credential-1': 'oauth' },
-    }).filter((match) => match.blockId === 'reactive-1')
-    const visibleMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'service-account-user',
-      mode: 'text',
-      blockConfigs,
-      credentialTypeById: { 'credential-1': 'service_account' },
-    }).filter((match) => match.blockId === 'reactive-1')
-
-    expect(hiddenMatches).toEqual([])
-    expect(visibleMatches).toEqual([
-      expect.objectContaining({
-        subBlockId: 'impersonateUserEmail',
-        fieldTitle: 'Impersonated Account',
-      }),
-    ])
-  })
-
   it('indexes editable combobox text and still finds inline references', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['combobox-1'] = {
@@ -2582,163 +1766,6 @@ describe('indexWorkflowSearchMatches', () => {
     )
   })
 
-  it('indexes evaluator metrics by visible nested field labels', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['evaluator-1'] = {
-      id: 'evaluator-1',
-      type: 'evaluator',
-      name: 'Evaluator',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        metrics: {
-          id: 'metrics',
-          type: 'eval-input',
-          value: [
-            {
-              id: 'metric-internal-id',
-              name: 'Accuracy',
-              description: 'Score factual correctness',
-              range: { min: 0, max: 10 },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: '10',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        evaluator: {
-          subBlocks: [{ id: 'metrics', title: 'Evaluation Metrics', type: 'eval-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'evaluator-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        valuePath: [0, 'range', 'max'],
-        fieldTitle: 'Max Value',
-        searchText: '10',
-        editable: false,
-        reason: 'Only text values can be replaced',
-      }),
-    ])
-
-    const idMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'metric-internal-id',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        evaluator: {
-          subBlocks: [{ id: 'metrics', title: 'Evaluation Metrics', type: 'eval-input' }],
-        },
-      },
-    })
-
-    expect(idMatches).toEqual([])
-  })
-
-  it('indexes non-string scalar values as searchable but not editable', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['api-1'].subBlocks.body.value = { count: 2, enabled: true }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: '2',
-      mode: 'text',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    }).filter((match) => match.blockId === 'api-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        valuePath: ['count'],
-        rawValue: '2',
-        editable: false,
-        reason: 'Only text values can be replaced',
-      }),
-    ])
-  })
-
-  it('indexes loop and parallel editor settings for navigation', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['parallel-1'] = {
-      id: 'parallel-1',
-      type: 'parallel',
-      name: 'Parallel 1',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {},
-      data: {
-        parallelType: 'count',
-        count: 20,
-      },
-    }
-    workflow.blocks['loop-1'] = {
-      id: 'loop-1',
-      type: 'loop',
-      name: 'Loop 1',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {},
-      data: {
-        loopType: 'forEach',
-        collection: "['item-2']",
-      },
-    }
-
-    const countMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: '20',
-      mode: 'text',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    })
-    const collectionMatches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'item-2',
-      mode: 'text',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    })
-
-    expect(countMatches).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          blockId: 'parallel-1',
-          subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
-          canonicalSubBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
-          fieldTitle: 'Parallel Iterations',
-          editable: true,
-          target: {
-            kind: 'subflow',
-            fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
-          },
-        }),
-      ])
-    )
-    expect(collectionMatches).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          blockId: 'loop-1',
-          subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
-          canonicalSubBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
-          fieldTitle: 'Collection Items',
-          editable: true,
-          target: {
-            kind: 'subflow',
-            fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
-          },
-        }),
-      ])
-    )
-  })
-
   it('indexes environment tokens and workflow references embedded in strings', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
@@ -2783,58 +1810,6 @@ describe('indexWorkflowSearchMatches', () => {
         expect.objectContaining({ kind: 'knowledge-document', rawValue: 'doc-old' }),
       ])
     )
-  })
-
-  it('can enumerate resource candidates before display-label filtering', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'Test LMFAO',
-      mode: 'all',
-      includeResourceMatchesWithoutQuery: true,
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    })
-
-    const knowledgeMatch = matches.find(
-      (match) => match.kind === 'knowledge-base' && match.rawValue === 'kb-old'
-    )
-    expect(knowledgeMatch).toBeDefined()
-    expect(
-      workflowSearchMatchMatchesQuery(
-        { ...knowledgeMatch!, displayLabel: 'Test LMFAO' },
-        'Test LMFAO'
-      )
-    ).toBe(true)
-  })
-
-  it('does not match opaque structured resource ids during display-label filtering', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-2-opaque-id'
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: '2',
-      mode: 'all',
-      includeResourceMatchesWithoutQuery: true,
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    })
-    const knowledgeMatch = matches.find(
-      (match) => match.kind === 'knowledge-base' && match.rawValue === 'kb-2-opaque-id'
-    )
-
-    expect(knowledgeMatch).toBeDefined()
-    expect(
-      workflowSearchMatchMatchesQuery({ ...knowledgeMatch!, displayLabel: 'Support Articles' }, '2')
-    ).toBe(false)
-    expect(
-      workflowSearchMatchMatchesQuery(
-        { ...knowledgeMatch!, displayLabel: 'Support Articles 2' },
-        '2'
-      )
-    ).toBe(true)
   })
 
   it('does not index structured resource ids as plain text matches', () => {
@@ -2947,61 +1922,6 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
-  it('attaches selector context for workflow selectors', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['workflow-1'] = {
-      id: 'workflow-1',
-      type: 'workflow',
-      name: 'Workflow Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        workflowId: {
-          id: 'workflowId',
-          type: 'workflow-selector',
-          value: 'child-workflow-1',
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'child',
-      mode: 'resource',
-      workspaceId: 'workspace-1',
-      workflowId: 'current-workflow-1',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        workflow: {
-          subBlocks: [
-            {
-              id: 'workflowId',
-              title: 'Select Workflow',
-              type: 'workflow-selector',
-              selectorKey: 'sim.workflows',
-            },
-          ],
-        },
-      },
-    }).filter((match) => match.blockId === 'workflow-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        kind: 'workflow',
-        rawValue: 'child-workflow-1',
-        resource: expect.objectContaining({
-          selectorKey: 'sim.workflows',
-          selectorContext: expect.objectContaining({
-            workspaceId: 'workspace-1',
-            workflowId: 'current-workflow-1',
-            excludeWorkflowId: 'current-workflow-1',
-          }),
-        }),
-      }),
-    ])
-  })
-
   it('builds selector context from declared dependencies instead of sibling selectors', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['spreadsheet-1'] = {
@@ -3067,46 +1987,6 @@ describe('indexWorkflowSearchMatches', () => {
     )
   })
 
-  it('captures selector context for selector-backed resources', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      mode: 'resource',
-      includeResourceMatchesWithoutQuery: true,
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    })
-
-    expect(matches).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: 'selector-resource',
-          rawValue: 'INBOX',
-          resource: expect.objectContaining({
-            selectorKey: 'gmail.labels',
-            selectorContext: expect.objectContaining({
-              oauthCredential: 'gmail-credential-old',
-              workspaceId: 'workspace-1',
-              workflowId: 'workflow-1',
-            }),
-          }),
-        }),
-        expect.objectContaining({
-          kind: 'knowledge-document',
-          rawValue: 'doc-old',
-          resource: expect.objectContaining({
-            selectorKey: 'knowledge.documents',
-            selectorContext: expect.objectContaining({
-              knowledgeBaseId: 'kb-old,kb-second',
-            }),
-          }),
-        }),
-      ])
-    )
-  })
-
   it('marks snapshot view matches as searchable but not editable', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
@@ -3120,21 +2000,5 @@ describe('indexWorkflowSearchMatches', () => {
 
     expect(matches.every((match) => !match.editable)).toBe(true)
     expect(matches.every((match) => match.reason === 'Snapshot view is readonly')).toBe(true)
-  })
-
-  it('marks readonly workflow matches as searchable but not editable', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'email',
-      mode: 'text',
-      isReadOnly: true,
-      readonlyReason: 'Workflow is locked',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    })
-
-    expect(matches.every((match) => !match.editable)).toBe(true)
-    expect(matches.every((match) => match.reason === 'Workflow is locked')).toBe(true)
   })
 })

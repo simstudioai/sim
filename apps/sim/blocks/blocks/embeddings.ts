@@ -16,22 +16,16 @@ import {
   normalizeOpenRouterEmbeddingModelId,
 } from '@/lib/embeddings/openrouter-models'
 import type { EmbeddingTaskType } from '@/lib/embeddings/types'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { providerModelsQueryOptions } from '@/hooks/queries/providers'
-import type { EmbeddingsResponse } from '@/tools/embeddings/types'
 
-export const EMBEDDING_BLOCK_PROVIDERS = [...EMBEDDING_CATALOG_PROVIDERS, 'openrouter'] as const
+export const EMBEDDING_BLOCK_PROVIDERS = [
+  ...EMBEDDING_CATALOG_PROVIDERS,
+  'openrouter',
+  'ollama',
+] as const
 
 type EmbeddingBlockProvider = (typeof EMBEDDING_BLOCK_PROVIDERS)[number]
-
-async function fetchOpenRouterEmbeddingModelOptions() {
-  const { models } = await getQueryClient().fetchQuery(
-    providerModelsQueryOptions('openrouter-embeddings')
-  )
-  return models.map((model) => ({ label: model, id: model }))
-}
 
 const TOOL_ID_BY_PROVIDER: Record<EmbeddingBlockProvider, string> = {
   openai: 'embeddings_openai',
@@ -39,6 +33,7 @@ const TOOL_ID_BY_PROVIDER: Record<EmbeddingBlockProvider, string> = {
   gemini: 'embeddings_gemini',
   cohere: 'embeddings_cohere',
   mistral: 'embeddings_mistral',
+  ollama: 'embeddings_ollama',
 }
 
 const PROVIDER_LABELS: Record<EmbeddingBlockProvider, string> = {
@@ -47,7 +42,11 @@ const PROVIDER_LABELS: Record<EmbeddingBlockProvider, string> = {
   gemini: 'Google Gemini',
   cohere: 'Cohere',
   mistral: 'Mistral',
+  ollama: 'Ollama',
 }
+
+/** Providers whose models are the deployment's to install, not Sim's to catalogue. */
+const KEYLESS_PROVIDERS = ['ollama'] as const satisfies readonly EmbeddingBlockProvider[]
 
 const TASK_TYPE_LABELS: Record<EmbeddingTaskType, string> = {
   document: 'Document',
@@ -81,10 +80,35 @@ MODEL_SUB_BLOCKS.push({
   id: 'model',
   title: 'Model',
   type: 'combobox',
-  options: [],
-  fetchOptions: fetchOpenRouterEmbeddingModelOptions,
+  selectorKey: 'providers.openrouterEmbeddingModels',
   value: () => DEFAULT_OPENROUTER_EMBEDDING_MODEL,
   condition: { field: 'provider', value: 'openrouter' },
+  dependsOn: ['provider'],
+})
+
+/**
+ * Ollama's catalog is whatever the operator pulled onto their own server, so the
+ * list is read from it at open time rather than declared here, and there is no
+ * default to pre-select. Each option carries the width the model emits, because
+ * that is the one thing a user has to match when the same base is also indexed
+ * by a knowledge base.
+ */
+MODEL_SUB_BLOCKS.push({
+  id: 'model',
+  title: 'Model',
+  type: 'combobox',
+  selectorKey: 'providers.ollamaEmbeddingModels',
+  placeholder: 'Select a model on your Ollama server',
+  required: true,
+  /**
+   * Suppresses the combobox's auto-select-first-option behaviour. Without it,
+   * opening the block persists whichever model the server happens to list
+   * first — and since each one emits a different width, that is a silent wrong
+   * answer rather than a harmless default. `required` still stands: the user
+   * must choose, they just are not chosen for.
+   */
+  emptyIsValid: true,
+  condition: { field: 'provider', value: 'ollama' },
   dependsOn: ['provider'],
 })
 
@@ -134,13 +158,13 @@ const CAPABILITY_SUB_BLOCKS: SubBlockConfig[] = Object.entries(EMBEDDING_MODELS)
   }
 )
 
-export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
+export const EmbeddingsBlock: BlockConfig = {
   type: 'embeddings',
   name: 'Embeddings',
   description: 'Generate embeddings',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.',
+    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.',
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/embeddings',
@@ -191,7 +215,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       placeholder: 'Enter your provider API key',
       password: true,
       required: true,
-      condition: { field: 'provider', value: 'openrouter', not: true },
+      condition: { field: 'provider', value: [...KEYLESS_PROVIDERS, 'openrouter'], not: true },
       connectionDroppable: false,
       hideWhenHosted: true,
     },
@@ -213,6 +237,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       'embeddings_gemini',
       'embeddings_cohere',
       'embeddings_mistral',
+      'embeddings_ollama',
     ],
     config: {
       /**
@@ -242,6 +267,33 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
         const provider = (params.provider as EmbeddingBlockProvider) || 'openai'
         if (!params.input) {
           throw new Error('Input text is required')
+        }
+
+        /**
+         * Ollama takes no credential and offers no task or dimension
+         * conditioning, so a value stored under a previous provider is cleared
+         * rather than forwarded. The model is passed as the bare name the
+         * server lists; the routing prefix is added server-side.
+         */
+        if (provider === 'ollama') {
+          const model = typeof params.model === 'string' ? params.model.trim() : ''
+          if (!model) {
+            throw new Error('An Ollama embedding model is required')
+          }
+          return {
+            input: params.input,
+            model,
+            /**
+             * Explicitly cleared, not omitted: the executor merges this over the
+             * saved inputs, so an omitted key leaves the previous provider's
+             * credential in place and serializes it into a request that has no
+             * use for one.
+             */
+            apiKey: undefined,
+            openRouterApiKey: undefined,
+            taskType: undefined,
+            dimensions: undefined,
+          }
         }
 
         if (provider === 'openrouter') {

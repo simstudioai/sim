@@ -10,8 +10,11 @@ export type EmailSubjectType =
   | 'reset-password'
   | 'existing-account'
   | 'invitation'
+  | 'enterprise-owner-invitation'
   | 'batch-invitation'
   | 'workspace-added'
+  | 'permission-access-request-created'
+  | 'permission-access-request-decided'
   | 'enterprise-subscription'
   | 'usage-threshold'
   | 'free-tier-upgrade'
@@ -20,6 +23,7 @@ export type EmailSubjectType =
   | 'abandoned-checkout'
   | 'free-tier-exhausted'
   | 'schedule-disabled'
+  | 'subprocessor-change'
   | 'onboarding-followup'
   | 'welcome'
 
@@ -46,10 +50,16 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Sign-up attempt with your ${brandName} email`
     case 'invitation':
       return `You've been invited to join a team on ${brandName}`
+    case 'enterprise-owner-invitation':
+      return `Activate your Enterprise organization on ${brandName}`
     case 'batch-invitation':
       return `You've been invited to join a team and workspaces on ${brandName}`
     case 'workspace-added':
       return `You've been added to a workspace on ${brandName}`
+    case 'permission-access-request-created':
+      return `An access request needs review on ${brandName}`
+    case 'permission-access-request-decided':
+      return `Your access request was updated on ${brandName}`
     case 'enterprise-subscription':
       return `Your Enterprise Plan is now active on ${brandName}`
     case 'usage-threshold':
@@ -66,6 +76,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `You've run out of free credits on ${brandName}`
     case 'schedule-disabled':
       return `A schedule was turned off on ${brandName}`
+    case 'subprocessor-change':
+      return `Upcoming change to ${brandName} sub-processors`
     case 'onboarding-followup':
       return `Quick question about ${brandName}`
     case 'welcome':
@@ -104,10 +116,16 @@ export function getOtpSubject(resourceLabel: string): string {
   return `Verification code for ${resourceLabel}`
 }
 
-/** Names both the inviter and workspace so an external recipient can identify the request. */
+/**
+ * Names the workspace so an external recipient can identify the request, and the
+ * inviter when there is one — a workflow-issued invitation has no person to name.
+ */
 export function getCredentialGroupInvitationSubject(
-  inviterName: string,
+  inviterName: string | undefined,
   workspaceName: string
 ): string {
-  return `${inviterName} invited you to connect accounts for ${workspaceName} on ${getBrandConfig().name}`
+  const brandName = getBrandConfig().name
+  return inviterName
+    ? `${inviterName} invited you to connect accounts for ${workspaceName} on ${brandName}`
+    : `You have been invited to connect accounts for ${workspaceName} on ${brandName}`
 }

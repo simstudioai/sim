@@ -1,4 +1,5 @@
 ---
+description: List and menu ordering that mirrors the toolbar or settings nav, encoded once, with one separator before the destructive action
 paths:
   - "apps/sim/app/**/*.tsx"
   - "apps/sim/ee/**/*.tsx"
@@ -7,9 +8,7 @@ paths:
 
 # List & Menu Ordering
 
-**A list orders itself the way the user already reads the same things somewhere else.** Dropdowns, context menus, tab strips, command palettes, and settings navs are all *second* presentations of a set the user has already seen — in the sidebar, in a toolbar, in a column-header row. When the second presentation reorders that set, the user re-reads it from scratch every time.
-
-This is not a style preference. Order is the cheapest affordance a list has, and the only one that costs nothing to get right.
+**A list orders itself the way the user already reads the same things somewhere else.** Dropdowns, context menus, tab strips, command palettes, and settings navs are all *second* presentations of a set the user has already seen — in a toolbar, in the settings nav, in a column-header row. When the second presentation reorders that set, the user re-reads it from scratch every time.
 
 ## The rule
 
@@ -17,24 +16,96 @@ Before writing a list of items, find where the user sees those same items *first
 
 | The list | Mirrors |
 | --- | --- |
-| Resource menus (`+` attach, `@` mention, resource-tab `+`) | the workspace **sidebar**, top-down |
 | A row / root **context menu** | that surface's **toolbar**, left-to-right → top-to-bottom |
 | Settings tab strip, recently-deleted tabs | the **settings nav**, top-down |
 | A "New …" menu | the order those things appear once created |
 
 Left-to-right becomes top-to-bottom. A toolbar reading `Filter · Sort · Export · Delete` becomes a menu reading Filter, Sort, Export, Delete — never alphabetized, never grouped by implementation, never "destructive last" unless the toolbar already puts it last.
 
+Resource menus (`+` attach, `@` mention, resource-tab `+`) do not mirror the sidebar. Their order is a product decision encoded in `RESOURCE_MENU_ORDER` (see below), and every resource menu shares it.
+
 Platform-only entries (desktop **Browser** and **Terminal**) trail the shared set rather than interleaving, so the common prefix is identical on every platform.
+
+## Grouping: a rule marks a change in what the action acts on
+
+Order is governed above. **Separators are governed here.**
+
+A `DropdownMenuSeparator` earns its place when the next group stops acting on the thing the user
+clicked. That is the whole test — one question, asked the same way in every menu:
+
+| The group | Gets a rule before it |
+| --- | --- |
+| Acts on the clicked item (open, rename, duplicate, export, copy, edit, pin, run) | no — this is the body of the menu |
+| Acts on **something else** — the page's filters or view, or a newly created sibling | yes |
+| **Destroys or detaches** it (delete, leave, close, hide, remove) | yes |
+
+Most row menus only ever have the one transition, so they carry one rule, immediately before
+`Delete`. A menu that also filters the page or inserts siblings carries two. Nothing carries
+more, because there is no third thing a menu acts on.
+
+Do **not** band by verb. "Navigation", "status", "edit", "copy" are categories of *what the verb
+is*, not of *what it touches*, and the user meets no such taxonomy anywhere else — every toolbar
+in the app is a flat `gap-1` chip row with no dividers. Menus banded that way put the same action
+in different groups depending on which siblings happened to be visible.
+
+The consequential group trails in almost every menu. It leads in exactly one: the **logs row
+menu**, where `Retry` and `Cancel Run` act on the run itself and are the primary actions on a
+failure, so they sit on top with the rule beneath them. Ordering follows the surface (see "The
+rule" above); the separator fences whichever end that group occupies.
+
+A group whose items are merely *disabled* still gets no extra rule — `disabled` is not a group.
+
+```tsx
+// ✗ Bad — four semantic bands the user meets nowhere else
+Open in new tab │─── Rename, Lock │─── Duplicate, Export │─── Delete
+
+// ✓ Good — one rule, where the menu stops acting on the workflow
+Open in new tab, Rename, Lock, Duplicate, Export │─── Delete
+```
+
+**Worked examples.** The logs row menu carries two: `Retry, Cancel Run │ Copy Run ID, Copy Link,
+Open Workflow, Open Snapshot │ Filter by Workflow, Clear Filters` — the run, then this log, then
+the page. The table row and column menus carry two: the rule before `Insert row above` /
+`Insert column left` is where the menu stops acting on the clicked cell and starts creating
+siblings. Every other row menu in the app has only the destructive transition, so it carries one.
+
+**The one standing exception: menus that emulate a native menu.** The text-editor menu
+(`editor-context-menu.tsx`), the terminal menu (`terminal-context-menu.tsx`), and the browser
+page menu (`browser-session.tsx`) each mirror the OS menu the user already knows — clipboard
+banding (`Cut · Copy · Paste │ Select all`) is a convention every text field on their machine
+teaches them. These keep their native banding, and that is the *same* principle as the ordering
+rule above: mirror the surface the user already reads. The test is whether a real menu outside
+Sim taught them the grouping. Our own resource, row, and action menus have no such precedent —
+the toolbars they mirror are flat — so they take the single rule.
+
+**Both sides of every rule must be guaranteed non-empty.** Write the separator's guard out of
+the *exact* render conditions of the items around it, never a looser approximation:
+
+```tsx
+// ✗ Bad — `showLeave` alone, while the Leave item needs `showLeave && onLeave`.
+//         A caller passing showLeave from a permission check with a conditional
+//         onLeave renders a trailing rule under the last item.
+{hasActionsAbove && (showLeave || showDelete) && <DropdownMenuSeparator />}
+
+// ✓ Good — each term is the item's own condition, verbatim
+const hasDestructiveSection = (showLeave && onLeave) || showDelete
+{hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
+```
+
+Unconditional separators above conditional items leave a dangling rule at the bottom of the menu.
+
+**Never add a prop to move a rule.** Per-caller grouping props multiply unreachable branches; a
+menu that wants different grouping wants the standard grouping.
 
 ## Encode the order once
 
 An order duplicated across surfaces is an order that will drift. Export **one** constant and sort by it — do not hand-maintain a matching literal per menu.
 
 ```ts
-/** Top-down order for every menu listing resource families, mirroring the sidebar. */
+/** Top-down order for every menu listing resource families. */
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
-  'integration', 'task', 'table', 'file', 'filefolder',
-  'knowledgebase', 'log', 'workflow', 'folder', 'browser', 'terminal', 'generic',
+  'integration', 'task', 'dashboard', 'table', 'file', 'filefolder',
+  'knowledgebase', 'workflow', 'log', 'folder', 'browser', 'terminal', 'generic',
 ]
 
 export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(a: T, b: T) {
@@ -54,7 +125,7 @@ The most common way a canonical order gets silently defeated: emitting all items
 {groups.filter((g) => !FOLDERED.has(g.type)).map(renderFlat)}
 
 // ✓ Good — one ordered pass; each entry picks its own rendering
-{entries.sort(byResourceMenuOrder).map((entry) =>
+{[...entries].sort(byResourceMenuOrder).map((entry) =>
   sectionByType.has(entry.type) ? renderTree(entry) : renderFlat(entry)
 )}
 ```

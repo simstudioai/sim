@@ -17,16 +17,67 @@ import type { OutputProperty } from '@/tools/types'
 
 type Unknown = Record<string, unknown>
 
+export const ASHBY_ON_BEHALF_OF_PARAM = {
+  onBehalfOfUserId: {
+    type: 'string',
+    required: false,
+    visibility: 'user-or-llm',
+    description:
+      'Active Ashby user UUID to attribute this mutation to; the API key must permit on-behalf-of calls',
+  },
+} as const
+
 /**
  * Build the standard Ashby Authorization header. Ashby uses HTTP Basic auth
  * with the API key as the username and an empty password.
  */
-export function ashbyAuthHeaders(apiKey: string): Record<string, string> {
-  return {
+export function ashbyAuthHeaders(
+  apiKey: string,
+  onBehalfOfUserId?: string
+): Record<string, string> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json; version=1',
     Authorization: `Basic ${btoa(`${apiKey}:`)}`,
   }
+  const actingUserId = onBehalfOfUserId?.trim()
+  if (actingUserId) headers['X-On-Behalf-Of'] = actingUserId
+  return headers
+}
+
+/** Validate an ISO 8601 date-time without changing the provider wire value. */
+export function ashbyIsoDateTime(value: string, parameter: string): string {
+  const isoDateTimePattern =
+    /^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$/
+  const match = isoDateTimePattern.exec(value)
+  const year = Number(match?.[1])
+  const month = Number(match?.[2])
+  const day = Number(match?.[3])
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  const maxDay = daysInMonth[month - 1] ?? 0
+  const validCalendarDate = month >= 1 && month <= 12 && day >= 1 && day <= maxDay
+  const timestamp = Date.parse(value)
+  if (!match || !validCalendarDate || !Number.isFinite(timestamp)) {
+    throw new Error(`Invalid ${parameter}: expected an ISO 8601 timestamp.`)
+  }
+  return value
+}
+
+/** Convert an ISO 8601 input to Ashby's millisecond timestamp without silently dropping bad input. */
+export function ashbyTimestamp(value: string, parameter: string): number {
+  return Date.parse(ashbyIsoDateTime(value, parameter))
+}
+
+/** Normalize optional block inputs and validate Ashby's page/search size contract. */
+export function ashbyLimit(value: unknown, parameter = 'perPage'): number | undefined {
+  if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
+    return undefined
+  }
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > 100) {
+    throw new Error(`Invalid ${parameter}: expected an integer from 1 to 100.`)
+  }
+  return value
 }
 
 /**
@@ -143,6 +194,7 @@ export function mapUserSummary(raw: unknown): AshbyUserSummary | null {
     isEnabled: (u.isEnabled as boolean) ?? false,
     updatedAt: (u.updatedAt as string) ?? null,
     managerId: (u.managerId as string) ?? null,
+    customFields: mapCustomFields(u.customFields),
   }
 }
 
@@ -480,6 +532,7 @@ export const USER_SUMMARY_OUTPUT = {
     isEnabled: { type: 'boolean', description: 'Whether enabled' },
     updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
     managerId: { type: 'string', description: "User ID of the user's manager", optional: true },
+    customFields: CUSTOM_FIELDS_OUTPUT,
   },
 } as const satisfies OutputProperty
 

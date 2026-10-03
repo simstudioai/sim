@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 export interface KnowledgeDocumentTagProvenanceTarget {
   tagName: string
   value: unknown
@@ -16,7 +17,7 @@ export function parseKnowledgeDocumentTagProvenanceTargets(
     const parsed: unknown = JSON.parse(documentTagsData)
     if (!Array.isArray(parsed)) return []
     return parsed.flatMap((candidate) => {
-      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return []
+      if (!isRecordLike(candidate)) return []
       const record = candidate as Record<string, unknown>
       const tagName = typeof record.tagName === 'string' ? record.tagName.trim() : ''
       if (!tagName || record.value === undefined || record.value === null || record.value === '') {

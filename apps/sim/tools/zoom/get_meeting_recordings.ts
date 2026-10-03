@@ -1,11 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomGetMeetingRecordingsParams,
   ZoomGetMeetingRecordingsResponse,
 } from '@/tools/zoom/types'
 import { RECORDING_OUTPUT_PROPERTIES } from '@/tools/zoom/types'
 
-export const zoomGetMeetingRecordingsTool: ToolConfig<
+export const zoomGetMeetingRecordingsTool: InternalToolConfig<
   ZoomGetMeetingRecordingsParams,
   ZoomGetMeetingRecordingsResponse
 > = {
@@ -48,13 +48,8 @@ export const zoomGetMeetingRecordingsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/zoom/get-recordings',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       meetingId: params.meetingId,
       includeFolderItems: params.includeFolderItems,

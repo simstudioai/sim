@@ -1,7 +1,7 @@
 import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolResponse> = {
+export const updateAlertRuleTool: InternalToolConfig<GrafanaUpdateAlertRuleParams, ToolResponse> = {
   id: 'grafana_update_alert_rule',
   name: 'Grafana Update Alert Rule',
   description: 'Update an existing alert rule. Fetches the current rule and merges your changes.',
@@ -130,11 +130,8 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     },
   },
 
-  request: {
-    url: () => '/api/tools/grafana/update_alert_rule',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       apiKey: params.apiKey,
       baseUrl: params.baseUrl,
       organizationId: params.organizationId,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -33,7 +34,8 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
-    orgId: z.string().optional(),
+    orgId: organizationIdSchema,
+    jitProvisioningEnabled: z.boolean().default(true),
     mapping: ssoMappingSchema,
     clientId: z.string().min(1, 'Client ID is required for OIDC'),
     clientSecret: z.string().min(1, 'Client Secret is required for OIDC'),
@@ -60,7 +62,8 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
-    orgId: z.string().optional(),
+    orgId: organizationIdSchema,
+    jitProvisioningEnabled: z.boolean().default(true),
     mapping: ssoMappingSchema,
     entryPoint: z.string().url('Entry point must be a valid URL for SAML'),
     cert: z.string().min(1, 'Certificate is required for SAML'),
@@ -92,15 +95,22 @@ export const ssoRegistrationContract = defineRouteContract({
 })
 
 const ssoProviderListEntrySchema = z.object({
-  id: z.string().optional(),
-  providerId: z.string().optional(),
-  domain: z.string().nullable(),
-  issuer: z.string().nullable().optional(),
-  oidcConfig: z.string().nullable().optional(),
-  samlConfig: z.string().nullable().optional(),
-  userId: z.string().nullable().optional(),
-  organizationId: z.string().nullable().optional(),
-  providerType: z.enum(['oidc', 'saml']).optional(),
+  id: z.string(),
+  providerId: z.string(),
+  domain: z.string(),
+  issuer: z.string(),
+  oidcConfig: z.string().nullable(),
+  samlConfig: z.string().nullable(),
+  userId: z.string(),
+  organizationId: z.string().nullable(),
+  jitProvisioningEnabled: z.boolean(),
+  /** The domain as sign-in compares it: trimmed, lower-cased, a leading `*.` dropped. Providers sharing it share a primary. */
+  domainKey: z.string(),
+  /** Whether this provider's domain is verified, so it can sign people in. */
+  domainVerified: z.boolean(),
+  /** Whether sign-in for this provider's domain goes through it. */
+  isPrimary: z.boolean(),
+  providerType: z.enum(['oidc', 'saml']),
 })
 
 export const listSsoProvidersContract = defineRouteContract({
@@ -112,6 +122,52 @@ export const listSsoProvidersContract = defineRouteContract({
     schema: z.object({
       providers: z.array(ssoProviderListEntrySchema),
     }),
+  },
+})
+
+export type SsoProviderView = z.output<typeof ssoProviderListEntrySchema>
+
+/** Moves sign-in for a provider's verified domain to that provider. The body names the only change it makes. */
+export const setPrimarySsoProviderContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/auth/sso/providers/[providerId]',
+  params: z.object({ providerId: z.string().min(1) }),
+  body: z.object({ isPrimary: z.literal(true) }),
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true), providerId: z.string() }),
+  },
+})
+
+export const deleteSsoProviderContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/auth/sso/providers/[providerId]',
+  params: z.object({ providerId: z.string().min(1) }),
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true), providerId: z.string() }),
+  },
+})
+
+/**
+ * Which identity provider signs in an email address.
+ *
+ * Sign-in names the provider explicitly rather than letting the SSO plugin pick
+ * one by domain: its lookup is unordered and does not prefer a verified domain,
+ * so an organization with several providers, or a stale unverified claim on the
+ * same domain elsewhere, would route people nondeterministically.
+ */
+export const resolveSsoProviderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/auth/sso/resolve',
+  body: z.object({
+    email: z.string().trim().toLowerCase().email().max(320),
+    /** A test sign-in link names a provider; it is honored only when that provider serves the address. */
+    providerId: z.string().min(1).optional(),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.object({ providerId: z.string() }),
   },
 })
 

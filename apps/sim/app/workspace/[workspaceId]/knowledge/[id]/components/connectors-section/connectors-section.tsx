@@ -1,762 +1,206 @@
 'use client'
 
-import type { Dispatch, SetStateAction } from 'react'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  ChipConfirmModal,
-  cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Tooltip,
-} from '@sim/emcn'
-import {
-  ChevronDown,
-  CircleAlert,
-  CircleCheck,
-  CircleX,
-  Loader,
-  Pause,
-  Play,
-  RefreshCw,
-  Settings,
-  Trash,
-  TriangleAlert,
-} from '@sim/emcn/icons'
-import { createLogger } from '@sim/logger'
+import { useId, useRef, useState } from 'react'
+import { Badge, Chip, cn } from '@sim/emcn'
+import { Loader, Users } from '@sim/emcn/icons'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
-import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
-import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
-import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
-import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
+import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { describeSearchSource } from '@/lib/sim-search/source-identity'
+import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
-  useConnectorDetail,
-  useDeleteConnector,
-  useTriggerSync,
-  useUpdateConnector,
-} from '@/hooks/queries/kb/connectors'
-import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
-import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-
-const logger = createLogger('ConnectorsSection')
+  ConnectorActionFeedback,
+  ConnectorActions,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions'
+import { ConnectorRecovery } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-recovery'
+import { ConnectorSyncHistory } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-history'
+import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
+import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
+import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
 interface ConnectorsSectionProps {
-  workspaceId: string
+  scope?: ResourceScope
+  workspaceId?: string
   knowledgeBaseId: string
+  isSearchIndex?: boolean
   connectors: ConnectorData[]
   isLoading: boolean
   canEdit: boolean
   className?: string
 }
 
-/** 5-minute cooldown after a manual sync trigger */
-const SYNC_COOLDOWN_MS = 5 * 60 * 1000
-
-const EMPTY_REQUIRED_SCOPES: string[] = []
-
-type IdSetSetter = Dispatch<SetStateAction<Set<string>>>
-
-function addToSet(setter: IdSetSetter, id: string) {
-  setter((prev) => new Set(prev).add(id))
-}
-
-function removeFromSet(setter: IdSetSetter, id: string) {
-  setter((prev) => {
-    const next = new Set(prev)
-    next.delete(id)
-    return next
-  })
-}
-
 const STATUS_CONFIG = {
   active: { label: 'Active', variant: 'green' as const },
+  pending: { label: 'Queued', variant: 'blue' as const },
   syncing: { label: 'Syncing', variant: 'amber' as const },
   error: { label: 'Error', variant: 'red' as const },
   paused: { label: 'Paused', variant: 'gray' as const },
   disabled: { label: 'Disabled', variant: 'orange' as const },
 } as const
 
-const CONNECTOR_ACTION_BUTTON_CLASSES =
-  'size-7 rounded-lg p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
-
 export function ConnectorsSection({
   workspaceId,
+  scope: explicitScope,
   knowledgeBaseId,
+  isSearchIndex = false,
   connectors,
   isLoading,
   canEdit,
   className,
 }: ConnectorsSectionProps) {
-  const { mutate: triggerSync } = useTriggerSync()
-  const { mutate: updateConnector } = useUpdateConnector()
-  const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
-  const deleteDocumentsId = useId()
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [deleteDocuments, setDeleteDocuments] = useState(false)
-
-  const closeDeleteModal = () => {
-    setDeleteTarget(null)
-    setDeleteDocuments(false)
-  }
+  const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
-  const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set())
-
-  const syncTriggeredAt = useRef<Record<string, number>>({})
-  const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
-  cooldownTimersRef.current ??= new Set()
-  const [, forceUpdate] = useState(0)
-
-  useEffect(() => {
-    return () => {
-      for (const timer of cooldownTimersRef.current ?? []) {
-        clearTimeout(timer)
-      }
-    }
-  }, [])
-
-  const isSyncOnCooldown = (connectorId: string) => {
-    const triggeredAt = syncTriggeredAt.current[connectorId]
-    if (!triggeredAt) return false
-    return Date.now() - triggeredAt < SYNC_COOLDOWN_MS
-  }
-
-  const handleSync = (connectorId: string, rehydrate = false) => {
-    if (isSyncOnCooldown(connectorId)) return
-
-    syncTriggeredAt.current[connectorId] = Date.now()
-    addToSet(setSyncingIds, connectorId)
-
-    triggerSync(
-      { knowledgeBaseId, connectorId, rehydrate },
-      {
-        onSuccess: () => {
-          setError(null)
-          const timer = setTimeout(() => {
-            cooldownTimersRef.current?.delete(timer)
-            forceUpdate((n) => n + 1)
-          }, SYNC_COOLDOWN_MS)
-          cooldownTimersRef.current?.add(timer)
-        },
-        onError: (err) => {
-          logger.error('Sync trigger failed', { error: err.message })
-          setError(err.message)
-          delete syncTriggeredAt.current[connectorId]
-          forceUpdate((n) => n + 1)
-        },
-        onSettled: () => removeFromSet(setSyncingIds, connectorId),
-      }
-    )
-  }
-
-  const handleTogglePause = (connector: ConnectorData) => {
-    addToSet(setUpdatingIds, connector.id)
-    updateConnector(
-      {
-        knowledgeBaseId,
-        connectorId: connector.id,
-        updates: {
-          status:
-            connector.status === 'paused' || connector.status === 'disabled' ? 'active' : 'paused',
-        },
-      },
-      {
-        onSettled: () => removeFromSet(setUpdatingIds, connector.id),
-        onSuccess: () => setError(null),
-        onError: (err) => {
-          logger.error('Toggle pause failed', { error: err.message })
-          setError(err.message)
-        },
-      }
-    )
-  }
-
-  const handleDeleteConnector = () => {
-    if (!deleteTarget) return
-    deleteConnector(
-      { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
-      {
-        onSuccess: () => {
-          setError(null)
-          closeDeleteModal()
-        },
-        onError: (err) => {
-          logger.error('Delete connector failed', { error: err.message })
-          setError(err.message)
-          closeDeleteModal()
-        },
-      }
-    )
-  }
-
-  if (connectors.length === 0 && !canEdit && !isLoading) return null
 
   return (
     <div className={cn('mt-4', className)}>
-      {error && <p className='mt-2 text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
-
       {isLoading ? (
-        <div className='mt-2' />
+        <SettingsEmptyState variant='inline'>Loading connections…</SettingsEmptyState>
       ) : connectors.length === 0 ? (
-        <p className='mt-2 text-[var(--text-muted)] text-small'>
-          No connected sources yet. Connect an external source to automatically sync documents.
-        </p>
+        <SettingsEmptyState variant='inline'>No connected sources yet.</SettingsEmptyState>
       ) : (
-        <div className='mt-2 flex flex-col gap-0.5'>
+        <div className='divide-y divide-[var(--border)] px-2'>
           {connectors.map((connector) => (
             <ConnectorCard
               key={connector.id}
               connector={connector}
-              workspaceId={workspaceId}
+              scope={scope}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
-              isSyncPending={syncingIds.has(connector.id)}
-              isUpdating={updatingIds.has(connector.id)}
-              syncCooldown={isSyncOnCooldown(connector.id)}
-              onSync={(rehydrate) => handleSync(connector.id, rehydrate)}
-              onTogglePause={() => handleTogglePause(connector)}
+              isSearchIndex={isSearchIndex}
               onEdit={() => setEditingConnector(connector)}
-              onDelete={() => setDeleteTarget(connector.id)}
             />
           ))}
         </div>
       )}
-
       {editingConnector && (
         <EditConnectorModal
-          open={editingConnector !== null}
-          onOpenChange={(val) => !val && setEditingConnector(null)}
+          scope={scope}
+          open
+          onOpenChange={(open) => !open && setEditingConnector(null)}
           knowledgeBaseId={knowledgeBaseId}
+          isSearchIndex={isSearchIndex}
           connector={editingConnector}
         />
       )}
-
-      <ChipConfirmModal
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) closeDeleteModal()
-        }}
-        srTitle='Remove Connector'
-        title='Remove Connector'
-        text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
-        confirm={{
-          label: 'Remove',
-          onClick: handleDeleteConnector,
-          pending: isDeleting,
-          pendingLabel: 'Removing...',
-        }}
-      >
-        <div className='flex items-center gap-2 px-2'>
-          <Checkbox
-            id={deleteDocumentsId}
-            checked={deleteDocuments}
-            onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
-          />
-          <label
-            htmlFor={deleteDocumentsId}
-            className='cursor-pointer text-[var(--text-secondary)] text-small'
-          >
-            Also delete all synced documents
-          </label>
-        </div>
-      </ChipConfirmModal>
     </div>
   )
 }
 
 interface ConnectorCardProps {
   connector: ConnectorData
-  workspaceId: string
+  scope: ResourceScope
   knowledgeBaseId: string
   canEdit: boolean
-  isSyncPending: boolean
-  isUpdating: boolean
-  syncCooldown: boolean
-  onSync: (rehydrate?: boolean) => void
+  isSearchIndex: boolean
   onEdit: () => void
-  onTogglePause: () => void
-  onDelete: () => void
 }
 
 function ConnectorCard({
   connector,
-  workspaceId,
+  scope,
   knowledgeBaseId,
   canEdit,
-  isSyncPending,
-  isUpdating,
-  syncCooldown,
-  onSync,
+  isSearchIndex,
   onEdit,
-  onTogglePause,
-  onDelete,
 }: ConnectorCardProps) {
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null)
+  const actions = useConnectorActions({ connector, knowledgeBaseId, canEdit, onEdit })
+  const historyId = useId()
   const [expanded, setExpanded] = useState(false)
-  const [showOAuthModal, setShowOAuthModal] = useState(false)
-
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
+  const sourceDescription = connectorDef
+    ? describeSearchSource(connectorDef, connector.sourceConfig)
+    : ''
   const Icon = connectorDef?.icon
-  const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
+  const { syncsPerMember, syncInFlight, effectiveStatus, lastSyncAt, nextSyncAt, lastSyncError } =
+    getConnectorSyncState(connector)
   const statusConfig =
-    STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
-
-  const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
-  const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes =
-    connectorDef?.auth.mode === 'oauth'
-      ? (connectorDef.auth.requiredScopes ?? EMPTY_REQUIRED_SCOPES)
-      : EMPTY_REQUIRED_SCOPES
-
-  const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
-    workspaceId,
-  })
-
-  useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', workspaceId)
-
-  const missingScopes = useMemo(() => {
-    if (!credentials || !connector.credentialId) return []
-    const credential = credentials.find((c) => c.id === connector.credentialId)
-    if (!credential) return []
-    return getMissingRequiredScopes(credential, requiredScopes)
-  }, [credentials, connector.credentialId, requiredScopes])
-
-  const { data: detail, isLoading: detailLoading } = useConnectorDetail(
-    expanded ? knowledgeBaseId : undefined,
-    expanded ? connector.id : undefined
-  )
-  const syncLogs = detail?.syncLogs ?? []
-
-  const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync)
-  const syncDisabled =
-    connector.status === 'syncing' ||
-    connector.status === 'disabled' ||
-    isSyncPending ||
-    syncCooldown
-  const syncTooltip = syncCooldown ? 'Sync recently triggered' : canFullResync ? 'Sync' : 'Sync now'
+    STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
+  const syncDetails = [
+    lastSyncAt && `Last sync: ${format(new Date(lastSyncAt), 'MMM d, h:mm a')}`,
+    !syncsPerMember && connector.lastSyncDocCount !== null && `${connector.lastSyncDocCount} docs`,
+    nextSyncAt &&
+      connector.status === 'active' &&
+      !syncInFlight &&
+      `Next sync: ${
+        isPast(new Date(nextSyncAt))
+          ? 'pending'
+          : formatDistanceToNow(new Date(nextSyncAt), { addSuffix: true })
+      }`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-lg border border-transparent transition-colors duration-100',
-        expanded
-          ? 'border-[var(--border-muted)] bg-[var(--surface-2)]'
-          : 'hover-hover:bg-[var(--surface-active)]'
-      )}
-    >
-      <div className='flex items-center justify-between gap-2 px-2 py-2'>
-        <div className='flex min-w-0 items-center gap-2.5'>
-          <div
-            className={cn(
-              'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border',
-              brandBg
-                ? 'border-[var(--border-1)]'
-                : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
-            )}
-            style={brandBg ? { background: brandBg } : undefined}
-          >
-            {Icon && (
-              <Icon
-                className={cn(
-                  'size-5',
-                  brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
-                )}
-              />
-            )}
-          </div>
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <div className='flex min-w-0 items-center gap-2'>
-              <span className='flex min-w-0 items-center gap-1.5 text-[var(--text-primary)] text-small'>
-                <span className='truncate'>{connectorDef?.name || connector.connectorType}</span>
-                {(isSyncPending || connector.status === 'syncing') && (
-                  <Loader className='size-3 text-[var(--text-muted)]' animate />
-                )}
-              </span>
-              <Badge variant={statusConfig.variant} size='sm' dot className='flex-shrink-0'>
-                {statusConfig.label}
+    <div className='flex min-w-0 flex-col gap-2 py-2 first:pt-0 last:pb-0'>
+      <SettingsResourceRow
+        icon={Icon && <IntegrationTile blockType={connector.connectorType} icon={Icon} />}
+        iconVariant='custom'
+        title={connectorDef?.name || connector.connectorType}
+        description={sourceDescription || undefined}
+        badge={
+          <>
+            <Badge variant={statusConfig.variant} size='sm' dot>
+              {statusConfig.label}
+            </Badge>
+            {syncsPerMember && (
+              <Badge variant='gray' size='sm' icon={Users}>
+                Per member
               </Badge>
-            </div>
-            <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
-              {connector.lastSyncAt && (
-                <span>Last sync: {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
-              )}
-              {connector.lastSyncDocCount !== null && (
-                <>
-                  <span>·</span>
-                  <span>{connector.lastSyncDocCount} docs</span>
-                </>
-              )}
-              {connector.nextSyncAt && connector.status === 'active' && (
-                <>
-                  <span>·</span>
-                  <span>
-                    Next sync:{' '}
-                    {isPast(new Date(connector.nextSyncAt))
-                      ? 'pending'
-                      : formatDistanceToNow(new Date(connector.nextSyncAt), { addSuffix: true })}
-                  </span>
-                </>
-              )}
-              {connector.lastSyncError && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <CircleAlert className='size-3 text-[var(--text-error)]' />
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>{connector.lastSyncError}</Tooltip.Content>
-                </Tooltip.Root>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className='flex flex-shrink-0 items-center gap-0.5'>
-          {canEdit && (
-            <>
-              {canFullResync ? (
-                <DropdownMenu>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      {/* span keeps the tooltip hoverable while the trigger button is disabled */}
-                      <span className='inline-flex'>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant='ghost'
-                            aria-label='Sync options'
-                            className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                            disabled={syncDisabled}
-                          >
-                            <RefreshCw
-                              className={cn(
-                                'size-3.5',
-                                connector.status === 'syncing' && 'animate-spin'
-                              )}
-                            />
-                          </Button>
-                        </DropdownMenuTrigger>
-                      </span>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content>{syncTooltip}</Tooltip.Content>
-                  </Tooltip.Root>
-                  <DropdownMenuContent align='end'>
-                    <DropdownMenuItem onSelect={() => onSync(false)}>Sync now</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onSync(true)}>Full resync</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    {/* span keeps the tooltip hoverable while the button is disabled */}
-                    <span className='inline-flex'>
-                      <Button
-                        variant='ghost'
-                        aria-label='Sync now'
-                        className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                        disabled={syncDisabled}
-                        onClick={() => onSync(false)}
-                      >
-                        <RefreshCw
-                          className={cn(
-                            'size-3.5',
-                            connector.status === 'syncing' && 'animate-spin'
-                          )}
-                        />
-                      </Button>
-                    </span>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>{syncTooltip}</Tooltip.Content>
-                </Tooltip.Root>
-              )}
-
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onEdit}
-                  >
-                    <Settings className='size-3.5' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Settings</Tooltip.Content>
-              </Tooltip.Root>
-
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onTogglePause}
-                    disabled={isUpdating}
-                  >
-                    {isUpdating ? (
-                      <Loader className='size-3.5' animate />
-                    ) : connector.status === 'paused' || connector.status === 'disabled' ? (
-                      <Play className='size-3.5' />
-                    ) : (
-                      <Pause className='size-3.5' />
-                    )}
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  {connector.status === 'paused' || connector.status === 'disabled'
-                    ? 'Resume'
-                    : 'Pause'}
-                </Tooltip.Content>
-              </Tooltip.Root>
-
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onDelete}
-                  >
-                    <Trash className='size-3.5' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Delete</Tooltip.Content>
-              </Tooltip.Root>
-            </>
-          )}
-
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                onClick={() => setExpanded((prev) => !prev)}
-              >
-                <ChevronDown
-                  className={cn('size-3.5 transition-transform', expanded && 'rotate-180')}
-                />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content>{expanded ? 'Hide history' : 'Sync history'}</Tooltip.Content>
-          </Tooltip.Root>
-        </div>
-      </div>
-
-      {connector.status === 'disabled' && (
-        <div className='border-[var(--border-muted)] border-t px-2 py-2'>
-          <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
-            <div className='flex items-center gap-1.5 text-[var(--text-primary)] text-caption'>
-              <TriangleAlert className='size-3 flex-shrink-0 text-[var(--caution)]' />
-              Connector disabled after repeated sync failures
-            </div>
-            <p className='text-[var(--text-muted)] text-caption leading-snug'>
-              Syncing has been paused due to {connector.consecutiveFailures} consecutive failures.
-              {serviceId
-                ? ' Reconnect your account to resume syncing.'
-                : ' Use the resume button to re-enable syncing.'}
-            </p>
-            {canEdit && serviceId && providerId && (
-              <Button
-                variant='primary'
-                onClick={() => {
-                  if (connector.credentialId) {
-                    writeOAuthReturnContext({
-                      origin: 'kb-connectors',
-                      knowledgeBaseId,
-                      displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
-                      preCount: credentials?.length ?? 0,
-                      workspaceId,
-                      reconnect: true,
-                      requestedAt: Date.now(),
-                    })
-                  }
-                  setShowOAuthModal(true)
-                }}
-                size='sm'
-                className='w-full'
-              >
-                Reconnect
-              </Button>
             )}
-          </div>
-        </div>
+          </>
+        }
+        trailing={
+          <ConnectorActions
+            state={actions}
+            triggerRef={actionsTriggerRef}
+            history={{
+              expanded,
+              contentId: historyId,
+              onToggle: () => setExpanded((previous) => !previous),
+            }}
+          />
+        }
+      />
+      {connector.accessRewritePending && (
+        <span className='flex items-center gap-1 text-[var(--text-muted)] text-caption'>
+          <Loader className='size-3' animate />
+          Updating access
+        </span>
       )}
-
-      {missingScopes.length > 0 && connector.status !== 'disabled' && (
-        <div className='border-[var(--border-muted)] border-t px-2 py-2'>
-          <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
-            <div className='flex items-center text-[var(--text-primary)] text-caption'>
-              <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-[var(--caution)]' />
-              Additional permissions required
-            </div>
-            {canEdit && (
-              <Button
-                variant='primary'
-                onClick={() => {
-                  if (connector.credentialId) {
-                    writeOAuthReturnContext({
-                      origin: 'kb-connectors',
-                      knowledgeBaseId,
-                      displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
-                      preCount: credentials?.length ?? 0,
-                      workspaceId,
-                      reconnect: true,
-                      requestedAt: Date.now(),
-                    })
-                  }
-                  setShowOAuthModal(true)
-                }}
-                size='sm'
-                className='w-full'
-              >
-                Update access
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
+      <ConnectorRecovery
+        connector={connector}
+        scope={scope}
+        knowledgeBaseId={knowledgeBaseId}
+        isSearchIndex={isSearchIndex}
+        canEdit={canEdit}
+        onEdit={onEdit}
+      />
+      <ConnectorActionFeedback state={actions} />
       {expanded && (
-        <div className='border-[var(--border-muted)] border-t px-2 py-2'>
-          <SyncHistory logs={syncLogs} isLoading={detailLoading} />
+        <div id={historyId} className='border-[var(--border)] border-t pt-3'>
+          <div className='mb-2 flex items-start justify-end gap-2'>
+            {syncDetails && (
+              <p className='flex-1 text-[var(--text-muted)] text-caption'>{syncDetails}</p>
+            )}
+            <Chip
+              aria-expanded={expanded}
+              aria-controls={historyId}
+              onClick={() => {
+                setExpanded(false)
+                actionsTriggerRef.current?.focus()
+              }}
+            >
+              Hide history
+            </Chip>
+          </div>
+          {lastSyncError && <SettingsResourceRow title={lastSyncError} />}
+          <ConnectorSyncHistory connector={connector} knowledgeBaseId={knowledgeBaseId} />
         </div>
       )}
-
-      {showOAuthModal && serviceId && providerId && !connector.credentialId && (
-        <ConnectOAuthModal
-          mode='connect'
-          origin='kb-connectors'
-          open={showOAuthModal}
-          onOpenChange={(open) => {
-            if (!open) {
-              consumeOAuthReturnContext()
-              setShowOAuthModal(false)
-            }
-          }}
-          serviceId={serviceId}
-          providerId={providerId}
-          requiredScopes={getCanonicalScopesForProvider(providerId)}
-          workspaceId={workspaceId}
-          knowledgeBaseId={knowledgeBaseId}
-        />
-      )}
-
-      {showOAuthModal && serviceId && providerId && connector.credentialId && (
-        <ConnectOAuthModal
-          mode='reauthorize'
-          open={showOAuthModal}
-          onOpenChange={(open) => {
-            if (!open) {
-              consumeOAuthReturnContext()
-              setShowOAuthModal(false)
-            }
-          }}
-          toolName={connectorDef?.name ?? connector.connectorType}
-          requiredScopes={getCanonicalScopesForProvider(providerId)}
-          newScopes={missingScopes}
-          serviceId={serviceId}
-          providerId={providerId}
-        />
-      )}
-    </div>
-  )
-}
-
-interface SyncHistoryProps {
-  logs: SyncLogData[]
-  isLoading: boolean
-}
-
-function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
-  if (isLoading) {
-    return (
-      <div className='flex items-center gap-2 rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
-        <Loader className='size-3' animate />
-        Loading sync history…
-      </div>
-    )
-  }
-
-  if (logs.length === 0) {
-    return (
-      <p className='rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
-        No sync history yet.
-      </p>
-    )
-  }
-
-  return (
-    <div className='flex flex-col gap-0.5'>
-      {logs.map((log) => {
-        const isError = log.status === 'error' || log.status === 'failed'
-        const isRunning = log.status === 'running' || log.status === 'syncing'
-        const totalChanges =
-          log.docsAdded + log.docsUpdated + log.docsDeleted + (log.docsFailed ?? 0)
-
-        return (
-          <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
-            <div className='mt-[1px] flex-shrink-0'>
-              {isRunning ? (
-                <Loader className='size-3 text-[var(--text-muted)]' animate />
-              ) : isError ? (
-                <CircleX className='size-3 text-[var(--text-error)]' />
-              ) : (
-                <CircleCheck className='size-3 text-[var(--success)]' />
-              )}
-            </div>
-
-            <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
-              <div className='flex items-center gap-1.5'>
-                <span className='text-[var(--text-muted)]'>
-                  {format(new Date(log.startedAt), 'MMM d, h:mm a')}
-                </span>
-                {!isRunning && !isError && (
-                  <span className='text-[var(--text-muted)]'>
-                    {totalChanges > 0 ? (
-                      <>
-                        {log.docsAdded > 0 && (
-                          <span className='text-[var(--success)]'>+{log.docsAdded}</span>
-                        )}
-                        {log.docsUpdated > 0 && (
-                          <>
-                            {log.docsAdded > 0 && ' '}
-                            <span className='text-[var(--caution)]'>~{log.docsUpdated}</span>
-                          </>
-                        )}
-                        {log.docsDeleted > 0 && (
-                          <>
-                            {(log.docsAdded > 0 || log.docsUpdated > 0) && ' '}
-                            <span className='text-[var(--text-error)]'>-{log.docsDeleted}</span>
-                          </>
-                        )}
-                        {log.docsFailed > 0 && (
-                          <>
-                            {(log.docsAdded > 0 || log.docsUpdated > 0 || log.docsDeleted > 0) &&
-                              ' '}
-                            <span className='text-[var(--text-error)]'>!{log.docsFailed}</span>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      'No changes'
-                    )}
-                  </span>
-                )}
-                {isRunning && <span className='text-[var(--text-muted)]'>In progress…</span>}
-              </div>
-
-              {isError && log.errorMessage && (
-                <span className='truncate text-[var(--text-error)]'>{log.errorMessage}</span>
-              )}
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }

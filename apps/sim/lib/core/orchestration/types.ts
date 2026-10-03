@@ -73,6 +73,25 @@ export class OrchestrationError extends Error {
 }
 
 /**
+ * Rethrows a failed orchestration result as its classified {@link OrchestrationError}.
+ *
+ * Pairs the code with the message {@link messageForOrchestrationError} permits for
+ * it, so the two can never disagree. Hand-rolling that pair is what let raw driver
+ * text reach clients: a site that defaulted the code with `?? 'internal'` but then
+ * compared the *raw* `errorCode` against `'internal'` classified an uncoded failure
+ * as internal while still rendering its own message.
+ */
+export function throwOrchestrationFailure(
+  result: { error?: string; errorCode?: OrchestrationErrorCode },
+  fallback: string
+): never {
+  throw new OrchestrationError(
+    result.errorCode ?? 'internal',
+    messageForOrchestrationError(result, fallback)
+  )
+}
+
+/**
  * The {@link OrchestrationError} in `error`'s cause chain, or `null` when the
  * failure is not a classified one.
  *
@@ -90,11 +109,8 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
   return null
 }
 
-/**
- * The slice of an HTTP request the audit log reads for client IP and user-agent
- * capture. Optional on every orchestration function so the non-HTTP callers —
- * copilot tools, background jobs — can omit what they do not have.
- */
+/** Transport metadata available to an application operation for audit capture. */
 export interface OrchestrationRequestContext {
   headers: { get(name: string): string | null }
+  signal?: AbortSignal
 }

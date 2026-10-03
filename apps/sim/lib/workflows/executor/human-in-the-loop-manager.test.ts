@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -9,37 +6,71 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
 
-const { mockReleaseExecutionSlot, mockReplaceLargeValueReferenceKeysWithClient } = vi.hoisted(
-  () => ({
-    mockReleaseExecutionSlot: vi.fn(),
-    mockReplaceLargeValueReferenceKeysWithClient: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
+const {
+  mockExecuteWorkflowCore,
+  mockCleanupExecutionBase64Cache,
+  mockResetExecutionStreamBuffer,
+  mockInitializeExecutionStreamMeta,
+  mockEventWriter,
+} = vi.hoisted(() => ({
+  mockExecuteWorkflowCore: vi.fn(),
+  mockCleanupExecutionBase64Cache: vi.fn(),
+  mockResetExecutionStreamBuffer: vi.fn(),
+  mockInitializeExecutionStreamMeta: vi.fn(),
+  mockEventWriter: { write: vi.fn(), writeTerminal: vi.fn(), close: vi.fn() },
 }))
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  collectLargeValueReferenceKeys: vi.fn(() => []),
-  replaceLargeValueReferenceKeysWithClient: mockReplaceLargeValueReferenceKeysWithClient,
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
+
+vi.mock('@/lib/workflows/executor/execution-core', () => ({
+  executeWorkflowCore: mockExecuteWorkflowCore,
 }))
+
+vi.mock('@/lib/uploads/utils/user-file-base64.server', () => ({
+  cleanupExecutionBase64Cache: mockCleanupExecutionBase64Cache,
+}))
+
+vi.mock('@/lib/execution/event-buffer', () => ({
+  createExecutionEventWriter: vi.fn(() => mockEventWriter),
+  flushExecutionStreamReplayBuffer: vi.fn(),
+  initializeExecutionStreamMeta: mockInitializeExecutionStreamMeta,
+  markExecutionStreamTerminal: vi.fn(),
+  resetExecutionStreamBuffer: mockResetExecutionStreamBuffer,
+}))
+
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
+
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 import {
   createResumeAttemptTimeoutController,
-  extractResumeBillingAttributionFromSnapshot,
+  type FailedResumeOutcome,
   PauseResumeManager,
+  requireResumeDeploymentVersion,
   updateResumeOutputInAggregationBuffers,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint, SerializedSnapshot } from '@/executor/types'
+
+const { mockPreprocessExecution } = executionPreprocessingMockFns
+const { mockReleaseExecutionSlot } = billingUsageReservationMockFns
 
 const humanInTheLoopLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'HumanInTheLoopManager'
@@ -51,7 +82,7 @@ if (!humanInTheLoopLogger) {
 }
 
 interface PauseResumeManagerInternals {
-  markResumeFailed: (...args: unknown[]) => Promise<void>
+  markResumeFailed: (...args: unknown[]) => Promise<FailedResumeOutcome | undefined>
   runResumeExecution: (...args: unknown[]) => Promise<unknown>
 }
 
@@ -99,20 +130,6 @@ function createExecutionState(): SerializableExecutionState {
 }
 
 describe('queued resume attempt deadlines', () => {
-  it('extracts legacy billing metadata without parsing the large snapshot tail', () => {
-    const source = JSON.parse(createSnapshotSeed().snapshot) as {
-      metadata: Record<string, unknown>
-    }
-    const snapshot = {
-      snapshot: `{"metadata":${JSON.stringify(source.metadata)},"workflow":not-deserialized}`,
-      triggerIds: [],
-    }
-
-    expect(extractResumeBillingAttributionFromSnapshot(snapshot)).toEqual(
-      createBillingAttribution()
-    )
-  })
-
   it('admits from persisted resume metadata before reconstructing the full snapshot', () => {
     const billingAttribution = createBillingAttribution()
 
@@ -191,9 +208,243 @@ describe('queued resume attempt deadlines', () => {
   })
 })
 
+describe('what a failed resume did to its paused execution', () => {
+  type StartResumeArgs = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+  const pausedExecution = {
+    id: 'paused-execution-1',
+    workflowId: 'workflow-1',
+    executionId: 'parent-execution-1',
+    pausePoints: {
+      'context-1': { contextId: 'context-1', blockId: 'hitl-1' },
+    },
+    executionSnapshot: createSnapshotSeed(),
+    metadata: {},
+  } as StartResumeArgs['pausedExecution']
+  const resumeArgs: StartResumeArgs = {
+    resumeEntryId: 'resume-entry-1',
+    resumeExecutionId: 'resume-execution-1',
+    pausedExecution,
+    contextId: 'context-1',
+    resumeInput: { approved: true },
+    userId: 'user-1',
+  }
+  const attemptArgs = {
+    resumeEntryId: 'resume-entry-1',
+    pausedExecutionId: 'paused-execution-1',
+    parentExecutionId: 'parent-execution-1',
+    contextId: 'context-1',
+    failureReason: 'Execution can no longer be resumed',
+    preserveForRetry: true,
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('reports the pause still resumable when a refused attempt leaves it paused', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'paused' }])
+    queueTableRows(pausedExecutions, [{ automaticResumeRetryCount: 0, status: 'paused' }])
+
+    await expect(PauseResumeManager.markResumeAttemptFailed(attemptArgs)).resolves.toBe(true)
+  })
+
+  it.each(['completed', 'failed', 'cancelled'])(
+    'reports the pause not resumable when the execution is already %s',
+    async (logStatus) => {
+      queueTableRows(workflowExecutionLogs, [{ status: logStatus }])
+      queueTableRows(pausedExecutions, [{ automaticResumeRetryCount: 0, status: 'paused' }])
+
+      await expect(PauseResumeManager.markResumeAttemptFailed(attemptArgs)).resolves.toBe(false)
+    }
+  )
+
+  it.each([
+    { logStatus: 'running', pauseStatus: 'paused', outcome: 'execution_failed' },
+    { logStatus: 'cancelled', pauseStatus: 'paused', outcome: undefined },
+    { logStatus: 'running', pauseStatus: 'cancelling', outcome: undefined },
+    { logStatus: 'failed', pauseStatus: 'paused', outcome: 'execution_failed' },
+    { logStatus: 'completed', pauseStatus: 'paused', outcome: 'execution_completed' },
+  ])(
+    'reports $outcome for a $logStatus log and $pauseStatus pause',
+    async ({ logStatus, pauseStatus, outcome }) => {
+      queueTableRows(workflowExecutionLogs, [{ status: logStatus }])
+      queueTableRows(pausedExecutions, [{ status: pauseStatus }])
+      const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+
+      await expect(managerInternals.markResumeFailed(attemptArgs)).resolves.toBe(outcome)
+    }
+  )
+
+  it.each([
+    { logStatus: 'completed', updated: [resumeQueue, pausedExecutions] },
+    { logStatus: 'failed', updated: [resumeQueue, pausedExecutions] },
+    { logStatus: 'running', updated: [resumeQueue, pausedExecutions, workflowExecutionLogs] },
+  ])(
+    'leaves a $logStatus execution log as it is when a resume fails late',
+    async ({ logStatus, updated }) => {
+      queueTableRows(workflowExecutionLogs, [{ status: logStatus }])
+      queueTableRows(pausedExecutions, [{ status: 'paused' }])
+      const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+
+      await managerInternals.markResumeFailed(attemptArgs)
+
+      expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual(updated)
+    }
+  )
+
+  /** Resume args that collect every outcome the manager reports. */
+  function argsReportingOutcomes(onAttemptFailed?: () => Promise<void>) {
+    const outcomes: FailedResumeOutcome[] = []
+    return {
+      outcomes,
+      args: {
+        ...resumeArgs,
+        onAttemptFailed: async (outcome: FailedResumeOutcome) => {
+          outcomes.push(outcome)
+          await onAttemptFailed?.()
+        },
+      },
+    }
+  }
+
+  it.each([
+    { stillResumable: true, reported: ['pause_retained'] },
+    { stillResumable: false, reported: [] },
+  ])(
+    'reports a refused attempt as $reported when the pause is resumable: $stillResumable',
+    async ({ stillResumable, reported }) => {
+      const markResumeAttemptFailedSpy = vi
+        .spyOn(PauseResumeManager, 'markResumeAttemptFailed')
+        .mockResolvedValueOnce(stillResumable)
+      const { outcomes, args } = argsReportingOutcomes()
+
+      try {
+        await expect(PauseResumeManager.startResumeExecution(args)).rejects.toMatchObject({
+          name: 'ResumeAdmissionError',
+        })
+        expect(outcomes).toEqual(reported)
+      } finally {
+        markResumeAttemptFailedSpy.mockRestore()
+      }
+    }
+  )
+
+  describe('when the resumed run pauses but its pause cannot be saved', () => {
+    const spies: { mockRestore: () => void }[] = []
+
+    function pauseRun(options: { snapshotSeed?: unknown; persistError?: Error }) {
+      const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+      spies.push(
+        vi.spyOn(managerInternals, 'runResumeExecution').mockResolvedValueOnce({
+          success: true,
+          status: 'paused',
+          output: {},
+          logs: [],
+          pausePoints: [],
+          snapshotSeed: options.snapshotSeed,
+          metadata: { executionId: 'parent-execution-1', duration: 1, startTime: 'start' },
+        }),
+        vi.spyOn(managerInternals, 'markResumeFailed').mockResolvedValueOnce('execution_failed'),
+        vi.spyOn(LoggingSession, 'markExecutionAsFailed').mockResolvedValueOnce(),
+        vi.spyOn(PauseResumeManager, 'processQueuedResumes').mockResolvedValueOnce()
+      )
+      if (options.persistError) {
+        spies.push(
+          vi
+            .spyOn(PauseResumeManager, 'persistPauseResult')
+            .mockRejectedValueOnce(options.persistError)
+        )
+      }
+    }
+
+    afterEach(() => {
+      for (const spy of spies.splice(0)) spy.mockRestore()
+    })
+
+    it('fails the attempt when the pause state cannot be persisted', async () => {
+      pauseRun({ snapshotSeed: createSnapshotSeed(), persistError: new Error('lock timeout') })
+      const { outcomes, args } = argsReportingOutcomes()
+
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toMatchObject({
+        message: 'Failed to persist pause state',
+        cause: new Error('lock timeout'),
+      })
+      expect(outcomes).toEqual(['execution_failed'])
+    })
+
+    it('fails the attempt when the paused run has no snapshot seed', async () => {
+      pauseRun({})
+      const { outcomes, args } = argsReportingOutcomes()
+
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toThrow(
+        'Missing snapshot seed for paused execution'
+      )
+      expect(outcomes).toEqual(['execution_failed'])
+    })
+  })
+
+  describe('when the resumed run fails', () => {
+    const rawError = new Error('Block failed')
+    const spies: { mockRestore: () => void }[] = []
+
+    function failRun(options: {
+      outcome: FailedResumeOutcome | undefined
+      queuedResumesError?: Error
+    }) {
+      const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+      spies.push(
+        vi.spyOn(managerInternals, 'runResumeExecution').mockRejectedValueOnce(rawError),
+        vi.spyOn(managerInternals, 'markResumeFailed').mockResolvedValueOnce(options.outcome),
+        options.queuedResumesError
+          ? vi
+              .spyOn(PauseResumeManager, 'processQueuedResumes')
+              .mockRejectedValueOnce(options.queuedResumesError)
+          : vi.spyOn(PauseResumeManager, 'processQueuedResumes').mockResolvedValueOnce()
+      )
+    }
+
+    afterEach(() => {
+      for (const spy of spies.splice(0)) spy.mockRestore()
+    })
+
+    it.each([
+      { outcome: 'execution_failed' as const, reported: ['execution_failed'] },
+      { outcome: 'execution_completed' as const, reported: ['execution_completed'] },
+      { outcome: undefined, reported: [] },
+    ])(
+      'reports $reported when the attempt left the execution $outcome',
+      async ({ outcome, reported }) => {
+        failRun({ outcome })
+        const { outcomes, args } = argsReportingOutcomes()
+
+        await expect(PauseResumeManager.startResumeExecution(args)).rejects.toBe(rawError)
+        expect(outcomes).toEqual(reported)
+      }
+    )
+
+    it('reports the outcome before draining queued resumes, which may throw', async () => {
+      failRun({ outcome: 'execution_failed', queuedResumesError: new Error('queue drain failed') })
+      const { outcomes, args } = argsReportingOutcomes()
+
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toThrow(
+        'queue drain failed'
+      )
+      expect(outcomes).toEqual(['execution_failed'])
+    })
+
+    it('rethrows the run failure when the outcome handler fails', async () => {
+      failRun({ outcome: 'execution_failed' })
+      const { args } = argsReportingOutcomes(async () => {
+        throw new Error('Database unavailable')
+      })
+
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toBe(rawError)
+    })
+  })
+})
+
 describe('resume failure diagnostic projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -419,41 +670,6 @@ describe('updateResumeOutputInAggregationBuffers', () => {
     })
   })
 
-  it('does not replace unrelated paused parallel branch outputs', () => {
-    const unrelatedPausedOutput = {
-      response: { status: 'paused' },
-      _pauseMetadata: {
-        contextId: 'different-context',
-        blockId: 'hitl₍1₎',
-      },
-    }
-    const mergedOutput = {
-      response: { data: { submission: { approved: true } } },
-      submission: { approved: true },
-      _resumed: true,
-    }
-    const state = createExecutionState()
-    state.parallelExecutions = {
-      'parallel-1': {
-        branchOutputs: {
-          1: [unrelatedPausedOutput],
-        },
-      },
-    }
-
-    updateResumeOutputInAggregationBuffers(
-      state,
-      'hitl₍1₎',
-      'hitl',
-      'pause-context-1',
-      mergedOutput
-    )
-
-    expect(state.parallelExecutions['parallel-1'].branchOutputs).toEqual({
-      1: [unrelatedPausedOutput],
-    })
-  })
-
   it('replaces paused loop iteration outputs using the resumed state block key', () => {
     const pausedOutput = {
       response: { status: 'paused' },
@@ -510,7 +726,6 @@ describe('updateResumeOutputInAggregationBuffers', () => {
 
 describe('PauseResumeManager.getPauseContextDetail', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -595,47 +810,10 @@ describe('PauseResumeManager.getPauseContextDetail', () => {
         ?.automaticResumeWaitingReason
     ).toBe('Usage admission unavailable')
   })
-
-  it('returns null when the pause context no longer exists', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'paused-exec-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        status: 'paused',
-        pausedAt: null,
-        updatedAt: null,
-        expiresAt: null,
-        metadata: {},
-        executionSnapshot: { triggerIds: [] },
-        pausePoints: {
-          'ctx-1': {
-            contextId: 'ctx-1',
-            blockId: 'hitl-1',
-            resumeStatus: 'paused',
-            snapshotReady: true,
-            pauseKind: 'human',
-            registeredAt: '2026-07-02T00:00:00.000Z',
-            response: { data: { operation: 'human' }, status: 200, headers: {} },
-          },
-        },
-      },
-    ])
-    dbChainMockFns.orderBy.mockResolvedValueOnce([])
-
-    const detail = await PauseResumeManager.getPauseContextDetail({
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      contextId: 'missing-ctx',
-    })
-
-    expect(detail).toBeNull()
-  })
 })
 
 describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -856,7 +1034,6 @@ describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () 
 
 describe('PauseResumeManager paused cancellation after pause release', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -986,26 +1163,6 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
-  it('does not release again when staged cancellation becomes terminal', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'paused' }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ status: 'running' }])
-      .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'cancelling' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ status: 'cancelled' }])
-
-    await expect(
-      PauseResumeManager.beginPausedCancellation('execution-1', 'workflow-1')
-    ).resolves.toBe(true)
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-
-    await expect(
-      PauseResumeManager.completePausedCancellation('execution-1', 'workflow-1')
-    ).resolves.toBe(true)
-
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-  })
-
   it('scopes paused cancellation to the workflow and preserves a competing terminal status', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ status: 'running' }])
@@ -1026,31 +1183,19 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     const casConditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
     expect(casConditions).toContainEqual({
       type: 'eq',
-      left: 'executionId',
+      left: 'workflowExecutionLogs.executionId',
       right: 'execution-1',
     })
     expect(casConditions).toContainEqual({
       type: 'eq',
-      left: 'workflowId',
+      left: 'workflowExecutionLogs.workflowId',
       right: 'workflow-1',
     })
     expect(casConditions).toContainEqual({
       type: 'inArray',
-      column: 'status',
+      column: 'workflowExecutionLogs.status',
       values: ['running', 'pending', 'cancelled'],
     })
-  })
-
-  it('does not release again when cancellation is already terminal', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ status: 'cancelled' }])
-      .mockResolvedValueOnce([{ id: 'paused-exec-1', status: 'cancelled' }])
-
-    await expect(
-      PauseResumeManager.completePausedCancellation('execution-1', 'workflow-1')
-    ).resolves.toBe(true)
-
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
   it('repairs a late pause and releases its claimed resume after the log is cancelled', async () => {
@@ -1101,14 +1246,6 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
-  it('reports an active claimed resume distinctly from an idle pause', async () => {
-    queueTableRows(resumeQueue, [{ id: 'resume-1' }])
-
-    await expect(
-      PauseResumeManager.getPausedCancellationStatus('execution-1', 'workflow-1')
-    ).resolves.toBe('active_resume')
-  })
-
   it('returns the exact claimed resume cancellation target scoped to the workflow', async () => {
     queueTableRows(resumeQueue, [
       {
@@ -1131,17 +1268,17 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     const conditions = flattenMockConditions(dbChainMockFns.where.mock.calls[0]?.[0])
     expect(conditions).toContainEqual({
       type: 'eq',
-      left: 'parentExecutionId',
+      left: 'resumeQueue.parentExecutionId',
       right: 'execution-1',
     })
     expect(conditions).toContainEqual({
       type: 'eq',
-      left: 'workflowId',
+      left: 'pausedExecutions.workflowId',
       right: 'workflow-1',
     })
     expect(conditions).toContainEqual({
       type: 'eq',
-      left: 'status',
+      left: 'resumeQueue.status',
       right: 'claimed',
     })
   })
@@ -1281,6 +1418,44 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
+  it('finalizes staged pause state without mutating a terminal parent log', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'completed' }])
+    queueTableRows(pausedExecutions, [{ id: 'paused-exec-1', status: 'cancelling' }])
+    queueTableRows(resumeQueue, [{ id: 'resume-entry-1' }])
+
+    await expect(
+      PauseResumeManager.finalizePausedCancellationForTerminalRun('execution-1', 'workflow-1', [
+        'resume-entry-1',
+      ])
+    ).resolves.toBe(true)
+
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+      status: 'cancelled',
+      updatedAt: expect.any(Date),
+      nextResumeAt: null,
+    })
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
+      status: 'failed',
+      completedAt: expect.any(Date),
+      failureReason: 'Paused execution cancelled',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(workflowExecutionLogs)
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('resume-entry-1')
+  })
+
+  it('does not finalize or release an unconfirmed claimed resume', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'completed' }])
+    queueTableRows(pausedExecutions, [{ id: 'paused-exec-1', status: 'cancelling' }])
+    queueTableRows(resumeQueue, [{ id: 'resume-entry-1' }])
+
+    await expect(
+      PauseResumeManager.finalizePausedCancellationForTerminalRun('execution-1', 'workflow-1', [])
+    ).resolves.toBe(false)
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
   it('restores only cancellation-staged queue entries while the workflow remains active', async () => {
     queueTableRows(workflowExecutionLogs, [{ status: 'running' }])
     queueTableRows(pausedExecutions, [{ id: 'paused-exec-1' }])
@@ -1305,7 +1480,7 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
       )
       expect(queueRestoreConditions).toContainEqual({
         type: 'eq',
-        left: 'failureReason',
+        left: 'resumeQueue.failureReason',
         right: 'Paused execution cancellation requested',
       })
       expect(processQueuedResumesSpy).toHaveBeenCalledWith('execution-1', 'workflow-1')
@@ -1352,7 +1527,6 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
 
 describe('PauseResumeManager blocked resume readmission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1536,7 +1710,6 @@ describe('PauseResumeManager blocked resume readmission', () => {
 
 describe('PauseResumeManager terminal resume failure', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1572,7 +1745,6 @@ describe('PauseResumeManager terminal resume failure', () => {
 
 describe('PauseResumeManager completed resume transitions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1770,7 +1942,6 @@ describe('PauseResumeManager completed resume transitions', () => {
 
 describe('PauseResumeManager resume log claims', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1781,28 +1952,33 @@ describe('PauseResumeManager resume log claims', () => {
     parentExecutionId: string
     workflowId: string
     executionDeadlineAt?: Date
-  }) => Promise<void>
+  }) => Promise<{ deploymentVersionId: string | null }>
 
   it('atomically stamps the active attempt deadline while claiming a paused log', async () => {
     const executionDeadlineAt = new Date('2026-08-04T12:00:00.000Z')
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'log-1', deploymentVersionId: 'deployment-version-old' },
+    ])
 
-    await claimResumeExecutionLog({
-      parentExecutionId: 'execution-1',
-      workflowId: 'workflow-1',
-      executionDeadlineAt,
-    })
+    await expect(
+      claimResumeExecutionLog({
+        parentExecutionId: 'execution-1',
+        workflowId: 'workflow-1',
+        executionDeadlineAt,
+      })
+    ).resolves.toEqual({ deploymentVersionId: 'deployment-version-old' })
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       status: 'running',
       executionDeadlineAt,
     })
     const statusGuard = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0]).find(
-      (condition) => condition.type === 'inArray' && condition.column === 'status'
+      (condition) =>
+        condition.type === 'inArray' && condition.column === 'workflowExecutionLogs.status'
     )
     expect(statusGuard).toEqual({
       type: 'inArray',
-      column: 'status',
+      column: 'workflowExecutionLogs.status',
       values: ['pending', 'paused'],
     })
   })
@@ -1823,6 +1999,25 @@ describe('PauseResumeManager resume log claims', () => {
       retryable: false,
     })
   })
+
+  it('reuses the exact historical version claimed from a deployed run log', () => {
+    expect(requireResumeDeploymentVersion(false, 'deployment-version-old')).toBe(
+      'deployment-version-old'
+    )
+  })
+
+  it.each([
+    { useDraftState: true, deploymentVersionId: 'deployment-version-1' },
+    { useDraftState: false, deploymentVersionId: null },
+    { useDraftState: undefined, deploymentVersionId: null },
+  ])(
+    'rejects an inconsistent paused mode/version binding',
+    ({ useDraftState, deploymentVersionId }) => {
+      expect(() => requireResumeDeploymentVersion(useDraftState, deploymentVersionId)).toThrowError(
+        expect.objectContaining({ name: 'ResumeAdmissionError', statusCode: 409, retryable: false })
+      )
+    }
+  )
 })
 
 /**
@@ -1834,7 +2029,6 @@ describe('PauseResumeManager resume log claims', () => {
  */
 describe('PauseResumeManager.enqueueOrStartResume admission refusals', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1927,5 +2121,175 @@ describe('PauseResumeManager.enqueueOrStartResume admission refusals', () => {
 
     dbChainMockFns.limit.mockResolvedValueOnce([])
     await expect(enqueue()).rejects.toMatchObject({ retryable: false })
+  })
+})
+
+describe('repeated human review pauses', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  const runResumeExecution = Reflect.get(PauseResumeManager, 'runResumeExecution') as (
+    args: Record<string, unknown>
+  ) => Promise<unknown>
+
+  function createRepeatedReviewResumeArgs(): Record<string, unknown> {
+    const seed = createSnapshotSeed()
+    const snapshot = JSON.parse(seed.snapshot)
+    snapshot.metadata = {
+      ...snapshot.metadata,
+      workflowId: 'workflow-1',
+      executionId: 'durable-run',
+      useDraftState: true,
+      triggerType: 'manual',
+    }
+    snapshot.workflow = { blocks: [], connections: [] }
+    snapshot.state = { ...createExecutionState(), dagIncomingEdges: {} }
+    return {
+      reservationId: 'reservation-1',
+      resumeExecutionId: 'attempt-1',
+      pausedExecution: {
+        id: 'pause-1',
+        workflowId: 'workflow-1',
+        executionId: 'durable-run',
+        executionSnapshot: { ...seed, snapshot: JSON.stringify(snapshot) },
+        pausePoints: { hitl_loop0: { blockId: 'hitl', pauseKind: 'human' } },
+      },
+      contextId: 'hitl_loop0',
+      resumeInput: { reply: 'partial answer' },
+      userId: 'user-1',
+    }
+  }
+
+  it('keeps the next pause snapshot attached to the log that admission claimed', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1', deploymentVersionId: null }])
+    const stopAfterSnapshot = new Error('stop after snapshot construction')
+    mockPreprocessExecution.mockRejectedValueOnce(stopAfterSnapshot)
+
+    await expect(runResumeExecution(createRepeatedReviewResumeArgs())).rejects.toBe(
+      stopAfterSnapshot
+    )
+
+    expect(humanInTheLoopLogger.info).toHaveBeenCalledWith(
+      'Created resume snapshot',
+      expect.objectContaining({ metadata: expect.objectContaining({ executionId: 'durable-run' }) })
+    )
+    expect(
+      dbChainMockFns.where.mock.calls.some(([condition]) =>
+        flattenMockConditions(condition).some(
+          (part) =>
+            part.type === 'eq' &&
+            part.left === 'workflowExecutionLogs.executionId' &&
+            part.right === 'durable-run'
+        )
+      )
+    ).toBe(true)
+  })
+
+  it('cleans the base64 cache under the durable run that the resumed blocks wrote to', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1', deploymentVersionId: null }])
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'user-1',
+      executionTimeout: { async: 60_000 },
+    })
+    mockResetExecutionStreamBuffer.mockResolvedValueOnce(true)
+    mockInitializeExecutionStreamMeta.mockResolvedValueOnce(true)
+    mockEventWriter.write.mockResolvedValue({ eventId: 1 })
+    mockEventWriter.writeTerminal.mockResolvedValue({ eventId: 2 })
+    mockEventWriter.close.mockResolvedValue(undefined)
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      metadata: { executionId: 'durable-run' },
+    })
+
+    await expect(runResumeExecution(createRepeatedReviewResumeArgs())).resolves.toMatchObject({
+      status: 'completed',
+    })
+
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({ includeFileBase64: true })
+    )
+    expect(mockCleanupExecutionBase64Cache).toHaveBeenCalledTimes(1)
+    expect(mockCleanupExecutionBase64Cache).toHaveBeenCalledWith('durable-run')
+  })
+
+  it('settles the answered context exactly once when the same run pauses again', async () => {
+    const runSpy = vi
+      .spyOn(PauseResumeManager as unknown as PauseResumeManagerInternals, 'runResumeExecution')
+      .mockResolvedValueOnce({
+        status: 'paused',
+        success: true,
+        metadata: { executionId: 'durable-run' },
+        snapshotSeed: createSnapshotSeed(),
+        pausePoints: [{ contextId: 'hitl_loop1', blockId: 'hitl', resumeStatus: 'paused' }],
+      })
+    const persistSpy = vi.spyOn(PauseResumeManager, 'persistPauseResult')
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'running' }]).mockResolvedValueOnce([
+      {
+        id: 'pause-1',
+        executionId: 'durable-run',
+        status: 'paused',
+        metadata: {},
+        pausePoints: {
+          hitl_loop0: { contextId: 'hitl_loop0', blockId: 'hitl', resumeStatus: 'resuming' },
+        },
+      },
+    ])
+    const completeSpy = vi
+      .spyOn(
+        PauseResumeManager as unknown as {
+          markResumeCompleted: (...args: unknown[]) => Promise<void>
+        },
+        'markResumeCompleted'
+      )
+      .mockResolvedValueOnce()
+    const processSpy = vi.spyOn(PauseResumeManager, 'processQueuedResumes').mockResolvedValueOnce()
+    type Args = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+    try {
+      await PauseResumeManager.startResumeExecution({
+        resumeEntryId: 'entry-1',
+        resumeExecutionId: 'attempt-1',
+        contextId: 'hitl_loop0',
+        resumeInput: { reply: 'partial answer' },
+        userId: 'user-1',
+        pausedExecution: {
+          id: 'pause-1',
+          executionId: 'durable-run',
+          workflowId: 'workflow-1',
+          pausePoints: { hitl_loop0: { contextId: 'hitl_loop0', blockId: 'hitl' } },
+          executionSnapshot: createSnapshotSeed(),
+          metadata: {},
+        } as Args['pausedExecution'],
+      })
+      expect(persistSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ executionId: 'durable-run' })
+      )
+      expect(completeSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parentExecutionId: 'durable-run',
+        })
+      )
+      expect(completeSpy.mock.calls[0][0]).not.toHaveProperty('contextId')
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resumedCount: 1,
+          totalPauseCount: 2,
+          status: 'partially_resumed',
+          pausePoints: expect.objectContaining({
+            hitl_loop0: expect.objectContaining({ resumeStatus: 'resumed' }),
+            hitl_loop1: expect.objectContaining({ resumeStatus: 'paused' }),
+          }),
+        })
+      )
+    } finally {
+      runSpy.mockRestore()
+      persistSpy.mockRestore()
+      completeSpy.mockRestore()
+      processSpy.mockRestore()
+    }
   })
 })

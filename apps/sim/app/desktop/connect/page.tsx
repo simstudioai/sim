@@ -6,6 +6,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 import { ConnectLauncher } from '@/app/desktop/connect/connect-launcher'
+import { SourceConnectLauncher } from '@/app/desktop/connect/source-connect-launcher'
 import { SwitchAccount } from '@/app/desktop/connect/switch-account'
 import {
   buildConnectCompletePath,
@@ -35,6 +36,17 @@ function InvalidRequest() {
 }
 
 /**
+ * Absolute URL better-auth returns the browser to once the OAuth callback is
+ * done. Composed through the URL API rather than concatenated, so a trailing
+ * slash on `NEXT_PUBLIC_APP_URL` cannot yield a `//desktop/...` pathname that
+ * matches no route — this page is what bounces the result to the app's
+ * loopback, so a base-URL typo would otherwise strand the whole flow.
+ */
+function buildConnectCompleteUrl(state: string, port: number, draftId?: string): string {
+  return new URL(buildConnectCompletePath(state, port, draftId), getBaseUrl()).toString()
+}
+
+/**
  * Desktop OAuth-connect landing. The desktop app opens this page in the
  * system browser with the provider to connect, a one-time state, and the port
  * of its 127.0.0.1 loopback listener. The whole OAuth flow runs here — in the
@@ -52,12 +64,26 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   const credentialId = isValidOpaqueId(params.credentialId) ? params.credentialId : undefined
   const draftId = isValidOpaqueId(params.draftId) ? params.draftId : undefined
   const expectedUserId = isValidOpaqueId(params.user) ? params.user : undefined
+  const sourceRequestId =
+    typeof params.sourceRequestId === 'string' && /^[A-Za-z0-9_-]{32}$/.test(params.sourceRequestId)
+      ? params.sourceRequestId
+      : undefined
+  const invalidSource =
+    params.sourceRequestId !== undefined &&
+    (!sourceRequestId ||
+      providerId !== 'source' ||
+      !expectedUserId ||
+      workspaceId ||
+      credentialId ||
+      draftId)
   const hasInvalidDraftId = params.draftId !== undefined && draftId === undefined
   if (
     !isValidOAuthProviderId(providerId) ||
     !isValidHandoffState(state) ||
     port === null ||
     hasInvalidDraftId ||
+    invalidSource ||
+    (providerId === 'source' && !sourceRequestId) ||
     (workspaceId !== undefined && draftId !== undefined)
   ) {
     return <InvalidRequest />
@@ -66,7 +92,10 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   // Force a DB-backed session read (bypass the cookie cache) so a revoked
   // browser session goes to login instead of starting a doomed link flow.
   const hdrs = await headers()
-  const session = await auth.api.getSession({ headers: hdrs, query: { disableCookieCache: true } })
+  const session = await auth.api.getSession({
+    headers: hdrs,
+    query: { disableCookieCache: true },
+  })
   if (!session?.user) {
     redirect(
       `/login?callbackUrl=${encodeURIComponent(
@@ -75,6 +104,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
           credentialId,
           draftId,
           user: expectedUserId,
+          sourceRequestId,
         })
       )}`
     )
@@ -97,6 +127,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
             credentialId,
             draftId,
             user: expectedUserId,
+            sourceRequestId,
           })}
         />
       </DesktopHandoffShell>
@@ -108,24 +139,38 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   // draft — including reconnect rebinding when a credentialId rides along.
   // Modal-initiated connects have no workspaceId here (the desktop app already
   // created the draft) and use the plain link flow below.
+  if (sourceRequestId)
+    return <SourceConnectLauncher requestId={sourceRequestId} state={state} port={port} />
+
   if (workspaceId) {
     const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
     authorize.searchParams.set('providerId', providerId)
     authorize.searchParams.set('workspaceId', workspaceId)
-    authorize.searchParams.set(
-      'callbackURL',
-      `${getBaseUrl()}${buildConnectCompletePath(state, port)}`
-    )
+    authorize.searchParams.set('callbackURL', buildConnectCompleteUrl(state, port))
     if (credentialId) {
       authorize.searchParams.set('credentialId', credentialId)
     }
     redirect(authorize.toString())
   }
 
+  if (providerId === 'quickbooks' && draftId) {
+    const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
+    authorize.searchParams.set('draftId', draftId)
+    authorize.searchParams.set('callbackURL', buildConnectCompleteUrl(state, port))
+    redirect(authorize.toString())
+  }
+
+  if (providerId === 'trello' || providerId === 'instagram' || providerId === 'shopify') {
+    const authorize = new URL(`/api/auth/${providerId}/authorize`, getBaseUrl())
+    authorize.searchParams.set('returnUrl', buildConnectCompleteUrl(state, port))
+    if (draftId) authorize.searchParams.set('draftId', draftId)
+    redirect(authorize.toString())
+  }
+
   return (
     <ConnectLauncher
       providerId={providerId}
-      completePath={buildConnectCompletePath(state, port, draftId)}
+      completeUrl={buildConnectCompleteUrl(state, port, draftId)}
     />
   )
 }

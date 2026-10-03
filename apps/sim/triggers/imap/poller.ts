@@ -1,11 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { MailServerIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { imapMailboxesContract } from '@/lib/api/contracts/tools/imap'
-import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('ImapPollingTrigger')
 
 export const imapPollingTrigger: TriggerConfig = {
   id: 'imap_poller',
@@ -72,45 +66,12 @@ export const imapPollingTrigger: TriggerConfig = {
       title: 'Mailboxes to Monitor',
       canvasNoun: 'a mailbox',
       type: 'dropdown',
+      selectorKey: 'imap.mailboxes',
       multiSelect: true,
       placeholder: 'Select mailboxes to monitor',
       description:
         'Choose which mailbox/folder(s) to monitor for new emails. Leave empty to monitor INBOX.',
       required: false,
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const [host, port, secure, username, password] = await Promise.all([
-          readSubBlockValue(blockId, 'host') as Promise<string | null>,
-          readSubBlockValue(blockId, 'port') as Promise<string | null>,
-          readSubBlockValue(blockId, 'secure') as Promise<boolean | null>,
-          readSubBlockValue(blockId, 'username') as Promise<string | null>,
-          readSubBlockValue(blockId, 'password') as Promise<string | null>,
-        ])
-
-        if (!host || !username || !password) {
-          throw new Error('Please enter IMAP server, username, and password first')
-        }
-
-        try {
-          const data = await requestJson(imapMailboxesContract, {
-            body: {
-              host,
-              port: port ?? undefined,
-              secure: secure ?? undefined,
-              username,
-              password,
-            },
-          })
-
-          return data.mailboxes.map((mailbox) => ({
-            id: mailbox.path,
-            label: mailbox.name,
-          }))
-        } catch (error) {
-          logger.error('Error fetching IMAP mailboxes:', error)
-          throw error
-        }
-      },
       dependsOn: ['host', 'port', 'secure', 'username', 'password'],
       mode: 'trigger',
     },

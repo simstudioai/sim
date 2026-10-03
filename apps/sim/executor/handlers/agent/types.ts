@@ -1,4 +1,12 @@
-import type { UserFile } from '@/executor/types'
+import type { McpOperationPolicy } from '@/lib/mcp/operation-policy'
+import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
+import type { Message as ProviderMessage } from '@/providers/types'
+
+export interface FileNameProjection {
+  name: string
+  inputPath?: ResolvedSecretInputPath
+}
 
 export interface SkillInput {
   skillId: string
@@ -7,6 +15,8 @@ export interface SkillInput {
 }
 
 export interface AgentInputs {
+  evaluationState?: unknown
+  evaluationQuestions?: unknown
   model?: string
   responseFormat?: string | object
   tools?: ToolInput[]
@@ -25,8 +35,8 @@ export interface AgentInputs {
   // Deep research multi-turn
   previousInteractionId?: string // Interactions API previous interaction reference
   // LLM parameters
-  temperature?: string
-  maxTokens?: string
+  temperature?: string | number
+  maxTokens?: string | number
   apiKey?: string
   azureEndpoint?: string
   azureApiVersion?: string
@@ -41,6 +51,8 @@ export interface AgentInputs {
   thinkingLevel?: string
   promptCaching?: boolean
   files?: unknown
+  /** Ordered models tried when the request to `model` fails; see `normalizeFallbackModels`. */
+  fallbackModels?: Array<Partial<FallbackModelEntry> & { model: string }>
 }
 
 /**
@@ -51,8 +63,10 @@ export interface AgentInputs {
  * - Standard block types (e.g., 'api', 'search', 'function')
  * - 'custom-tool': User-defined tools with custom code
  * - 'mcp': Individual MCP tool from a connected server
+ * - 'mcp-server-advanced': All tools available to the executing subject from one MCP server
  */
 export interface ToolInput {
+  operationPolicy?: McpOperationPolicy
   /** Tool type identifier */
   type?: string
   schema?: any
@@ -62,18 +76,15 @@ export interface ToolInput {
   params?: Record<string, any>
   timeout?: number
   usageControl?: 'auto' | 'force' | 'none'
+  /** Resolved value from the variable-capable tool mode input. */
+  usageControlExpression?: unknown
   operation?: string
   /** Database ID for custom tools (new reference format) */
   customToolId?: string
 }
 
-export interface Message {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-  files?: UserFile[]
+export interface Message extends ProviderMessage {
   executionId?: string
-  function_call?: any
-  tool_calls?: any[]
 }
 
 export interface StreamingConfig {

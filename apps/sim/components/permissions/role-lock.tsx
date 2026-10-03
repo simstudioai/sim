@@ -25,6 +25,32 @@ export function workspaceRoleLockReason(
 }
 
 /**
+ * Explanation shown when a workspace member cannot be removed from the
+ * workspace. Returns null when removal is allowed.
+ *
+ * Mirrors the server guards on `DELETE /api/workspaces/members/[id]`, so every
+ * reason here must have a guard there and vice versa.
+ *
+ * Deliberately keyed on facts rather than on `roleSource` like
+ * {@link workspaceRoleLockReason}: the two disagree about the workspace owner,
+ * whose role is fixed but who can still be removed (ownership transfers to the
+ * billing account) — and `roleSource` ranks `owner` above `org-admin`, so it
+ * cannot answer for someone who is both.
+ */
+export function workspaceMemberRemovalLockReason(options?: {
+  isOrgAdmin?: boolean
+  isBilledAccount?: boolean
+}): string | null {
+  if (options?.isOrgAdmin) {
+    return 'Organization admins are automatically workspace admins. Change their organization role to remove them.'
+  }
+  if (options?.isBilledAccount) {
+    return 'Reassign billing before removing the workspace billing account'
+  }
+  return null
+}
+
+/**
  * Explanation shown when a credential member's role is fixed because they are a
  * workspace admin. Returns null for editable (`explicit`) roles.
  */

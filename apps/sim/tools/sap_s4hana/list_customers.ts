@@ -1,13 +1,8 @@
-import type { ListCustomersParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  buildOdataQuery,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ListCustomersParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildOdataQuery, buildSapOperationBaseInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listCustomersTool: ToolConfig<ListCustomersParams, SapProxyResponse> = {
+export const listCustomersTool: InternalToolConfig<ListCustomersParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_list_customers',
   name: 'SAP S/4HANA List Customers',
   description:
@@ -113,25 +108,21 @@ export const listCustomersTool: ToolConfig<ListCustomersParams, SapProxyResponse
         'Comma-separated navigation properties to expand (e.g., "to_CustomerCompany,to_CustomerSalesArea")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_BUSINESS_PARTNER',
       path: '/A_Customer',
       method: 'GET',
       query: buildOdataQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
       description:
-        'Array of A_Customer entities, or `{ results, __count?, __next? }` when pagination metadata is present (proxy unwraps the OData v2 `d` envelope). Properties below describe each customer item.',
+        'Array of A_Customer entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each customer item.',
       items: {
         type: 'object',
         properties: {

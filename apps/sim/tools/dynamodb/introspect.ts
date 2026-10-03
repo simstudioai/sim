@@ -1,7 +1,10 @@
 import type { DynamoDBIntrospectParams, DynamoDBIntrospectResponse } from '@/tools/dynamodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const introspectTool: ToolConfig<DynamoDBIntrospectParams, DynamoDBIntrospectResponse> = {
+export const introspectTool: InternalToolConfig<
+  DynamoDBIntrospectParams,
+  DynamoDBIntrospectResponse
+> = {
   id: 'dynamodb_introspect',
   name: 'DynamoDB Introspect',
   description:
@@ -36,13 +39,8 @@ export const introspectTool: ToolConfig<DynamoDBIntrospectParams, DynamoDBIntros
     },
   },
 
-  request: {
-    url: '/api/tools/dynamodb/introspect',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -7,7 +7,8 @@ import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/lib/audit-logs/que
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface GetAuditLogInput {
-  organizationId: string
+  /** Omitted when the caller belongs to exactly one organization and let it be derived. */
+  organizationId?: string
   id: string
 }
 
@@ -29,7 +30,13 @@ export const getAuditLog = defineAuthorizedAuditLogUseCase({
     const [log] = await db
       .select()
       .from(auditLog)
-      .where(and(eq(auditLog.id, input.id), scopeCondition))
+      .where(
+        and(
+          eq(auditLog.id, input.id),
+          scopeCondition,
+          context.workspaceId ? eq(auditLog.workspaceId, context.workspaceId) : undefined
+        )
+      )
       .limit(1)
     if (!log) throw new OrchestrationError('not_found', 'Audit log not found')
     return { log }

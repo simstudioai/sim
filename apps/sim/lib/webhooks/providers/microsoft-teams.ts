@@ -3,8 +3,8 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
-import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
@@ -16,7 +16,7 @@ import {
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -94,7 +94,7 @@ async function fetchWithDNSPinning(
   requestId: string
 ): Promise<SecureFetchResponse | null> {
   try {
-    const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
+    const urlValidation = await validateUrlWithDNS(url, 'contentUrl', 'contentFetch')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, { url })
       return null
@@ -103,7 +103,10 @@ async function fetchWithDNSPinning(
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`
     }
-    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, { headers })
+    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+      profile: 'contentFetch',
+      headers,
+    })
     return response
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
@@ -119,17 +122,14 @@ async function fetchWithDNSPinning(
  */
 async function formatTeamsGraphNotification(
   body: Record<string, unknown>,
-  foundWebhook: Record<string, unknown>,
-  foundWorkflow: { id: string; userId: string }
+  foundWebhook: Record<string, unknown>
 ): Promise<unknown> {
   const notification = (body.value as unknown[])?.[0] as Record<string, unknown> | undefined
   if (!notification) {
     logger.warn('Received empty Teams notification body')
     return null
   }
-  const changeType = (notification.changeType as string) || 'created'
   const resource = (notification.resource as string) || ''
-  const subscriptionId = (notification.subscriptionId as string) || ''
 
   let chatId: string | null = null
   let messageId: string | null = null
@@ -194,7 +194,7 @@ async function formatTeamsGraphNotification(
   }
   const resolvedChatId = chatId as string
   const resolvedMessageId = messageId as string
-  const providerConfig = (foundWebhook?.providerConfig as Record<string, unknown>) || {}
+  const providerConfig = toRecord(foundWebhook?.providerConfig)
   const credentialId = providerConfig.credentialId
   const includeAttachments = providerConfig.includeAttachments !== false
 
@@ -590,10 +590,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
   async createSubscription({
     webhook,
-    workflow,
-    userId,
     requestId,
-    request,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const config = getProviderConfig(webhook)
 
@@ -618,14 +615,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       )
     }
 
-    const credentialOwner = await getCredentialOwner(credentialId, requestId)
-    const accessToken = credentialOwner
-      ? await refreshAccessTokenIfNeeded(
-          credentialOwner.accountId,
-          credentialOwner.userId,
-          requestId
-        )
-      : null
+    const accessToken = await getCredentialAccessToken(credentialId, requestId)
     if (!accessToken) {
       logger.error(`[${requestId}] Failed to get access token for Teams subscription ${webhook.id}`)
       throw new Error(
@@ -733,16 +723,13 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         error
       )
       throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to create Teams subscription. Please try again.'
+        getErrorMessage(error, 'Failed to create Teams subscription. Please try again.')
       )
     }
   },
 
   async deleteSubscription({
     webhook,
-    workflow,
     requestId,
     strict,
   }: DeleteSubscriptionContext): Promise<void> {
@@ -762,14 +749,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         return
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
         logger.warn(
           `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`
@@ -791,7 +771,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
           `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`
         )
       } else {
-        const errorBody = await res.text()
+        // Drain the unread body so the connection is released.
+        await res.text()
         logger.warn(
           `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
         )
@@ -806,22 +787,16 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     }
   },
 
-  async formatInput({
-    body,
-    webhook,
-    workflow,
-    requestId,
-  }: FormatInputContext): Promise<FormatInputResult> {
+  async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const value = b?.value as unknown[] | undefined
 
     if (value && Array.isArray(value) && value.length > 0) {
-      const result = await formatTeamsGraphNotification(b, webhook, workflow)
+      const result = await formatTeamsGraphNotification(b, webhook)
       return { input: result }
     }
 
     const messageText = (b?.text as string) || ''
-    const messageId = (b?.id as string) || ''
     const timestamp = (b?.timestamp as string) || (b?.localTimestamp as string) || ''
     const from = (b?.from || {}) as Record<string, unknown>
     const conversation = (b?.conversation || {}) as Record<string, unknown>

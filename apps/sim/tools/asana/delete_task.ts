@@ -1,7 +1,10 @@
 import type { AsanaDeleteTaskParams, AsanaDeleteTaskResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaDeleteTaskTool: ToolConfig<AsanaDeleteTaskParams, AsanaDeleteTaskResponse> = {
+export const asanaDeleteTaskTool: InternalToolConfig<
+  AsanaDeleteTaskParams,
+  AsanaDeleteTaskResponse
+> = {
   id: 'asana_delete_task',
   name: 'Asana Delete Task',
   description: 'Delete an Asana task by its GID (moves it to the trash)',
@@ -27,13 +30,8 @@ export const asanaDeleteTaskTool: ToolConfig<AsanaDeleteTaskParams, AsanaDeleteT
     },
   },
 
-  request: {
-    url: '/api/tools/asana/delete-task',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       taskGid: params.taskGid,
     }),

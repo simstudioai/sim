@@ -12,6 +12,9 @@ export type FocusedResourceShortcut =
   | 'focus-omnibox'
   | ResourceTabSelectionShortcut
   | 'reload-or-clear'
+  | 'hard-reload'
+  | 'back'
+  | 'forward'
   | `zoom-${DesktopZoomAction}`
 
 export type ResourceTabSelectionShortcut =

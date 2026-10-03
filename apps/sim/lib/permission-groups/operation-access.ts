@@ -18,6 +18,28 @@ export const NO_DENIED_OPERATIONS: ReadonlySet<string> = new Set()
 /** The slice of a block config the operation gate reads. */
 export type OperationGateBlock = Pick<BlockConfig, 'tools'>
 
+/** Shared empty result, so a caller that finds no selector allocates nothing. */
+const NO_OPERATION_OPTIONS: readonly string[] = []
+
+/**
+ * The operation ids a block offers, read off its `operation` dropdown.
+ *
+ * Empty when the block declares no operation selector — it runs whatever its
+ * `tools.access` resolves to, and there is no option list to gate. Requiring
+ * `type === 'dropdown'` keeps this to genuine selectors: other subblocks carry
+ * an `options` array that has nothing to do with operations.
+ */
+export function getOperationOptionIds(
+  block: Pick<BlockConfig, 'subBlocks'> | null | undefined
+): readonly string[] {
+  const selector = block?.subBlocks?.find(
+    (sb) => sb.id === OPERATION_SUBBLOCK_ID && sb.type === 'dropdown' && Array.isArray(sb.options)
+  )
+  const options = selector?.options
+  if (!Array.isArray(options) || options.length === 0) return NO_OPERATION_OPTIONS
+  return options.map((option) => option.id)
+}
+
 /** Decides whether the caller's permission group allows a concrete tool id. */
 export type IsToolAllowed = (toolId: string) => boolean
 
@@ -124,4 +146,26 @@ export function pickDefaultOperation(
   }
 
   return undefined
+}
+
+/** Shared allow-everything gate, so the unrestricted case allocates nothing. */
+const ALLOW_ALL_TOOLS: IsToolAllowed = () => true
+
+/**
+ * The `deniedTools` gate for a resolved permission-group config.
+ *
+ * The one place a denylist becomes a decision, shared by the client hook and
+ * every server path, so the two can never disagree about what an id means: the
+ * denylist holds block `tools.access` ids verbatim (version suffix included),
+ * which is exactly what {@link isOperationAllowed} resolves an operation to.
+ *
+ * Returns the shared allow-all gate when nothing is denied — the overwhelmingly
+ * common case — so callers can build one per block without allocating a Set.
+ */
+export function createToolAccessGate(
+  deniedTools: readonly string[] | null | undefined
+): IsToolAllowed {
+  if (!deniedTools || deniedTools.length === 0) return ALLOW_ALL_TOOLS
+  const denied = new Set(deniedTools)
+  return (toolId: string) => !denied.has(toolId)
 }

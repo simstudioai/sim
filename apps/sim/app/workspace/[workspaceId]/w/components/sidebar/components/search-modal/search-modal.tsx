@@ -41,7 +41,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -88,6 +88,7 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -99,6 +100,17 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/search/types'
 
 const logger = createLogger('SearchModal')
+
+/**
+ * Half of the dialog's effective width (`min(500px, 100% - 32px)`), used to
+ * clamp the centered `left` position. The dialog centers over the content
+ * area — offset right by the sidebar (and panel on the canvas) — so on narrow
+ * viewports the unclamped position pushes it past the right edge, clipping
+ * the input adornment and the empty state. Clamping keeps a 16px gutter on
+ * both sides; when the viewport is narrower than the dialog plus gutters,
+ * both clamp bounds collapse to `50%` and the dialog re-centers.
+ */
+const PALETTE_HALF_WIDTH = 'min(250px, 50% - 16px)'
 /**
  * Global row budget for the browse (empty-query) list, applied cumulatively in
  * section order. Individual sections are never capped in browse — the budget
@@ -143,6 +155,7 @@ function SearchModalContent({
 }: SearchModalContentProps) {
   const params = useParams()
   const router = useRouter()
+  const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
   const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
@@ -152,6 +165,8 @@ function SearchModalContent({
   const visuallyOpen = nativeSurfaceReady
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+  const accessRequestsEnabled = accessRequests.data?.enabled === true
   const invokeCommand = useInvokeGlobalCommand()
   const posthog = usePostHog()
 
@@ -253,7 +268,7 @@ function SearchModalContent({
           name: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          hidden: permissionConfig.hideIntegrationsTab,
+          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
         },
         {
           id: 'skills',
@@ -267,21 +282,21 @@ function SearchModalContent({
           name: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab,
+          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
         },
         {
           id: 'files',
           name: 'Files',
           icon: File,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab,
+          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
         },
         {
           id: 'knowledge-base',
           name: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab,
+          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
         },
         {
           id: 'logs',
@@ -317,6 +332,7 @@ function SearchModalContent({
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
       permissionConfig.hideIntegrationsTab,
+      accessRequestsEnabled,
     ]
   )
 
@@ -373,11 +389,12 @@ function SearchModalContent({
         },
       }
     )
-    if (isChatEnabled) {
+    if (chatEnabled) {
       list.push({
         id: 'new-chat',
         name: 'New chat',
-        keywords: 'chat message ask sim assistant home',
+        keywords: 'chat chats message ask sim assistant home',
+        exactQueries: ['chats'],
         icon: Home,
         context: 'global',
         run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
@@ -655,6 +672,7 @@ function SearchModalContent({
     workspaceId,
     canEdit,
     canAdmin,
+    chatEnabled,
     pageContext,
     onCreateWorkflow,
     onCreateFolder,
@@ -697,14 +715,19 @@ function SearchModalContent({
    * way back the ask row unmounts while cmdk still remembers it as selected,
    * so Home re-anchors the selection once the result rows are back.
    */
-  const handleSearchKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Tab' || !isChatEnabled) return
-    event.preventDefault()
-    setAskMode((mode) => !mode)
-    requestAnimationFrame(() => {
-      inputRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    })
-  }, [])
+  const handleSearchKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Tab' || !chatEnabled) return
+      event.preventDefault()
+      setAskMode((mode) => !mode)
+      requestAnimationFrame(() => {
+        inputRef.current?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Home', bubbles: true })
+        )
+      })
+    },
+    [chatEnabled]
+  )
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1065,7 +1088,11 @@ function SearchModalContent({
         availableBlocks,
         (item) => item.name,
         (item) => item.searchValue
-      ).map(({ item, score }) => ({ section: 'blocks', item, score })),
+      ).map(({ item, score }) => ({
+        section: 'blocks',
+        item,
+        score: item.name.toLowerCase() === query.toLowerCase() ? PAGE_MATCH_TIER : score,
+      })),
       triggers: rank(
         'triggers',
         displayTriggers,
@@ -1301,14 +1328,15 @@ function SearchModalContent({
         aria-hidden={!visuallyOpen}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[min(500px,calc(100%-32px))] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] dark:bg-[var(--surface-5)]',
           visuallyOpen ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{
-          left:
+          left: `clamp(calc(16px + ${PALETTE_HALF_WIDTH}), ${
             pageContext === 'workflow'
               ? 'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
-              : 'calc(var(--sidebar-width) / 2 + 50%)',
+              : 'calc(var(--sidebar-width) / 2 + 50%)'
+          }, calc(100% - 16px - ${PALETTE_HALF_WIDTH}))`,
         }}
       >
         <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
@@ -1319,11 +1347,16 @@ function SearchModalContent({
             value={askMode ? askSimLabel : undefined}
           >
             <div className='relative'>
+              {/* 85dvh - 26px = viewport minus the 15% top offset, 10px of
+                  dialog chrome, and a 16px bottom gutter. The cap keeps the
+                  scroll box fully on-screen: cmdk aligns the selected row to
+                  the box's bottom edge, so a box past the fold parks the
+                  selection below the viewport and held arrow keys judder
+                  rows against an edge the user cannot see. */}
               <CommandFadedList
                 ref={listRef}
-                fade='palette'
                 className={cn(
-                  'scrollbar-none max-h-[448px] [clip-path:inset(3px_round_13px)]',
+                  'scrollbar-none max-h-[min(448px,calc(85dvh-26px))] [clip-path:inset(3px_round_13px)]',
                   CMDK_ITEM_GAP_CLASS,
                   CMDK_SECTION_GAP_CLASS
                 )}
@@ -1360,7 +1393,7 @@ function SearchModalContent({
               <CommandSearch
                 ref={inputRef}
                 surface='palette'
-                cycleResultsOnTab={!isChatEnabled}
+                cycleResultsOnTab={!chatEnabled}
                 autoFocus={!atomicBrowserOcclusion}
                 aria-label={askMode ? 'Ask Sim' : 'Search anything'}
                 value={search}
@@ -1368,8 +1401,8 @@ function SearchModalContent({
                 onKeyDown={handleSearchKeyDown}
                 placeholder={askMode ? 'Ask Sim anything...' : 'Search anything...'}
                 endAdornment={
-                  isChatEnabled ? (
-                    <span className='flex-shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
+                  chatEnabled ? (
+                    <span className='shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
                       {askMode ? '⇥ Search' : '⇥ Ask Sim'}
                     </span>
                   ) : undefined

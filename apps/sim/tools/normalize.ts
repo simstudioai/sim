@@ -1,5 +1,7 @@
 /**
- * Normalizes a tool ID by stripping resource ID suffix (UUID/tableId).
+ * Normalizes a legacy tool ID by stripping its former resource ID suffix (UUID/tableId).
+ * New provider requests use request-scoped aliases and resolve them through an explicit map;
+ * these cases remain for stored logs and callers that still send the historical ids directly.
  * Workflow tools: 'workflow_executor_<uuid>' -> 'workflow_executor'
  * Knowledge tools: 'knowledge_search_<uuid>' -> 'knowledge_search'
  * Table tools: 'table_query_rows_<tableId>' -> 'table_query_rows'

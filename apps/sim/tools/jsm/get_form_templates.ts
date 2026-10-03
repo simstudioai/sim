@@ -1,8 +1,8 @@
 import type { JsmGetFormTemplatesParams, JsmGetFormTemplatesResponse } from '@/tools/jsm/types'
 import { FORM_TEMPLATE_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetFormTemplatesTool: ToolConfig<
+export const jsmGetFormTemplatesTool: InternalToolConfig<
   JsmGetFormTemplatesParams,
   JsmGetFormTemplatesResponse
 > = {
@@ -44,13 +44,8 @@ export const jsmGetFormTemplatesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/forms/templates',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

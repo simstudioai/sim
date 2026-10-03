@@ -8,6 +8,16 @@ import type { BlockLog, ExecutionResult } from '@/executor/types'
  * These are internal fields used for execution tracking that shouldn't be shown to users.
  */
 const HIDDEN_OUTPUT_KEYS = new Set(['childTraceSpans'])
+
+/**
+ * Whether a key is globally hidden from every output projection. Exported so
+ * `filterOutputForLog` can drop it at the TOP level: `filterHiddenOutputKeys` only
+ * recurses into a value, so a hidden key sitting directly on a block's output used to
+ * survive unless that block's config happened to declare it `hiddenFromDisplay`.
+ */
+export function isHiddenOutputKey(key: string): boolean {
+  return HIDDEN_OUTPUT_KEYS.has(key)
+}
 const SUCCESSFUL_CHILD_ERROR_BOUNDARY_BLOCK_TYPES = new Set(['mothership'])
 
 function setFilteredValue(output: Record<string, unknown>, key: string, value: unknown): void {
@@ -169,4 +179,31 @@ export function traceSpansIndicateFailure(
   options?: UnhandledErrorOptions
 ): boolean {
   return spans?.some((span) => hasUnhandledError(span, options)) ?? false
+}
+
+interface DurationBearingSpan {
+  duration?: number
+  durationMs?: number | null
+  children?: DurationBearingSpan[]
+}
+
+/**
+ * Publishes `durationMs` on every span of a tree from the `duration` the span
+ * builders write.
+ *
+ * The persisted span carries only `duration`; the v2 log contract publishes
+ * both names, and readers that took the documented `durationMs` at its word
+ * found it null or absent on every span. Rather than rename a field every stored
+ * trace already uses, the API projection fills the newer name from the older one
+ * — an explicit `durationMs` on a span wins, so a span written with both keeps
+ * its own value.
+ */
+export function withSpanDurationMs<T extends DurationBearingSpan>(
+  spans: readonly T[]
+): Array<T & { durationMs?: number }> {
+  return spans.map((span) => ({
+    ...span,
+    durationMs: span.durationMs ?? span.duration,
+    ...(span.children ? { children: withSpanDurationMs(span.children) } : {}),
+  }))
 }

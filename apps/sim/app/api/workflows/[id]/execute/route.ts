@@ -1,9 +1,11 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId, isValidUuid } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -13,27 +15,16 @@ import {
   WORKFLOW_EXECUTION_ID_HEADER,
   WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
+import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
 import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
-import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
+import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  getWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { isWorkflowToolExecutionClaimable } from '@/lib/copilot/async-runs/lifecycle'
-import {
-  claimWorkflowToolExecution,
-  getAsyncToolCall,
-  getRunSegment,
-  releaseWorkflowToolExecutionClaim,
-} from '@/lib/copilot/async-runs/repository'
-import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
-import {
-  ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
-  isWorkflowToolName,
-  resolveWorkflowToolTargetId,
-} from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import {
   createTimeoutAbortController,
@@ -62,14 +53,14 @@ import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
-  setExecutionMeta,
+  markExecutionStreamTerminal,
+  setExecutionActiveBlockStarts,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
   parseExecutionDeadlineHeader,
 } from '@/lib/execution/execution-deadline-header'
-import { processInputFileFields } from '@/lib/execution/files'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
@@ -95,17 +86,37 @@ import {
   MCP_TOOL_BRIDGE_HEADER,
 } from '@/lib/mcp/constants'
 import {
+  claimWorkflowToolExecution,
+  getAsyncToolCall,
+  getRunSegment,
+  releaseWorkflowToolExecutionClaim,
+  settleClientWorkflowToolExecution,
+} from '@/lib/mothership/async-runs/repository'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
+import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { recordDegraded } from '@/lib/mothership/request/metrics'
+import {
+  reportQueuedClientWorkflowTool,
+  reportSettledClientWorkflowTool,
+} from '@/lib/mothership/request/tools/workflow-client-settlement'
+import {
+  ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
+  type CopilotWorkflowToolBindingResult,
+  classifyWorkflowToolBinding,
+} from '@/lib/mothership/tools/workflow-tools'
+import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
-import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
+  type BlockStartedData,
   type ExecutionEvent,
   encodeSSEEvent,
+  getBlockInvocationKey,
   LIVE_ONLY_EXECUTION_EVENT_TYPES,
 } from '@/lib/workflows/executor/execution-events'
 import {
@@ -135,18 +146,17 @@ import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
+import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
 import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
-import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
 } from '@/ee/access-control/utils/permission-check'
-import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   BlockCompletionCallbackData,
@@ -158,7 +168,7 @@ import type {
 import type { BlockLog, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
-import { Serializer } from '@/serializer'
+import { emptyRunFromBlockSnapshot } from '@/executor/utils/run-from-block'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
@@ -168,25 +178,19 @@ const SERVER_EXECUTION_ID_CLAIM_ATTEMPTS = 3
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function isValidCopilotWorkflowToolBinding(params: {
+async function resolveCopilotWorkflowToolBinding(params: {
   toolCallId: string
   userId: string
   workflowId: string
-}): Promise<boolean> {
+}): Promise<CopilotWorkflowToolBindingResult> {
   const toolCall = await getAsyncToolCall(params.toolCallId)
-  if (
-    !toolCall ||
-    !isWorkflowToolName(toolCall.toolName) ||
-    !isWorkflowToolExecutionClaimable(toolCall.status, toolCall.permissionDecision)
-  ) {
-    return false
-  }
-
-  const run = await getRunSegment(toolCall.runId)
-  return (
-    run?.userId === params.userId &&
-    resolveWorkflowToolTargetId(toolCall.args, run.workflowId) === params.workflowId
-  )
+  const run = toolCall ? await getRunSegment(toolCall.runId) : null
+  return classifyWorkflowToolBinding({
+    toolCall,
+    run,
+    userId: params.userId,
+    workflowId: params.workflowId,
+  })
 }
 
 function createExecutionJsonResponse(
@@ -286,7 +290,7 @@ function clientCancelledResponse(): NextResponse {
 
 function executionTimedOutResponse(timeoutMs?: number): NextResponse {
   return NextResponse.json(
-    { success: false, error: getTimeoutErrorMessage(null, timeoutMs) },
+    { success: false, error: getTimeoutErrorMessage(timeoutMs) },
     { status: 408 }
   )
 }
@@ -298,56 +302,13 @@ function payloadTooLargeResponse(message = 'Workflow execution response exceeds 
   )
 }
 
-function resolveOutputIds(
+async function resolveOutputIds(
   selectedOutputs: string[] | undefined,
-  blocks: Record<string, any>
-): string[] | undefined {
-  if (!selectedOutputs || selectedOutputs.length === 0) {
-    return selectedOutputs
-  }
-
-  return selectedOutputs.map((outputId) => {
-    const underscoreIndex = outputId.indexOf('_')
-    const dotIndex = outputId.indexOf('.')
-    if (underscoreIndex > 0) {
-      const maybeUuid = outputId.substring(0, underscoreIndex)
-      if (isValidUuid(maybeUuid)) {
-        return outputId
-      }
-    }
-
-    if (dotIndex > 0) {
-      const maybeUuid = outputId.substring(0, dotIndex)
-      if (isValidUuid(maybeUuid)) {
-        return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
-      }
-    }
-
-    if (isValidUuid(outputId)) {
-      return outputId
-    }
-
-    if (dotIndex === -1) {
-      logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
-      return outputId
-    }
-
-    const blockName = outputId.substring(0, dotIndex)
-    const path = outputId.substring(dotIndex + 1)
-
-    const normalizedBlockName = normalizeName(blockName)
-    const block = Object.values(blocks).find((b: any) => {
-      return normalizeName(b.name || '') === normalizedBlockName
-    })
-
-    if (!block) {
-      logger.warn(`Block not found for name: ${blockName} (from output ID: ${outputId})`)
-      return outputId
-    }
-
-    const resolvedId = `${block.id}_${path}`
-    logger.debug(`Resolved output ID: ${outputId} -> ${resolvedId}`)
-    return resolvedId
+  blocks: Record<string, BlockState>
+): Promise<string[] | undefined> {
+  return resolveOutputSelectors({
+    selectedOutputs,
+    currentBlocks: blocks,
   })
 }
 
@@ -376,6 +337,7 @@ function bindRequestAbort(
 type AsyncExecutionParams = {
   requestId: string
   workflowId: string
+  principal: WorkflowExecutionPrincipal
   userId: string
   billingAttribution: BillingAttributionSnapshot
   workspaceId: string
@@ -536,6 +498,42 @@ async function handleExecutePost(
   let executionIdClaimCommitted = false
   let workflowToolClaimAcquired = false
   let copilotToolCallId: string | undefined
+  let copilotExecutionTransferredToStream = false
+  let copilotSettlement: Promise<void> | undefined
+  const settleCopilotExecution = async () => {
+    if (!copilotToolCallId || !workflowToolClaimAcquired) return
+    copilotSettlement ??= settleClientWorkflowToolExecution(copilotToolCallId, executionId).catch(
+      (error) => {
+        reqLogger.warn('Could not record Copilot workflow execution settlement', {
+          copilotToolCallId,
+          executionId,
+          error: getErrorMessage(error),
+        })
+      }
+    )
+    await copilotSettlement
+  }
+  /** A bound execution reports its own outcome, so a browser that detached never strands the turn. */
+  const executeBoundWorkflow = async <T>(execute: () => Promise<T>): Promise<T> => {
+    try {
+      return await execute()
+    } finally {
+      await settleCopilotExecution()
+      if (copilotToolCallId && workflowToolClaimAcquired) {
+        await reportSettledClientWorkflowTool({
+          toolCallId: copilotToolCallId,
+          executionId,
+          workflowId,
+        }).catch((error) => {
+          reqLogger.warn('Could not report settled Copilot workflow execution', {
+            copilotToolCallId,
+            executionId,
+            error: getErrorMessage(error),
+          })
+        })
+      }
+    }
+  }
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -596,7 +594,6 @@ async function handleExecutePost(
         .select({
           isPublicApi: workflowTable.isPublicApi,
           isDeployed: workflowTable.isDeployed,
-          userId: workflowTable.userId,
           workspaceId: workflowTable.workspaceId,
         })
         .from(workflowTable)
@@ -607,8 +604,21 @@ async function handleExecutePost(
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
+      /**
+       * An anonymous public-API call has no caller, so it acts as the workspace
+       * billing account — the identity preprocessing elects for exactly this
+       * case. The workflow owner is only the personal-variable fallback, and a
+       * public run resolves no personal variables at all, so gating on the
+       * owner's governance config would fail a public endpoint the moment that
+       * stored pointer's access lapsed.
+       */
+      const billedAccountUserId = await getWorkspaceBilledAccountUserId(wf.workspaceId)
+      if (!billedAccountUserId) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
       try {
-        await validatePublicApiAllowed(wf.userId, wf.workspaceId)
+        await validatePublicApiAllowed(billedAccountUserId, wf.workspaceId)
       } catch (err) {
         if (err instanceof PublicApiNotAllowedError) {
           return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -616,7 +626,7 @@ async function handleExecutePost(
         throw err
       }
 
-      userId = wf.userId
+      userId = billedAccountUserId
       isPublicApiAccess = true
     } else {
       userId = auth.userId
@@ -812,6 +822,7 @@ async function handleExecutePost(
           startBlockId: string
           sourceSnapshot: SerializableExecutionState
           sourceExecutionId?: string
+          variableInputs?: Record<string, unknown>
         }
       | undefined
     if (rawRunFromBlock) {
@@ -846,10 +857,17 @@ async function handleExecutePost(
               startBlockId: rawRunFromBlock.startBlockId,
               sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
             }
+          } else if (rawRunFromBlock.variableInputs && !isPublicApiAccess) {
+            // Pure-mock isolated run: no prior execution needed — the caller supplies
+            // every upstream output the block reads (the executor overlays them).
+            resolvedRunFromBlock = {
+              startBlockId: rawRunFromBlock.startBlockId,
+              sourceSnapshot: emptyRunFromBlockSnapshot(),
+            }
           } else {
             return NextResponse.json(
               {
-                error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
+                error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first, or pass variableInputs mocking the upstream outputs.`,
               },
               { status: 400 }
             )
@@ -868,11 +886,19 @@ async function handleExecutePost(
           startBlockId: rawRunFromBlock.startBlockId,
           sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
         }
+      } else if (rawRunFromBlock.variableInputs && !isPublicApiAccess) {
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: emptyRunFromBlockSnapshot(),
+        }
       } else {
         return NextResponse.json(
           { error: 'runFromBlock requires either sourceSnapshot or executionId' },
           { status: 400 }
         )
+      }
+      if (resolvedRunFromBlock && rawRunFromBlock.variableInputs && !isPublicApiAccess) {
+        resolvedRunFromBlock.variableInputs = rawRunFromBlock.variableInputs
       }
     }
 
@@ -987,6 +1013,26 @@ async function handleExecutePost(
       reqLogger.error('Workflow authorization succeeded without a workspace')
       return NextResponse.json({ error: 'Invalid workflow execution context' }, { status: 500 })
     }
+    let executionPrincipal: WorkflowExecutionPrincipal
+    if (auth.principal) {
+      executionPrincipal = auth.principal
+    } else if (isPublicApiAccess) {
+      executionPrincipal = {
+        kind: 'system',
+        serviceId: 'public_api',
+        workspaceId: workflowWorkspaceId,
+        workflowId,
+      }
+    } else if (auth.authType === AuthType.INTERNAL_JWT) {
+      executionPrincipal = {
+        kind: 'system',
+        serviceId: 'internal',
+        workspaceId: workflowWorkspaceId,
+        workflowId,
+      }
+    } else {
+      throw new Error('Authenticated workflow execution is missing its principal')
+    }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
         return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
@@ -1021,18 +1067,29 @@ async function handleExecutePost(
       )
     }
 
-    if (
-      copilotToolCallId &&
-      !(await isValidCopilotWorkflowToolBinding({
+    if (copilotToolCallId) {
+      const binding = await resolveCopilotWorkflowToolBinding({
         toolCallId: copilotToolCallId,
         userId,
         workflowId,
-      }))
-    ) {
-      return NextResponse.json(
-        { error: 'Copilot workflow tool binding was not found' },
-        { status: 403 }
-      )
+      })
+      if (!binding.ok) {
+        // This rejection happens before any LoggingSession exists, so it leaves
+        // no execution log and no workflow span — log the reason or it is
+        // invisible everywhere except the browser console.
+        // This rejection happens before a LoggingSession or any workflow span
+        // exists, so the counter is the only place it becomes visible.
+        recordDegraded(CopilotDegradedReason.BindingRejected)
+        reqLogger.warn('Rejected Copilot workflow tool execution', {
+          copilotToolCallId,
+          workflowId,
+          reason: binding.rejection.code,
+        })
+        return NextResponse.json(
+          { error: binding.rejection.message, code: binding.rejection.code },
+          { status: binding.rejection.statusCode }
+        )
+      }
     }
 
     if (inputFromExecutionId) {
@@ -1130,7 +1187,11 @@ async function handleExecutePost(
     }
 
     if (copilotToolCallId) {
-      const boundToolCall = await claimWorkflowToolExecution(copilotToolCallId, executionId)
+      const boundToolCall = await claimWorkflowToolExecution(
+        copilotToolCallId,
+        executionId,
+        'client'
+      )
       if (!boundToolCall) {
         reqLogger.warn('Rejected duplicate Copilot workflow execution', {
           copilotToolCallId,
@@ -1238,6 +1299,7 @@ async function handleExecutePost(
       const asyncResult = await handleAsyncExecution({
         requestId,
         workflowId,
+        principal: executionPrincipal,
         userId: actorUserId,
         billingAttribution,
         workspaceId,
@@ -1253,6 +1315,19 @@ async function handleExecutePost(
         trustedInitialResolvedSecretTraceProvenance,
       })
       executionIdClaimCommitted = asyncResult.retainExecutionClaim
+      if (copilotToolCallId && workflowToolClaimAcquired && asyncResult.retainExecutionClaim) {
+        await reportQueuedClientWorkflowTool({
+          toolCallId: copilotToolCallId,
+          executionId,
+          workflowId,
+        }).catch((error) => {
+          reqLogger.warn('Could not report queued Copilot workflow execution', {
+            copilotToolCallId,
+            executionId,
+            error: getErrorMessage(error),
+          })
+        })
+      }
       return asyncResult.response
     }
 
@@ -1265,7 +1340,7 @@ async function handleExecutePost(
       variables?: Record<string, any>
     } | null = null
 
-    let processedInput = input
+    const processedInput = input
     try {
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)
@@ -1303,33 +1378,6 @@ async function handleExecutePost(
               : undefined,
           variables: deployedVariables,
         }
-
-        // Custom blocks resolve only inside the org overlay; wrap this pre-execution
-        // serialize (used for input file-field discovery) the same way the core does.
-        const customBlockRows = await getCustomBlockRowsForWorkspace(workspaceId)
-        const serializedWorkflow = await withCustomBlockOverlay(customBlockRows, async () =>
-          new Serializer().serializeWorkflow(
-            workflowData.blocks,
-            workflowData.edges,
-            workflowData.loops,
-            workflowData.parallels,
-            false
-          )
-        )
-
-        const executionContext = {
-          workspaceId,
-          workflowId,
-          executionId,
-        }
-
-        processedInput = await processInputFileFields(
-          input,
-          serializedWorkflow.blocks,
-          executionContext,
-          requestId,
-          actorUserId
-        )
       }
     } catch (fileError) {
       reqLogger.error('Failed to process input file fields:', fileError)
@@ -1377,6 +1425,7 @@ async function handleExecutePost(
         workflowId,
         workspaceId,
         userId: actorUserId,
+        principal: executionPrincipal,
         billingAttribution,
         sessionUserId: isClientSession ? userId : undefined,
         workflowUserId: workflow.userId,
@@ -1449,7 +1498,7 @@ async function handleExecutePost(
         }
 
         if (result.status === 'cancelled' && didExecutionTimeOut() && timeoutController.timeoutMs) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           reqLogger.info('Non-SSE execution timed out', {
             timeoutMs: timeoutController.timeoutMs,
           })
@@ -1493,6 +1542,7 @@ async function handleExecutePost(
                 fileKeys: outputFileKeys,
                 allowLargeValueWorkflowScope,
                 userId: actorUserId,
+                principal: executionPrincipal,
                 maxBytes: base64MaxBytes,
                 preserveLargeValueMetadata: true,
               })) as NormalizedBlockOutput)
@@ -1550,7 +1600,7 @@ async function handleExecutePost(
       } catch (error: unknown) {
         const executionTimedOut = didExecutionTimeOut(error)
         const errorMessage = executionTimedOut
-          ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+          ? getTimeoutErrorMessage(timeoutController.timeoutMs)
           : getErrorMessage(error, 'Unknown error')
 
         if (requestAbort.isRequestAborted() && !executionTimedOut) {
@@ -1617,18 +1667,34 @@ async function handleExecutePost(
             reqLogger.error('Failed to cleanup base64 cache', { error })
           })
         }
+        /**
+         * The sync response is the run's receipt: callers read its log and cost as soon
+         * as it lands. The core finalizes both in the background, so hold the response
+         * until they are durable.
+         */
+        await loggingSession.waitForPostExecution()
       }
     }
 
-    if (shouldUseDraftState) {
-      reqLogger.info('Using SSE console log streaming (manual execution)')
+    /** Bound Copilot clients consume execution events for both draft and deployed state. */
+    if (shouldUseDraftState || copilotToolCallId) {
+      reqLogger.info('Using SSE console log streaming')
     } else {
       reqLogger.info('Using streaming API response')
 
-      const resolvedSelectedOutputs = resolveOutputIds(
-        selectedOutputs,
-        cachedWorkflowData?.blocks || {}
-      )
+      let resolvedSelectedOutputs: string[] | undefined
+      try {
+        resolvedSelectedOutputs = await resolveOutputIds(
+          selectedOutputs,
+          cachedWorkflowData?.blocks || {}
+        )
+      } catch (error) {
+        await releaseExecutionSlot(executionId)
+        return NextResponse.json(
+          { error: `Invalid selectedOutputs: ${getErrorMessage(error)}` },
+          { status: 400 }
+        )
+      }
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
       const streamWorkflow = {
         id: workflow.id,
@@ -1688,43 +1754,49 @@ async function handleExecutePost(
         workspaceId,
         workflowId,
         userId: actorUserId,
+        principal: executionPrincipal,
         allowLargeValueWorkflowScope,
         requestSignal: req.signal,
         requestHeaders: req.headers,
-        executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
-          executeWorkflow(
-            streamWorkflow,
-            requestId,
-            processedInput,
-            actorUserId,
-            {
-              enabled: true,
-              selectedOutputs: resolvedSelectedOutputs,
-              isSecureMode: false,
-              workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
-              onStream,
-              onBlockComplete,
-              skipLoggingComplete: true,
-              includeFileBase64,
-              base64MaxBytes,
-              abortSignal,
-              executionMode: 'stream',
-              enforceCredentialAccess: useAuthenticatedUserAsActor,
-              isPublicApiAccess,
-              billingAttribution,
-              largeValueKeys,
-              fileKeys,
-              stopAfterBlockId,
-              runFromBlock: resolvedRunFromBlock,
-              includeThinking: requestedIncludeThinking,
-              includeToolCalls: requestedIncludeToolCalls,
-              agentEvents,
-              trustedInitialResolvedSecretTraceProvenance,
-            },
-            executionId
+        executeFn: ({ onStream, onBlockComplete, abortSignal }) =>
+          executeBoundWorkflow(() =>
+            executeWorkflow(
+              streamWorkflow,
+              requestId,
+              processedInput,
+              actorUserId,
+              {
+                enabled: true,
+                selectedOutputs: resolvedSelectedOutputs,
+                isSecureMode: false,
+                workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+                onStream,
+                onBlockComplete: (blockId, data) =>
+                  onBlockComplete(blockId, data.output, data.outputBlockId),
+                skipLoggingComplete: true,
+                includeFileBase64,
+                base64MaxBytes,
+                abortSignal,
+                executionMode: 'stream',
+                principal: executionPrincipal,
+                enforceCredentialAccess: useAuthenticatedUserAsActor,
+                isPublicApiAccess,
+                billingAttribution,
+                largeValueKeys,
+                fileKeys,
+                stopAfterBlockId,
+                runFromBlock: resolvedRunFromBlock,
+                includeThinking: requestedIncludeThinking,
+                includeToolCalls: requestedIncludeToolCalls,
+                agentEvents,
+                trustedInitialResolvedSecretTraceProvenance,
+              },
+              executionId
+            )
           ),
       })
 
+      copilotExecutionTransferredToStream = true
       executionIdClaimCommitted = true
       return new NextResponse(stream, {
         status: 200,
@@ -1746,6 +1818,7 @@ async function handleExecutePost(
       isTimeoutError(error)
     let isStreamClosed = false
     let isManualAbortRegistered = false
+    const activeBlockStarts = new Map<string, { eventId: number; data: BlockStartedData }>()
 
     const eventWriter = createExecutionEventWriter(executionId, {
       workspaceId,
@@ -1767,8 +1840,8 @@ async function handleExecutePost(
     }
 
     executionIdClaimCommitted = true
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
+    const streamSource = {
+      async start(controller: ReadableStreamDefaultController<Uint8Array>) {
         let finalMetaStatus: 'complete' | 'error' | 'cancelled' | null = null
         let postExecutionAwaited = false
 
@@ -1782,63 +1855,73 @@ async function handleExecutePost(
         isManualAbortRegistered = true
 
         let terminalEventPublished = false
-        const sendEvent = async (
+        let sendFailure: unknown
+        let sendQueue: Promise<void> = Promise.resolve()
+        const sendEvent = (
           event: ExecutionEvent,
           terminalStatus?: TerminalExecutionStreamStatus
         ) => {
-          const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
-          let eventToSend = event
-          let terminalBufferWriteFailed = false
-          if (isBuffered) {
-            try {
+          const task = sendQueue.then(async () => {
+            if (sendFailure) throw sendFailure
+            const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
+            let eventToSend = event
+            if (isBuffered) {
               const entry = terminalStatus
                 ? await eventWriter.writeTerminal(event, terminalStatus)
                 : await eventWriter.write(event)
+              if (!terminalStatus) {
+                await eventWriter.flush()
+              }
               eventToSend = entry.event
               eventToSend.eventId = entry.eventId
               terminalEventPublished ||= Boolean(terminalStatus)
-            } catch (e) {
-              // The event buffer (Redis replay store) rejected this event — e.g. the flush
-              // batch exceeds the per-write byte cap for large block outputs. The buffer only
-              // backs reconnect/replay; the live SSE stream is the primary delivery. Fall
-              // through to enqueue the event live (below) instead of throwing, so terminal
-              // events still reach the active client and the UI doesn't hang on "running".
-              // Marking a terminal event delivered-live as published lets finalization close
-              // the stream cleanly instead of aborting it with controller.error().
-              reqLogger.warn(
-                'Event buffer write failed; delivering event over live stream only',
-                loggingSession.projectDiagnosticError(e, {
-                  eventType: event.type,
-                  terminal: Boolean(terminalStatus),
+
+              if (eventToSend.type === 'block:started') {
+                activeBlockStarts.set(getBlockInvocationKey(eventToSend.data), {
+                  eventId: entry.eventId,
+                  data: eventToSend.data,
                 })
-              )
-              terminalBufferWriteFailed = Boolean(terminalStatus)
-              terminalEventPublished ||= Boolean(terminalStatus)
+              } else if (
+                eventToSend.type === 'block:completed' ||
+                eventToSend.type === 'block:error'
+              ) {
+                activeBlockStarts.delete(getBlockInvocationKey(eventToSend.data))
+              } else if (terminalStatus) {
+                activeBlockStarts.clear()
+              }
+
+              if (
+                eventToSend.type === 'block:started' ||
+                eventToSend.type === 'block:completed' ||
+                eventToSend.type === 'block:error'
+              ) {
+                const activeSnapshotPersisted = await setExecutionActiveBlockStarts(executionId, [
+                  ...activeBlockStarts.values(),
+                ])
+                if (!activeSnapshotPersisted) {
+                  throw new Error('Failed to persist active execution snapshot')
+                }
+              }
             }
-          }
-          if (!isStreamClosed) {
-            try {
-              controller.enqueue(encodeSSEEvent(eventToSend))
-            } catch {
+            if (!isStreamClosed) {
+              try {
+                controller.enqueue(encodeSSEEvent(eventToSend))
+              } catch {
+                isStreamClosed = true
+              }
+            }
+          })
+          sendQueue = task.catch((error) => {
+            sendFailure ??= error
+            timeoutController.abort()
+            if (!isStreamClosed) {
+              try {
+                controller.error(error)
+              } catch {}
               isStreamClosed = true
             }
-          }
-          if (terminalBufferWriteFailed && terminalStatus) {
-            // Without this the reconnect route polls an `active` stream until its
-            // deadline. The meta write is a plain HSET, so it bypasses the byte budget
-            // that rejected the event. Runs after the live enqueue because Redis is the
-            // likely reason we are here at all, and a slow best-effort durability write
-            // must not delay the primary delivery path.
-            const metaPersisted = await setExecutionMeta(executionId, {
-              status: terminalStatus,
-            })
-            if (!metaPersisted) {
-              reqLogger.error(
-                'Failed to record terminal execution meta after buffer write failure',
-                { executionId, status: terminalStatus }
-              )
-            }
-          }
+          })
+          return task
         }
 
         try {
@@ -2051,13 +2134,13 @@ async function handleExecutePost(
             }
 
             try {
-              if (timeoutController.signal.aborted || isStreamClosed) return
+              if (timeoutController.signal.aborted) return
               timeoutController.signal.addEventListener('abort', cancelReader, { once: true })
 
               while (true) {
-                if (timeoutController.signal.aborted || isStreamClosed) break
+                if (timeoutController.signal.aborted) break
                 const { done, value } = await reader.read()
-                if (timeoutController.signal.aborted || isStreamClosed) break
+                if (timeoutController.signal.aborted) break
                 if (done) break
 
                 if (answerTextFromSink) continue
@@ -2077,7 +2160,7 @@ async function handleExecutePost(
                 })
               }
 
-              if (!timeoutController.signal.aborted && !isStreamClosed) {
+              if (!timeoutController.signal.aborted) {
                 await sendEvent({
                   type: 'stream:done',
                   timestamp: new Date().toISOString(),
@@ -2087,7 +2170,7 @@ async function handleExecutePost(
                 })
               }
             } catch (error) {
-              if (!timeoutController.signal.aborted && !isStreamClosed) {
+              if (!timeoutController.signal.aborted) {
                 reqLogger.error(
                   'Error streaming block content',
                   loggingSession.projectDiagnosticError(error, { blockId })
@@ -2108,6 +2191,7 @@ async function handleExecutePost(
             workflowId,
             workspaceId,
             userId: actorUserId,
+            principal: executionPrincipal,
             billingAttribution,
             sessionUserId: isClientSession ? userId : undefined,
             workflowUserId: workflow.userId,
@@ -2212,7 +2296,7 @@ async function handleExecutePost(
 
           if (result.status === 'cancelled') {
             if (didExecutionTimeOut() && timeoutController.timeoutMs) {
-              const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+              const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
               reqLogger.info('Workflow execution timed out', {
                 timeoutMs: timeoutController.timeoutMs,
               })
@@ -2277,6 +2361,7 @@ async function handleExecutePost(
                 fileKeys: outputFileKeys,
                 allowLargeValueWorkflowScope,
                 userId: actorUserId,
+                principal: executionPrincipal,
                 maxBytes: base64MaxBytes,
                 preserveLargeValueMetadata: true,
               })
@@ -2332,7 +2417,7 @@ async function handleExecutePost(
           await awaitBoundCopilotPostExecution()
           const isTimeout = didExecutionTimeOut(error)
           const errorMessage = isTimeout
-            ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
+            ? getTimeoutErrorMessage(timeoutController.timeoutMs)
             : getErrorMessage(error, 'Unknown error')
 
           reqLogger.error(
@@ -2394,10 +2479,15 @@ async function handleExecutePost(
               executionId,
               eventWriter
             )
+            const terminalMetaPersisted = await markExecutionStreamTerminal(
+              executionId,
+              finalMetaStatus
+            )
             reqLogger.error('Failed to publish terminal execution event durably', {
               executionId,
               status: finalMetaStatus,
               replayBufferFlushed,
+              terminalMetaPersisted,
             })
             if (!isStreamClosed) {
               controller.error(new Error('Run buffer terminal event publish failed'))
@@ -2434,10 +2524,14 @@ async function handleExecutePost(
       },
       cancel() {
         isStreamClosed = true
-        timeoutController.abort()
-        reqLogger.info('Client disconnected from SSE stream')
+        reqLogger.info('Client detached from SSE stream; workflow execution remains active')
       },
+    }
+    const stream = new ReadableStream<Uint8Array>({
+      ...streamSource,
+      start: (controller) => executeBoundWorkflow(() => streamSource.start(controller)),
     })
+    copilotExecutionTransferredToStream = true
 
     return new NextResponse(stream, {
       headers: {
@@ -2455,6 +2549,7 @@ async function handleExecutePost(
       { status: 500 }
     )
   } finally {
+    if (!copilotExecutionTransferredToStream) await settleCopilotExecution()
     if (executionIdClaim && !executionIdClaimCommitted) {
       try {
         executionIdClaimCommitted = await hasDurableExecutionOwner(executionId)
@@ -2479,7 +2574,8 @@ async function handleExecutePost(
       }
     }
 
-    if (executionIdClaim && !executionIdClaimCommitted) {
+    /** A recorded Copilot handler owns this ID even if preprocessing failed; a late Stop must never hit a reused ID. */
+    if (executionIdClaim && !executionIdClaimCommitted && !workflowToolClaimAcquired) {
       try {
         await releaseExecutionIdClaim(executionIdClaim)
       } catch (error) {

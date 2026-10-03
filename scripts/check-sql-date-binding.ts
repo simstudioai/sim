@@ -17,6 +17,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
+import ts from '@typescript/typescript6'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -26,6 +27,13 @@ const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts'])
 const ALLOW_ANNOTATION = '// sql-date-bound:'
 const DRIZZLE_MODULE = 'drizzle-orm'
 const STATEMENT_TYPE = /(Statement|Declaration)$/
+
+function isDrizzleModule(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    (value === DRIZZLE_MODULE || value.startsWith(`${DRIZZLE_MODULE}/`))
+  )
+}
 
 interface Violation {
   file: string
@@ -222,10 +230,7 @@ function collectSqlBindings(program: SyntaxNode): SqlBindings {
   const visit = (node: SyntaxNode) => {
     if (node.type === 'ImportDeclaration' && isSyntaxNode(node.source)) {
       const source = node.source.value
-      const isDrizzle =
-        typeof source === 'string' &&
-        (source === DRIZZLE_MODULE || source.startsWith(`${DRIZZLE_MODULE}/`))
-      if (isDrizzle && Array.isArray(node.specifiers)) {
+      if (isDrizzleModule(source) && Array.isArray(node.specifiers)) {
         for (const specifier of node.specifiers) {
           if (!isSyntaxNode(specifier) || !isSyntaxNode(specifier.local)) continue
           const local = specifier.local.name
@@ -269,10 +274,7 @@ function isDrizzleImportCall(node: unknown): boolean {
   const args = Array.isArray(current.arguments) ? current.arguments : []
   const source = isSyntaxNode(current.source) ? current.source : args.find(isSyntaxNode)
   const value = source?.value
-  return (
-    typeof value === 'string' &&
-    (value === DRIZZLE_MODULE || value.startsWith(`${DRIZZLE_MODULE}/`))
-  )
+  return isDrizzleModule(value)
 }
 
 const unwrapAwait = (node: SyntaxNode): unknown =>
@@ -548,12 +550,32 @@ function analyzeSource(source: string, file = 'source.ts'): FileAnalysis {
  * Skips the parse for files that cannot bind the tag.
  *
  * `collectSqlBindings` and `isDrizzleImportCall` both match the specifier as a string literal,
- * so a source that never names the module yields no bindings and no violations. That is all but
- * ~590 of the ~13,900 scanned files, and not parsing them takes the audit from ~4.5s to ~0.8s.
- * An escaped specifier (`'drizzle\x2dorm'`) would evade the substring; the repo contains none.
+ * so a source that never names the module yields no bindings and no violations. The scanner
+ * decodes escaped string tokens before comparing them and also requires a possible `sql` binding.
  */
-function mayBindDrizzleSql(source: string): boolean {
-  return source.includes(DRIZZLE_MODULE)
+export function mayBindDrizzleSql(source: string): boolean {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.JSX, source)
+  let hasDrizzleModule = false
+  let hasSqlToken = false
+
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    const value = scanner.getTokenValue()
+    if (
+      (token === ts.SyntaxKind.StringLiteral ||
+        token === ts.SyntaxKind.NoSubstitutionTemplateLiteral) &&
+      isDrizzleModule(value)
+    ) {
+      hasDrizzleModule = true
+    }
+    if (
+      (token === ts.SyntaxKind.Identifier || token === ts.SyntaxKind.StringLiteral) &&
+      value === 'sql'
+    ) {
+      hasSqlToken = true
+    }
+    if (hasDrizzleModule && hasSqlToken) return true
+  }
+  return false
 }
 
 function collectSources(dir: string, found: string[] = []): string[] {

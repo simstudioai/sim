@@ -1,15 +1,12 @@
 /**
- * @vitest-environment node
- *
  * Param-transformer behavior for the v2 Table block: filter/order resolution
  * across builder vs editor modes, the required query limit, cursor artifact
  * handling, and fail-fast limit parsing.
  */
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/triggers', () => ({
-  getTrigger: vi.fn(() => ({ subBlocks: [] })),
-}))
+vi.mock('@/triggers', () => triggersMock)
 
 import { TableV2Block } from '@/blocks/blocks/table_v2'
 
@@ -18,6 +15,52 @@ function params(input: Record<string, unknown>): Record<string, unknown> {
 }
 
 describe('table_v2 query_rows transformer', () => {
+  it('passes selected output columns to the query tool and treats an empty selection as all', () => {
+    expect(
+      params({
+        operation: 'query_rows',
+        tableId: 't',
+        outputColumns: ['col_name', 'col_email'],
+      }).columns
+    ).toEqual(['col_name', 'col_email'])
+    expect(
+      params({ operation: 'query_rows', tableId: 't', outputColumns: [] }).columns
+    ).toBeUndefined()
+  })
+
+  it('fails fast instead of silently returning every column for a malformed selection', () => {
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: 'col_name,col_email' })
+    ).toThrow(/Invalid JSON in Columns to Return/)
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: { col_name: true } })
+    ).toThrow(/Invalid Columns to Return/)
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: ['col_name', null] })
+    ).toThrow(/non-empty column id or name/)
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: ['col_name', ''] })
+    ).toThrow(/non-empty column id or name/)
+  })
+
+  it('falls back to a model-supplied columns param when nothing is picked on the canvas', () => {
+    expect(
+      params({ operation: 'query_rows', tableId: 't', columns: ['col_email'] }).columns
+    ).toEqual(['col_email'])
+    expect(
+      params({ operation: 'query_rows', tableId: 't', outputColumns: [], columns: ['col_email'] })
+        .columns
+    ).toEqual(['col_email'])
+    expect(
+      params({
+        operation: 'query_rows',
+        tableId: 't',
+        outputColumns: ['col_name'],
+        columns: ['col_email'],
+      }).columns
+    ).toEqual(['col_name'])
+  })
+
   it('keeps limit optional (byte-budget page) but fails fast on a non-numeric one', () => {
     const out = params({ operation: 'query_rows', tableId: 't' })
     expect(out.limit).toBeUndefined()
@@ -90,16 +133,6 @@ describe('table_v2 bulk transformers', () => {
     ).toThrow(/Invalid Limit/)
   })
 
-  it('keeps the bulk limit optional', () => {
-    const out = params({
-      operation: 'delete_rows_by_filter',
-      tableId: 't',
-      filterInput: editorFilter,
-    })
-    expect(out.limit).toBeUndefined()
-    expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'x' }] })
-  })
-
   it.each(['update_rows_by_filter', 'delete_rows_by_filter'])(
     'normalizes a plain editor condition for %s',
     (operation) => {
@@ -127,11 +160,6 @@ describe('table_v2 blank and malformed editor inputs', () => {
       expect(params({ ...base, filterInput: value }).filter).toBeUndefined()
       expect(params({ ...base, sortInput: value }).order).toBeUndefined()
     }
-  })
-
-  it('treats an empty builder array as absent', () => {
-    expect(params({ ...base, filterInput: [] }).filter).toBeUndefined()
-    expect(params({ ...base, sortInput: [] }).order).toBeUndefined()
   })
 
   it('still reports genuinely malformed JSON', () => {

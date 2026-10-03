@@ -2,9 +2,9 @@ import type {
   CloudFormationValidateTemplateParams,
   CloudFormationValidateTemplateResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const validateTemplateTool: ToolConfig<
+export const validateTemplateTool: InternalToolConfig<
   CloudFormationValidateTemplateParams,
   CloudFormationValidateTemplateResponse
 > = {
@@ -40,13 +40,8 @@ export const validateTemplateTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/validate-template',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

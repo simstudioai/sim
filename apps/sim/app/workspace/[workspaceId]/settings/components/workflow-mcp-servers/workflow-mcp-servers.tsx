@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
   ChipInput,
   ChipModal,
@@ -76,7 +76,7 @@ interface ServerDetailViewProps {
   isDeleting: boolean
 }
 
-type McpClientType = 'sim' | 'cursor' | 'claude-code' | 'claude-desktop' | 'vscode'
+type McpClientType = 'sim' | 'cursor' | 'codex' | 'claude-code' | 'claude-desktop' | 'vscode'
 
 function ServerDetailView({
   canManage,
@@ -276,6 +276,14 @@ function ServerDetailView({
           return `claude mcp add "${safeName}" --url "${mcpServerUrl}"`
         }
         return `claude mcp add "${safeName}" --url "${mcpServerUrl}" --header "X-API-Key:$SIM_API_KEY"`
+      }
+
+      if (client === 'codex') {
+        return [
+          `[mcp_servers."${safeName}"]`,
+          `url = "${mcpServerUrl}"`,
+          ...(isPublic ? [] : ['env_http_headers = { "X-API-Key" = "SIM_API_KEY" }']),
+        ].join('\n')
       }
 
       if (client === 'cursor') {
@@ -479,7 +487,7 @@ function ServerDetailView({
                   <SettingsField label='Server Name'>{server.name}</SettingsField>
                   <SettingsField label='Transport'>Streamable-HTTP</SettingsField>
                   <SettingsField label='Access'>
-                    {server.isPublic ? 'Public' : 'API Key'}
+                    {server.isPublic ? 'Public' : 'Private'}
                   </SettingsField>
                 </div>
 
@@ -497,16 +505,17 @@ function ServerDetailView({
                       MCP Client
                     </span>
                   </div>
-                  <ButtonGroup
+                  <ChipButtonGroup
                     value={activeConfigTab}
                     onValueChange={(v) => setActiveConfigTab(v as McpClientType)}
                   >
-                    <ButtonGroupItem value='cursor'>Cursor</ButtonGroupItem>
-                    <ButtonGroupItem value='claude-code'>Claude Code</ButtonGroupItem>
-                    <ButtonGroupItem value='claude-desktop'>Claude Desktop</ButtonGroupItem>
-                    <ButtonGroupItem value='vscode'>VS Code</ButtonGroupItem>
-                    <ButtonGroupItem value='sim'>Sim</ButtonGroupItem>
-                  </ButtonGroup>
+                    <ChipButtonGroupItem value='cursor'>Cursor</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='codex'>Codex</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='claude-code'>Claude Code</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='claude-desktop'>Claude Desktop</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='vscode'>VS Code</ChipButtonGroupItem>
+                    <ChipButtonGroupItem value='sim'>Sim</ChipButtonGroupItem>
+                  </ChipButtonGroup>
                 </div>
 
                 {activeConfigTab === 'sim' ? (
@@ -577,7 +586,8 @@ function ServerDetailView({
                         variant='ghost'
                         aria-label={copiedConfig ? 'Configuration copied' : 'Copy configuration'}
                         onClick={() => handleCopyConfig(server.isPublic, server.name)}
-                        className='!p-1.5 -my-1.5'
+                        iconPadding='md'
+                        className='-my-1.5'
                       >
                         {copiedConfig ? (
                           <Check className='size-[14px]' />
@@ -589,14 +599,20 @@ function ServerDetailView({
                     <div className='relative'>
                       <Code.Viewer
                         code={getConfigSnippet(activeConfigTab, server.isPublic, server.name)}
-                        language={activeConfigTab === 'claude-code' ? 'javascript' : 'json'}
+                        language={
+                          activeConfigTab === 'claude-code'
+                            ? 'bash'
+                            : activeConfigTab === 'codex'
+                              ? 'toml'
+                              : 'json'
+                        }
                         wrapText
-                        className='!min-h-0 rounded-sm border border-[var(--border-1)]'
+                        className='min-h-0! rounded-sm border border-[var(--border-1)]'
                       />
                       {activeConfigTab === 'cursor' && (
                         <a
                           href={getCursorInstallUrl(server.isPublic, server.name)}
-                          className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-[length:var(--border-width)] ring-[var(--border-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
+                          className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-[length:var(--border-width)] ring-[var(--border-1)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--selection)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
                         >
                           <img
                             src='https://cursor.com/deeplink/mcp-install-dark.svg'
@@ -606,9 +622,21 @@ function ServerDetailView({
                         </a>
                       )}
                     </div>
+                    {activeConfigTab === 'codex' && server.isPublic && (
+                      <p className='mt-2 text-[var(--text-muted)] text-caption'>
+                        Add this to <span className='font-mono'>~/.codex/config.toml</span>.
+                      </p>
+                    )}
                     {!server.isPublic && (
                       <p className='mt-2 text-[var(--text-muted)] text-caption'>
-                        Replace $SIM_API_KEY with your API key
+                        {activeConfigTab === 'codex' ? (
+                          <>
+                            Add this to <span className='font-mono'>~/.codex/config.toml</span> and
+                            set the SIM_API_KEY environment variable with an existing API key
+                          </>
+                        ) : (
+                          'Replace $SIM_API_KEY with your API key'
+                        )}
                         {canManage && (
                           <>
                             , or{' '}
@@ -621,6 +649,7 @@ function ServerDetailView({
                             </button>
                           </>
                         )}
+                        {activeConfigTab === 'codex' && '.'}
                       </p>
                     )}
                   </div>
@@ -822,17 +851,17 @@ function ServerDetailView({
             />
             <ChipModalField type='custom' title='Access'>
               <div className='flex flex-col gap-1.5'>
-                <ButtonGroup
+                <ChipButtonGroup
                   value={editServerIsPublic ? 'public' : 'private'}
                   onValueChange={(value) => setEditServerIsPublic(value === 'public')}
                 >
-                  <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-                  <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-                </ButtonGroup>
+                  <ChipButtonGroupItem value='private'>Private</ChipButtonGroupItem>
+                  <ChipButtonGroupItem value='public'>Public</ChipButtonGroupItem>
+                </ChipButtonGroup>
                 <p className='text-[var(--text-muted)] text-caption'>
                   {editServerIsPublic
                     ? 'Anyone with the URL can call this server without authentication'
-                    : 'Requests must include your Sim API key in the X-API-Key header'}
+                    : 'Clients sign in with OAuth, or send a Sim API key in the X-API-Key header'}
                 </p>
               </div>
             </ChipModalField>

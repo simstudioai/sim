@@ -1,4 +1,6 @@
 import type { KnowledgeScope } from '@/lib/api/contracts/knowledge/base'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
 
 /**
  * React Query key factory for knowledge bases.
@@ -27,9 +29,34 @@ export const knowledgeKeys = {
   lists: () => [...knowledgeKeys.all, 'list'] as const,
   list: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
     [...knowledgeKeys.lists(), workspaceId ?? 'all', scope] as const,
+  /**
+   * Lists carrying document totals, which only the Knowledge page renders. Under `lists()` so a
+   * knowledge-base mutation refreshes them with the plain lists; beside `list()` so a document
+   * mutation refreshes only these and never the pickers.
+   */
+  countedLists: () => [...knowledgeKeys.lists(), 'counted'] as const,
+  countedList: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
+    [...knowledgeKeys.countedLists(), workspaceId ?? 'all', scope] as const,
   details: () => [...knowledgeKeys.all, 'detail'] as const,
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
+  searches: () => [...knowledgeKeys.all, 'search'] as const,
+  searchQuery: (scopeKey: string | undefined, query: string, userId?: string) =>
+    [...knowledgeKeys.searches(), scopeKey ?? '', userId ?? '', query] as const,
+  search: (
+    scopeKey: string | undefined,
+    query: string,
+    filters?: WorkspaceSearchFilters,
+    topK = 20,
+    userId?: string,
+    nativeQueries?: NativeSearchQuery[]
+  ) =>
+    [
+      ...knowledgeKeys.searchQuery(scopeKey, query, userId),
+      filters ?? {},
+      topK,
+      ...(nativeQueries ? [nativeQueries] : []),
+    ] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   tagUsage: (knowledgeBaseId: string) =>
@@ -43,8 +70,16 @@ export const knowledgeKeys = {
     [...knowledgeKeys.detail(knowledgeBaseId), 'documents'] as const,
   documents: (knowledgeBaseId: string, paramsKey: string) =>
     [...knowledgeKeys.documentLists(knowledgeBaseId), paramsKey] as const,
+  /**
+   * Prefix over every per-document cache in a base — each `document` entry and
+   * the `chunks` / `search` keys nested under it. Needed when a mutation
+   * invalidates documents it cannot name, so the alternative would be the
+   * `detail` prefix, which also drags in the connector and tag caches.
+   */
+  documentDetails: (knowledgeBaseId: string) =>
+    [...knowledgeKeys.detail(knowledgeBaseId), 'document'] as const,
   document: (knowledgeBaseId: string, documentId: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'document', documentId] as const,
+    [...knowledgeKeys.documentDetails(knowledgeBaseId), documentId] as const,
   documentTagDefinitions: (knowledgeBaseId: string, documentId: string) =>
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'tagDefinitions'] as const,
   chunks: (knowledgeBaseId: string, documentId: string, paramsKey: string) =>

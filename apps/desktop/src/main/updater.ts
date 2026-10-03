@@ -1,9 +1,14 @@
 import { execFile } from 'node:child_process'
+import { unlinkSync } from 'node:fs'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import type { BrowserWindow } from 'electron'
-import { app, dialog, net } from 'electron'
+import { app, net, autoUpdater as squirrelUpdater } from 'electron'
+import { readFileWithinLimitSync, writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+import { showShellDialog } from '@/main/dialogs'
 import { isSafeExternalUrl, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
 
@@ -15,8 +20,42 @@ const STABLE_CHECK_INTERVAL_MS = 30 * 60 * 1000
 const UPDATE_CHECK_TIMEOUT_MS = 10_000
 const INTERACTIVE_FEEDBACK_TIMEOUT_MS = 12_000
 const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
+const MAX_UPDATE_MANIFEST_BYTES = 256 * 1024
 
 export type UpdateChannel = 'latest' | 'staging' | 'dev'
+
+/** Reads a small updater manifest without allowing an origin to fill main-process memory. */
+export async function readUpdateManifest(response: Response): Promise<string | null> {
+  if (!response.ok) return null
+  const declaredLength = response.headers.get('content-length')
+  if (declaredLength !== null) {
+    const bytes = Number(declaredLength)
+    if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > MAX_UPDATE_MANIFEST_BYTES) {
+      throw new Error('Update manifest exceeded the size limit')
+    }
+  }
+
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let bytesRead = 0
+  let manifest = ''
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      bytesRead += value.byteLength
+      if (bytesRead > MAX_UPDATE_MANIFEST_BYTES) {
+        await reader.cancel()
+        throw new Error('Update manifest exceeded the size limit')
+      }
+      manifest += decoder.decode(value, { stream: true })
+    }
+    return manifest + decoder.decode()
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 /**
  * The per-environment update feed served by the Sim deployment this shell is
@@ -39,26 +78,37 @@ export function feedUrlForOrigin(origin: string): string | null {
 
 /**
  * Where the feed rewrites every manifest entry to. Downloads are constrained to
- * this prefix rather than to https alone, so a feed that serves an attacker's
- * host cannot get a bundle in front of the user's Download button.
+ * the running channel's repository, the manifest version's tag, and the exact
+ * artifact names produced by the release workflow.
  */
 const RELEASE_ASSET_ORIGIN = 'https://github.com'
-const RELEASE_ASSET_PATHS = [
-  '/simstudioai/sim/releases/download/',
-  '/simstudioai/sim-desktop-releases/releases/download/',
-] as const
+const RELEASE_REPOSITORIES: Record<UpdateChannel, string> = {
+  latest: 'simstudioai/sim',
+  staging: 'simstudioai/sim-desktop-releases',
+  dev: 'simstudioai/sim-desktop-releases',
+}
 
-/** Whether a manifest url is one of our own release assets. */
-function isReleaseAssetUrl(rawUrl: string): boolean {
+function isReleaseAssetUrl(rawUrl: string, version: string, channel: UpdateChannel): boolean {
   if (!isSafeExternalUrl(rawUrl)) return false
   try {
     const url = new URL(rawUrl)
-    // Compared on the parsed origin and the parsed pathname, never by prefix on
-    // the raw string: `https://github.com.evil.example/…` must not pass, and
-    // `URL` has already normalized away any `..` segments by this point.
+    const normalizedVersion = version.replace(/^v/, '')
+    const repository = RELEASE_REPOSITORIES[channel]
+    const releasePath = `/${repository}/releases/download/v${normalizedVersion}/`
+    const assetName = decodeURIComponent(url.pathname.slice(releasePath.length))
+    const expectedAssetNames = new Set([
+      `Sim-${normalizedVersion}-universal.dmg`,
+      `Sim-${normalizedVersion}-universal.zip`,
+    ])
     return (
       url.origin === RELEASE_ASSET_ORIGIN &&
-      RELEASE_ASSET_PATHS.some((path) => url.pathname.startsWith(path))
+      url.username === '' &&
+      url.password === '' &&
+      url.search === '' &&
+      url.hash === '' &&
+      url.pathname.startsWith(releasePath) &&
+      !assetName.includes('/') &&
+      expectedAssetNames.has(assetName)
     )
   } catch {
     return false
@@ -193,13 +243,18 @@ export interface UpdaterDeps {
   loadAutoUpdater?: () => typeof import('electron-updater')['autoUpdater']
   /** Test seam: overrides the origin feed availability probe. */
   probeOriginFeed?: (feedUrl: string) => Promise<boolean | 'no-release'>
-  /**
-   * Test seam: overrides Squirrel self-update capability detection (whether
-   * the running bundle carries a real Developer ID signature).
-   */
+  /** Test seam: overrides Applications-folder and Developer ID eligibility detection. */
   canSelfUpdate?: () => Promise<boolean>
   /** Test seam: overrides the manual-mode manifest fetch (body or null). */
   fetchManifest?: (url: string) => Promise<string | null>
+  /** Test seam for the macOS-only updater gate. */
+  platform?: NodeJS.Platform
+  /** Flushes desktop-owned state before Squirrel terminates the process. */
+  beforeInstall?: () => Promise<void>
+  /** Bypasses renderer unload guards only after the user confirms a relaunch. */
+  setRelaunchPending?: (pending: boolean) => void
+  /** Persists the natively staged version so the next process can verify installation. */
+  installStatePath?: string
 }
 
 export interface UpdaterHandle {
@@ -207,8 +262,8 @@ export interface UpdaterHandle {
   /** Current pipeline state for the renderer update UI. */
   getState(): DesktopUpdateState
   /**
-   * Renderer-initiated advance: checks for an update, or starts the download
-   * when one is already known to be available (auto-download off / manual).
+   * Renderer-initiated advance: checks for an update, downloads an available
+   * self-update, or opens an available manual installer.
    */
   check(): void
   /**
@@ -236,8 +291,8 @@ export function isNewerVersion(candidateVersion: string, currentVersion: string)
   return isDowngrade(candidateVersion, currentVersion)
 }
 
-/** A signed shell may only install a strictly newer build from its own environment stream. */
-function isValidAutomaticUpdate(candidateVersion: string, currentVersion: string): boolean {
+/** Accepts only strictly newer builds from the running shell's environment stream. */
+function isValidUpdateCandidate(candidateVersion: string, currentVersion: string): boolean {
   return (
     resolveUpdateChannel(candidateVersion) === resolveUpdateChannel(currentVersion) &&
     isNewerVersion(candidateVersion, currentVersion)
@@ -245,16 +300,16 @@ function isValidAutomaticUpdate(candidateVersion: string, currentVersion: string
 }
 
 /**
- * Whether Squirrel.Mac can swap this bundle in place. It validates a
- * downloaded update against the running app's code signature, so only builds
- * carrying a real Developer ID (a TeamIdentifier) can self-update. Local
- * `install:local` builds and pre-signing CI prereleases are ad-hoc signed
- * (`TeamIdentifier=not set`) and would fail the swap — those shells get the
- * manual pipeline instead.
+ * Squirrel.Mac can update only an app installed under /Applications whose
+ * running bundle carries a Developer ID TeamIdentifier. Other packaged builds
+ * use the manual-download pipeline.
  */
 async function detectSelfUpdateCapability(): Promise<boolean> {
   if (process.platform !== 'darwin') {
     return true
+  }
+  if (!app.isInApplicationsFolder()) {
+    return false
   }
   const exe = app.getPath('exe')
   const bundleEnd = exe.indexOf('.app/')
@@ -293,20 +348,52 @@ interface UpdateEngine {
  * thirty minutes for production builds, and mirrors pipeline state to the
  * renderer for the settings update UI and the minimum-shell-version gate.
  *
- * Developer-ID-signed builds use electron-updater (background download,
- * then install and relaunch from an explicit Update action). Builds
- * that can't self-update (ad-hoc signed: local installs, pre-signing CI
- * prereleases) still poll the same feed but surface `available` as a manual
- * download link, so the whole pipeline is testable before signing exists.
+ * Developer-ID-signed builds installed under /Applications use electron-updater.
+ * Other packaged builds still poll the same feed but surface available updates
+ * as manual downloads.
  */
 export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
+  if ((deps.platform ?? process.platform) !== 'darwin') {
+    return NOOP_UPDATER_HANDLE
+  }
   if (!app.isPackaged && !deps.loadAutoUpdater && !deps.canSelfUpdate) {
     return NOOP_UPDATER_HANDLE
   }
 
   const currentVersion = app.getVersion()
+  const clearInstallState = () => {
+    if (!deps.installStatePath) return
+    try {
+      unlinkSync(deps.installStatePath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Could not clear update installation checkpoint', { error })
+      }
+    }
+  }
+  if (deps.installStatePath) {
+    try {
+      const pending: unknown = JSON.parse(
+        readFileWithinLimitSync(deps.installStatePath, 1024).toString('utf8')
+      )
+      const expected = toStringOrNull(toRecord(pending).version)
+      if (expected && parseSemver(expected) && parseSemver(currentVersion)) {
+        deps.events.record('update_install_result', {
+          expected,
+          installed: currentVersion,
+          success:
+            resolveUpdateChannel(expected) === resolveUpdateChannel(currentVersion) &&
+            !isNewerVersion(expected, currentVersion),
+        })
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Could not read update installation checkpoint', { error })
+      }
+    }
+    clearInstallState()
+  }
   let state: DesktopUpdateState = { status: 'idle' }
-  let installAfterDownload = false
   const listeners = new Set<(state: DesktopUpdateState) => void>()
   const setState = (next: DesktopUpdateState) => {
     state = next
@@ -327,9 +414,14 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       return null
     }
 
-    autoUpdater.channel = resolveUpdateChannel(currentVersion)
-    autoUpdater.allowDowngrade = false
-    autoUpdater.autoDownload = deps.autoDownload?.() ?? true
+    const setChannelWithoutDowngrades = (channel: UpdateChannel) => {
+      autoUpdater.channel = channel
+      autoUpdater.allowDowngrade = false
+    }
+    setChannelWithoutDowngrades(resolveUpdateChannel(currentVersion))
+    let autoDownloadEnabled = deps.autoDownload?.() ?? true
+    // Prevents the library from fetching a candidate before Sim validates its asset URLs.
+    autoUpdater.autoDownload = false
     // Explicit Update actions must reopen Sim after Squirrel swaps the bundle.
     autoUpdater.autoRunAppAfterInstall = true
     // Never install without vetting the downloaded version first. Enabled per
@@ -338,50 +430,215 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     // silently installed on quit.
     autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.logger = null
+    let installInFlight = false
+    let installConfirmationInFlight = false
+    /** The version verified by the current native updater, before its feed is replaced. */
+    let stagedVersion: string | null = null
+    let relaunchRequested = false
 
-    let activeCheckId: number | null = null
-    let nextCheckId = 0
-    let checkTimeout: ReturnType<typeof setTimeout> | null = null
-    const finishCheck = () => {
-      activeCheckId = null
-      if (checkTimeout !== null) {
-        clearTimeout(checkTimeout)
-        checkTimeout = null
+    /**
+     * Squirrel installs whatever it has staged when the process exits, so a
+     * newer build that replaced the staged one mid-confirmation still installs.
+     */
+    const quitAndInstall = () => {
+      if (installInFlight) return
+      installInFlight = true
+      void Promise.resolve()
+        .then(() => deps.beforeInstall?.())
+        .then(() => {
+          if (state.status !== 'ready') {
+            installInFlight = false
+            return
+          }
+          deps.setRelaunchPending?.(true)
+          relaunchRequested = true
+          deps.events.record('update_install', {
+            from: currentVersion,
+            version: state.version ?? '',
+          })
+          autoUpdater.quitAndInstall()
+        })
+        .catch((error) => {
+          deps.setRelaunchPending?.(false)
+          autoUpdater.autoInstallOnAppQuit = false
+          installInFlight = false
+          logger.error('Pre-install teardown failed', {
+            message: getErrorMessage(error, 'unknown'),
+          })
+          deps.events.record('update_error', { message: 'Pre-install teardown failed' })
+          setState({ status: 'error', version: state.version })
+        })
+    }
+
+    const confirmAndInstall = () => {
+      if (installInFlight || installConfirmationInFlight || state.status !== 'ready') return
+      installConfirmationInFlight = true
+      const version = state.version
+      const options: Electron.MessageBoxOptions = {
+        type: 'question',
+        buttons: ['Later', 'Restart and update'],
+        defaultId: 0,
+        cancelId: 0,
+        message: version ? `Restart to install Sim ${version}?` : 'Restart to update Sim?',
+        detail:
+          'Sim will close all app windows while it updates. Running terminal commands, browser activity, downloads, uploads, and unsaved edits may be interrupted. Choose Later to install the update the next time you quit Sim.',
+      }
+      const win = deps.getWindow()
+      const confirmation = win ? showShellDialog(win, options) : showShellDialog(options)
+      void confirmation
+        .then(({ response }) => {
+          if (response === 1 && state.status === 'ready') {
+            quitAndInstall()
+          }
+        })
+        .catch((error) => {
+          logger.warn('Could not show update restart confirmation', {
+            message: getErrorMessage(error, 'unknown'),
+          })
+        })
+        .finally(() => {
+          installConfirmationInFlight = false
+        })
+    }
+
+    let activeProbeId: number | null = null
+    let nextProbeId = 0
+    let probeTimeout: ReturnType<typeof setTimeout> | null = null
+    let activeUpdaterCheckId: number | null = null
+    let nextUpdaterCheckId = 0
+    let updaterCheckTimeout: ReturnType<typeof setTimeout> | null = null
+    let updaterRequestId: number | null = null
+    /** The validated version offered or currently downloading. */
+    let acceptedUpdateVersion: string | null = null
+    /** A downloaded archive awaiting native verification and staging. */
+    let pendingStagingVersion: string | null = null
+
+    /**
+     * A staged (`ready`) or offered (`available`) update keeps being re-checked
+     * in the background so a newer release replaces it. Without this, a shell
+     * left running across several releases installs the stale build on
+     * restart and immediately offers the next one.
+     */
+    const isRefreshingOffer = () => state.status === 'ready' || state.status === 'available'
+
+    const canRefreshStagedUpdate = () =>
+      stagedVersion !== null &&
+      autoDownloadEnabled &&
+      !installInFlight &&
+      !installConfirmationInFlight &&
+      acceptedUpdateVersion === null &&
+      pendingStagingVersion === null
+
+    const failDownload = (version: string, error: unknown) => {
+      if (acceptedUpdateVersion !== version && pendingStagingVersion !== version) return
+      acceptedUpdateVersion = null
+      pendingStagingVersion = null
+      const message = getErrorMessage(error, 'unknown')
+      logger.warn('Update download failed', { message })
+      deps.events.record('update_error', { message })
+      if (stagedVersion !== null) {
+        setState({ status: 'ready', version: stagedVersion })
+      } else {
+        autoUpdater.autoInstallOnAppQuit = false
+        setState({ status: 'error', version })
+      }
+    }
+
+    const download = (version: string) => {
+      acceptedUpdateVersion = version
+      setState({ status: 'downloading', version })
+      void autoUpdater.downloadUpdate().catch((error) => failDownload(version, error))
+    }
+
+    const finishProbe = (probeId: number) => {
+      if (activeProbeId !== probeId) return
+      activeProbeId = null
+      if (probeTimeout !== null) {
+        clearTimeout(probeTimeout)
+        probeTimeout = null
+      }
+    }
+    const finishUpdaterCheck = (checkId: number) => {
+      if (activeUpdaterCheckId !== checkId) return
+      activeUpdaterCheckId = null
+      if (updaterCheckTimeout !== null) {
+        clearTimeout(updaterCheckTimeout)
+        updaterCheckTimeout = null
       }
     }
 
     autoUpdater.on('checking-for-update', () => {
+      if (activeUpdaterCheckId === null || isRefreshingOffer()) return
       setState({ status: 'checking' })
     })
 
     autoUpdater.on('update-not-available', () => {
-      finishCheck()
-      installAfterDownload = false
+      const checkId = activeUpdaterCheckId
+      if (checkId === null) return
+      finishUpdaterCheck(checkId)
+      if (updaterRequestId === checkId) updaterRequestId = null
+      // The library keeps the last validated offer when nothing newer exists,
+      // and a staged bundle is already armed in Squirrel.
+      if (isRefreshingOffer()) return
       setState({ status: 'idle' })
     })
 
     autoUpdater.on('update-available', (info) => {
-      finishCheck()
-      if (!isValidAutomaticUpdate(info.version, currentVersion)) {
-        installAfterDownload = false
+      const checkId = activeUpdaterCheckId
+      if (checkId === null) return
+      finishUpdaterCheck(checkId)
+      if (updaterRequestId === checkId) updaterRequestId = null
+      const channel = resolveUpdateChannel(currentVersion)
+      const validOriginAssets =
+        !originFeedConfigured ||
+        (info.files.length > 0 &&
+          info.files.every((file) => isReleaseAssetUrl(file.url, info.version, channel)))
+      const validCandidate =
+        validOriginAssets && isValidUpdateCandidate(info.version, currentVersion)
+      if (state.status === 'ready') {
+        // Only a strictly newer validated release replaces the staged one; the
+        // download reuses the update info this check just stored.
+        const previousVersion = state.version ?? currentVersion
+        if (
+          !validCandidate ||
+          !autoDownloadEnabled ||
+          !isNewerVersion(info.version, previousVersion)
+        ) {
+          return
+        }
+        deps.events.record('update_check', { available: info.version, replacing: previousVersion })
+        download(info.version)
+        return
+      }
+      // An offer mirrors the feed's latest release, even after a rollback: the
+      // library only keeps this check's update info, so Update would download
+      // this version regardless of which one the offer displayed.
+      if (state.status === 'available' && validCandidate && state.version === info.version) {
+        return
+      }
+      // A blocked candidate also replaces the library's pending update info, so
+      // an `available` offer from an earlier check is no longer safe to download.
+      if (!validCandidate) {
+        acceptedUpdateVersion = null
         autoUpdater.autoInstallOnAppQuit = false
         deps.events.record('update_blocked_version', {
           version: info.version,
-          reason: 'not-newer',
+          reason: validOriginAssets ? 'not-newer' : 'unusable-url',
         })
         setState({ status: 'idle' })
         return
       }
+      acceptedUpdateVersion = info.version
       deps.events.record('update_check', { available: info.version })
-      // With auto-download on, download-progress events follow immediately;
-      // `available` is the terminal state only when downloads are manual.
-      setState({
-        status: autoUpdater.autoDownload ? 'downloading' : 'available',
-        version: info.version,
-      })
+      if (autoDownloadEnabled) {
+        download(info.version)
+      } else {
+        setState({ status: 'available', version: info.version })
+      }
     })
 
     autoUpdater.on('download-progress', (progress) => {
+      if (state.status !== 'downloading') return
       setState({
         status: 'downloading',
         version: state.version,
@@ -390,26 +647,62 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     })
 
     autoUpdater.on('update-downloaded', (info) => {
-      if (!isValidAutomaticUpdate(info.version, currentVersion)) {
-        installAfterDownload = false
+      if (state.status !== 'downloading') return
+      // MacUpdater has replaced the native feed before emitting this event.
+      stagedVersion = null
+      clearInstallState()
+      if (
+        acceptedUpdateVersion !== info.version ||
+        !isValidUpdateCandidate(info.version, currentVersion)
+      ) {
+        acceptedUpdateVersion = null
         autoUpdater.autoInstallOnAppQuit = false
         deps.events.record('update_blocked_version', { version: info.version })
         setState({ status: 'idle' })
         return
       }
+      acceptedUpdateVersion = null
+      pendingStagingVersion = info.version
       autoUpdater.autoInstallOnAppQuit = true
-      deps.events.record('update_downloaded', { version: info.version })
-      setState({ status: 'ready', version: info.version })
-      if (installAfterDownload) {
-        installAfterDownload = false
-        autoUpdater.quitAndInstall()
-      }
+      setState({ status: 'downloading', version: info.version, percent: 100 })
     })
 
-    autoUpdater.on('error', (error) => {
-      finishCheck()
-      installAfterDownload = false
-      deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
+    squirrelUpdater.on('update-downloaded', () => {
+      const version = pendingStagingVersion
+      if (version === null || state.status !== 'downloading') return
+      pendingStagingVersion = null
+      stagedVersion = version
+      if (deps.installStatePath) {
+        try {
+          writeJsonFileAtomicallySync(deps.installStatePath, { version })
+        } catch (error) {
+          logger.warn('Could not persist update installation checkpoint', { error })
+        }
+      }
+      deps.events.record('update_downloaded', { version })
+      setState({ status: 'ready', version })
+    })
+
+    /** Network failures belong to their request promises; native errors invalidate staging. */
+    squirrelUpdater.on('error', (error) => {
+      if (
+        state.status !== 'downloading' &&
+        state.status !== 'ready' &&
+        !installInFlight &&
+        !relaunchRequested
+      ) {
+        return
+      }
+      installInFlight = false
+      relaunchRequested = false
+      stagedVersion = null
+      acceptedUpdateVersion = null
+      pendingStagingVersion = null
+      deps.setRelaunchPending?.(false)
+      autoUpdater.autoInstallOnAppQuit = false
+      const message = getErrorMessage(error, 'unknown')
+      logger.warn('Native update failed', { message })
+      deps.events.record('update_error', { message })
       setState({ status: 'error', version: state.version })
     })
 
@@ -438,8 +731,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       })
     type FeedResolution = 'origin' | 'fallback' | 'no-release' | 'skip'
     let originFeedConfigured = false
-    let feedProbeInFlight: Promise<FeedResolution> | null = null
-    const resolveFeedForCheck = async (): Promise<FeedResolution> => {
+    const resolveFeedForCheck = async (probeId: number): Promise<FeedResolution> => {
       if (originFeedConfigured) return 'origin'
       const feedUrl = feedUrlForOrigin(deps.appOrigin())
       const stableBuild = resolveUpdateChannel(currentVersion) === 'latest'
@@ -454,8 +746,9 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         if (!availability) {
           throw new Error('feed responded non-OK')
         }
+        if (activeProbeId !== probeId) return 'skip'
         autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl, channel: 'latest' })
-        autoUpdater.channel = 'latest'
+        setChannelWithoutDowngrades('latest')
         originFeedConfigured = true
         deps.events.record('update_feed', { url: feedUrl })
         return 'origin'
@@ -469,75 +762,87 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         return stableBuild ? 'fallback' : 'skip'
       }
     }
-    const feedForCheck = (): Promise<FeedResolution> => {
-      if (originFeedConfigured) return Promise.resolve('origin')
-      if (feedProbeInFlight) return feedProbeInFlight
-      feedProbeInFlight = resolveFeedForCheck().finally(() => {
-        feedProbeInFlight = null
-      })
-      return feedProbeInFlight
+    const startUpdaterCheck = (interactive: boolean) => {
+      if (updaterRequestId !== null) {
+        if (interactive) setState({ status: 'error' })
+        return
+      }
+      const checkId = ++nextUpdaterCheckId
+      activeUpdaterCheckId = checkId
+      updaterRequestId = checkId
+      updaterCheckTimeout = setTimeout(() => {
+        if (activeUpdaterCheckId !== checkId) return
+        finishUpdaterCheck(checkId)
+        deps.events.record('update_error', { message: 'Update check timed out' })
+        if (state.status === 'checking') setState({ status: 'error' })
+      }, UPDATE_CHECK_TIMEOUT_MS)
+      autoUpdater
+        .checkForUpdates()
+        .then(() => {
+          if (updaterRequestId === checkId) updaterRequestId = null
+          if (activeUpdaterCheckId !== checkId) return
+          finishUpdaterCheck(checkId)
+          if (interactive && state.status === 'checking') setState({ status: 'error' })
+        })
+        .catch((error) => {
+          if (updaterRequestId === checkId) updaterRequestId = null
+          if (activeUpdaterCheckId !== checkId) return
+          finishUpdaterCheck(checkId)
+          const message = getErrorMessage(error, 'unknown')
+          logger.warn('Update check failed', { message })
+          deps.events.record('update_error', { message })
+          if (state.status === 'checking') setState({ status: 'error' })
+        })
     }
 
     return {
       check(interactive = false) {
         if (
-          activeCheckId !== null ||
-          state.status === 'available' ||
-          state.status === 'downloading' ||
-          state.status === 'ready'
+          activeProbeId !== null ||
+          activeUpdaterCheckId !== null ||
+          state.status === 'downloading'
         ) {
           return
         }
-        const checkId = ++nextCheckId
-        activeCheckId = checkId
-        if (interactive) {
+        if (isRefreshingOffer()) {
+          if (state.status === 'ready' && !canRefreshStagedUpdate()) return
+        } else if (interactive) {
           setState({ status: 'checking' })
         }
-        checkTimeout = setTimeout(() => {
-          if (activeCheckId !== checkId) return
-          finishCheck()
-          deps.events.record('update_error', { message: 'Update check timed out' })
+        if (originFeedConfigured) {
+          startUpdaterCheck(interactive)
+          return
+        }
+        const probeId = ++nextProbeId
+        activeProbeId = probeId
+        probeTimeout = setTimeout(() => {
+          if (activeProbeId !== probeId) return
+          finishProbe(probeId)
+          deps.events.record('update_error', { message: 'Update feed probe timed out' })
           if (state.status === 'checking') setState({ status: 'error' })
         }, UPDATE_CHECK_TIMEOUT_MS)
-        void feedForCheck().then((feed) => {
-          if (activeCheckId !== checkId) return
+        void resolveFeedForCheck(probeId).then((feed) => {
+          if (activeProbeId !== probeId) return
+          finishProbe(probeId)
           if (feed === 'no-release') {
-            finishCheck()
             if (interactive && state.status === 'checking') setState({ status: 'idle' })
             return
           }
           if (feed === 'skip') {
-            finishCheck()
             if (interactive && state.status === 'checking') setState({ status: 'error' })
             return
           }
-          autoUpdater
-            .checkForUpdates()
-            .then(() => {
-              if (activeCheckId !== checkId) return
-              finishCheck()
-              if (interactive && state.status === 'checking') setState({ status: 'error' })
-            })
-            .catch((error) => {
-              if (activeCheckId !== checkId) return
-              finishCheck()
-              logger.warn('Update check failed', { message: getErrorMessage(error, 'unknown') })
-              if (state.status === 'checking') setState({ status: 'error' })
-            })
+          startUpdaterCheck(interactive)
         })
       },
       advance() {
-        autoUpdater.downloadUpdate().catch((error) => {
-          installAfterDownload = false
-          logger.warn('Update download failed', { message: getErrorMessage(error, 'unknown') })
-          setState({ status: 'error', version: state.version })
-        })
+        if (acceptedUpdateVersion !== null) download(acceptedUpdateVersion)
       },
       install() {
-        autoUpdater.quitAndInstall()
+        confirmAndInstall()
       },
       setAutoDownload(enabled) {
-        autoUpdater.autoDownload = enabled
+        autoDownloadEnabled = enabled
       },
     }
   }
@@ -549,23 +854,45 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         const response = await net.fetch(url, {
           signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
         })
-        return response.ok ? await response.text() : null
+        return readUpdateManifest(response)
       })
     let downloadUrl: string | null = null
-    let checkInFlight = false
+    let activeCheckId: number | null = null
+    let nextCheckId = 0
+    let checkTimeout: ReturnType<typeof setTimeout> | null = null
 
+    /**
+     * An offered download keeps being re-checked in the background, and only a
+     * strictly newer release with a usable asset replaces it; failures and
+     * equal versions leave the current offer untouched.
+     */
     const doCheck = async () => {
-      if (checkInFlight || state.status === 'available') return
-      checkInFlight = true
-      setState({ status: 'checking', manual: true })
+      if (activeCheckId !== null) return
+      const offeredVersion = state.status === 'available' ? state.version : undefined
+      const refreshing = offeredVersion !== undefined
+      const checkId = ++nextCheckId
+      activeCheckId = checkId
+      if (!refreshing) {
+        downloadUrl = null
+        setState({ status: 'checking', manual: true })
+      }
+      checkTimeout = setTimeout(() => {
+        if (activeCheckId !== checkId) return
+        activeCheckId = null
+        checkTimeout = null
+        deps.events.record('update_error', { message: 'Manual update check timed out' })
+        if (!refreshing) setState({ status: 'error', manual: true })
+      }, UPDATE_CHECK_TIMEOUT_MS)
       try {
         const feedUrl = feedUrlForOrigin(deps.appOrigin())
         const manifest = feedUrl ? await fetchManifest(`${feedUrl}/latest-mac.yml`) : null
+        if (activeCheckId !== checkId) return
         const version = manifest ? (/^version:\s*(\S+)\s*$/m.exec(manifest)?.[1] ?? null) : null
-        if (!manifest || !version || !isNewerVersion(version, currentVersion)) {
-          setState({ status: 'idle', manual: true })
+        if (!manifest || !version || !isValidUpdateCandidate(version, currentVersion)) {
+          if (!refreshing) setState({ status: 'idle', manual: true })
           return
         }
+        if (refreshing && !isNewerVersion(version, offeredVersion)) return
         // The feed rewrites manifest urls to absolute GitHub asset URLs;
         // prefer the dmg for a human download.
         //
@@ -576,13 +903,13 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         const urls = Array.from(
           manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm),
           (m) => m[1]
-        ).filter(isReleaseAssetUrl)
-        downloadUrl =
+        ).filter((url) => isReleaseAssetUrl(url, version, resolveUpdateChannel(currentVersion)))
+        const nextDownloadUrl =
           urls.find((url) => url.endsWith('.dmg')) ??
           urls.find((url) => url.endsWith('.zip')) ??
           urls[0] ??
           null
-        if (!downloadUrl) {
+        if (!nextDownloadUrl) {
           // 'error', not 'idle': a newer version demonstrably exists and cannot
           // be offered, so "Sim is up to date" would strand a user whose shell
           // the server's minimum-version gate is already blocking.
@@ -591,16 +918,24 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
             candidates: urls.length,
           })
           deps.events.record('update_blocked_version', { version, reason: 'unusable-url' })
-          setState({ status: 'error', version: state.version, manual: true })
+          if (!refreshing) setState({ status: 'error', version: state.version, manual: true })
           return
         }
+        downloadUrl = nextDownloadUrl
         deps.events.record('update_check', { available: version, manual: true })
         setState({ status: 'available', version, manual: true })
       } catch (error) {
+        if (activeCheckId !== checkId) return
         logger.warn('Manual update check failed', { message: getErrorMessage(error, 'unknown') })
-        setState({ status: 'error', version: state.version, manual: true })
+        if (!refreshing) setState({ status: 'error', version: state.version, manual: true })
       } finally {
-        checkInFlight = false
+        if (activeCheckId === checkId) {
+          activeCheckId = null
+          if (checkTimeout !== null) {
+            clearTimeout(checkTimeout)
+            checkTimeout = null
+          }
+        }
       }
     }
 
@@ -628,7 +963,12 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
 
   const canSelfUpdate = deps.canSelfUpdate ?? detectSelfUpdateCapability
   void canSelfUpdate()
-    .catch(() => true)
+    .catch((error) => {
+      logger.warn('Could not detect self-update capability; using manual updates', {
+        message: getErrorMessage(error, 'unknown'),
+      })
+      return false
+    })
     .then((capable) => {
       engine = capable ? buildAutoEngine() : buildManualEngine()
       if (!engine) {
@@ -672,7 +1012,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         return
       }
       if (state.status === 'available') {
-        installAfterDownload = !state.manual
         engine.advance()
         return
       }
@@ -709,7 +1048,7 @@ export function checkForUpdatesInteractive(
   deps: Pick<UpdaterDeps, 'getWindow' | 'events'> & { handle: UpdaterHandle | null }
 ): void {
   if (!app.isPackaged) {
-    void dialog.showMessageBox({
+    void showShellDialog({
       type: 'info',
       message: 'Updates are only available in packaged builds',
     })
@@ -723,7 +1062,7 @@ export function checkForUpdatesInteractive(
 
   const showDialog = (options: Electron.MessageBoxOptions) => {
     const win = deps.getWindow()
-    return win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
+    return win ? showShellDialog(win, options) : showShellDialog(options)
   }
 
   const settle = (state: DesktopUpdateState) => {
@@ -759,7 +1098,7 @@ export function checkForUpdatesInteractive(
         })
         return
       case 'ready':
-        // The download pipeline already shows its own restart prompt.
+        handle.install()
         return
       case 'error':
         void showDialog({

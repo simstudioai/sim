@@ -1,10 +1,9 @@
 import { FathomIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { FathomResponse } from '@/tools/fathom/types'
 import { getTrigger } from '@/triggers'
 import { fathomTriggerOptions } from '@/triggers/fathom/utils'
 
-export const FathomBlock: BlockConfig<FathomResponse> = {
+export const FathomBlock: BlockConfig = {
   type: 'fathom',
   name: 'Fathom',
   description: 'Access meeting recordings, transcripts, and summaries',

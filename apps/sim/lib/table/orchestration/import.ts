@@ -20,15 +20,21 @@ import {
   type CsvDelimiter,
   type CsvHeaderMapping,
   CsvImportValidationError,
+  type CsvRejectionSummary,
   coerceRowsForTable,
-  createCsvParser,
+  createCsvRejectionCollector,
   inferColumnType,
   inferSchemaFromCsv,
   sanitizeName,
   validateMapping,
 } from '@/lib/table/import'
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
-import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
+import { createCsvParser } from '@/lib/table/import-stream'
+import {
+  markTableJobRunning,
+  releaseJobClaim,
+  type TableImportRejectionSummary,
+} from '@/lib/table/jobs/service'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { batchInsertRows, dispatchAfterBatchInsert } from '@/lib/table/rows/service'
@@ -79,6 +85,37 @@ function classifyImportFailure(error: unknown, requestId: string, tableId: strin
 }
 
 /**
+ * What a synchronous import reports about the data it lost, so a partial import
+ * is not rendered as a clean one — the same accounting the streaming runner
+ * folds into the import record, returned inline because these paths have no
+ * import record to read afterwards.
+ *
+ * Omitted entirely when nothing was lost, so a clean import's payload stays
+ * exactly what it has always been.
+ */
+export interface ImportRejectionFields {
+  rejections?: TableImportRejectionSummary
+}
+
+/**
+ * Projects a parse summary and the coercion tally onto the field a result
+ * carries, collapsing to `{}` when the import lost nothing.
+ */
+function rejectionFields(
+  rejections: CsvRejectionSummary,
+  cellsRejected: number
+): ImportRejectionFields {
+  if (rejections.rowsRejected === 0 && cellsRejected === 0) return {}
+  return {
+    rejections: {
+      rowsRejected: rejections.rowsRejected,
+      cellsRejected,
+      rejectedSamples: rejections.rejectedSamples,
+    },
+  }
+}
+
+/**
  * Drains a CSV/TSV stream into memory. The extension only picks the fallback —
  * the separator is sniffed from the file's head so semicolon/pipe exports
  * (European-locale Excel) don't land in one column.
@@ -86,13 +123,22 @@ function classifyImportFailure(error: unknown, requestId: string, tableId: strin
 async function readCsvRows(
   fileStream: Readable,
   fallbackDelimiter: CsvDelimiter
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
+): Promise<{
+  headers: string[]
+  rows: Record<string, unknown>[]
+  rejections: CsvRejectionSummary
+}> {
   const { delimiter, stream } = await sniffCsvDelimiterFromStream(fileStream, fallbackDelimiter)
 
   let headers: string[] = []
-  const parser = createCsvParser(delimiter, (parsedHeaders) => {
-    headers = parsedHeaders
-  })
+  const rejections = createCsvRejectionCollector()
+  const parser = createCsvParser(
+    delimiter,
+    (parsedHeaders) => {
+      headers = parsedHeaders
+    },
+    rejections.onSkip
+  )
   // `.pipe` doesn't forward source errors; forward them so the iterator throws.
   stream.on('error', (streamError) => parser.destroy(streamError))
   stream.pipe(parser)
@@ -101,7 +147,7 @@ async function readCsvRows(
   for await (const record of parser as AsyncIterable<Record<string, unknown>>) {
     rows.push(record)
   }
-  return { headers, rows }
+  return { headers, rows, rejections: rejections.summary }
 }
 
 /**
@@ -188,9 +234,17 @@ export interface PerformTableCsvImportParams {
   /** IANA zone used to read naive datetimes (Excel/Sheets exports carry no offset). */
   timezone: string
   requestId?: string
+  /**
+   * The person whose permission group gates any cell this import auto-fires,
+   * or `null` when no person is behind it. An import lands rows, and landing
+   * rows starts the table's workflow and enrichment cells. Threaded from the
+   * surface that holds the principal — the route has already gated the same
+   * subject. Required; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   */
+  capabilityGovernedUserId: string | null
 }
 
-export interface TableCsvImportData {
+export interface TableCsvImportData extends ImportRejectionFields {
   tableId: string
   mode: 'append' | 'replace'
   insertedCount: number
@@ -225,8 +279,17 @@ export interface PerformTableCsvImportResult {
 export async function performTableCsvImport(
   params: PerformTableCsvImportParams
 ): Promise<PerformTableCsvImportResult> {
-  const { table, workspaceId, userId, fileStream, fileName, fallbackDelimiter, mode, timezone } =
-    params
+  const {
+    table,
+    workspaceId,
+    userId,
+    fileStream,
+    fileName,
+    fallbackDelimiter,
+    mode,
+    timezone,
+    capabilityGovernedUserId,
+  } = params
   const requestId = params.requestId ?? generateRequestId()
 
   if (table.archivedAt) return fail('Cannot import into an archived table', 'validation')
@@ -234,7 +297,7 @@ export async function performTableCsvImport(
     return fail('A job is already in progress for this table', 'conflict')
   }
 
-  const { headers, rows } = await readCsvRows(fileStream, fallbackDelimiter)
+  const { headers, rows, rejections } = await readCsvRows(fileStream, fallbackDelimiter)
   if (rows.length === 0) return fail('CSV file has no data rows', 'validation')
 
   let effectiveMapping = params.mapping ?? buildAutoMapping(headers, table.schema)
@@ -272,7 +335,24 @@ export async function performTableCsvImport(
     )
   }
 
-  const coerced = coerceRowsForTable(rows, prospectiveSchema, validation.effectiveMap, { timezone })
+  let cellsRejected = 0
+  const coerced = coerceRowsForTable(
+    rows,
+    prospectiveSchema,
+    validation.effectiveMap,
+    { timezone },
+    () => {
+      cellsRejected++
+    }
+  )
+  const rejected = rejectionFields(rejections, cellsRejected)
+  if (rejected.rejections) {
+    logger.warn(`[${requestId}] CSV import lost source data`, {
+      tableId: table.id,
+      fileName,
+      ...rejected.rejections,
+    })
+  }
 
   const importId = generateId()
   if (!(await markTableJobRunning(table.id, importId, 'import'))) {
@@ -286,6 +366,7 @@ export async function performTableCsvImport(
     skippedHeaders: validation.skippedHeaders,
     unmappedColumns: validation.unmappedColumns,
     sourceFile: fileName,
+    ...rejected,
   }
 
   try {
@@ -303,10 +384,11 @@ export async function performTableCsvImport(
         workspaceId,
         userId,
         requestId,
+        capabilityGovernedUserId,
       })
       // Fire trigger + scheduler AFTER the tx commits — both read through the
       // global db connection and would otherwise see no rows.
-      dispatchAfterBatchInsert(finalTable, inserted, requestId, userId)
+      dispatchAfterBatchInsert(finalTable, inserted, requestId, userId, capabilityGovernedUserId)
 
       logger.info(`[${requestId}] Append CSV imported`, {
         tableId: table.id,
@@ -354,6 +436,15 @@ export async function performTableCsvImport(
 export interface PerformCreateTableFromCsvParams {
   workspaceId: string
   userId: string
+  /**
+   * The person whose permission group gates any cell this import auto-fires,
+   * or `null` when no person is behind it. An import lands rows, and landing
+   * rows starts the table's workflow and enrichment cells. Threaded from the
+   * surface that holds the principal — the route has already gated the same
+   * subject. Required; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   */
+  capabilityGovernedUserId: string | null
+
   /** Multipart file stream. The caller still owns destroying it. */
   fileStream: Readable
   fileName: string
@@ -383,7 +474,7 @@ export interface PerformCreateTableFromCsvResult {
    * caller which lock to clear, and leaving it off the type is how a 423 silently loses it.
    */
   lock?: TableLockKind
-  data?: { table: CreatedTableFromCsv }
+  data?: { table: CreatedTableFromCsv } & ImportRejectionFields
 }
 
 /**
@@ -397,16 +488,30 @@ export interface PerformCreateTableFromCsvResult {
 export async function performCreateTableFromCsv(
   params: PerformCreateTableFromCsvParams
 ): Promise<PerformCreateTableFromCsvResult> {
-  const { workspaceId, userId, fileStream, fileName, fallbackDelimiter, folderId, timezone } =
-    params
+  const {
+    workspaceId,
+    userId,
+    fileStream,
+    fileName,
+    fallbackDelimiter,
+    folderId,
+    timezone,
+    capabilityGovernedUserId,
+  } = params
   const requestId = params.requestId ?? generateRequestId()
 
   const { delimiter, stream } = await sniffCsvDelimiterFromStream(fileStream, fallbackDelimiter)
 
   let csvHeaders: string[] = []
-  const parser = createCsvParser(delimiter, (headers) => {
-    csvHeaders = headers
-  })
+  const rejections = createCsvRejectionCollector()
+  let cellsRejected = 0
+  const parser = createCsvParser(
+    delimiter,
+    (headers) => {
+      csvHeaders = headers
+    },
+    rejections.onSkip
+  )
   stream.on('error', (streamError) => parser.destroy(streamError))
   stream.pipe(parser)
 
@@ -422,13 +527,22 @@ export async function performCreateTableFromCsv(
     currentRowCount: number
   ): Promise<number> => {
     if (batch.length === 0) return 0
-    const coerced = coerceRowsForTable(batch, state.schema, state.headerToColumn, { timezone })
+    const coerced = coerceRowsForTable(
+      batch,
+      state.schema,
+      state.headerToColumn,
+      { timezone },
+      () => {
+        cellsRejected++
+      }
+    )
     const inserted = await batchInsertRows(
       {
         tableId: state.table.id,
         rows: coerced as RowData[],
         workspaceId,
         userId,
+        capabilityGovernedUserId,
         secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
       },
       // The created table's rowCount is frozen at 0; pass the running total so the
@@ -513,6 +627,15 @@ export async function performCreateTableFromCsv(
     rows: inserted,
   })
 
+  const rejected = rejectionFields(rejections.summary, cellsRejected)
+  if (rejected.rejections) {
+    logger.warn(`[${requestId}] CSV import lost source data`, {
+      tableId: state.table.id,
+      fileName,
+      ...rejected.rejections,
+    })
+  }
+
   return {
     success: true,
     data: {
@@ -523,6 +646,7 @@ export async function performCreateTableFromCsv(
         schema: state.schema,
         rowCount: inserted,
       },
+      ...rejected,
     },
   }
 }

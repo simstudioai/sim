@@ -1,13 +1,21 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const ALL_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
   delegatedServices: ['copilot'],
 } as const
 const HUMAN_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
+const HTTP_SKILL_EDITOR_READ_POLICY = ALL_PRINCIPAL_POLICY
+const HUMAN_HTTP_SKILL_EDITOR_POLICY = HUMAN_PRINCIPAL_POLICY
 
 /**
  * Every skill write is human-subject-only. Reads are not.
@@ -30,35 +38,52 @@ const HUMAN_PRINCIPAL_POLICY = {
  * act. Denying it keeps the whole lifecycle under one authorization model.
  * Pinned in `operations.test.ts`.
  */
+/**
+ * Every operation declares `skills.use`. The key reads "block agents from
+ * loading skills", and the skills a group's members author are exactly the ones
+ * their agents would load — so authoring, sharing, and editor grants are gated
+ * with execution rather than left as a side door that fills the workspace with
+ * skills the group may not run.
+ */
 export const skillOperations = {
   list: defineWorkspaceOperation({
     id: 'skills.list',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'skills.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   listAvailable: defineWorkspaceOperation({
     id: 'skills.list_available',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'skills.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'skills.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
     id: 'skills.create',
+    oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
     id: 'skills.update',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -73,15 +98,43 @@ export const skillOperations = {
    */
   upsert: defineWorkspaceOperation({
     id: 'skills.upsert',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'skills.delete',
+    oauthScope: 'api:write',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
+  }),
+  listEditors: defineWorkspaceOperation({
+    id: 'skills.editors.list',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'skills.use',
+    ...HTTP_SKILL_EDITOR_READ_POLICY,
+  }),
+  grantEditor: defineWorkspaceOperation({
+    id: 'skills.editors.grant',
+    oauthScope: 'api:write',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'skills.use',
+    ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
+  }),
+  revokeEditor: defineWorkspaceOperation({
+    id: 'skills.editors.revoke',
+    oauthScope: 'api:write',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'skills.use',
+    ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
   }),
 } as const
 

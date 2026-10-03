@@ -1,6 +1,10 @@
 import { memo, useCallback, useMemo } from 'react'
-import { type EdgeDiffStatus, WorkflowEdgeView } from '@sim/workflow-renderer'
-import { type EdgeProps, useStore } from 'reactflow'
+import {
+  type EdgeDiffStatus,
+  type WorkflowEdge as WorkflowEdgeType,
+  WorkflowEdgeView,
+} from '@sim/workflow-renderer'
+import { type EdgeProps, useStore } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   isEdgeConnectedToEditor,
@@ -14,11 +18,7 @@ import {
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
-/** Extended edge props with optional handle identifiers */
-interface WorkflowEdgeProps extends EdgeProps {
-  sourceHandle?: string | null
-  targetHandle?: string | null
-}
+type WorkflowEdgeProps = EdgeProps<WorkflowEdgeType>
 
 /**
  * Editor container for {@link WorkflowEdgeView}.
@@ -27,7 +27,7 @@ interface WorkflowEdgeProps extends EdgeProps {
  * passes it to the pure renderer shared with the docs preview.
  */
 const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
-  const { id, data, source, target, sourceHandle, targetHandle } = props
+  const { id, data, source, target, sourceHandleId, targetHandleId } = props
 
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore(
     useShallow((state) => ({
@@ -49,9 +49,7 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
   const isEndpointSelected = useStore(
     useCallback(
       (state) =>
-        Boolean(
-          state.nodeInternals.get(source)?.selected || state.nodeInternals.get(target)?.selected
-        ),
+        Boolean(state.nodeLookup.get(source)?.selected || state.nodeLookup.get(target)?.selected),
       [source, target]
     )
   )
@@ -78,8 +76,8 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     if (data?.isDeleted) return 'deleted'
     if (!diffAnalysis?.edge_diff || !isDiffReady) return null
 
-    const actualSourceHandle = sourceHandle || 'source'
-    const actualTargetHandle = targetHandle || 'target'
+    const actualSourceHandle = sourceHandleId || 'source'
+    const actualTargetHandle = targetHandleId || 'target'
     const edgeIdentifier = `${source}-${actualSourceHandle}-${target}-${actualTargetHandle}`
 
     if (isShowingDiff) {
@@ -96,8 +94,8 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     isShowingDiff,
     source,
     target,
-    sourceHandle,
-    targetHandle,
+    sourceHandleId,
+    targetHandleId,
   ])
 
   return (

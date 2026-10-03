@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import type { ResponseFormatStreamProcessor } from '@/executor/types'
 
 const logger = createLogger('ExecutorUtils')
 
@@ -7,7 +6,7 @@ const logger = createLogger('ExecutorUtils')
  * Processes a streaming response to extract only the selected response format fields
  * instead of streaming the full JSON wrapper.
  */
-export class StreamingResponseFormatProcessor implements ResponseFormatStreamProcessor {
+export class StreamingResponseFormatProcessor {
   processStream(
     originalStream: ReadableStream,
     blockId: string,
@@ -113,7 +112,7 @@ export class StreamingResponseFormatProcessor implements ResponseFormatStreamPro
 
         return null
       }
-    } catch (e) {}
+    } catch {}
 
     const openBraces = (buffer.match(/\{/g) || []).length
     const closeBraces = (buffer.match(/\}/g) || []).length
@@ -138,7 +137,7 @@ export class StreamingResponseFormatProcessor implements ResponseFormatStreamPro
 
           return null
         }
-      } catch (e) {}
+      } catch {}
     }
 
     return null

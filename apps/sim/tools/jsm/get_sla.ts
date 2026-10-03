@@ -1,8 +1,8 @@
 import type { JsmGetSlaParams, JsmGetSlaResponse } from '@/tools/jsm/types'
 import { SLA_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetSlaTool: ToolConfig<JsmGetSlaParams, JsmGetSlaResponse> = {
+export const jsmGetSlaTool: InternalToolConfig<JsmGetSlaParams, JsmGetSlaResponse> = {
   id: 'jsm_get_sla',
   name: 'JSM Get SLA',
   description: 'Get SLA information for a service request in Jira Service Management',
@@ -52,13 +52,8 @@ export const jsmGetSlaTool: ToolConfig<JsmGetSlaParams, JsmGetSlaResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/sla',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

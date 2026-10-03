@@ -1,3 +1,6 @@
+import { writeStderr } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
+import { truncationMetadata } from '#sim-cli/output/truncation'
 import type { OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
@@ -46,6 +49,12 @@ function at(row: unknown, path: string): unknown {
  * decode is shown as it arrived rather than dropped — the point is to show the
  * name, and a malformed one is still the truth about what the server holds.
  *
+ * A segment whose decoded name contains the separator is shown in wire form for
+ * the same reason: decoding it would print a root folder named `a/b` as
+ * `/a/b`, byte-identical to a folder `b` nested under `a` — and the printed
+ * path is what people paste back, so `folders delete` addressed the other
+ * folder. Rendering must not manufacture structure that is not there.
+ *
  * Callers must reach this only from a `table` or `text` rendering path — the
  * hand-written `ls` builds its own columns and so decodes through here directly.
  * `json` and `yaml` render from the raw payload so that switching format never
@@ -56,12 +65,20 @@ export function decodeFolderPath(value: string): string {
     .split('/')
     .map((segment) => {
       try {
-        return decodeURIComponent(segment)
+        const decoded = decodeURIComponent(segment)
+        return decoded.includes('/') ? segment : decoded
       } catch {
         return segment
       }
     })
     .join('/')
+}
+
+/** A `{ id, email }` user by email, or by id once the account behind it is gone. */
+function personLabel(person: unknown): string {
+  const { id, email } = (person ?? {}) as { id?: unknown; email?: unknown }
+  if (typeof email === 'string' && email) return email
+  return typeof id === 'string' && id ? id : JSON.stringify(person)
 }
 
 function renderCell(
@@ -80,8 +97,14 @@ function renderCell(
       return bool(value as boolean | null)
     case 'cost':
       return typeof value === 'number' ? `$${value.toFixed(4)}` : text(null)
+    case 'score':
+      return typeof value === 'number' ? value.toFixed(4) : text(null)
     case 'count':
       return Array.isArray(value) ? String(value.length) : text(null)
+    case 'people':
+      return Array.isArray(value) && value.length > 0
+        ? sanitize(value.map(personLabel).join(', '))
+        : text(null)
     case 'folder-path':
       return typeof value === 'string' ? text(decodeFolderPath(value)) : text(value)
     case 'trace-count': {
@@ -271,12 +294,118 @@ function unwrapResource(data: unknown): unknown {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : data
 }
 
-export function renderPage(format: OutputFormat, rows: unknown[], spec: CommandSpec): void {
+export function renderPage(
+  format: OutputFormat,
+  page: { data: unknown[]; nextCursor: string | null },
+  spec: CommandSpec,
+  envelope?: unknown
+): void {
+  writePageNote(spec, envelope)
+  writeEnvelopeTruncation(envelope)
   printList(
     format,
-    rows,
-    spec.columns ? columnsFrom(spec.columns) : inferColumns(rows, spec.expand)
+    page.data,
+    spec.columns ? columnsFrom(spec.columns) : inferColumns(page.data, spec.expand),
+    { ...page, ...truncationMetadata(envelope) }
   )
+}
+
+/**
+ * States a page-envelope fact once, above the rows, on stderr.
+ *
+ * `--output text` is positional and tab-separated, so this note cannot occupy
+ * a row. JSON and YAML expose the rows and continuation cursor; other envelope
+ * facts such as billing scope are reported here for every format.
+ */
+function writePageNote(spec: CommandSpec, envelope: unknown): void {
+  if (!spec.pageNote) return
+  const value = at(envelope, spec.pageNote.path)
+  if (value === undefined || value === null) return
+  writeStderr(styles().dim(`${spec.pageNote.label}: ${String(value)}\n`))
+}
+
+/** The flags one object raised, in the spelling the wire used. */
+function truncationFlags(container: unknown): string[] {
+  return Object.entries(truncationMetadata(container))
+    .filter(([, value]) => value)
+    .map(([key]) => key)
+}
+
+/**
+ * The flags a whole response raised, on its envelope or inside its payload.
+ *
+ * Two responses state their clip one level down: `files text`, whose file body
+ * stops at `maxBytes`, and `tables rows search`, whose match list the server
+ * stops building. An envelope-only scan said nothing about either — silently
+ * handing back a partial file is the same defect the note exists to close, on a
+ * worse payload than a short list.
+ *
+ * Only `data` is descended, and only while it is an object: a page's `data` is
+ * the rows, and a row's keys are the user's rather than the API's, so a shape
+ * match there is a guess about a name somebody else chose.
+ */
+function responseTruncationFlags(envelope: unknown): string[] {
+  return [...truncationFlags(envelope), ...truncationFlags(at(envelope, 'data'))]
+}
+
+/**
+ * Carries a truncation stated on any page, not only the first.
+ *
+ * The envelope is otherwise the first page's, because a fact about the whole
+ * query (billing's `scope`) is stated once — but `toolNamesTruncated` is
+ * computed per page, so a walk that clipped on page 7 would have said nothing.
+ */
+export function foldPageEnvelope(current: unknown, page: unknown): unknown {
+  if (current === undefined) return page
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return current
+  const merged = { ...(current as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(truncationMetadata(page)))
+    merged[key] = merged[key] === true || value
+  return merged
+}
+
+/** `toolNamesTruncated` as a reader says it. */
+function spellOut(flag: string): string {
+  return flag
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .trim()
+}
+
+/**
+ * What a flag says was clipped, read from the words before its suffix.
+ *
+ * `toolNamesTruncated` on `workflow-mcp-servers list` is a clip of each row's
+ * tool names, not of the servers, so one wording about "this list" named the
+ * wrong thing on the one endpoint whose subject is not the list. A bare
+ * `truncated` carries no subject and stands for the whole answer — and so does
+ * `isTruncated`, whose `is` is a copula rather than a subject: dropping it is
+ * what keeps "the server clipped **the is** it returned" from being printed.
+ * Only that one prefix is stripped, and only where it stands alone or before a
+ * real subject (`isToolNamesTruncated`), so a field genuinely beginning `is`
+ * (`issuesTruncated`) keeps its name. Like the negation veto above, this is a
+ * spelling worth anticipating rather than a decision procedure for English.
+ */
+function clippedSubject(flag: string): string {
+  const subject = flag.replace(/^truncated$|Truncated$/, '').replace(/^is(?=[A-Z]|$)/, '')
+  return subject ? `the ${spellOut(subject)} it returned` : 'this result'
+}
+
+/**
+ * States a server-side clip once, on stderr, in every format.
+ *
+ * The API answers a clipped inventory with a flag on the envelope. It is
+ * separate from pagination: a null nextCursor does not establish whether the
+ * server clipped fields within the returned rows.
+ */
+function writeEnvelopeTruncation(envelope: unknown): void {
+  for (const flag of responseTruncationFlags(envelope)) {
+    writeStderr(
+      styles().dim(
+        `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete\n`
+      )
+    )
+  }
 }
 
 /** Renders one non-paginated operation result according to its CLI contract. */
@@ -285,14 +414,22 @@ export function renderResult(
   format: OutputFormat,
   raw: unknown,
   spec: CommandSpec,
-  options: RenderResultOptions = {}
+  options: RenderResultOptions = {},
+  envelope?: unknown
 ): void {
+  // Before any branch: the flag lives on the envelope `execute` unwraps one
+  // line before rendering, and states a fact about the payload below it.
+  writeEnvelopeTruncation(envelope)
+
   if (spec.document) {
     printDocument(format, raw)
     return
   }
 
-  const data = unwrapResource(raw)
+  // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
+  // printed nothing. Machine formats print the API's data verbatim, so `--output json`
+  // matches the OpenAPI shape the docs and the agent reference card are generated from.
+  const data = format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)
     if (!Array.isArray(items)) {

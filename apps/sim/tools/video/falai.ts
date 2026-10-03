@@ -1,9 +1,9 @@
 import { FALAI_HOSTED_KEY_MARKUP_MULTIPLIER } from '@/lib/tools/falai-pricing'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
 import { parseBooleanParam, parseBooleanParamWithDefault } from '@/tools/video/utils'
 
-export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
+export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_falai',
   name: 'Fal.ai Video Generation',
   description:
@@ -100,19 +100,13 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
     },
-    url: '/api/tools/video',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
+    input: (
       params: VideoParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
         __usingHostedKey?: boolean
       }
     ) => ({
@@ -125,9 +119,6 @@ export const falaiVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       resolution: params.resolution,
       promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
       generateAudio: parseBooleanParam(params.generateAudio),
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
       useHostedCostTracking: params.__usingHostedKey === true,
     }),
   },

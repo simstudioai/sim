@@ -1,7 +1,7 @@
 import type { MongoDBDeleteParams, MongoDBResponse } from '@/tools/mongodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<MongoDBDeleteParams, MongoDBResponse> = {
+export const deleteTool: InternalToolConfig<MongoDBDeleteParams, MongoDBResponse> = {
   id: 'mongodb_delete',
   name: 'MongoDB Delete',
   description: 'Delete documents from MongoDB collection',
@@ -70,13 +70,8 @@ export const deleteTool: ToolConfig<MongoDBDeleteParams, MongoDBResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mongodb/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

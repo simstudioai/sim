@@ -6,7 +6,14 @@ import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-qu
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
-import { buildFolderPathIndex, type FolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import {
+  buildFolderPath,
+  buildFolderPathIndex,
+  encodeFolderPathSegment,
+  type FolderPathIndex,
+  ROOT_FOLDER_PATH,
+  requireNonRootFolderPath,
+} from '@/lib/folders/paths'
 import { folderResourceLabel } from '@/lib/folders/resource-traits'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
 
@@ -259,8 +266,8 @@ export type FolderPathFilter =
  * event from all the others, told a caller its *collection* was missing when it
  * was not, turned a folder deleted mid-walk into a failed pagination loop, and
  * answered whether a path exists on an endpoint that was not asked. The sibling
- * folder lists already answer a non-matching `parentPath` with an empty page, so
- * this is the family's existing behavior applied to the resource lists too.
+ * folder lists answer a non-matching `parentPath` the same way, so one rule
+ * covers every folder filter the family accepts.
  *
  * A path that could not name a folder at all is still rejected by the contract,
  * as a 400, before any of this runs. Mutations keep their 404: creating into or
@@ -337,4 +344,64 @@ export async function listFoldersForWorkspace(
     .orderBy(...listOrderBy(FOLDER_SORTS[sortBy], sortOrder))
 
   return rows.map(toFolderApi)
+}
+
+/**
+ * Resolves an archived folder's id from the canonical path it had when it was deleted.
+ *
+ * Cannot go through {@link buildFolderPathIndex}: that index is lossless and fails fast on a
+ * duplicate path, but the partial unique index on folder names only covers ACTIVE rows — so
+ * archiving `/Reports` and creating a new `/Reports` is legal and puts two rows on one path.
+ * The walk below therefore computes each archived row's path against the whole row set
+ * (an archived folder can still hang off an active parent) and matches without demanding
+ * global path uniqueness.
+ *
+ * Ambiguity resolves to the most recently archived row, which is the one a caller who just
+ * deleted a folder means.
+ */
+export async function findArchivedFolderIdByPath(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  path: string,
+  options?: { maxRows?: number }
+): Promise<string | null> {
+  const target = buildFolderPath(requireNonRootFolderPath(path))
+  const maxRows = options?.maxRows ?? MAX_FOLDERS_PER_WORKSPACE
+  const rows = await db
+    .select()
+    .from(folder)
+    .where(and(eq(folder.workspaceId, workspaceId), eq(folder.resourceType, resourceType)))
+    .limit(maxRows + 1)
+  if (rows.length > maxRows) {
+    throw new FolderCollectionLimitExceededError('path index', maxRows)
+  }
+
+  const rowById = new Map(rows.map((row) => [row.id, row]))
+  const pathById = new Map<string, string>()
+
+  const resolvePath = (folderId: string, seen: Set<string>): string | null => {
+    const cached = pathById.get(folderId)
+    if (cached) return cached
+    if (seen.has(folderId)) return null
+    const row = rowById.get(folderId)
+    if (!row) return null
+    seen.add(folderId)
+    const parentPath = row.parentId ? resolvePath(row.parentId, seen) : ROOT_FOLDER_PATH
+    seen.delete(folderId)
+    if (parentPath === null) return null
+    const resolved =
+      parentPath === ROOT_FOLDER_PATH
+        ? `/${encodeFolderPathSegment(row.name)}`
+        : `${parentPath}/${encodeFolderPathSegment(row.name)}`
+    pathById.set(folderId, resolved)
+    return resolved
+  }
+
+  let match: (typeof rows)[number] | null = null
+  for (const row of rows) {
+    if (!row.deletedAt) continue
+    if (resolvePath(row.id, new Set()) !== target) continue
+    if (!match || row.deletedAt > (match.deletedAt as Date)) match = row
+  }
+  return match?.id ?? null
 }

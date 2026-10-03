@@ -251,7 +251,7 @@ function parseScalar(value: string): JsonValue {
 }
 
 function parseFilterGroup(group: Filter): FilterRule[] {
-  if (!group || typeof group !== 'object' || Array.isArray(group)) return []
+  if (!isRecordLike(group)) return []
 
   const rules: FilterRule[] = []
 
@@ -306,9 +306,18 @@ function formatValueForBuilder(value: JsonValue): string {
   return String(value)
 }
 
-/* ----------------------------- v2 grammar ----------------------------- */
+// v2 grammar
 
-const VALUELESS_OPS = new Set<FilterOp>(['isEmpty', 'isNotEmpty', 'isNull', 'isNotNull'])
+/** Operators that carry no value — the full v2 set, a superset of the legacy
+ *  `VALUELESS_OPERATORS` in constants.ts (which the `$`-grammar serializer
+ *  still reads and must not grow). Widened to `ReadonlySet<string>` so UI rule
+ *  operators can be tested without a cast. */
+export const VALUELESS_OPS: ReadonlySet<string> = new Set<FilterOp>([
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
 
 function ruleToPredicate(rule: FilterRule, keepAsText = false): Predicate {
   const op = rule.operator as FilterOp

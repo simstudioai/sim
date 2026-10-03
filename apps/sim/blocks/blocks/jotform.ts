@@ -1,5 +1,6 @@
 import { JotformIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 /**
  * Operations that address a form by ID. Kept as one list because seventeen of the
@@ -669,6 +670,8 @@ export const JotformBlock: BlockConfig = {
       condition: { field: 'operation', value: 'get_history' },
       mode: 'advanced',
     },
+
+    ...getTrigger('jotform_webhook').subBlocks,
   ],
 
   tools: {
@@ -948,6 +951,11 @@ export const JotformBlock: BlockConfig = {
       type: 'string',
       description: 'Confirmation text returned by a delete operation',
     },
+  },
+
+  triggers: {
+    enabled: true,
+    available: ['jotform_webhook'],
   },
 }
 

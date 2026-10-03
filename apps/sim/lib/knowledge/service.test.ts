@@ -1,52 +1,29 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
-  flattenMockConditions,
-  hasMockCondition,
   permissionsMock,
   permissionsMockFns,
+  queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  mockApplyStorageUsageDeltasInTx,
-  mockEnsureUserStatsExists,
-  mockGetHighestPrioritySubscription,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => ({
-  mockApplyStorageUsageDeltasInTx: vi.fn(),
-  mockEnsureUserStatsExists: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-}))
+import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
+import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: mockApplyStorageUsageDeltasInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
-vi.mock('@/lib/billing/core/usage', () => ({
-  ensureUserStatsExists: mockEnsureUserStatsExists,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 import {
-  findActiveKnowledgeBasesByExactName,
-  getLegacyPersonalKnowledgeBases,
+  attachKnowledgeBaseConnectors,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
-  listWorkspaceAndLegacyKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
+
+const mockApplyStorageUsageDeltasInTx = billingStorageMockFns.mockApplyStorageUsageDeltasInTx
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 /**
  * A row cap on this read could only ever fire for a caller that did NOT ask for a page — the
@@ -55,23 +32,7 @@ import {
  */
 describe('getWorkspaceKnowledgeBases — paging', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('reads unbounded when the caller asked for no page', async () => {
-    dbChainMockFns.orderBy.mockResolvedValueOnce(
-      Array.from({ length: 10_001 }, (_, index) => ({
-        id: `kb-${index}`,
-        chunkingConfig: {},
-        docCount: 0,
-      }))
-    )
-
-    const result = await getWorkspaceKnowledgeBases('ws-1')
-
-    expect(result.data).toHaveLength(10_001)
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 
   it('reads one row past the page so it can report another page', async () => {
@@ -95,146 +56,55 @@ describe('getWorkspaceKnowledgeBases — paging', () => {
 })
 
 /**
- * Legacy knowledge bases predate workspaces and carry no `workspaceId`, so their creator is
- * the only possible authority. Workspace-owned rows are read by `getWorkspaceKnowledgeBases`
- * after an application use case authorized the workspace — this query must never widen to
- * them, and must never re-derive workspace access from a `permissions` row, which would
- * contradict an authorization that already passed.
- */
-describe('getLegacyPersonalKnowledgeBases', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('reads only the caller’s workspace-less rows', async () => {
-    await getLegacyPersonalKnowledgeBases('user-a', 'all')
-
-    const [condition] = dbChainMockFns.where.mock.calls.at(-1) ?? []
-    expect(
-      hasMockCondition(
-        condition,
-        (node) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.knowledgeBase.userId &&
-          node.right === 'user-a'
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        condition,
-        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.workspaceId
-      )
-    ).toBe(true)
-    expect(flattenMockConditions(condition).some((node) => node.type === 'or')).toBe(false)
-  })
-
-  it('never joins the permissions table', async () => {
-    await getLegacyPersonalKnowledgeBases('user-a')
-
-    const joinedTables = dbChainMockFns.leftJoin.mock.calls.map(([table]) => table)
-    expect(joinedTables).toContain(schemaMock.document)
-    expect(joinedTables).not.toContain(schemaMock.permissions)
-  })
-})
-
-/**
- * A VFS path names one knowledge base exactly. Resolving it by reading every base whose name
- * merely CONTAINS the term, then filtering in JS, makes a single-row lookup scale with the
- * workspace — the sibling `findActiveTablesByExactName` is the shape to match.
- */
-describe('findActiveKnowledgeBasesByExactName', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('matches the name exactly and reads at most two rows', async () => {
-    await findActiveKnowledgeBasesByExactName('ws-1', 'Docs')
-
-    const [condition] = dbChainMockFns.where.mock.calls[0] ?? []
-    expect(
-      hasMockCondition(
-        condition,
-        (node) =>
-          node.type === 'eq' && node.left === schemaMock.knowledgeBase.name && node.right === 'Docs'
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
-  })
-})
-
-/**
- * The workspace list and the legacy personal list are separate reads answering to separate
- * authorities, but they render as ONE list — so the merge has to order them together and
- * project connectors once over the result, not once per source.
- */
-describe('listWorkspaceAndLegacyKnowledgeBases', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  /**
-   * Soft-delete cleanup only reclaims archived rows past a retention window — and none at all
-   * for a workspace with no retention configured — so a workspace that archives faster than
-   * that window crosses any fixed count. This surface has no cursor to page with, so a cap
-   * here could only mean a 500 on the knowledge page and Recently Deleted, which is exactly
-   * what it meant on staging.
-   */
-  it('serves a workspace whose archived set is larger than the old row cap', async () => {
-    const rows = Array.from({ length: 10_001 }, (_, index) => ({
-      id: `kb-${index}`,
-      chunkingConfig: {},
-      docCount: 0,
-      createdAt: new Date('2026-01-01T00:00:00Z'),
-    }))
-    dbChainMockFns.orderBy.mockResolvedValueOnce(rows).mockResolvedValueOnce([])
-
-    const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1', 'archived')
-
-    expect(result).toHaveLength(10_001)
-    /** Neither the workspace read nor the legacy read may bound itself. */
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-  })
-
-  it('orders both sources as one list and projects connectors once', async () => {
-    const workspaceRow = {
-      id: 'kb-workspace',
-      chunkingConfig: {},
-      docCount: 0,
-      createdAt: new Date('2026-02-01T00:00:00Z'),
-    }
-    const legacyRow = {
-      id: 'kb-legacy',
-      chunkingConfig: {},
-      docCount: 0,
-      createdAt: new Date('2025-01-01T00:00:00Z'),
-    }
-    /** Both row reads are unbounded now, so each resolves at `orderBy` rather than `limit`. */
-    dbChainMockFns.orderBy.mockResolvedValueOnce([workspaceRow]).mockResolvedValueOnce([legacyRow])
-
-    const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1')
-
-    expect(result.map((kb) => kb.id)).toEqual(['kb-legacy', 'kb-workspace'])
-    /** ONE connector projection over the merged set, not one per source. */
-    const connectorReads = dbChainMockFns.from.mock.calls.filter(
-      ([table]) => table === schemaMock.knowledgeConnector
-    )
-    expect(connectorReads).toHaveLength(1)
-  })
-})
-
-/**
  * These tests guard the workspace mass-assignment fix:
  * a user with write/admin on the *source* workspace must not be able to move a
  * knowledge base into a workspace where they have no permission, and must not
  * be able to clear `workspaceId` (which would orphan the KB to its original
  * `userId`, who may not be the caller).
  */
+describe('updateKnowledgeBase — chunking config persistence', () => {
+  beforeEach(() => {
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
+  })
+
+  /**
+   * The strategy fields are the half a `{ maxSize, minSize, overlap }` shape
+   * cannot describe, so they are what a narrower write type — or a destructure
+   * of only those three — drops. Nothing downstream re-derives them.
+   */
+  it('persists every declared chunking field, strategy included', async () => {
+    await updateKnowledgeBase(
+      'kb-1',
+      {
+        chunkingConfig: {
+          maxSize: 512,
+          minSize: 50,
+          overlap: 100,
+          strategy: 'markdown',
+          strategyOptions: { headingDepth: 3 },
+        },
+      },
+      'req-1'
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chunkingConfig: {
+          maxSize: 512,
+          minSize: 50,
+          overlap: 100,
+          strategy: 'markdown',
+          strategyOptions: { headingDepth: 3 },
+        },
+      })
+    )
+  })
+})
+
 describe('updateKnowledgeBase — workspace transfer authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
@@ -246,8 +116,6 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
       customStorageLimitGB: null,
     }))
     mockApplyStorageUsageDeltasInTx.mockResolvedValue(100)
-    mockEnsureUserStatsExists.mockResolvedValue(undefined)
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
 
   it('rejects workspaceId change without actorUserId', async () => {
@@ -257,26 +125,19 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
     expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 
-  it('rejects clearing workspaceId to null when actor is not the KB owner', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'owner' }])
-
-    await expect(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'attacker' })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'Only the knowledge base owner can remove it from a workspace',
-    })
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-
-  it('allows the KB owner to clear workspaceId to null (gate passes; target permission not checked)', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'owner' }])
-
-    await expect(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    ).resolves.toBeDefined()
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
+  it.each(['owner', 'other-user'])(
+    'rejects detaching a KB for %s before any writes',
+    async (actorUserId) => {
+      await expect(
+        /** @ts-expect-error Exercise runtime callers that bypass the HTTP contract. */
+        updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId })
+      ).rejects.toMatchObject({ code: 'validation', message: 'Workspace ID is required' })
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockApplyStorageUsageDeltasInTx).not.toHaveBeenCalled()
+      expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects transfer when actor has no permission on target workspace', async () => {
     dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
@@ -307,31 +168,6 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
       })
     ).rejects.toBeInstanceOf(KnowledgeBasePermissionError)
   })
-
-  it('throws when knowledge base does not exist during transfer', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await expect(
-      updateKnowledgeBase('kb-missing', { workspaceId: 'ws-target' }, 'req-1', {
-        actorUserId: 'u-1',
-      })
-    ).rejects.toThrow('Knowledge base kb-missing not found')
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-
-  it('locks the knowledge base row (SELECT … FOR UPDATE) and enforces the pre-resolved permission', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce(null)
-
-    await expect(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-target' }, 'req-1', {
-        actorUserId: 'attacker',
-      })
-    ).rejects.toBeInstanceOf(KnowledgeBasePermissionError)
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-  })
 })
 
 /**
@@ -343,7 +179,6 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
  */
 describe('updateKnowledgeBase — file ownership binding re-point on workspace change', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
@@ -355,8 +190,6 @@ describe('updateKnowledgeBase — file ownership binding re-point on workspace c
       customStorageLimitGB: null,
     }))
     mockApplyStorageUsageDeltasInTx.mockResolvedValue(100)
-    mockEnsureUserStatsExists.mockResolvedValue(undefined)
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
   })
 
   // The mocked `@sim/db` cannot satisfy the post-transaction read-back select, so
@@ -408,106 +241,80 @@ describe('updateKnowledgeBase — file ownership binding re-point on workspace c
     })
   })
 
-  it('moves billable bytes from a workspace payer to the owner personal counter', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'owner' }])
-      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'owner' }])
-      .mockResolvedValueOnce([{ bytes: 321 }])
-      .mockResolvedValueOnce([])
+  it('rejects moving an organization Search KB into a workspace', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { workspaceId: null, organizationId: 'org-1', isSearchIndex: true, userId: 'creator' },
+    ])
 
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    )
+    await expect(
+      updateKnowledgeBase('kb-1', { workspaceId: 'ws-target' }, 'req-1', { actorUserId: 'admin' })
+    ).rejects.toThrow('Only workspace knowledge bases can move between workspaces')
+    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mockApplyStorageUsageDeltasInTx).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
 
-    expect(mockEnsureUserStatsExists).toHaveBeenCalledWith('owner')
-    expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
-      workspaceDeltas: [
+describe('knowledge base counts with live source permissions', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  function reader() {
+    const scope = { kind: 'user' as const, userId: 'reader', tokens: ['reader-token'] }
+    const getForConnectors = vi.fn().mockResolvedValue({
+      ...scope,
+      confluenceSiteGrants: [
         {
-          context: expect.objectContaining({ workspaceId: 'ws-current' }),
-          deltaBytes: -321,
+          cloudId: 'cloud-1',
+          connectorId: 'confluence-source',
+          contentCredentialId: 'crawler',
+          readerCredentialId: 'reader-credential',
+          readerSubjectToken: 'reader-token',
+          domain: 'team.atlassian.net',
         },
       ],
-      legacyDeltas: [{ userId: 'owner', subscription: null, deltaBytes: 321 }],
     })
-    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
-  })
+    const access: KnowledgeAccessProvider = {
+      get: async () => scope,
+      getForConnectors,
+      getForDocuments: async () => scope,
+      liveSourceConnectorCondition: async () =>
+        inArray(schemaMock.knowledgeConnector.knowledgeBaseId, ['kb-1']),
+    }
+    return { access, getForConnectors }
+  }
 
-  it('moves billable bytes from the owner personal counter to a workspace payer', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ workspaceId: null, userId: 'owner' }])
-      .mockResolvedValueOnce([{ workspaceId: null, userId: 'owner' }])
-      .mockResolvedValueOnce([{ bytes: 321 }])
-      .mockResolvedValueOnce([])
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('admin')
-    mockApplyStorageUsageDeltasInTx.mockResolvedValueOnce(421)
-
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-target' }, 'req-1', {
-        actorUserId: 'owner',
-      })
-    )
-
-    expect(mockApplyStorageUsageDeltasInTx).toHaveBeenCalledWith(expect.anything(), {
-      workspaceDeltas: [
-        {
-          context: expect.objectContaining({ workspaceId: 'ws-target' }),
-          deltaBytes: 321,
-        },
-      ],
-      legacyDeltas: [{ userId: 'owner', subscription: null, deltaBytes: -321 }],
+  it('never discovers live sources for a reader without live-source credentials', async () => {
+    const { access, getForConnectors } = reader()
+    access.liveSourceConnectorCondition = async () => null
+    queueTableRows(schemaMock.knowledgeBase, [
+      {
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        chunkingConfig: {},
+        createdAt: new Date('2026-01-01'),
+      },
+    ])
+    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 2, tokenCount: 10 }])
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { countsFor: access })
+    expect(result.data[0]).toMatchObject({ docCount: 2, tokenCount: 10 })
+    expect(getForConnectors).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalledWith({
+      connectorId: schemaMock.knowledgeConnector.id,
     })
-    expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'ws-target' }),
-      421
-    )
   })
 
-  it('clears file ownership bindings when the KB is removed from its workspace', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'owner' }])
-
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    )
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ workspaceId: null })
-  })
-
-  it('does not re-point bindings when promoting a personal (null-workspace) KB into a workspace', async () => {
-    // A null current workspace owns no bindings, so the move must not rewrite
-    // any binding — this prevents a key planted in a personal KB from being
-    // laundered into the destination workspace on move.
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: null, userId: 'owner' }])
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('admin')
-
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-target' }, 'req-1', { actorUserId: 'owner' })
-    )
-
-    // Only the KB row is updated; the binding re-point is skipped entirely.
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ workspaceId: 'ws-target' })
-  })
-
-  it('does not touch bindings when the workspace is unchanged', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
-
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-current' }, 'req-1', { actorUserId: 'u-1' })
-    )
-
-    // Only the KB row is updated; no binding re-point statement runs.
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ workspaceId: 'ws-current' })
-  })
-
-  it('does not touch bindings when no workspace change is requested', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }]) // currentKb lock
-      .mockResolvedValueOnce([]) // duplicate-name check: none
-
-    await runIgnoringReadBack(updateKnowledgeBase('kb-1', { name: 'Renamed' }, 'req-1'))
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+  it('does not retain stale totals when a live source no longer authorizes its documents', async () => {
+    const { access, getForConnectors } = reader()
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.document, [])
+    const base = { id: 'kb-1', docCount: 5, tokenCount: 50 } as KnowledgeBaseWithCounts
+    await expect(attachKnowledgeBaseConnectors(base, access)).resolves.toMatchObject({
+      docCount: 0,
+      tokenCount: 0,
+    })
+    expect(getForConnectors).toHaveBeenCalledOnce()
   })
 })

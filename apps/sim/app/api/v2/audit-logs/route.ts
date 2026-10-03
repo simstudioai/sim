@@ -16,9 +16,20 @@ import { auditLogOperations } from '@/lib/audit-logs/application/operations'
 import { formatV2AuditLogEntry } from '@/app/api/v2/audit-logs/format'
 import { encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
 
-/** Every param that changes which audit entries, in which order, this list returns. */
+/**
+ * Every param that changes which audit entries, in which order, this list
+ * returns.
+ *
+ * `organizationId` is deliberately absent. It is asserted scope rather than a
+ * filter: an account belongs to at most one organization, so the only value
+ * that can be authorized for a given caller is that one organization, whether
+ * the caller spells it out or lets it be derived. Fingerprinting the spelling
+ * bound the cursor to it, so a walk that started with the param omitted was
+ * refused the moment the caller added it — two names for one sequence. The
+ * resolved id is not available here: it is decided inside the application use
+ * case, and a route adapter must not resolve it itself.
+ */
 function auditLogCursorFilters(query: {
-  organizationId: string
   includeDeparted: boolean
   action?: string
   resourceType?: string
@@ -29,7 +40,6 @@ function auditLogCursorFilters(query: {
   endDate?: string
 }) {
   return cursorScopeKey(cursorRoute(v2ListAuditLogsContract), {
-    organizationId: query.organizationId,
     includeDeparted: query.includeDeparted,
     action: query.action,
     resourceType: unorderedScopePart(query.resourceType),
@@ -47,9 +57,9 @@ export const revalidate = 0
 /**
  * GET /api/v2/audit-logs
  *
- * Lists audit logs scoped to an explicitly selected organization. Audit logs
- * are personal-key-only because a workspace-scoped key must never expand into
- * organization-wide visibility.
+ * Lists audit logs scoped to one organization — the one the caller named, or
+ * its own when it named none. Audit logs are personal-key-only because a
+ * workspace-scoped key must never expand into organization-wide visibility.
  */
 export const GET = defineV2JsonRoute({
   contract: v2ListAuditLogsContract,

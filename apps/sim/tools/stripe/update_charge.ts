@@ -1,7 +1,20 @@
+import {
+  defineStripeKeyedSite,
+  type StripeDeliveryContextParams,
+  stripeIdempotencyHeader,
+} from '@/tools/stripe/idempotency'
 import type { ChargeResponse, UpdateChargeParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeResponse> = {
+const DELIVERY = defineStripeKeyedSite(
+  'stripe_update_charge',
+  'the edit would be re-applied over any change made in between, and an update that sets receipt_email mails the cardholder a second receipt'
+)
+
+export const stripeUpdateChargeTool: ToolConfig<
+  UpdateChargeParams & StripeDeliveryContextParams,
+  ChargeResponse
+> = {
   id: 'stripe_update_charge',
   name: 'Stripe Update Charge',
   description: 'Update an existing charge',
@@ -37,9 +50,18 @@ export const stripeUpdateChargeTool: ToolConfig<UpdateChargeParams, ChargeRespon
   request: {
     url: (params) => `https://api.stripe.com/v1/charges/${params.id}`,
     method: 'POST',
+    /**
+     * The `Idempotency-Key` must be the *same* on every delivery of one
+     * instruction rather than fresh per attempt — it is what lets Stripe
+     * recognize a resend and replay its first answer instead of acting again. A
+     * value minted at request-build time is the inverse of the header's purpose:
+     * it is stable only inside the transport loop, and every retry layer above
+     * that re-enters tool preparation and looks to Stripe like a new write.
+     */
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      ...stripeIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const formData = new URLSearchParams()

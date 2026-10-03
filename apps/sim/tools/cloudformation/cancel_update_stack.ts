@@ -2,9 +2,9 @@ import type {
   CloudFormationCancelUpdateStackParams,
   CloudFormationCancelUpdateStackResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const cancelUpdateStackTool: ToolConfig<
+export const cancelUpdateStackTool: InternalToolConfig<
   CloudFormationCancelUpdateStackParams,
   CloudFormationCancelUpdateStackResponse
 > = {
@@ -40,13 +40,8 @@ export const cancelUpdateStackTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/cancel-update-stack',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

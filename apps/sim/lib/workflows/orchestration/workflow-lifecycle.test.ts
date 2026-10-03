@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   dbChainMockFns,
@@ -10,6 +7,7 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
+  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +44,6 @@ const createParams = {
 
 describe('performCreateWorkflowTransition unique-violation handling', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     workflowAuthzMockFns.mockIsFolderInWorkspace.mockResolvedValue(true)
     workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables.mockResolvedValue({
@@ -65,6 +62,27 @@ describe('performCreateWorkflowTransition unique-violation handling', () => {
       success: false,
       error: 'A workflow named "My Workflow" already exists in this folder',
       errorCode: 'conflict',
+    })
+  })
+
+  it('retries with a newly deduplicated name after a concurrent create claims the candidate', async () => {
+    workflowsUtilsMockFns.mockDeduplicateWorkflowName
+      .mockResolvedValueOnce('My Workflow')
+      .mockResolvedValueOnce('My Workflow (2)')
+    dbChainMockFns.transaction.mockRejectedValueOnce(
+      uniqueViolation('workflow_workspace_folder_name_active_unique')
+    )
+
+    const result = await performCreateWorkflowTransition({
+      ...createParams,
+      deduplicate: true,
+    })
+
+    expect(workflowsUtilsMockFns.mockDeduplicateWorkflowName).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      success: true,
+      workflow: { name: 'My Workflow (2)' },
     })
   })
 

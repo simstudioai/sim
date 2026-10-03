@@ -1,10 +1,4 @@
 import { ClaudeIcon } from '@/components/icons'
-import {
-  fetchManagedAgentAgentOptions,
-  fetchManagedAgentEnvironmentOptions,
-  fetchManagedAgentMemoryStoreOptions,
-  fetchManagedAgentVaultOptions,
-} from '@/lib/managed-agents/subblock-options'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
@@ -264,6 +258,7 @@ export const ManagedAgentBlock: BlockConfig = {
       id: 'environmentType',
       title: 'Environment type',
       type: 'dropdown',
+      canonicalParamId: 'environmentType',
       required: true,
       condition: forOperations(SESSION_STARTING_OPERATIONS),
       options: [
@@ -278,25 +273,23 @@ export const ManagedAgentBlock: BlockConfig = {
       id: 'agent',
       title: 'Agent',
       type: 'combobox',
+      selectorKey: 'managedAgent.agents',
       required: true,
       placeholder: 'Select an agent from your Claude workspace…',
       commandSearchable: true,
-      options: [],
       dependsOn: ['credential'],
       condition: forOperations(SESSION_STARTING_OPERATIONS),
-      fetchOptions: fetchManagedAgentAgentOptions,
     },
     {
       id: 'environment',
       title: 'Environment',
       type: 'combobox',
+      selectorKey: 'managedAgent.environments',
       required: true,
       placeholder: 'Select an environment…',
       commandSearchable: true,
-      options: [],
       dependsOn: ['credential', 'environmentType'],
       condition: forOperations(SESSION_STARTING_OPERATIONS),
-      fetchOptions: fetchManagedAgentEnvironmentOptions,
     },
     {
       id: 'userMessage',
@@ -407,15 +400,14 @@ export const ManagedAgentBlock: BlockConfig = {
       id: 'vaults',
       title: 'Credential vaults',
       type: 'dropdown',
+      selectorKey: 'managedAgent.vaults',
       required: false,
       mode: 'advanced',
       placeholder: 'Optional — pick zero or more OAuth vaults',
       searchable: true,
       multiSelect: true,
-      options: [],
       dependsOn: ['credential'],
       condition: forOperations(SESSION_STARTING_OPERATIONS),
-      fetchOptions: fetchManagedAgentVaultOptions,
     },
     {
       id: 'vaultsAck',
@@ -431,11 +423,11 @@ export const ManagedAgentBlock: BlockConfig = {
       id: 'memoryStoreId',
       title: 'Memory store',
       type: 'combobox',
+      selectorKey: 'managedAgent.memoryStores',
       required: false,
       mode: 'advanced',
       placeholder: 'Optional — pick a memory store',
       commandSearchable: true,
-      options: [],
       dependsOn: ['credential'],
       // Cloud only: memory stores attach as `resources[]`, which self-hosted
       // rejects. A self-hosted worker that uses a store reads its id from a
@@ -444,7 +436,6 @@ export const ManagedAgentBlock: BlockConfig = {
         field: 'environmentType',
         value: 'cloud',
       }),
-      fetchOptions: fetchManagedAgentMemoryStoreOptions,
     },
     {
       id: 'memoryAccess',

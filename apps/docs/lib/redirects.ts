@@ -1,29 +1,36 @@
+import integrationNavigation from 'docs/content/integration-navigation.json'
 import type { NextConfig } from 'next'
 
 /** The shape Next expects back from `next.config.ts`'s `redirects()`. */
 type DocsRedirect = Awaited<ReturnType<NonNullable<NextConfig['redirects']>>>[number]
 
 /**
- * Every redirect the docs site serves, in match order — Next applies the first
+ * Every unprefixed path redirect, in match order — Next applies the first
  * matching rule.
  *
  * This lives outside `next.config.ts` so it can be read without evaluating that
  * module. `createMDX()` runs at import time and bundles `source.config.ts`
  * against `process.cwd()`, so importing the config from the root Vitest project
  * fails with `The entry point "source.config.ts" cannot be marked as external`.
- * `scripts/openapi/docs-redirects.test.ts` reads this array directly to keep the
+ * `scripts/openapi/docs-redirects.test.ts` reads `DOCS_REDIRECTS` directly to keep the
  * `/api-reference/` rules honest against the specs.
  *
  * The whole table lives here rather than only the `/api-reference/` block: Next
  * applies the first matching rule, so splitting one ordered list across two
  * modules would make match order an emergent property of two files.
  */
-export const DOCS_REDIRECTS: DocsRedirect[] = [
+const PATH_REDIRECTS: DocsRedirect[] = [
+  ...Object.entries(integrationNavigation.redirects).map(([from, to]) => ({
+    source: `/integrations/${from}`,
+    destination: `/integrations/${to}`,
+    permanent: true,
+  })),
   {
     source: '/',
     destination: '/introduction',
     permanent: true,
   },
+  { source: '/api-reference', destination: '/api-reference/getting-started', permanent: true },
   // building-agents/agents merged into the building-agents overview
   { source: '/building-agents/agents', destination: '/agents', permanent: true },
   // form deployment removed
@@ -69,9 +76,9 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
     destination: '/workflows/deployment/mcp',
     permanent: true,
   },
-  // building-agents section renamed to agents; mcp and skills folded into it
   { source: '/building-agents', destination: '/agents', permanent: true },
   { source: '/building-agents/:path*', destination: '/agents/:path*', permanent: true },
+  // Browsers may retain this permanent redirect; the workspace guide uses /mcp/overview.
   { source: '/mcp', destination: '/agents/mcp', permanent: true },
   { source: '/skills', destination: '/agents/skills', permanent: true },
   // tools/ + triggers/<service> unified into per-service integrations/ pages.
@@ -174,10 +181,8 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
    * moved from the single v1 `openapi.json` to the seven code-first v2 specs.
    *
    * Every source below was a live, sitemap-submitted page whose slug no longer
-   * exists in the generated set. Sources are unprefixed and have no locale
-   * variants because generated pages mount only under the `en` base directory;
-   * `scripts/openapi/docs-redirects.test.ts` documents and implements the slug
-   * derivation.
+   * exists in the generated set. `scripts/openapi/docs-redirects.test.ts`
+   * documents and implements the slug derivation.
    *
    * `permanent: true` (308) is reserved for a true 1:1 successor: same operation,
    * renamed. A 308 is cached indefinitely and is effectively unrecallable, so
@@ -189,6 +194,29 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
    * must resolve.
    */
   // Pure operationId renames — same path and method, v1 -> v2.
+  {
+    // `/rows/find` became `/rows/search`: same operation, renamed once the
+    // surface settled on `query` for a structured predicate and `search` for
+    // text.
+    source: '/api-reference/tables/findTableRows',
+    destination: '/api-reference/tables/searchTableRows',
+    permanent: true,
+  },
+  {
+    // `/columns/run` became `POST /tables/{tableId}/dispatches`: it always
+    // created a dispatch and was polled as one, and `GET .../dispatches`
+    // already sat at the path it now posts to.
+    //
+    // These two are the only operations that pass retired a *published* slug —
+    // confirmed by diffing operationIds in the committed specs, not by reading
+    // the diff, because a path can move while its operationId (and therefore
+    // its docs slug) stays put, and an operationId can change without the path
+    // moving. Everything else renamed alongside them was added and removed
+    // within the same unreleased branch.
+    source: '/api-reference/tables/runTableColumns',
+    destination: '/api-reference/tables/createTableDispatch',
+    permanent: true,
+  },
   {
     source: '/api-reference/audit-logs/getAuditLogDetails',
     destination: '/api-reference/audit-logs/getAuditLog',
@@ -361,4 +389,29 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
     destination: '/api-reference/workflow-runs/getWorkflowRunV2',
     permanent: false,
   },
+]
+
+/**
+ * Locale prefixes the docs served before translations were removed in #7247
+ * (`lib/i18n.ts` declared `en`, `es`, `fr`, `de`, `ja`, `zh`; `en` was hidden).
+ * Search engines still hold these URLs, so each one 308s to its English page.
+ */
+const RETIRED_LOCALE_PREFIX = '/:lang(en|es|fr|de|ja|zh)'
+
+/**
+ * Every redirect the docs site serves, in match order — Next applies the first
+ * matching rule and does not chain them internally.
+ *
+ * Each path redirect is repeated under the retired locale prefix with the same
+ * destination, so `/fr/tools/x` lands on `/integrations/x` in one hop rather
+ * than stripping the locale and redirecting again. The trailing catch-all
+ * strips the prefix from every other path, which already resolves.
+ */
+export const DOCS_REDIRECTS: DocsRedirect[] = [
+  ...PATH_REDIRECTS,
+  ...PATH_REDIRECTS.map((rule) => ({
+    ...rule,
+    source: rule.source === '/' ? RETIRED_LOCALE_PREFIX : `${RETIRED_LOCALE_PREFIX}${rule.source}`,
+  })),
+  { source: `${RETIRED_LOCALE_PREFIX}/:path*`, destination: '/:path*', permanent: true },
 ]

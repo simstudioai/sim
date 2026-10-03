@@ -1,4 +1,10 @@
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import {
+  resolveNamedCliToolDisplayTitle,
+  type ToolResourceContext,
+} from '@/lib/mothership/tools/client/resource-display'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   resolveIntegrationToolDisplayTitle,
   resolveStreamingToolDisplayTitle,
@@ -44,18 +50,24 @@ function isOpenToolStatus(status: ToolCallStatus): boolean {
 
 /**
  * Resolves a tool row's display title with the same precedence the live handler
- * used: the integration gateway's model-authored activity description first
- * (live even mid-argument-stream; the integration brand is the row icon), then
+ * used: the per-call model-authored activity description, then the legacy
+ * integration gateway description (live even mid-argument-stream), then
  * the streaming-args title while args stream, then the arg-derived title, then
  * the explicit `ui.title`.
  */
-function toolDisplayTitle(node: ToolNode): string | undefined {
+function toolDisplayTitle(node: ToolNode, context?: ToolResourceContext): string | undefined {
+  if (node.activityDescription) return node.activityDescription
   const integrationTitle = resolveIntegrationToolDisplayTitle(node)
   if (integrationTitle) return integrationTitle
   const streamingTitle = node.streamingArgs
     ? resolveStreamingToolDisplayTitle(node.name, node.streamingArgs)
     : undefined
-  return streamingTitle ?? resolveToolDisplayTitle(node.name, node.args) ?? node.uiTitle
+  return (
+    resolveNamedCliToolDisplayTitle(node.name, node.args, context ?? {}) ??
+    streamingTitle ??
+    resolveToolDisplayTitle(node.name, node.args, context) ??
+    node.uiTitle
+  )
 }
 
 interface SeqBlock {
@@ -70,8 +82,12 @@ interface SeqBlock {
  * emits a paired `subagent_end` at its end seq so the projection closes the lane
  * exactly as the live browser path did.
  */
-export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
+export function modelToContentBlocks(
+  model: TurnModel,
+  context?: ToolResourceContext
+): ContentBlock[] {
   const entries: SeqBlock[] = []
+  const activities = new Map<string, Map<string, ToolActivity>>()
 
   for (const id of model.order) {
     const node = model.nodes.get(id)
@@ -124,9 +140,19 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
     }
 
     if (node.kind === 'tool') {
+      /** Hidden discovery may introduce an activity; carry its labels onto visible calls and replay. */
+      const supplied = node.activity ?? readToolActivity(node.args, node.streamingArgs)
+      if (supplied?.completedTitle) {
+        const lane = activities.get(node.spanId) ?? new Map<string, ToolActivity>()
+        if (!lane.has(supplied.id)) lane.set(supplied.id, supplied)
+        activities.set(node.spanId, lane)
+      }
+      const activity = supplied
+        ? (activities.get(node.spanId)?.get(supplied.id) ?? supplied)
+        : undefined
       // Per-call hidden tools are tracked for side effects but never rendered.
       if (node.hidden) continue
-      const displayTitle = toolDisplayTitle(node)
+      const displayTitle = toolDisplayTitle(node, context)
       entries.push({
         seq: node.seq,
         block: {
@@ -136,10 +162,13 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
             name: node.name,
             status: nodeToToolStatus(node.status),
             ...(displayTitle ? { displayTitle } : {}),
+            ...(node.activityDescription ? { activityDescription: node.activityDescription } : {}),
             ...(node.integrationDescription
               ? { integrationDescription: node.integrationDescription }
               : {}),
-            ...(node.args ? { params: node.args } : {}),
+            ...(node.args || activity
+              ? { params: { ...node.args, ...(activity ? { activity } : {}) } }
+              : {}),
             ...(node.streamingArgs ? { streamingArgs: node.streamingArgs } : {}),
             ...(node.result
               ? {
@@ -161,12 +190,29 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
       continue
     }
 
+    if (node.kind === 'task') {
+      entries.push({
+        seq: node.seq,
+        block: {
+          type: 'task',
+          task: node.task,
+          ...spanFields,
+          timestamp: node.startedAtMs ?? node.seq,
+          ...(node.task.status && node.task.status !== 'pending'
+            ? { endedAt: node.startedAtMs ?? node.seq }
+            : {}),
+        },
+      })
+      continue
+    }
+
     // Agent node -> a `subagent` open block, plus a `subagent_end` at end seq.
     entries.push({
       seq: node.seq,
       block: {
         type: 'subagent',
         content: node.agentId,
+        ...(node.displayName ? { subagentName: node.displayName } : {}),
         spanId: node.spanId,
         parentSpanId: node.parentSpanId,
         ...(node.triggerToolCallId ? { parentToolCallId: node.triggerToolCallId } : {}),
@@ -178,6 +224,7 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
         seq: node.endSeq,
         block: {
           type: 'subagent_end',
+          ...(node.error ? { error: node.error } : {}),
           spanId: node.spanId,
           parentSpanId: node.parentSpanId,
           ...(node.triggerToolCallId ? { parentToolCallId: node.triggerToolCallId } : {}),
@@ -258,6 +305,41 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
   }
 
   for (const block of blocks) {
+    if (block.type === 'task') {
+      if (!block.task) continue
+      reduceEvent(
+        model,
+        synth(
+          'run',
+          {
+            kind: 'task_armed',
+            taskId: block.task.taskId,
+            taskKind: block.task.kind,
+            target: block.task.target,
+            note: block.task.note,
+          },
+          scopeFor(block),
+          block.timestamp
+        )
+      )
+      if (block.task.status && block.task.status !== 'pending') {
+        reduceEvent(
+          model,
+          synth(
+            'run',
+            {
+              kind: 'task_delivered',
+              taskId: block.task.taskId,
+              status: block.task.status,
+              summary: block.task.summary ?? '',
+            },
+            scopeFor(block),
+            block.endedAt ?? block.timestamp
+          )
+        )
+      }
+      continue
+    }
     if (block.type === 'subagent') {
       reduceEvent(
         model,
@@ -267,7 +349,10 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             kind: 'subagent',
             event: 'start',
             agent: block.content,
-            data: block.parentToolCallId ? { tool_call_id: block.parentToolCallId } : {},
+            data: {
+              ...(block.parentToolCallId ? { tool_call_id: block.parentToolCallId } : {}),
+              ...(block.subagentName ? { name: block.subagentName } : {}),
+            },
           },
           scopeFor(block),
           block.timestamp
@@ -278,7 +363,12 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
           model,
           synth(
             'span',
-            { kind: 'subagent', event: 'end', agent: block.content, data: {} },
+            {
+              kind: 'subagent',
+              event: 'end',
+              agent: block.content,
+              data: { ...(block.error ? { error: block.error } : {}) },
+            },
             scopeFor(block),
             block.endedAt
           )
@@ -289,7 +379,16 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
     if (block.type === 'subagent_end') {
       reduceEvent(
         model,
-        synth('span', { kind: 'subagent', event: 'end', agent: '', data: {} }, scopeFor(block))
+        synth(
+          'span',
+          {
+            kind: 'subagent',
+            event: 'end',
+            agent: '',
+            data: { ...(block.error ? { error: block.error } : {}) },
+          },
+          scopeFor(block)
+        )
       )
       continue
     }
@@ -304,6 +403,7 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             toolCallId: tc.id,
             toolName: tc.name,
             arguments: tc.params,
+            ...(tc.activityDescription ? { activityDescription: tc.activityDescription } : {}),
             // Carries an unanswered permission prompt across a snapshot rebuild
             // so the reloaded row is still actionable rather than a spinner.
             ...(tc.status === ToolCallStatus.awaiting_approval

@@ -322,9 +322,7 @@ function mergeChangedFiles(
  */
 function mergePhaseDiffs(createDiff: string | undefined, babysitDiff: string | undefined): string {
   const merged = [createDiff, babysitDiff].filter((diff): diff is string => !!diff).join('\n')
-  return merged.length > MAX_DIFF_BYTES
-    ? `${merged.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]`
-    : merged
+  return truncate(merged, MAX_DIFF_BYTES, '\n[diff truncated]')
 }
 
 function combineAuthoringAndBabysit(
@@ -435,7 +433,10 @@ async function runCloudAuthoringPi(
   const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
   const piTimeoutMs = resolvePiTimeoutMs(lifetimeMs)
 
-  const authored = await withPiSandbox<AuthoringPhaseResult>({ lifetimeMs }, async (runner) => {
+  // Bound to a local so the call stays on one line: inlining the second option
+  // reflows this whole callback body and buries the change in re-indentation.
+  const sandboxOptions = { lifetimeMs, cost: context.sandboxCost }
+  const authored = await withPiSandbox<AuthoringPhaseResult>(sandboxOptions, async (runner) => {
     try {
       const clone = await raceAbort(
         runner.run(params.mode === 'cloud' ? CREATE_PR_CLONE_SCRIPT : UPDATE_BRANCH_CLONE_SCRIPT, {
@@ -551,8 +552,7 @@ async function runCloudAuthoringPi(
       let diff: string | undefined
       try {
         const raw = await runner.readFile(DIFF_PATH)
-        diff =
-          raw.length > MAX_DIFF_BYTES ? `${raw.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]` : raw
+        diff = truncate(raw, MAX_DIFF_BYTES, '\n[diff truncated]')
       } catch {
         diff = undefined
       }

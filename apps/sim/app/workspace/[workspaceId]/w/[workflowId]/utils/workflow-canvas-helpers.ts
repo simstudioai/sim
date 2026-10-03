@@ -1,10 +1,112 @@
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
-import type { Edge, Node } from 'reactflow'
+import type { Edge, Node } from '@xyflow/react'
+import { isEqual } from 'es-toolkit'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
+
+/**
+ * Marks canvas nodes nested inside a subflow container. React Flow v11 emitted
+ * `data-parent-node-id` for this; v12 emits no parent attribute, so the app
+ * stamps its own class for the handle z-lift in `globals.css`.
+ */
+export const SUBFLOW_CHILD_NODE_CLASS = 'subflow-child-node'
+
+export function getNodeDataDimension(
+  node: Pick<Node, 'data'>,
+  dimension: 'width' | 'height',
+  fallback: number
+): number {
+  const value = node.data?.[dimension]
+  return typeof value === 'number' && value ? value : fallback
+}
+
+type ArrowNavigationEvent = Pick<
+  KeyboardEvent,
+  'key' | 'repeat' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'
+>
+
+export function getArrowNavigationDirection(event: ArrowNavigationEvent): -1 | 1 | null {
+  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return null
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') return 1
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') return -1
+  return null
+}
+
+/**
+ * A derivation that changed nothing must produce no new reference at any level,
+ * so React Flow can skip the subtree. Reuse is decided by identity after
+ * projection, which also catches a pure reorder: a reused item landing at a
+ * different index breaks the positional sweep.
+ */
+function reconcileById<T extends { id: string }>(
+  current: T[],
+  derived: T[],
+  project: (derivedItem: T, currentItem: T | undefined) => T,
+  isReusable: (currentItem: T, nextItem: T) => boolean
+): T[] {
+  const currentById = new Map<string, T>()
+  for (const item of current) currentById.set(item.id, item)
+
+  const next = derived.map((derivedItem) => {
+    const currentItem = currentById.get(derivedItem.id)
+    const nextItem = project(derivedItem, currentItem)
+    return currentItem && isReusable(currentItem, nextItem) ? currentItem : nextItem
+  })
+
+  const unchanged =
+    next.length === current.length && next.every((item, index) => item === current[index])
+  return unchanged ? current : next
+}
+
+/**
+ * Subset comparison, deliberately asymmetric: React Flow writes `measured` and
+ * `dragging` onto the node objects it owns, so a symmetric `isEqual` against a
+ * freshly derived node would never match and no node would ever be reused. Only
+ * the keys the derivation itself produces are compared.
+ */
+function containsDerivedValues<T extends object>(current: T, derived: T): boolean {
+  for (const key of Object.keys(derived) as (keyof T)[]) {
+    if (!isEqual(current[key], derived[key])) return false
+  }
+  return true
+}
+
+/**
+ * Reuses unchanged React Flow node objects while carrying local selection and
+ * measured dimensions forward. `measured` must survive re-derivation: React
+ * Flow resets a node's cached handle bounds and re-measures whenever a node
+ * object arrives without it, which snaps connected edges for a frame.
+ *
+ * @param selectedIds - When provided, overrides selection instead of carrying
+ * it forward (e.g. the pending selection applied after paste/duplicate)
+ */
+export function reconcileCanvasNodes(
+  currentNodes: Node[],
+  derivedNodes: Node[],
+  selectedIds?: ReadonlySet<string>
+): Node[] {
+  return reconcileById(
+    currentNodes,
+    derivedNodes,
+    (derivedNode, currentNode) => ({
+      ...derivedNode,
+      measured: currentNode?.measured,
+      selected: selectedIds ? selectedIds.has(derivedNode.id) : (currentNode?.selected ?? false),
+    }),
+    containsDerivedValues
+  )
+}
+
+/**
+ * Reuses unchanged React Flow edge objects after graph-level derivation reruns.
+ * Edges carry no React Flow-written fields, so a plain `isEqual` is symmetric-safe.
+ */
+export function reconcileCanvasEdges(currentEdges: Edge[], derivedEdges: Edge[]): Edge[] {
+  return reconcileById(currentEdges, derivedEdges, (derivedEdge) => derivedEdge, isEqual)
+}
 
 /**
  * Collects all descendant block IDs for container blocks (loop/parallel) in the given set.
@@ -165,8 +267,8 @@ export function getClampedPositionForNode(
   }
 
   const containerDimensions = {
-    width: parentNode.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-    height: parentNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    width: getNodeDataDimension(parentNode, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+    height: getNodeDataDimension(parentNode, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
   }
   const blockDimensions = {
     width:

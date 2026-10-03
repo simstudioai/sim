@@ -11,6 +11,10 @@ import type {
 } from '@/lib/table/types'
 import type { ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
+interface TableOperationOutput {
+  success: true
+}
+
 export interface TableCreateParams {
   name: string
   description?: string
@@ -61,6 +65,7 @@ export interface TableRowGetParams {
 /** v2 query params: typed predicate/sort objects + opaque cursor (no offset). */
 export interface TableRowQueryV2Params {
   tableId: string
+  columns?: string[]
   filter?: TablePredicateInput
   order?: SortSpec
   limit?: number
@@ -69,7 +74,7 @@ export interface TableRowQueryV2Params {
 }
 
 export interface TableQueryV2Response extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     rows: TableRow[]
     rowCount: number
     totalCount: number | null
@@ -79,28 +84,28 @@ export interface TableQueryV2Response extends ToolResponse {
 }
 
 export interface TableCreateResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     table: TableDefinition
     message: string
   }
 }
 
 export interface TableListResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     tables: TableDefinition[]
     totalCount: number
   }
 }
 
 export interface TableRowResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     row: TableRow
     message: string
   }
 }
 
 export interface TableQueryResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     rows: TableRow[]
     rowCount: number
     totalCount: number
@@ -116,7 +121,7 @@ export interface TableQueryResponse extends ToolResponse {
 }
 
 export interface TableDeleteResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     deletedCount: number
     message: string
   }
@@ -129,7 +134,7 @@ export interface TableBatchInsertParams {
 }
 
 export interface TableBatchInsertResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     rows: TableRow[]
     insertedCount: number
     message: string
@@ -152,7 +157,7 @@ export interface TableDeleteByFilterParams {
 }
 
 export interface TableBulkOperationResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     updatedCount?: number
     deletedCount?: number
     updatedRowIds?: string[]
@@ -167,7 +172,7 @@ export interface TableGetSchemaParams {
 }
 
 export interface TableGetSchemaResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     name: string
     columns: ColumnDefinition[]
     columnCount: number
@@ -178,7 +183,7 @@ export interface TableGetSchemaResponse extends ToolResponse {
 }
 
 export interface TableUpsertResponse extends ToolResponse {
-  output: {
+  output: TableOperationOutput & {
     row: TableRow
     operation: 'insert' | 'update'
     message: string

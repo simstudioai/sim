@@ -21,6 +21,7 @@ export const POST = defineV2JsonRoute({
     data: body.data,
     conflictTarget: body.conflictTarget,
     strictWrite: true,
+    dataKeying: 'names' as const,
   }),
   useCase: upsertTableRow,
   present: ({ table, row, operation }) => ({

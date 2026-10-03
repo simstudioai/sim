@@ -2,22 +2,9 @@ import type {
   DocuSignDownloadDocumentParams,
   DocuSignDownloadDocumentResponse,
 } from '@/tools/docusign/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-function getExecutionContext(params: DocuSignDownloadDocumentParams): {
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-} {
-  const context = params._context
-  return {
-    workspaceId: typeof context?.workspaceId === 'string' ? context.workspaceId : undefined,
-    workflowId: typeof context?.workflowId === 'string' ? context.workflowId : undefined,
-    executionId: typeof context?.executionId === 'string' ? context.executionId : undefined,
-  }
-}
-
-export const docusignDownloadDocumentTool: ToolConfig<
+export const docusignDownloadDocumentTool: InternalToolConfig<
   DocuSignDownloadDocumentParams,
   DocuSignDownloadDocumentResponse
 > = {
@@ -53,20 +40,12 @@ export const docusignDownloadDocumentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/docusign',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const context = getExecutionContext(params)
-      return {
-        accessToken: params.accessToken,
-        operation: 'download_document',
-        envelopeId: params.envelopeId,
-        documentId: params.documentId,
-        ...context,
-      }
-    },
+  operation: {
+    input: (params) => ({
+      accessToken: params.accessToken,
+      envelopeId: params.envelopeId,
+      documentId: params.documentId,
+    }),
   },
 
   transformResponse: async (response) => {

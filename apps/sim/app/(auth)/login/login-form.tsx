@@ -22,7 +22,7 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
-import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import { buildAuthCrossLink, DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
   AuthField,
@@ -87,13 +87,11 @@ export default function LoginPage({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  isProduction,
   registrationDisabled,
 }: {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
-  isProduction: boolean
   /** DISABLE_REGISTRATION. Hides the signup cross-link, which `/signup` blocks. */
   registrationDisabled: boolean
 }) {
@@ -103,6 +101,8 @@ export default function LoginPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
+  /** A refusal that is about the account or its organization, not the credentials typed in. */
+  const [policyError, setPolicyError] = useState<string | null>(null)
   const callbackUrlParam = searchParams?.get('callbackUrl')
   const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
@@ -110,7 +110,7 @@ export default function LoginPage({
     invalidCallbackRef.current = true
     logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
   }
-  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : '/workspace'
+  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : DEFAULT_POST_AUTH_ROUTE
   const isInviteFlow = searchParams?.get('invite_flow') === 'true'
   const signupHref = buildAuthCrossLink('/signup', {
     callbackUrl: isValidCallbackUrl ? callbackUrl : null,
@@ -159,6 +159,7 @@ export default function LoginPage({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
+    setPolicyError(null)
 
     const redirectToVerify = (emailToVerify: string) => {
       if (typeof window !== 'undefined') {
@@ -201,6 +202,20 @@ export default function LoginPage({
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
               errorHandled = true
               redirectToVerify(email)
+              return
+            }
+
+            /**
+             * A policy refusal explains itself — an organization requiring single sign-on, or a
+             * suspended account. It belongs in the form-level slot: the password is not what is
+             * wrong, so marking that field would send the person to reset a password that is fine.
+             */
+            if (ctx.error.status === 403 && ctx.error.message) {
+              errorHandled = true
+              setResetSuccessMessage(null)
+              setPasswordErrors([])
+              setShowValidationError(false)
+              setPolicyError(ctx.error.message)
               return
             }
 
@@ -264,8 +279,8 @@ export default function LoginPage({
       // Clear reset success message on successful login
       setResetSuccessMessage(null)
 
-      // Explicit redirect fallback if better-auth doesn't redirect
-      router.push(safeCallbackUrl)
+      /** Fallback when better-auth does not redirect: a document navigation, like signup's, so the workspace shell initializes its own theme store. */
+      window.location.href = safeCallbackUrl
     } catch (err: any) {
       if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
         redirectToVerify(email)
@@ -411,6 +426,12 @@ export default function LoginPage({
               </AuthField>
             </div>
 
+            {policyError && (
+              <AuthFormMessage type='error'>
+                <p>{policyError}</p>
+              </AuthFormMessage>
+            )}
+
             {resetSuccessMessage && (
               <AuthFormMessage type='success'>
                 <p>{resetSuccessMessage}</p>
@@ -430,7 +451,6 @@ export default function LoginPage({
             googleAvailable={googleAvailable}
             githubAvailable={githubAvailable}
             microsoftAvailable={microsoftAvailable}
-            isProduction={isProduction}
             callbackURL={callbackUrl}
           >
             {ssoEnabled && !hasOnlySSO && (
@@ -464,9 +484,6 @@ export default function LoginPage({
             title='Email'
             value={forgotPasswordEmail}
             onChange={(value) => setForgotPasswordEmail(value)}
-            onSubmit={() => {
-              if (!isSubmittingReset) void handleForgotPassword()
-            }}
             required
             placeholder='you@example.com'
           />

@@ -8,10 +8,10 @@ import {
 } from '@/lib/api-key/orchestration'
 import type { ApprovalGrant } from '@/lib/cli-auth/approval-store'
 import { completeApproval, pollApproval, releaseMint } from '@/lib/cli-auth/approval-store'
-import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/copilot/server/api-keys'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/mothership/server/api-keys'
 
 const logger = createLogger('CliAuthPollAPI')
 
@@ -66,7 +66,10 @@ async function mintForGrant(
   }
 
   // `workspaceId` alone only names the terminal's default workspace; binding the
-  // key to it is a separate, admin-gated decision made at approval.
+  // key to it is a separate decision made at approval, where the session exists
+  // to check workspace-admin permission and the `api_keys.manage` capability.
+  // Nothing in the poll body can set it, so this branch can only be reached by
+  // an approval that already passed both.
   const result =
     grant.workspaceBound && grant.workspaceId
       ? await performCreateWorkspaceApiKey({

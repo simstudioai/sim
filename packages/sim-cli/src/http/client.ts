@@ -1,6 +1,9 @@
-import chalk from 'chalk'
-import type { ResolvedProfile } from '../config/index'
-import { USER_AGENT } from '../version'
+import { truncate } from '@sim/utils/string'
+import { writeStderr } from '#sim-cli/output/io'
+import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
+import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
+import { identityHeaders } from '../telemetry/client-info'
+import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed
@@ -13,7 +16,8 @@ export class SimApiError extends Error {
     message: string,
     readonly status: number,
     readonly code: string | null = null,
-    readonly details?: unknown
+    readonly details?: unknown,
+    readonly exitCode = 1
   ) {
     super(message)
     this.name = 'SimApiError'
@@ -136,7 +140,7 @@ function toNonJsonError(
   const keepSnippet = !isMarkup && text.length > 0 && text.length <= 200
   return new SimApiError(
     `${url} returned ${kind}, not JSON (HTTP ${status}) — check your endpoint.${
-      keepSnippet ? ` Response: ${truncate(text, 200)}` : ''
+      keepSnippet ? ` Response: ${truncate(text, 200, '…')}` : ''
     }`,
     status
   )
@@ -182,8 +186,41 @@ function toApiError(
   return new SimApiError(`Request failed with status ${status}`, status)
 }
 
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max)}…`
+/**
+ * Keeps the useful nested reason from Node/Undici transport failures without
+ * serializing request options, headers, socket objects, or credentials.
+ */
+function transportErrorMessage(error: unknown): string {
+  const messages: string[] = []
+  const seen = new Set<object>()
+  let current: unknown = error
+
+  while (current && typeof current === 'object' && messages.length < 4 && !seen.has(current)) {
+    seen.add(current)
+    const candidate = current as { message?: unknown; code?: unknown; cause?: unknown }
+    const message =
+      typeof candidate.message === 'string'
+        ? truncate(candidate.message.replace(/\s+/g, ' ').trim(), 300, '…')
+        : ''
+    const code = typeof candidate.code === 'string' ? candidate.code : ''
+    const detail = `${message}${code && !message.includes(code) ? ` (${code})` : ''}`
+    if (detail && messages.at(-1) !== detail) messages.push(detail)
+    current = candidate.cause
+  }
+
+  return messages.join(': ') || 'Unknown network error'
+}
+
+async function readResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text()
+  } catch (error) {
+    throw new SimApiError(
+      `Unable to read the response: ${transportErrorMessage(error)}`,
+      response.status,
+      'RESPONSE_READ_FAILED'
+    )
+  }
 }
 
 /**
@@ -249,6 +286,128 @@ function dropUnionBranchNoise(issues: DetailIssue[]): DetailIssue[] {
   return kept.length > 0 ? kept : issues
 }
 
+/**
+ * How long a single request may take before the CLI gives up, in seconds.
+ *
+ * The default is deliberately above every bound the server itself applies: a
+ * synchronous workflow run is allowed 3000s on a paid plan, so a tighter
+ * default would abort real work and report it as a transport failure. What it
+ * catches is the case the server cannot — a connection that is accepted and
+ * then never answers, which otherwise hangs the terminal indefinitely.
+ *
+ * `SIM_TIMEOUT_SECONDS=0` removes the bound, for a self-hosted deployment that
+ * runs executions without one of its own.
+ */
+const DEFAULT_TIMEOUT_SECONDS = 3600
+
+/**
+ * The longest delay Node's timers accept.
+ *
+ * Past it a timeout does not fail — it silently becomes 1ms, so the request the
+ * caller asked to wait longest for would be the first one aborted.
+ */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1
+
+/** The one instruction that resolves an elapsed request bound, wherever it surfaces. */
+export const RAISE_TIMEOUT_HINT = 'Raise SIM_TIMEOUT_SECONDS, or set it to 0 to wait indefinitely.'
+
+/**
+ * Whether this is the CLI's own request bound elapsing.
+ *
+ * `AbortSignal.timeout` raises `TimeoutError`, while a caller's cancel raises
+ * `AbortError` — so this distinguishes a bound the user can raise from a stop
+ * the user asked for, which must keep reading as a cancellation.
+ */
+export function isRequestTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'TimeoutError'
+}
+
+function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.SIM_TIMEOUT_SECONDS
+  if (raw === undefined || raw.trim() === '') return DEFAULT_TIMEOUT_SECONDS * 1000
+
+  const seconds = Number(raw)
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    throw new SimApiError(
+      `Invalid SIM_TIMEOUT_SECONDS "${raw}". Use a non-negative number of seconds, or 0 to disable.`,
+      0
+    )
+  }
+
+  // Rounded because a fractional millisecond is rejected outright by
+  // `AbortSignal.timeout`, and a sub-millisecond timeout is not a distinction
+  // anyone is drawing. Floored at 1ms for anything above zero: rounding alone
+  // sent a bound under 0.0005s to 0, which this function reserves for "no
+  // bound at all", so asking for the shortest possible timeout produced none.
+  const ms = seconds === 0 ? 0 : Math.max(1, Math.round(seconds * 1000))
+  if (ms > MAX_TIMEOUT_MS) {
+    throw new SimApiError(
+      `SIM_TIMEOUT_SECONDS "${raw}" is longer than Node can wait (${Math.floor(MAX_TIMEOUT_MS / 1000)}s). Use 0 to wait indefinitely.`,
+      0
+    )
+  }
+  return ms
+}
+
+/**
+ * Aborts when either signal does.
+ *
+ * `AbortSignal.any` arrived in Node 20.3 and this package supports Node 20, so
+ * on the earliest 20.x releases calling it would throw a bare `TypeError`
+ * before the request was ever made — turning a supported runtime into a crash.
+ */
+function combineSignals(
+  caller: AbortSignal | undefined,
+  timeout: AbortSignal | undefined
+): AbortSignal | undefined {
+  if (!caller) return timeout
+  if (!timeout) return caller
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([caller, timeout])
+
+  const controller = new AbortController()
+  for (const signal of [caller, timeout]) {
+    if (signal.aborted) {
+      controller.abort(signal.reason)
+      break
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+  }
+  return controller.signal
+}
+
+/** Whether to trace requests to stderr. */
+function debugEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.SIM_DEBUG
+  return raw !== undefined && raw !== '' && raw !== '0' && raw.toLowerCase() !== 'false'
+}
+
+/**
+ * Traces one request on stderr.
+ *
+ * Method, URL, status and duration only. Bodies and headers are deliberately
+ * absent: the request carries the API key, and `secrets set` carries the secret
+ * itself, so a trace that included either would write credentials into whatever
+ * log the user pasted it into.
+ */
+function traceRequest(method: string, url: string, status: number | string, startedAt: number) {
+  writeStderr(
+    `${styles().dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
+  )
+}
+
+/**
+ * Drops a label the message already opens with.
+ *
+ * Some routes name the field inside the message as well as in `path`, and the
+ * two are printed one after the other: `sortBy: only \"startedAt\" can order job
+ * runs` under `path: ['sortBy']` came out as `--sort-by: --sort-by: only …`
+ * once the wire name had been retyped as the flag.
+ */
+function withoutLeadingLabel(message: string, label: string): string {
+  const prefix = `${label}: `
+  return message.startsWith(prefix) ? message.slice(prefix.length) : message
+}
+
 /** Formats nested validation issues as readable, path-aware lines. */
 export function formatApiErrorDetails(details: unknown): string[] {
   const issues: DetailIssue[] = []
@@ -286,32 +445,92 @@ export function formatApiErrorDetails(details: unknown): string[] {
   }
 
   visit(details)
-  if (issues.length === 0) return [`  details: ${truncate(JSON.stringify(details), 1000)}`]
+  if (issues.length === 0) return [`  details: ${truncate(JSON.stringify(details), 1000, '…')}`]
 
   const kept = dropUnionBranchNoise(issues)
   const visible = kept.slice(0, 8)
   const lines = [
     '  details:',
-    ...visible.map(
-      (issue) => `    ${issue.path.length > 0 ? issue.path.join('.') : 'request'}: ${issue.message}`
-    ),
+    ...visible.map((issue) => {
+      const label = issue.path.length > 0 ? issue.path.join('.') : 'request'
+      return `    ${label}: ${withoutLeadingLabel(issue.message, label)}`
+    }),
   ]
   if (kept.length > visible.length) lines.push(`    … ${kept.length - visible.length} more issues`)
   return lines
 }
 
-export class SimClient {
-  constructor(private readonly profile: ResolvedProfile) {}
+/**
+ * Renews an OAuth login and returns the new pair; injected so the HTTP client
+ * does not import the OAuth flow, which imports the client.
+ */
+export type OAuthRefresher = (
+  profile: ResolvedProfile,
+  current: StoredOAuthCredential
+) => Promise<StoredOAuthCredential>
 
-  private resolveApiKey(auth: AuthRequirement = 'required'): string | undefined {
-    if (!this.profile.apiKey) {
-      if (auth === 'optional') return undefined
+export interface SimClientOptions {
+  refreshOAuth?: OAuthRefresher
+}
+
+/**
+ * Renew this long before the access token lapses. A request that starts with
+ * a few seconds left can still land after expiry; five minutes is the margin
+ * the AWS CLI and WorkOS's guidance settle on, and well inside the hour a Sim
+ * access token lives.
+ */
+const REFRESH_AHEAD_MS = 5 * 60 * 1000
+
+/** Reads the OAuth error parameter from Sim's Bearer challenge. */
+function bearerChallengeError(header: string | null): string | null {
+  if (!header?.trimStart().toLowerCase().startsWith('bearer')) return null
+  const match = /(?:^|,)\s*error\s*=\s*(?:"([^"]*)"|([^,\s]+))/i.exec(
+    header.replace(/^\s*Bearer\s*/i, '')
+  )
+  return match?.[1] ?? match?.[2] ?? null
+}
+
+export class SimClient {
+  private oauth: StoredOAuthCredential | null
+  private refreshing: Promise<StoredOAuthCredential> | null = null
+
+  constructor(
+    private readonly profile: ResolvedProfile,
+    private readonly options: SimClientOptions = {}
+  ) {
+    this.oauth = profile.oauth ?? null
+  }
+
+  private resolveCredential(auth: AuthRequirement = 'required'): StoredCredential | undefined {
+    if (this.profile.apiKey) return { kind: 'api_key', apiKey: this.profile.apiKey }
+    if (this.oauth) return { kind: 'oauth', oauth: this.oauth }
+    if (auth === 'optional') return undefined
+    throw new SimApiError(
+      `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.authProfile}`,
+      0
+    )
+  }
+
+  /**
+   * One refresh at a time per process, shared by every request that finds the
+   * token expiring; the cross-process half lives behind the refresher.
+   */
+  private async refreshOAuth(current: StoredOAuthCredential): Promise<StoredOAuthCredential> {
+    const refresh = this.options.refreshOAuth
+    if (!refresh) {
       throw new SimApiError(
-        `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.name}`,
-        0
+        `Your Sim login has expired. Run sim logout --profile ${this.profile.name}, then sim login --profile ${this.profile.name}.`,
+        401
       )
     }
-    return this.profile.apiKey
+    if (!this.refreshing) {
+      this.refreshing = refresh(this.profile, current).finally(() => {
+        this.refreshing = null
+      })
+    }
+    const next = await this.refreshing
+    this.oauth = next
+    return next
   }
 
   /**
@@ -323,7 +542,7 @@ export class SimClient {
    * is logging in. Auth-disabled self-hosted protocols opt out explicitly.
    */
   requireWorkspace(explicit?: string, options: WorkspaceOptions = {}): string {
-    this.resolveApiKey(options.auth)
+    this.resolveCredential(options.auth)
     const workspaceId = explicit ?? this.profile.workspaceId
     if (!workspaceId) {
       throw new SimApiError(
@@ -348,7 +567,7 @@ export class SimClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const { response, url } = await this.send(path, options)
-    const raw = await response.text()
+    const raw = await readResponseText(response)
 
     if (!raw) return undefined as T
     try {
@@ -360,48 +579,99 @@ export class SimClient {
 
   private async send(
     path: string,
-    options: RequestOptions
+    options: RequestOptions,
+    retriedAfterRefresh = false
   ): Promise<{ response: Response; url: string }> {
-    const apiKey = this.resolveApiKey(options.auth)
+    let credential = this.resolveCredential(options.auth)
+    if (
+      credential?.kind === 'oauth' &&
+      credential.oauth.expiresAt - Date.now() < REFRESH_AHEAD_MS
+    ) {
+      credential = { kind: 'oauth', oauth: await this.refreshOAuth(credential.oauth) }
+    }
 
     const url = buildUrl(this.profile.endpoint, path, options.query)
     const hasBody = options.body !== undefined
+    const method = options.method ?? 'GET'
+
+    warnIfProxyIgnored()
+    warnIfCredentialOverCleartext(this.profile.endpoint, Boolean(credential))
+
+    // The caller's signal still cancels; the timeout only adds a second reason
+    // to abort, so neither can mask the other.
+    const timeoutMs = resolveTimeoutMs()
+    const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
+    const caller = combineSignals(options.signal, this.profile.signal)
+    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+    const signal = combineSignals(caller, timeout)
+
+    const trace = debugEnabled()
+    const startedAt = performance.now()
 
     let response: Response
     try {
-      response = await fetch(url, {
-        method: options.method ?? 'GET',
+      response = await (this.profile.transport ?? fetch)(url, {
+        method,
         headers: {
-          ...(apiKey ? { 'x-api-key': apiKey } : {}),
+          ...(credential?.kind === 'api_key' ? { 'x-api-key': credential.apiKey } : {}),
+          ...(credential?.kind === 'oauth'
+            ? { authorization: `Bearer ${credential.oauth.accessToken}` }
+            : {}),
           accept: 'application/json',
-          'user-agent': USER_AGENT,
+          ...identityHeaders(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
         body: hasBody ? JSON.stringify(options.body) : undefined,
-        signal: options.signal,
+        signal,
         redirect: 'manual',
       })
     } catch (cause) {
-      if (options.signal?.aborted) {
+      if (trace) traceRequest(method, url, 'failed', startedAt)
+      if (caller?.aborted) {
         throw new SimApiError('Request cancelled.', 0)
       }
+      if (timeout?.aborted) {
+        throw new SimApiError(
+          `${url} did not answer within ${timeoutMs / 1000}s. ${RAISE_TIMEOUT_HINT}`,
+          0
+        )
+      }
       throw new SimApiError(
-        `Could not reach ${this.profile.endpoint}: ${(cause as Error).message}`,
+        `Could not reach ${this.profile.endpoint}: ${transportErrorMessage(cause)}`,
         0
       )
     }
 
+    if (trace) traceRequest(method, url, response.status, startedAt)
+
     if (REDIRECT_STATUSES.has(response.status)) throw this.toRedirectError(url, path, response)
 
+    /**
+     * A token the server no longer accepts — revoked, or expired on a clock
+     * this process disagrees with — is renewed once and the request repeated.
+     * Only for `invalid_token` (RFC 6750 §3.1): any other 401 means the
+     * refresh would not change the answer.
+     */
+    if (
+      response.status === 401 &&
+      credential?.kind === 'oauth' &&
+      !retriedAfterRefresh &&
+      bearerChallengeError(response.headers.get('www-authenticate')) === 'invalid_token'
+    ) {
+      await response.body?.cancel()
+      await this.refreshOAuth(credential.oauth)
+      return this.send(path, options, true)
+    }
+
     if (!response.ok) {
-      const raw = await response.text()
+      const raw = await readResponseText(response)
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
       if (response.status === 401) {
-        error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
       }
       if (namesKeyScopeRefusal(error)) {
-        error.message = `${error.message} — this operation needs a personal API key: sim login --profile ${this.profile.name}`
+        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
       }
       throw error
     }
@@ -496,14 +766,23 @@ export function pageProgress(): PageProgress {
   let reported = false
   return {
     advance: (fetched) => {
-      if (!process.stderr.isTTY) return
+      if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${chalk.dim(`fetched ${fetched}…`)}\u001b[K`)
+      writeStderr(`\r${styles().dim(`fetched ${fetched}…`)}\u001b[K`)
     },
     finish: () => {
-      if (reported) process.stderr.write('\r\u001b[K')
+      if (reported) writeStderr('\r\u001b[K')
     },
   }
+}
+
+/** Rejects cursor cycles before a pager repeats requests or returns an unusable continuation. */
+export function assertCursorAdvances(cursor: string | null, seenCursors: Set<string>): void {
+  if (cursor === null) return
+  if (seenCursors.has(cursor)) {
+    throw new SimApiError('The API returned a repeated pagination cursor; cannot continue.', 0)
+  }
+  seenCursors.add(cursor)
 }
 
 /** Follows a standard v2 cursor envelope without duplicating pagination loops. */
@@ -517,6 +796,7 @@ export async function requestAllPages<T>(
   if (limit <= 0) return []
 
   const items: T[] = []
+  const seenCursors = new Set<string>()
   const progress = pageProgress()
   let cursor: string | null = null
   // `finally`, because a page that throws part-way through would otherwise skip
@@ -532,6 +812,7 @@ export async function requestAllPages<T>(
           cursor,
         },
       })
+      assertCursorAdvances(page.nextCursor, seenCursors)
       items.push(...page.data)
       cursor = page.nextCursor
 

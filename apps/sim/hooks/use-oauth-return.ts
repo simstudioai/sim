@@ -6,8 +6,11 @@ import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { createSerializer, parseAsString } from 'nuqs/server'
 import { requestJson } from '@/lib/api/client/request'
 import { listWorkspaceCredentialsContract } from '@/lib/api/contracts'
+import { listOrganizationCredentialsContract } from '@/lib/api/contracts/organization-credentials'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import {
   ADD_CONNECTOR_SEARCH_PARAM,
   consumeOAuthReturnContext,
@@ -23,41 +26,72 @@ import {
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { SETTINGS_RETURN_URL_KEY } from '@/lib/navigation/settings-return'
+import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
+import { searchSetupAccessParam } from '@/lib/sim-search/search-params'
+import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
-import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import {
+  organizationCredentialKeys,
+  workspaceCredentialKeys,
+} from '@/hooks/queries/utils/credential-keys'
 import { requireWorkspaceCredentialListResponse } from '@/hooks/queries/utils/fetch-workspace-credentials'
 
 const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
-const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
+const serializeConnectorReturn = createSerializer({
+  [ADD_CONNECTOR_SEARCH_PARAM]: parseAsString,
+  [searchSetupAccessParam.key]: searchSetupAccessParam.parser,
+})
 
 export interface OAuthResultMessage {
   kind: 'success' | 'error'
   text: string
+  credentialId?: string
 }
 
 export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAuthResultMessage> {
   if (ctx.reconnect) {
-    return { kind: 'success', text: `"${ctx.displayName}" reconnected successfully.` }
+    return {
+      kind: 'success',
+      text: `"${ctx.displayName}" reconnected successfully.`,
+    }
   }
 
   try {
-    const data = await requestJson(listWorkspaceCredentialsContract, {
-      query: { workspaceId: ctx.workspaceId, type: 'oauth' },
-    })
-    const oauthCredentials = requireWorkspaceCredentialListResponse(data)
+    const scope = resourceScopeFromOwner(ctx)
+    const oauthCredentials =
+      scope.kind === 'organization'
+        ? (
+            await requestJson(listOrganizationCredentialsContract, {
+              query: { organizationId: scope.organizationId, type: 'oauth' },
+            })
+          ).credentials
+        : requireWorkspaceCredentialListResponse(
+            await requestJson(listWorkspaceCredentialsContract, {
+              query: { workspaceId: scope.workspaceId, type: 'oauth' },
+            })
+          )
 
     const forProvider = oauthCredentials.filter((c) => c.providerId === ctx.providerId)
-    if (forProvider.length > ctx.preCount) {
-      return {
-        kind: 'success',
-        text: `"${ctx.displayName}" credential connected successfully.`,
-      }
-    }
-
     const baselineCredentials = new Map(
       ctx.baselineCredentials?.map((credential) => [credential.id, credential]) ?? []
     )
+    if (forProvider.length > ctx.preCount) {
+      const added = ctx.baselineCredentials
+        ? forProvider.filter((credential) => !baselineCredentials.has(credential.id))
+        : []
+      const connected =
+        added.find((credential) => credential.displayName === ctx.displayName) ??
+        (added.length === 1 ? added[0] : undefined)
+      return {
+        kind: 'success',
+        text: `"${ctx.displayName}" credential connected successfully.`,
+        ...(connected && { credentialId: connected.id }),
+      }
+    }
+
     const reauthorizedCredential = forProvider.find((credential) => {
       const baseline = baselineCredentials.get(credential.id)
       return (
@@ -70,6 +104,7 @@ export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAut
       return {
         kind: 'success',
         text: `This account is already connected as "${reauthorizedCredential.displayName}".`,
+        credentialId: reauthorizedCredential.id,
       }
     }
   } catch {
@@ -85,6 +120,27 @@ export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAut
   }
 }
 
+export function resolveOAuthCallbackError(
+  callbackUrl: string,
+  ctx: Pick<OAuthReturnContext, 'displayName'>
+): OAuthResultMessage | null {
+  if (!new URL(callbackUrl).searchParams.has('error')) return null
+  return {
+    kind: 'error',
+    text: `The "${ctx.displayName}" connection didn’t finish. Try again.`,
+  }
+}
+
+function consumeOAuthCallbackError(ctx: OAuthReturnContext): OAuthResultMessage | null {
+  const result = resolveOAuthCallbackError(window.location.href, ctx)
+  if (!result) return null
+  const url = new URL(window.location.href)
+  url.searchParams.delete('error')
+  url.searchParams.delete('error_description')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  return result
+}
+
 function showOAuthResultMessage(result: OAuthResultMessage): void {
   if (result.kind === 'success') {
     toast.success(result.text)
@@ -93,10 +149,43 @@ function showOAuthResultMessage(result: OAuthResultMessage): void {
   toast.error(result.text)
 }
 
-function dispatchCredentialUpdate(ctx: { providerId: string; workspaceId: string }) {
+interface OAuthCredentialUpdate {
+  providerId: string
+  workspaceId?: string
+  organizationId?: string
+  credentialId?: string
+  knowledgeBaseId?: string
+  connectorType?: string
+  connectorId?: string
+  requestedAt?: number
+}
+
+function dispatchCredentialUpdate(
+  ctx:
+    | Pick<OAuthReturnContext, 'providerId' | 'workspaceId' | 'organizationId'>
+    | OAuthReturnContext,
+  result?: OAuthResultMessage
+) {
+  const detail: OAuthCredentialUpdate = {
+    providerId: ctx.providerId,
+    workspaceId: ctx.workspaceId,
+    organizationId: ctx.organizationId,
+  }
+  if (
+    'origin' in ctx &&
+    ctx.origin === 'kb-connectors' &&
+    result?.kind === 'success' &&
+    result.credentialId
+  ) {
+    detail.credentialId = result.credentialId
+    detail.knowledgeBaseId = ctx.knowledgeBaseId
+    detail.connectorType = ctx.connectorType
+    detail.connectorId = ctx.connectorId
+    detail.requestedAt = ctx.requestedAt
+  }
   window.dispatchEvent(
     new CustomEvent(OAUTH_CREDENTIAL_UPDATED_EVENT, {
-      detail: { providerId: ctx.providerId, workspaceId: ctx.workspaceId },
+      detail,
     })
   )
 }
@@ -105,6 +194,15 @@ function clearOAuthChatAttemptParam(): void {
   const url = new URL(window.location.href)
   url.searchParams.delete(OAUTH_CHAT_ATTEMPT_PARAM)
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
+function clearDataverseOAuthEnvironmentParam(): void {
+  const current = window.location.href
+  const cleaned = stripMicrosoftDataverseEnvironmentFromOAuthCallback(current)
+  if (cleaned !== current) {
+    const url = new URL(cleaned)
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  }
 }
 
 const VERIFY_ATTEMPT_TRIES = 4
@@ -151,7 +249,11 @@ async function verifyOAuthChatAttempt(queryClient: QueryClient, attemptId: strin
       // A short retry window covers callback hooks committing just after redirect.
     }
     if (attemptNumber < VERIFY_ATTEMPT_TRIES - 1) {
-      await sleep(backoffWithJitter(attemptNumber + 1, null, { baseMs: VERIFY_BACKOFF_BASE_MS }))
+      await sleep(
+        backoffWithJitter(attemptNumber + 1, null, {
+          baseMs: VERIFY_BACKOFF_BASE_MS,
+        })
+      )
     }
   }
 
@@ -173,11 +275,14 @@ export function useOAuthReturnRouter() {
   const router = useRouter()
   const params = useParams()
   const queryClient = useQueryClient()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
+  const organizationId =
+    typeof params.organizationId === 'string' ? params.organizationId : undefined
   const handledRef = useRef(false)
   const chatAttemptHandledRef = useRef(false)
 
   useEffect(() => {
+    clearDataverseOAuthEnvironmentParam()
     let isChatAttemptReturn = false
     if (!chatAttemptHandledRef.current) {
       const attemptId = new URL(window.location.href).searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)
@@ -204,7 +309,27 @@ export function useOAuthReturnRouter() {
       return
     }
 
+    if (ctx.workspaceId !== workspaceId || ctx.organizationId !== organizationId) return
     handledRef.current = true
+    const callbackError = consumeOAuthCallbackError(ctx)
+    if (callbackError) {
+      consumeOAuthReturnContext()
+      showOAuthResultMessage(callbackError)
+      if (ctx.origin === 'workflow') {
+        router.replace(`/workspace/${ctx.workspaceId}/w/${ctx.workflowId}`)
+      } else if (ctx.origin === 'kb-connectors') {
+        router.replace(
+          buildKnowledgeBaseOAuthReturnUrl(
+            resourceScopeFromOwner(ctx),
+            ctx.knowledgeBaseId,
+            ctx.connectorType,
+            ctx.connectorId,
+            ctx.sourceAccess
+          )
+        )
+      }
+      return
+    }
 
     if (ctx.origin === 'integrations') {
       consumeOAuthReturnContext()
@@ -220,7 +345,7 @@ export function useOAuthReturnRouter() {
       try {
         sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
       } catch {}
-      router.replace(`/workspace/${workspaceId}/w/${ctx.workflowId}`)
+      router.replace(`/workspace/${ctx.workspaceId}/w/${ctx.workflowId}`)
       return
     }
 
@@ -228,14 +353,42 @@ export function useOAuthReturnRouter() {
       try {
         sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
       } catch {}
-      const kbUrl = `/workspace/${workspaceId}/knowledge/${ctx.knowledgeBaseId}`
-      const connectorParam = ctx.connectorType
-        ? `?${ADD_CONNECTOR_SEARCH_PARAM}=${encodeURIComponent(ctx.connectorType)}`
-        : ''
-      router.replace(`${kbUrl}${connectorParam}`)
+      router.replace(
+        buildKnowledgeBaseOAuthReturnUrl(
+          resourceScopeFromOwner(ctx),
+          ctx.knowledgeBaseId,
+          ctx.connectorType,
+          ctx.connectorId,
+          ctx.sourceAccess
+        )
+      )
       return
     }
-  }, [queryClient, router, workspaceId])
+  }, [queryClient, router, workspaceId, organizationId])
+}
+
+export function buildKnowledgeBaseOAuthReturnUrl(
+  owner: string | ResourceScope,
+  knowledgeBaseId: string,
+  connectorType?: string,
+  connectorId?: string,
+  sourceAccess?: Extract<OAuthReturnContext, { origin: 'kb-connectors' }>['sourceAccess']
+): string {
+  const scope =
+    typeof owner === 'string' ? { kind: 'workspace' as const, workspaceId: owner } : owner
+  if (scope.kind === 'organization' && connectorId) {
+    return `${organizationRoutes(scope.organizationId).searchSource(connectorId)}?view=settings`
+  }
+  const kbUrl =
+    scope.kind === 'organization'
+      ? organizationSearchSetupPath(scope.organizationId)
+      : `/workspace/${scope.workspaceId}/knowledge/${knowledgeBaseId}`
+  return connectorType
+    ? serializeConnectorReturn(kbUrl, {
+        [ADD_CONNECTOR_SEARCH_PARAM]: connectorType,
+        [searchSetupAccessParam.key]: scope.kind === 'organization' ? sourceAccess : undefined,
+      })
+    : kbUrl
 }
 
 /**
@@ -244,11 +397,18 @@ export function useOAuthReturnRouter() {
  */
 export function useOAuthReturnForWorkflow(workflowId: string) {
   useEffect(() => {
+    clearDataverseOAuthEnvironmentParam()
     const ctx = readOAuthReturnContext()
     if (!ctx || ctx.origin !== 'workflow') return
     if (ctx.workflowId !== workflowId) return
     consumeOAuthReturnContext()
     if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
+
+    const callbackError = consumeOAuthCallbackError(ctx)
+    if (callbackError) {
+      showOAuthResultMessage(callbackError)
+      return
+    }
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
@@ -259,23 +419,78 @@ export function useOAuthReturnForWorkflow(workflowId: string) {
 }
 
 /**
- * Post-OAuth handler for KB connectors pages.
- * Consumes the return context and shows a toast notification.
+ * Restores the connected account after a web return or desktop completion.
  */
-export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
+export function useOAuthReturnForKBConnectors(
+  knowledgeBaseId: string | undefined,
+  onConnected?: (credentialId: string) => void,
+  connectorType?: string,
+  explicitScope?: ResourceScope,
+  connectorId?: string
+) {
+  const params = useParams()
+  const workspaceId = explicitScope
+    ? explicitScope.kind === 'workspace'
+      ? explicitScope.workspaceId
+      : undefined
+    : params?.workspaceId
+  const organizationId = explicitScope
+    ? explicitScope.kind === 'organization'
+      ? explicitScope.organizationId
+      : undefined
+    : params?.organizationId
   useEffect(() => {
-    const ctx = readOAuthReturnContext()
-    if (!ctx || ctx.origin !== 'kb-connectors') return
-    if (ctx.knowledgeBaseId !== knowledgeBaseId) return
-    consumeOAuthReturnContext()
-    if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
+    if (!knowledgeBaseId) return
 
-    void (async () => {
-      const message = await resolveOAuthMessage(ctx)
-      showOAuthResultMessage(message)
-      dispatchCredentialUpdate(ctx)
-    })()
-  }, [knowledgeBaseId])
+    const handleCredentialUpdate = (event: Event) => {
+      const { detail } = event as CustomEvent<OAuthCredentialUpdate>
+      if (
+        !detail?.credentialId ||
+        detail.knowledgeBaseId !== knowledgeBaseId ||
+        detail.connectorType !== connectorType ||
+        (connectorId && detail.connectorId !== connectorId) ||
+        detail.workspaceId !== workspaceId ||
+        detail.organizationId !== organizationId ||
+        detail.requestedAt === undefined ||
+        Date.now() - detail.requestedAt > CONTEXT_MAX_AGE_MS
+      ) {
+        return
+      }
+      onConnected?.(detail.credentialId)
+    }
+    window.addEventListener(OAUTH_CREDENTIAL_UPDATED_EVENT, handleCredentialUpdate)
+
+    if (!getDesktopBridge()?.onOAuthConnectComplete) {
+      clearDataverseOAuthEnvironmentParam()
+      const ctx = readOAuthReturnContext()
+      if (
+        ctx?.origin === 'kb-connectors' &&
+        ctx.knowledgeBaseId === knowledgeBaseId &&
+        ctx.workspaceId === workspaceId &&
+        ctx.organizationId === organizationId &&
+        (!connectorId || ctx.connectorId === connectorId) &&
+        (!connectorType || ctx.connectorType === connectorType)
+      ) {
+        consumeOAuthReturnContext()
+        if (Date.now() - ctx.requestedAt <= CONTEXT_MAX_AGE_MS) {
+          const callbackError = consumeOAuthCallbackError(ctx)
+          if (callbackError) {
+            showOAuthResultMessage(callbackError)
+          } else {
+            void (async () => {
+              const message = await resolveOAuthMessage(ctx)
+              showOAuthResultMessage(message)
+              dispatchCredentialUpdate(ctx, message)
+            })()
+          }
+        }
+      }
+    }
+
+    return () => {
+      window.removeEventListener(OAUTH_CREDENTIAL_UPDATED_EVENT, handleCredentialUpdate)
+    }
+  }, [knowledgeBaseId, onConnected, connectorType, workspaceId, organizationId, connectorId])
 }
 
 /**
@@ -295,8 +510,14 @@ export function useDesktopOAuthConnectListener() {
     if (!bridge?.onOAuthConnectComplete) return
 
     return bridge.onOAuthConnectComplete((result) => {
-      void queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
-      void queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      if (result.sourceRequestId) return
+      void queryClient.invalidateQueries({
+        queryKey: oauthConnectionsKeys.connections(),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: workspaceCredentialKeys.all,
+      })
+      void queryClient.invalidateQueries({ queryKey: organizationCredentialKeys.lists() })
 
       // The app stays open across interleaved connect flows, so an abandoned
       // modal-connect can leave a stale context that would attach to a later
@@ -317,7 +538,7 @@ export function useDesktopOAuthConnectListener() {
         void (async () => {
           const message = await resolveOAuthMessage(ctx)
           showOAuthResultMessage(message)
-          dispatchCredentialUpdate(ctx)
+          dispatchCredentialUpdate(ctx, message)
         })()
         return
       }

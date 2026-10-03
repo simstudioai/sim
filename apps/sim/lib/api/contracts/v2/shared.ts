@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { LIST_SORT_ORDERS, type ListSortOrder } from '@/lib/api/list-query'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
+import { FORBIDDEN_DETAIL_CODES } from '@/lib/core/application/forbidden'
 import {
   FolderPathError,
   MAX_FOLDER_PATH_BYTES,
@@ -57,7 +54,7 @@ import {
  * A list that needs a real expression tree (Tables) keeps its own `POST /query`.
  *
  * Two lists predate the convention and are the documented exceptions:
- * `GET /api/v2/logs` and `GET /api/v2/workflows/{id}/runs` have no `sortBy`
+ * `GET /api/v2/logs` and `GET /api/v2/workflows/{workflowId}/runs` have no `sortBy`
  * (the sort column is fixed to execution start time) and spell the direction
  * `order`, not `sortOrder`. They are not a pattern to copy, and renaming the
  * param would break shipped callers.
@@ -66,7 +63,7 @@ import {
  *   against the resource's *single* natural name field, and nothing else:
  *   `name` for files/folders/workflows/tables/knowledge bases/MCP servers/
  *   skills/credential providers, `title` for custom tools, `filename` for
- *   knowledge documents (`GET /knowledge/{id}/documents`), and `displayName`
+ *   knowledge documents (`GET /knowledge/{knowledgeBaseId}/documents`), and `displayName`
  *   for both credentials and secrets (`GET /secrets`, where the secret's name
  *   *is* the credential `displayName`). It never matches ids, descriptions, or
  *   content. `%` and `_` in the term are matched literally, not as wildcards.
@@ -102,7 +99,7 @@ import {
  *
  * ## Which lists are paged
  *
- * The authoritative split is pinned in `v2/__tests__/list-pagination.test.ts`,
+ * The authoritative split is pinned in `v2/list-pagination.test.ts`,
  * not restated here. A full-set list returns `nextCursor: null` on every
  * response — its OpenAPI description says so explicitly, so a caller never
  * writes a pagination loop that can only ever run once.
@@ -111,8 +108,8 @@ import {
  * including `GET /mcp-servers`, since nothing caps how many servers a workspace
  * registers. What remains full-set is bounded by construction rather than by a
  * caller's `limit`: the four folder lists, whose trees are capped where they
- * load; `GET /knowledge/{id}/tags`, capped by the fixed tag-slot table;
- * `GET /mcp-servers/{id}/tools`, capped by tool discovery itself; and
+ * load; `GET /knowledge/{knowledgeBaseId}/tags`, capped by the fixed tag-slot table;
+ * `GET /mcp-servers/{mcpServerId}/tools`, capped by tool discovery itself; and
  * `GET /tables/{tableId}/views` and `GET /tables/{tableId}/groups`, capped per
  * table; and the credential-provider catalog, bounded by code-defined OAuth
  * and service-account registries.
@@ -127,12 +124,12 @@ import {
  * (`encodeSortedCursor`) wherever the page comes from one ordered SQL read, and
  * an offset (`encodeOffsetCursor`) only where it cannot — `GET /skills`, which
  * merges the static builtin registry into the DB rows and re-sorts in JS, and
- * `GET /knowledge/{id}/documents`, whose underlying query is limit/offset.
+ * `GET /knowledge/{knowledgeBaseId}/documents`, whose underlying query is limit/offset.
  * Prefer the keyset; an offset needs that kind of reason.
  *
  * The third is per-domain: a list whose read predates the shared codecs, or
  * whose page boundary is not expressible as one, mints its own — a bare
- * `encodeCursor({ version })` on `GET /workflows/{id}/versions` and
+ * `encodeCursor({ version })` on `GET /workflows/{workflowId}/versions` and
  * `encodeCursor({ email })` on the workspace member list, the audit-log and run-log
  * codecs in `lib/audit-logs/query.ts` and `lib/logs/list-logs.ts`, the table-row
  * codec in `lib/table/rows/cursor.ts`, and a usage-event id passed straight
@@ -151,10 +148,10 @@ import {
  * is documented on `cursorScopeKey` in `lib/api/cursor-binding.ts`.
  *
  * The authoritative per-list binding is pinned in
- * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
- * that is neither bound nor explicitly exempted. The three lists whose token is
- * minted by a domain codec (`GET /logs`, `GET /audit-logs`, `GET /billing/logs`)
- * get the same binding by wrapping that token in a query-stamped envelope.
+ * `v2/list-pagination.test.ts`, which fails when a list gains a param
+ * that is neither bound nor explicitly exempted. The two lists whose token is
+ * minted by a domain codec (`GET /audit-logs`, `GET /billing/logs`) get the same
+ * binding by wrapping that token in a query-stamped envelope.
  */
 
 /**
@@ -180,6 +177,27 @@ import {
  */
 export const v2TimestampSchema = z.string().datetime().meta({ format: 'date-time' })
 
+/** Canonical absolute browser URL for a resource with a stable workspace UI destination. */
+export const v2ResourceWebUrlSchema = z
+  .string()
+  .url()
+  .describe('Canonical absolute URL for opening this resource in the Sim web application.')
+
+export const v2ForbiddenDetailCodeSchema = z.enum(FORBIDDEN_DETAIL_CODES).meta({
+  id: 'V2ForbiddenDetailCode',
+  title: 'Forbidden detail code',
+  description: 'Stable cause code for an actionable `403` response.',
+})
+
+const v2ActionableForbiddenDetailsSchema = z
+  .object({ code: v2ForbiddenDetailCodeSchema })
+  .catchall(z.unknown().describe('Additional context for this refusal.'))
+  .meta({
+    id: 'V2ActionableForbiddenDetails',
+    title: 'Actionable forbidden details',
+    description: 'Machine-readable cause and optional context for an actionable `403` response.',
+  })
+
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
   error: z
@@ -187,15 +205,13 @@ export const v2ErrorResponseSchema = z.object({
       code: z.string().describe('Stable machine-readable error code.'),
       message: z.string().describe('Human-readable explanation of the error.'),
       details: z
-        .unknown()
+        .union([
+          v2ActionableForbiddenDetailsSchema,
+          z.unknown().describe('Other structured context defined by the specific error.'),
+        ])
         .optional()
         .describe(
-          [
-            'Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:',
-            ...FORBIDDEN_DETAIL_CODES.map(
-              (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
-            ),
-          ].join('\n')
+          'Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.'
         ),
     })
     .describe('Canonical error details.'),
@@ -246,7 +262,7 @@ export const v2CursorListResponse = <T extends z.ZodType>(
  * Default and maximum page size for a v2 paged list.
  *
  * These are the values the majority of already-paged v2 lists shipped with
- * (`/workflows`, `/workflows/{id}/versions`, `/workflows/{id}/runs`,
+ * (`/workflows`, `/workflows/{workflowId}/versions`, `/workflows/{workflowId}/runs`,
  * `/workspaces/{id}/members`, `/billing/logs`), so they are what a list adopting
  * pagination now inherits.
  */
@@ -376,7 +392,7 @@ export function v2PaginationFields(options: V2LimitOptions = {}) {
  *
  * The form is `z.datetime()`, which is UTC-only: a date with no time
  * (`2026-08-06`) and an offset-bearing timestamp (`2026-08-06T00:00:00+02:00`)
- * are both rejected. `GET /logs` and `GET /workflows/{id}/runs` are sibling
+ * are both rejected. `GET /logs` and `GET /workflows/{workflowId}/runs` are sibling
  * reads over the same runs, so the same timestamp must work on both — sharing
  * the schema is what makes that true rather than merely intended, and it is why
  * the descriptions say "UTC ISO 8601" instead of overpromising "ISO 8601".
@@ -405,18 +421,19 @@ export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
 }
 
 /**
- * The single `order` param the two run-window reads take in place of
- * `sortBy` + `sortOrder`, for the same reason they share
- * {@link v2RunWindowBoundSchema}: `GET /logs` and `GET /workflows/{id}/runs` are
- * sibling reads over the same runs, so a value that works on one must work on
- * the other.
+ * The single `order` param `GET /workflows/{workflowId}/runs` takes in place of
+ * `sortBy` + `sortOrder`, because start time is the only column it can order by.
  *
- * Sharing it also keeps the *published* member order identical. Two hand-written
- * `z.enum([...])` literals spelled the same set in opposite orders, which the
- * generated specs faithfully reproduced — harmless to a parser, but it reads as
- * two APIs rather than one, and a caller comparing the two pages has no way to
- * tell an ordering accident from a meaningful difference. The order is
- * {@link LIST_SORT_ORDERS}, the same one `sortOrder` publishes everywhere else.
+ * `GET /logs` used to be its twin here. It is not any more: it reads the same
+ * rows but can also order them by duration, cost, and status, so it publishes
+ * the ordinary `sortBy` + `sortOrder` pair. The two remain sibling reads and
+ * still share {@link v2RunWindowBoundSchema}, so a timestamp that works on one
+ * works on the other — only the ordering vocabulary differs, and it differs
+ * because the sortable sets genuinely differ.
+ *
+ * The member order is {@link LIST_SORT_ORDERS}, the same one `sortOrder`
+ * publishes everywhere else, so the two spellings cannot drift apart in the
+ * generated specs and read as two APIs.
  */
 export function v2RunOrderSchema(subject: 'execution' | 'run') {
   return z
@@ -464,13 +481,12 @@ export const v2SearchSchema = z
  * to nothing, exactly as `workflowIds` naming no workflow does. These lists used
  * to answer `404 Folder not found` instead, which reported a missing collection
  * for a collection that exists, broke a pagination walk when a folder was
- * deleted mid-walk, and made a list a folder-existence oracle. The sibling
- * folder lists already answered a non-matching `parentPath` with an empty page.
- * Mutations keep their 404 — creating into or moving to a folder that does not
- * exist has no empty-set reading.
+ * deleted mid-walk, and made a list a folder-existence oracle. The folder lists
+ * answer a non-matching `parentPath` the same way, so one rule covers every
+ * folder filter in the family. Mutations keep their 404 — creating into or
+ * moving to a folder that does not exist has no empty-set reading.
  */
-export const V2_FOLDER_FILTER_MISS =
-  'A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.'
+export const V2_FOLDER_FILTER_MISS = 'Unknown folder paths contribute no matches.'
 
 export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS).describe('Sort direction.')
 
@@ -528,7 +544,8 @@ export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRoo
   maxLength: MAX_FOLDER_PATH_BYTES,
 })
 
-function normalizeFolderPathInput(path: string): string {
+/** Adds the leading slash a folder path may omit; validation stays with the canonical schemas. */
+export function normalizeFolderPathInput(path: string): string {
   return path.length === 0 || path.startsWith('/') ? path : `/${path}`
 }
 
@@ -586,7 +603,9 @@ export const v2ListFoldersQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose folders should be listed.'),
     parentPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to direct children of this parent path.'),
+      .describe(
+        `Restrict results to direct children of this parent path. ${V2_FOLDER_FILTER_MISS}`
+      ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the folder name.'),
     ...v2SortFields(v2FolderSortFields, { sortBy: 'name', sortOrder: 'asc' }),
   })
@@ -603,8 +622,8 @@ export const v2RelocateFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
     path: v2NonRootFolderPathInputSchema.describe('Current folder path.'),
-    destinationPath: v2NonRootFolderPathInputSchema.describe(
-      'New full path for the folder and its descendants.'
+    destinationPath: v2FolderPathInputSchema.describe(
+      'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).'
     ),
   })
   .strict()

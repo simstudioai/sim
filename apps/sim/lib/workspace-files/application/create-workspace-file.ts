@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  type ActiveWorkspaceContext,
   FileConflictError,
   loadActiveWorkspaceContext,
   uploadWorkspaceFile,
@@ -36,6 +37,7 @@ export interface CreateWorkspaceFileResult {
 export interface CreateWorkspaceFileBufferInput
   extends Omit<CreateWorkspaceFileInput, 'content' | 'encoding'> {
   content: Buffer
+  notifyWorkspaceChange?: boolean
 }
 
 async function resolveCreateWorkspaceFileContext(workspaceId: string) {
@@ -44,16 +46,17 @@ async function resolveCreateWorkspaceFileContext(workspaceId: string) {
   return workspace
 }
 
-async function createAuthorizedWorkspaceFile({
+/** Stores new file content in an already-authorized workspace; use cases own the authorization. */
+export async function createAuthorizedWorkspaceFile({
   principal,
   input,
   content,
   workspace,
 }: {
   principal: Principal
-  input: Omit<CreateWorkspaceFileInput, 'content' | 'encoding'>
+  input: Omit<CreateWorkspaceFileBufferInput, 'content'>
   content: Buffer
-  workspace: Awaited<ReturnType<typeof resolveCreateWorkspaceFileContext>>
+  workspace: ActiveWorkspaceContext
 }): Promise<CreateWorkspaceFileResult> {
   const attribution = resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: workspace.billedAccountUserId,
@@ -71,6 +74,7 @@ async function createAuthorizedWorkspaceFile({
         folderPath: input.folderPath,
         exactName: input.exactName,
         secretProvenance: input.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+        notifyWorkspaceChange: input.notifyWorkspaceChange,
       }
     )
   } catch (error) {
@@ -90,7 +94,7 @@ async function createAuthorizedWorkspaceFile({
   return { file }
 }
 
-function projectCreateWorkspaceFileAudit(result: CreateWorkspaceFileResult) {
+export function projectCreateWorkspaceFileAudit(result: CreateWorkspaceFileResult) {
   return {
     action: AuditAction.FILE_UPLOADED,
     resourceType: AuditResourceType.FILE,

@@ -31,8 +31,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -40,6 +38,11 @@ function program(): Command {
   const root = new Command('sim').exitOverride()
   for (const group of buildGeneratedCommands()) root.addCommand(group)
   attachProtocolCommands(root)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
   return root
 }
 
@@ -126,6 +129,13 @@ describe('files upload', () => {
         headers: { 'upload-token': 'secret-token' },
       },
     ])
+    /**
+     * The file record only: the transfer session is finished either way by the
+     * time anything is printed, so neither half of it is reported. The token in
+     * particular stays out of every format — it also authorizes aborting and
+     * completing the transfer, and this command runs in CI, where stdout is
+     * retained.
+     */
     expect(JSON.parse(logged[0])).toEqual({
       id: 'file_1',
       name: 'notes.txt',
@@ -137,6 +147,7 @@ describe('files upload', () => {
       uploadedAt: '2026-08-04T19:00:00.000Z',
       updatedAt: '2026-08-04T19:00:00.000Z',
     })
+    expect(logged[0]).not.toContain('upload_1')
     expect(logged[0]).not.toContain('secret-token')
   })
 

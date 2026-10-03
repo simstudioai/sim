@@ -50,7 +50,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId } = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'tables.use')
     if (accessError) return accessError
 
     const tables = await listTables(workspaceId)
@@ -115,6 +115,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       rateLimit,
       userId,
       params.workspaceId,
+      'tables.create',
       'write'
     )
     if (accessError) return accessError

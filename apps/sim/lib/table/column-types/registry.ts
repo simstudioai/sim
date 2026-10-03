@@ -26,16 +26,19 @@ import { jsonColumnType } from '@/lib/table/column-types/json'
 import { numberColumnType } from '@/lib/table/column-types/number'
 import {
   MULTI_SELECT_OPERATORS,
+  MULTI_SELECT_OPS,
   SINGLE_SELECT_OPERATORS,
+  SINGLE_SELECT_OPS,
   selectColumnType,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
+import { ttlColumnType } from '@/lib/table/column-types/ttl'
 import type { ColumnType, ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 export { COLUMN_TYPES }
-export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
+export { MULTI_SELECT_OPERATORS, MULTI_SELECT_OPS, SINGLE_SELECT_OPERATORS, SINGLE_SELECT_OPS }
 
 /**
  * Every column type, keyed by id. The annotation is the completeness gate —
@@ -46,6 +49,7 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   number: numberColumnType,
   boolean: booleanColumnType,
   date: dateColumnType,
+  ttl: ttlColumnType,
   json: jsonColumnType,
   select: selectColumnType,
   currency: currencyColumnType,
@@ -70,6 +74,11 @@ export function isColumnType(value: unknown): value is ColumnType {
  */
 export function columnTypeOf(column: Pick<ColumnDefinition, 'type'>): ColumnTypeDefinition {
   return COLUMN_TYPE_REGISTRY[column.type] ?? stringColumnType
+}
+
+/** Compares equivalent values without changing their stored representation. */
+export function columnValueForEquality(value: JsonValue, column: ColumnDefinition): JsonValue {
+  return columnTypeOf(column).valueForEquality?.(value) ?? value
 }
 
 /** The definition for a type id, or `string`'s when the id is unknown. */
@@ -114,4 +123,32 @@ export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefiniti
 /** Wire operators a column accepts, or `null` for "all operators". */
 export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
   return columnTypeOf(column).filterOperatorsFor?.(column) ?? null
+}
+
+/** Schema-level cardinality errors declared by column type definitions. */
+export function validateColumnTypeLimits(columns: readonly ColumnDefinition[]): string[] {
+  const errors: string[] = []
+  for (const definition of ALL_COLUMN_TYPES) {
+    if (definition.maxPerTable === undefined) continue
+    if (wouldExceedColumnTypeLimit(columns, definition.id)) {
+      errors.push(`A table can have at most ${definition.maxPerTable} ${definition.label} column`)
+    }
+  }
+  return errors
+}
+
+/** Whether adding columns of a type would exceed its registry-declared table limit. */
+export function wouldExceedColumnTypeLimit(
+  columns: readonly ColumnDefinition[],
+  type: ColumnType,
+  additionalColumns = 0
+): boolean {
+  const definition = COLUMN_TYPE_REGISTRY[type]
+  if (definition.maxPerTable === undefined) return false
+
+  const count = columns.reduce(
+    (total, column) => total + (column.type === type ? 1 : 0),
+    additionalColumns
+  )
+  return count > definition.maxPerTable
 }

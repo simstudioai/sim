@@ -395,7 +395,6 @@ export function KnowledgeTagFilters({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       cellKey,
-      fieldValue,
       (newValue) => {
         if (field === 'tagId') {
           const updatedFilters = filters.map((candidate) =>
@@ -535,7 +534,7 @@ export function KnowledgeTagFilters({
               <div className='flex-1'>
                 {renderValueInput(filter, 'tagValue', effectiveFieldType)}
               </div>
-              <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
+              <span className='shrink-0 text-muted-foreground text-xs'>to</span>
               <div className='flex-1'>
                 {renderValueInput(filter, 'valueTo', effectiveFieldType)}
               </div>

@@ -1,13 +1,15 @@
-import { readFileSync, unlinkSync } from 'node:fs'
+import { unlinkSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { isDesktopScopeId, isPendingDesktopScopeId } from '@sim/desktop-bridge'
 import { isRecordLike } from '@sim/utils/object'
 import { safeStorage } from 'electron'
-import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+import { readFileWithinLimitSync, writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
 
 const STORE_VERSION = 1
 const SNAPSHOT_VERSION = 1
 const MAX_DURABLE_ENTRIES = 100
+const MAX_STORE_BYTES = 10 * 1024 * 1024
+const MAX_BROWSER_TABS = 32
 const MAX_ORIGIN_LENGTH = 2_048
 const MAX_URL_LENGTH = 8_192
 const MAX_CWD_LENGTH = 4_096
@@ -21,7 +23,6 @@ export interface BrowserSessionSnapshot {
   v: typeof SNAPSHOT_VERSION
   tabs: Array<{
     url: string
-    pinned: boolean
   }>
   activeIndex: number
   downloads: Array<{
@@ -141,13 +142,41 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
     return null
   }
 
-  const tabs: BrowserSessionSnapshot['tabs'] = []
-  for (const candidate of value.tabs) {
-    if (!isRecordLike(candidate) || typeof candidate.pinned !== 'boolean') continue
+  const requestedActiveIndex =
+    typeof value.activeIndex === 'number' && Number.isInteger(value.activeIndex)
+      ? value.activeIndex
+      : 0
+  const activeSourceIndex =
+    requestedActiveIndex >= 0 && requestedActiveIndex < value.tabs.length
+      ? requestedActiveIndex
+      : null
+  const selectedTabs: Array<{
+    tab: BrowserSessionSnapshot['tabs'][number]
+    sourceIndex: number
+  }> = []
+  // The cap keeps the first tabs, always making room for the active one. A
+  // `pinned` flag from older snapshots is ignored.
+  for (let sourceIndex = 0; sourceIndex < value.tabs.length; sourceIndex++) {
+    const candidate = value.tabs[sourceIndex]
+    if (!isRecordLike(candidate)) continue
     const url = normalizeBrowserUrl(candidate.url)
     if (url === null) continue
-    tabs.push({ url, pinned: candidate.pinned })
+    const next = { tab: { url }, sourceIndex }
+    if (selectedTabs.length < MAX_BROWSER_TABS) {
+      selectedTabs.push(next)
+    } else if (sourceIndex === activeSourceIndex) {
+      selectedTabs[selectedTabs.length - 1] = next
+    }
   }
+  selectedTabs.sort((left, right) => left.sourceIndex - right.sourceIndex)
+  const tabs = selectedTabs.map(({ tab }) => tab)
+  const selectedActiveIndex = selectedTabs.findIndex(
+    ({ sourceIndex }) => sourceIndex === activeSourceIndex
+  )
+  const activeIndex =
+    selectedActiveIndex >= 0
+      ? selectedActiveIndex
+      : normalizeActiveIndex(requestedActiveIndex, tabs.length)
 
   const downloads: BrowserSessionSnapshot['downloads'] = []
   for (const candidate of value.downloads) {
@@ -193,7 +222,7 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
   return {
     v: SNAPSHOT_VERSION,
     tabs,
-    activeIndex: normalizeActiveIndex(value.activeIndex, tabs.length),
+    activeIndex,
     downloads,
   }
 }
@@ -275,7 +304,9 @@ export class DesktopChatSessionStore {
     if (!this.isAvailable()) return false
 
     try {
-      const envelope = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+      const envelope = JSON.parse(
+        readFileWithinLimitSync(this.filePath, MAX_STORE_BYTES).toString('utf8')
+      ) as unknown
       if (
         !isRecordLike(envelope) ||
         envelope.v !== STORE_VERSION ||
@@ -297,19 +328,20 @@ export class DesktopChatSessionStore {
       const loaded: SessionEntry[] = []
       for (const candidate of payload.entries) {
         const entry = this.normalizeEntry(candidate)
-        if (entry && isDurableScope(entry.scope)) loaded.push(entry)
+        if (!entry || !isDurableScope(entry.scope)) continue
+        loaded.push(entry)
+        loaded.sort(
+          (left, right) =>
+            right.lastAccessedAt - left.lastAccessedAt ||
+            keyFor(left.origin, left.scope).localeCompare(keyFor(right.origin, right.scope))
+        )
+        if (loaded.length > MAX_DURABLE_ENTRIES) loaded.pop()
       }
-
-      loaded.sort(
-        (left, right) =>
-          right.lastAccessedAt - left.lastAccessedAt ||
-          keyFor(left.origin, left.scope).localeCompare(keyFor(right.origin, right.scope))
-      )
 
       for (const [key, entry] of this.entries) {
         if (isDurableScope(entry.scope)) this.entries.delete(key)
       }
-      for (const entry of loaded.slice(0, MAX_DURABLE_ENTRIES)) {
+      for (const entry of loaded) {
         this.entries.set(keyFor(entry.origin, entry.scope), entry)
         this.accessClock = Math.max(this.accessClock, entry.lastAccessedAt)
       }
@@ -496,6 +528,7 @@ export class DesktopChatSessionStore {
         v: STORE_VERSION,
         ciphertext: this.encryption.encryptString(JSON.stringify(payload)).toString('base64'),
       }
+      if (Buffer.byteLength(JSON.stringify(envelope), 'utf8') > MAX_STORE_BYTES) return false
       writeJsonFileAtomicallySync(this.filePath, envelope)
       this.dirty = false
       return true

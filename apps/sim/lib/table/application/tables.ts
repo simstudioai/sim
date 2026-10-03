@@ -5,30 +5,49 @@ import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
+import {
+  findActiveFolder,
+  loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
+} from '@/lib/folders/queries'
+import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
+import {
+  resolveActiveTableContext,
+  resolveArchivedTableContext,
+  resolveTableWorkspaceContext,
+} from '@/lib/table/application/context'
+import {
+  archivableTableFolderPath,
+  resolveTableFolderPath,
+  tableFolderPathForId,
+} from '@/lib/table/application/folder-paths'
+import { tableOperations } from '@/lib/table/application/operations'
+import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   createTable,
   deleteTable,
   getTableById,
-  getWorkspaceTableLimits,
+  listTables as listTableDefinitions,
   moveTableToFolder,
   queryTables,
   renameTable,
-  type TableDefinition,
-  type TableSchema,
+  restoreTable,
+  type TableScope,
   updateTableDescription,
-} from '@/lib/table'
-import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
-import {
-  resolveActiveTableContext,
-  resolveTableWorkspaceContext,
-} from '@/lib/table/application/context'
-import { resolveTableFolderPath, tableFolderPathForId } from '@/lib/table/application/folder-paths'
-import { tableOperations } from '@/lib/table/application/operations'
-import { signalTableSchemaChanged } from '@/lib/table/events'
+} from '@/lib/table/service'
+import type { TableDefinition, TableSchema } from '@/lib/table/types'
 
 export interface ListTablesInput {
   workspaceId: string
+  /**
+   * Which lifecycle set to list. Omitted means `active`, matching every shipped
+   * caller. Deliberately narrower than the `TableScope` the query layer takes:
+   * its third value, `'all'`, would mix archived rows into a page projected by
+   * the strict folder-path resolver, which throws on the dangling `folderId` a
+   * folder archive leaves behind.
+   */
+  scope?: 'active' | 'archived'
   folderPath?: string
   search?: string
   sortBy: V2TableSortBy
@@ -51,6 +70,7 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     }
 
     const { tables, nextKeys } = await queryTables(context.workspaceId, {
+      scope: input.scope,
       folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
@@ -62,11 +82,30 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     return {
       tables: tables.map((table) => ({
         table,
-        folderPath: tableFolderPathForId(folderIndex, table.folderId),
+        folderPath:
+          input.scope === 'archived'
+            ? archivableTableFolderPath(folderIndex, table.folderId)
+            : tableFolderPathForId(folderIndex, table.folderId),
       })),
       nextKeys,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
+    }
+  },
+})
+
+export interface ListTableDefinitionsInput {
+  workspaceId: string
+  scope?: TableScope
+}
+
+export const listTableDefinitionsUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.list,
+  resolveContext: ({ input }: { input: ListTableDefinitionsInput }) =>
+    resolveTableWorkspaceContext(input.workspaceId),
+  async execute({ input, context }) {
+    return {
+      tables: await listTableDefinitions(context.workspaceId, { scope: input.scope }),
     }
   },
 })
@@ -77,6 +116,7 @@ export interface CreateTableInput {
   description?: string
   schema: TableSchema
   folderPath?: string
+  folderId?: string | null
   initialRowCount?: number
 }
 
@@ -89,8 +129,21 @@ export const createTableUseCase = defineAuthorizedTableUseCase({
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
     const planLimits = await getWorkspaceTableLimits(context.workspaceId)
-    const resolution = await resolveTableFolderPath(context.workspaceId, input.folderPath ?? '/')
-    if (!resolution) throw new OrchestrationError('not_found', 'Folder not found')
+    const resolution =
+      input.folderId !== undefined
+        ? {
+            folderId: input.folderId,
+            index: await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+              maxRows: MAX_FOLDERS_PER_WORKSPACE,
+            }),
+          }
+        : await resolveTableFolderPath(context.workspaceId, input.folderPath ?? '/')
+    if (
+      !resolution ||
+      (input.folderId && !(await findActiveFolder(input.folderId, context.workspaceId, 'table')))
+    ) {
+      throw new OrchestrationError('not_found', 'Folder not found in this workspace')
+    }
 
     const table = await createTable(
       {
@@ -143,6 +196,31 @@ export const readTableUseCase = defineAuthorizedTableUseCase({
       table: context.table,
       folderPath: tableFolderPathForId(index, context.table.folderId),
     }
+  },
+})
+
+export const readTableDefinitionUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.read,
+  resolveContext: ({ input }: { input: ReadTableInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ context }) {
+    return { table: context.table }
+  },
+})
+
+export const readTableDetailsUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.read,
+  resolveContext: ({ input }: { input: ReadTableInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ context }) {
+    const { maxRowsPerTable } = await getWorkspaceTableLimits(context.workspaceId)
+    return { table: context.table, maxRows: maxRowsPerTable }
   },
 })
 
@@ -219,7 +297,10 @@ export const updateTableUseCase = defineAuthorizedTableUseCase({
 
       const table = await getTableById(current.id)
       if (!table || table.workspaceId !== context.workspaceId) {
-        throw new OrchestrationError('not_found', 'Table not found')
+        throw new OrchestrationError(
+          'not_found',
+          'Table not found in this workspace — list the tables in this workspace to see valid table ids'
+        )
       }
       const index =
         resolution?.index ??
@@ -290,7 +371,11 @@ export const deleteTableUseCase = defineAuthorizedTableUseCase({
     const { archived } = await deleteTable(context.table.id, generateRequestId(), {
       expectedWorkspaceId: context.workspaceId,
     })
-    if (!archived) throw new OrchestrationError('not_found', 'Table not found')
+    if (!archived)
+      throw new OrchestrationError(
+        'not_found',
+        'Table not found in this workspace — list the tables in this workspace to see valid table ids'
+      )
     return {
       id: context.table.id,
       deleted: true as const,
@@ -308,5 +393,60 @@ export const deleteTableUseCase = defineAuthorizedTableUseCase({
       resourceName: result.tableName,
       description: `Archived table "${result.tableName}"`,
     }
+  },
+})
+
+/**
+ * Un-archives a table that {@link deleteTableUseCase} archived.
+ *
+ * Calls the service primitive rather than `performRestoreTable`: that
+ * orchestration records its own audit row keyed on a bare `userId`, which
+ * cannot represent a workspace-key or delegated principal. Audit is projected
+ * here instead, from the authoritative restored row.
+ *
+ * Restore is deliberately not gated by the delete lock — see `restoreTable`.
+ *
+ * Idempotent: a table that is already active is returned unchanged, with no
+ * restore performed and no audit entry recorded. A `409` there would make a
+ * retry after a dropped response look like a failure, and restore has no state
+ * a second call could corrupt — the same position the knowledge surface takes
+ * on its own restore.
+ */
+export const restoreTableUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.restore,
+  resolveContext: ({ input }: { input: ReadTableInput }) =>
+    resolveArchivedTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ context }) {
+    const restored = context.table.archivedAt !== null
+    if (restored) {
+      await restoreTable(context.table.id, generateRequestId())
+    }
+    const table = await getTableById(context.table.id)
+    if (!table || table.workspaceId !== context.workspaceId) {
+      throw new OrchestrationError('not_found', 'Table not found')
+    }
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    return { table, folderPath: tableFolderPathForId(index, table.folderId), restored }
+  },
+  projectAudit({ result }) {
+    return result.restored
+      ? [
+          {
+            action: AuditAction.TABLE_RESTORED,
+            resourceType: AuditResourceType.TABLE,
+            resourceId: result.table.id,
+            resourceName: result.table.name,
+            description: `Restored table "${result.table.name}"`,
+          },
+        ]
+      : []
+  },
+  afterSuccess({ result }) {
+    if (result.restored) signalTableSchemaChanged(result.table.id)
   },
 })

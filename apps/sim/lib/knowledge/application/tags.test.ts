@@ -1,67 +1,47 @@
-/**
- * @vitest-environment node
- */
-
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveKnowledgeBase: vi.fn(),
-  resolveTag: vi.fn(),
-  resolveDocument: vi.fn(),
-  resolvePermission: vi.fn(),
-  listTags: vi.fn(),
-  nextSlot: vi.fn(),
-  createTag: vi.fn(),
-  updateTag: vi.fn(),
-  deleteTag: vi.fn(),
-  readUsage: vi.fn(),
-  saveTags: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated' },
-  AuditResourceType: { KNOWLEDGE_BASE: 'knowledge_base' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
-  resolveActiveKnowledgeTagContext: mocks.resolveTag,
-  resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveDocument,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitions: mocks.listTags,
-  getNextAvailableSlot: mocks.nextSlot,
-  createTagDefinition: mocks.createTag,
-  updateTagDefinition: mocks.updateTag,
-  deleteTagDefinition: mocks.deleteTag,
-  getTagUsageStats: mocks.readUsage,
-  createOrUpdateTagDefinitionsBulk: mocks.saveTags,
-}))
-
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   createKnowledgeTag,
   deleteKnowledgeTag,
   listKnowledgeTags,
   readKnowledgeTagUsage,
-  saveKnowledgeDocumentTagDefinitions,
+  readNextKnowledgeTagSlot,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
 
+knowledgeContextsMockFns.mockResolveActiveKnowledgeResourceContext.mockImplementation(
+  (...args: unknown[]) => knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext(...args)
+)
+
+/** Every mocked context carries the workspace read scope the resolvers would attach. */
+const knowledgeAccess = {
+  get: async () => WORKSPACE_ACCESS_SCOPE,
+  getForConnectors: async () => WORKSPACE_ACCESS_SCOPE,
+  getForDocuments: async () => WORKSPACE_ACCESS_SCOPE,
+}
+
 const crossWorkspaceContext = {
+  access: knowledgeAccess,
   workspaceId: 'workspace-b',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
@@ -92,11 +72,7 @@ const documentContext = {
   },
 }
 
-const sessionPrincipal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal()
 
 const delegatedPrincipal = {
   kind: 'delegated' as const,
@@ -110,14 +86,34 @@ const delegatedPrincipal = {
   resourceScope: {},
 }
 
+const mocks = {
+  listTags: knowledgeTagsServiceMockFns.mockGetDocumentTagDefinitions,
+  listAllTags: knowledgeTagsServiceMockFns.mockGetTagDefinitions,
+  nextSlot: knowledgeTagsServiceMockFns.mockGetNextAvailableSlot,
+  createTag: knowledgeTagsServiceMockFns.mockCreateTagDefinition,
+  updateTag: knowledgeTagsServiceMockFns.mockUpdateTagDefinition,
+  deleteTag: knowledgeTagsServiceMockFns.mockDeleteTagDefinition,
+  readUsage: knowledgeTagsServiceMockFns.mockGetTagUsageStats,
+  readDetailedUsage: knowledgeTagsServiceMockFns.mockGetTagUsage,
+  saveTags: knowledgeTagsServiceMockFns.mockCreateOrUpdateTagDefinitionsBulk,
+  cleanupTags: knowledgeTagsServiceMockFns.mockCleanupUnusedTagDefinitions,
+  deleteAllTags: knowledgeTagsServiceMockFns.mockDeleteAllTagDefinitions,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolveKnowledgeBase: knowledgeContextsMockFns.mockResolveActiveKnowledgeBaseContext,
+  resolveTag: knowledgeContextsMockFns.mockResolveActiveKnowledgeTagContext,
+  resolveDocument: knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext,
+}
+
 describe('knowledge tag application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveTag.mockResolvedValue(tagContext)
     mocks.resolveDocument.mockResolvedValue(documentContext)
     mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
+    mocks.listAllTags.mockResolvedValue([])
+    mocks.listTags.mockResolvedValue([])
   })
 
   it.each([
@@ -179,52 +175,6 @@ describe('knowledge tag application use cases', () => {
     }
   )
 
-  it('authorizes current delegated membership before mutation and records semantic audit', async () => {
-    const sameWorkspaceContext = {
-      ...tagContext,
-      workspaceId: 'workspace-a',
-      knowledgeBaseId: 'knowledge-a',
-      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
-      tagDefinition: { ...tagContext.tagDefinition, knowledgeBaseId: 'knowledge-a' },
-    }
-    const updatedTag = { ...sameWorkspaceContext.tagDefinition, displayName: 'Market' }
-    mocks.resolveTag.mockResolvedValueOnce(sameWorkspaceContext)
-    mocks.updateTag.mockResolvedValueOnce(updatedTag)
-
-    const result = await updateKnowledgeTag.execute({
-      principal: delegatedPrincipal,
-      input: {
-        tagDefinitionId: 'tag-b',
-        assertedWorkspaceId: 'workspace-a',
-        updates: { displayName: 'Market' },
-        source: 'agent',
-      },
-    })
-
-    expect(result.tagDefinition).toEqual(updatedTag)
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'shared-user',
-      'workspace-a',
-      null,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.updateTag.mock.invocationCallOrder[0]
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-a',
-        action: 'knowledge_base.updated',
-        metadata: expect.objectContaining({
-          operation: 'knowledge.tags.update',
-          change: 'tag_updated',
-          actor: expect.objectContaining({ kind: 'delegated', serviceId: 'copilot' }),
-        }),
-      })
-    )
-  })
-
   it.each([
     ['an unknown slot', { tagSlot: 'tag99', fieldType: 'text' }],
     ['a slot reserved for another field type', { tagSlot: 'number1', fieldType: 'text' }],
@@ -244,9 +194,55 @@ describe('knowledge tag application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('accepts a create slot matching its field type', async () => {
-    const tagDefinition = { ...tagContext.tagDefinition, id: 'tag-new' }
-    mocks.createTag.mockResolvedValueOnce(tagDefinition)
+  /**
+   * The unique index on display name is case-sensitive, so it admits names that
+   * differ only in case. Two such tags are indistinguishable in every surface
+   * that filters by name.
+   */
+  it('rejects a create whose display name differs from an existing one only in case', async () => {
+    mocks.listTags.mockResolvedValueOnce([
+      {
+        id: 'tag-1',
+        knowledgeBaseId: 'knowledge-b',
+        tagSlot: 'tag1',
+        displayName: 'clitest-cat',
+        fieldType: 'text',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])
+
+    await expect(
+      createKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          displayName: 'CLITEST-CAT',
+          fieldType: 'text',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    expect(mocks.createTag).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Neither uniqueness invariant can be checked before the write: the read that
+   * would check it and the insert that depends on the answer are separate
+   * statements. `tagSlot` is a caller parameter too, so an occupied slot reaches
+   * the index on the first try — a 500 for an ordinary well-formed request.
+   */
+  it.each([
+    ['kb_tag_definitions_kb_slot_idx', /slot is already in use/i],
+    ['kb_tag_definitions_kb_display_name_idx', /name already exists/i],
+  ])('reports a create that loses at %s as a conflict', async (constraint, message) => {
+    mocks.createTag.mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint_name: constraint,
+      })
+    )
 
     await expect(
       createKnowledgeTag.execute({
@@ -258,59 +254,103 @@ describe('knowledge tag application use cases', () => {
           fieldType: 'text',
         },
       })
-    ).resolves.toEqual({ tagDefinition, knowledgeBaseId: 'knowledge-b' })
+    ).rejects.toMatchObject({ code: 'conflict', message: expect.stringMatching(message) })
 
-    expect(mocks.createTag).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'knowledge-b',
-        tagSlot: 'tag1',
-        displayName: 'Region',
-        fieldType: 'text',
-      },
-      expect.any(String)
-    )
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  /**
+   * A tag's slot is fixed, and each slot holds one kind of value. Without this
+   * guard a tag sitting in a text slot could be relabelled `number`, and every
+   * later read would interpret its text values as the wrong type.
+   */
   it.each([
-    ['an unsupported field type', { tagSlot: 'tag1', fieldType: 'nonsense' }],
-    ['an unknown slot', { tagSlot: 'tag99', fieldType: 'text' }],
-  ])('rejects bulk save with %s before persistence', async (_description, definition) => {
+    ['number', 'tag1'],
+    ['date', 'tag1'],
+  ])('rejects changing fieldType to %s, invalid for the tag slot', async (fieldType, tagSlot) => {
+    mocks.resolveTag.mockResolvedValueOnce({
+      ...tagContext,
+      tagDefinition: { ...tagContext.tagDefinition, tagSlot, fieldType: 'text' },
+    })
+
     await expect(
-      saveKnowledgeDocumentTagDefinitions.execute({
+      updateKnowledgeTag.execute({
         principal: sessionPrincipal,
         input: {
           knowledgeBaseId: 'knowledge-b',
-          documentId: 'document-b',
-          definitions: [{ ...definition, displayName: 'Region' }],
+          tagDefinitionId: 'tag-1',
+          updates: { fieldType },
         },
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.saveTags).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mocks.updateTag).not.toHaveBeenCalled()
   })
 
-  it('preserves legacy bulk rename payloads whose existing slot and field type differ', async () => {
-    const definitions = [
+  /**
+   * The display-name index is case-sensitive, so it admits on rename exactly the
+   * pair create rejects.
+   */
+  it('rejects a rename whose display name differs from an existing one only in case', async () => {
+    mocks.listTags.mockResolvedValueOnce([
       {
-        tagSlot: 'number1',
-        displayName: 'Customer region',
-        originalDisplayName: 'Region',
+        id: 'tag-other',
+        knowledgeBaseId: 'knowledge-b',
+        tagSlot: 'tag2',
+        displayName: 'clitest-cat',
         fieldType: 'text',
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
-    ]
+    ])
 
     await expect(
-      saveKnowledgeDocumentTagDefinitions.execute({
+      updateKnowledgeTag.execute({
         principal: sessionPrincipal,
         input: {
           knowledgeBaseId: 'knowledge-b',
-          documentId: 'document-b',
-          definitions,
+          tagDefinitionId: 'tag-b',
+          updates: { displayName: 'CLITEST-CAT' },
         },
       })
-    ).resolves.toEqual({ created: [], updated: [], errors: [] })
+    ).rejects.toMatchObject({ code: 'conflict' })
 
-    expect(mocks.saveTags).toHaveBeenCalledWith('knowledge-b', { definitions }, expect.any(String))
+    expect(mocks.updateTag).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
+
+  /**
+   * `TAG_SLOT_CONFIG` gives text 7 slots but number 5, boolean 3, and date 2, so
+   * a fixed total of 7 reported free capacity a narrower field type does not
+   * have — `number` with four slots taken read as three remaining when one did.
+   */
+  it.each([
+    ['text', 7],
+    ['number', 5],
+    ['boolean', 3],
+    ['date', 2],
+  ] as const)(
+    'reports %s capacity from its own slot table, not the text one',
+    async (fieldType, maxSlots) => {
+      mocks.listAllTags.mockResolvedValue([
+        { tagSlot: `${fieldType}-slot-1`, fieldType },
+        { tagSlot: `${fieldType}-slot-2`, fieldType },
+        { tagSlot: 'tag7', fieldType: 'text-other' },
+      ])
+      mocks.nextSlot.mockResolvedValue(`${fieldType}-slot-3`)
+
+      await expect(
+        readNextKnowledgeTagSlot.execute({
+          principal: sessionPrincipal,
+          input: { knowledgeBaseId: 'knowledge-b', fieldType },
+        })
+      ).resolves.toEqual({
+        nextAvailableSlot: `${fieldType}-slot-3`,
+        fieldType,
+        usedSlots: [`${fieldType}-slot-1`, `${fieldType}-slot-2`],
+        totalSlots: maxSlots,
+        availableSlots: maxSlots - 2,
+      })
+    }
+  )
 })

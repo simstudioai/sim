@@ -1,7 +1,7 @@
 import type { GmailMoveParams, GmailToolResponse } from '@/tools/gmail/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const gmailMoveTool: ToolConfig<GmailMoveParams, GmailToolResponse> = {
+export const gmailMoveTool: InternalToolConfig<GmailMoveParams, GmailToolResponse> = {
   id: 'gmail_move',
   name: 'Gmail Move',
   description: 'Move emails between Gmail labels/folders',
@@ -39,13 +39,8 @@ export const gmailMoveTool: ToolConfig<GmailMoveParams, GmailToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/gmail/move',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: GmailMoveParams) => ({
+  operation: {
+    input: (params: GmailMoveParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
       addLabelIds: params.addLabelIds,
@@ -99,14 +94,14 @@ interface GmailModifyV2Response {
   }
 }
 
-export const gmailMoveV2Tool: ToolConfig<GmailMoveParams, GmailModifyV2Response> = {
+export const gmailMoveV2Tool: InternalToolConfig<GmailMoveParams, GmailModifyV2Response> = {
   id: 'gmail_move_v2',
   name: 'Gmail Move',
   description: 'Move emails between labels/folders in Gmail. Returns API-aligned fields only.',
   version: '2.0.0',
   oauth: gmailMoveTool.oauth,
   params: gmailMoveTool.params,
-  request: gmailMoveTool.request,
+  operation: gmailMoveTool.operation,
   transformResponse: async (response: Response, params?: GmailMoveParams) => {
     const legacy = await gmailMoveTool.transformResponse!(response, params)
     if (!legacy.success) {

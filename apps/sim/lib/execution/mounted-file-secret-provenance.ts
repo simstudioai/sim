@@ -1,10 +1,12 @@
 import type { WorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   createResolvedSecretMatcher,
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const MAX_MOUNTED_FILE_SECRET_MATCH_EVENTS = 1_000_000
@@ -12,11 +14,10 @@ const ANONYMOUS_MOUNTED_FILE_SECRET_NAME = 'MOUNTED_FILE_SECRET'
 
 export interface MountedFileSecretProvenanceScanner {
   /**
-   * True when the envelope attested to any secret material, whether or not it could be turned into
-   * a scannable literal. False therefore means the mount carried nothing to leak — which lets
-   * callers classify content this scanner cannot soundly scan (binary bytes) instead of failing
-   * closed. Entries that fail to yield plaintext keep this true: losing the ability to scan them
-   * makes the mount less classifiable, not more.
+   * True when the envelope carries material protected by the shared literal policy, or an entry
+   * cannot be inspected. Successfully decrypted short values do not taint derived binary files.
+   * Entries that fail to yield plaintext keep this true: losing the ability to scan them makes
+   * the mount less classifiable, not more.
    */
   hasSecrets: boolean
   scan(buffer: Buffer): WorkspaceFileSecretProvenance
@@ -25,10 +26,6 @@ export interface MountedFileSecretProvenanceScanner {
 const UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER: MountedFileSecretProvenanceScanner = {
   hasSecrets: true,
   scan: () => ({ status: 'unknown' }),
-}
-
-function compareStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
 }
 
 /**
@@ -42,12 +39,17 @@ export async function createMountedFileSecretProvenanceScanner(
   if (!provenance.complete) return UNKNOWN_MOUNTED_FILE_SECRET_PROVENANCE_SCANNER
   if (!provenance.scope?.userId) return undefined
 
-  const hasSecrets = provenance.entries.length > 0
+  let hasSecrets = false
   const entriesByScanLiteral = new Map<string, Map<string, WorkspaceFileSecretProvenanceEntry>>()
   try {
     for (const entry of provenance.entries) {
       const { decrypted: plaintext } = await decryptSecret(entry.encryptedValue)
-      if (!plaintext) continue
+      if (!plaintext) {
+        hasSecrets = true
+        continue
+      }
+      if (isNonIdentifyingSecretLiteral(plaintext)) continue
+      hasSecrets = true
       const fileEntry: WorkspaceFileSecretProvenanceEntry = {
         name: entry.name || ANONYMOUS_MOUNTED_FILE_SECRET_NAME,
         encryptedValue: entry.encryptedValue,
@@ -89,6 +91,14 @@ export async function createMountedFileSecretProvenanceScanner(
 
   return {
     hasSecrets,
+    /**
+     * A scan that cannot finish yields `unknown` — a taint — where the registry's per-value scan
+     * over-approximates instead. The asymmetry is deliberate: that scan only narrows a candidate
+     * set that is already a sound answer, while this one decides whether egress redaction of these
+     * entries would suffice for these bytes — a claim that cannot be made for content the same
+     * matcher just failed on. Reaching the event bound takes an eight-plus-character literal
+     * occurring ~a million times, so only degenerate content pays the refusal.
+     */
     scan(buffer) {
       const matched = new Map<string, WorkspaceFileSecretProvenanceEntry>()
       try {

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelListTeamMembersParams,
   VercelListTeamMembersResponse,
@@ -68,7 +69,7 @@ export const vercelListTeamMembersTool: ToolConfig<
       if (params.until) query.set('until', String(params.until))
       if (params.search) query.set('search', params.search.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v3/teams/${params.teamId.trim()}/members${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v3/teams/${safeUrlPathSegment(params.teamId, 'teamId')}/members${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelListTeamMembersParams) => ({

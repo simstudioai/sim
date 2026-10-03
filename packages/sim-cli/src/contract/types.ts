@@ -57,8 +57,32 @@ export interface FlagSpec {
    * invisible to any type-driven generator.
    */
   list?: boolean
+  /**
+   * The list's natural source is a manifest file, so `@path` / `@-` skip blank
+   * lines and `#` comments instead of refusing them.
+   *
+   * The shared reader treats a blank line as a typo, which is right for an id
+   * list. A dependency list is pasted from a requirements file or a lockfile,
+   * where blank lines and comments are how people structure it, and the API
+   * already ignores both — the terminal was the only surface that refused
+   * them. Inline argv values are untouched: an empty argument is still an
+   * error, and a literal `#` value can still be passed.
+   */
+  manifest?: true
   /** Take a JSON string. Implied for object/array/unknown fields. */
   json?: boolean
+  /**
+   * Accept a plain whole number and send the route's `{ type: 'rows', max: n }`.
+   *
+   * A deliberate one-off for `tables dispatches create --max-rows`: the only
+   * request field in the CLI whose object shape holds exactly one free value,
+   * because its `type` is a `z.literal('rows')`. Left as JSON, the flag made a
+   * caller type `{"type":"rows","max":100}` — four tokens of ceremony to say
+   * `100`, in a shape nothing in the terminal spells out. Not a general
+   * value-transform hook: no second field wants one, and a second one arriving
+   * is the point at which this should become one.
+   */
+  rowCap?: true
   /** Overrides the help text otherwise taken from the OpenAPI description. */
   describe?: string
   /**
@@ -73,8 +97,30 @@ export interface FlagSpec {
   requestDefault?: string
   /** Accepted values when the generated descriptor cannot recover an enum. */
   choices?: readonly string[]
-  /** Expose a string-backed API boolean as a conventional terminal toggle. */
+  /**
+   * Expose a string-backed API boolean as a conventional terminal toggle.
+   *
+   * A toggle declared here carries no generated `--no-<name>` twin by default,
+   * because sending false is usually either meaningless — the server already
+   * defaults the field to false — or rejected outright, as on a field the API
+   * declares as `z.literal(true)`. {@link negatable} asks for the twin back on
+   * the one kind of field where false is a real request.
+   */
   boolean?: true
+  /**
+   * Give a {@link boolean} toggle its `--no-<name>` twin after all.
+   *
+   * Withholding the twin is right for a one-way switch: most string-backed
+   * toggles sit on a field the server already defaults to false, so a negation
+   * would only restate the default, and on a `z.literal(true)` field it would
+   * send a request the route rejects. `files list --recursive` is neither — the
+   * API turns it on by itself as soon as a search is set, so without a spelling
+   * for false there is no way to search one folder without descending into it.
+   * Declared per flag rather than derived from the union's false spellings,
+   * which every one of these toggles publishes whether or not sending one means
+   * anything.
+   */
+  negatable?: true
   /**
    * This field carries a folder path, so percent-encode each of its segments.
    *
@@ -96,6 +142,8 @@ export interface FlagSpec {
    * owns that instead.
    */
   omit?: boolean
+  /** Accept and send this generated field, but hide its low-level flag from help. */
+  hidden?: boolean
 }
 
 /** How a route path parameter is exposed as a required named option. */
@@ -117,12 +165,34 @@ export interface ColumnSpec {
   /** Dot path into the row. Defaults to `header`. */
   path?: string
   /**
+   * Narrowest this column may lock to when a renderer fixes its widths before
+   * it has seen the rows.
+   *
+   * `logs list` sizes every column from the page it is about to print, so it
+   * never needs this. A follow cannot: it locks the widths on its first batch so
+   * the stream reads as one table, and `logs follow -n 0` locks them on no rows
+   * at all — every column collapsed to its header label, and a run id printed as
+   * `9f…`. The floor is what the column's own rendering is known to need (a
+   * timestamp is 19 characters, a run id 36), so it is stated here beside the
+   * `format` that produces it rather than guessed by the renderer. Capped by the
+   * renderer's own maximum cell width; a floor above that is a spec bug.
+   */
+  minWidth?: number
+  /**
    * Rendering hint; `auto` inspects the value.
    *
    * `folder-path` is the display half of `FlagSpec.folderPath`: it undoes the
    * wire encoding for the human formats, so a folder no longer prints as
    * `/cli-test-a/nested%20one` in the same row as the `nested one` the server
    * put in the adjacent name column.
+   *
+   * `score` fixes a similarity to four decimals. The raw double arrives as
+   * `0.2818957269585687`, a nineteen-character column whose last dozen digits
+   * cannot separate one result from another.
+   *
+   * `people` shows a list of `{ id, email }` users by email. A user whose
+   * account is gone has a null email, so the id stands in rather than the
+   * person vanishing from the list.
    */
   format?:
     | 'auto'
@@ -134,6 +204,8 @@ export interface ColumnSpec {
     | 'count'
     | 'trace-count'
     | 'folder-path'
+    | 'score'
+    | 'people'
 }
 
 export interface BodyVariantSpec {
@@ -204,6 +276,20 @@ export interface CommandSpec {
   expandedTrace?: boolean
   /** Dot path to a nested result array rendered as the command's human list. */
   itemsPath?: string
+  /**
+   * A page-envelope field that qualifies the whole list, stated once for the
+   * human formats.
+   *
+   * `billing logs` answers a different question depending on the credential —
+   * an OAuth login or personal key sees the caller's own events, while a
+   * workspace key sees the whole workspace ledger. The response says which. The value
+   * belongs to the query rather than to any row, so it is not a column; it goes
+   * to stderr so that a `--output text` consumer cutting tab-separated fields
+   * still reads only rows. `json` and `yaml` print the unwrapped `data` array
+   * and so drop the field too, which is why the note is not limited to the
+   * human formats — see `runtime/result`.
+   */
+  pageNote?: { path: string; label: string }
   /** Allow an optional workspaceId field to omit the configured workspace filter. */
   allWorkspaces?: boolean
   /**
@@ -230,6 +316,8 @@ export interface CommandSpec {
    * when the profile says so) whatever the profile's display format is.
    */
   document?: boolean
+  /** Mutation returns a durable workspace operation and supports --wait. */
+  workspaceOperation?: boolean
   /** Keep the operation out of the CLI surface entirely. */
   hidden?: boolean
 }

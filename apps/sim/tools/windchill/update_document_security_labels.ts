@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_BULK_MUTATION_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,7 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillUpdateDocumentSecurityLabelsTool: ToolConfig<
+export const windchillUpdateDocumentSecurityLabelsTool: InternalToolConfig<
   WindchillParams,
   WindchillResponse
 > = {
@@ -44,13 +44,9 @@ export const windchillUpdateDocumentSecurityLabelsTool: ToolConfig<
       description: 'Array of document IDs and installed security-label values',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) =>
+  operation: {
+    input: (params) =>
       buildWindchillInternalBody('windchill_update_document_security_labels', params),
-    internalAuth: 'executor_delegation',
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_update_document_security_labels', response),

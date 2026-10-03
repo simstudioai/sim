@@ -3,9 +3,11 @@ import { devtools } from 'zustand/middleware'
 
 interface SettingsDirtyStore {
   isDirty: boolean
+  navigationBlocked: boolean
   /** Leave action deferred until the user confirms discard. */
   pendingLeave: (() => void) | null
   setDirty: (dirty: boolean) => void
+  setNavigationBlocked: (blocked: boolean) => void
   /**
    * Call before leaving the current settings surface. If clean, runs `leave` immediately
    * and returns `true`. If dirty, stashes `leave` and returns `false` so the shared
@@ -22,6 +24,7 @@ interface SettingsDirtyStore {
 
 const initialState = {
   isDirty: false,
+  navigationBlocked: false,
   pendingLeave: null as (() => void) | null,
 }
 
@@ -32,7 +35,11 @@ export const useSettingsDirtyStore = create<SettingsDirtyStore>()(
 
       setDirty: (dirty) => set({ isDirty: dirty }),
 
+      setNavigationBlocked: (blocked) =>
+        set({ navigationBlocked: blocked, ...(blocked ? { pendingLeave: null } : {}) }),
+
       requestLeave: (leave) => {
+        if (get().navigationBlocked) return false
         if (!get().isDirty) {
           leave()
           return true
@@ -42,7 +49,8 @@ export const useSettingsDirtyStore = create<SettingsDirtyStore>()(
       },
 
       confirmLeave: () => {
-        const { pendingLeave } = get()
+        const { navigationBlocked, pendingLeave } = get()
+        if (navigationBlocked) return
         set({ ...initialState })
         pendingLeave?.()
       },

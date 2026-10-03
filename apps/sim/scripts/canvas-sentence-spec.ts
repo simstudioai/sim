@@ -49,7 +49,7 @@ function loadToolDescriptions(type: string): Map<string, string> {
   const byLabel = new Map<string, string>()
   try {
     const catalog = JSON.parse(
-      readFileSync('apps/sim/lib/integrations/integrations.json', 'utf-8')
+      readFileSync('packages/deployment-config/src/integrations.json', 'utf-8')
     ) as {
       integrations: Array<{
         type: string
@@ -117,6 +117,8 @@ function visibleOperations(subBlock: SubBlockConfig): string[] | 'all' | 'unknow
   return main.filter((id) => allowed.has(id))
 }
 
+// canonical-index-unscoped: structural only — the spec lists a canonical group whole and
+// resolves no values, so neither surface can shadow the other.
 const canonicalIndex = buildCanonicalIndex(config.subBlocks)
 
 /* A sentence can never usefully name these: the operation selector supplies the
