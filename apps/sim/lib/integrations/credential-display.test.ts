@@ -64,6 +64,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
+  'oracle-fusion-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
@@ -108,6 +109,14 @@ describe('GitHub Search credentials', () => {
 })
 
 describe('service-account coverage', () => {
+  it('binds Subscription Management to the shared Fusion credential family', () => {
+    const service =
+      OAUTH_PROVIDERS.oracle_fusion_subscription_management.services
+        .oracle_fusion_subscription_management
+    expect(credentialProviderMatchesService('oracle-fusion-service-account', service)).toBe(true)
+    expect(credentialProviderMatchesService('netsuite-service-account', service)).toBe(false)
+  })
+
   it('pins the table to exactly the registered service-account provider ids', () => {
     expect(REGISTERED_SERVICE_ACCOUNT_IDS).toEqual(Object.keys(EXPECTED_COVERAGE).sort())
   })

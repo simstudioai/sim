@@ -24,6 +24,7 @@ import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/m
 import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/monday'
 import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/netsuite'
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
+import { oracleFusionSubscriptionSelectorAttachments } from '@/lib/selectors/server/providers/oracle-fusion-subscription-management'
 import { pipedriveSelectorAttachments } from '@/lib/selectors/server/providers/pipedrive'
 import { planetScaleSelectorAttachments } from '@/lib/selectors/server/providers/planetscale'
 import { powerBISelectorAttachments } from '@/lib/selectors/server/providers/powerbi'
@@ -62,6 +63,7 @@ export const serverSelectorRegistry = {
   ...microsoftSelectorAttachments,
   ...mondaySelectorAttachments,
   ...netsuiteSelectorAttachments,
+  ...oracleFusionSubscriptionSelectorAttachments,
   ...notionSelectorAttachments,
   ...pipedriveSelectorAttachments,
   ...planetScaleSelectorAttachments,
