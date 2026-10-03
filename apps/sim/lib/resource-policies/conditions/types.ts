@@ -3,6 +3,7 @@ export const RESOURCE_POLICY_CONDITION_OPERATORS = ['Bool', 'StringEquals'] as c
 export type ResourcePolicyConditionOperator = (typeof RESOURCE_POLICY_CONDITION_OPERATORS)[number]
 
 export interface ResourcePolicyConditionEvaluationFacts {
+  credentialType?: string
   credentialGroupActorEnrollmentId?: string
   credentialGroupCredentialEnrollmentId?: string
   /** The option the credential being accessed was collected under. */
@@ -36,6 +37,7 @@ export interface ResourcePolicyConditionDefinition {
 export type ResourcePolicyConditionKey =
   | 'credential_group:ActorOwnsCredential'
   | 'credential_group:OptionId'
+  | 'credential_group:CredentialType'
   | 'execution:WorkflowMode'
 
 export function defineResourcePolicyCondition(

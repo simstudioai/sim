@@ -3,7 +3,8 @@ import { createLogger } from '@sim/logger'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
-import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
+import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -23,6 +24,11 @@ const logger = createLogger('KnowledgeBaseOrchestration')
 
 export type PerformKnowledgeBaseResult = KnowledgeOrchestrationResult<{
   knowledgeBase: KnowledgeBaseWithCounts
+}>
+
+/** The updated base without document totals, which a surface reads as its caller. */
+export type PerformUpdateKnowledgeBaseResult = KnowledgeOrchestrationResult<{
+  knowledgeBase: ActiveKnowledgeBaseReference
 }>
 
 export interface PerformCreateKnowledgeBaseParams extends KnowledgeOperationContext {
@@ -55,7 +61,7 @@ export async function performCreateKnowledgeBase(
   const { workspaceId, name, description, folderId, request, source } = params
   const requestId = params.requestId ?? generateRequestId()
   const chunkingConfig: ChunkingConfig = { ...DEFAULT_CHUNKING_CONFIG, ...params.chunkingConfig }
-  const embeddingModel = getConfiguredEmbeddingModel()
+  const { model: embeddingModel, dimensions: embeddingDimension } = await getConfiguredKbEmbedding()
 
   let created: KnowledgeBaseWithCounts
   try {
@@ -67,7 +73,7 @@ export async function performCreateKnowledgeBase(
         folderId,
         userId: params.userId,
         embeddingModel,
-        embeddingDimension: EMBEDDING_DIMENSIONS,
+        embeddingDimension,
         chunkingConfig,
       },
       requestId
@@ -107,7 +113,7 @@ export async function performCreateKnowledgeBase(
       name: created.name,
       description: created.description,
       embeddingModel,
-      embeddingDimension: EMBEDDING_DIMENSIONS,
+      embeddingDimension,
       chunkingStrategy: chunkingConfig.strategy,
       chunkMaxSize: chunkingConfig.maxSize,
       chunkMinSize: chunkingConfig.minSize,
@@ -128,7 +134,7 @@ export interface PerformUpdateKnowledgeBaseParams extends KnowledgeOperationCont
     name?: string
     description?: string
     /** Moves the knowledge base between workspaces; omitted leaves it in place. */
-    workspaceId?: string | null
+    workspaceId?: string
     folderId?: string | null
     chunkingConfig?: ChunkingConfig
   }
@@ -143,7 +149,7 @@ export interface PerformUpdateKnowledgeBaseParams extends KnowledgeOperationCont
  */
 export async function performUpdateKnowledgeBase(
   params: PerformUpdateKnowledgeBaseParams
-): Promise<PerformKnowledgeBaseResult> {
+): Promise<PerformUpdateKnowledgeBaseResult> {
   const { knowledgeBaseId, updates, request, source } = params
   const requestId = params.requestId ?? generateRequestId()
 
@@ -154,7 +160,7 @@ export async function performUpdateKnowledgeBase(
     return fail('No updates specified', 'validation')
   }
 
-  let updated: KnowledgeBaseWithCounts
+  let updated: ActiveKnowledgeBaseReference
   try {
     updated = await updateKnowledgeBase(knowledgeBaseId, updates, requestId, {
       actorUserId: params.userId,
@@ -194,6 +200,7 @@ export async function performUpdateKnowledgeBase(
 }
 
 export interface PerformDeleteKnowledgeBaseParams extends KnowledgeOperationContext {
+  allowSearchIndexDelete?: boolean
   knowledgeBase: { id: string; name: string; workspaceId: string | null }
   assertedWorkspaceId?: string
 }
@@ -216,6 +223,7 @@ export async function performDeleteKnowledgeBase(
   try {
     await deleteKnowledgeBase(knowledgeBase.id, requestId, {
       assertedWorkspaceId: params.assertedWorkspaceId,
+      allowSearchIndexDelete: params.allowSearchIndexDelete,
     })
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Delete knowledge base ${knowledgeBase.id}`)

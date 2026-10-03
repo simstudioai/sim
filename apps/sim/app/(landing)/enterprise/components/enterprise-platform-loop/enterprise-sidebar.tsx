@@ -63,7 +63,7 @@ function TextRow({ label }: { label: string }) {
 function SectionLabel({ label, actions }: { label: string; actions?: boolean }) {
   return (
     <div className='flex items-center justify-between px-4 pb-1.5'>
-      <span className='text-[var(--text-muted)] text-caption'>{label}</span>
+      <span className='text-[var(--text-secondary)] text-caption'>{label}</span>
       {actions && (
         <span className='flex items-center gap-2 text-[var(--text-icon)]'>
           <MoreHorizontal className='size-[14px]' />

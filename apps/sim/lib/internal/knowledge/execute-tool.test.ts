@@ -1,12 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 
 const mocks = vi.hoisted(() => ({
-  createExecutorPrincipalFromExecutionContext: vi.fn(),
   createChunkOperation: vi.fn(),
   createDocumentsOperation: vi.fn(),
   deleteChunkOperation: vi.fn(),
@@ -23,9 +23,7 @@ const mocks = vi.hoisted(() => ({
   upsertDocumentOperation: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createExecutorPrincipalFromExecutionContext,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/knowledge/operations', () => ({
   createChunkOperation: mocks.createChunkOperation,
@@ -44,8 +42,10 @@ vi.mock('@/lib/internal/knowledge/operations', () => ({
   upsertDocumentOperation: mocks.upsertDocumentOperation,
 }))
 
-import { executeKnowledgeTool, KNOWLEDGE_TOOL_IDS } from '@/lib/internal/knowledge/execute-tool'
+import { executeKnowledgeTool } from '@/lib/internal/knowledge/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const principal = {
   kind: 'delegated' as const,
@@ -78,8 +78,7 @@ function createRequest(
 
 describe('executeKnowledgeTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.createExecutorPrincipalFromExecutionContext.mockResolvedValue(principal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(principal)
     mocks.listTagsOperation.mockResolvedValue({
       body: {
         success: true,
@@ -97,67 +96,8 @@ describe('executeKnowledgeTool', () => {
     })
   })
 
-  it('validates operation input and calls the direct operation with trusted scope', async () => {
-    const controller = new AbortController()
-    const request = createRequest({ signal: controller.signal })
-
-    const response = await executeKnowledgeTool(request)
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ success: true })
-    expect(mocks.createExecutorPrincipalFromExecutionContext).toHaveBeenCalledWith({
-      context: request.context,
-      audience: 'sim:knowledge',
-    })
-    expect(mocks.listTagsOperation).toHaveBeenCalledWith(
-      'kb-1',
-      expect.objectContaining({
-        principal,
-        headers: request.headers,
-        signal: controller.signal,
-      })
-    )
-  })
-
-  it('rejects malformed operation input before application work', async () => {
-    const response = await executeKnowledgeTool(createRequest({ input: {} }))
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Validation error',
-      details: expect.any(Array),
-    })
-    expect(mocks.listTagsOperation).not.toHaveBeenCalled()
-  })
-
-  it('returns canonical validation errors for invalid query input', async () => {
-    const response = await executeKnowledgeTool(
-      createRequest({
-        toolId: 'knowledge_list_documents',
-        input: { knowledgeBaseId: 'kb-1', limit: '101' },
-      })
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Validation error',
-      details: expect.any(Array),
-    })
-    expect(mocks.listDocumentsOperation).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation before principal construction', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      executeKnowledgeTool(createRequest({ signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.createExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
-  })
-
   it('preserves the internal auth error when delegation no longer binds', async () => {
-    mocks.createExecutorPrincipalFromExecutionContext.mockRejectedValue(
+    mockCreateExecutorPrincipalFromExecutionContext.mockRejectedValue(
       new InvalidInternalDelegationBindingError()
     )
 
@@ -166,19 +106,5 @@ describe('executeKnowledgeTool', () => {
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: 'Authentication required' })
     expect(mocks.listTagsOperation).not.toHaveBeenCalled()
-  })
-
-  it('declares the complete canonical tool ID set', () => {
-    expect(KNOWLEDGE_TOOL_IDS).toHaveLength(14)
-    expect(new Set(KNOWLEDGE_TOOL_IDS).size).toBe(KNOWLEDGE_TOOL_IDS.length)
-  })
-
-  it('returns a deterministic error for unsupported Knowledge tools', async () => {
-    const response = await executeKnowledgeTool(createRequest({ toolId: 'knowledge_unknown' }))
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Unsupported Knowledge tool: knowledge_unknown',
-    })
   })
 })

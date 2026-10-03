@@ -82,7 +82,10 @@ export function parseWorkflowVariables(
  * unrecognized `type` falls back to `'string'` rather than being written
  * through to the JSONB column verbatim.
  */
-export function normalizeImportedVariables(variables: unknown): Record<string, Variable> {
+export function normalizeImportedVariables(
+  variables: unknown,
+  missingId: (index: number) => string = generateId
+): Record<string, Variable> {
   /**
    * Assembled on a null-prototype object so a `__proto__` key lands as an
    * ordinary own property instead of invoking the prototype setter, then
@@ -96,11 +99,11 @@ export function normalizeImportedVariables(variables: unknown): Record<string, V
     ? variables.map((value) => [undefined, value])
     : Object.entries(variables)
 
-  for (const [key, value] of entries) {
+  for (const [index, [key, value]] of entries.entries()) {
     if (!value || typeof value !== 'object') continue
     const raw = value as Partial<Variable>
     const rawId = typeof raw.id === 'string' ? raw.id.trim() : ''
-    const id = rawId || key || generateId()
+    const id = rawId || key || missingId(index)
 
     record[id] = {
       id,

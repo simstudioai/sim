@@ -4,20 +4,17 @@ import { useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
 import { ArrowLeft, Plus, TriangleAlert } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
+import dynamic from 'next/dynamic'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { ForkLineageChildApi, ForkLineageNodeApi } from '@/lib/api/contracts/workspace-fork'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   forkIdParam,
   forkIdUrlKeys,
-  forkSyncDirectionParam,
-  forkSyncDirectionUrlKeys,
   forkViewParam,
   forkViewUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
@@ -29,14 +26,9 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { ForkActivityPanel } from '@/ee/workspace-forking/components/fork-activity-panel/fork-activity-panel'
-import { ForkExcludedWorkflows } from '@/ee/workspace-forking/components/fork-excluded-workflows/fork-excluded-workflows'
-import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
-import {
-  ARCHIVED_PREVIEW_LIMIT,
-  useForkSync,
-} from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
+import { ForkSyncDefaultToggle } from '@/ee/workspace-forking/components/fork-sync-default-toggle/fork-sync-default-toggle'
+import { ForkSyncedWorkflows } from '@/ee/workspace-forking/components/fork-synced-workflows/fork-synced-workflows'
 import { ForkWorkspaceModal } from '@/ee/workspace-forking/components/fork-workspace-modal/fork-workspace-modal'
 import { useForkingAvailability } from '@/ee/workspace-forking/hooks/use-forking-available'
 import {
@@ -46,7 +38,19 @@ import {
 } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
+
+/**
+ * The parent edge's sync page carries the mapping editors, which reach the block and trigger
+ * registries. Loaded when opened, so the fork list does not download them; `loading` gives it
+ * its own boundary, since the section page has none.
+ */
+const ForkSyncDetailView = dynamic(
+  () =>
+    import('@/ee/workspace-forking/components/fork-sync-detail-view/fork-sync-detail-view').then(
+      (m) => m.ForkSyncDetailView
+    ),
+  { loading: () => null }
+)
 
 /** Explains a disabled lineage action whose target workspace the viewer cannot open. */
 const NO_ACCESS_TOOLTIP = "You don't have access to this workspace"
@@ -79,187 +83,6 @@ function ForkListRow({ name, actions }: ForkListRowProps) {
         <RowActionsMenu label='Fork actions' actions={actions} />
       </div>
     </div>
-  )
-}
-
-interface ForkSyncDetailViewProps {
-  title: string
-  workspaceId: string
-  /** This workspace's name — a pull overwrites it, and the copy has to say which side that is. */
-  workspaceName?: string
-  /** The other side of the edge being synced (this workspace's parent). */
-  otherWorkspaceId: string
-  otherWorkspaceName: string
-  onBack: () => void
-  /** Header chips rendered left of Sync (e.g. Open workspace) — the caller owns those. */
-  actions: SettingsAction[]
-}
-
-/**
- * The parent edge's sync page (reached from the parent row): direction, deployed-workflow
- * changes, per-kind mappings (each an expandable row whose status badge is the summary),
- * copy resources, and blocking references, all as page sections.
- * The header's Sync chip is gated until zero blockers + required mappings + reconfigure are
- * complete, and always confirms the overwrite first — that confirm is the flow's one modal.
- * While the mapping has unsaved edits the header swaps to Discard/Save and leaving is guarded;
- * Sync itself persists the effective mapping as part of the run.
- */
-function ForkSyncDetailView({
-  title,
-  workspaceId,
-  workspaceName,
-  otherWorkspaceId,
-  otherWorkspaceName,
-  onBack,
-  actions,
-}: ForkSyncDetailViewProps) {
-  // Sync direction is shareable view state: a copied link opens the same side of the sync.
-  const [direction, setDirection] = useQueryState(forkSyncDirectionParam.key, {
-    ...forkSyncDirectionParam.parser,
-    ...forkSyncDirectionUrlKeys,
-  })
-
-  const controller = useForkSync({
-    workspaceId,
-    workspaceName,
-    otherWorkspaceId,
-    otherWorkspaceName,
-    direction,
-    enabled: true,
-  })
-
-  // Guard leaving the detail view (Back) while the mapping has unsaved edits, and feed
-  // the shared settings dirty store so a sidebar section switch confirms too.
-  const guard = useSettingsUnsavedGuard({ isDirty: controller.dirty })
-
-  const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
-
-  // Sync is the edge's primary action, so it's the rightmost/black chip; the caller's
-  // Open workspace chip sits left of it. Dirty mapping edits swap the whole cluster
-  // for Discard/Save until they're saved or discarded.
-  const panelActions: SettingsAction[] = controller.dirty
-    ? saveDiscardActions({
-        dirty: controller.dirty,
-        saving: controller.saving,
-        onSave: controller.save,
-        onDiscard: controller.discard,
-      })
-    : [
-        ...actions,
-        {
-          text: controller.submitting ? 'Working...' : 'Sync',
-          variant: 'primary' as const,
-          onSelect: () => setConfirmSyncOpen(true),
-          disabled: controller.syncDisabled,
-          tooltip: controller.syncDisabled
-            ? controller.syncDisabledReason
-            : `Push to or pull from ${otherWorkspaceName}`,
-        },
-      ]
-
-  const targetWorkspaceName = controller.targetWorkspaceName
-
-  return (
-    <>
-      <SettingsPanel
-        back={{
-          text: 'Workspace Forks',
-          icon: ArrowLeft,
-          onSelect: () =>
-            guard.guardBack(() => {
-              void setDirection(null)
-              onBack()
-            }),
-        }}
-        title={title}
-        actions={panelActions}
-      >
-        <ForkSyncView
-          controller={controller}
-          onDirectionChange={(next) => void setDirection(next)}
-        />
-      </SettingsPanel>
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
-
-      <ChipConfirmModal
-        open={confirmSyncOpen}
-        onOpenChange={setConfirmSyncOpen}
-        srTitle='Sync workspace'
-        title={`Overwrite ${targetWorkspaceName}`}
-        text={[
-          'Syncing will ',
-          { text: 'overwrite any changes', bold: true },
-          ` made in ${targetWorkspaceName} since the last sync. Continue?`,
-        ]}
-        confirm={{
-          label: 'Sync',
-          onClick: () => {
-            setConfirmSyncOpen(false)
-            void controller.sync()
-          },
-          pending: controller.submitting,
-          pendingLabel: 'Syncing...',
-        }}
-      >
-        {controller.archivedWorkflowNames.length > 0 ? (
-          <div className='flex flex-col gap-1 px-2'>
-            <p className='break-words text-[var(--text-primary)] text-sm'>
-              Will be archived in <span>{targetWorkspaceName}</span> (deleted in the source):
-            </p>
-            {controller.archivedWorkflowNames
-              .slice(0, ARCHIVED_PREVIEW_LIMIT)
-              .map((name, index) => (
-                <div
-                  key={`${name}:${index}`}
-                  className='min-w-0 truncate text-[var(--text-muted)] text-small'
-                >
-                  {name}
-                </div>
-              ))}
-            {controller.archivedWorkflowNames.length > ARCHIVED_PREVIEW_LIMIT ? (
-              <div className='text-[var(--text-muted)] text-small'>
-                and {controller.archivedWorkflowNames.length - ARCHIVED_PREVIEW_LIMIT} more
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {/* A dead trigger URL is only discoverable after the fact, when the external caller goes
-            quiet - so it belongs in the confirm, next to the other irreversible consequences. */}
-        {controller.triggerUrlChanges.length > 0 ? (
-          <div className='flex flex-col gap-1 px-2'>
-            <p className='break-words text-[var(--text-primary)] text-sm'>
-              {controller.triggerUrlChanges.length === 1 ? 'A webhook URL' : 'Webhook URLs'} in{' '}
-              <span>{targetWorkspaceName}</span> will stop being served — anything calling{' '}
-              {controller.triggerUrlChanges.length === 1 ? 'it' : 'them'} breaks until you
-              re-register:
-            </p>
-            {controller.triggerUrlChanges.slice(0, ARCHIVED_PREVIEW_LIMIT).map((change) => (
-              // Naming the URL, not just its workflow: several URLs in one workflow would render
-              // as identical lines, and this confirm is the last point before they stop serving.
-              <div
-                key={`${change.workflowName}:${change.path}`}
-                className='min-w-0 text-[var(--text-muted)] text-small'
-              >
-                {change.workflowName}
-                <span className='block truncate font-mono text-caption'>
-                  {buildWebhookTriggerUrl(change.path)}
-                </span>
-              </div>
-            ))}
-            {controller.triggerUrlChanges.length > ARCHIVED_PREVIEW_LIMIT ? (
-              <div className='text-[var(--text-muted)] text-small'>
-                and {controller.triggerUrlChanges.length - ARCHIVED_PREVIEW_LIMIT} more
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </ChipConfirmModal>
-    </>
   )
 }
 
@@ -546,8 +369,18 @@ export function Forks() {
                   </SettingsEmptyState>
                 )}
               </SettingsSection>
-              <SettingsSection label='Excluded workflows'>
-                <ForkExcludedWorkflows workspaceId={workspaceId} />
+              <SettingsSection label='Synced workflows'>
+                <div className='flex flex-col gap-4'>
+                  {/* Only this workspace's own value: a placeholder from the previous workspace
+                      would show, and on click write, another lineage's policy. */}
+                  {lineage.data && !lineage.isPlaceholderData ? (
+                    <ForkSyncDefaultToggle
+                      workspaceId={workspaceId}
+                      excludeNewWorkflows={lineage.data.forkSyncNewWorkflowsExcluded}
+                    />
+                  ) : null}
+                  <ForkSyncedWorkflows workspaceId={workspaceId} />
+                </div>
               </SettingsSection>
             </div>
           )}

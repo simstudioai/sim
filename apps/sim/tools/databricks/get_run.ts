@@ -1,4 +1,5 @@
 import type { DatabricksGetRunParams, DatabricksGetRunResponse } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResponse> = {
@@ -42,11 +43,7 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
 
   request: {
     url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      const url = new URL(`https://${host}/api/2.1/jobs/runs/get`)
+      const url = new URL(databricksUrl(params.host, '/api/2.1/jobs/runs/get'))
       url.searchParams.set('run_id', String(params.runId))
       if (params.includeHistory) url.searchParams.set('include_history', 'true')
       if (params.includeResolvedValues) url.searchParams.set('include_resolved_values', 'true')

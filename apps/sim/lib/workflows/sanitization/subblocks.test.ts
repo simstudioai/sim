@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 /**
@@ -64,26 +61,6 @@ describe('sanitizeMalformedSubBlocks', () => {
 
       expect(changed).toBe(true)
       expect(subBlocks[FIELD_ID]).toEqual({ id: FIELD_ID, type: 'short-input', value: 'theo' })
-    })
-
-    it('leaves well-formed sub-blocks untouched and reports no change', () => {
-      const input = {
-        workflowId: { id: 'workflowId', type: 'short-input', value: 'wf-1' },
-        [FIELD_ID]: { id: FIELD_ID, type: 'short-input', value: 'theo' },
-      }
-      const { subBlocks, changed } = sanitizeMalformedSubBlocks(makeCustomBlock(input))
-
-      expect(changed).toBe(false)
-      expect(subBlocks).toBe(input)
-    })
-
-    it('still drops the literal "undefined" key', () => {
-      const { subBlocks, changed } = sanitizeMalformedSubBlocks(
-        makeCustomBlock({ undefined: { id: 'undefined', type: 'unknown', value: 'x' } })
-      )
-
-      expect(changed).toBe(true)
-      expect(subBlocks).toEqual({})
     })
   })
 

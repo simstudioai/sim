@@ -4,6 +4,7 @@ import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState }
 import {
   Badge,
   Button,
+  ComposerActionButton,
   cn,
   Input,
   Popover,
@@ -62,7 +63,6 @@ import { useChatStore } from '@/stores/chat/store'
 import { getChatPosition } from '@/stores/chat/utils'
 import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
-import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -135,12 +135,14 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
       )}
 
       <Button
+        aria-label='Remove file'
         variant='ghost'
+        size='icon'
         onClick={(event) => {
           event.stopPropagation()
           onRemove(file.id)
         }}
-        className='absolute top-0.5 right-0.5 size-4 p-0 opacity-0 transition-opacity group-hover:opacity-100'
+        className='absolute top-0.5 right-0.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'
       >
         <X className='size-2.5' />
       </Button>
@@ -264,17 +266,23 @@ export function Chat() {
     }))
   )
 
-  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const entries = useWorkflowConsoleEntries(
-    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  const promptHistory = useChatStore(
+    useShallow((state) =>
+      !activeWorkflowId
+        ? []
+        : state.messages
+            .filter((message) => message.workflowId === activeWorkflowId && message.type === 'user')
+            .map((message) => message.content)
+            .filter((content): content is string => typeof content === 'string')
+    )
   )
+
   const isExecuting = useIsCurrentWorkflowExecuting()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
   const { addToQueue } = useOperationQueue()
 
   const [chatMessage, setChatMessage] = useState('')
-  const [promptHistory, setPromptHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
@@ -396,10 +404,6 @@ export function Chat() {
     onDimensionsChange: setChatDimensions,
   })
 
-  const outputEntries = useMemo(() => {
-    return entries.filter((entry) => entry.output)
-  }, [entries])
-
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []
     return messages.filter((msg) => msg.workflowId === activeWorkflowId)
@@ -425,23 +429,9 @@ export function Chat() {
     }
   )
 
-  const userMessages = useMemo(() => {
-    return workflowMessages
-      .filter((msg) => msg.type === 'user')
-      .map((msg) => msg.content)
-      .filter((content): content is string => typeof content === 'string')
-  }, [workflowMessages])
-
   useEffect(() => {
-    if (!activeWorkflowId) {
-      setPromptHistory([])
-      setHistoryIndex(-1)
-      return
-    }
-
-    setPromptHistory(userMessages)
     setHistoryIndex(-1)
-  }, [activeWorkflowId, userMessages])
+  }, [activeWorkflowId, promptHistory])
 
   /**
    * Auto-scroll to bottom when messages load and chat is open
@@ -721,9 +711,6 @@ export function Chat() {
       }
       const messageAttachments = toChatMessageAttachments(result.uploadedAttachments)
 
-      if (sentMessage && promptHistory[promptHistory.length - 1] !== sentMessage) {
-        setPromptHistory((prev) => [...prev, sentMessage])
-      }
       setHistoryIndex(-1)
 
       const messageContent =
@@ -756,7 +743,6 @@ export function Chat() {
     chatFiles,
     activeWorkflowId,
     isExecuting,
-    promptHistory,
     getConversationId,
     addMessage,
     handleRunWorkflow,
@@ -950,8 +936,10 @@ export function Chat() {
           <Popover size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
               <Button
+                aria-label='Chat actions'
                 variant='ghost'
-                className='-m-1.5 p-1.5!'
+                iconPadding='md'
+                className='-m-1.5'
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className='size-[14px]' />
@@ -990,7 +978,13 @@ export function Chat() {
           </Popover>
 
           {/* Close button */}
-          <Button variant='ghost' className='-m-1.5 p-1.5!' onClick={handleClose}>
+          <Button
+            aria-label='Close chat'
+            variant='ghost'
+            iconPadding='md'
+            className='-m-1.5'
+            onClick={handleClose}
+          >
             <X className='size-[16px]' />
           </Button>
         </div>
@@ -1095,32 +1089,28 @@ export function Chat() {
                 </Tooltip.Root>
 
                 {isStreaming ? (
-                  <Button
+                  <ComposerActionButton
+                    aria-label='Stop generation'
                     onClick={handleStopStreaming}
-                    variant='ghost'
-                    className='size-[22px] rounded-full bg-[#383838] p-0 transition-colors hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
+                    size='sm'
                   >
-                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
-                  </Button>
+                    <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
+                  </ComposerActionButton>
                 ) : (
-                  <Button
+                  <ComposerActionButton
+                    aria-label='Send message'
                     onClick={handleSendMessage}
-                    variant='ghost'
+                    size='sm'
                     disabled={
                       (!chatMessage.trim() && chatFiles.length === 0) ||
                       !activeWorkflowId ||
                       isExecuting ||
                       isStreaming
                     }
-                    className={cn(
-                      'size-[22px] rounded-full p-0 transition-colors',
-                      chatMessage.trim() || chatFiles.length > 0
-                        ? 'bg-[#383838] hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
-                        : 'bg-[#808080] dark:bg-[#808080]'
-                    )}
+                    active={!!(chatMessage.trim() || chatFiles.length > 0)}
                   >
                     <ArrowUp className='size-3.5 text-white dark:text-black' />
-                  </Button>
+                  </ComposerActionButton>
                 )}
               </div>
             </div>

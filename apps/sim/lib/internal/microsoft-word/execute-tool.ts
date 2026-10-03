@@ -24,7 +24,11 @@ import {
   microsoftWordReplaceTextInputSchema,
   microsoftWordUpdateInputSchema,
 } from '@/lib/internal/microsoft-word/schema'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const logger = createLogger('MicrosoftWordToolExecution')
 
@@ -34,7 +38,7 @@ async function executeOperation<S extends z.ZodType>(
   execute: (input: z.output<S>, context: MicrosoftWordOperationContext) => Promise<unknown>,
   context: MicrosoftWordOperationContext,
   toolId: string
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   context.signal?.throwIfAborted()
   let serializedInput: string
   try {
@@ -61,7 +65,7 @@ async function executeOperation<S extends z.ZodType>(
   try {
     const result = await execute(parsed.data, context)
     context.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     context.signal?.throwIfAborted()
     const message = getErrorMessage(error, 'Unknown error occurred')
@@ -81,7 +85,9 @@ async function executeOperation<S extends z.ZodType>(
   }
 }
 
-export const executeMicrosoftWordTool: InternalToolOperationHandler = async (request) => {
+export const executeMicrosoftWordTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   const { input, requestId, signal, toolId } = request
   const context: MicrosoftWordOperationContext = { requestId, signal }
 

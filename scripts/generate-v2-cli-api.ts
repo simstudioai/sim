@@ -66,13 +66,15 @@ function specFiles(): string[] {
 export interface OperationDoc {
   /** The spec's one-line summary, used as the command's `--help` description. */
   summary?: string
+  /** The spec's longer prose, which the MCP server returns when describing the operation. */
+  description?: string
   /**
    * The operation refuses a workspace API key, per its `description`.
    *
    * Carried so `--help` can say so before the request goes out; without it the
    * caller learns the restriction from a `403` after the fact.
    */
-  personalKeyOnly?: true
+  workspaceKeyUnsupported?: true
 }
 
 /**
@@ -84,7 +86,7 @@ export interface OperationDoc {
  * resolves through the `@/` alias, which exists under `bun` but not under the
  * root `vitest` that imports this file's pure helpers.
  */
-export async function loadPersonalKeyMarkers(): Promise<readonly string[]> {
+export async function loadWorkspaceKeyDenialMarkers(): Promise<readonly string[]> {
   const shared: Record<string, unknown> = await import(
     path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/shared.ts')
   )
@@ -95,6 +97,11 @@ export async function loadPersonalKeyMarkers(): Promise<readonly string[]> {
     }
   }
   return markers as string[]
+}
+
+/** `POST /api/v2/tables/[tableId]` → the `POST /api/v2/tables/{tableId}` key {@link loadSummaries} uses. */
+export function docPathKey(method: string, contractPath: string): string {
+  return `${method} ${contractPath.replace(/\[([^\]]+)\]/g, '{$1}')}`
 }
 
 /**
@@ -108,7 +115,9 @@ export async function loadPersonalKeyMarkers(): Promise<readonly string[]> {
  * `description` is read for the same reason — it is where the workspace-key
  * denial is already stated.
  */
-export function loadSummaries(personalKeyMarkers: readonly string[]): Map<string, OperationDoc> {
+export function loadSummaries(
+  workspaceKeyDenialMarkers: readonly string[]
+): Map<string, OperationDoc> {
   const docs = new Map<string, OperationDoc>()
 
   for (const file of specFiles()) {
@@ -126,13 +135,16 @@ export function loadSummaries(personalKeyMarkers: readonly string[]): Map<string
         const doc: OperationDoc = {}
         if (typeof operation?.summary === 'string') doc.summary = operation.summary
         const description = operation?.description
+        if (typeof description === 'string' && description.trim()) {
+          doc.description = description.trim()
+        }
         if (
           typeof description === 'string' &&
-          personalKeyMarkers.some((marker) => description.includes(marker))
+          workspaceKeyDenialMarkers.some((marker) => description.includes(marker))
         ) {
-          doc.personalKeyOnly = true
+          doc.workspaceKeyUnsupported = true
         }
-        if (doc.summary || doc.personalKeyOnly) {
+        if (doc.summary || doc.workspaceKeyUnsupported) {
           docs.set(`${method.toUpperCase()} ${specPath}`, doc)
         }
       }
@@ -167,7 +179,7 @@ function contractModules(): string[] {
     .sort()
 }
 
-interface RouteContract {
+export interface RouteContract {
   method: string
   path: string
   params?: z.ZodType
@@ -177,9 +189,11 @@ interface RouteContract {
   response: { mode: string; schema?: z.ZodType }
 }
 
-interface Operation {
+export interface Operation {
   /** `listTables` — derived from the export name. */
   name: string
+  /** `v2ListTablesContract` — the contract module's export. */
+  exportName: string
   domain: string
   contract: RouteContract
 }
@@ -204,14 +218,15 @@ function pascal(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
-async function collectOperations(): Promise<Operation[]> {
+/** Every v2 route contract, sorted by operation name. */
+export async function collectOperations(): Promise<Operation[]> {
   const operations: Operation[] = []
 
   for (const domain of contractModules()) {
     const mod: Record<string, unknown> = await import(path.join(CONTRACTS_DIR, `${domain}.ts`))
     for (const [exportName, value] of Object.entries(mod)) {
       if (!exportName.endsWith('Contract') || !isRouteContract(value)) continue
-      operations.push({ name: operationName(exportName), domain, contract: value })
+      operations.push({ name: operationName(exportName), exportName, domain, contract: value })
     }
   }
 
@@ -413,7 +428,7 @@ function fieldKind(schema: JsonSchema): FieldKind {
  * these at startup to construct commands — a type alone cannot be walked.
  */
 /**
- * Whether the slot is a union, whose branches the CLI cannot turn into flags.
+ * Whether the slot is a union, which needs JSON unless its discriminator selects known fields.
  *
  * Distinct from "the map came out empty": the shared fields of a union are
  * emitted as a map, so emptiness alone no longer identifies one, and the
@@ -422,6 +437,46 @@ function fieldKind(schema: JsonSchema): FieldKind {
 function isUnionSlot(schema: z.ZodType): boolean {
   const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
   return Object.keys(json.properties ?? {}).length === 0 && Boolean(json.anyOf ?? json.oneOf)
+}
+
+/** Object branches with explicit string tags can expose fields as ordinary CLI flags. */
+function discriminatedSlot(schema: z.ZodType) {
+  if (!(schema instanceof z.ZodDiscriminatedUnion)) return null
+  const discriminator = schema.def.discriminator
+  const variants: Array<{ value: string; schema: z.ZodObject }> = []
+  const fieldKinds = new Map<string, FieldKind>()
+  for (const option of schema.options) {
+    if (!(option instanceof z.ZodObject)) return null
+    for (const [field, value] of Object.entries(option.shape)) {
+      if (field === discriminator) continue
+      const kind = fieldKind(
+        z.toJSONSchema(value as z.ZodType, { io: 'input', unrepresentable: 'any' }) as JsonSchema
+      )
+      const previous = fieldKinds.get(field)
+      if (previous && previous !== kind) return null
+      fieldKinds.set(field, kind)
+    }
+    const tag = z.toJSONSchema(option.shape[discriminator], {
+      io: 'input',
+      unrepresentable: 'any',
+    }) as JsonSchema
+    const values: unknown[] = tag.enum ?? (tag.const !== undefined ? [tag.const] : [])
+    if (!values.length || values.some((value) => typeof value !== 'string')) return null
+    for (const value of values) variants.push({ value: value as string, schema: option })
+  }
+  return { discriminator, variants }
+}
+
+/** Branch field descriptors let request building enforce required and inapplicable flags. */
+export function renderBodyDiscriminator(schema: z.ZodType | undefined, indent: string) {
+  if (!schema) return null
+  const slot = discriminatedSlot(schema)
+  if (!slot) return null
+  const variants = slot.variants.map(
+    ({ value, schema: branch }) =>
+      `${indent}    ${JSON.stringify(value)}: ${renderSlotMap(branch, `${indent}    `)},`
+  )
+  return `{\n${indent}  field: ${JSON.stringify(slot.discriminator)},\n${indent}  variants: {\n${variants.join('\n')}\n${indent}  },\n${indent}}`
 }
 
 /**
@@ -451,19 +506,68 @@ export function renderSlotMap(
   const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
   let properties: Record<string, JsonSchema> = json.properties ?? {}
   let required = new Set<string>(json.required ?? [])
+  const discriminated = discriminatedSlot(schema)
+  const defs = (json.$defs ?? {}) as Record<string, JsonSchema>
+  const deref = (value: JsonSchema): JsonSchema => {
+    let current = value
+    for (let depth = 0; typeof current.$ref === 'string' && depth < 10; depth++) {
+      const resolved = defs[current.$ref.replace('#/$defs/', '')]
+      if (!resolved) break
+      current = resolved
+    }
+    return current
+  }
 
   // A union has no properties of its own, but the fields every branch agrees on
   // are still known and still have to be sent — `workspaceId` is required by
   // both branches of the row-insert body and comes from the profile, so
   // dropping it left `tables rows create` rejected as invalid input.
   if (Object.keys(properties).length === 0) {
-    const branches = (json.anyOf ?? json.oneOf) as JsonSchema[] | undefined
+    const branches = ((json.anyOf ?? json.oneOf) as JsonSchema[] | undefined)?.map(deref)
     if (branches?.length) {
       const shared = branches.reduce<string[]>(
         (keys, branch) => keys.filter((key) => branch.properties?.[key] !== undefined),
         Object.keys(branches[0].properties ?? {})
       )
-      properties = Object.fromEntries(shared.map((key) => [key, branches[0].properties[key]]))
+      const fields = discriminated
+        ? [...new Set(branches.flatMap((branch) => Object.keys(branch.properties ?? {})))]
+        : shared
+      properties = Object.fromEntries(
+        fields.map((key) => {
+          const candidates = branches.flatMap((branch) =>
+            branch.properties?.[key] ? [deref(branch.properties[key] as JsonSchema)] : []
+          )
+          if (discriminated && key === discriminated.discriminator) {
+            const description = discriminated.variants
+              .flatMap(({ value, schema: branch }) => {
+                const text = branch.shape[key].description
+                return text ? [`${value}: ${text}`] : []
+              })
+              .join(' ')
+            return [
+              key,
+              {
+                type: 'string',
+                enum: discriminated.variants.map(({ value }) => value),
+                description,
+              },
+            ]
+          }
+          const property = { ...candidates[0] }
+          if (discriminated) {
+            if (candidates.every((candidate) => candidate.enum))
+              property.enum = [...new Set(candidates.flatMap((candidate) => candidate.enum))]
+            if (
+              candidates.some(
+                (candidate) =>
+                  JSON.stringify(candidate.default) !== JSON.stringify(property.default)
+              )
+            )
+              property.default = undefined
+          }
+          return [key, property]
+        })
+      )
       required = new Set(shared.filter((key) => branches.every((b) => b.required?.includes(key))))
     }
   }
@@ -475,24 +579,18 @@ export function renderSlotMap(
   // JSON flag instead.
   if (keys.length === 0) return null
 
-  // A schema carrying `.meta({ id })` is lifted into `$defs` and referenced, so
-  // the property here is a bare `$ref` with no type to classify. Left
-  // unresolved every such field reads as `unknown` and the CLI demands JSON for
-  // what is really a plain string flag.
-  const defs = (json.$defs ?? {}) as Record<string, JsonSchema>
-  const deref = (schema: JsonSchema): JsonSchema => {
-    let current = schema
-    for (let depth = 0; typeof current.$ref === 'string' && depth < 10; depth++) {
-      const resolved = defs[current.$ref.replace('#/$defs/', '')]
-      if (!resolved) break
-      current = resolved
-    }
-    return current
-  }
-
   const lines = keys.map((key) => {
     const property = deref(properties[key])
-    const parts = [`kind: '${fieldKind(property)}'`]
+    const kind = fieldKind(property)
+    const parts = [`kind: '${kind}'`]
+    if (
+      (kind === 'number' || kind === 'integer') &&
+      ((Array.isArray(property.type) && property.type.includes('null')) ||
+        (property.anyOf ?? property.oneOf ?? []).some(
+          (variant: JsonSchema) => deref(variant).type === 'null'
+        ))
+    )
+      parts.push('nullable: true')
     if (required.has(key)) parts.push('required: true')
     if (property.enum) {
       parts.push(
@@ -506,8 +604,22 @@ export function renderSlotMap(
     // reader as "Set sort by". Read from the reference site first: a field that
     // narrows a shared `$defs` schema describes its own use of it.
     const description = properties[key].description ?? property.description
-    if (typeof description === 'string' && description.trim()) {
-      parts.push(`describe: ${JSON.stringify(description.trim())}`)
+    const descriptions =
+      typeof description === 'string' && description.trim() ? [description.trim()] : []
+    if (discriminated && key !== discriminated.discriminator) {
+      const applicable = discriminated.variants.filter(({ schema: branch }) => key in branch.shape)
+      const requiredFor = applicable.filter(({ schema: branch }) => !branch.shape[key].isOptional())
+      if (applicable.length < discriminated.variants.length)
+        descriptions.push(
+          `Available when ${discriminated.discriminator} is ${applicable.map(({ value }) => value).join(' or ')}.`
+        )
+      if (requiredFor.length && !required.has(key))
+        descriptions.push(
+          `Required when ${discriminated.discriminator} is ${requiredFor.map(({ value }) => value).join(' or ')}.`
+        )
+    }
+    if (descriptions.length) {
+      parts.push(`describe: ${JSON.stringify(descriptions.join(' '))}`)
     }
     return `${indent}  ${JSON.stringify(key)}: { ${parts.join(', ')} },`
   })
@@ -515,7 +627,7 @@ export function renderSlotMap(
   return `{\n${lines.join('\n')}\n${indent}}`
 }
 
-function render(operations: Operation[], docs: Map<string, OperationDoc>): string {
+export function render(operations: Operation[], docs: Map<string, OperationDoc>): string {
   const out: string[] = []
 
   out.push('/**')
@@ -564,14 +676,14 @@ function render(operations: Operation[], docs: Map<string, OperationDoc>): strin
   out.push(' * `query`, `body`, and `headers` describe each field well enough for the CLI')
   out.push(' * to build a flag for it and coerce the string argv gives back: its kind,')
   out.push(' * whether it is required, its enum values, and its server-side default. A slot')
-  out.push(' * the contract does not declare — or one whose shape is a union with no flat')
-  out.push(' * field list — is absent, and the runtime falls back to taking it as JSON.')
+  out.push(' * the contract does not declare is absent. Discriminated bodies carry branch')
+  out.push(' * field maps; other unions fall back to taking their variant data as JSON.')
   out.push(' * Headers the CLI sets itself, such as the API key, are never listed.')
   out.push(' *')
   out.push(" * `summary` is the operation's one-line description, lifted from the OpenAPI")
   out.push(' * specs so `--help` reuses prose that is already written and already checked.')
   out.push(' *')
-  out.push(' * `personalKeyOnly` marks an operation whose spec description says a workspace')
+  out.push(' * `workspaceKeyUnsupported` marks an operation whose spec says a workspace')
   out.push(' * API key is rejected, so `--help` can say so before the request is sent.')
   out.push(' */')
   out.push('export const V2_OPERATIONS = {')
@@ -591,11 +703,9 @@ function render(operations: Operation[], docs: Map<string, OperationDoc>): strin
     }
     out.push(`    responseMode: '${op.contract.response.mode}',`)
     // OpenAPI writes `{id}` where the contract writes `[id]`.
-    const doc = docs.get(
-      `${op.contract.method} ${op.contract.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
-    )
+    const doc = docs.get(docPathKey(op.contract.method, op.contract.path))
     if (doc?.summary) out.push(`    summary: ${JSON.stringify(doc.summary)},`)
-    if (doc?.personalKeyOnly) out.push(`    personalKeyOnly: true,`)
+    if (doc?.workspaceKeyUnsupported) out.push(`    workspaceKeyUnsupported: true,`)
     for (const slot of ['query', 'body'] as const) {
       const map = renderSlotMap(op.contract[slot], '    ')
       if (map) out.push(`    ${slot}: ${map},`)
@@ -603,8 +713,10 @@ function render(operations: Operation[], docs: Map<string, OperationDoc>): strin
       // Absence alone cannot say so: it means both "no body" and "a body the
       // generator could not describe", and reading it as the former left
       // `tables rows create` unable to send anything at all.
-      if (slot === 'body' && op.contract.body && isUnionSlot(op.contract.body)) {
-        out.push(`    opaqueBody: true,`)
+      if (slot === 'body' && op.contract.body) {
+        const discriminator = renderBodyDiscriminator(op.contract.body, '    ')
+        if (discriminator) out.push(`    bodyDiscriminator: ${discriminator},`)
+        else if (isUnionSlot(op.contract.body)) out.push(`    opaqueBody: true,`)
       }
     }
     // Contract headers are request input like any other slot: `upload-token`
@@ -656,7 +768,7 @@ async function main() {
   const args = new Set(process.argv.slice(2))
   const operations = await collectOperations()
 
-  const generated = format(render(operations, loadSummaries(await loadPersonalKeyMarkers())))
+  const generated = format(render(operations, loadSummaries(await loadWorkspaceKeyDenialMarkers())))
 
   if (args.has('--check')) {
     let current = ''

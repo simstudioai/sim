@@ -27,7 +27,7 @@ export function SearchTrigger() {
         chipGeometryClass,
         chipFilledFillTokens,
         TRIGGER_BORDER_CLASS,
-        'flex w-[360px] cursor-pointer font-season text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-active)]'
+        'flex w-[360px] cursor-pointer font-season text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-active)]'
       )}
       onClick={openSearchDialog}
     >

@@ -13,8 +13,52 @@ function chipContext(): ChatContext {
 }
 
 describe('MothershipHandoffStorage', () => {
+  it('keeps organization recovery separate from all workspace and other organization mounts', () => {
+    const handoff = {
+      message: 'Find the policy',
+      resumeUserMessageId: 'original-send',
+      requestMode: 'assistant' as const,
+      assistantSearchLevel: 'fast' as const,
+    }
+    expect(MothershipHandoffStorage.store(handoff, { organizationId: 'org-1' })).toBe(true)
+    expect(MothershipHandoffStorage.consume('org-1')).toBeNull()
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-2' })).toBeNull()
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toEqual({
+      ...handoff,
+      contexts: [],
+    })
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toBeNull()
+  })
+
   beforeEach(() => {
     localStorage.clear()
+  })
+
+  it.each([
+    [true, 'fast'],
+    [false, 'adaptive'],
+  ] as const)('migrates a legacy Fast value %s only when reading', (assistantFast, level) => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({ workspaceId: WS, message: 'Search', timestamp: Date.now(), assistantFast })
+    )
+    const handoff = MothershipHandoffStorage.consume(WS)
+    expect(handoff).toMatchObject({ assistantSearchLevel: level })
+    expect(handoff).not.toHaveProperty('assistantFast')
+  })
+
+  it('rejects an invalid Search level rather than silently changing routing', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({
+        workspaceId: WS,
+        message: 'Search',
+        timestamp: Date.now(),
+        assistantSearchLevel: 'unknown',
+        assistantFast: true,
+      })
+    )
+    expect(MothershipHandoffStorage.consume(WS)).toBeNull()
   })
 
   it('round-trips a handoff and trims the message, preserving contexts', () => {
@@ -22,6 +66,20 @@ describe('MothershipHandoffStorage', () => {
     expect(MothershipHandoffStorage.store({ message: '  fix it  ', contexts }, WS)).toBe(true)
 
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ message: 'fix it', contexts })
+  })
+
+  it('discards a corrupted scope instead of silently widening the Assistant request', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({
+        message: 'Summarize this',
+        workspaceId: WS,
+        timestamp: Date.now(),
+        requestMode: 'assistant',
+        assistantSearch: { documentIds: [] },
+      })
+    )
+    expect(MothershipHandoffStorage.consume(WS)).toBeNull()
   })
 
   it('is one-shot — a second consume returns null', () => {
@@ -48,21 +106,6 @@ describe('MothershipHandoffStorage', () => {
 
     // The owning workspace still consumes it.
     expect(MothershipHandoffStorage.consume(WS)).toEqual({ message: 'fix it', contexts: [] })
-  })
-
-  it('stores a chip-only handoff (no message) and returns it without one', () => {
-    const contexts: ChatContext[] = [
-      {
-        kind: 'file_selection',
-        fileId: 'f1',
-        fileName: 'notes.md',
-        label: 'notes.md:2-4',
-        text: 'passage',
-      },
-    ]
-    expect(MothershipHandoffStorage.store({ contexts }, WS)).toBe(true)
-
-    expect(MothershipHandoffStorage.consume(WS)).toEqual({ contexts })
   })
 
   it('accumulates chip-only handoffs so a second add before navigation is not dropped', () => {
@@ -158,5 +201,19 @@ describe('MothershipHandoffStorage', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+it('preserves explicit org agent recovery and leaves a Search handoff for its own surface', () => {
+  const owner = { organizationId: 'org-1' }
+  MothershipHandoffStorage.store({ message: 'Update workflow', requestMode: 'agent' }, owner)
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'assistant')).toBeNull()
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'agent')).toMatchObject({
+    requestMode: 'agent',
+  })
+  MothershipHandoffStorage.store({ message: 'Search legacy' }, owner)
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'agent')).toBeNull()
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'assistant')).toMatchObject({
+    message: 'Search legacy',
   })
 })

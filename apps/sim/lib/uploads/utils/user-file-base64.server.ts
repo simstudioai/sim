@@ -3,6 +3,7 @@ import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
@@ -19,11 +20,6 @@ import {
   readUserFileContentWithContributors,
 } from '@/lib/execution/payloads/materialization.server'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
-import {
-  type ExecutionRedisBudgetReservation,
-  getExecutionRedisBudgetKeys,
-  getExecutionRedisBudgetLimits,
-} from '@/lib/execution/redis-budget.server'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
@@ -254,7 +250,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
           return
         }
 
-        const limits = getExecutionRedisBudgetLimits()
+        const limits = getRedisBudgetLimits('execution')
         if (valueBytes > limits.maxSingleWriteBytes) {
           logSkippedCacheWrite(
             logger,
@@ -269,15 +265,11 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
           return
         }
         const cacheTtlSeconds = Math.max(ttlSeconds, limits.ttlSeconds)
-        const budgetReservation: ExecutionRedisBudgetReservation = {
-          executionId,
+        const budgetKeys = getRedisBudgetKeys({
+          kind: 'execution',
+          id: executionId,
           userId: options.userId,
-          category: 'base64_cache',
-          operation: 'set_base64_cache',
-          bytes: valueBytes,
-          logger,
-        }
-        const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+        })
         const result = (await redis.eval(
           SET_BASE64_CACHE_SCRIPT,
           2 + budgetKeys.length,
@@ -289,7 +281,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
           getFileCacheKey(file),
           serializeBudgetEntry({ bytes: valueBytes, userId: options.userId }),
           valueBytes,
-          limits.maxExecutionBytes,
+          limits.maxOwnerBytes,
           limits.maxUserBytes,
           limits.ttlSeconds
         )) as [number, string, number | string | null]
@@ -305,7 +297,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
               attemptedBytes: valueBytes,
               currentBytes: Number(current ?? 0),
               limitBytes:
-                resource === 'user_redis_bytes' ? limits.maxUserBytes : limits.maxExecutionBytes,
+                resource === 'user_redis_bytes' ? limits.maxUserBytes : limits.maxOwnerBytes,
             })
           )
         }
@@ -379,15 +371,12 @@ async function cleanupBudgetEntry(
   rawEntry: string,
   entry: Base64BudgetEntry
 ): Promise<{ claimed: boolean; deletedCount: number }> {
-  const limits = getExecutionRedisBudgetLimits()
-  const budgetReservation: ExecutionRedisBudgetReservation = {
-    executionId,
+  const limits = getRedisBudgetLimits('execution')
+  const budgetKeys = getRedisBudgetKeys({
+    kind: 'execution',
+    id: executionId,
     userId: entry.userId,
-    category: 'base64_cache',
-    operation: 'cleanup_base64_cache',
-    bytes: entry.bytes,
-  }
-  const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+  })
   const result = (await redis.eval(
     CLEANUP_BASE64_CACHE_ENTRY_SCRIPT,
     2 + budgetKeys.length,

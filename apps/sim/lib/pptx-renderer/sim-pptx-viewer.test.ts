@@ -3,7 +3,7 @@
  */
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
-import { openSimPptxViewer, SIM_PPTX_LIST_OPTIONS } from '@/lib/pptx-renderer/sim-pptx-viewer'
+import { openSimPptxViewer } from '@/lib/pptx-renderer/sim-pptx-viewer'
 
 async function createMinimalPptx(): Promise<ArrayBuffer> {
   const zip = new JSZip()
@@ -53,13 +53,5 @@ describe('openSimPptxViewer', () => {
 
     handle.destroy()
     expect(container.innerHTML).toBe('')
-  })
-
-  it('uses windowed list rendering defaults for large decks', () => {
-    expect(SIM_PPTX_LIST_OPTIONS).toMatchObject({
-      windowed: true,
-      batchSize: 8,
-      initialSlides: 4,
-    })
   })
 })

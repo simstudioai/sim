@@ -26,13 +26,18 @@ import {
 } from '@/lib/internal/oracle-epm/links'
 import { getOracleEpmRouteSpace } from '@/lib/internal/oracle-epm/route-space'
 import type {
+  OracleEpmBodyMode,
   OracleEpmClientResponse,
   OracleEpmDestination,
+  OracleEpmEmptyResponse,
   OracleEpmEndpoint,
+  OracleEpmJsonResponse,
   OracleEpmPathPart,
   OracleEpmQueryParameter,
   OracleEpmRequestInput,
+  OracleEpmResponseMode,
   OracleEpmReturnedLinkPolicy,
+  OracleEpmStreamResponse,
   OracleEpmValidatedLink,
 } from '@/lib/internal/oracle-epm/types'
 
@@ -163,8 +168,8 @@ function buildHeaders(
   declarations: OracleEpmEndpointDefinition['headers'],
   values: OracleEpmRequestInput['headers'],
   accessToken: string,
-  bodyMode: OracleEpmEndpointDefinition['body'],
-  responseMode: OracleEpmEndpointDefinition['response']
+  bodyMode: OracleEpmBodyMode,
+  responseMode: OracleEpmResponseMode
 ): Record<string, string> {
   const declared = declarations ?? {}
   assertExactKeys(values, Object.keys(declared))
@@ -309,7 +314,7 @@ function getCorrelationId(
 async function projectResponse(
   response: SecureFetchResponse,
   endpoint: OracleEpmEndpointDefinition
-): Promise<OracleEpmClientResponse> {
+): Promise<OracleEpmJsonResponse | OracleEpmEmptyResponse | OracleEpmStreamResponse> {
   const correlationId = getCorrelationId(response, endpoint)
   if (endpoint.response === 'empty') {
     await response.body?.cancel().catch(() => undefined)

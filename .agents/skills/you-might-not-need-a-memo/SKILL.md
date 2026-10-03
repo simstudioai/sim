@@ -27,6 +27,10 @@ Read before analyzing:
 6. **React.memo on components that always receive new props**: If the parent always passes new objects, arrays, or callbacks, React.memo's shallow comparison always fails. Fix the parent instead of memoizing the child.
 7. **useMemo for derived state**: If you're computing a value from props or state, just compute it inline during render. React renders are fast. `const fullName = first + ' ' + last` doesn't need useMemo.
 
+## Patterns that ARE correct — do not flag
+
+- A `useMemo` that builds a lookup `Map`/`Set` or a single-pass partition for list rendering (`.claude/rules/sim-components.md` "List-render performance").
+
 ## Steps
 
 1. Read the reference above to understand the two core techniques (move state down, lift content up)

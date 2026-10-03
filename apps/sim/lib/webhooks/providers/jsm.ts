@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { validateJiraSignature } from '@/lib/webhooks/providers/jira'
 import type {
   EventMatchContext,
@@ -27,7 +28,7 @@ export const jsmHandler: WebhookProviderHandler = {
 
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const { extractRequestData, extractCommentData } = await import('@/triggers/jsm/utils')
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (triggerId === 'jsm_request_commented') {

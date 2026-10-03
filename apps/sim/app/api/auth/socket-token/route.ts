@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { headers } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { getBetterAuthClientErrorStatus } from '@/lib/auth/better-auth-error'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -40,14 +41,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ token: response.token })
   } catch (error) {
-    // better-auth's sessionMiddleware throws APIError("UNAUTHORIZED") with no message
-    // when the session is missing/expired — surface this as a 401, not a 500.
-    if (
-      error instanceof Error &&
-      ('statusCode' in error || 'status' in error) &&
-      ((error as Record<string, unknown>).statusCode === 401 ||
-        (error as Record<string, unknown>).status === 'UNAUTHORIZED')
-    ) {
+    /**
+     * better-auth's sessionMiddleware throws `APIError("UNAUTHORIZED")` with no message when the
+     * session is missing or expired — surface that as a 401, not a 500.
+     */
+    if (getBetterAuthClientErrorStatus(error) === 401) {
       logger.warn('Socket token request with invalid/expired session')
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }

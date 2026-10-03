@@ -1,5 +1,7 @@
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition } from '@/lib/table/types'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableGetSchemaParams, TableGetSchemaResponse } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,12 +13,7 @@ export const tableGetSchemaTool: InternalToolConfig<TableGetSchemaParams, TableG
     version: '1.0.0',
 
     params: {
-      tableId: {
-        type: 'string',
-        required: true,
-        description: 'Table ID',
-        visibility: 'user-only',
-      },
+      tableId: TABLE_ID_PARAM,
     },
 
     operation: {
@@ -41,17 +38,14 @@ export const tableGetSchemaTool: InternalToolConfig<TableGetSchemaParams, TableG
         (data.table.schema.columns ?? []) as ColumnDefinition[]
       ).map((col) => ({ ...col, id: getColumnId(col) }))
 
-      return {
-        success: true,
-        output: {
-          name: data.table.name,
-          columns,
-          columnCount: columns.length,
-          rowCount: data.table.rowCount ?? 0,
-          maxRows: data.table.maxRows ?? 0,
-          message: data.message || 'Schema retrieved successfully',
-        },
-      }
+      return tableSuccess({
+        name: data.table.name,
+        columns,
+        columnCount: columns.length,
+        rowCount: data.table.rowCount ?? 0,
+        maxRows: data.table.maxRows ?? 0,
+        message: data.message || 'Schema retrieved successfully',
+      })
     },
 
     outputs: {

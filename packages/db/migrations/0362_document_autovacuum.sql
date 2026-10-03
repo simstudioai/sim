@@ -1,0 +1,12 @@
+-- migration-safe: table-local maintenance settings only; no row rewrite or change to old readers and writers.
+-- Connector syncs update this table in bursts large enough to outrun autovacuum at the default 20%
+-- scale factor, which on a table of this size only triggers once dead rows are already substantial.
+-- Sustained bloat stops index-only scans from trusting the visibility map, so the knowledge base
+-- listing's token aggregate degrades into per-row heap fetches and can exceed its statement timeout.
+--
+-- These factors are deliberately less aggressive than 0357's. That one is a small queue table, while
+-- this is one of the largest tables here and shares a small autovacuum worker pool with many other
+-- large tables, so triggering too eagerly would risk holding a worker continuously and starving its
+-- peers. Cost limit and cost delay are deliberately left unset: PostgreSQL excludes tables carrying
+-- either from cross-worker I/O balancing, which is not a trade worth making on a table this busy.
+ALTER TABLE "document" SET (autovacuum_vacuum_scale_factor = 0.05, autovacuum_analyze_scale_factor = 0.02);

@@ -8,13 +8,12 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { ReductoParserOutput } from '@/tools/reducto/types'
 
 const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
 const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
 
-export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
+export const ReductoBlock: BlockConfig = {
   type: 'reducto',
   name: 'Reducto',
   description: 'Extract text from PDF documents',
@@ -181,7 +180,7 @@ const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => 
   return [subBlock]
 })
 
-export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
+export const ReductoV2Block: BlockConfig = {
   ...ReductoBlock,
   sunset: undefined,
   type: 'reducto_v2',

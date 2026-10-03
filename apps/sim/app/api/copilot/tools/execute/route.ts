@@ -3,23 +3,25 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolExecuteInternalBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
-import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
-import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { checkInternalApiKey } from '@/lib/copilot/request/http'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { toolResultForModel } from '@/lib/mothership/chat/sim-key-redaction'
+import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
+import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { checkInternalApiKey } from '@/lib/mothership/request/http'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
+  measureWithheldContent,
   projectToolErrorMessageForCopilot,
-} from '@/lib/copilot/request/tools/resolved-secret-result'
-import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
-import type { ToolCallResult } from '@/lib/copilot/request/types'
-import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor'
-import { executeTool } from '@/lib/copilot/tool-executor/executor'
-import { TOOL_EFFECT_PHASE } from '@/lib/copilot/tool-executor/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/tools/resolved-secret-result'
+import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import type { ToolCallResult } from '@/lib/mothership/request/types'
+import { ensureHandlersRegistered, toolRequiresApprovalLane } from '@/lib/mothership/tool-executor'
+import { executeTool } from '@/lib/mothership/tool-executor/executor'
+import { TOOL_EFFECT_PHASE } from '@/lib/mothership/tool-executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotToolExecuteInternalAPI')
@@ -41,16 +43,20 @@ const turnRegistryCache = new Map<
 async function getTurnEgressRegistry(
   userId: string,
   workspaceId: string | undefined,
-  messageId: string | undefined
+  messageId: string | undefined,
+  requestMode?: string,
+  organizationId?: string
 ): Promise<ResolvedSecretTraceRegistry> {
-  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${messageId ?? ''}`
+  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${organizationId ?? ''}\u0000${messageId ?? ''}\u0000${requestMode ?? ''}`
   const now = Date.now()
   const hit = turnRegistryCache.get(key)
   if (hit && hit.expiresAt > now) {
     hit.expiresAt = now + TURN_REGISTRY_TTL_MS
     return hit.registry
   }
-  const environmentContext = await prepareCopilotEnvironmentContext(userId, workspaceId)
+  const environmentContext = await prepareCopilotEnvironmentContext(userId, workspaceId, {
+    includeSecrets: requestMode !== 'assistant',
+  })
   for (const [cachedKey, cached] of turnRegistryCache) {
     if (cached.expiresAt <= now) turnRegistryCache.delete(cachedKey)
   }
@@ -107,10 +113,14 @@ export const POST = withRouteHandler((request: NextRequest) =>
         userId,
         workflowId,
         workspaceId,
+        organizationId,
         chatId,
         messageId,
         parentToolCallId,
         userPermission,
+        requestMode,
+        assistantSearch,
+        targetWorkspaceId,
       } = validation.data
       rootSpan.setAttributes({
         [TraceAttr.ToolName]: toolName,
@@ -118,10 +128,39 @@ export const POST = withRouteHandler((request: NextRequest) =>
         [TraceAttr.UserId]: userId,
       })
 
+      /**
+       * Cheap admission, before any work: this lane cannot hold an approval prompt. The
+       * dispatch handler gates `requiresApproval` tools against a streaming context and a
+       * decision row, then deliberately declines to dispatch anything the mothership marks
+       * in-band — so a gated tool arriving here has no waiter behind it and would run on
+       * consent nobody gave. Refuse instead, and let the mothership take the checkpoint lane
+       * where the gate lives. Inert while copilot tool permissions are disabled, which keeps
+       * enabling the flag from silently leaving background lanes ungated.
+       */
+      if (toolRequiresApprovalLane(toolName)) {
+        logger.warn('Refusing an approval-gated tool on the in-band lane', {
+          toolName,
+          toolCallId,
+          userId,
+        })
+        rootSpan.setAttributes({ [TraceAttr.ToolOutcome]: MothershipStreamV1ToolOutcome.error })
+        return NextResponse.json({
+          success: false,
+          error: `${toolName} was not run: it requires user approval, and this lane cannot hold an approval prompt. Dispatch it on the checkpoint lane instead.`,
+          output: { resultWithheld: true, effect: TOOL_EFFECT_PHASE.notAttempted },
+        })
+      }
+
       let toolRegistry: ResolvedSecretTraceRegistry
       let turnRegistry: ResolvedSecretTraceRegistry
       try {
-        turnRegistry = await getTurnEgressRegistry(userId, workspaceId, messageId)
+        turnRegistry = await getTurnEgressRegistry(
+          userId,
+          workspaceId,
+          messageId,
+          requestMode,
+          organizationId
+        )
         toolRegistry = turnRegistry.forkForInputPaths([])
       } catch (err) {
         /**
@@ -167,12 +206,17 @@ export const POST = withRouteHandler((request: NextRequest) =>
           userId,
           workflowId: workflowId ?? '',
           workspaceId,
+          organizationId,
           chatId,
           messageId,
           toolCallId,
           parentToolCallId,
           userPermission,
           copilotToolExecution: true,
+          copilotInteractionMode: 'interactive',
+          requestMode,
+          assistantSearch,
+          targetWorkspaceId,
           resolvedSecretTraceRegistry: toolRegistry,
         })
         const projection = inspectToolResultForCopilot(result, toolRegistry, toolName)
@@ -192,6 +236,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
             toolCallId,
             runtimeSucceeded: result.success,
             ...describeWithholdingCause(projection.cause),
+            ...measureWithheldContent(result),
           })
         }
         if (!projected.success) {
@@ -226,9 +271,17 @@ export const POST = withRouteHandler((request: NextRequest) =>
             })
           })
         }
+        /**
+         * The response IS the model-facing channel on this lane — Go relays it straight into
+         * the turn — so it carries the same projection the resume lane's
+         * `getToolCallTerminalData` produces, not the raw handler output. Without this,
+         * `generate_api_key`'s freshly minted plaintext key crossed to the model here while
+         * the redaction held on the other lane. Every other tool is returned unchanged.
+         */
+        const modelOutput = toolResultForModel(toolName, projected.output)
         return NextResponse.json({
           success: projected.success,
-          ...(projected.output !== undefined ? { output: projected.output } : {}),
+          ...(modelOutput !== undefined ? { output: modelOutput } : {}),
           ...(projected.error ? { error: projected.error } : {}),
         })
       } catch (err) {

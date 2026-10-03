@@ -34,7 +34,7 @@ export const customFieldsDeleteTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

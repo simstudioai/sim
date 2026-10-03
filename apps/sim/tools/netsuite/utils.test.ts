@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeNetsuiteBatchCreateRecordsOperation } from '@/lib/internal/netsuite/operations/batch-create-records'
 import { executeNetsuiteCreateRecordOperation } from '@/lib/internal/netsuite/operations/create-record'
@@ -24,13 +22,6 @@ const AUTH: NetSuiteAuthParams = {
 interface FetchCall {
   url: string
   init?: RequestInit
-}
-
-function jsonResponse(data: unknown, status = 200, headers?: HeadersInit): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...headers },
-  })
 }
 
 function installFetch(
@@ -58,7 +49,6 @@ async function executeServerTime(auth: NetSuiteAuthParams = AUTH, signal?: Abort
 describe('NetSuite shared executor', () => {
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('accepts only authoritative NetSuite SuiteTalk origins', () => {
@@ -266,7 +256,12 @@ describe('NetSuite shared executor', () => {
 
   it('accepts the documented replacement-create 201 post-state with Location', async () => {
     const location = '/services/rest/record/v1/customer/647'
-    installFetch([jsonResponse({ id: '647', companyName: 'Acme' }, 201, { Location: location })])
+    installFetch([
+      jsonResponse(
+        { id: '647', companyName: 'Acme' },
+        { status: 201, headers: { Location: location } }
+      ),
+    ])
     const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
@@ -565,8 +560,7 @@ describe('NetSuite shared executor', () => {
             },
           ],
         },
-        400,
-        { Location: location }
+        { status: 400, headers: { Location: location } }
       ),
     ])
 
@@ -604,8 +598,7 @@ describe('NetSuite shared executor', () => {
             },
           ],
         },
-        409,
-        { Location: location }
+        { status: 409, headers: { Location: location } }
       ),
     ])
 
@@ -662,8 +655,7 @@ describe('NetSuite shared executor', () => {
             },
           ],
         },
-        400,
-        { Location: location }
+        { status: 400, headers: { Location: location } }
       ),
     ])
 
@@ -758,8 +750,7 @@ describe('NetSuite shared executor', () => {
             },
           ],
         },
-        400,
-        { Location: location }
+        { status: 400, headers: { Location: location } }
       ),
     ])
 

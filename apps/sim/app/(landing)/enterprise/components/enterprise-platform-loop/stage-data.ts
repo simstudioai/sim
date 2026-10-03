@@ -1,5 +1,5 @@
 import { Table as TableIcon } from '@sim/emcn/icons'
-import { AgentIcon, ConditionalIcon, MailIcon, StartIcon } from '@/components/icons'
+import { AgentIcon, ConditionalIcon, HumanInTheLoopIcon, StartIcon } from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
@@ -68,8 +68,8 @@ export const SUGGESTED_ACTIONS = [
  * the NetSuite PO match, exceptions are flagged, and the flow fans out to
  * finance review and the audit log. Same geometry conventions as the homepage
  * stage (250px blocks, vertical spine at x=155, terminals fanned at y=580);
- * tiles use the platform's grey text ramp - color is reserved for real
- * third-party marks, and none of these carry one.
+ * cards use production workflow role accents, with no third-party brand
+ * treatment in this particular flow.
  *
  * Ordered by build sequence; an edge draws once both endpoints are on canvas.
  */
@@ -77,6 +77,8 @@ export const ENTERPRISE_STAGE_BLOCKS: BlockDef[] = [
   {
     id: 'start',
     name: 'Start',
+    type: 'start_trigger',
+    typeLabel: 'Start',
     icon: StartIcon,
     bgColor: 'var(--text-muted)',
     isTrigger: true,
@@ -87,6 +89,8 @@ export const ENTERPRISE_STAGE_BLOCKS: BlockDef[] = [
   {
     id: 'match',
     name: 'Match PO',
+    type: 'agent',
+    typeLabel: 'Agent',
     icon: AgentIcon,
     bgColor: 'var(--text-primary)',
     rows: [
@@ -99,6 +103,8 @@ export const ENTERPRISE_STAGE_BLOCKS: BlockDef[] = [
   {
     id: 'exceptions',
     name: 'Flag exceptions',
+    type: 'condition',
+    typeLabel: 'Condition',
     icon: ConditionalIcon,
     bgColor: 'var(--text-secondary)',
     rows: [{ title: 'Conditions', value: '-' }],
@@ -108,12 +114,14 @@ export const ENTERPRISE_STAGE_BLOCKS: BlockDef[] = [
   {
     id: 'review',
     name: 'Finance review',
-    icon: MailIcon,
+    type: 'human_in_the_loop',
+    typeLabel: 'Human',
+    icon: HumanInTheLoopIcon,
     bgColor: 'var(--text-body)',
     isTerminal: true,
     rows: [
-      { title: 'To', value: '-' },
-      { title: 'Subject', value: '-' },
+      { title: 'Display Data', value: '-' },
+      { title: 'Resume Form', value: '-' },
     ],
     x: 0,
     y: 560,
@@ -121,6 +129,8 @@ export const ENTERPRISE_STAGE_BLOCKS: BlockDef[] = [
   {
     id: 'audit',
     name: 'Audit log',
+    type: 'table',
+    typeLabel: 'Table',
     icon: TableIcon,
     bgColor: 'var(--text-muted)',
     isTerminal: true,
@@ -142,7 +152,7 @@ export const ENTERPRISE_STAGE_EDGES: ReadonlyArray<readonly [string, string]> = 
 ]
 
 /** Design-space bounding box of the layout above. */
-export const ENTERPRISE_STAGE_CANVAS = { width: 560, height: 680 } as const
+export const ENTERPRISE_STAGE_CANVAS = { width: 560, height: 712 } as const
 
 /** Where the main pane is within one loop pass. */
 export type EnterpriseLoopPhase = 'idle' | 'typing' | 'typed' | 'dispatch' | 'reply'

@@ -12,12 +12,18 @@ import {
   SquareArrowUpRight,
   Unlock,
 } from '@sim/emcn/icons'
-import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
+import {
+  type BlockRetryConfig,
+  isWorkflowBlockAncestorLocked,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
+import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { captureEvent } from '@/lib/posthog/client'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
@@ -48,10 +54,6 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  isAncestorProtected,
-  isBlockProtected,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { BlockTile } from '@/blocks/block-tile'
 import { getBlock } from '@/blocks/registry'
@@ -136,8 +138,10 @@ export function Editor() {
   // Check if block is locked (or inside a locked ancestor) and compute edit permission
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
-  const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
-  const isAncestorLocked = currentBlockId ? isAncestorProtected(currentBlockId, blocks) : false
+  const isLocked = currentBlockId ? isWorkflowBlockProtected(currentBlockId, blocks) : false
+  const isAncestorLocked = currentBlockId
+    ? isWorkflowBlockAncestorLocked(currentBlockId, blocks)
+    : false
   const canEditBlock = userPermissions.canEdit && !workflowLocked && !isLocked
 
   const { advancedMode, triggerMode } = useEditorBlockProperties(
@@ -258,6 +262,7 @@ export function Editor() {
 
   const {
     collaborativeSetBlockCanonicalMode,
+    collaborativeSetSubblockValue,
     collaborativeUpdateBlockName,
     collaborativeSetBlockRetry,
     collaborativeBatchToggleLocked,
@@ -329,7 +334,8 @@ export function Editor() {
     const block = blocks[blockId]
     if (!block) return
 
-    if (!userPermissions.canEdit || workflowLocked || isBlockProtected(blockId, blocks)) return
+    if (!userPermissions.canEdit || workflowLocked || isWorkflowBlockProtected(blockId, blocks))
+      return
 
     renamingBlockIdRef.current = blockId
     setEditedName(block.name || '')
@@ -589,7 +595,7 @@ export function Editor() {
                           </div>
                         ) : childWorkflowState ? (
                           <>
-                            <div className='[&_.react-flow__handle]:hidden! h-full w-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
+                            <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                               <PreviewWorkflow
                                 workflowState={childWorkflowState}
                                 height={160}
@@ -604,6 +610,7 @@ export function Editor() {
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <Button
+                                  aria-label='Open workflow'
                                   type='button'
                                   variant='ghost'
                                   onClick={handleOpenChildWorkflow}
@@ -670,7 +677,16 @@ export function Editor() {
                               isCanonicalSwap && canonicalMode && canonicalId
                                 ? {
                                     mode: canonicalMode,
-                                    disabled: !canEditBlock,
+                                    disabled:
+                                      !canEditBlock ||
+                                      (currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'tool' &&
+                                        isMcpRuntimeReference(
+                                          resolveMcpBlockConfig(
+                                            blockSubBlockValues,
+                                            canonicalModeOverrides
+                                          ).server
+                                        )),
                                     onToggle: () => {
                                       if (!currentBlockId) return
                                       const nextMode =
@@ -680,6 +696,35 @@ export function Editor() {
                                         canonicalId,
                                         nextMode
                                       )
+                                      if (
+                                        currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'server'
+                                      ) {
+                                        collaborativeSetSubblockValue(
+                                          currentBlockId,
+                                          '_toolSchema',
+                                          null
+                                        )
+                                        const next = resolveMcpBlockConfig(blockSubBlockValues, {
+                                          ...canonicalModeOverrides,
+                                          server: nextMode,
+                                        })
+                                        if (
+                                          isMcpRuntimeReference(next.server) &&
+                                          canonicalModeOverrides?.tool !== 'advanced'
+                                        ) {
+                                          collaborativeSetSubblockValue(
+                                            currentBlockId,
+                                            'toolReference',
+                                            blockSubBlockValues.toolSelector ?? ''
+                                          )
+                                          collaborativeSetBlockCanonicalMode(
+                                            currentBlockId,
+                                            'tool',
+                                            'advanced'
+                                          )
+                                        }
+                                      }
                                     },
                                   }
                                 : undefined
@@ -760,6 +805,7 @@ export function Editor() {
 
                     {showRetrySettings && (
                       <RetrySettings
+                        blockId={currentBlockId}
                         retry={currentBlock?.retry}
                         disabled={!canEditBlock}
                         onChange={handleChangeRetry}
@@ -816,10 +862,7 @@ export function Editor() {
 
                 {/* Connections Content - Always visible */}
                 <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
-                  <ConnectionBlocks
-                    connections={incomingConnections}
-                    currentBlockId={currentBlock.id}
-                  />
+                  <ConnectionBlocks connections={incomingConnections} />
                 </div>
               </div>
             )}

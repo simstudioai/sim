@@ -8,18 +8,17 @@ import type { ParallelScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
-import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
 import {
-  addSubflowErrorLog,
   buildBranchNodeId,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-  emitSubflowSuccessEvents,
   extractBaseBlockId,
   extractBranchIndex,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
+import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
+import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedParallel } from '@/serializer/types'
@@ -384,8 +383,8 @@ export class ParallelOrchestrator {
     }
 
     if (this.dag.loopConfigs.has(subflowId)) {
-      nodeIds.add(buildSentinelStartId(subflowId))
-      nodeIds.add(buildSentinelEndId(subflowId))
+      nodeIds.add(buildLoopSentinelStartId(subflowId))
+      nodeIds.add(buildLoopSentinelEndId(subflowId))
       for (const childId of this.dag.loopConfigs.get(subflowId)?.nodes ?? []) {
         if (this.dag.parallelConfigs.has(childId) || this.dag.loopConfigs.has(childId)) {
           this.collectSubflowNodeIds(childId, nodeIds, visited)

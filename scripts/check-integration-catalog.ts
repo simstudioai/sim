@@ -8,6 +8,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
  */
 import { BLOCK_REGISTRY } from '../apps/sim/blocks/registry-maps'
 import { AuthMode, type BlockConfig } from '../apps/sim/blocks/types'
+import { INTEGRATION_METADATA } from '../packages/deployment-config/src/integration-metadata'
 import integrationsJson from '../packages/deployment-config/src/integrations.json'
 import { DOCS_ORIGIN, DOCS_OUTPUT_PATH, defaultIntegrationDocsUrl } from './generate-docs'
 
@@ -19,6 +20,7 @@ interface CatalogEntry {
   name: string
   category: string
   integrationType: string
+  bgColor: string
   authType: CatalogAuthType
   oauthServiceId?: string
 }
@@ -68,6 +70,7 @@ function expectedEntry(block: BlockConfig): CatalogEntry {
     name: block.name,
     category: block.category,
     integrationType: block.integrationType,
+    bgColor: block.bgColor,
     authType,
     ...(oauthServiceId ? { oauthServiceId } : {}),
   }
@@ -130,6 +133,22 @@ function verifyIntegrationCatalog(): void {
   }
 
   const actual = integrationsJson.integrations as readonly CatalogEntry[]
+  const expectedMetadata = actual.map(
+    ({ type, slug, name, authType, oauthServiceId, bgColor, integrationType }) => ({
+      type,
+      slug,
+      name,
+      authType,
+      ...(oauthServiceId ? { oauthServiceId } : {}),
+      bgColor,
+      integrationType,
+    })
+  )
+  if (JSON.stringify(INTEGRATION_METADATA) !== JSON.stringify(expectedMetadata)) {
+    throw new Error(
+      'Integration metadata is stale. Run `bun run scripts/generate-docs.ts` and commit the result.'
+    )
+  }
   const expectedByType = new Map(expected.map((block) => [block.type, expectedEntry(block)]))
   const actualByType = new Map<string, CatalogEntry>()
   const actualSlugs = new Set<string>()
@@ -156,6 +175,7 @@ function verifyIntegrationCatalog(): void {
       'slug',
       'category',
       'integrationType',
+      'bgColor',
       'authType',
       'oauthServiceId',
     ] as const) {

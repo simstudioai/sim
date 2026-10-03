@@ -1,10 +1,3 @@
-/**
- * Icon-only controls in the resource header — add, preview mode, the per-resource
- * actions — fill the tab strip's control band, so they match the strip's own
- * new-tab button and the panel's collapse toggle and the header reads as one row.
- */
-export const RESOURCE_TAB_ICON_BUTTON_CLASS = 'size-[var(--tab-strip-band,30px)] shrink-0 p-0'
-
 export const RESOURCE_TAB_ICON_CLASS = 'size-[16px] text-[var(--text-icon)]'
 
 /** Shared geometry for the resource header and controls positioned over it. */
@@ -27,9 +20,12 @@ export const RESOURCE_HEADER_CLASSES = {
    * keeps: a tab paints a fill, so its box is visible and wants air around it,
    * where the toggle and the action buttons are bare glyphs whose box only shows
    * on hover.
+   *
+   * The strip sizes tabs from the available width, including the space taken
+   * by header actions, and scrolls once every tab reaches its minimum width.
    */
   stripGeometry:
-    '[--tab-strip-height:calc(var(--resource-header-controls-height)_+_1px)] [--tab-strip-band:26px] [--tab-strip-max-tab-width:160px] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
+    '[--tab-strip-height:calc(var(--resource-header-controls-height)_+_1px)] [--tab-strip-band:26px] [--tab-strip-inline-start:var(--resource-header-end-inset)] [--tab-strip-inline-end:var(--resource-header-fixed-reserve)]',
   /**
    * Centred, matching the `floating` strip: its tabs and controls sit centred in
    * the header band rather than hanging from the top, so an overlaid control has
