@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   isBlockTypeAllowed,
@@ -34,6 +35,13 @@ export interface ExecuteToolInput {
   timeoutSeconds?: number
 }
 
+export class ToolUsageLimitExceededError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ToolUsageLimitExceededError'
+  }
+}
+
 export interface ExecuteToolResult {
   toolId: string
   status: 'succeeded' | 'failed'
@@ -49,8 +57,8 @@ export interface ExecuteToolResult {
  * deployment hosts keys, any `enabled` predicate accepts these params, and the
  * caller has not brought a key of their own — which wins where present.
  *
- * Pre-dispatch only, for the required-input exemption: a parameter Sim will
- * fill is not missing. It is deliberately NOT the metering gate — it cannot see
+ * Pre-dispatch only: the required-input exemption (a parameter Sim will fill is
+ * not missing) and usage admission. It is deliberately NOT the metering gate — it cannot see
  * a BYOK key, which the registry injects while reporting the call as *not*
  * hosted, so after dispatch the registry's own verdict is read instead.
  */
@@ -187,10 +195,9 @@ function assertNoUndeclaredInputs(
 function assertRequiredCallerInputsPresent(
   tool: ExecutableToolConfig,
   toolId: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  hostedKeyParam: string | undefined
 ): void {
-  const hostedKeyParam = hostedKeyParamFor(tool, params)
-
   const missing = Object.entries(tool.params ?? {})
     .filter(([name, declaration]) => {
       if (!declaration?.required) return false
@@ -290,7 +297,8 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       ...input.input,
       ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
     }
-    assertRequiredCallerInputsPresent(tool, toolId, callerParams)
+    const hostedKeyParam = hostedKeyParamFor(tool, callerParams)
+    assertRequiredCallerInputsPresent(tool, toolId, callerParams, hostedKeyParam)
 
     const userId = principalUserId(principal)
     if (!userId) {
@@ -301,6 +309,20 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       actorUserId: userId,
       workspaceId: context.workspaceId,
     })
+
+    /**
+     * Admission before Sim's key is spent: metering runs only after the provider
+     * has charged it. A BYOK workspace is gated too, since only the registry can
+     * see that key — the same standing every workflow run is held to.
+     */
+    if (hostedKeyParam) {
+      const usage = await checkExecutionUsageLimits(billingAttribution)
+      if (usage.isExceeded) {
+        throw new ToolUsageLimitExceededError(
+          usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+        )
+      }
+    }
 
     const params: Record<string, unknown> = {
       ...callerParams,

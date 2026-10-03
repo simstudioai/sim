@@ -4601,7 +4601,7 @@
       "post": {
         "operationId": "executeTool",
         "summary": "Run Tool",
-        "description": "Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: \"failed\"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: \"failed\"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace; a workspace over its usage or billing limits returns `402`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tools.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Catalog"],
@@ -4657,6 +4657,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -9187,6 +9190,22 @@
               "error": {
                 "code": "UNAUTHORIZED",
                 "message": "Authentication required"
+              }
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "USAGE_LIMIT_EXCEEDED",
+                "message": "Usage limit exceeded. Please upgrade your plan to continue."
               }
             }
           }

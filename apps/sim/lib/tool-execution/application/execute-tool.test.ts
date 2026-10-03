@@ -10,6 +10,10 @@ import {
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
 import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
   billingUsageLogMock,
   billingUsageLogMockFns,
 } from '@sim/testing/mocks/billing-usage-log.mock'
@@ -87,11 +91,16 @@ vi.mock('@/lib/internal/file/operations', () => ({
 
 vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
-import { executeToolForCaller } from '@/lib/tool-execution/application/execute-tool'
+import {
+  executeToolForCaller,
+  ToolUsageLimitExceededError,
+} from '@/lib/tool-execution/application/execute-tool'
 import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { fileReadTool } from '@/tools/file/get'
@@ -156,6 +165,7 @@ const mocks = {
   getAllBlocks: vi.mocked(getAllBlocks),
   executeRegistryTool: toolsMockFns.mockExecuteTool,
   resolveBillingAttribution: billingAttributionMockFns.mockResolveBillingAttribution,
+  checkUsageLimits: billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits,
 }
 
 vi.mocked(getBlock).mockReturnValue(undefined as never)
@@ -242,6 +252,7 @@ describe('executeToolForCaller', () => {
     ])
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
+    mocks.checkUsageLimits.mockResolvedValue({ isExceeded: false })
   })
 
   it.each<PersonalApiKeyPrincipal | SessionPrincipal>([principal, createSessionPrincipal()])(
@@ -496,6 +507,25 @@ describe('executeToolForCaller', () => {
     await run({ input: { url: 'https://a.co' } })
 
     expect(mocks.recordUsage).not.toHaveBeenCalled()
+  })
+
+  it('refuses a hosted-key call over the usage limit before it dispatches', async () => {
+    mocks.checkUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Usage limit exceeded' })
+
+    await expect(run()).rejects.toBeInstanceOf(ToolUsageLimitExceededError)
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['the caller brings their own key', { input: { url: 'https://a.co', apiKey: 'sk-own' } }],
+    [
+      'the tool has no hosted key',
+      { toolId: 'zendesk_get_ticket', input: { ticketId: '4', subdomain: 'a', apiToken: 't' } },
+    ],
+  ])('does not gate on usage when %s', async (_case, input) => {
+    mocks.checkUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Usage limit exceeded' })
+
+    await expect(run(input)).resolves.toMatchObject({ status: 'succeeded' })
   })
 
   /**
