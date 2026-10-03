@@ -7,6 +7,22 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
 
+interface WorkflowCanvasInteractionPolicyInput {
+  embedded: boolean
+  canEdit: boolean
+}
+
+/** Separates position editing from structural re-parenting for embedded canvases. */
+export function getWorkflowCanvasInteractionPolicy({
+  embedded,
+  canEdit,
+}: WorkflowCanvasInteractionPolicyInput) {
+  return {
+    canDragNodes: canEdit,
+    canReparentNodes: canEdit && !embedded,
+  } as const
+}
+
 /**
  * Marks canvas nodes nested inside a subflow container. React Flow v11 emitted
  * `data-parent-node-id` for this; v12 emits no parent attribute, so the app
