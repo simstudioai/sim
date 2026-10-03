@@ -1,0 +1,1842 @@
+---
+title: Oracle EPM Enterprise Data Management
+description: Manage dimensions, viewpoints, nodes, governed requests, validation, and data transfers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_enterprise_data_management"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Use a reusable Oracle EPM service account to discover enterprise master data, browse bounded hierarchies, prepare and transition governed requests, inspect subscription-generated request lineage, run validation, and import or export files. Node changes flow through request attachments. Subscription and validation-definition administration are not included. Upload-to-import request workflows are supported; generated attachment jobs return opaque results because Oracle does not document the generated attachment ID needed to chain an import automatically. Oracle job COMPLETED is not a guarantee of business success: inspect job results and validation reports.
+
+
+
+## Actions
+
+### Oracle EDM List Applications
+
+List applications visible to the EDM credential, with bounded documented metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `applicationId` | string | No | Application UUID |
+| `permission` | string | No | One application permission: owner, datamanager, participant, or participant_with_write. Allowed values: owner, datamanager, participant, participant_with_write. |
+| `maxResults` | number | No | Maximum projected items \(1-500; default 200\). This is a local result cap, not provider pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applications` | json | Bounded application collection |
+|   ↳ `items` | array | Bounded application collection |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|     ↳ `objectStatus` | string | Resource object status |
+|     ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `permittedActions` | array | Actions permitted for the credential |
+|     ↳ `primaryView` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `supportedDirection` | string | Supported import/export direction |
+|     ↳ `dimensions` | array | Documented application dimensions |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|       ↳ `objectStatus` | string | Resource object status |
+|       ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|       ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|       ↳ `permittedActions` | array | Actions permitted for the credential |
+|       ↳ `dimensionType` | string | Dimension type |
+|       ↳ `connected` | boolean | Whether the dimension is connected |
+|       ↳ `externalName` | string | External dimension name |
+|       ↳ `isBound` | boolean | Whether the dimension is bound |
+|       ↳ `supportsMapping` | boolean | Whether mappings are supported |
+|       ↳ `supportsMappingExport` | boolean | Whether mapping export is supported |
+|       ↳ `supportsExtracts` | boolean | Whether extracts are supported |
+|       ↳ `supportedDirection` | string | Supported import/export direction |
+|       ↳ `bindings` | array | Dimension bindings and their view/viewpoint references |
+|         ↳ `id` | string | Resource UUID |
+|         ↳ `name` | string | Resource name |
+|         ↳ `description` | string | Resource description |
+|         ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|           ↳ `rel` | string | Link relation |
+|           ↳ `href` | string | Link target |
+|           ↳ `method` | string | Advertised HTTP method |
+|         ↳ `bindingType` | string | Dimension binding type |
+|         ↳ `viewpoint` | json | Resource reference \(id, name, description, links\) |
+|           ↳ `id` | string | Resource UUID |
+|           ↳ `name` | string | Resource name |
+|           ↳ `description` | string | Resource description |
+|           ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|             ↳ `rel` | string | Link relation |
+|             ↳ `href` | string | Link target |
+|             ↳ `method` | string | Advertised HTTP method |
+|         ↳ `view` | json | Resource reference \(id, name, description, links\) |
+|           ↳ `id` | string | Resource UUID |
+|           ↳ `name` | string | Resource name |
+|           ↳ `description` | string | Resource description |
+|           ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|             ↳ `rel` | string | Link relation |
+|             ↳ `href` | string | Link target |
+|             ↳ `method` | string | Advertised HTTP method |
+|   ↳ `count` | number | Number of returned items |
+|   ↳ `truncated` | boolean | More items exist or the provider indicated additional results |
+
+### Oracle EDM List Dimensions
+
+List dimensions and bindings from a selected application's documented metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `applicationId` | string | Yes | Application UUID |
+| `maxResults` | number | No | Maximum projected items \(1-500; default 200\). This is a local result cap, not provider pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | string | Selected application UUID |
+| `dimensions` | json | Bounded dimension collection |
+|   ↳ `items` | array | Bounded dimension collection |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|     ↳ `objectStatus` | string | Resource object status |
+|     ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `permittedActions` | array | Actions permitted for the credential |
+|     ↳ `dimensionType` | string | Dimension type |
+|     ↳ `connected` | boolean | Whether the dimension is connected |
+|     ↳ `externalName` | string | External dimension name |
+|     ↳ `isBound` | boolean | Whether the dimension is bound |
+|     ↳ `supportsMapping` | boolean | Whether mappings are supported |
+|     ↳ `supportsMappingExport` | boolean | Whether mapping export is supported |
+|     ↳ `supportsExtracts` | boolean | Whether extracts are supported |
+|     ↳ `supportedDirection` | string | Supported import/export direction |
+|     ↳ `bindings` | array | Dimension bindings and their view/viewpoint references |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|       ↳ `bindingType` | string | Dimension binding type |
+|       ↳ `viewpoint` | json | Resource reference \(id, name, description, links\) |
+|         ↳ `id` | string | Resource UUID |
+|         ↳ `name` | string | Resource name |
+|         ↳ `description` | string | Resource description |
+|         ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|           ↳ `rel` | string | Link relation |
+|           ↳ `href` | string | Link target |
+|           ↳ `method` | string | Advertised HTTP method |
+|       ↳ `view` | json | Resource reference \(id, name, description, links\) |
+|         ↳ `id` | string | Resource UUID |
+|         ↳ `name` | string | Resource name |
+|         ↳ `description` | string | Resource description |
+|         ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|           ↳ `rel` | string | Link relation |
+|           ↳ `href` | string | Link target |
+|           ↳ `method` | string | Advertised HTTP method |
+|   ↳ `count` | number | Number of returned items |
+|   ↳ `truncated` | boolean | More items exist or the provider indicated additional results |
+
+### Oracle EDM List Views
+
+List EDM views, optionally filtered by one dimension or object status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `dimensionId` | string | No | Dimension UUID |
+| `objectStatus` | string | No | One view status filter. Allowed values: DRAFT, ACTIVE, ARCHIVED. |
+| `maxResults` | number | No | Maximum projected items \(1-500; default 200\). This is a local result cap, not provider pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `views` | json | Bounded view collection |
+|   ↳ `items` | array | Bounded view collection |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|     ↳ `objectStatus` | string | Resource object status |
+|     ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `permittedActions` | array | Actions permitted for the credential |
+|     ↳ `master` | boolean | Whether this is a master view |
+|   ↳ `count` | number | Number of returned items |
+|   ↳ `truncated` | boolean | More items exist or the provider indicated additional results |
+
+### Oracle EDM List Viewpoints
+
+List viewpoints in a view, optionally filtered by application or dimension.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `dimensionId` | string | No | Dimension UUID |
+| `applicationId` | string | No | Application UUID |
+| `maxResults` | number | No | Maximum projected items \(1-500; default 200\). This is a local result cap, not provider pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `viewpoints` | json | Bounded viewpoint collection |
+|   ↳ `items` | array | Bounded viewpoint collection |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|     ↳ `objectStatus` | string | Resource object status |
+|     ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `permittedActions` | array | Actions permitted for the credential |
+|     ↳ `label` | string | Viewpoint label |
+|     ↳ `hasHierarchy` | boolean | Whether the viewpoint has a hierarchy |
+|     ↳ `scope` | string | Viewpoint scope |
+|     ↳ `bindingType` | string | Viewpoint binding type |
+|     ↳ `viewId` | string | Containing view UUID |
+|     ↳ `viewName` | string | Containing view name |
+|     ↳ `applicationLink` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `dimensionLink` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `nodeSetLink` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `hierarchySetLink` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `nodeTypeAssignments` | array | Node-type assignments, not administration objects |
+|       ↳ `nodeTypeLink` | json | Resource reference \(id, name, description, links\) |
+|         ↳ `id` | string | Resource UUID |
+|         ↳ `name` | string | Resource name |
+|         ↳ `description` | string | Resource description |
+|         ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|           ↳ `rel` | string | Link relation |
+|           ↳ `href` | string | Link target |
+|           ↳ `method` | string | Advertised HTTP method |
+|       ↳ `relatedViewpoints` | array | Related viewpoints |
+|         ↳ `id` | string | Resource UUID |
+|         ↳ `name` | string | Resource name |
+|         ↳ `description` | string | Resource description |
+|         ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|           ↳ `rel` | string | Link relation |
+|           ↳ `href` | string | Link target |
+|           ↳ `method` | string | Advertised HTTP method |
+|   ↳ `count` | number | Number of returned items |
+|   ↳ `truncated` | boolean | More items exist or the provider indicated additional results |
+
+### Oracle EDM List Node Types
+
+List node-type references assigned to a viewpoint; this is not an administration API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `viewpointId` | string | Yes | Viewpoint UUID |
+| `maxResults` | number | No | Maximum projected items \(1-500; default 200\). This is a local result cap, not provider pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nodeTypes` | json | Bounded viewpoint-assigned node-type references |
+|   ↳ `items` | array | Bounded viewpoint-assigned node-type references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|     ↳ `viewpointId` | string | Viewpoint containing this assignment |
+|     ↳ `relatedViewpoints` | array | Related viewpoint references |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|   ↳ `count` | number | Number of returned items |
+|   ↳ `truncated` | boolean | More items exist or the provider indicated additional results |
+
+### Oracle EDM Get Node Type
+
+Get a node-type reference and related viewpoints from a viewpoint assignment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `viewpointId` | string | Yes | Viewpoint UUID |
+| `nodeTypeId` | string | Yes | Node-type UUID assigned to the selected viewpoint |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nodeType` | json | Selected node-type assignment reference |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `description` | string | Resource description |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `viewpointId` | string | Viewpoint containing this assignment |
+|   ↳ `relatedViewpoints` | array | Related viewpoint references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM List Nodes
+
+List one bounded flat page of all, top, child, or request-context nodes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `viewpointId` | string | Yes | Viewpoint UUID |
+| `scope` | string | No | Node listing scope \(default top\); children requires parentNodeId, request requires requestId. Allowed values: top, all, children, request. |
+| `parentNodeId` | string | No | Parent node UUID for children scope only |
+| `requestId` | string | No | Request UUID; for node listing it requires request scope |
+| `expand` | string | No | One documented node expansion. Allowed values: propertyValues::none, propertyValues::all, propertyValues::columnVisible, propertyValues::locationVisible, requestItem.validations, bestLocationRtl. |
+| `limit` | number | No | Node page size \(1-100; default 50\) |
+| `offset` | number | No | Node page offset \(0-1000000; default 0\) |
+| `fromId` | string | No | Nodes after this node UUID; append * to include it, or use first. Cannot combine with toId. |
+| `toId` | string | No | Nodes before this node UUID; append * to include it, or use last. Cannot combine with fromId. |
+| `orderBy` | string | No | Hierarchy-set node order. Allowed values: hsConfig:asc, hsConfig:desc. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nodes` | array | Bounded flat node page |
+|   ↳ `id` | string | Node UUID |
+|   ↳ `name` | string | Node name |
+|   ↳ `description` | string | Node description |
+|   ↳ `nodeType` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `hasChildren` | boolean | Whether the node has children |
+|   ↳ `location` | string | Provider-returned node location |
+|   ↳ `path` | array | Provider-returned path references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `relationshipId` | string | Relationship UUID |
+|   ↳ `parentNodeId` | string | Parent node UUID |
+|   ↳ `parentName` | string | Parent node name |
+|   ↳ `parentNodeTypeId` | string | Parent node-type UUID |
+|   ↳ `childCount` | number | Number of children |
+|   ↳ `locationCount` | number | Number of node locations |
+|   ↳ `previousLocation` | string | Previous location |
+|   ↳ `nextLocation` | string | Next location |
+|   ↳ `propertyCount` | number | Number of properties |
+|   ↳ `propertyValues` | array | Documented node and relationship property values |
+|     ↳ `value` | string | Property value |
+|     ↳ `displayValue` | string | Display value |
+|     ↳ `propertyName` | string | Property name |
+|     ↳ `propertyId` | string | Property UUID |
+|     ↳ `origin` | string | Value origin |
+|     ↳ `propertyLevel` | string | Node or relationship level |
+|     ↳ `labels` | array | Property labels |
+|     ↳ `readOnly` | boolean | Whether the property is read-only |
+|     ↳ `validated` | boolean | Whether the property was validated |
+|   ↳ `requestItem` | json | Request item and its validation findings |
+|     ↳ `id` | string | Request item UUID |
+|     ↳ `name` | string | Item name |
+|     ↳ `description` | string | Item description |
+|     ↳ `actionCount` | number | Number of actions |
+|     ↳ `nodeTypeName` | string | Node-type name |
+|     ↳ `nodeTypeId` | string | Node-type UUID |
+|     ↳ `applicationName` | string | Application name |
+|     ↳ `actionSummary` | string | Action summary |
+|     ↳ `validations` | array | Validation findings |
+|       ↳ `message` | string | Validation message |
+|       ↳ `code` | string | Validation code |
+|       ↳ `type` | string | Validation type |
+|       ↳ `severity` | string | Validation severity |
+|       ↳ `userCanResolve` | boolean | Whether the current user can resolve this issue |
+|       ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `count` | number | Number of returned nodes |
+| `offset` | number | Requested node offset |
+| `hasMore` | boolean | Whether additional nodes may exist |
+| `nextOffset` | number | Next node offset, if additional nodes may exist |
+| `truncated` | boolean | Whether traversal or page output was bounded |
+
+### Oracle EDM Get Node
+
+Get an EDM node and its documented properties and request validation information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `viewpointId` | string | Yes | Viewpoint UUID |
+| `nodeId` | string | Yes | Node UUID |
+| `requestId` | string | No | Request UUID; for node listing it requires request scope |
+| `expand` | string | No | One documented node expansion. Allowed values: propertyValues::none, propertyValues::all, propertyValues::columnVisible, propertyValues::locationVisible, requestItem.validations, bestLocationRtl. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `node` | json | Node properties and documented request information |
+|   ↳ `id` | string | Node UUID |
+|   ↳ `name` | string | Node name |
+|   ↳ `description` | string | Node description |
+|   ↳ `nodeType` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `hasChildren` | boolean | Whether the node has children |
+|   ↳ `location` | string | Provider-returned node location |
+|   ↳ `path` | array | Provider-returned path references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `relationshipId` | string | Relationship UUID |
+|   ↳ `parentNodeId` | string | Parent node UUID |
+|   ↳ `parentName` | string | Parent node name |
+|   ↳ `parentNodeTypeId` | string | Parent node-type UUID |
+|   ↳ `childCount` | number | Number of children |
+|   ↳ `locationCount` | number | Number of node locations |
+|   ↳ `previousLocation` | string | Previous location |
+|   ↳ `nextLocation` | string | Next location |
+|   ↳ `propertyCount` | number | Number of properties |
+|   ↳ `propertyValues` | array | Documented node and relationship property values |
+|     ↳ `value` | string | Property value |
+|     ↳ `displayValue` | string | Display value |
+|     ↳ `propertyName` | string | Property name |
+|     ↳ `propertyId` | string | Property UUID |
+|     ↳ `origin` | string | Value origin |
+|     ↳ `propertyLevel` | string | Node or relationship level |
+|     ↳ `labels` | array | Property labels |
+|     ↳ `readOnly` | boolean | Whether the property is read-only |
+|     ↳ `validated` | boolean | Whether the property was validated |
+|   ↳ `requestItem` | json | Request item and its validation findings |
+|     ↳ `id` | string | Request item UUID |
+|     ↳ `name` | string | Item name |
+|     ↳ `description` | string | Item description |
+|     ↳ `actionCount` | number | Number of actions |
+|     ↳ `nodeTypeName` | string | Node-type name |
+|     ↳ `nodeTypeId` | string | Node-type UUID |
+|     ↳ `applicationName` | string | Application name |
+|     ↳ `actionSummary` | string | Action summary |
+|     ↳ `validations` | array | Validation findings |
+|       ↳ `message` | string | Validation message |
+|       ↳ `code` | string | Validation code |
+|       ↳ `type` | string | Validation type |
+|       ↳ `severity` | string | Validation severity |
+|       ↳ `userCanResolve` | boolean | Whether the current user can resolve this issue |
+|       ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM Get Node At Location
+
+Get a node at its comma-separated ancestor/node UUID location.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `viewpointId` | string | Yes | Viewpoint UUID |
+| `nodeId` | string | Yes | Node UUID |
+| `location` | string | Yes | Comma-separated ancestor/node UUIDs, root first \(maximum 255 characters\) |
+| `requestId` | string | No | Request UUID; for node listing it requires request scope |
+| `expand` | string | No | One documented node expansion. Allowed values: propertyValues::none, propertyValues::all, propertyValues::columnVisible, propertyValues::locationVisible, requestItem.validations, bestLocationRtl. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `node` | json | Node properties and documented request information |
+|   ↳ `id` | string | Node UUID |
+|   ↳ `name` | string | Node name |
+|   ↳ `description` | string | Node description |
+|   ↳ `nodeType` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `hasChildren` | boolean | Whether the node has children |
+|   ↳ `location` | string | Provider-returned node location |
+|   ↳ `path` | array | Provider-returned path references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `relationshipId` | string | Relationship UUID |
+|   ↳ `parentNodeId` | string | Parent node UUID |
+|   ↳ `parentName` | string | Parent node name |
+|   ↳ `parentNodeTypeId` | string | Parent node-type UUID |
+|   ↳ `childCount` | number | Number of children |
+|   ↳ `locationCount` | number | Number of node locations |
+|   ↳ `previousLocation` | string | Previous location |
+|   ↳ `nextLocation` | string | Next location |
+|   ↳ `propertyCount` | number | Number of properties |
+|   ↳ `propertyValues` | array | Documented node and relationship property values |
+|     ↳ `value` | string | Property value |
+|     ↳ `displayValue` | string | Display value |
+|     ↳ `propertyName` | string | Property name |
+|     ↳ `propertyId` | string | Property UUID |
+|     ↳ `origin` | string | Value origin |
+|     ↳ `propertyLevel` | string | Node or relationship level |
+|     ↳ `labels` | array | Property labels |
+|     ↳ `readOnly` | boolean | Whether the property is read-only |
+|     ↳ `validated` | boolean | Whether the property was validated |
+|   ↳ `requestItem` | json | Request item and its validation findings |
+|     ↳ `id` | string | Request item UUID |
+|     ↳ `name` | string | Item name |
+|     ↳ `description` | string | Item description |
+|     ↳ `actionCount` | number | Number of actions |
+|     ↳ `nodeTypeName` | string | Node-type name |
+|     ↳ `nodeTypeId` | string | Node-type UUID |
+|     ↳ `applicationName` | string | Application name |
+|     ↳ `actionSummary` | string | Action summary |
+|     ↳ `validations` | array | Validation findings |
+|       ↳ `message` | string | Validation message |
+|       ↳ `code` | string | Validation code |
+|       ↳ `type` | string | Validation type |
+|       ↳ `severity` | string | Validation severity |
+|       ↳ `userCanResolve` | boolean | Whether the current user can resolve this issue |
+|       ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM Browse Hierarchy
+
+Browse a bounded flat hierarchy preserving shared-node occurrences, with a 5 MiB node-output cap and remaining-frontier diagnostics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `viewpointId` | string | Yes | Viewpoint UUID |
+| `maxDepth` | number | No | Maximum traversal depth \(0-3; default 2\); roots have depth zero |
+| `maxNodes` | number | No | Maximum hierarchy occurrences \(1-500; default 200\) |
+| `pageSize` | number | No | Hierarchy provider page size \(1-100; default 50\) |
+| `maxRequests` | number | No | Maximum hierarchy provider requests \(1-100; default 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nodes` | array | Flat traversal occurrences; traversalPath is the visited path, distinct from provider path/location |
+|   ↳ `id` | string | Node UUID |
+|   ↳ `name` | string | Node name |
+|   ↳ `description` | string | Node description |
+|   ↳ `nodeType` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `hasChildren` | boolean | Whether the node has children |
+|   ↳ `location` | string | Provider-returned node location |
+|   ↳ `path` | array | Provider-returned path references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `relationshipId` | string | Relationship UUID |
+|   ↳ `parentNodeId` | string | Parent node UUID |
+|   ↳ `parentName` | string | Parent node name |
+|   ↳ `parentNodeTypeId` | string | Parent node-type UUID |
+|   ↳ `childCount` | number | Number of children |
+|   ↳ `locationCount` | number | Number of node locations |
+|   ↳ `previousLocation` | string | Previous location |
+|   ↳ `nextLocation` | string | Next location |
+|   ↳ `propertyCount` | number | Number of properties |
+|   ↳ `propertyValues` | array | Documented node and relationship property values |
+|     ↳ `value` | string | Property value |
+|     ↳ `displayValue` | string | Display value |
+|     ↳ `propertyName` | string | Property name |
+|     ↳ `propertyId` | string | Property UUID |
+|     ↳ `origin` | string | Value origin |
+|     ↳ `propertyLevel` | string | Node or relationship level |
+|     ↳ `labels` | array | Property labels |
+|     ↳ `readOnly` | boolean | Whether the property is read-only |
+|     ↳ `validated` | boolean | Whether the property was validated |
+|   ↳ `requestItem` | json | Request item and its validation findings |
+|     ↳ `id` | string | Request item UUID |
+|     ↳ `name` | string | Item name |
+|     ↳ `description` | string | Item description |
+|     ↳ `actionCount` | number | Number of actions |
+|     ↳ `nodeTypeName` | string | Node-type name |
+|     ↳ `nodeTypeId` | string | Node-type UUID |
+|     ↳ `applicationName` | string | Application name |
+|     ↳ `actionSummary` | string | Action summary |
+|     ↳ `validations` | array | Validation findings |
+|       ↳ `message` | string | Validation message |
+|       ↳ `code` | string | Validation code |
+|       ↳ `type` | string | Validation type |
+|       ↳ `severity` | string | Validation severity |
+|       ↳ `userCanResolve` | boolean | Whether the current user can resolve this issue |
+|       ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `depth` | number | Traversal depth, with roots at zero |
+|   ↳ `traversalPath` | array | Node UUIDs along this traversal occurrence |
+|   ↳ `traversalParentLocation` | string | Traversal parent UUID path; null for roots |
+| `count` | number | Number of returned nodes |
+| `providerRequests` | number | Provider requests consumed by this traversal |
+| `truncated` | boolean | Whether traversal or page output was bounded |
+| `truncationReasons` | array | Reached limits or detected repeated/cyclic traversal |
+| `remainingFrontier` | array | Unvisited traversal frontier, including depth and page offset |
+|   ↳ `parentNodeId` | string | Parent node UUID; null for roots |
+|   ↳ `parentLocation` | string | Traversal parent location; null for roots |
+|   ↳ `path` | array | Traversal ancestor node UUIDs |
+|   ↳ `depth` | number | Depth of the next nodes |
+|   ↳ `offset` | number | Unvisited page offset |
+
+### Oracle EDM Create Request
+
+Create an interactive EDM request in a selected view.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewId` | string | Yes | View UUID |
+| `title` | string | No | Request title |
+| `description` | string | No | Request description |
+| `notes` | string | No | Request notes |
+| `priority` | string | No | Priority for a new request. Allowed values: NONE, LOW, MEDIUM, HIGH. |
+| `timeLabelName` | string | No | Time label name; request queries support one value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `request` | json | Request workflow, ownership, validation counts, and source relationships |
+|   ↳ `id` | string | Request UUID |
+|   ↳ `title` | string | Request title |
+|   ↳ `description` | string | Request description |
+|   ↳ `priority` | string | Request priority |
+|   ↳ `origin` | string | Request origin |
+|   ↳ `requestType` | string | Request type, including subscription-generated requests |
+|   ↳ `status` | string | Request status |
+|   ↳ `stage` | string | Workflow stage |
+|   ↳ `requestNumber` | number | Request number |
+|   ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `timeSubmitted` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `blockedUntil` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `notes` | string | Request notes |
+|   ↳ `itemCount` | number | Number of items |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `validationErrorCount` | number | Validation error count |
+|   ↳ `attachmentCount` | number | Number of attachments |
+|   ↳ `actionCount` | number | Number of actions |
+|   ↳ `commentRequiredOnTransition` | boolean | Whether the next transition requires a comment |
+|   ↳ `validTransitionActions` | array | Currently valid workflow transitions |
+|   ↳ `viewId` | string | View UUID |
+|   ↳ `viewName` | string | View name |
+|   ↳ `createdByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `modifiedByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `submittedByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `assignedToUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `owner` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `sourceRequest` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `subscriptions` | array | Associated subscription references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `autoSubmitted` | boolean | Whether the request was automatically submitted |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM Get Request
+
+Get request status, ownership, valid transitions, and subscription source relationships.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestId` | string | Yes | Request UUID; for node listing it requires request scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `request` | json | Request workflow, ownership, validation counts, and source relationships |
+|   ↳ `id` | string | Request UUID |
+|   ↳ `title` | string | Request title |
+|   ↳ `description` | string | Request description |
+|   ↳ `priority` | string | Request priority |
+|   ↳ `origin` | string | Request origin |
+|   ↳ `requestType` | string | Request type, including subscription-generated requests |
+|   ↳ `status` | string | Request status |
+|   ↳ `stage` | string | Workflow stage |
+|   ↳ `requestNumber` | number | Request number |
+|   ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `timeSubmitted` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `blockedUntil` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `notes` | string | Request notes |
+|   ↳ `itemCount` | number | Number of items |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `validationErrorCount` | number | Validation error count |
+|   ↳ `attachmentCount` | number | Number of attachments |
+|   ↳ `actionCount` | number | Number of actions |
+|   ↳ `commentRequiredOnTransition` | boolean | Whether the next transition requires a comment |
+|   ↳ `validTransitionActions` | array | Currently valid workflow transitions |
+|   ↳ `viewId` | string | View UUID |
+|   ↳ `viewName` | string | View name |
+|   ↳ `createdByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `modifiedByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `submittedByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `assignedToUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `owner` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `sourceRequest` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `subscriptions` | array | Associated subscription references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `autoSubmitted` | boolean | Whether the request was automatically submitted |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM Query Requests
+
+Query requests using one value per filter and a maximum 90-day time window.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `lastDays` | number | No | Previous days to query \(1-90; default 30 when no explicit dates are supplied\) |
+| `fromDate` | number | No | Inclusive start in epoch seconds; provide with toDate, without lastDays, within 90 days |
+| `toDate` | number | No | End in epoch seconds; provide with fromDate, without lastDays, within 90 days |
+| `myActivity` | string | No | One activity filter. Allowed values: Assigned, Collaborated, Submitted, Invited, Contributed, Managed. |
+| `owner` | string | No | One request owner name |
+| `priority` | string | No | One request priority filter. Allowed values: None, Low, Medium, High. |
+| `requestNumber` | number | No | Positive Oracle request number, not request UUID |
+| `requestType` | string | No | One request-type filter. Allowed values: Interactive, Subscription, Import, Consolidation. |
+| `stage` | string | No | One request-stage query filter, using Oracle query spelling. Allowed values: Submit, Approved, Commit, Closed. |
+| `status` | string | No | One request-status query filter. Allowed values: Draft, In Flight, Recalled, Pushed Back, Completed, Rejected, Blocked, Consolidated. |
+| `timeLabelName` | string | No | Time label name; request queries support one value |
+| `viewName` | string | No | View name; request queries accept one value |
+| `expandWorkflow` | boolean | No | Include documented workflow information in request queries |
+| `maxResults` | number | No | Maximum projected items \(1-500; default 200\). This is a local result cap, not provider pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requests` | json | Bounded requests matching the selected window and filters |
+|   ↳ `items` | array | Bounded requests matching the selected window and filters |
+|     ↳ `id` | string | Request UUID |
+|     ↳ `title` | string | Request title |
+|     ↳ `description` | string | Request description |
+|     ↳ `priority` | string | Request priority |
+|     ↳ `origin` | string | Request origin |
+|     ↳ `requestType` | string | Request type, including subscription-generated requests |
+|     ↳ `status` | string | Request status |
+|     ↳ `stage` | string | Workflow stage |
+|     ↳ `requestNumber` | number | Request number |
+|     ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `timeSubmitted` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `blockedUntil` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `notes` | string | Request notes |
+|     ↳ `itemCount` | number | Number of items |
+|     ↳ `commentCount` | number | Number of comments |
+|     ↳ `validationErrorCount` | number | Validation error count |
+|     ↳ `attachmentCount` | number | Number of attachments |
+|     ↳ `actionCount` | number | Number of actions |
+|     ↳ `commentRequiredOnTransition` | boolean | Whether the next transition requires a comment |
+|     ↳ `validTransitionActions` | array | Currently valid workflow transitions |
+|     ↳ `viewId` | string | View UUID |
+|     ↳ `viewName` | string | View name |
+|     ↳ `createdByUser` | json | User identity, excluding authentication and preference fields |
+|       ↳ `id` | string | User UUID |
+|       ↳ `userName` | string | User name |
+|       ↳ `fullName` | string | Full name |
+|     ↳ `modifiedByUser` | json | User identity, excluding authentication and preference fields |
+|       ↳ `id` | string | User UUID |
+|       ↳ `userName` | string | User name |
+|       ↳ `fullName` | string | Full name |
+|     ↳ `submittedByUser` | json | User identity, excluding authentication and preference fields |
+|       ↳ `id` | string | User UUID |
+|       ↳ `userName` | string | User name |
+|       ↳ `fullName` | string | Full name |
+|     ↳ `assignedToUser` | json | User identity, excluding authentication and preference fields |
+|       ↳ `id` | string | User UUID |
+|       ↳ `userName` | string | User name |
+|       ↳ `fullName` | string | Full name |
+|     ↳ `owner` | json | User identity, excluding authentication and preference fields |
+|       ↳ `id` | string | User UUID |
+|       ↳ `userName` | string | User name |
+|       ↳ `fullName` | string | Full name |
+|     ↳ `sourceRequest` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `subscriptions` | array | Associated subscription references |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `autoSubmitted` | boolean | Whether the request was automatically submitted |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `count` | number | Number of returned items |
+|   ↳ `truncated` | boolean | More items exist or the provider indicated additional results |
+
+### Oracle EDM Get Request Lineage
+
+Inspect request lineage and subscription processing relationships.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestId` | string | Yes | Request UUID; for node listing it requires request scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineage` | json | Request lineage and subscription processing instances |
+|   ↳ `requestLineageNodes` | array | Related requests in the lineage |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `title` | string | Request title |
+|     ↳ `origin` | string | Request origin |
+|     ↳ `status` | string | Request status |
+|     ↳ `autoSubmitted` | boolean | Whether the request was automatically submitted |
+|     ↳ `sourceRequest` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `viewpoints` | array | Related viewpoints |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `incompleteSubscriptions` | array | Incomplete subscription instances |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Subscription name |
+|       ↳ `description` | string | Subscription description |
+|       ↳ `sourceViewpoint` | json | Resource reference \(id, name, description, links\) |
+|         ↳ `id` | string | Resource UUID |
+|         ↳ `name` | string | Resource name |
+|         ↳ `description` | string | Resource description |
+|         ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|           ↳ `rel` | string | Link relation |
+|           ↳ `href` | string | Link target |
+|           ↳ `method` | string | Advertised HTTP method |
+|       ↳ `targetViewpoint` | json | Resource reference \(id, name, description, links\) |
+|         ↳ `id` | string | Resource UUID |
+|         ↳ `name` | string | Resource name |
+|         ↳ `description` | string | Resource description |
+|         ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|           ↳ `rel` | string | Link relation |
+|           ↳ `href` | string | Link target |
+|           ↳ `method` | string | Advertised HTTP method |
+|       ↳ `sourceRequest` | string | Source request UUID |
+|       ↳ `targetRequest` | string | Target request UUID |
+|       ↳ `subscriptionStatus` | string | Subscription processing status |
+|       ↳ `message` | string | Processing message |
+|       ↳ `assigneeName` | string | Assignee name |
+|       ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|       ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `subscriptionInstances` | array | Subscription processing instances |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Subscription name |
+|     ↳ `description` | string | Subscription description |
+|     ↳ `sourceViewpoint` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `targetViewpoint` | json | Resource reference \(id, name, description, links\) |
+|       ↳ `id` | string | Resource UUID |
+|       ↳ `name` | string | Resource name |
+|       ↳ `description` | string | Resource description |
+|       ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|         ↳ `rel` | string | Link relation |
+|         ↳ `href` | string | Link target |
+|         ↳ `method` | string | Advertised HTTP method |
+|     ↳ `sourceRequest` | string | Source request UUID |
+|     ↳ `targetRequest` | string | Target request UUID |
+|     ↳ `subscriptionStatus` | string | Subscription processing status |
+|     ↳ `message` | string | Processing message |
+|     ↳ `assigneeName` | string | Assignee name |
+|     ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|     ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM Assign Request
+
+Assign an EDM request number to a user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestNumber` | number | Yes | Positive Oracle request number, not request UUID |
+| `userName` | string | Yes | Oracle user name to receive the request |
+| `comment` | string | No | Workflow or assignment comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `request` | json | Request workflow, ownership, validation counts, and source relationships |
+|   ↳ `id` | string | Request UUID |
+|   ↳ `title` | string | Request title |
+|   ↳ `description` | string | Request description |
+|   ↳ `priority` | string | Request priority |
+|   ↳ `origin` | string | Request origin |
+|   ↳ `requestType` | string | Request type, including subscription-generated requests |
+|   ↳ `status` | string | Request status |
+|   ↳ `stage` | string | Workflow stage |
+|   ↳ `requestNumber` | number | Request number |
+|   ↳ `timeCreated` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `timeModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `timeSubmitted` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `blockedUntil` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `notes` | string | Request notes |
+|   ↳ `itemCount` | number | Number of items |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `validationErrorCount` | number | Validation error count |
+|   ↳ `attachmentCount` | number | Number of attachments |
+|   ↳ `actionCount` | number | Number of actions |
+|   ↳ `commentRequiredOnTransition` | boolean | Whether the next transition requires a comment |
+|   ↳ `validTransitionActions` | array | Currently valid workflow transitions |
+|   ↳ `viewId` | string | View UUID |
+|   ↳ `viewName` | string | View name |
+|   ↳ `createdByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `modifiedByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `submittedByUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `assignedToUser` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `owner` | json | User identity, excluding authentication and preference fields |
+|     ↳ `id` | string | User UUID |
+|     ↳ `userName` | string | User name |
+|     ↳ `fullName` | string | Full name |
+|   ↳ `sourceRequest` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `subscriptions` | array | Associated subscription references |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `autoSubmitted` | boolean | Whether the request was automatically submitted |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM Delete Request
+
+Delete an EDM request when permitted by Oracle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestId` | string | Yes | Request UUID; for node listing it requires request scope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Selected request UUID |
+| `deleted` | boolean | Whether Oracle accepted the request deletion |
+
+### Oracle EDM Upload Request Attachment
+
+Upload one authorized Sim file as an EDM request attachment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestId` | string | Yes | Request UUID; for node listing it requires request scope |
+| `file` | file | Yes | One uploaded Sim UserFile; imports/loads may omit this to use an existing staged file |
+| `fileName` | string | No | Single Oracle staging, attachment, or output file name; no directory path |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | Selected request UUID |
+| `fileName` | string | Oracle file name |
+| `attachmentId` | string | Uploaded attachment UUID |
+| `attachmentUri` | string | Validated request attachment URI |
+
+### Oracle EDM Generate Request Attachment
+
+Generate an Excel request attachment and poll its job; Oracle does not document the generated attachment ID for automatic import chaining.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestId` | string | Yes | Request UUID; for node listing it requires request scope |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `items` | array | Yes | Attachment rows: each has viewpoint and data cells with header and value |
+| `overwrite` | boolean | No | Whether to overwrite an existing generated request attachment; false is preserved |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+
+### Oracle EDM Import Request Attachment
+
+Import named sheets from a saved request attachment and poll its job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestId` | string | Yes | Request UUID; for node listing it requires request scope |
+| `attachmentId` | string | Yes | Saved request attachment UUID |
+| `sheetNames` | array | Yes | Non-empty array of attachment sheet names to import |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+
+### Oracle EDM Transition Request
+
+Perform a documented request workflow action and optionally wait for completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `requestId` | string | Yes | Request UUID; for node listing it requires request scope |
+| `action` | string | Yes | Requested workflow action; inspect validTransitionActions before choosing. Allowed values: SUBMIT, APPROVE, PUSHBACK, REJECT, WITHDRAW, RECALL, COMMIT, CLOSE. |
+| `comment` | string | No | Workflow or assignment comment |
+| `transitionWithWarning` | boolean | No | Whether to allow the transition with validation warnings; false is preserved |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+
+### Oracle EDM Get Job Status
+
+Get the current Oracle EDM job status without waiting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `jobRunId` | string | Yes | Oracle job UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+
+### Oracle EDM Get Job Result
+
+Get a documented job-result envelope with an opaque result, or download its result file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `jobRunId` | string | Yes | Oracle job UUID |
+| `downloadFile` | boolean | No | Download a completed job file alongside its opaque result; supply the original staging file name when no file link is advertised \(default false\) |
+| `fileName` | string | No | Single Oracle staging, attachment, or output file name; no directory path |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+| `file` | file | Result stored as a canonical Sim UserFile |
+
+### Oracle EDM Validate Viewpoint
+
+Validate a viewpoint and retrieve its generated report after job completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewName` | string | Yes | View name; request queries accept one value |
+| `viewpointName` | string | Yes | Viewpoint name |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `requestNumber` | number | No | Positive Oracle request number, not request UUID |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+| `file` | file | Result stored as a canonical Sim UserFile |
+| `fileName` | string | Oracle file name |
+
+### Oracle EDM Get Mapping Keys
+
+Get mapping locations and source/target node-type references for a dimension binding.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `dimensionId` | string | Yes | Dimension UUID |
+| `bindingId` | string | Yes | Dimension binding UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mapKeys` | array | Mapping locations and source/target node-type references |
+|   ↳ `location` | string | Mapping location |
+|   ↳ `sourceNodeType` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `targetNodeType` | json | Resource reference \(id, name, description, links\) |
+|     ↳ `id` | string | Resource UUID |
+|     ↳ `name` | string | Resource name |
+|     ↳ `description` | string | Resource description |
+|     ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|       ↳ `rel` | string | Link relation |
+|       ↳ `href` | string | Link target |
+|       ↳ `method` | string | Advertised HTTP method |
+|   ↳ `defaultLocation` | boolean | Whether this is the default mapping location |
+
+### Oracle EDM Export Mappings
+
+Export dimension mappings to a configured connection or a stored Sim file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `applicationName` | string | Yes | Exact application name for Oracle's byName endpoint |
+| `dimensionName` | string | Yes | Exact dimension name for Oracle's byName endpoint |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `mappingLocation` | string | Yes | Mapping location from Get Mapping Keys |
+| `connection` | string | No | Configured Oracle connection; omit to use staging and, for exports, return a Sim file |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+| `file` | file | Result stored as a canonical Sim UserFile |
+| `fileName` | string | Oracle file name |
+
+### Oracle EDM Import Dimension
+
+Import a dimension using an explicit import mode and staged or uploaded file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `applicationName` | string | Yes | Exact application name for Oracle's byName endpoint |
+| `dimensionName` | string | Yes | Exact dimension name for Oracle's byName endpoint |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `importOption` | string | Yes | Required import mode; no destructive provider default is applied. Allowed values: ResetDimension, ReplaceNodes, Merge. |
+| `file` | file | No | One uploaded Sim UserFile; imports/loads may omit this to use an existing staged file |
+| `connection` | string | No | Configured Oracle connection; omit to use staging and, for exports, return a Sim file |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+
+### Oracle EDM Load Viewpoint
+
+Load a viewpoint from a staged or uploaded file using an explicit load mode.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `viewName` | string | Yes | View name; request queries accept one value |
+| `viewpointName` | string | Yes | Viewpoint name |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `purpose` | string | Yes | Purpose or reason for loading the viewpoint |
+| `loadOption` | string | Yes | Required load mode; no provider default is applied. Allowed values: ReplaceNodes, Merge. |
+| `file` | file | No | One uploaded Sim UserFile; imports/loads may omit this to use an existing staged file |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+
+### Oracle EDM Export Dimension
+
+Export a dimension to a configured connection or a stored Sim file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `applicationName` | string | Yes | Exact application name for Oracle's byName endpoint |
+| `dimensionName` | string | Yes | Exact dimension name for Oracle's byName endpoint |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `connection` | string | No | Configured Oracle connection; omit to use staging and, for exports, return a Sim file |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+| `file` | file | Result stored as a canonical Sim UserFile |
+| `fileName` | string | Oracle file name |
+
+### Oracle EDM Incremental Export Dimension
+
+Export new or updated dimension nodes since a timestamp or a previous export.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `applicationName` | string | Yes | Exact application name for Oracle's byName endpoint |
+| `dimensionName` | string | Yes | Exact dimension name for Oracle's byName endpoint |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `bindingNames` | array | Yes | Non-empty array of dimension binding names |
+| `nodeChangeTypes` | array | Yes | Node changes to export: NEW, UPDATED, or both |
+| `since` | number | No | Raw Oracle incremental timestamp; units are undocumented. Supply a tenant-confirmed value or use sinceLastExportOfType; no conversion is applied |
+| `sinceLastExportOfType` | string | No | Use a previous export as the incremental boundary; mutually exclusive with since. Allowed values: FULL, INCREMENTAL. |
+| `connectionName` | string | No | Configured Oracle connection name; omit to export to staging and return a Sim file |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+| `file` | file | Result stored as a canonical Sim UserFile |
+| `fileName` | string | Oracle file name |
+
+### Oracle EDM Extract Dimension Viewpoint
+
+Run a configured dimension viewpoint extract and retrieve its output.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential |
+| `applicationName` | string | Yes | Exact application name for Oracle's byName endpoint |
+| `dimensionName` | string | Yes | Exact dimension name for Oracle's byName endpoint |
+| `fileName` | string | Yes | Single Oracle staging, attachment, or output file name; no directory path |
+| `extractName` | string | Yes | Name of the configured dimension viewpoint extract |
+| `connection` | string | No | Configured Oracle connection; omit to use staging and, for exports, return a Sim file |
+| `fromTime` | string | No | Oracle-supported start timestamp \(UTC, offset, or region format\) |
+| `toTime` | string | No | Oracle-supported end timestamp \(UTC, offset, or region format\) |
+| `requestNumber` | number | No | Positive Oracle request number, not request UUID |
+| `waitForCompletion` | boolean | No | Wait for the Oracle job \(default true\); false returns the job ID immediately |
+| `maxWaitSeconds` | number | No | Maximum local wait \(1-240 seconds; default 120\); timeout does not cancel the remote job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job UUID for resumable status/result retrieval |
+| `job` | json | Current Oracle job snapshot |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `error` | string | Oracle job error text |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `jobSize` | number | Total job work |
+|   ↳ `jobProgress` | number | Completed job work |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+| `completed` | boolean | True when Oracle job status is COMPLETED; inspect result and reports for business success |
+| `timedOut` | boolean | Local polling ended before completion; the remote job may still be running |
+| `result` | json | Oracle job-result envelope; its nested result is opaque |
+|   ↳ `id` | string | Resource UUID |
+|   ↳ `description` | string | Job description |
+|   ↳ `origin` | string | Job origin |
+|   ↳ `status` | string | PENDING, RUNNING, ERROR, or COMPLETED |
+|   ↳ `created` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `lastModified` | json | Oracle timestamp: epoch number or ISO timestamp string, depending on service response |
+|   ↳ `links` | array | Documented resource links; not arbitrary tool inputs |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | Advertised HTTP method |
+|   ↳ `result` | json | Opaque Oracle JsonNode result; no operation-specific schema is documented |
+| `file` | file | Result stored as a canonical Sim UserFile |
+| `fileName` | string | Oracle file name |
+
+
