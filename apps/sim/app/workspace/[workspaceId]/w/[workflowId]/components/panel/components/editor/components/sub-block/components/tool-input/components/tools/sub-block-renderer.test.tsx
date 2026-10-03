@@ -2,6 +2,10 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import {
+  resetWorkflowRegistryMockState,
+  workflowRegistryStoreMock,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,11 +31,7 @@ vi.mock(
   })
 )
 
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: {
-    getState: () => ({ activeWorkflowId: 'workflow-1' }),
-  },
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: {
@@ -50,6 +50,7 @@ let root: Root
 
 describe('ToolSubBlockRenderer canonical dependency context', () => {
   beforeEach(() => {
+    resetWorkflowRegistryMockState({ activeWorkflowId: 'workflow-1' })
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -59,7 +60,6 @@ describe('ToolSubBlockRenderer canonical dependency context', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('passes the scoped canonical dependency value instead of stale raw pair values', async () => {

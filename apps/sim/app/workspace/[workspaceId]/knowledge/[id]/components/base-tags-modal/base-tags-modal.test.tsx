@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, type ReactNode, useState } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,55 +12,55 @@ const { mockCopy, mockRefetchTagUsage } = vi.hoisted(() => ({
   mockRefetchTagUsage: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', async () => {
-  const { useState } = await import('react')
+function Container({ children }: { children?: ReactNode }) {
+  return <div>{children}</div>
+}
 
-  const Container = ({ children }: { children?: ReactNode }) => <div>{children}</div>
-
-  return {
-    Button: ({
-      children,
-      variant: _variant,
-      ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => (
-      <button {...props}>{children}</button>
-    ),
-    ChipCombobox: () => null,
-    ChipConfirmModal: ({ open, children }: { open: boolean; children?: ReactNode }) =>
-      open ? <div>{children}</div> : null,
-    ChipInput: () => null,
-    ChipModal: ({ open, children }: { open: boolean; children?: ReactNode }) =>
-      open ? <div>{children}</div> : null,
-    ChipModalBody: Container,
-    ChipModalField: ({ children, title }: { children?: ReactNode; title?: ReactNode }) => (
-      <div>
-        {title}
-        {children}
-      </div>
-    ),
-    ChipModalFooter: Container,
-    ChipModalHeader: Container,
-    handleKeyboardActivation: vi.fn(),
-    Tooltip: {
-      Root: Container,
-      Trigger: Container,
-      Content: Container,
-    },
-    useCopyToClipboard: () => {
-      const [copied, setCopied] = useState(false)
-      return {
-        copied,
-        copy: async (text: string) => {
-          await mockCopy(text)
-          setCopied(true)
-          return true
-        },
-      }
-    },
-  }
-})
+vi.mock('@sim/emcn', () => ({
+  ...emcnMock,
+  Button: ({
+    children,
+    variant: _variant,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => (
+    <button {...props}>{children}</button>
+  ),
+  ChipCombobox: () => null,
+  ChipConfirmModal: ({ open, children }: { open: boolean; children?: ReactNode }) =>
+    open ? <div>{children}</div> : null,
+  ChipInput: () => null,
+  ChipModal: ({ open, children }: { open: boolean; children?: ReactNode }) =>
+    open ? <div>{children}</div> : null,
+  ChipModalBody: Container,
+  ChipModalField: ({ children, title }: { children?: ReactNode; title?: ReactNode }) => (
+    <div>
+      {title}
+      {children}
+    </div>
+  ),
+  ChipModalFooter: Container,
+  ChipModalHeader: Container,
+  handleKeyboardActivation: vi.fn(),
+  Tooltip: {
+    Root: Container,
+    Trigger: Container,
+    Content: Container,
+  },
+  useCopyToClipboard: () => {
+    const [copied, setCopied] = useState(false)
+    return {
+      copied,
+      copy: async (text: string) => {
+        await mockCopy(text)
+        setCopied(true)
+        return true
+      },
+    }
+  },
+}))
 
 vi.mock('@sim/emcn/icons', () => ({
+  ...emcnIconsMock,
   Check: (props: React.SVGProps<SVGSVGElement>) => <svg data-icon='check' {...props} />,
   Duplicate: (props: React.SVGProps<SVGSVGElement>) => <svg data-icon='duplicate' {...props} />,
   Trash: (props: React.SVGProps<SVGSVGElement>) => <svg data-icon='trash' {...props} />,
@@ -113,7 +115,6 @@ describe('BaseTagsModal tag ID copy control', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('copies the tag UUID, shows feedback, and does not open tag usage', async () => {
