@@ -89,15 +89,6 @@ export const OUTLOOK_MESSAGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete message output definition
- */
-export const OUTLOOK_MESSAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Outlook email message',
-  properties: OUTLOOK_MESSAGE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for attachment objects.
  * @see https://learn.microsoft.com/en-us/graph/api/resources/attachment
  */
@@ -216,7 +207,7 @@ export interface OutlookMessagesResponse {
 // Outlook attachment interface (for tool responses)
 export interface OutlookAttachment {
   name: string
-  data: string
+  data: Buffer | string
   contentType: string
   size: number
 }
@@ -485,7 +476,7 @@ export interface OutlookGetAttachmentResponse extends ToolResponse {
   output: {
     message: string
     results: CleanedOutlookAttachmentMetadata
-    attachments: OutlookAttachment[]
+    attachments: UserFile[]
   }
 }
 

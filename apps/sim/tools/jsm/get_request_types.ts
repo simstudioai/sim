@@ -1,8 +1,8 @@
 import type { JsmGetRequestTypesParams, JsmGetRequestTypesResponse } from '@/tools/jsm/types'
 import { REQUEST_TYPE_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetRequestTypesTool: ToolConfig<
+export const jsmGetRequestTypesTool: InternalToolConfig<
   JsmGetRequestTypesParams,
   JsmGetRequestTypesResponse
 > = {
@@ -73,13 +73,8 @@ export const jsmGetRequestTypesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/requesttypes',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

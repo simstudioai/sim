@@ -12,8 +12,8 @@ import {
   Label,
   Trash,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -219,7 +219,7 @@ export function KnowledgeTagFilters({
 
     return (
       <div className='space-y-1'>
-        <Label className='font-medium text-muted-foreground text-xs'>Tag Filters</Label>
+        <Label className='text-muted-foreground text-xs'>Tag Filters</Label>
         <div className='text-muted-foreground text-sm'>
           {appliedFilters > 0 ? `${appliedFilters} filter(s) applied` : 'No filters'}
         </div>
@@ -243,7 +243,7 @@ export function KnowledgeTagFilters({
       }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
           {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
         </span>
         {filter.collapsed && filter.tagName && (
@@ -303,7 +303,6 @@ export function KnowledgeTagFilters({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       cellKey,
-      fieldValue,
       (newValue) => handleTagDropdownSelection(filter.id, field, newValue)
     )
 
@@ -329,14 +328,14 @@ export function KnowledgeTagFilters({
           disabled={isReadOnly}
           autoComplete='off'
           placeholder={placeholder}
-          className='allow-scroll w-full overflow-auto text-transparent caret-foreground'
+          className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
         />
         <div
           ref={(el) => {
             if (el) overlayRefs.current[cellKey] = el
           }}
           className={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
         >
@@ -411,7 +410,7 @@ export function KnowledgeTagFilters({
           {isBetween ? (
             <div className='flex items-center gap-2'>
               <div className='flex-1'>{renderValueInput(filter, 'tagValue')}</div>
-              <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
+              <span className='shrink-0 text-muted-foreground text-xs'>to</span>
               <div className='flex-1'>{renderValueInput(filter, 'valueTo')}</div>
             </div>
           ) : (

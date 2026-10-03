@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { renderHelpConfirmationEmail } from '@/components/emails'
+import { getRequestConfirmationSubject, renderHelpConfirmationEmail } from '@/components/emails'
 import {
   getContactTopicLabel,
   mapContactTopicToHelpType,
@@ -54,8 +54,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
   try {
     const ip = getClientIp(req)
+    if (!ip) {
+      logger.warn(`[${requestId}] Unable to resolve client IP for public rate limit`)
+      return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
+    }
     const storageKey = `public:contact:${ip}`
-
     const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
       storageKey,
       PUBLIC_ENDPOINT_RATE_LIMIT
@@ -168,7 +171,7 @@ ${message}
 
       await sendEmail({
         to: [email],
-        subject: `We've received your message: ${subject}`,
+        subject: getRequestConfirmationSubject(subject),
         html: confirmationHtml,
         from: getFromEmailAddress(),
         replyTo: `help@${helpInboxDomain}`,

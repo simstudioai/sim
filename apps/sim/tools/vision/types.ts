@@ -21,5 +21,10 @@ export interface VisionResponse extends ToolResponse {
     content: string
     model?: string
     tokens?: number
+    usage?: {
+      input_tokens?: number
+      output_tokens?: number
+      total_tokens?: number
+    }
   }
 }

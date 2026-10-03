@@ -12,6 +12,9 @@ export type TableQueryScope = 'active' | 'archived' | 'all'
 
 export const TABLE_LIST_STALE_TIME = 30 * 1000
 
+/** Views change only on explicit user action, so they can sit stale for a while. */
+export const TABLE_VIEWS_STALE_TIME = 60 * 1000
+
 export const tableKeys = {
   all: ['tables'] as const,
   lists: () => [...tableKeys.all, 'list'] as const,
@@ -22,11 +25,25 @@ export const tableKeys = {
   exportJobs: (workspaceId?: string) =>
     [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
+  /**
+   * Prefix covering only the paged row lists. `rowsRoot` is a shared parent — `find`
+   * hangs off it holding a different shape — so anything walking the cache for row
+   * pages must start here.
+   */
+  infiniteRowsRoot: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'infinite'] as const,
   infiniteRows: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
+    [...tableKeys.infiniteRowsRoot(tableId), paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  /** Bounded single-page row read for chart files (`.chart` previews). */
+  sample: (tableId: string, paramsKey: string) =>
+    [...tableKeys.rowsRoot(tableId), 'sample', paramsKey] as const,
   find: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
+  /** Deliberately NOT under `detail` — the non-exact `invalidateQueries` on that
+   *  key (row writes, schema changes, rename, job events) would otherwise refetch
+   *  the views list on nearly every table mutation, defeating its staleTime. */
+  viewsRoot: () => [...tableKeys.all, 'views'] as const,
+  views: (tableId: string) => [...tableKeys.viewsRoot(), tableId] as const,
   activeDispatches: (tableId: string) =>
     [...tableKeys.detail(tableId), 'active-dispatches'] as const,
   enrichmentDetails: (tableId: string) =>

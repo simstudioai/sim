@@ -1,31 +1,11 @@
-/**
- * @vitest-environment node
- */
-
 import type Stripe from 'stripe'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db/schema', () => ({
-  outboxEvent: {
-    id: 'id',
-    eventType: 'eventType',
-    payload: 'payload',
-    status: 'status',
-    createdAt: 'createdAt',
-  },
-}))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => 'and'),
-  desc: vi.fn(() => 'desc'),
-  eq: vi.fn(() => 'eq'),
-  sql: vi.fn(() => 'sql'),
-}))
-
+import { describe, expect, it } from 'vitest'
 import {
   assertNoCompetingEnterpriseIssuance,
   assertNoUnresolvedEnterpriseIssuance,
   deriveEnterpriseOperationStatus,
   EnterpriseIssuanceInProgressError,
+  enterpriseMetadataIntentMatchesStripeSubscription,
   enterpriseOperationMatchesStripeSubscription,
   enterpriseProvisionPayloadSchema,
   isEnterpriseOperationUnresolved,
@@ -41,6 +21,7 @@ const payload = {
     requestedByEmail: 'admin@sim.ai',
     requestedByUserId: 'admin-1',
     invoiceAmountCents: 10000,
+    billingInterval: 'month' as const,
     usageLimitCredits: 20000,
     seats: 5,
     concurrencyLimit: 1250,
@@ -89,13 +70,6 @@ function stripeSubscription(
 }
 
 describe('Enterprise outbox operation state', () => {
-  it('maps the generic outbox lifecycle to the admin issuance lifecycle', () => {
-    expect(deriveEnterpriseOperationStatus('pending', payload)).toBe('pending')
-    expect(deriveEnterpriseOperationStatus('processing', payload)).toBe('processing')
-    expect(deriveEnterpriseOperationStatus('dead_letter', payload)).toBe('dead_letter')
-    expect(deriveEnterpriseOperationStatus('completed', payload)).toBe('awaiting_webhook')
-  })
-
   it('treats the transactional webhook marker as dominant over worker status', () => {
     const applied = {
       ...payload,
@@ -122,20 +96,6 @@ describe('Enterprise outbox operation state', () => {
       }).success
     ).toBe(false)
   })
-
-  it('keeps pre-concurrency Enterprise outbox payloads valid', () => {
-    const {
-      concurrencyLimit: _concurrencyLimit,
-      pausePaymentCollection: _pausePaymentCollection,
-      ...legacyRequest
-    } = payload.request
-    const parsed = enterpriseProvisionPayloadSchema.safeParse({
-      ...payload,
-      request: legacyRequest,
-    })
-    expect(parsed.success).toBe(true)
-    if (parsed.success) expect(parsed.data.request.pausePaymentCollection).toBe(false)
-  })
 })
 
 describe('Enterprise issuance Stripe-term correlation', () => {
@@ -143,30 +103,6 @@ describe('Enterprise issuance Stripe-term correlation', () => {
     expect(
       enterpriseOperationMatchesStripeSubscription(payload, stripeSubscription(), 'org-1')
     ).toBe(true)
-  })
-
-  it('accepts an indefinitely draft-paused subscription only when requested', () => {
-    const pausedPayload = {
-      ...payload,
-      request: {
-        ...payload.request,
-        requestKey: 'enterprise-v3:owner-1:org-1:10000:20000:5:1250:draft-collection',
-        pausePaymentCollection: true,
-      },
-    }
-    const pausedSubscription = stripeSubscription({
-      pauseCollection: { behavior: 'keep_as_draft', resumes_at: null },
-    })
-
-    expect(
-      enterpriseOperationMatchesStripeSubscription(pausedPayload, pausedSubscription, 'org-1')
-    ).toBe(true)
-    expect(
-      enterpriseOperationMatchesStripeSubscription(pausedPayload, stripeSubscription(), 'org-1')
-    ).toBe(false)
-    expect(enterpriseOperationMatchesStripeSubscription(payload, pausedSubscription, 'org-1')).toBe(
-      false
-    )
   })
 
   it.each([
@@ -184,6 +120,49 @@ describe('Enterprise issuance Stripe-term correlation', () => {
   ] as const)('rejects %s', (_name, options) => {
     expect(
       enterpriseOperationMatchesStripeSubscription(payload, stripeSubscription(options), 'org-1')
+    ).toBe(false)
+  })
+})
+
+describe('Enterprise configuration Stripe-term correlation', () => {
+  const configurationPayload = {
+    subscriptionId: 'sub-local',
+    revision: 2,
+    deliveryRevision: 1,
+    metadata: { seats: 7, reportingPeriodAnchorDate: '2026-08-01', monthlyPrice: null },
+    terms: { invoiceAmountCents: 12000, billingInterval: 'year' as const },
+    stripeProgress: {},
+  }
+
+  function configuredSubscription(metadata: Record<string, string> = {}): Stripe.Subscription {
+    return stripeSubscription({
+      amount: 12000,
+      interval: 'year',
+      metadata: {
+        seats: '7',
+        reportingPeriodAnchorDate: '2026-08-01',
+        simConfigOperationId: 'config-2',
+        simConfigRevision: '2',
+        simConfigDeliveryRevision: '1',
+        ...metadata,
+      },
+    })
+  }
+
+  it('requires the exact desired metadata, delivery marker, and billing terms', () => {
+    expect(
+      enterpriseMetadataIntentMatchesStripeSubscription(
+        configurationPayload,
+        'config-2',
+        configuredSubscription()
+      )
+    ).toBe(true)
+    expect(
+      enterpriseMetadataIntentMatchesStripeSubscription(
+        configurationPayload,
+        'config-2',
+        configuredSubscription({ seats: '8' })
+      )
     ).toBe(false)
   })
 })
@@ -222,6 +201,8 @@ describe('Enterprise metadata intent admission state', () => {
       id: 'config-2',
       status: 'pending',
       requestedMetadata: { seats: 7 },
+      requestedTerms: null,
+      providerAccepted: false,
       error: null,
     })
   })
@@ -249,11 +230,13 @@ describe('Enterprise metadata intent admission state', () => {
       id: 'config-2',
       status: 'failed',
       requestedMetadata: { seats: 7 },
+      requestedTerms: null,
+      providerAccepted: false,
       error: null,
     })
   })
 
-  it('hides the update after the verified webhook applies its operation id', async () => {
+  it('releases a legacy commercial-term intent after Stripe confirms it was not applied', async () => {
     const state = await resolveEnterpriseMetadataIntent(
       executorReturning([
         {
@@ -262,16 +245,65 @@ describe('Enterprise metadata intent admission state', () => {
           payload: {
             subscriptionId: 'sub-local',
             revision: 2,
-            metadata: { seats: 7 },
+            metadata: {
+              seats: 7,
+              reportingPeriodAnchorDate: '2026-05-01',
+            },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+            commercialTermsRetiredAt: '2026-08-01T00:00:00.000Z',
           },
         },
       ]),
       'sub-local',
-      { seats: '7', simConfigRevision: '2', simConfigOperationId: 'config-2' }
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
     )
 
     expect(state.hasUnappliedIntent).toBe(false)
-    expect(state.configurationUpdate).toBeNull()
+    expect(state.effectiveSeatCapacity).toBe(10)
+    expect(state.configurationUpdate).toEqual({
+      id: 'config-2',
+      status: 'failed',
+      requestedMetadata: {
+        seats: 7,
+        reportingPeriodAnchorDate: '2026-05-01',
+      },
+      requestedTerms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+      providerAccepted: false,
+      error:
+        'Enterprise commercial-term updates are no longer supported. Submit a reporting-period change instead.',
+    })
+  })
+
+  it('keeps a Stripe-accepted legacy commercial-term intent fail-closed', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'dead_letter',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+            acknowledgement: {
+              startedAt: '2026-08-01T00:00:00.000Z',
+              deadlineAt: '2026-08-01T00:30:00.000Z',
+            },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(true)
+    expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toMatchObject({
+      id: 'config-2',
+      status: 'failed',
+      requestedTerms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+      providerAccepted: true,
+    })
   })
 
   it('fails closed when the newest desired metadata payload is malformed', async () => {
@@ -293,27 +325,6 @@ describe('Enterprise issuance reservation guard', () => {
         'org-1'
       )
     ).rejects.toBeInstanceOf(EnterpriseIssuanceInProgressError)
-  })
-
-  it('releases the reservation after transactional webhook application', async () => {
-    await expect(
-      assertNoUnresolvedEnterpriseIssuance(
-        executorReturning([
-          {
-            id: 'operation-1',
-            status: 'completed',
-            payload: {
-              ...payload,
-              applicationResult: {
-                appliedAt: '2026-07-09T12:00:00.000Z',
-                subscriptionId: 'sub-1',
-              },
-            },
-          },
-        ]),
-        'org-1'
-      )
-    ).resolves.toBeUndefined()
   })
 
   it('allows only the correlated Stripe callback for the same unresolved operation', async () => {

@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Combobox, type ComboboxOption } from '@sim/emcn'
+import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
-import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { PackageSearchIcon } from '@/components/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
@@ -13,7 +13,9 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
-import { fetchKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { fetchKnowledgeBase, KNOWLEDGE_BASE_DETAIL_STALE_TIME } from '@/hooks/queries/kb/knowledge'
+import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 interface KnowledgeBaseSelectorProps {
@@ -43,6 +45,8 @@ export function KnowledgeBaseSelector({
     error,
   } = useKnowledgeBasesList(workspaceId)
 
+  const { data: knowledgeBaseFolders = {} } = useFolderMap(workspaceId, 'knowledge_base')
+
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
   const value = isPreview ? previewValue : storeValue
@@ -71,9 +75,9 @@ export function KnowledgeBaseSelector({
   const selectedKnowledgeBaseQueries = useQueries({
     queries: selectedIds.map((selectedId) => ({
       queryKey: knowledgeKeys.detail(selectedId),
-      queryFn: () => fetchKnowledgeBase(selectedId),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchKnowledgeBase(selectedId, signal),
       enabled: Boolean(selectedId),
-      staleTime: 60 * 1000,
+      staleTime: KNOWLEDGE_BASE_DETAIL_STALE_TIME,
     })),
   })
 
@@ -90,13 +94,29 @@ export function KnowledgeBaseSelector({
     return Array.from(merged.values())
   }, [knowledgeBases, selectedKnowledgeBaseQueries])
 
-  const options = useMemo<ComboboxOption[]>(() => {
-    return combinedKnowledgeBases.map((kb) => ({
-      label: kb.name,
-      value: kb.id,
-      icon: PackageSearchIcon,
-    }))
-  }, [combinedKnowledgeBases])
+  /**
+   * Display names, with the folder path appended when two knowledge bases share
+   * a name — otherwise the dropdown rows and the selected chips are
+   * indistinguishable from one another. Built in the same pass as the options so
+   * the chips and the dropdown can never disagree.
+   */
+  const { options, labelById } = useMemo(() => {
+    const duplicateNames = collectDuplicateNames(combinedKnowledgeBases.map((kb) => kb.name))
+    const labelById = new Map<string, string>()
+    const options: ComboboxOption[] = combinedKnowledgeBases.map((kb) => {
+      const label = disambiguateLabelByFolder(
+        kb.name,
+        kb.folderId,
+        knowledgeBaseFolders,
+        duplicateNames
+      )
+      labelById.set(kb.id, label)
+      return { label, value: kb.id, icon: PackageSearchIcon }
+    })
+    return { options, labelById }
+  }, [combinedKnowledgeBases, knowledgeBaseFolders])
+
+  const labelOf = (kb: KnowledgeBaseData) => labelById.get(kb.id) ?? kb.name
 
   /**
    * Compute selected knowledge bases for tag display
@@ -144,22 +164,22 @@ export function KnowledgeBaseSelector({
   /**
    * Remove selected knowledge base from multi-select tags
    */
-  const handleRemoveKnowledgeBase = useCallback(
-    (knowledgeBaseId: string) => {
-      if (isPreview) return
+  const handleRemoveKnowledgeBase = (knowledgeBaseId: string) => {
+    if (isPreview) return
 
-      const newSelectedIds = selectedIds.filter((id) => id !== knowledgeBaseId)
-      const valueToStore =
-        newSelectedIds.length === 1 ? newSelectedIds[0] : newSelectedIds.join(',')
+    const newSelectedIds = selectedIds.filter((id) => id !== knowledgeBaseId)
+    const valueToStore = newSelectedIds.length === 1 ? newSelectedIds[0] : newSelectedIds.join(',')
 
-      setStoreValue(valueToStore)
-      onKnowledgeBaseSelect?.(newSelectedIds)
-    },
-    [isPreview, selectedIds, setStoreValue, onKnowledgeBaseSelect]
-  )
+    setStoreValue(valueToStore)
+    onKnowledgeBaseSelect?.(newSelectedIds)
+  }
 
   const label =
     subBlock.placeholder || (isMultiSelect ? 'Select knowledge bases' : 'Select knowledge base')
+
+  const hasMemberScopedSelection = selectedKnowledgeBases.some(
+    (kb) => kb.hasPermissionScopedConnector
+  )
 
   return (
     <div className='w-full'>
@@ -172,28 +192,20 @@ export function KnowledgeBaseSelector({
               blockId,
               subBlockId: subBlock.id,
               valuePath: [index],
-              label: kb.name,
+              label: labelOf(kb),
             })
             return (
-              <div
+              <ChipTag
                 key={kb.id}
-                className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
+                leftIcon={PackageSearchIcon}
+                rightIcon={!disabled && !isPreview ? X : undefined}
+                rightIconLabel={`Remove ${labelOf(kb)}`}
+                onRightIconClick={
+                  !disabled && !isPreview ? () => handleRemoveKnowledgeBase(kb.id) : undefined
+                }
               >
-                <PackageSearchIcon className='mr-1 size-3 text-[var(--brand-knowledge)]' />
-                <span className='font-medium text-[var(--brand-knowledge)]'>
-                  {formatDisplayText(kb.name, { workflowSearchHighlight })}
-                </span>
-                {!disabled && !isPreview && (
-                  <button
-                    type='button'
-                    onClick={() => handleRemoveKnowledgeBase(kb.id)}
-                    className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
-                    aria-label={`Remove ${kb.name}`}
-                  >
-                    <X className='size-3' />
-                  </button>
-                )}
-              </div>
+                {formatDisplayText(labelOf(kb), { workflowSearchHighlight })}
+              </ChipTag>
             )
           })}
         </div>
@@ -220,17 +232,26 @@ export function KnowledgeBaseSelector({
                   blockId,
                   subBlockId: subBlock.id,
                   valuePath: [],
-                  label: selectedKnowledgeBases[0].name,
+                  label: labelOf(selectedKnowledgeBases[0]),
                 })
                 return workflowSearchHighlight ? (
                   <span className='truncate text-[var(--text-primary)]'>
-                    {formatDisplayText(selectedKnowledgeBases[0].name, { workflowSearchHighlight })}
+                    {formatDisplayText(labelOf(selectedKnowledgeBases[0]), {
+                      workflowSearchHighlight,
+                    })}
                   </span>
                 ) : undefined
               })()
             : undefined
         }
       />
+      {hasMemberScopedSelection && (
+        <p className='mt-1.5 text-[var(--text-muted)] text-caption leading-snug'>
+          Documents synced per member are returned only when the person who triggers the run has
+          connected their account. Scheduled, API, webhook, and chat runs see workspace-visible
+          documents only.
+        </p>
+      )}
     </div>
   )
 }

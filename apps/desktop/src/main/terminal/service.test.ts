@@ -1,13 +1,12 @@
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { MAX_TERMINALS } from '@sim/terminal-protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
 
 /** Stub sessions by terminal id, populated by the mock below. */
 const { stubSessions } = vi.hoisted(() => ({
-  stubSessions: new Map<string, { setBusy(busy: boolean): void; exit(): void }>(),
+  stubSessions: new Map<
+    string,
+    { setBusy(busy: boolean): void; exit(): void; clearScrollback(): void }
+  >(),
 }))
 
 /**
@@ -76,6 +75,7 @@ vi.mock('@/main/terminal/session', async () => {
             active,
           }),
           takeReplaySnapshot: () => '',
+          clearScrollback: vi.fn(),
           readScrollback: () => ({
             output: 'Do you want to proceed? [y/N]',
             cwd: state.cwd,
@@ -92,7 +92,7 @@ vi.mock('@/main/terminal/session', async () => {
 })
 
 function service(): TerminalService {
-  return new TerminalService({ loadCwd: () => '/tmp', saveCwd: () => {} })
+  return new TerminalService({ loadCwd: () => '/tmp' })
 }
 
 describe('closing terminals', () => {
@@ -107,51 +107,18 @@ describe('closing terminals', () => {
     expect(after.tabs).toHaveLength(1)
     expect(after.activeTerminalId).not.toBe(secondId)
   })
-
-  it('resets the last terminal instead of emptying the panel', () => {
-    // A panel whose resource IS a terminal must never be left with no shell:
-    // there is nothing to show and no way back from inside it.
-    const terminal = service()
-    const started = terminal.start({ cols: 80, rows: 24 })
-    const onlyId = started.activeTerminalId as string
-
-    const after = terminal.closeTerminal(onlyId)
-
-    expect(after.tabs).toHaveLength(1)
-    expect(after.activeTerminalId).not.toBe(onlyId)
-  })
-
-  it('refuses to close a terminal that does not exist', () => {
-    const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-
-    expect(() => terminal.closeTerminal('no-such-terminal')).toThrow()
-  })
-
-  it('persists the active terminal cwd on dispose', () => {
-    // The saved cwd is what the next launch reopens into. It is otherwise only
-    // written when a session REPORTS a cwd change, and switching tabs is not
-    // one — so without an explicit save at teardown, quitting after a switch
-    // reopens in the directory of whichever tab last moved.
-    // Real directories: a remembered cwd that no longer exists falls back to
-    // home, which would make this assert nothing.
-    const projectA = mkdtempSync(join(tmpdir(), 'sim-term-a-'))
-    const projectB = mkdtempSync(join(tmpdir(), 'sim-term-b-'))
-    const saveCwd = vi.fn()
-    const terminal = new TerminalService({ loadCwd: () => projectA, saveCwd })
-    terminal.start({ cols: 80, rows: 24 })
-    const first = terminal.getTabs().activeTerminalId as string
-    terminal.openTerminal(projectB)
-    terminal.switchTerminal(first)
-    saveCwd.mockClear()
-
-    terminal.dispose()
-
-    expect(saveCwd).toHaveBeenCalledWith(projectA)
-  })
 })
 
-type OwnerWindow = Parameters<TerminalService['closeFocusedTerminal']>[0]
+type OwnerWindow = Parameters<TerminalService['handleFocusedShortcut']>[1]
+
+function runShortcut(
+  terminal: TerminalService,
+  shortcut: Parameters<TerminalService['handleFocusedShortcut']>[0],
+  ownerWindow: OwnerWindow,
+  emit = vi.fn()
+): boolean {
+  return terminal.handleFocusedShortcut(shortcut, ownerWindow, emit)
+}
 
 /**
  * A stand-in for one app window and the renderer inside it.
@@ -186,76 +153,64 @@ describe('focus-gated shortcuts', () => {
     terminal.start({ cols: 80, rows: 24 })
     const renderer = rendererStub()
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'reopen-closed-tab', renderer.window)).toBe(false)
   })
 
-  it('closes the active terminal once the panel has focus', () => {
-    const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-    terminal.openTerminal()
-    const renderer = rendererStub()
-    terminal.setPanelFocused(true, renderer.contents)
-
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
-    expect(terminal.getTabs().tabs).toHaveLength(1)
-  })
-
-  it('reopens a closed terminal, and has nothing to reopen before one closes', () => {
-    const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-    const renderer = rendererStub()
-    terminal.setPanelFocused(true, renderer.contents)
-
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
-
-    const second = terminal.openTerminal()
-    terminal.closeTerminal(second.activeTerminalId as string)
-
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(true)
-    expect(terminal.getTabs().tabs).toHaveLength(2)
-  })
-
-  it('does not remember a reset as a closed terminal to reopen', () => {
-    // Resetting the last terminal replaces it in place; offering to "reopen"
-    // it would just add a duplicate of the shell already on screen.
+  it('keeps agent work in the visible terminal after the user focuses it', async () => {
     const terminal = service()
     const started = terminal.start({ cols: 80, rows: 24 })
+    const visibleId = started.activeTerminalId as string
     const renderer = rendererStub()
     terminal.setPanelFocused(true, renderer.contents)
 
-    terminal.closeTerminal(started.activeTerminalId as string)
+    const response = await terminal.executeTool('call-cwd', 'cwd', { terminalId: visibleId })
+    const result = response.result as { terminalId: string } | undefined
 
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
+    expect(response.ok).toBe(true)
+    expect(result?.terminalId).toBe(visibleId)
     expect(terminal.getTabs().tabs).toHaveLength(1)
+    expect(terminal.getTabs().activeTerminalId).toBe(visibleId)
+    expect(terminal.getTabs().agentActiveTerminalId).toBe(visibleId)
   })
 
-  it('drops the focus claim when the renderer that made it reloads', () => {
-    // A reload never runs the renderer's cleanup, so nothing sends focus:false.
-    // The claim used to latch true forever, and the next Cmd-W destroyed a
-    // shell the user could no longer see.
+  it('keeps a running terminal open when close confirmation is declined', () => {
     const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-    terminal.openTerminal()
+    const started = terminal.start({ cols: 80, rows: 24 })
+    const activeId = started.activeTerminalId as string
+    stubSessions.get(activeId)?.setBusy(true)
     const renderer = rendererStub()
+    const confirmClose = vi.fn(() => false)
     terminal.setPanelFocused(true, renderer.contents)
 
-    renderer.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+    expect(
+      terminal.handleFocusedShortcut('close-tab', renderer.window, vi.fn(), confirmClose)
+    ).toBe(true)
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
-    expect(terminal.getTabs().tabs).toHaveLength(2)
+    expect(confirmClose).toHaveBeenCalledWith('sleep 1')
+    expect(terminal.getTabs().activeTerminalId).toBe(activeId)
   })
 
-  it('keeps the claim across a same-document route change', () => {
+  it('does not close a replacement terminal after the original exits during confirmation', async () => {
     const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-    terminal.openTerminal()
+    const started = terminal.start({ cols: 80, rows: 24 })
+    const id = started.activeTerminalId as string
+    stubSessions.get(id)?.setBusy(true)
     const renderer = rendererStub()
     terminal.setPanelFocused(true, renderer.contents)
-
-    renderer.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
-
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
+    let resolvePermission: (value: boolean) => void = () => {}
+    const permission = {
+      promise: new Promise<boolean>((resolve) => {
+        resolvePermission = resolve
+      }),
+      resolve: (value: boolean) => resolvePermission(value),
+    }
+    terminal.handleFocusedShortcut('close-tab', renderer.window, vi.fn(), () => permission.promise)
+    stubSessions.get(id)?.exit()
+    const replacement = terminal.openTerminal().activeTerminalId
+    permission.resolve(true)
+    await permission.promise
+    expect(terminal.getTabs().activeTerminalId).toBe(replacement)
   })
 
   it('answers only the window whose renderer holds the claim', () => {
@@ -265,35 +220,25 @@ describe('focus-gated shortcuts', () => {
     const renderer = rendererStub()
     terminal.setPanelFocused(true, renderer.contents)
 
-    expect(terminal.closeFocusedTerminal(rendererStub().window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', rendererStub().window)).toBe(false)
     // And null — no window at all cannot be the window a claim answers for.
-    expect(terminal.closeFocusedTerminal(null)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', null)).toBe(false)
 
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(true)
+    expect(runShortcut(terminal, 'close-tab', renderer.window)).toBe(true)
   })
 
-  it('does not consume the reopen history when already at the terminal cap', () => {
+  it('fails cleanly instead of opening a seventeenth terminal', () => {
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })
-    const renderer = rendererStub()
-    terminal.setPanelFocused(true, renderer.contents)
+    while (terminal.getTabs().tabs.length < 16) terminal.openTerminal()
 
-    const closed = terminal.openTerminal('/alpha')
-    terminal.closeTerminal(closed.activeTerminalId as string)
-    while (terminal.getTabs().tabs.length < MAX_TERMINALS) terminal.openTerminal()
-
-    // Refused, and without opening anything.
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(false)
-    expect(terminal.getTabs().tabs).toHaveLength(MAX_TERMINALS)
-
-    // NOTE: that the '/alpha' entry SURVIVES the refusal is the actual point of
-    // the guard, and it is not observable from out here — every close prepends
-    // one history entry and frees exactly one slot, so a reopen can never walk
-    // back past the entries created by the closes that made room for it. The
-    // ordering in reopenClosedTerminal (check the cap, then shift) is what
-    // carries it; this test only pins the refusal itself.
-    terminal.closeTerminal(terminal.getTabs().activeTerminalId as string)
-    expect(terminal.reopenClosedTerminal(renderer.window)).toBe(true)
+    expect(() => terminal.openTerminal()).toThrow(
+      expect.objectContaining({
+        code: 'RESOURCE_LIMIT',
+        message: 'A task can have at most 16 live terminals.',
+      })
+    )
+    expect(terminal.getTabs().tabs).toHaveLength(16)
   })
 
   it('ignores a blur reported by a renderer that does not hold the claim', () => {
@@ -310,33 +255,7 @@ describe('focus-gated shortcuts', () => {
 
     terminal.setPanelFocused(false, other.contents)
 
-    expect(terminal.closeFocusedTerminal(holder.window)).toBe(true)
-  })
-
-  it('honours a blur from the renderer that does hold the claim', () => {
-    const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-    terminal.openTerminal()
-    const holder = rendererStub()
-    terminal.setPanelFocused(true, holder.contents)
-
-    terminal.setPanelFocused(false, holder.contents)
-
-    expect(terminal.closeFocusedTerminal(holder.window)).toBe(false)
-  })
-
-  it('drops the focus claim when the whole service is disposed', () => {
-    const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-    const renderer = rendererStub()
-    terminal.setPanelFocused(true, renderer.contents)
-
-    terminal.dispose()
-    // A fresh shell after teardown, so this asserts the CLAIM was dropped
-    // rather than passing on the "no active terminal" arm.
-    terminal.start({ cols: 80, rows: 24 })
-
-    expect(terminal.closeFocusedTerminal(renderer.window)).toBe(false)
+    expect(runShortcut(terminal, 'close-tab', holder.window)).toBe(true)
   })
 })
 
@@ -367,13 +286,6 @@ describe('handing the terminal to the user', () => {
     expect(result.reason).toBe('Confirm the install')
   })
 
-  it('ignores a hand-back for a terminal that is not waiting', () => {
-    const terminal = service()
-    const started = terminal.start({ cols: 80, rows: 24 })
-
-    expect(() => terminal.finishHandoff(started.activeTerminalId as string)).not.toThrow()
-  })
-
   it('fails the handoff if the terminal is closed while it waits', async () => {
     const terminal = service()
     const started = terminal.start({ cols: 80, rows: 24 })
@@ -390,7 +302,7 @@ describe('handing the terminal to the user', () => {
 })
 
 describe('closing', () => {
-  it('closes the Sim terminal when no pane is named', async () => {
+  it('does not let the agent close the visible terminal the user selected', async () => {
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })
     const second = terminal.openTerminal()
@@ -399,53 +311,24 @@ describe('closing', () => {
       terminalId: second.activeTerminalId as string,
     })
 
-    expect(response.ok).toBe(true)
-    expect(terminal.getTabs().tabs).toHaveLength(1)
-  })
-
-  it('refuses to close a pane in a terminal that has no tmux', async () => {
-    // Naming a pane in a plain shell is a mistake worth saying out loud, not
-    // silently closing the whole terminal instead.
-    const terminal = service()
-    const started = terminal.start({ cols: 80, rows: 24 })
-
-    const response = await terminal.executeTool('call-1', 'close', {
-      terminalId: started.activeTerminalId as string,
-      pane: 'main:1.0',
-    })
-
     expect(response.ok).toBe(false)
-    expect(response.code).toBe('NO_TMUX')
-    expect(terminal.getTabs().tabs).toHaveLength(1)
+    expect(response.code).toBe('INVALID_REQUEST')
+    expect(terminal.getTabs().tabs).toHaveLength(2)
   })
 })
 
 describe('a shell that ends by itself', () => {
-  it('replaces the only terminal instead of leaving a dead tab', () => {
+  it('drops the only terminal instead of leaving a dead tab', () => {
     const terminal = service()
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
     const original = activeTerminalId as string
 
     stubSessions.get(original)?.exit()
 
-    // The panel's whole content is the terminal, so an exited last shell used
-    // to sit there unusable — nothing to type into and no way to get it back.
+    // An exited shell can no longer do anything, so its tab goes away rather
+    // than sitting there unusable; the strip is free to offer a new one.
     const after = terminal.getTabs()
-    expect(after.tabs).toHaveLength(1)
-    expect(after.activeTerminalId).not.toBe(original)
-    expect(after.tabs[0]?.terminalId).toBe(after.activeTerminalId)
-  })
-
-  it('removes one of several and activates a neighbour', () => {
-    const terminal = service()
-    terminal.start({ cols: 80, rows: 24 })
-    const second = terminal.openTerminal().activeTerminalId as string
-
-    stubSessions.get(second)?.exit()
-
-    const after = terminal.getTabs()
-    expect(after.tabs.map((tab) => tab.terminalId)).not.toContain(second)
-    expect(after.tabs).toHaveLength(1)
-    expect(after.activeTerminalId).toBe(after.tabs[0]?.terminalId)
+    expect(after.tabs).toHaveLength(0)
+    expect(after.activeTerminalId).toBeNull()
   })
 })

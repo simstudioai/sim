@@ -31,6 +31,7 @@ function resolveTlsOptionsImpl(url: string | undefined): { servername: string } 
 function getRedisConnectionDefaultsImpl(url?: string): {
   keepAlive: number
   connectTimeout: number
+  disconnectTimeout: number
   enableOfflineQueue: boolean
   tls?: { servername: string }
 } {
@@ -38,15 +39,38 @@ function getRedisConnectionDefaultsImpl(url?: string): {
   return {
     keepAlive: 1000,
     connectTimeout: 10000,
+    disconnectTimeout: 2000,
     enableOfflineQueue: true,
     ...(tls ? { tls } : {}),
   }
 }
 
 /**
+ * Mirrors the real `describeRedisConnection` under its Redis-unavailable
+ * default: no client, no lifecycle history, and nothing derivable from an
+ * unset REDIS_URL.
+ */
+function describeRedisConnectionImpl() {
+  return {
+    status: 'no-client',
+    clientAgeMs: null,
+    readyAgeMs: null,
+    msSinceLastPingOk: null,
+    connects: 0,
+    reconnects: 0,
+    errors: 0,
+    lastErrorMessage: null,
+    hostKind: 'unknown' as const,
+    tls: false,
+    sniOverride: false,
+  }
+}
+
+/**
  * Controllable mock functions for `@/lib/core/config/redis`.
- * Default: `getRedisClient` returns `null` (tests that need a client override
- * it), matching the real module's behavior when `REDIS_URL` is unset.
+ * Default: `getConfiguredRedisUrl` and `getRedisClient` return `null` (tests
+ * that need Redis override them), matching the real module's database-cache
+ * behavior.
  * `acquireLock`/`releaseLock`/`extendLock` default to succeeding (`true`),
  * matching the real module's Redis-unavailable no-op path.
  * {@link resetRedisConfigMock} restores the default behaviors.
@@ -59,6 +83,7 @@ function getRedisConnectionDefaultsImpl(url?: string): {
  * ```
  */
 export const redisConfigMockFns = {
+  mockGetConfiguredRedisUrl: vi.fn().mockReturnValue(null),
   mockGetRedisClient: vi.fn().mockReturnValue(null),
   mockGetRedisConnectionDefaults: vi.fn(getRedisConnectionDefaultsImpl),
   mockOnRedisReconnect: vi.fn(),
@@ -67,12 +92,16 @@ export const redisConfigMockFns = {
   mockExtendLock: vi.fn().mockResolvedValue(true),
   mockCloseRedisConnection: vi.fn().mockResolvedValue(undefined),
   mockResetForTesting: vi.fn(),
+  mockDescribeRedisConnection: vi.fn(describeRedisConnectionImpl),
+  mockWarmRedisConnection: vi.fn().mockResolvedValue(false),
+  mockSharedReconnectDelayMs: vi.fn().mockReturnValue(1_000),
 }
 
 /**
  * Restores every redis-config mock function to its default behavior.
  */
 export function resetRedisConfigMock(): void {
+  redisConfigMockFns.mockGetConfiguredRedisUrl.mockReset().mockReturnValue(null)
   redisConfigMockFns.mockGetRedisClient.mockReset().mockReturnValue(null)
   redisConfigMockFns.mockGetRedisConnectionDefaults
     .mockReset()
@@ -83,6 +112,11 @@ export function resetRedisConfigMock(): void {
   redisConfigMockFns.mockExtendLock.mockReset().mockResolvedValue(true)
   redisConfigMockFns.mockCloseRedisConnection.mockReset().mockResolvedValue(undefined)
   redisConfigMockFns.mockResetForTesting.mockReset()
+  redisConfigMockFns.mockWarmRedisConnection.mockReset().mockResolvedValue(false)
+  redisConfigMockFns.mockSharedReconnectDelayMs.mockReset().mockReturnValue(1_000)
+  redisConfigMockFns.mockDescribeRedisConnection
+    .mockReset()
+    .mockImplementation(describeRedisConnectionImpl)
 }
 
 /**
@@ -95,6 +129,10 @@ export function resetRedisConfigMock(): void {
  * ```
  */
 export const redisConfigMock = {
+  CONNECT_TIMEOUT_MS: 10_000,
+  DISCONNECT_TIMEOUT_MS: 2_000,
+  SHARED_COMMAND_TIMEOUT_MS: 5_000,
+  getConfiguredRedisUrl: redisConfigMockFns.mockGetConfiguredRedisUrl,
   getRedisClient: redisConfigMockFns.mockGetRedisClient,
   getRedisConnectionDefaults: redisConfigMockFns.mockGetRedisConnectionDefaults,
   onRedisReconnect: redisConfigMockFns.mockOnRedisReconnect,
@@ -103,4 +141,7 @@ export const redisConfigMock = {
   extendLock: redisConfigMockFns.mockExtendLock,
   closeRedisConnection: redisConfigMockFns.mockCloseRedisConnection,
   resetForTesting: redisConfigMockFns.mockResetForTesting,
+  describeRedisConnection: redisConfigMockFns.mockDescribeRedisConnection,
+  warmRedisConnection: redisConfigMockFns.mockWarmRedisConnection,
+  sharedReconnectDelayMs: redisConfigMockFns.mockSharedReconnectDelayMs,
 }

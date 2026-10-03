@@ -7,7 +7,7 @@ export const devinListSessionMessagesTool: ToolConfig<
   DevinListSessionMessagesResponse
 > = {
   id: 'devin_list_session_messages',
-  name: 'list_session_messages',
+  name: 'Devin List Session Messages',
   description:
     'List the messages exchanged in a Devin session, including messages from both the user and Devin.',
   version: '1.0.0',

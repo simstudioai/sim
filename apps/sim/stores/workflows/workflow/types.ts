@@ -1,6 +1,7 @@
 import type {
   BlockData,
   BlockLayoutState,
+  BlockRetryConfig,
   BlockState,
   DragStartPosition,
   Loop,
@@ -16,11 +17,12 @@ import type {
   Variable,
   WorkflowState,
 } from '@sim/workflow-types/workflow'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 
 export type {
   BlockData,
   BlockLayoutState,
+  BlockRetryConfig,
   BlockState,
   DragStartPosition,
   Loop,
@@ -59,6 +61,8 @@ export interface WorkflowActions {
   batchToggleHandles: (ids: string[]) => void
   batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => void
   batchRemoveEdges: (ids: string[]) => void
+  setBlockErrorEnabled: (id: string, errorEnabled: boolean) => void
+  setBlockRetry: (id: string, retry: BlockRetryConfig) => void
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
   setBlockEnabled: (id: string, enabled: boolean) => void

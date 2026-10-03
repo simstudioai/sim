@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
+  Chip,
   ChipInput,
   ChipSelect,
   ChipTextarea,
@@ -18,10 +19,12 @@ import {
   TableRow,
   Tooltip,
 } from '@sim/emcn'
+import { RefreshCw } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { ResumeExecutionUnavailable } from '@/app/(interfaces)/resume/[workflowId]/[executionId]/resume-execution-unavailable'
 import {
   type PauseContextDetail,
   type PausedExecutionDetail,
@@ -54,7 +57,6 @@ interface ResponseStructureRow {
 
 interface ResumeExecutionPageProps {
   params: { workflowId: string; executionId: string }
-  initialExecutionDetail: PausedExecutionDetail | null
   initialContextId?: string | null
 }
 
@@ -64,6 +66,22 @@ const STATUS_BADGE_VARIANT: Record<string, 'orange' | 'blue' | 'green' | 'red' |
   resuming: 'blue',
   resumed: 'green',
   failed: 'red',
+}
+
+export function selectInitialResumeContextId(
+  pausePoints: PausePointWithQueue[],
+  requestedContextId?: string | null
+): string | undefined {
+  if (
+    requestedContextId &&
+    pausePoints.some((pausePoint) => pausePoint.contextId === requestedContextId)
+  ) {
+    return requestedContextId
+  }
+  return (
+    pausePoints.find((pausePoint) => pausePoint.resumeStatus === 'paused')?.contextId ??
+    pausePoints[0]?.contextId
+  )
 }
 
 function formatDate(value: string | null): string {
@@ -113,7 +131,7 @@ function truncateForPreview(text: string): { text: string; truncated: boolean } 
 
 function renderStructuredValuePreview(value: unknown) {
   if (value === null || value === undefined || value === '') {
-    return <span className='text-[12px] text-[var(--text-muted)]'>—</span>
+    return <span className='text-[var(--text-muted)] text-caption'>—</span>
   }
 
   if (typeof value === 'object') {
@@ -140,7 +158,7 @@ function renderStructuredValuePreview(value: unknown) {
   const { text: stringValue, truncated } = truncateForPreview(String(value))
   return (
     <div className='max-w-full'>
-      <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] leading-4 [white-space:pre-wrap] [word-break:break-word]'>
+      <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[var(--text-primary)] text-caption leading-4 [white-space:pre-wrap] [word-break:break-word]'>
         {truncated ? `${stringValue}…` : stringValue}
       </div>
       {truncated && (
@@ -155,7 +173,6 @@ function renderStructuredValuePreview(value: unknown) {
 
 export default function ResumeExecutionPage({
   params,
-  initialExecutionDetail,
   initialContextId,
 }: ResumeExecutionPageProps) {
   const { workflowId, executionId } = params
@@ -164,35 +181,34 @@ export default function ResumeExecutionPage({
 
   const {
     data: executionDetail,
+    error: executionLoadError,
+    isError: executionLoadFailed,
+    isLoading: loadingExecution,
     isFetching: refreshingExecution,
     refetch: refetchExecutionDetail,
-  } = useResumeExecutionDetail(workflowId, executionId, initialExecutionDetail ?? undefined)
+  } = useResumeExecutionDetail(workflowId, executionId)
   const pausePoints = executionDetail?.pausePoints ?? []
 
-  const defaultContextId = useMemo(() => {
-    if (initialContextId) return initialContextId
-    return (
-      pausePoints.find((point) => point.resumeStatus === 'paused')?.contextId ??
-      pausePoints[0]?.contextId
-    )
-  }, [initialContextId, pausePoints])
+  const defaultContextId = executionDetail
+    ? selectInitialResumeContextId(pausePoints, initialContextId)
+    : undefined
+  const [selectedContextIdOverride, setSelectedContextIdOverride] = useState<
+    string | null | undefined
+  >(undefined)
+  const selectedContextId =
+    selectedContextIdOverride === undefined ? (defaultContextId ?? null) : selectedContextIdOverride
 
-  const [selectedContextId, setSelectedContextId] = useState<string | null>(
-    defaultContextId ?? null
-  )
   const { data: selectedDetail, isLoading: loadingDetail } = usePauseContextDetail(
     workflowId,
     executionId,
     selectedContextId ?? undefined
   )
-  const [selectedStatus, setSelectedStatus] =
-    useState<PausePointWithQueue['resumeStatus']>('paused')
-  const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
+  const selectedStatus: PausePointWithQueue['resumeStatus'] =
+    selectedDetail?.pausePoint.resumeStatus ?? 'paused'
+  const queuePosition = selectedDetail?.pausePoint.queuePosition
   const resumeInputsRef = useRef<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
-  const [formValuesByContext, setFormValuesByContext] = useState<
-    Record<string, Record<string, string>>
-  >({})
+  const formValuesByContextRef = useRef<Record<string, Record<string, string>>>({})
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [loadingAction, setLoadingAction] = useState(false)
@@ -200,6 +216,18 @@ export default function ResumeExecutionPage({
   const [message, setMessage] = useState<string | null>(null)
 
   const resumeMutation = useResumeContext()
+
+  const executionErrorStatus = isApiClientError(executionLoadError)
+    ? executionLoadError.status
+    : null
+
+  useEffect(() => {
+    if (executionErrorStatus !== 401) return
+    const resumePath = `/resume/${encodeURIComponent(workflowId)}/${encodeURIComponent(executionId)}${
+      initialContextId ? `?${new URLSearchParams({ contextId: initialContextId })}` : ''
+    }`
+    router.replace(`/login?callbackUrl=${encodeURIComponent(resumePath)}`)
+  }, [executionErrorStatus, executionId, initialContextId, router, workflowId])
 
   const normalizeInputFormatFields = useCallback((raw: any): NormalizedInputField[] => {
     if (!Array.isArray(raw)) return []
@@ -278,17 +306,6 @@ export default function ResumeExecutionPage({
     [formatValueForInputField]
   )
 
-  const formatStructureValue = useCallback((value: any): string => {
-    if (value === null || value === undefined) return '—'
-    if (typeof value === 'string') return value
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-    try {
-      return JSON.stringify(value, null, 2)
-    } catch {
-      return String(value)
-    }
-  }, [])
-
   const parseFormValue = useCallback(
     (field: NormalizedInputField, rawValue: string): { value: any; error?: string } => {
       const value = rawValue ?? ''
@@ -328,11 +345,12 @@ export default function ResumeExecutionPage({
   const handleFormFieldChange = useCallback(
     (fieldName: string, newValue: string) => {
       if (!selectedContextId) return
-      setFormValues((prev) => {
-        const updated = { ...prev, [fieldName]: newValue }
-        setFormValuesByContext((map) => ({ ...map, [selectedContextId]: updated }))
-        return updated
-      })
+      const updated = {
+        ...formValuesByContextRef.current[selectedContextId],
+        [fieldName]: newValue,
+      }
+      formValuesByContextRef.current[selectedContextId] = updated
+      setFormValues(updated)
       setFormErrors((prev) => {
         if (!prev[fieldName]) return prev
         const { [fieldName]: _, ...rest } = prev
@@ -440,10 +458,7 @@ export default function ResumeExecutionPage({
     []
   )
 
-  const selectedOperation = useMemo(
-    () => selectedDetail?.pausePoint.response?.data?.operation || 'human',
-    [selectedDetail]
-  )
+  const selectedOperation = selectedDetail?.pausePoint.response?.data?.operation || 'human'
   const isHumanMode = selectedOperation === 'human'
 
   const inputFormatFields = useMemo(
@@ -489,12 +504,9 @@ export default function ResumeExecutionPage({
           : undefined
       if (operation === 'human' && fetchedInputFields.length > 0) {
         const baseValues = buildInitialFormValues(fetchedInputFields, submission)
-        let mergedValues = baseValues
-        setFormValuesByContext((prev) => {
-          const existingValues = prev[detail.pausePoint.contextId]
-          if (existingValues) mergedValues = { ...baseValues, ...existingValues }
-          return { ...prev, [detail.pausePoint.contextId]: mergedValues }
-        })
+        const existingValues = formValuesByContextRef.current[detail.pausePoint.contextId]
+        const mergedValues = existingValues ? { ...baseValues, ...existingValues } : baseValues
+        formValuesByContextRef.current[detail.pausePoint.contextId] = mergedValues
         setFormValues(mergedValues)
         setFormErrors({})
         if (resumeInputsRef.current[detail.pausePoint.contextId] !== undefined) {
@@ -524,8 +536,6 @@ export default function ResumeExecutionPage({
 
   useEffect(() => {
     if (!selectedDetail) return
-    setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
-    setQueuePosition(selectedDetail.pausePoint.queuePosition)
     seedFormFromDetail(selectedDetail)
   }, [selectedDetail, seedFormFromDetail])
 
@@ -534,7 +544,7 @@ export default function ResumeExecutionPage({
     if (!selectedContextId) {
       const firstPaused =
         data?.pausePoints.find((point) => point.resumeStatus === 'paused')?.contextId ?? null
-      setSelectedContextId(firstPaused)
+      setSelectedContextIdOverride(firstPaused)
     }
   }, [refetchExecutionDetail, selectedContextId])
 
@@ -604,7 +614,6 @@ export default function ResumeExecutionPage({
         })
         if (!ok) {
           setError(payload.error || 'Failed to resume execution.')
-          setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
           return
         }
         const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
@@ -641,9 +650,10 @@ export default function ResumeExecutionPage({
             }
           }
         )
-        setSelectedStatus(nextStatus)
-        setQueuePosition(nextQueuePosition)
-        setSelectedContextId((prev) => (prev !== selectedContextId ? prev : fallbackContextId))
+        setSelectedContextIdOverride((override) => {
+          const currentContextId = override === undefined ? (defaultContextId ?? null) : override
+          return currentContextId !== selectedContextId ? override : fallbackContextId
+        })
         setMessage(
           payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.'
         )
@@ -699,25 +709,48 @@ export default function ResumeExecutionPage({
     )
   }
 
-  // Not found state
-  if (!executionDetail) {
+  if (loadingExecution) {
     return (
       <Tooltip.Provider>
         <div className='flex flex-1 items-center justify-center p-6'>
-          <div className='max-w-[400px] text-center'>
-            <h1 className='mb-2 font-medium text-[20px] text-[var(--text-primary)]'>
-              Execution Not Found
-            </h1>
-            <p className='mb-6 text-[14px] text-[var(--text-secondary)]'>
-              This execution could not be located or has already completed.
-            </p>
-            <Button variant='outline' onClick={() => router.push('/')}>
-              Return Home
-            </Button>
-          </div>
+          <span className='text-[var(--text-secondary)] text-small'>Loading…</span>
         </div>
       </Tooltip.Provider>
     )
+  }
+
+  if (executionLoadFailed) {
+    if (executionErrorStatus === 401) {
+      return (
+        <div className='flex flex-1 items-center justify-center p-6'>
+          <span className='text-[var(--text-secondary)] text-small'>Redirecting to sign in…</span>
+        </div>
+      )
+    }
+    if (executionErrorStatus === 403 || executionErrorStatus === 404) {
+      return <ResumeExecutionUnavailable />
+    }
+    return (
+      <div className='flex flex-1 items-center justify-center p-6'>
+        <div className='max-w-[400px] text-center'>
+          <h1 className='mb-2 text-[var(--text-primary)] text-xl'>Could Not Load Execution</h1>
+          <p className='mb-6 text-[var(--text-secondary)] text-sm'>
+            An unexpected error occurred while loading this execution. Please try again.
+          </p>
+          <Chip
+            variant='primary'
+            disabled={refreshingExecution}
+            onClick={() => void refetchExecutionDetail()}
+          >
+            {refreshingExecution ? 'Trying again…' : 'Try again'}
+          </Chip>
+        </div>
+      </div>
+    )
+  }
+
+  if (!executionDetail) {
+    return <ResumeExecutionUnavailable />
   }
 
   return (
@@ -726,7 +759,7 @@ export default function ResumeExecutionPage({
         {/* Header */}
         <div className='mb-8 flex items-center justify-between'>
           <div>
-            <h1 className='font-medium text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
+            <h1 className='text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
             <p className='mt-1 text-[14px] text-[var(--text-secondary)]'>
               Select a pause point to review and resume
             </p>
@@ -758,7 +791,7 @@ export default function ResumeExecutionPage({
             </div>
             <div>
               {pausePoints.length === 0 ? (
-                <div className='px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]'>
+                <div className='px-4 py-8 text-center text-[var(--text-secondary)] text-small'>
                   No pause points
                 </div>
               ) : (
@@ -767,13 +800,13 @@ export default function ResumeExecutionPage({
                     key={pause.contextId}
                     variant={pause.contextId === selectedContextId ? 'active' : 'ghost'}
                     onClick={() => {
-                      setSelectedContextId(pause.contextId)
+                      setSelectedContextIdOverride(pause.contextId)
                       setError(null)
                       setMessage(null)
                     }}
                     className='w-full justify-between rounded-none px-4 py-3'
                   >
-                    <span className='text-[13px]'>{getBlockName(pause)}</span>
+                    <span className='text-small'>{getBlockName(pause)}</span>
                     <StatusBadge status={pause.resumeStatus} />
                   </Button>
                 ))
@@ -785,17 +818,17 @@ export default function ResumeExecutionPage({
           <div>
             {loadingDetail && !selectedDetail ? (
               <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                <span className='text-[13px] text-[var(--text-secondary)]'>Loading…</span>
+                <span className='text-[var(--text-secondary)] text-small'>Loading…</span>
               </div>
             ) : !selectedContextId ? (
               <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                <span className='text-[13px] text-[var(--text-secondary)]'>
+                <span className='text-[var(--text-secondary)] text-small'>
                   Select a pause point
                 </span>
               </div>
             ) : !selectedDetail ? (
               <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                <span className='text-[13px] text-[var(--text-secondary)]'>
+                <span className='text-[var(--text-secondary)] text-small'>
                   Could not load details
                 </span>
               </div>
@@ -805,7 +838,7 @@ export default function ResumeExecutionPage({
                 <div className='flex items-center justify-between rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
                   <div>
                     <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
-                    <p className='mt-[2px] text-[12px] text-[var(--text-muted)]'>
+                    <p className='mt-[2px] text-[var(--text-muted)] text-caption'>
                       Paused at {formatDate(selectedDetail.pausePoint.registeredAt)}
                     </p>
                   </div>
@@ -822,10 +855,10 @@ export default function ResumeExecutionPage({
                 {selectedDetail.pausePoint.automaticResumeWaitingReason && (
                   <div className='rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
                     <Label>Waiting to resume automatically</Label>
-                    <p className='mt-1 text-[13px] text-[var(--text-secondary)]'>
+                    <p className='mt-1 text-[var(--text-secondary)] text-small'>
                       {selectedDetail.pausePoint.automaticResumeWaitingReason}
                     </p>
-                    <p className='mt-1 text-[12px] text-[var(--text-muted)]'>
+                    <p className='mt-1 text-[var(--text-muted)] text-caption'>
                       Sim will retry automatically.
                     </p>
                   </div>
@@ -850,7 +883,7 @@ export default function ResumeExecutionPage({
                           <div key={field.id} className='flex flex-col gap-[9px]'>
                             <Label>{field.label}</Label>
                             {field.description && (
-                              <p className='text-[12px] text-[var(--text-muted)]'>
+                              <p className='text-[var(--text-muted)] text-caption'>
                                 {field.description}
                               </p>
                             )}
@@ -874,7 +907,7 @@ export default function ResumeExecutionPage({
                           rows={6}
                         />
                       ) : (
-                        <p className='text-[13px] text-[var(--text-muted)]'>
+                        <p className='text-[var(--text-muted)] text-small'>
                           No input data provided
                         </p>
                       )}
@@ -915,7 +948,7 @@ export default function ResumeExecutionPage({
                           <Label>Display Data</Label>
                         </div>
                         <div className='p-4'>
-                          <p className='text-[13px] text-[var(--text-muted)]'>
+                          <p className='text-[var(--text-muted)] text-small'>
                             No display data configured
                           </p>
                         </div>
@@ -938,7 +971,7 @@ export default function ResumeExecutionPage({
                                 )}
                               </Label>
                               {field.description && (
-                                <p className='text-[12px] text-[var(--text-muted)]'>
+                                <p className='text-[var(--text-muted)] text-caption'>
                                   {field.description}
                                 </p>
                               )}

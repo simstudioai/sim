@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, cn, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 
@@ -41,6 +41,7 @@ export function SessionExpired() {
   }
 
   const expired = sawSession && !isPending && !error && !session?.user
+  const nativeSurfaceReady = useNativeSurfaceOcclusionReady(expired, 'takeover')
 
   const attemptRecovery = useCallback(() => {
     setFailed(false)
@@ -62,8 +63,17 @@ export function SessionExpired() {
   const subject = wasImpersonation ? 'The impersonation session expired' : 'Your session expired'
 
   return (
-    <main className='fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-[var(--surface-1)] p-6'>
-      <p className='text-[var(--text-muted)] text-sm'>
+    <main
+      className='fixed inset-0 z-[var(--z-takeover)] flex flex-col items-center justify-center gap-3 bg-[var(--bg)] p-6 text-center'
+      style={{ visibility: nativeSurfaceReady ? undefined : 'hidden' }}
+      data-native-surface-occlusion='takeover'
+    >
+      <p
+        className={cn(
+          'text-sm',
+          failed ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
+        )}
+      >
         {failed ? `${subject}, but signing out failed.` : `${subject}. Signing you out…`}
       </p>
       {failed && (

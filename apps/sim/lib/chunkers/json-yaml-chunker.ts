@@ -1,7 +1,16 @@
 import { createLogger } from '@sim/logger'
 import * as yaml from 'js-yaml'
+import { ChunkBudget, ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
-import { estimateTokens } from '@/lib/chunkers/utils'
+import {
+  estimateTokens,
+  iterateLines,
+  iterateLosslessWordBoundaryChunkSpans,
+  normalizeTokenChunkSize,
+  tokensToChars,
+} from '@/lib/chunkers/utils'
+import { measureYamlExpansion, type YamlExpansionLimits } from '@/lib/file-parsers/yaml-limits'
+import { FILE_PARSER_YAML_LIMITS } from '@/lib/file-parsers/yaml-parser'
 
 const logger = createLogger('JsonYamlChunker')
 
@@ -9,59 +18,181 @@ type JsonPrimitive = string | number | boolean | null
 type JsonValue = JsonPrimitive | JsonObject | JsonArray
 type JsonObject = { [key: string]: JsonValue }
 type JsonArray = JsonValue[]
+type BoundedChunkMetadataMode = 'text-offsets' | 'preserve-range'
 
 const MAX_DEPTH = 5
+
+/**
+ * Smallest source ceiling this chunker imposes, so a knowledge base configured
+ * with tiny chunks keeps structural chunking on documents it indexes perfectly
+ * well today.
+ */
+const MIN_SOURCE_BYTES = 4 * 1024 * 1024
+
+/**
+ * How far a document may legitimately expand past its own source.
+ *
+ * `measureYamlExpansion` charges a flat per-node allowance, so a compact source
+ * of small values is charged well above its own length — `[1,1,1]` costs about
+ * 22 estimated bytes per element against two in source. An order of magnitude of
+ * headroom therefore covers ordinary document shape, while alias expansion
+ * overshoots it by several orders.
+ */
+const MAX_EXPANSION_RATIO = 16
+
+/**
+ * Longest source this chunker will parse: the most text it could ever emit, one
+ * output budget's worth. A larger document cannot be indexed whole by any
+ * chunker — `ChunkBudget` stops it either way — so parsing it buys nothing.
+ */
+function resolveMaxSourceBytes(maxChunks: number | undefined, chunkSize: number): number {
+  if (maxChunks === undefined) return FILE_PARSER_YAML_LIMITS.maxSerializedBytes
+
+  return Math.min(
+    FILE_PARSER_YAML_LIMITS.maxSerializedBytes,
+    Math.max(MIN_SOURCE_BYTES, maxChunks * tokensToChars(chunkSize))
+  )
+}
+
+/**
+ * What the document is allowed to expand to once it is walked as a tree.
+ *
+ * Structural chunking re-serializes what it parsed, so its cost follows the
+ * document's *expanded* size rather than its source size, and `yaml.load`
+ * resolves aliases into shared references — a sub-kilobyte source can carry tens
+ * of megabytes of expansion. `ChunkBudget` cannot bound that: it counts emitted
+ * chunks, and every parse and serialization happens before the first is emitted.
+ *
+ * Two expansions are admissible: one that stays within the output budget, and
+ * one that stays proportionate to the source. Taking the larger of the two keeps
+ * transient allocation tied to work the chunker would have done anyway, without
+ * charging an ordinary large document for the estimator's per-node conservatism.
+ * Neither is ever allowed past what the file parser itself would hand over.
+ */
+function resolveExpansionLimits(sourceBytes: number, maxSourceBytes: number): YamlExpansionLimits {
+  return {
+    /** Bytes bind here; every reached node charges some, so a self-referential anchor still terminates. */
+    maxNodes: Number.MAX_SAFE_INTEGER,
+    maxSerializedBytes: Math.min(
+      FILE_PARSER_YAML_LIMITS.maxSerializedBytes,
+      Math.max(maxSourceBytes, sourceBytes * MAX_EXPANSION_RATIO)
+    ),
+    maxDepth: FILE_PARSER_YAML_LIMITS.maxDepth,
+  }
+}
 
 export class JsonYamlChunker {
   private chunkSize: number
   private minCharactersPerChunk: number
+  private maxChunks?: number
+  private readonly maxSourceBytes: number
 
   constructor(options: ChunkerOptions = {}) {
-    this.chunkSize = options.chunkSize ?? 1024
+    this.chunkSize = normalizeTokenChunkSize(options.chunkSize ?? 1024, 'JSON/YAML chunk size')
     this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
+    this.maxChunks = options.maxChunks
+    this.maxSourceBytes = resolveMaxSourceBytes(this.maxChunks, this.chunkSize)
   }
 
-  static isStructuredData(content: string): boolean {
+  /**
+   * Read `content` as JSON, falling back to YAML, and measure what the parsed
+   * value expands to before anything materializes it.
+   *
+   * The source-length check comes first so oversized content is never parsed at
+   * all; the expansion measurement then catches what length alone cannot — alias
+   * expansion, and the indentation a pretty-printed re-serialization adds.
+   */
+  private parseWithinLimits(content: string): JsonValue | undefined {
+    if (content.length > this.maxSourceBytes) {
+      return this.reject(
+        `source of ${content.length} characters exceeds the ${this.maxSourceBytes}-byte ceiling`
+      )
+    }
+
+    let parsed: unknown
     try {
-      const parsed = JSON.parse(content)
-      return typeof parsed === 'object' && parsed !== null
+      parsed = JSON.parse(content)
     } catch {
       try {
-        const parsed = yaml.load(content)
-        return typeof parsed === 'object' && parsed !== null
+        parsed = yaml.load(content)
       } catch {
-        return false
+        return undefined
       }
     }
+
+    if (parsed === undefined) return undefined
+
+    const limits = resolveExpansionLimits(content.length, this.maxSourceBytes)
+    const measured = measureYamlExpansion(parsed, limits)
+    if (!measured.within) return this.reject(measured.reason)
+
+    return parsed as JsonValue
+  }
+
+  private reject(reason: string): undefined {
+    logger.warn(
+      'Structured content exceeds the chunking expansion limits, declining to expand it',
+      {
+        reason,
+      }
+    )
+    return undefined
+  }
+
+  /**
+   * Chunk `content` as a structured object or array, or return `null` when it is
+   * neither — including when its expanded form outgrows the ceiling above. The
+   * caller then chooses another chunker for it.
+   */
+  static async chunkStructured(
+    content: string,
+    options: ChunkerOptions = {}
+  ): Promise<Chunk[] | null> {
+    const chunker = new JsonYamlChunker(options)
+    const data = chunker.parseWithinLimits(content)
+    if (data === null || typeof data !== 'object') return null
+
+    return chunker.chunkParsed(data, content)
   }
 
   async chunk(content: string): Promise<Chunk[]> {
+    const data = this.parseWithinLimits(content)
+    if (data === undefined) return this.chunkAsText(content)
+
+    return this.chunkParsed(data, content)
+  }
+
+  private chunkParsed(data: JsonValue, content: string): Chunk[] {
     try {
-      let data: JsonValue
-      try {
-        data = JSON.parse(content) as JsonValue
-      } catch {
-        data = yaml.load(content) as JsonValue
-      }
-      const chunks = this.chunkStructuredData(data, [], 0)
+      const chunks: Chunk[] = []
+      this.chunkStructuredData(data, [], 0, chunks, new ChunkBudget(this.maxChunks))
 
       const totalTokens = chunks.reduce((sum, c) => sum + c.tokenCount, 0)
       logger.info(`JSON chunking complete: ${chunks.length} chunks, ${totalTokens} total tokens`)
 
       return chunks
     } catch (error) {
-      logger.info('JSON parsing failed, falling back to text chunking')
+      if (error instanceof ChunkLimitExceededError) throw error
+      logger.info('Structured data chunking failed, falling back to text chunking')
       return this.chunkAsText(content)
     }
   }
 
-  private chunkStructuredData(data: JsonValue, path: string[], depth: number): Chunk[] {
+  private chunkStructuredData(
+    data: JsonValue,
+    path: string[],
+    depth: number,
+    chunks: Chunk[],
+    budget: ChunkBudget
+  ): void {
     if (Array.isArray(data)) {
-      return this.chunkArray(data, path, depth)
+      this.chunkArray(data, path, depth, chunks, budget)
+      return
     }
 
     if (typeof data === 'object' && data !== null) {
-      return this.chunkObject(data as JsonObject, path, depth)
+      this.chunkObject(data as JsonObject, path, depth, chunks, budget)
+      return
     }
 
     const content = JSON.stringify(data, null, 2)
@@ -69,25 +200,29 @@ export class JsonYamlChunker {
     const contentTokens = estimateTokens(content)
 
     if (contentTokens > this.chunkSize) {
-      return this.chunkAsText(contextHeader + content)
+      this.chunkAsText(contextHeader + content, budget, chunks)
+      return
     }
 
     if (content.length < this.minCharactersPerChunk) {
-      return []
+      return
     }
 
     const text = contextHeader + content
-    return [
-      {
-        text,
-        tokenCount: estimateTokens(text),
-        metadata: { startIndex: 0, endIndex: text.length },
-      },
-    ]
+    this.addBoundedChunk(chunks, budget, {
+      text,
+      tokenCount: estimateTokens(text),
+      metadata: { startIndex: 0, endIndex: text.length },
+    })
   }
 
-  private chunkArray(arr: JsonArray, path: string[], depth: number): Chunk[] {
-    const chunks: Chunk[] = []
+  private chunkArray(
+    arr: JsonArray,
+    path: string[],
+    depth: number,
+    chunks: Chunk[],
+    budget: ChunkBudget
+  ): void {
     let currentBatch: JsonValue[] = []
     let currentTokens = 0
 
@@ -100,25 +235,37 @@ export class JsonYamlChunker {
 
       if (itemTokens > this.chunkSize) {
         if (currentBatch.length > 0) {
-          chunks.push(
-            this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
+          this.addBoundedChunk(
+            chunks,
+            budget,
+            this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1),
+            'preserve-range'
           )
           currentBatch = []
           currentTokens = 0
         }
 
         if (depth < MAX_DEPTH && typeof item === 'object' && item !== null) {
-          chunks.push(...this.chunkStructuredData(item, [...path, `[${i}]`], depth + 1))
+          this.chunkStructuredData(item, [...path, `[${i}]`], depth + 1, chunks, budget)
         } else {
-          chunks.push({
-            text: contextHeader + itemStr,
-            tokenCount: itemTokens,
-            metadata: { startIndex: i, endIndex: i },
-          })
+          const text = contextHeader + itemStr
+          this.addBoundedChunk(
+            chunks,
+            budget,
+            {
+              text,
+              tokenCount: estimateTokens(text),
+              metadata: { startIndex: i, endIndex: i },
+            },
+            'preserve-range'
+          )
         }
       } else if (currentTokens + itemTokens > this.chunkSize && currentBatch.length > 0) {
-        chunks.push(
-          this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
+        this.addBoundedChunk(
+          chunks,
+          budget,
+          this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1),
+          'preserve-range'
         )
         currentBatch = [item]
         currentTokens = itemTokens
@@ -129,21 +276,27 @@ export class JsonYamlChunker {
     }
 
     if (currentBatch.length > 0) {
-      chunks.push(
+      this.addBoundedChunk(
+        chunks,
+        budget,
         this.buildBatchChunk(
           contextHeader,
           currentBatch,
           arr.length - currentBatch.length,
           arr.length - 1
-        )
+        ),
+        'preserve-range'
       )
     }
-
-    return chunks
   }
 
-  private chunkObject(obj: JsonObject, path: string[], depth: number): Chunk[] {
-    const chunks: Chunk[] = []
+  private chunkObject(
+    obj: JsonObject,
+    path: string[],
+    depth: number,
+    chunks: Chunk[],
+    budget: ChunkBudget
+  ): void {
     const entries = Object.entries(obj)
 
     const fullContent = JSON.stringify(obj, null, 2)
@@ -152,13 +305,12 @@ export class JsonYamlChunker {
     if (fullTokens <= this.chunkSize) {
       const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
       const text = contextHeader + fullContent
-      return [
-        {
-          text,
-          tokenCount: estimateTokens(text),
-          metadata: { startIndex: 0, endIndex: text.length },
-        },
-      ]
+      this.addBoundedChunk(chunks, budget, {
+        text,
+        tokenCount: estimateTokens(text),
+        metadata: { startIndex: 0, endIndex: text.length },
+      })
+      return
     }
 
     const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
@@ -172,7 +324,7 @@ export class JsonYamlChunker {
       if (valueTokens > this.chunkSize) {
         if (Object.keys(currentObj).length > 0) {
           const objContent = contextHeader + JSON.stringify(currentObj, null, 2)
-          chunks.push({
+          this.addBoundedChunk(chunks, budget, {
             text: objContent,
             tokenCount: estimateTokens(objContent),
             metadata: { startIndex: 0, endIndex: objContent.length },
@@ -182,20 +334,16 @@ export class JsonYamlChunker {
         }
 
         if (depth < MAX_DEPTH && typeof value === 'object' && value !== null) {
-          chunks.push(...this.chunkStructuredData(value, [...path, key], depth + 1))
+          this.chunkStructuredData(value, [...path, key], depth + 1, chunks, budget)
         } else {
-          chunks.push({
-            text: contextHeader + valueStr,
-            tokenCount: valueTokens,
-            metadata: { startIndex: 0, endIndex: valueStr.length },
-          })
+          this.chunkAsText(contextHeader + valueStr, budget, chunks)
         }
       } else if (
         currentTokens + valueTokens > this.chunkSize &&
         Object.keys(currentObj).length > 0
       ) {
         const objContent = contextHeader + JSON.stringify(currentObj, null, 2)
-        chunks.push({
+        this.addBoundedChunk(chunks, budget, {
           text: objContent,
           tokenCount: estimateTokens(objContent),
           metadata: { startIndex: 0, endIndex: objContent.length },
@@ -210,14 +358,12 @@ export class JsonYamlChunker {
 
     if (Object.keys(currentObj).length > 0) {
       const objContent = contextHeader + JSON.stringify(currentObj, null, 2)
-      chunks.push({
+      this.addBoundedChunk(chunks, budget, {
         text: objContent,
         tokenCount: estimateTokens(objContent),
         metadata: { startIndex: 0, endIndex: objContent.length },
       })
     }
-
-    return chunks
   }
 
   private buildBatchChunk(
@@ -234,18 +380,78 @@ export class JsonYamlChunker {
     }
   }
 
-  private chunkAsText(content: string): Chunk[] {
-    const chunks: Chunk[] = []
-    const lines = content.split('\n')
+  private addBoundedChunk(
+    chunks: Chunk[],
+    budget: ChunkBudget,
+    chunk: Chunk,
+    metadataMode: BoundedChunkMetadataMode = 'text-offsets'
+  ): void {
+    if (chunk.tokenCount <= this.chunkSize) {
+      budget.add(chunks, chunk)
+      return
+    }
+
+    for (const segment of iterateLosslessWordBoundaryChunkSpans(
+      chunk.text,
+      tokensToChars(this.chunkSize)
+    )) {
+      budget.add(chunks, {
+        text: segment.text,
+        tokenCount: estimateTokens(segment.text),
+        metadata:
+          metadataMode === 'preserve-range'
+            ? chunk.metadata
+            : {
+                startIndex: chunk.metadata.startIndex + segment.startIndex,
+                endIndex: chunk.metadata.startIndex + segment.endIndex,
+              },
+      })
+    }
+  }
+
+  private chunkAsText(
+    content: string,
+    budget: ChunkBudget = new ChunkBudget(this.maxChunks),
+    chunks: Chunk[] = []
+  ): Chunk[] {
     let currentChunk = ''
     let currentTokens = 0
     let startIndex = 0
 
-    for (const line of lines) {
+    for (const line of iterateLines(content)) {
       const lineTokens = estimateTokens(line)
 
+      if (lineTokens > this.chunkSize) {
+        if (currentChunk) {
+          budget.add(chunks, {
+            text: currentChunk,
+            tokenCount: currentTokens,
+            metadata: { startIndex, endIndex: startIndex + currentChunk.length },
+          })
+          startIndex += currentChunk.length + 1
+          currentChunk = ''
+          currentTokens = 0
+        }
+        const lineStartIndex = startIndex
+        for (const segment of iterateLosslessWordBoundaryChunkSpans(
+          line,
+          tokensToChars(this.chunkSize)
+        )) {
+          budget.add(chunks, {
+            text: segment.text,
+            tokenCount: estimateTokens(segment.text),
+            metadata: {
+              startIndex: lineStartIndex + segment.startIndex,
+              endIndex: lineStartIndex + segment.endIndex,
+            },
+          })
+        }
+        startIndex += line.length + 1
+        continue
+      }
+
       if (currentTokens + lineTokens > this.chunkSize && currentChunk) {
-        chunks.push({
+        budget.add(chunks, {
           text: currentChunk,
           tokenCount: currentTokens,
           metadata: { startIndex, endIndex: startIndex + currentChunk.length },
@@ -261,7 +467,7 @@ export class JsonYamlChunker {
     }
 
     if (currentChunk && currentChunk.length >= this.minCharactersPerChunk) {
-      chunks.push({
+      budget.add(chunks, {
         text: currentChunk,
         tokenCount: currentTokens,
         metadata: { startIndex, endIndex: startIndex + currentChunk.length },
@@ -269,10 +475,5 @@ export class JsonYamlChunker {
     }
 
     return chunks
-  }
-
-  static async chunkJsonYaml(content: string, options: ChunkerOptions = {}): Promise<Chunk[]> {
-    const chunker = new JsonYamlChunker(options)
-    return chunker.chunk(content)
   }
 }

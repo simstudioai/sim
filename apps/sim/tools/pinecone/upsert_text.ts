@@ -5,6 +5,41 @@ import type {
 } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
+function parseUpsertTextRecords(
+  input: PineconeUpsertTextParams['records']
+): PineconeUpsertTextRecord[] {
+  if (typeof input !== 'string') return Array.isArray(input) ? input : [input]
+
+  return input
+    .split('\n')
+    .filter((line) => line.trim())
+    .map((line) => JSON.parse(line.trim().replace(/'\\''/g, "'")) as PineconeUpsertTextRecord)
+}
+
+function rebuildUpsertTextRecords(
+  original: PineconeUpsertTextParams['records'],
+  projectedChunkText: unknown
+): PineconeUpsertTextParams['records'] {
+  const records = parseUpsertTextRecords(original)
+  if (
+    !Array.isArray(projectedChunkText) ||
+    projectedChunkText.length !== records.length ||
+    projectedChunkText.some((value) => typeof value !== 'string')
+  ) {
+    throw new Error('Projected Pinecone records do not match the original records')
+  }
+
+  const rebuilt = records.map((record, index) => ({
+    ...record,
+    chunk_text: projectedChunkText[index] as string,
+  }))
+  if (typeof original === 'string')
+    return rebuilt.map((record) => JSON.stringify(record)).join('\n')
+  if (Array.isArray(original)) return rebuilt
+  if (rebuilt.length !== 1) throw new Error('Expected one Pinecone record')
+  return rebuilt[0]
+}
+
 export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeResponse> = {
   id: 'pinecone_upsert_text',
   name: 'Pinecone Upsert Text',
@@ -40,6 +75,20 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        records: parseUpsertTextRecords(params.records).map((record) => record.chunk_text),
+      }),
+      applyProjected: (selectedParams, projectedSelection) => {
+        if (selectedParams.records === undefined) {
+          throw new Error('Pinecone records are required')
+        }
+        return {
+          records: rebuildUpsertTextRecords(selectedParams.records, projectedSelection.records),
+        }
+      },
+    },
     method: 'POST',
     url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/upsert`,
     headers: (params) => ({
@@ -48,23 +97,7 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
       'X-Pinecone-API-Version': '2025-01',
     }),
     body: (params) => {
-      // If records is a string, parse it line by line
-      let records: PineconeUpsertTextRecord[]
-      if (typeof params.records === 'string') {
-        // Split by newlines and parse each line
-        records = (params.records as string)
-          .split('\n')
-          .filter((line: string) => line.trim()) // Remove empty lines
-          .map((line: string) => {
-            // Clean and parse each line
-            const cleanJson = line.trim().replace(/'\\''/g, "'")
-            return JSON.parse(cleanJson) as PineconeUpsertTextRecord
-          })
-      } else {
-        records = Array.isArray(params.records) ? params.records : [params.records]
-      }
-
-      // Convert to NDJSON format
+      const records = parseUpsertTextRecords(params.records)
       const ndjson = records.map((r: PineconeUpsertTextRecord) => JSON.stringify(r)).join('\n')
       return { body: ndjson }
     },

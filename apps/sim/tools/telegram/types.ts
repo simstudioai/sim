@@ -303,8 +303,3 @@ export type TelegramResponse =
   | TelegramGetChatMemberResponse
 
 // Legacy type for backwards compatibility
-interface TelegramMessageParams {
-  botToken: string
-  chatId: string
-  text: string
-}

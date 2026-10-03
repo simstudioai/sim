@@ -2,9 +2,9 @@ import type {
   AthenaListTableMetadataParams,
   AthenaListTableMetadataResponse,
 } from '@/tools/athena/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listTableMetadataTool: ToolConfig<
+export const listTableMetadataTool: InternalToolConfig<
   AthenaListTableMetadataParams,
   AthenaListTableMetadataResponse
 > = {
@@ -71,11 +71,8 @@ export const listTableMetadataTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/athena/list-table-metadata',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
@@ -105,7 +102,7 @@ export const listTableMetadataTool: ToolConfig<
   outputs: {
     tables: {
       type: 'array',
-      description: 'Table metadata (name, type, columns, partition keys)',
+      description: 'Table metadata (name, type, columns, partition keys, parameters)',
       items: {
         type: 'object',
         properties: {
@@ -144,6 +141,10 @@ export const listTableMetadataTool: ToolConfig<
                 comment: { type: 'string', description: 'Partition key comment', optional: true },
               },
             },
+          },
+          parameters: {
+            type: 'json',
+            description: 'Key/value table properties (e.g., classification, location)',
           },
         },
       },

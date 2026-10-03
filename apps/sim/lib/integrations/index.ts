@@ -6,16 +6,16 @@
  * `INTEGRATIONS` is the serialized projection of `BlockConfig` written by
  * `scripts/generate-docs.ts` whenever a block changes.
  *
- * `POPULAR_WORKFLOWS` is derived from each block's `*BlockMeta` export (see
- * `apps/sim/blocks/registry.ts`, which now hosts both the execution
- * `BlockConfig` lookups and the presentation `BlockMeta` lookups). Block
- * files are the source of truth for both surfaces.
+ * Deliberately free of `@/blocks` value imports: the landing `/integrations`
+ * grid is a client component, so anything imported here that reaches
+ * `blocks/registry-maps` ships all 282 block configs and the tool registry to a
+ * public marketing page. `POPULAR_WORKFLOWS` lives in
+ * `@/lib/integrations/popular-workflows` for exactly that reason. Type-only
+ * imports are fine — they erase.
  */
 
-import { stripVersionSuffix } from '@sim/utils/string'
-import integrationsJson from '@/lib/integrations/integrations.json'
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import type { Integration, IntegrationSummary } from '@/lib/integrations/types'
-import { getAllBlockMeta } from '@/blocks/registry'
 
 /** All integrations surfaced in the catalog, ordered by `scripts/generate-docs.ts`. */
 export const INTEGRATIONS: readonly Integration[] =
@@ -27,45 +27,6 @@ export const INTEGRATIONS: readonly Integration[] =
  * last-updated line on integration pages.
  */
 export const INTEGRATIONS_UPDATED_AT: string = integrationsJson.updatedAt
-
-/** A curated `from → to` block-pair workflow surfaced on the landing page. */
-export interface PopularWorkflow {
-  /** Integration display name (matches `Integration.name`). */
-  from: string
-  /** Integration display name. */
-  to: string
-  headline: string
-  description: string
-}
-
-const TYPE_TO_NAME = new Map<string, string>()
-for (const integration of INTEGRATIONS) {
-  TYPE_TO_NAME.set(integration.type, integration.name)
-  TYPE_TO_NAME.set(stripVersionSuffix(integration.type), integration.name)
-}
-
-/**
- * Curated popular workflow pairs (templates flagged `featured: true` that
- * reference at least one other integration). Derived from per-block meta —
- * each entry's `from` is the owner block, `to` is the first
- * `alsoIntegrations` entry, and `headline`/`description` come from the
- * template title and prompt.
- */
-export const POPULAR_WORKFLOWS: readonly PopularWorkflow[] = (() => {
-  const pairs: PopularWorkflow[] = []
-  for (const [ownerType, meta] of Object.entries(getAllBlockMeta())) {
-    for (const template of meta.templates ?? []) {
-      if (!template.featured) continue
-      const toType = template.alsoIntegrations?.[0]
-      if (!toType) continue
-      const from = TYPE_TO_NAME.get(ownerType) ?? TYPE_TO_NAME.get(stripVersionSuffix(ownerType))
-      const to = TYPE_TO_NAME.get(toType) ?? TYPE_TO_NAME.get(stripVersionSuffix(toType))
-      if (!from || !to) continue
-      pairs.push({ from, to, headline: template.title, description: template.prompt })
-    }
-  }
-  return pairs
-})()
 
 /**
  * Projects a full `Integration` down to the fields the `/integrations`
@@ -98,6 +59,10 @@ export function toIntegrationSummary(integration: Integration): IntegrationSumma
   }
 }
 
+export {
+  type CredentialDisplay,
+  resolveCredentialDisplay,
+} from '@/lib/integrations/credential-display'
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 export {
   type OAuthServiceMatch,
@@ -105,6 +70,5 @@ export {
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations/oauth-service'
 export type { AuthType, FAQItem, Integration, IntegrationSummary } from '@/lib/integrations/types'
-export { getAllBlockMeta, getBlockMeta, getTemplatesForBlock } from '@/blocks/registry'
 export type { BlockMeta, BlockTemplate } from '@/blocks/types'
 export { formatIntegrationType } from '@/blocks/types'

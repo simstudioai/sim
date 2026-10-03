@@ -1,17 +1,17 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { cn, Input } from '@sim/emcn'
-import { Wand2 } from 'lucide-react'
-import { useReactFlow } from 'reactflow'
-import { Button } from '@/components/ui/button'
+import { useReactFlow } from '@xyflow/react'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
-  formatDisplayText,
-  getValidWorkflowSearchRange,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { WandButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-button'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -50,9 +50,11 @@ interface ShortInputProps {
   wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
-  /** Whether workflow search is actively highlighting this input */
-  isSearchHighlighted?: boolean
   workflowSearchValuePath?: Array<string | number>
+  /** Whether the env-var and tag reference pickers may open. Defaults to `true`. */
+  allowReferences?: boolean
+  /** Called when the input loses focus. */
+  onBlur?: () => void
 }
 
 /**
@@ -63,7 +65,7 @@ interface ShortInputProps {
  * - Auto-detects API key fields and provides environment variable suggestions
  * - Handles drag-and-drop for connections and variable references
  * - Provides environment variable and tag autocomplete
- * - Password masking with reveal on focus
+ * - Password masking, revealed only while focused
  * - Integrates with ReactFlow for zoom control
  */
 export const ShortInput = memo(function ShortInput({
@@ -81,8 +83,9 @@ export const ShortInput = memo(function ShortInput({
   useWebhookUrl = false,
   wandControlRef,
   hideInternalWand = false,
-  isSearchHighlighted = false,
   workflowSearchValuePath = [],
+  allowReferences = true,
+  onBlur,
 }: ShortInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [localContent, setLocalContent] = useState<string>('')
@@ -96,6 +99,7 @@ export const ShortInput = memo(function ShortInput({
     triggerId: undefined,
     isPreview,
     useWebhookUrl,
+    providerWebhookUrl: config.providerWebhookUrl,
   })
 
   const wandHook = useWand({
@@ -215,11 +219,6 @@ export const ShortInput = memo(function ShortInput({
 
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
 
-  const effectiveValue =
-    useWebhookUrl && webhookManagement.webhookUrl ? webhookManagement.webhookUrl : baseValue
-
-  const value = wandHook?.isStreaming ? localContent : effectiveValue
-
   useEffect(() => {
     if (!wandHook.isStreaming) {
       setLocalContent((prev) => {
@@ -283,7 +282,8 @@ export const ShortInput = memo(function ShortInput({
 
   const handleBlur = useCallback(() => {
     setIsFocused(false)
-  }, [])
+    onBlur?.()
+  }, [onBlur])
 
   // Expose wand control handlers to parent via ref
   useImperativeHandle(
@@ -324,6 +324,7 @@ export const ShortInput = memo(function ShortInput({
           disabled={disabled}
           isStreaming={wandHook.isStreaming}
           previewValue={previewValue}
+          allowReferences={allowReferences}
           shouldForceEnvDropdown={shouldForceEnvDropdown}
           shouldForceTagDropdown={shouldForceTagDropdown}
         >
@@ -338,7 +339,7 @@ export const ShortInput = memo(function ShortInput({
           }) => {
             const actualValue = wandHook.isStreaming
               ? localContent
-              : useWebhookUrl && webhookManagement.webhookUrl
+              : (useWebhookUrl || config.providerWebhookUrl) && webhookManagement.webhookUrl
                 ? webhookManagement.webhookUrl
                 : ctrlValue
             const actualValueString = actualValue ?? ''
@@ -348,18 +349,11 @@ export const ShortInput = memo(function ShortInput({
               subBlockId,
               valuePath: workflowSearchValuePath,
             })
-            const hasExactSearchHighlight = Boolean(
-              getValidWorkflowSearchRange(actualValueString, workflowSearchHighlight)
-            )
-
-            const shouldMask =
-              password && !isFocused && !isSearchHighlighted && !hasExactSearchHighlight
-            const displayValue = shouldMask
-              ? '•'.repeat(actualValueString.length)
-              : actualValueString
+            const shouldMask = shouldMaskSecretValue({ password, isFocused })
+            const displayValue = shouldMask ? maskSecretText(actualValueString) : actualValueString
 
             const formattedText = shouldMask
-              ? '•'.repeat(actualValueString.length)
+              ? maskSecretText(actualValueString)
               : formatDisplayText(actualValueString, {
                   accessiblePrefixes,
                   highlightAll: !accessiblePrefixes,
@@ -370,7 +364,7 @@ export const ShortInput = memo(function ShortInput({
               <>
                 <Input
                   ref={ref as React.RefObject<HTMLInputElement>}
-                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
+                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
                   readOnly={readOnly}
                   placeholder={placeholder ?? ''}
                   type='text'
@@ -393,7 +387,7 @@ export const ShortInput = memo(function ShortInput({
                 <div
                   ref={overlayRef}
                   className={cn(
-                    'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-medium font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                     (isPreview || disabled) && 'opacity-50',
                     !(isPreview || disabled) && 'pointer-events-none'
                   )}
@@ -408,18 +402,13 @@ export const ShortInput = memo(function ShortInput({
         {/* Wand Button - only show if not hidden by parent */}
         {isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand && (
           <div className='-translate-y-1/2 absolute top-1/2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-            <Button
-              variant='ghost'
-              size='icon'
+            <WandButton
               onClick={
                 wandHook.isPromptVisible ? wandHook.hidePromptInline : wandHook.showPromptInline
               }
               disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
               aria-label='Generate content with AI'
-              className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
-            >
-              <Wand2 className='size-4' />
-            </Button>
+            />
           </div>
         )}
       </div>

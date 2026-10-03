@@ -2,9 +2,9 @@ import type {
   AthenaListNamedQueriesParams,
   AthenaListNamedQueriesResponse,
 } from '@/tools/athena/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listNamedQueriesTool: ToolConfig<
+export const listNamedQueriesTool: InternalToolConfig<
   AthenaListNamedQueriesParams,
   AthenaListNamedQueriesResponse
 > = {
@@ -52,11 +52,8 @@ export const listNamedQueriesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/athena/list-named-queries',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

@@ -3,9 +3,8 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
 
-export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
+export const GoogleContactsBlock: BlockConfig = {
   type: 'google_contacts',
   name: 'Google Contacts',
   description: 'Manage Google Contacts',
@@ -17,6 +16,30 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: GoogleContactsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Contacts',
+    sentences: {
+      byOperation: {
+        create: [
+          { text: 'Create contact', field: 'givenName', core: true },
+          { text: 'at', field: 'organization' },
+          { text: ', with email', field: 'email' },
+        ],
+        get: [{ text: 'Fetch contact', field: 'resourceName', core: true }],
+        list: ['List contacts', { text: ', up to', field: 'pageSize', after: 'per page' }],
+        search: [
+          { text: 'Search contacts for', field: 'query', core: true },
+          { text: ', up to', field: 'pageSize', after: 'results' },
+        ],
+        update: [
+          { text: 'Update contact', field: 'resourceName', core: true },
+          { text: ', renaming to', field: 'givenName' },
+          { text: ', with email', field: 'email' },
+        ],
+        delete: [{ text: 'Delete contact', field: 'resourceName', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

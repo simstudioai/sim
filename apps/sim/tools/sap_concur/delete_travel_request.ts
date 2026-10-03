@@ -1,15 +1,14 @@
-import type { DeleteTravelRequestParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { DeleteTravelRequestParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTravelRequestTool: ToolConfig<
+export const deleteTravelRequestTool: InternalToolConfig<
   DeleteTravelRequestParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_delete_travel_request',
   name: 'SAP Concur Delete Travel Request',
@@ -68,32 +67,30 @@ export const deleteTravelRequestTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional Concur user UUID — required when impersonating another user',
+      description:
+        'Concur user UUID of the Request owner — required when using the default `client_credentials` (company) grant; omitting it returns 400 `missingRequiredParam`.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       const query: Record<string, string> = {}
-      if (params.userId) query.userId = params.userId
+      const userId = params.userId?.trim()
+      if (userId) query.userId = userId
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}`,
         method: 'DELETE',
         query: Object.keys(query).length > 0 ? query : undefined,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
-      description: 'Concur delete response payload (boolean true on 200 OK)',
-      properties: {},
+      type: 'boolean',
+      description: 'Concur delete response body — literally true on 200 OK',
     },
   },
 }

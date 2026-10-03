@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, permissions, workspace } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 
@@ -36,13 +36,7 @@ export async function updateDashboardExternalCollaboratorUsageLimit(
         workspace,
         and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspace.id))
       )
-      .where(
-        and(
-          eq(permissions.userId, userId),
-          eq(workspace.organizationId, organizationId),
-          isNull(workspace.archivedAt)
-        )
-      )
+      .where(and(eq(permissions.userId, userId), eq(workspace.organizationId, organizationId)))
       .limit(1)
     if (!externalPermission) {
       throw new Error('User is not a current external collaborator for this organization')

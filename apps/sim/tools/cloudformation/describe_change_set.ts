@@ -2,9 +2,9 @@ import type {
   CloudFormationDescribeChangeSetParams,
   CloudFormationDescribeChangeSetResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const describeChangeSetTool: ToolConfig<
+export const describeChangeSetTool: InternalToolConfig<
   CloudFormationDescribeChangeSetParams,
   CloudFormationDescribeChangeSetResponse
 > = {
@@ -47,13 +47,8 @@ export const describeChangeSetTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/describe-change-set',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

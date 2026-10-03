@@ -1,13 +1,12 @@
-import type { GetTravelRequestParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetTravelRequestParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurProxyResponse> = {
+export const getTravelRequestTool: InternalToolConfig<GetTravelRequestParams, SapConcurResponse> = {
   id: 'sap_concur_get_travel_request',
   name: 'SAP Concur Get Travel Request',
   description: 'Get a single travel request (GET /travelrequest/v4/requests/{requestUuid}).',
@@ -65,26 +64,25 @@ export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurP
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional Concur user UUID — required when impersonating another user',
+      description:
+        'The unique identifier of the user getting the content of the Request. If empty when using a Company token the default system user will be assumed to perform the action.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       const query: Record<string, string> = {}
-      if (params.userId) query.userId = params.userId
+      const userId = params.userId?.trim()
+      if (userId) query.userId = userId
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}`,
         method: 'GET',
         query: Object.keys(query).length > 0 ? query : undefined,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -122,7 +120,6 @@ export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurP
         endDate: { type: 'string', description: 'Trip end date (ISO 8601)', optional: true },
         startTime: { type: 'string', description: 'Trip start time (HH:mm)', optional: true },
         endTime: { type: 'string', description: 'Trip end time (HH:mm)', optional: true },
-        pnr: { type: 'string', description: 'Passenger record number', optional: true },
         approved: {
           type: 'boolean',
           description: 'Whether the request is approved',
@@ -134,17 +131,6 @@ export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurP
         canceledPostApproval: {
           type: 'boolean',
           description: 'Canceled after approval flag',
-          optional: true,
-        },
-        isParentRequest: { type: 'boolean', description: 'Parent request flag', optional: true },
-        parentRequestId: {
-          type: 'string',
-          description: 'Parent budget request ID',
-          optional: true,
-        },
-        allocationFormId: {
-          type: 'string',
-          description: 'Allocation form identifier',
           optional: true,
         },
         highestExceptionLevel: {
@@ -287,22 +273,82 @@ export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurP
             href: { type: 'string', description: 'Resource hyperlink', optional: true },
           },
         },
-        parentRequest: {
+        extensionOf: {
           type: 'json',
-          description: 'Resource link to parent request',
+          description: 'The Request for which this Request is an extension of, or addendum to',
           optional: true,
           properties: {
-            id: { type: 'string', description: 'Resource ID', optional: true },
-            href: { type: 'string', description: 'Resource hyperlink', optional: true },
+            requestId: {
+              type: 'string',
+              description: 'The public key of the Request (unique per customer)',
+              optional: true,
+            },
+            id: { type: 'string', description: 'Unique identifier of the Request', optional: true },
+            href: { type: 'string', description: 'Hyperlink to the resource', optional: true },
+            template: {
+              type: 'string',
+              description: 'Hyperlink template to the resource',
+              optional: true,
+            },
+          },
+        },
+        pnr: {
+          type: 'string',
+          description:
+            'The value of the pnr provided within the agency proposals by the travel agency',
+          optional: true,
+        },
+        isParentRequest: {
+          type: 'boolean',
+          description: 'Indicates whether this Request is a Budget Request',
+          optional: true,
+        },
+        parentRequestId: {
+          type: 'string',
+          description:
+            'Required if a Child Request is created, corresponds to the unique identifier of the Budget Request the Child Request will be linked to',
+          optional: true,
+        },
+        allocationFormId: {
+          type: 'string',
+          description: 'The unique identifier of the allocation form',
+          optional: true,
+        },
+        parentRequest: {
+          type: 'json',
+          description:
+            'If the Request is a Child Request, reference to the corresponding Budget Request',
+          optional: true,
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Unique identifier of the related object',
+              optional: true,
+            },
+            href: { type: 'string', description: 'Hyperlink to the resource', optional: true },
+            template: {
+              type: 'string',
+              description: 'Hyperlink template to the resource',
+              optional: true,
+            },
           },
         },
         eventRequest: {
           type: 'json',
-          description: 'Resource link to parent event request',
+          description: 'The parent Event Request to which this child Request is related',
           optional: true,
           properties: {
-            id: { type: 'string', description: 'Resource ID', optional: true },
-            href: { type: 'string', description: 'Resource hyperlink', optional: true },
+            id: {
+              type: 'string',
+              description: 'Unique identifier of the related object',
+              optional: true,
+            },
+            href: { type: 'string', description: 'Hyperlink to the resource', optional: true },
+            template: {
+              type: 'string',
+              description: 'Hyperlink template to the resource',
+              optional: true,
+            },
           },
         },
         operations: {
@@ -330,6 +376,22 @@ export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurP
         custom2: { type: 'json', description: 'Custom field 2', optional: true },
         custom3: { type: 'json', description: 'Custom field 3', optional: true },
         custom4: { type: 'json', description: 'Custom field 4', optional: true },
+        custom5: { type: 'json', description: 'Custom field 5', optional: true },
+        custom6: { type: 'json', description: 'Custom field 6', optional: true },
+        custom7: { type: 'json', description: 'Custom field 7', optional: true },
+        custom8: { type: 'json', description: 'Custom field 8', optional: true },
+        custom9: { type: 'json', description: 'Custom field 9', optional: true },
+        custom10: { type: 'json', description: 'Custom field 10', optional: true },
+        custom11: { type: 'json', description: 'Custom field 11', optional: true },
+        custom12: { type: 'json', description: 'Custom field 12', optional: true },
+        custom13: { type: 'json', description: 'Custom field 13', optional: true },
+        custom14: { type: 'json', description: 'Custom field 14', optional: true },
+        custom15: { type: 'json', description: 'Custom field 15', optional: true },
+        custom16: { type: 'json', description: 'Custom field 16', optional: true },
+        custom17: { type: 'json', description: 'Custom field 17', optional: true },
+        custom18: { type: 'json', description: 'Custom field 18', optional: true },
+        custom19: { type: 'json', description: 'Custom field 19', optional: true },
+        custom20: { type: 'json', description: 'Custom field 20', optional: true },
       },
     },
   },

@@ -59,6 +59,13 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        systemPrompt: params.systemPrompt,
+        content: params.content,
+      }),
+    },
     method: 'POST',
     url: (params) => {
       // Provider-specific endpoint mapping

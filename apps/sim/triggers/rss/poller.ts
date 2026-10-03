@@ -14,6 +14,7 @@ export const rssPollingTrigger: TriggerConfig = {
     {
       id: 'feedUrl',
       title: 'Feed URL',
+      canvasNoun: 'a feed',
       type: 'short-input',
       placeholder: 'https://example.com/feed.xml',
       description: 'The URL of the RSS or Atom feed to monitor',

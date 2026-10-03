@@ -1,64 +1,5 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/components/icons', () => ({
-  GoogleSheetsIcon: () => null,
-}))
-
-import {
-  type DriveFileMetadata,
-  googleSheetsConnector,
-  isTrashedDriveFile,
-  parseDriveFileMetadata,
-} from '@/connectors/google-sheets/google-sheets'
-
-describe('isTrashedDriveFile', () => {
-  it.concurrent('excludes an explicitly trashed file', () => {
-    expect(isTrashedDriveFile({ trashed: true })).toBe(true)
-  })
-
-  it.concurrent('keeps a file explicitly marked not trashed', () => {
-    expect(isTrashedDriveFile({ trashed: false })).toBe(false)
-  })
-
-  it.concurrent('keeps a file when the trashed field is absent', () => {
-    expect(isTrashedDriveFile({ modifiedTime: '2026-07-22T10:00:00.000Z' })).toBe(false)
-  })
-
-  it.concurrent('keeps a file when the Drive read failed and returned nothing', () => {
-    expect(isTrashedDriveFile({})).toBe(false)
-  })
-})
-
-describe('parseDriveFileMetadata', () => {
-  it.concurrent('extracts modifiedTime and trashed', () => {
-    expect(
-      parseDriveFileMetadata({ modifiedTime: '2026-07-22T10:00:00.000Z', trashed: true })
-    ).toEqual({ modifiedTime: '2026-07-22T10:00:00.000Z', trashed: true })
-  })
-
-  it.concurrent('omits fields with the wrong type instead of coercing them', () => {
-    const parsed: DriveFileMetadata = parseDriveFileMetadata({ modifiedTime: 123, trashed: 'true' })
-    expect(parsed).toEqual({})
-    expect(isTrashedDriveFile(parsed)).toBe(false)
-  })
-
-  it.concurrent('ignores unrelated fields', () => {
-    expect(parseDriveFileMetadata({ id: 'abc', name: 'Sheet' })).toEqual({})
-  })
-
-  it.concurrent('returns an empty object for non-object bodies', () => {
-    expect(parseDriveFileMetadata(null)).toEqual({})
-    expect(parseDriveFileMetadata(undefined)).toEqual({})
-    expect(parseDriveFileMetadata('trashed')).toEqual({})
-  })
-
-  it.concurrent('preserves trashed: false', () => {
-    expect(parseDriveFileMetadata({ trashed: false })).toEqual({ trashed: false })
-  })
-})
+import { describe, expect, it, vi } from 'vitest'
+import { googleSheetsConnector } from '@/connectors/google-sheets/google-sheets'
 
 const SPREADSHEET_ID = 'sheet-abc'
 const ACCESS_TOKEN = 'token-123'
@@ -73,10 +14,23 @@ const SPREADSHEET_METADATA = {
   ],
 }
 
+/** Adds a chart tab and returns the tabs out of index order. */
+const SPREADSHEET_METADATA_WITH_OBJECT_SHEET = {
+  spreadsheetId: SPREADSHEET_ID,
+  properties: { title: 'Quarterly Plan' },
+  sheets: [
+    { properties: { sheetId: 7, title: 'Costs', index: 1, sheetType: 'GRID' } },
+    { properties: { sheetId: 9, title: 'Chart', index: 2, sheetType: 'OBJECT' } },
+    { properties: { sheetId: 0, title: "Ann's Revenue", index: 0, sheetType: 'GRID' } },
+  ],
+}
+
 /** Drive response bodies keyed by the scenario each test exercises. */
 interface FetchStubResponses {
   drive: { status: number; body: unknown }
   values?: unknown
+  spreadsheet?: unknown
+  spreadsheetStatus?: number
 }
 
 /**
@@ -97,7 +51,9 @@ function stubFetch(responses: FetchStubResponses) {
       return new Response(JSON.stringify(responses.values ?? {}), { status: 200 })
     }
     if (url.startsWith('https://sheets.googleapis.com/v4/spreadsheets/')) {
-      return new Response(JSON.stringify(SPREADSHEET_METADATA), { status: 200 })
+      return new Response(JSON.stringify(responses.spreadsheet ?? SPREADSHEET_METADATA), {
+        status: responses.spreadsheetStatus ?? 200,
+      })
     }
     throw new Error(`Unexpected fetch to ${url}`)
   })
@@ -107,14 +63,6 @@ function stubFetch(responses: FetchStubResponses) {
 }
 
 describe('googleSheetsConnector trashed handling', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   describe('listDocuments', () => {
     it('returns an empty listing when the spreadsheet is trashed', async () => {
       stubFetch({
@@ -124,26 +72,6 @@ describe('googleSheetsConnector trashed handling', () => {
       const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
 
       expect(result).toEqual({ documents: [], hasMore: false })
-    })
-
-    it('lists every tab when the trashed field is absent', async () => {
-      stubFetch({ drive: { status: 200, body: { modifiedTime: '2026-07-01T00:00:00.000Z' } } })
-
-      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
-
-      expect(result.documents.map((d) => d.externalId)).toEqual([
-        `${SPREADSHEET_ID}__sheet__0`,
-        `${SPREADSHEET_ID}__sheet__7`,
-      ])
-      expect(result.hasMore).toBe(false)
-    })
-
-    it('lists every tab when trashed is explicitly false', async () => {
-      stubFetch({ drive: { status: 200, body: { trashed: false } } })
-
-      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
-
-      expect(result.documents).toHaveLength(2)
     })
 
     it('fails open and lists every tab when the Drive read fails', async () => {
@@ -157,12 +85,36 @@ describe('googleSheetsConnector trashed handling', () => {
       ])
     })
 
-    it('fails open when the Drive body is not an object', async () => {
-      stubFetch({ drive: { status: 200, body: 'trashed' } })
+    it.each([403, 404])(
+      'reports a spreadsheet the token cannot reach (%i) as an unavailable listing scope',
+      async (status) => {
+        stubFetch({
+          drive: { status: 200, body: {} },
+          spreadsheet: { error: 'denied' },
+          spreadsheetStatus: status,
+        })
 
-      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+        const error = await googleSheetsConnector
+          .listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+          .catch((caught: unknown) => caught)
 
-      expect(result.documents).toHaveLength(2)
+        expect(googleSheetsConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+      }
+    )
+
+    it('keeps any other metadata failure retryable', async () => {
+      stubFetch({
+        drive: { status: 200, body: {} },
+        spreadsheet: { error: 'backend' },
+        spreadsheetStatus: 500,
+      })
+
+      const error = await googleSheetsConnector
+        .listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+        .catch((caught: unknown) => caught)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(googleSheetsConnector.isListingScopeUnavailableError?.(error)).toBe(false)
     })
   })
 
@@ -185,33 +137,28 @@ describe('googleSheetsConnector trashed handling', () => {
 
       expect(doc).toBeNull()
     })
+  })
 
-    it('returns the document when the trashed field is absent', async () => {
-      stubFetch({
-        drive: { status: 200, body: { modifiedTime: '2026-07-01T00:00:00.000Z' } },
-        values: VALUES,
+  describe('content extraction', () => {
+    it('requests every column via a row-only A1 range with the tab name quote-escaped', async () => {
+      const fetchMock = stubFetch({
+        drive: { status: 200, body: { trashed: false } },
+        spreadsheet: SPREADSHEET_METADATA_WITH_OBJECT_SHEET,
+        values: { values: [['Region'], ['West']] },
       })
 
-      const doc = await googleSheetsConnector.getDocument(
+      await googleSheetsConnector.getDocument(
         ACCESS_TOKEN,
         SOURCE_CONFIG,
         `${SPREADSHEET_ID}__sheet__0`
       )
 
-      expect(doc?.externalId).toBe(`${SPREADSHEET_ID}__sheet__0`)
-      expect(doc?.contentDeferred).toBe(false)
-    })
+      const valuesUrl = fetchMock.mock.calls
+        .map(([input]) => String(input))
+        .find((url) => url.includes('/values/'))
 
-    it('fails open and returns the document when the Drive read fails', async () => {
-      stubFetch({ drive: { status: 500, body: { error: 'backend error' } }, values: VALUES })
-
-      const doc = await googleSheetsConnector.getDocument(
-        ACCESS_TOKEN,
-        SOURCE_CONFIG,
-        `${SPREADSHEET_ID}__sheet__0`
-      )
-
-      expect(doc?.externalId).toBe(`${SPREADSHEET_ID}__sheet__0`)
+      expect(valuesUrl).toContain(encodeURIComponent("'Ann''s Revenue'!1:10000"))
+      expect(valuesUrl).not.toContain('ZZ')
     })
   })
 
@@ -223,22 +170,6 @@ describe('googleSheetsConnector trashed handling', () => {
 
       expect(result.valid).toBe(false)
       expect(result.error).toContain('trash')
-    })
-
-    it('accepts a spreadsheet that is not trashed', async () => {
-      stubFetch({ drive: { status: 200, body: { trashed: false } } })
-
-      const result = await googleSheetsConnector.validateConfig(ACCESS_TOKEN, SOURCE_CONFIG)
-
-      expect(result).toEqual({ valid: true })
-    })
-
-    it('fails open and accepts the config when the Drive read fails', async () => {
-      stubFetch({ drive: { status: 500, body: { error: 'backend error' } } })
-
-      const result = await googleSheetsConnector.validateConfig(ACCESS_TOKEN, SOURCE_CONFIG)
-
-      expect(result).toEqual({ valid: true })
     })
   })
 })

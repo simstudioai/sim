@@ -3,23 +3,63 @@ import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import {
-  createTableColumnBodySchema,
-  deleteTableColumnBodySchema,
-  updateTableColumnBodySchema,
-} from '@/lib/api/contracts/tables'
+  asOrchestrationError,
+  messageForOrchestrationError,
+  type OrchestrationErrorCode,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
-import type { ColumnDefinition, Filter, TableDefinition } from '@/lib/table'
+import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
+import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  getTableQueryAvailability,
+  TABLE_QUERY_UNAVAILABLE_REASON,
+} from '@/lib/table/query-availability'
+import { isTablePredicate } from '@/lib/table/query-builder/converters'
+import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
+import type { TableLockKind } from '@/lib/table/types'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
+
+/**
+ * Gate for the internal predicate-grammar table query route (`tables-v2-api`
+ * flag). Runs AFTER authorization, so the caller has already proven read
+ * access to the table — hiding the gate behind a bare 404 at that point
+ * serves nobody and reads as data loss (live incident: the table_v2 block
+ * hard-"Not found"-ing on every query while the copilot gateway, which
+ * bypasses HTTP, found the rows). Authorized callers get an honest 403
+ * naming the gate instead.
+ */
+export async function tablesV2GateError(
+  userId: string,
+  workspaceId: string
+): Promise<NextResponse | null> {
+  const orgId = await getWorkspaceOrganizationId(workspaceId)
+  if ((await getTableQueryAvailability({ userId, orgId })).enabled) return null
+  return NextResponse.json(
+    {
+      error: TABLE_QUERY_UNAVAILABLE_REASON,
+      code: 'tables_v2_disabled',
+    },
+    { status: 403 }
+  )
+}
 
 /**
  * Maps a {@link TableLockedError} thrown by the service layer to a 423 response
  * carrying `{ error, lock }`; returns `null` for any other error so the caller
  * falls through to its existing handling. Call this as the FIRST statement of a
- * table route's catch block — otherwise `rowWriteErrorResponse` (and the other
- * substring funnels) turn the lock error into a generic 500.
+ * table route's catch block — `TableLockedError` is an `HttpError`, not an
+ * `OrchestrationError`, so nothing else classifies it and it would otherwise
+ * reach the route's generic 500.
  *
  * The body deliberately omits a `details` array: the client's `isValidationError`
  * treats any `ApiClientError` with array-valued `details` as a field-validation
@@ -33,17 +73,30 @@ export function tableLockErrorResponse(error: unknown): NextResponse | null {
 }
 
 /**
- * Validates a `filter` against the table's column schema, returning a 400 response on a bad field
- * (or `null` when the filter is valid or absent). Shared by the routes that accept a filter
- * (`delete-async`, `columns/run`) so a bad field fails fast with a clear message.
+ * Validates a wire `filter` (either grammar) against the table's column schema,
+ * returning a 400 response on a bad field (or `null` when the filter is valid or
+ * absent). Shared by the routes that accept a filter (`delete-async`,
+ * `cancel-runs`, `columns/run`) so a bad field fails fast with a clear message.
+ *
+ * Pass the WIRE filter, not the `toLegacyFilter` downgrade: the downgrade
+ * compiles cleanly through `buildFilterClause` even when a predicate leaf names
+ * a column that doesn't exist, so validating only the downgraded form lets a
+ * typo'd field become a clause that silently matches nothing — a no-op where
+ * the sync bulk routes 400.
  */
 export function tableFilterError(
-  filter: Filter | undefined,
+  filter: Filter | TablePredicate | undefined,
   columns: ColumnDefinition[]
 ): NextResponse | null {
   if (!filter) return null
   try {
-    buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, columns)
+    if (isTablePredicate(filter)) {
+      // These routes speak storage keys (session grid uses column ids; system
+      // columns keep their names) — same keying the sync bulk routes validate.
+      validateStoragePredicate(filter, columns)
+    } else {
+      buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, columns)
+    }
     return null
   } catch (error) {
     if (error instanceof TableQueryValidationError) {
@@ -69,46 +122,67 @@ export function rootErrorMessage(error: unknown): string {
 }
 
 /**
- * Known user-facing row-write failures (service validation + the best-effort
- * plan row-limit check). Anything outside this list stays a generic 500 —
- * unknown errors can carry SQL/internals that don't belong in a toast.
+ * Maps a classified domain failure to its status, carrying the real message so
+ * client toasts can show the actual reason; `null` when the error carries no
+ * classification and the caller should log it and return its own generic 500 —
+ * an unrecognized error can hold SQL/internals that don't belong in a toast.
+ *
+ * This is the whole classification story for the UI and v1 table routes. It
+ * replaced per-route lists of message substrings, which decided a status by
+ * searching prose and so silently changed one whenever a message was reworded.
  */
-const ROW_WRITE_ERROR_PATTERNS = [
-  'row limit',
-  'Insufficient capacity',
-  'Schema validation',
-  'must be unique',
-  'must be valid',
-  'must be string',
-  'must be number',
-  'must be boolean',
-  'unique column',
-  'Unique constraint violation',
-  'Row size exceeds',
-  'conflictTarget',
-  'Upsert requires',
-  'Rows not found',
-  'Filter is required',
-] as const
-
-/**
- * Maps a known user-facing row-write failure to a 400 carrying the real message
- * (so client toasts can show the actual reason); `null` when the error is
- * unrecognized and the caller should log it and return its generic 500.
- */
-export function rowWriteErrorResponse(error: unknown): NextResponse | null {
-  // A lock violation is a 423, not a 400/500 — check before the pattern match,
-  // which would otherwise let it fall through to the caller's generic 500.
+export function orchestrationErrorResponse(error: unknown): NextResponse | null {
+  // A lock violation is a 423, and `TableLockedError` is an `HttpError` rather
+  // than an `OrchestrationError`, so it needs its own check first.
   const lockResponse = tableLockErrorResponse(error)
   if (lockResponse) return lockResponse
 
-  const message = rootErrorMessage(error)
+  const classified = asOrchestrationError(error)
+  if (!classified) return null
 
-  if (ROW_WRITE_ERROR_PATTERNS.some((p) => message.includes(p)) || /^Row .+?:/.test(message)) {
-    return NextResponse.json({ error: message }, { status: 400 })
-  }
+  return NextResponse.json(
+    { error: classified.message },
+    { status: statusForOrchestrationError(classified.code) }
+  )
+}
 
-  return null
+/**
+ * The failure half of a `lib/table/orchestration` result. Every `perform*`
+ * function returns this shape, so one projection serves all of them.
+ */
+export interface TableOrchestrationFailure {
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
+}
+
+/**
+ * Projects an orchestration failure RESULT onto its HTTP response, the
+ * counterpart of {@link orchestrationErrorResponse} for the functions that
+ * return a failure instead of throwing one.
+ *
+ * Routes go through this rather than reading `outcome.error` themselves, for
+ * two reasons the per-route spellings kept getting wrong:
+ *
+ * - An unclassified failure carries whatever text the fault happened to have —
+ *   a driver's failed SQL and its bound parameters — so it renders `fallback`
+ *   instead. Only a classified, caller-fixable failure keeps its own message.
+ * - A `'locked'` failure answers 423 with `{ error, lock }`. The lock kind is
+ *   the only thing that tells a client which lock to clear, and it is computed
+ *   by every `perform*` function already.
+ */
+export function orchestrationOutcomeErrorResponse(
+  outcome: TableOrchestrationFailure,
+  fallback: string
+): NextResponse {
+  return NextResponse.json(
+    {
+      error: messageForOrchestrationError(outcome, fallback),
+      ...(outcome.lock ? { lock: outcome.lock } : {}),
+    },
+    { status: statusForOrchestrationError(outcome.errorCode) }
+  )
 }
 
 /**
@@ -144,20 +218,15 @@ export function multipartErrorResponse(error: MultipartError): NextResponse {
   return NextResponse.json({ error: message }, { status: 400 })
 }
 
-interface TableAccessResult {
-  hasAccess: true
-  table: TableDefinition
-}
-
-interface TableAccessDenied {
-  hasAccess: false
-  notFound?: boolean
-  reason?: string
-}
-
-export type TableAccessCheck = TableAccessResult | TableAccessDenied
-
-export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
+/**
+ * A denial carries `capability` when the caller's permission group withheld the
+ * Tables module, so {@link accessError} can say so rather than reporting the
+ * role failure it is not. Optional because the other two denials — the table
+ * does not exist, the role is too low — have no capability to name.
+ */
+export type AccessResult =
+  | { ok: true; table: TableDefinition }
+  | { ok: false; status: 404 | 403; capability?: StaticPermissionGroupCapability }
 
 interface ApiErrorResponse {
   error: string
@@ -165,50 +234,105 @@ interface ApiErrorResponse {
 }
 
 /**
- * Check if a user has read access to a table.
- * Read access requires any workspace permission (read, write, or admin).
+ * Who is asking, for the purposes of {@link checkAccess}.
+ *
+ * A discriminated union rather than a user id, because the two kinds are
+ * indistinguishable as strings and the gate must treat them differently:
+ *
+ * - `user` — a session, a personal API key, or an internal JWT carrying the
+ *   run's actor. The id is answerable for the request, so the workspace role
+ *   check runs against it and this surface's `tables.use` gate applies. See
+ *   {@link capabilityGovernedUserId} for why the JWT case belongs here and
+ *   nonetheless must not be reused to attribute dispatched work.
+ * - `workspace_api_key` — a shared credential that authorizes as the workspace
+ *   itself. It has no user, so there is no group to resolve.
+ *   `keyCreatorUserId` is the id `authenticateApiKeyFromHeader` reports: the
+ *   person who *minted* the key, a bystander who may not even be the caller. It
+ *   carries the workspace role check that predates this union and nothing else.
+ *   Same rule, and the same reasoning, as `capabilityGovernedPrincipalUserId` in
+ *   `@/lib/core/application`.
+ *
+ * Required, and with no permissive default, for the same reason `capability` is
+ * required on `defineWorkspaceOperation`: an absent declaration cannot be told
+ * apart from an unreviewed one. A caller holding a workspace key cannot reach
+ * the gated behavior by passing a bare id, because a bare id no longer
+ * type-checks — it has to name a kind, and the only kind that skips the gate is
+ * the one that says so.
  */
-async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
-  const table = await getTableById(tableId)
+export type TableAccessPrincipal =
+  | { kind: 'user'; userId: string }
+  | { kind: 'workspace_api_key'; keyCreatorUserId: string }
 
-  if (!table) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  if (userPermission !== null) {
-    return { hasAccess: true, table }
-  }
-
-  return { hasAccess: false, reason: 'User does not have access to this table' }
+/** The id the workspace ROLE check runs against, for either principal kind. */
+function roleSubjectUserId(principal: TableAccessPrincipal): string {
+  return principal.kind === 'user' ? principal.userId : principal.keyCreatorUserId
 }
 
 /**
- * Check if a user has write access to a table.
- * Write access requires write or admin workspace permission.
+ * The id whose permission group governs THIS REQUEST, or `null` when no group
+ * does. Only a `user` principal has one — see {@link TableAccessPrincipal}.
+ *
+ * ## Two questions, two subjects
+ *
+ * A table route asks the permission group two things, and they take different
+ * answers for the same caller. Conflating them is how a run either stops working
+ * or gains grants it was never given:
+ *
+ *  1. MAY THIS REQUEST PROCEED — the role check and the `tables.use` gate in
+ *     {@link checkAccess}. Answered with the id the credential presents, this
+ *     function. An internal JWT presents the run's actor, and applying that
+ *     person's group here is deliberate: the answer can only withhold the table
+ *     from a run whose actor lost Tables, never open one. Failing closed on a
+ *     bystander's group is a conservative read of an id we already trust for the
+ *     role.
+ *  2. UNDER WHOSE GROUP DOES WORK THIS REQUEST STARTS RUN — the workflow and
+ *     enrichment cells a landed row auto-fires. Answered by
+ *     `capabilityGovernedAuthUserId` in `@/lib/auth/hybrid`, off the auth TYPE,
+ *     which names NOBODY for an internal JWT. Here the actor's group would run
+ *     the other way: it would grant a bystander's tools to an executor call, and
+ *     the executor's own withholding in `tableOperations` is what governs that
+ *     path instead.
+ *
+ * So: gate with this, dispatch with `capabilityGovernedAuthUserId`. Exported
+ * because both the gate and the callers that hand a subject to a batch write
+ * need question 1 answered the same way — a route must not gate one subject and
+ * check another.
  */
-async function checkTableWriteAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
-  const table = await getTableById(tableId)
-
-  if (!table) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  if (permissionSatisfies(userPermission, 'write')) {
-    return { hasAccess: true, table }
-  }
-
-  return { hasAccess: false, reason: 'User does not have write access to this table' }
+export function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
+  return principal.kind === 'user' ? principal.userId : null
 }
 
 /**
  * Access check returning `{ ok, table }` or `{ ok: false, status }`.
- * Uses workspace permissions only.
+ *
+ * The workspace role, then the permission group's `tables.use` capability — the
+ * one gate every raw table route under `/api/table/**` shares. These routes
+ * predate the operation boundary and query the table service directly, so the
+ * authorization funnel that applies `tables.use` to `tableOperations` never
+ * sees them; without this a member of a group denied Tables could still drive
+ * all of them.
+ *
+ * Capability comes second for the same reason it does in
+ * `authorizeWorkspaceOperation`: the role failure conceals whether the table
+ * exists, and refusing on capability first would tell a non-member which
+ * modules the organization withholds.
+ *
+ * The gate applies to a `user` principal only; see {@link TableAccessPrincipal}
+ * for why `/api/v1/tables/**`, which shares this helper under an API key, must
+ * reach the table ungated on a workspace key.
+ *
+ * Nothing here exempts the executor, and that is question 1 of the two in
+ * {@link capabilityGovernedUserId}: an internal JWT presents the run's actor, so
+ * this gate runs against the actor's group and can only refuse more. A workflow
+ * run that reaches tables through `tableOperations` instead is governed by that
+ * funnel's delegated-principal branch, which withholds capabilities from an
+ * executor subject outright. Neither answer is the one question 2 takes —
+ * a route dispatching cells off this request derives its subject from the auth
+ * type, not from the principal gated here.
  */
 export async function checkAccess(
   tableId: string,
-  userId: string,
+  principal: TableAccessPrincipal,
   level: 'read' | 'write' | 'admin' = 'read'
 ): Promise<AccessResult> {
   const table = await getTableById(tableId)
@@ -217,40 +341,56 @@ export async function checkAccess(
     return { ok: false, status: 404 }
   }
 
-  const permission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  const hasAccess = permissionSatisfies(permission, level)
+  /**
+   * Resolved through {@link checkWorkspaceAccess} rather than `getUserEntityPermissions`, which
+   * delegates to it and returns the permission alone. Same single resolution, but it also hands
+   * back the workspace this check just loaded — and with it the owning organization the
+   * capability gate below would otherwise look up for itself.
+   */
+  const access = await checkWorkspaceAccess(table.workspaceId, roleSubjectUserId(principal))
+  if (!permissionSatisfies(access.permission, level)) {
+    return { ok: false, status: 403 }
+  }
 
-  return hasAccess ? { ok: true, table } : { ok: false, status: 403 }
+  // permission-group-enforced: tables.use — raw routes that query directly and predate the operation boundary
+  const governedUserId = capabilityGovernedUserId(principal)
+  if (
+    governedUserId &&
+    table.workspaceId &&
+    /**
+     * The organization is passed, not re-derived: omitting it makes the resolver load this very
+     * workspace a second time (see `getUserPermissionConfig`), which is one extra round trip on
+     * every raw table route. `access.workspace` is non-null on this line — a missing workspace
+     * resolves to a null permission, which the gate above already refused.
+     */
+    (await isWorkspaceCapabilityWithheld(
+      governedUserId,
+      table.workspaceId,
+      'tables.use',
+      access.workspace?.organizationId ?? null
+    ))
+  ) {
+    return { ok: false, status: 403, capability: 'tables.use' }
+  }
+
+  return { ok: true, table }
 }
 
 export function accessError(
-  result: { ok: false; status: 404 | 403 },
+  result: Extract<AccessResult, { ok: false }>,
   requestId: string,
   context?: string
 ): NextResponse {
+  if (result.capability) {
+    logger.warn(
+      `[${requestId}] ${capabilityRefusal(result.capability)}${context ? `: ${context}` : ''}`
+    )
+    return capabilityRefusalResponse(result.capability)
+  }
+
   const message = result.status === 404 ? 'Table not found' : 'Access denied'
   logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
   return NextResponse.json({ error: message }, { status: result.status })
-}
-
-/**
- * Converts a TableAccessDenied result to an appropriate HTTP response.
- * Use with checkTableAccess or checkTableWriteAccess.
- */
-export function tableAccessError(
-  result: TableAccessDenied,
-  requestId: string,
-  context?: string
-): NextResponse {
-  const status = result.notFound ? 404 : 403
-  const message = result.notFound ? 'Table not found' : (result.reason ?? 'Access denied')
-  logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
-  return NextResponse.json({ error: message }, { status })
-}
-
-async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
-  const table = await getTableById(tableId)
-  return table?.workspaceId === workspaceId
 }
 
 export function errorResponse(
@@ -279,31 +419,4 @@ export function forbiddenResponse(message = 'Access denied') {
 
 export function notFoundResponse(message = 'Resource not found') {
   return errorResponse(message, 404)
-}
-
-export function serverErrorResponse(message = 'Internal server error') {
-  return errorResponse(message, 500)
-}
-
-/**
- * Re-exports from `lib/api/contracts/tables` so existing routes that import
- * these names keep working while sharing a single source of truth.
- */
-export const CreateColumnSchema = createTableColumnBodySchema
-export const UpdateColumnSchema = updateTableColumnBodySchema
-export const DeleteColumnSchema = deleteTableColumnBodySchema
-
-export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
-  return {
-    // Preserve the stable column id — it's the row-data storage key, so dropping
-    // it makes clients fall back to `name` and miss id-keyed cell values.
-    ...(col.id ? { id: col.id } : {}),
-    name: col.name,
-    type: col.type,
-    required: col.required ?? false,
-    unique: col.unique ?? false,
-    ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
-    ...(col.options ? { options: col.options } : {}),
-    ...(col.multiple ? { multiple: true } : {}),
-  }
 }

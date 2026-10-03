@@ -18,6 +18,9 @@ package-lock.json
 # testing
 /coverage
 /apps/**/coverage
+.vitest/
+/apps/*/test-results
+/packages/*/test-results
 
 # next.js
 /.next/
@@ -50,9 +53,7 @@ dump.rdb
 .env.production
 
 # editor swap files
-*.swp
-*.swo
-*.swn
+*.sw?
 
 # vercel
 .vercel
@@ -86,10 +87,6 @@ start-collector.sh
 # IntelliJ
 .idea
 
-## Helm Chart Tests
-helm/sim/test
-i18n.cache
-
 ## Claude Code
 .claude/launch.json
 .claude/worktrees/
@@ -102,3 +99,14 @@ i18n.cache
 # Python (apps/pii tests/tooling)
 __pycache__/
 .pytest_cache/
+
+# Local file-upload spill directory. `UPLOAD_DIR_SERVER` is
+# `join(process.cwd(), 'uploads')`, so it follows the cwd rather than a fixed
+# root: under `turbo run test` the cwd is apps/sim and `apps/sim/.gitignore`'s
+# `/uploads` catches it, but running vitest from the repo root drops ~40
+# `uploads/execution/**/large-value-*.json` files here instead.
+#
+# Anchored deliberately. An unanchored `uploads/` would also match
+# `apps/sim/lib/uploads/` — 61 files of tracked source — and silently ignore
+# anything added there later.
+/uploads

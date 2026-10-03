@@ -29,6 +29,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
   adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
@@ -102,10 +103,6 @@ export const GET = withRouteHandler(
         return notFoundResponse('Organization or subscription')
       }
 
-      const membersOverLimit = billingData.members.filter((m) => m.isOverLimit).length
-      const membersNearLimit = billingData.members.filter(
-        (m) => !m.isOverLimit && m.percentUsed >= 80
-      ).length
       const usagePercentage =
         billingData.totalUsageLimit > 0
           ? Math.round((billingData.totalCurrentUsage / billingData.totalUsageLimit) * 10000) / 100
@@ -126,8 +123,8 @@ export const GET = withRouteHandler(
         usagePercentage,
         billingPeriodStart: billingData.billingPeriodStart?.toISOString() ?? null,
         billingPeriodEnd: billingData.billingPeriodEnd?.toISOString() ?? null,
-        membersOverLimit,
-        membersNearLimit,
+        membersOverLimit: billingData.membersOverLimit,
+        membersNearLimit: billingData.membersNearLimit,
       }
 
       logger.info(`Admin API: Retrieved billing summary for organization ${organizationId}`)
@@ -152,7 +149,7 @@ export const PATCH = withRouteHandler(
         { params: routeParams },
         {
           validationErrorResponse: adminValidationErrorResponse,
-          invalidJson: 'throw',
+          invalidJsonResponse: adminInvalidJsonResponse,
         }
       )
       if (!parsed.success) return parsed.response

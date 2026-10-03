@@ -1,12 +1,15 @@
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatContext } from '@/stores/panel'
-
-const EDIT_CONTENT_TOOL_ID = 'edit_content'
-const RUN_SUBAGENT_ID = 'run'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export type {
   MothershipResource,
   MothershipResourceType,
-} from '@/lib/copilot/resources/types'
+  WorkspaceResourceRef,
+} from '@/lib/mothership/resources/types'
 
 /** Union of all valid context kind strings, derived from {@link ChatContext}. */
 export type ChatContextKind = ChatContext['kind']
@@ -20,11 +23,17 @@ export interface FileAttachmentForApi {
   path?: string
 }
 
+/** Assistant searches as the signed-in person and uses their connected accounts. */
+export type ChatRequestMode = MothershipChat['mode']
+
 export interface QueuedMessage {
   id: string
   content: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
+  requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 export const ToolCallStatus = {
@@ -64,6 +73,7 @@ export interface ToolCallData {
   id: string
   toolName: string
   displayTitle: string
+  activityDescription?: string
   status: ToolCallStatus
   params?: Record<string, unknown>
   result?: ToolCallResult
@@ -77,6 +87,8 @@ export interface ToolCallInfo {
   name: string
   status: ToolCallStatus
   displayTitle?: string
+  /** Model-authored activity text, separate from executable tool arguments. */
+  activityDescription?: string
   /** Model-authored activity phrase for a gateway-resolved integration call. */
   integrationDescription?: string
   params?: Record<string, unknown>
@@ -105,17 +117,24 @@ export const ContentBlockType = {
   subagent_thinking: 'subagent_thinking',
   options: 'options',
   stopped: 'stopped',
+  task: 'task',
 } as const
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
+  /** The background task this block announces (task blocks only). */
+  task?: import('@/lib/mothership/request/types').TaskBlockInfo
   subagent?: string
+  /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
+  subagentName?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
   timestamp?: number
   endedAt?: number
+  /** Terminal failure of this subagent span. */
+  error?: string
   parentToolCallId?: string
   /**
    * Deterministic agent-run identity. `spanId` is the stable per-invocation id
@@ -142,18 +161,40 @@ export interface ChatMessageContext {
   workflowId?: string
   knowledgeId?: string
   tableId?: string
+  viewId?: string
   fileId?: string
+  dashboardId?: string
   folderId?: string
   chatId?: string
   blockType?: string
   skillId?: string
   serverId?: string
+  managedConnectorId?: ManagedMcpConnectorId
+  /** Selected passage for a `file_selection` context. */
+  text?: string
+  /** Source file name for a `file_selection` context. */
+  fileName?: string
+  /** 1-based inclusive line range for a `file_selection` context. */
+  startLine?: number
+  endLine?: number
+  /** Source table name for a `table_selection` context. */
+  tableName?: string
+  /** Selected row ids for a `table_selection` context. */
+  rowIds?: string[]
+  /** Selected column ids for a `table_selection` cell range. */
+  columnIds?: string[]
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
 }
 
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
+  requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
+  /** "task": a background-task notification opened this turn, not the user (a system chip, not a bubble). */
+  origin?: 'task'
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
   contexts?: ChatMessageContext[]
@@ -171,10 +212,16 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   custom_tool: 'Custom Tool Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
+  platform: 'Platform Agent',
   superagent: 'Superagent',
   run: 'Run Agent',
-  agent: 'Tools Agent',
-  scheduled_task: 'Scheduled Task Agent',
+  // The extensions subagent's wire/scope AgentID stays `agent` (pre-rename);
+  // `extensions` is its current model-facing trigger tool name.
+  agent: 'Extensions Agent',
+  extensions: 'Extensions Agent',
+  // The worker's general subagent; the lane header normally carries the
+  // model-chosen title, this label is only the pre-start race fallback.
+  task: 'Subagent',
   // `job` retained as a backward-compat alias so historical transcripts still render a label.
   job: 'Job Agent',
   file: 'File Agent',

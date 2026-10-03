@@ -1,0 +1,11 @@
+{
+  "title": "Knowledge Base",
+  "pages": [
+    "using-in-workflows",
+    "connectors",
+    "tags",
+    "debugging-retrieval",
+    "chunking-strategies",
+    "export-import"
+  ]
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Node } from 'reactflow'
+import type { Node } from '@xyflow/react'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { BlockInfo } from '../components/block-menu'
 
@@ -37,7 +37,6 @@ export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasCo
           id: n.id,
           type: block?.type || '',
           enabled: block?.enabled ?? true,
-          horizontalHandles: block?.horizontalHandles ?? false,
           parentId,
           parentType,
           locked: block?.locked ?? false,
@@ -85,7 +84,7 @@ export function useCanvasContextMenu({ blocks, getNodes, setNodes }: UseCanvasCo
     [getNodes, nodesToBlockInfos, setNodes]
   )
 
-  const handlePaneContextMenu = useCallback((event: React.MouseEvent) => {
+  const handlePaneContextMenu = useCallback((event: MouseEvent | React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
 

@@ -27,14 +27,15 @@ export interface ParsedShortcut {
 
 export interface GlobalCommand {
   id?: string
-  shortcut: string
+  /** Keyboard binding. Omit for palette-only commands invoked by id. */
+  shortcut?: string
   allowInEditable?: boolean
   handler: (event: KeyboardEvent) => void
 }
 
 interface RegistryCommand extends GlobalCommand {
   id: string
-  parsed: ParsedShortcut
+  parsed: ParsedShortcut | null
 }
 
 interface GlobalCommandsContextValue {
@@ -122,7 +123,8 @@ function focusedElementOwnsShortcut(parsed: ParsedShortcut, isMac: boolean): boo
 }
 
 export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
-  const registryRef = useRef<Map<string, RegistryCommand>>(new Map())
+  const registryRef = useRef<Map<string, RegistryCommand> | null>(null)
+  const registry = (registryRef.current ??= new Map())
   const isMac = useMemo(() => isMacPlatform(), [])
   const router = useRouter()
 
@@ -130,8 +132,8 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
     const createdIds: string[] = []
     for (const cmd of commands) {
       const id = cmd.id ?? generateId()
-      const parsed = parseShortcut(cmd.shortcut)
-      registryRef.current.set(id, {
+      const parsed = cmd.shortcut ? parseShortcut(cmd.shortcut) : null
+      registry.set(id, {
         ...cmd,
         id,
         parsed,
@@ -142,7 +144,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
 
     return () => {
       for (const id of createdIds) {
-        registryRef.current.delete(id)
+        registry.delete(id)
       }
     }
   }, [])
@@ -151,7 +153,8 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.isComposing) return
 
-      for (const [, cmd] of registryRef.current) {
+      for (const [, cmd] of registry) {
+        if (!cmd.parsed) continue
         if (!cmd.allowInEditable && isEditableElement(document.activeElement)) continue
 
         if (matchesShortcut(e, cmd.parsed)) {
@@ -173,7 +176,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
   }, [isMac, router])
 
   const invoke = useCallback((id: string): boolean => {
-    const cmd = registryRef.current.get(id)
+    const cmd = registry.get(id)
     if (!cmd) return false
     try {
       cmd.handler(new KeyboardEvent('keydown'))

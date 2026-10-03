@@ -1,334 +1,127 @@
-import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { Principal } from '@sim/auth/principal'
+import type { NextRequest } from 'next/server'
 import {
   bulkKnowledgeChunksContract,
-  createChunkBodySchema,
-  listKnowledgeChunksQuerySchema,
+  createKnowledgeChunkContract,
+  listKnowledgeChunksContract,
 } from '@/lib/api/contracts/knowledge'
-import { isZodError, parseJsonBody, parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
-import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
-import { calculateCost } from '@/providers/utils'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  internalKnowledgeAuthType,
+  internalKnowledgeProvenanceUserId,
+  toInternalKnowledgeChunk,
+} from '@/lib/knowledge/api/internal-route'
+import {
+  internalKnowledgeErrorPolicies,
+  internalKnowledgeSessionOrExecutorAuth,
+} from '@/lib/knowledge/api/route-policies'
+import {
+  finalizeKnowledgePersistedResponse,
+  finalizeKnowledgeProvenanceResponse,
+  resolveKnowledgeWriteSecretProvenance,
+} from '@/lib/knowledge/api/secret-provenance'
+import {
+  bulkUpdateKnowledgeChunks,
+  createKnowledgeChunk,
+  listKnowledgeChunks,
+} from '@/lib/knowledge/application/chunks'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
-const logger = createLogger('DocumentChunksAPI')
-
-export const GET = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
-    const requestId = generateRequestId()
-    const { id: knowledgeBaseId, documentId } = await params
-
-    try {
-      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized chunks access attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
-
-      const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
-
-      if (!accessCheck.hasAccess) {
-        if (accessCheck.notFound) {
-          logger.warn(
-            `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
-          )
-          return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${userId} attempted unauthorized chunks access: ${accessCheck.reason}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const doc = accessCheck.document
-      if (!doc) {
-        logger.warn(
-          `[${requestId}] Document data not available: KB=${knowledgeBaseId}, Doc=${documentId}`
-        )
-        return NextResponse.json({ error: 'Document not found' }, { status: 404 })
-      }
-
-      if (doc.processingStatus !== 'completed') {
-        logger.warn(
-          `[${requestId}] Document ${documentId} is not ready for chunk access (status: ${doc.processingStatus})`
-        )
-        return NextResponse.json(
-          {
-            error: 'Document is not ready for access',
-            details: `Document status: ${doc.processingStatus}`,
-            retryAfter: doc.processingStatus === 'processing' ? 5 : null,
-          },
-          { status: 400 }
-        )
-      }
-
-      const { searchParams } = new URL(req.url)
-      const queryResult = listKnowledgeChunksQuerySchema.safeParse({
-        search: searchParams.get('search') || undefined,
-        enabled: searchParams.get('enabled') || undefined,
-        limit: searchParams.get('limit') || undefined,
-        offset: searchParams.get('offset') || undefined,
-        sortBy: searchParams.get('sortBy') || undefined,
-        sortOrder: searchParams.get('sortOrder') || undefined,
-      })
-      if (!queryResult.success) {
-        return NextResponse.json(
-          { error: 'Invalid query parameters', details: queryResult.error.issues },
-          { status: 400 }
-        )
-      }
-
-      const result = await queryChunks(documentId, queryResult.data, requestId)
-
-      return NextResponse.json({
-        success: true,
-        data: result.chunks,
-        pagination: result.pagination,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error fetching chunks`, error)
-      return NextResponse.json({ error: 'Failed to fetch chunks' }, { status: 500 })
-    }
+function resolveContentProvenance(
+  request: NextRequest,
+  principal: Principal,
+  payload: unknown,
+  workspaceId: string | undefined,
+  includeContent: boolean
+) {
+  const resolved = resolveKnowledgeWriteSecretProvenance({
+    headers: request.headers,
+    payload,
+    authType: internalKnowledgeAuthType(principal),
+    userId: internalKnowledgeProvenanceUserId(request.headers, principal, workspaceId),
+    ...(workspaceId ? { workspaceId } : {}),
+    selectionKeys: includeContent ? ['chunk-content'] : [],
+  })
+  if (!resolved.success) {
+    throw new OrchestrationError('validation', 'Invalid knowledge secret provenance')
   }
-)
+  return resolved.provenances?.[0]
+}
 
-export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
-    const requestId = generateRequestId()
-    const { id: knowledgeBaseId, documentId } = await params
+export const GET = defineInternalJsonRoute({
+  contract: listKnowledgeChunksContract,
+  auth: internalKnowledgeSessionOrExecutorAuth,
+  operation: knowledgeOperations.listChunks,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal chunk-list behavior' }),
+  errorPolicy: internalKnowledgeErrorPolicies.chunkList,
+  mapInput: ({ params, query }) => ({
+    knowledgeBaseId: params.id,
+    documentId: params.documentId,
+    ...query,
+  }),
+  useCase: listKnowledgeChunks,
+  present: ({ chunks, pagination }) => ({
+    success: true as const,
+    data: chunks.map(toInternalKnowledgeChunk),
+    pagination,
+  }),
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgePersistedResponse({
+      headers: request.headers,
+      authType: internalKnowledgeAuthType(principal),
+      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
+      workspaceId: result.workspaceId,
+      body,
+      chunks: result.chunks.map((chunk) => ({
+        id: chunk.id,
+        documentId: result.documentId,
+        content: chunk.content,
+        value: chunk,
+      })),
+    }),
+})
 
-    try {
-      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Authentication failed: ${auth.error || 'Unauthorized'}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
+export const POST = defineInternalJsonRoute({
+  contract: createKnowledgeChunkContract,
+  auth: internalKnowledgeSessionOrExecutorAuth,
+  operation: knowledgeOperations.createChunk,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal chunk-create behavior',
+  }),
+  errorPolicy: internalKnowledgeErrorPolicies.chunks,
+  mapInput: ({ params, body }, { principal, request }) => ({
+    knowledgeBaseId: params.id,
+    documentId: params.documentId,
+    content: body.content,
+    enabled: body.enabled,
+    resolveContentProvenance: ({ workspaceId }: { workspaceId?: string }) =>
+      resolveContentProvenance(request, principal, body, workspaceId, true),
+  }),
+  useCase: createKnowledgeChunk,
+  present: ({ chunk }) => ({ success: true as const, data: toInternalKnowledgeChunk(chunk) }),
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgeProvenanceResponse({
+      headers: request.headers,
+      authType: internalKnowledgeAuthType(principal),
+      userId: result.userId,
+      workspaceId: result.workspaceId,
+      body,
+      provenances: result.provenance ? [result.provenance] : [],
+    }),
+})
 
-      const parsedBody = await parseJsonBody(req)
-      if (!parsedBody.success) return parsedBody.response
-      const { workflowId, ...searchParams } = parsedBody.data as Record<string, unknown>
-
-      if (workflowId) {
-        if (typeof workflowId !== 'string') {
-          return NextResponse.json({ error: 'workflowId must be a string' }, { status: 400 })
-        }
-        const authorization = await authorizeWorkflowByWorkspacePermission({
-          workflowId,
-          userId,
-          action: 'write',
-        })
-        if (!authorization.allowed) {
-          return NextResponse.json(
-            { error: authorization.message || 'Access denied' },
-            { status: authorization.status }
-          )
-        }
-      }
-
-      const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
-
-      if (!accessCheck.hasAccess) {
-        if (accessCheck.notFound) {
-          logger.warn(
-            `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
-          )
-          return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${userId} attempted unauthorized chunk creation: ${accessCheck.reason}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const doc = accessCheck.document
-      if (!doc) {
-        logger.warn(
-          `[${requestId}] Document data not available: KB=${knowledgeBaseId}, Doc=${documentId}`
-        )
-        return NextResponse.json({ error: 'Document not found' }, { status: 404 })
-      }
-
-      if (doc.connectorId) {
-        logger.warn(
-          `[${requestId}] User ${userId} attempted to create chunk on connector-synced document: Doc=${documentId}`
-        )
-        return NextResponse.json(
-          { error: 'Chunks from connector-synced documents are read-only' },
-          { status: 403 }
-        )
-      }
-
-      if (doc.processingStatus === 'failed') {
-        logger.warn(`[${requestId}] Document ${documentId} is in failed state, cannot add chunks`)
-        return NextResponse.json({ error: 'Cannot add chunks to failed document' }, { status: 400 })
-      }
-
-      try {
-        const validatedData = createChunkBodySchema.parse(searchParams)
-
-        const docTags = {
-          tag1: doc.tag1 ?? null,
-          tag2: doc.tag2 ?? null,
-          tag3: doc.tag3 ?? null,
-          tag4: doc.tag4 ?? null,
-          tag5: doc.tag5 ?? null,
-          tag6: doc.tag6 ?? null,
-          tag7: doc.tag7 ?? null,
-          number1: doc.number1 ?? null,
-          number2: doc.number2 ?? null,
-          number3: doc.number3 ?? null,
-          number4: doc.number4 ?? null,
-          number5: doc.number5 ?? null,
-          date1: doc.date1 ?? null,
-          date2: doc.date2 ?? null,
-          boolean1: doc.boolean1 ?? null,
-          boolean2: doc.boolean2 ?? null,
-          boolean3: doc.boolean3 ?? null,
-        }
-
-        const newChunk = await createChunk(
-          knowledgeBaseId,
-          documentId,
-          docTags,
-          validatedData,
-          requestId,
-          accessCheck.knowledgeBase?.workspaceId
-        )
-
-        let cost = null
-        try {
-          cost = calculateCost(
-            accessCheck.knowledgeBase.embeddingModel,
-            newChunk.tokenCount,
-            0,
-            false
-          )
-        } catch (error) {
-          logger.warn(`[${requestId}] Failed to calculate cost for chunk upload`, {
-            error: getErrorMessage(error, 'Unknown error'),
-          })
-        }
-
-        return NextResponse.json({
-          success: true,
-          data: {
-            ...newChunk,
-            documentId,
-            documentName: doc.filename,
-            ...(cost
-              ? {
-                  cost: {
-                    input: cost.input,
-                    output: cost.output,
-                    total: cost.total,
-                    tokens: {
-                      prompt: newChunk.tokenCount,
-                      completion: 0,
-                      total: newChunk.tokenCount,
-                    },
-                    model: accessCheck.knowledgeBase.embeddingModel,
-                    pricing: cost.pricing,
-                  },
-                }
-              : {}),
-          },
-        })
-      } catch (validationError) {
-        if (isZodError(validationError)) {
-          logger.warn(`[${requestId}] Invalid chunk creation data`, {
-            errors: validationError.issues,
-          })
-          return NextResponse.json(
-            { error: 'Invalid request data', details: validationError.issues },
-            { status: 400 }
-          )
-        }
-        throw validationError
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Error creating chunk`, error)
-      return NextResponse.json({ error: 'Failed to create chunk' }, { status: 500 })
-    }
-  }
-)
-
-export const PATCH = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string; documentId: string }> }) => {
-    const requestId = generateRequestId()
-    const { id: knowledgeBaseId, documentId } = await params
-
-    try {
-      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized batch chunk operation attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
-
-      const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
-
-      if (!accessCheck.hasAccess) {
-        if (accessCheck.notFound) {
-          logger.warn(
-            `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
-          )
-          return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-        }
-        logger.warn(
-          `[${requestId}] User ${userId} attempted unauthorized batch chunk operation: ${accessCheck.reason}`
-        )
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      if (accessCheck.document?.connectorId) {
-        logger.warn(
-          `[${requestId}] User ${userId} attempted batch chunk operation on connector-synced document: Doc=${documentId}`
-        )
-        return NextResponse.json(
-          { error: 'Chunks from connector-synced documents are read-only' },
-          { status: 403 }
-        )
-      }
-
-      const parsed = await parseRequest(
-        bulkKnowledgeChunksContract,
-        req,
-        { params },
-        {
-          validationErrorResponse: (error) => {
-            logger.warn(`[${requestId}] Invalid batch operation data`, { errors: error.issues })
-            return NextResponse.json(
-              { error: 'Invalid request data', details: error.issues },
-              { status: 400 }
-            )
-          },
-        }
-      )
-      if (!parsed.success) return parsed.response
-      const validatedData = parsed.data.body
-      const { operation, chunkIds } = validatedData
-
-      const result = await batchChunkOperation(documentId, operation, chunkIds, requestId)
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          operation,
-          successCount: result.processed,
-          errorCount: result.errors.length,
-          processed: result.processed,
-          errors: result.errors,
-        },
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error in batch chunk operation`, error)
-      return NextResponse.json({ error: 'Failed to perform batch operation' }, { status: 500 })
-    }
-  }
-)
+export const PATCH = defineInternalJsonRoute({
+  contract: bulkKnowledgeChunksContract,
+  auth: internalKnowledgeSessionOrExecutorAuth,
+  operation: knowledgeOperations.bulkChunks,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal bulk-chunk behavior' }),
+  errorPolicy: internalKnowledgeErrorPolicies.chunks,
+  mapInput: ({ params, body }) => ({
+    knowledgeBaseId: params.id,
+    documentId: params.documentId,
+    ...body,
+  }),
+  useCase: bulkUpdateKnowledgeChunks,
+  present: (data) => ({ success: true as const, data }),
+})

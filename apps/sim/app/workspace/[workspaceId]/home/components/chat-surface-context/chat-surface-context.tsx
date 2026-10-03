@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type ComponentType,
   createContext,
   type ReactNode,
   useCallback,
@@ -10,7 +11,8 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
+import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -20,16 +22,23 @@ import type { ChatContext } from '@/stores/panel'
  * consume them without relaying through every intermediate component.
  */
 interface ChatSurfaceContextValue {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   /** Resolved id of the chat backing this surface, if one exists yet. */
   chatId?: string
   /** Id of the user interacting with this surface. */
   userId?: string
   /** Notifies the surface owner that a context chip was added to the input. */
   onContextAdd: (context: ChatContext) => void
-  /** Notifies the surface owner that a context chip was removed from the input. */
-  onContextRemove: (context: ChatContext) => void
+  /**
+   * Notifies the surface owner that a context chip was removed from the input.
+   * `remaining` is the input's context list AFTER the removal, so the owner can
+   * tell whether any other chip still references the removed chip's resource
+   * before closing a shared slideover tab.
+   */
+  onContextRemove: (context: ChatContext, remaining: ChatContext[]) => void
+  onViewSources?: (messageId: string, requestId?: string) => void
   /** Opens a workspace resource referenced from rendered message content. */
-  onWorkspaceResourceSelect: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect: (resource: WorkspaceResourceRef) => void
 }
 
 const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
@@ -39,33 +48,39 @@ const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
 })
 
 interface ChatSurfaceProviderProps {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   chatId?: string
   userId?: string
   onContextAdd?: (context: ChatContext) => void
-  onContextRemove?: (context: ChatContext) => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
+  onViewSources?: (messageId: string, requestId?: string) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   children: ReactNode
 }
 
 /**
  * Provides the chat-surface identity and interaction callbacks to descendants.
  * Callbacks are latched in refs and exposed as stable wrappers so the memoized
- * context value only changes when `chatId` or `userId` change — consumers do
- * not re-render when a parent re-creates a handler.
+ * callback identities remain stable when a parent re-creates a handler.
  */
 export function ChatSurfaceProvider({
+  SearchConnectionComponent,
   chatId,
   userId,
   onContextAdd,
   onContextRemove,
   onWorkspaceResourceSelect,
+  onViewSources,
   children,
 }: ChatSurfaceProviderProps) {
+  const onViewSourcesRef = useRef(onViewSources)
+  const hasSourcePanel = Boolean(onViewSources)
   const onContextAddRef = useRef(onContextAdd)
   const onContextRemoveRef = useRef(onContextRemove)
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
 
   useLayoutEffect(() => {
+    onViewSourcesRef.current = onViewSources
     onContextAddRef.current = onContextAdd
     onContextRemoveRef.current = onContextRemove
     onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -74,22 +89,37 @@ export function ChatSurfaceProvider({
   const stableOnContextAdd = useCallback((context: ChatContext) => {
     onContextAddRef.current?.(context)
   }, [])
-  const stableOnContextRemove = useCallback((context: ChatContext) => {
-    onContextRemoveRef.current?.(context)
+  const stableOnContextRemove = useCallback((context: ChatContext, remaining: ChatContext[]) => {
+    onContextRemoveRef.current?.(context, remaining)
   }, [])
-  const stableOnWorkspaceResourceSelect = useCallback((resource: MothershipResource) => {
+  const stableOnWorkspaceResourceSelect = useCallback((resource: WorkspaceResourceRef) => {
     onWorkspaceResourceSelectRef.current?.(resource)
+  }, [])
+
+  const stableOnViewSources = useCallback((messageId: string, requestId?: string) => {
+    onViewSourcesRef.current?.(messageId, requestId)
   }, [])
 
   const value = useMemo<ChatSurfaceContextValue>(
     () => ({
+      onViewSources: hasSourcePanel ? stableOnViewSources : undefined,
+      SearchConnectionComponent,
       chatId,
       userId,
       onContextAdd: stableOnContextAdd,
       onContextRemove: stableOnContextRemove,
       onWorkspaceResourceSelect: stableOnWorkspaceResourceSelect,
     }),
-    [chatId, userId, stableOnContextAdd, stableOnContextRemove, stableOnWorkspaceResourceSelect]
+    [
+      hasSourcePanel,
+      stableOnViewSources,
+      SearchConnectionComponent,
+      chatId,
+      userId,
+      stableOnContextAdd,
+      stableOnContextRemove,
+      stableOnWorkspaceResourceSelect,
+    ]
   )
 
   return <ChatSurfaceContext.Provider value={value}>{children}</ChatSurfaceContext.Provider>

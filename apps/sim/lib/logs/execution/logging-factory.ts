@@ -143,16 +143,31 @@ function isMothershipUpdateCostOwned(span: CostTraceSpan): boolean {
   return span.type === 'mothership'
 }
 
-export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): CostSummary {
+export interface CostSummaryOptions {
+  /**
+   * Per-run fixed charge folded into the total. Defaults to
+   * `BASE_EXECUTION_CHARGE`. Pass `0` for a run whose base charge is already
+   * paid by an invoking run — a custom block's child, for instance, is one
+   * logical run with its consumer and must not add a second execution fee.
+   */
+  baseExecutionCharge?: number
+}
+
+export function calculateCostSummary(
+  traceSpans: CostTraceSpan[] | undefined,
+  options?: CostSummaryOptions
+): CostSummary {
+  const baseExecutionCharge = options?.baseExecutionCharge ?? BASE_EXECUTION_CHARGE
+
   if (!traceSpans || traceSpans.length === 0) {
     return {
-      totalCost: BASE_EXECUTION_CHARGE,
+      totalCost: baseExecutionCharge,
       totalInputCost: 0,
       totalOutputCost: 0,
       totalTokens: 0,
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
-      baseExecutionCharge: BASE_EXECUTION_CHARGE,
+      baseExecutionCharge,
       models: {},
       workflowLedgerModels: {},
       charges: {},
@@ -275,7 +290,7 @@ export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): C
     }
   }
 
-  totalCost += BASE_EXECUTION_CHARGE
+  totalCost += baseExecutionCharge
 
   return {
     totalCost,
@@ -284,7 +299,7 @@ export function calculateCostSummary(traceSpans: CostTraceSpan[] | undefined): C
     totalTokens,
     totalPromptTokens,
     totalCompletionTokens,
-    baseExecutionCharge: BASE_EXECUTION_CHARGE,
+    baseExecutionCharge,
     models,
     workflowLedgerModels,
     charges,

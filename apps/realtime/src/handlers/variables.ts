@@ -4,11 +4,12 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { VARIABLE_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { checkWorkflowOperationPermission } from '@/middleware/permissions'
-import type { IRoomManager } from '@/rooms'
+import { type IRoomManager, workflowRoom as wf } from '@/rooms'
 
 const logger = createLogger('VariablesHandlers')
 
@@ -61,7 +62,8 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
     }
 
     try {
-      const sessionWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      const sessionWorkflowId =
+        (await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW))?.id ?? null
       const session = await roomManager.getUserSession(socket.id)
 
       if (!sessionWorkflowId || !session) {
@@ -98,7 +100,7 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
         return
       }
 
-      const hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+      const hasRoom = await roomManager.hasRoom(wf(workflowId))
       if (!hasRoom) {
         logger.debug(`Ignoring variable update: workflow room not found`, {
           socketId: socket.id,
@@ -109,7 +111,7 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
         return
       }
 
-      const users = await roomManager.getWorkflowUsers(workflowId)
+      const users = await roomManager.getRoomUsers(wf(workflowId))
       const userPresence = users.find((user) => user.socketId === socket.id)
       if (!userPresence) {
         socket.emit('operation-forbidden', {
@@ -174,7 +176,7 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
       }
 
       // Update user activity
-      await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
+      await roomManager.updateUserActivity(wf(workflowId), socket.id, { lastActivity: Date.now() })
 
       const debouncedKey = `${workflowId}:${variableId}:${field}`
       const existing = pendingVariableUpdates.get(debouncedKey)

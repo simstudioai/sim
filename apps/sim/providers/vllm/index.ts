@@ -9,13 +9,28 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getCachedProviderClient } from '@/providers/client-cache'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+  recordProviderConversationUsage,
+} from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { getOpenAICompatibleApiBaseUrl } from '@/providers/openai-compat/base-url'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   Message,
   ProviderConfig,
@@ -26,13 +41,13 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  checkForForcedToolUsageOpenAI,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import { checkForForcedToolUsage, createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('VLLMProvider')
 const VLLM_VERSION = '1.0.0'
@@ -51,13 +66,14 @@ export const vllmProvider: ProviderConfig = {
       return
     }
 
-    const baseUrl = (env.VLLM_BASE_URL || '').replace(/\/$/, '')
+    const baseUrl = env.VLLM_BASE_URL?.trim()
     if (!baseUrl) {
       logger.info('VLLM_BASE_URL not configured, skipping initialization')
       return
     }
 
     try {
+      const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
@@ -66,7 +82,7 @@ export const vllmProvider: ProviderConfig = {
         headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
       }
 
-      const response = await fetch(`${baseUrl}/v1/models`, { headers })
+      const response = await fetch(`${apiBaseUrl}/models`, { headers })
       if (!response.ok) {
         await response.text().catch(() => {})
         useProvidersStore.getState().setProviderModels('vllm', [])
@@ -103,27 +119,31 @@ export const vllmProvider: ProviderConfig = {
 
     const userProvidedEndpoint = request.azureEndpoint
 
-    const baseUrl = (userProvidedEndpoint || env.VLLM_BASE_URL || '').replace(/\/$/, '')
+    const baseUrl = (userProvidedEndpoint || env.VLLM_BASE_URL)?.trim()
     if (!baseUrl) {
       throw new Error('VLLM_BASE_URL is required for vLLM provider')
     }
+    const apiBaseUrl = getOpenAICompatibleApiBaseUrl(baseUrl)
 
     /**
      * A user-supplied endpoint is attacker-controlled: validate it against the
-     * central SSRF guard and pin the connection to the resolved IP to defeat DNS
+     * egress guard and pin the connection to the resolved IP to defeat DNS
      * rebinding. The operator-configured `VLLM_BASE_URL` is trusted and left
      * unvalidated, mirroring the Azure providers.
      *
-     * `allowHttp` is enabled because self-hosted vLLM is frequently served over
-     * plain HTTP; this only relaxes the protocol requirement — the private/reserved
-     * IP blocklist and blocked-port checks still apply, so SSRF protection is intact.
+     * The `selfHostedService` profile is what makes a self-hosted vLLM reachable
+     * at all: over plain HTTP, which these deployments usually are, and at a
+     * private address once the operator names it in the egress allowlist.
+     * Anything they have not named stays blocked.
      */
     let pinnedFetch: typeof fetch | undefined
     let pinnedIP: string | undefined
     if (userProvidedEndpoint) {
-      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'vLLM endpoint', {
-        allowHttp: true,
-      })
+      const validation = await validateUrlWithDNS(
+        userProvidedEndpoint,
+        'vLLM endpoint',
+        'selfHostedService'
+      )
       if (!validation.isValid) {
         logger.warn('Blocked SSRF attempt via vLLM endpoint', {
           endpoint: userProvidedEndpoint,
@@ -131,20 +151,18 @@ export const vllmProvider: ProviderConfig = {
         })
         throw new Error(`Invalid vLLM endpoint: ${validation.error}`)
       }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid vLLM endpoint: could not resolve a pinnable IP address')
-      }
       pinnedIP = validation.resolvedIP
-      pinnedFetch = createPinnedFetch(pinnedIP)
+      pinnedFetch = createPinnedFetch(pinnedIP, { profile: 'selfHostedService' })
     }
 
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'
     const vllm = getCachedProviderClient(
-      `vllm::${apiKey}::${baseUrl}::${pinnedIP ?? 'no-pin'}`,
+      `vllm::${apiKey}::${apiBaseUrl}::${pinnedIP ?? 'no-pin'}`,
       () =>
         new OpenAI({
+          ...openAICompatTransport(),
           apiKey,
-          baseURL: `${baseUrl}/v1`,
+          baseURL: apiBaseUrl,
           ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
         })
     )
@@ -175,22 +193,15 @@ export const vllmProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model.replace(/^vllm\//, ''),
+      model: request.model.replace(/^vllm\//i, ''),
       messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
-    if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+    if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
     if (request.responseFormat) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: request.responseFormat.name || 'response_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-          strict: request.responseFormat.strict !== false,
-        },
-      }
+      payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
 
       logger.info('Added JSON schema response format to vLLM request')
     }
@@ -233,7 +244,7 @@ export const vllmProvider: ProviderConfig = {
           stream_options: { include_usage: true },
         }
         const streamResponse = await vllm.chat.completions.create(
-          streamingParams,
+          await prepareConversationGeneration(request, 'chat-completions', streamingParams),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -246,31 +257,35 @@ export const vllmProvider: ProviderConfig = {
           initialCost: { input: 0, output: 0, total: 0 },
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
-              let cleanContent = content
-              if (cleanContent && request.responseFormat) {
-                cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
-              }
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'vLLM',
+              request,
+              onComplete: ({ content, usage }) => {
+                let cleanContent = content
+                if (cleanContent && request.responseFormat) {
+                  cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
+                }
 
-              output.content = cleanContent
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+                output.content = cleanContent
+                output.tokens = {
+                  input: usage.prompt_tokens,
+                  output: usage.completion_tokens,
+                  total: usage.total_tokens,
+                }
 
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+                const costResult = calculateCost(
+                  request.model,
+                  usage.prompt_tokens,
+                  usage.completion_tokens
+                )
+                output.cost = {
+                  input: costResult.input,
+                  output: costResult.output,
+                  total: costResult.total,
+                }
 
-              finalizeTiming()
+                finalizeTiming()
+              },
             }),
         })
 
@@ -286,9 +301,17 @@ export const vllmProvider: ProviderConfig = {
       let hasUsedForcedTool = false
 
       let currentResponse = await vllm.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -321,9 +344,10 @@ export const vllmProvider: ProviderConfig = {
       ]
 
       if (originalToolChoice) {
-        const forcedResult = checkForForcedToolUsage(
+        const forcedResult = checkForForcedToolUsageOpenAI(
           currentResponse,
           originalToolChoice,
+          'vLLM',
           forcedTools,
           usedForcedTools
         )
@@ -339,7 +363,8 @@ export const vllmProvider: ProviderConfig = {
           }
         }
 
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        const toolCallsInResponse =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
@@ -358,6 +383,12 @@ export const vllmProvider: ProviderConfig = {
 
         const toolsStartTime = Date.now()
 
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
         const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
           const toolCallStartTime = Date.now()
           const toolName = toolCall.function.name
@@ -367,6 +398,12 @@ export const vllmProvider: ProviderConfig = {
             const tool = request.tools?.find((t) => t.id === toolName)
 
             if (!tool) {
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                `Tool "${toolName}" is not available`
+              )
               const toolCallEndTime = Date.now()
               return {
                 toolCall,
@@ -383,17 +420,27 @@ export const vllmProvider: ProviderConfig = {
               }
             }
 
-            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { toolParams, executionParams } = prepareToolExecution(
+              tool,
+              toolArgs,
+              request,
+              toolCall.id
+            )
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
               toolCall,
               toolName,
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -402,6 +449,12 @@ export const vllmProvider: ProviderConfig = {
             if (isAbortError(error) || request.abortSignal?.aborted) {
               throw error
             }
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              getErrorMessage(error, 'Tool execution failed')
+            )
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call:', { error, toolName })
 
@@ -436,6 +489,8 @@ export const vllmProvider: ProviderConfig = {
         for (const executionResult of executionResults) {
           const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
             executionResult
+          const modelResult =
+            'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
           timeSegments.push({
             type: 'tool',
@@ -459,6 +514,13 @@ export const vllmProvider: ProviderConfig = {
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -473,7 +535,7 @@ export const vllmProvider: ProviderConfig = {
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify(resultContent),
+            content: JSON.stringify(modelResultContent),
           })
         }
 
@@ -503,14 +565,23 @@ export const vllmProvider: ProviderConfig = {
         const nextModelStartTime = Date.now()
 
         currentResponse = await vllm.chat.completions.create(
-          nextPayload,
+          await prepareConversationGeneration(request, 'chat-completions', nextPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
 
         if (nextPayload.tool_choice && typeof nextPayload.tool_choice === 'object') {
-          const forcedResult = checkForForcedToolUsage(
+          const forcedResult = checkForForcedToolUsageOpenAI(
             currentResponse,
             nextPayload.tool_choice,
+            'vLLM',
             forcedTools,
             usedForcedTools
           )
@@ -548,14 +619,20 @@ export const vllmProvider: ProviderConfig = {
       }
 
       if (iterationCount === MAX_TOOL_ITERATIONS) {
+        if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await recordProviderConversationUsage(
+            request,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'vllm' }
         )
 
-        if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+        if (currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length) {
           /**
            * The capped turn still requests tools, so make one tool-disabled call
            * to synthesize an answer from the tool results already gathered.
@@ -563,12 +640,20 @@ export const vllmProvider: ProviderConfig = {
           const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
           const synthesisStartTime = Date.now()
           const synthesisResponse = await vllm.chat.completions.create(
-            {
+            await prepareConversationGeneration(request, 'chat-completions', {
               ...synthesisPayload,
               messages: currentMessages,
-            },
+            }),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
+            await captureProviderConversationStep(
+              request,
+              'chat-completions',
+              synthesisResponse.choices[0]?.message,
+              getChatCompletionConversationUsage(synthesisResponse.usage)
+            )
+          }
           const synthesisEndTime = Date.now()
 
           timeSegments.push({
@@ -593,7 +678,7 @@ export const vllmProvider: ProviderConfig = {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             synthesisResponse,
-            synthesisResponse.choices[0]?.message?.tool_calls,
+            synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
             { model: request.model, provider: 'vllm' }
           )
         }
@@ -690,7 +775,11 @@ export const vllmProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

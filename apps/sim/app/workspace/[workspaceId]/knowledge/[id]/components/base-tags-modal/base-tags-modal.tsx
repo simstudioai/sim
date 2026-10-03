@@ -13,12 +13,17 @@ import {
   ChipModalHeader,
   type ComboboxOption,
   handleKeyboardActivation,
-  Trash,
 } from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
-import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  FIELD_TYPE_LABELS,
+  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
+  SUPPORTED_FIELD_TYPES,
+  TAG_SLOT_CONFIG,
+} from '@/lib/knowledge/constants'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -30,13 +35,6 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('BaseTagsModal')
-
-const FIELD_TYPE_LABELS: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  date: 'Date',
-  boolean: 'Boolean',
-}
 
 interface DocumentListProps {
   documents: Array<{ id: string; name: string; tagValue: string }>
@@ -54,13 +52,13 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
           const DocumentIcon = getDocumentIcon('', doc.name)
           return (
             <div key={doc.id} className='flex items-center gap-2 border-b p-2 last:border-b-0'>
-              <DocumentIcon className='size-4 flex-shrink-0 text-[var(--text-muted)]' />
+              <DocumentIcon className='size-4 shrink-0 text-[var(--text-muted)]' />
               <span className='min-w-0 max-w-[120px] truncate text-[var(--text-primary)] text-caption'>
                 {doc.name}
               </span>
               {doc.tagValue && (
                 <>
-                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />
                   <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
                     {doc.tagValue}
                   </span>
@@ -154,7 +152,9 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     isCreatingTag && !createTagMutation.isPending && hasTagNameConflict(createTagForm.displayName)
 
   const canSaveTag = () => {
-    return createTagForm.displayName.trim() && !hasTagNameConflict(createTagForm.displayName)
+    return (
+      createTagForm.displayName.trim().length > 0 && !hasTagNameConflict(createTagForm.displayName)
+    )
   }
 
   const getSlotUsageByFieldType = (fieldType: string): { used: number; max: number } => {
@@ -248,6 +248,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         <ChipModalBody>
           <ChipModalField
             type='custom'
+            submitOnEnter={false}
             title={
               <>
                 Tags:{' '}
@@ -286,12 +287,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                     <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                       {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                     </span>
-                    <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                    <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />
                     <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
                       {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
                     </span>
-                    <div className='flex flex-shrink-0 items-center gap-1'>
+                    <div className='flex shrink-0 items-center gap-1'>
                       <Button
+                        aria-label='Delete Tag'
                         variant='ghost'
                         onClick={(e) => {
                           e.stopPropagation()
@@ -331,6 +333,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         setCreateTagForm({ ...createTagForm, displayName: e.target.value })
                       }
                       placeholder='Enter tag name'
+                      maxLength={KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH}
                       error={Boolean(tagNameConflict)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag()) {
@@ -388,11 +391,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
         <ChipModalFooter
           onCancel={() => handleClose(false)}
+          defaultAction='none'
           primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
         />
       </ChipModal>
 
-      {/* Delete Tag Confirmation Dialog */}
       <ChipConfirmModal
         open={deleteTagDialogOpen}
         onOpenChange={(openState) => {
@@ -431,7 +434,6 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         )}
       </ChipConfirmModal>
 
-      {/* View Documents Dialog */}
       <ChipModal
         open={viewDocumentsDialogOpen}
         onOpenChange={setViewDocumentsDialogOpen}

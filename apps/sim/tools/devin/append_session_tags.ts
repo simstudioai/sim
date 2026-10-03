@@ -7,7 +7,7 @@ export const devinAppendSessionTagsTool: ToolConfig<
   DevinSessionTagsResponse
 > = {
   id: 'devin_append_session_tags',
-  name: 'append_session_tags',
+  name: 'Devin Append Session Tags',
   description: 'Add tags to a Devin session without removing existing tags (max 50 tags total).',
   version: '1.0.0',
 

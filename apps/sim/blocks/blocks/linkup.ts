@@ -1,8 +1,7 @@
 import { LinkupIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { LinkupSearchToolResponse } from '@/tools/linkup/types'
 
-export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
+export const LinkupBlock: BlockConfig = {
   type: 'linkup',
   name: 'Linkup',
   description: 'Search the web with Linkup',
@@ -13,6 +12,16 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#D6D3C7',
   icon: LinkupIcon,
+  canvasPresentation: {
+    defaultTitle: 'Linkup',
+    sentences: {
+      default: [
+        { text: 'Search the web for', field: 'q', core: true },
+        { text: ', within', field: 'includeDomains' },
+        { text: ', since', field: 'fromDate' },
+      ],
+    },
+  },
 
   subBlocks: [
     {

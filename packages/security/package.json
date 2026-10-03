@@ -6,13 +6,21 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "exports": {
     "./compare": {
       "types": "./src/compare.ts",
       "default": "./src/compare.ts"
+    },
+    "./dns": {
+      "types": "./src/dns.ts",
+      "default": "./src/dns.ts"
+    },
+    "./egress": {
+      "types": "./src/egress.ts",
+      "default": "./src/egress.ts"
     },
     "./encryption": {
       "types": "./src/encryption.ts",
@@ -29,6 +37,10 @@
     "./hostnames": {
       "types": "./src/hostnames.ts",
       "default": "./src/hostnames.ts"
+    },
+    "./ip": {
+      "types": "./src/ip.ts",
+      "default": "./src/ip.ts"
     },
     "./ssrf": {
       "types": "./src/ssrf.ts",
@@ -55,6 +67,6 @@
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.2.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

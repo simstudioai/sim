@@ -1,7 +1,7 @@
 import type { RdsQueryParams, RdsQueryResponse } from '@/tools/rds/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<RdsQueryParams, RdsQueryResponse> = {
+export const queryTool: InternalToolConfig<RdsQueryParams, RdsQueryResponse> = {
   id: 'rds_query',
   name: 'RDS Query',
   description: 'Execute a SELECT query on Amazon RDS using the Data API',
@@ -53,13 +53,8 @@ export const queryTool: ToolConfig<RdsQueryParams, RdsQueryResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/rds/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

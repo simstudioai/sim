@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
 import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -6,6 +6,10 @@ import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import {
   getActiveWorkflowSearchHighlight,
@@ -22,6 +26,12 @@ interface TableProps {
   blockId: string
   subBlockId: string
   columns: string[]
+  /**
+   * Conceals the value columns except while a cell is focused. The first column is the
+   * key half of a key/value secrets table and stays legible — masking it would
+   * leave the user unable to tell the rows apart.
+   */
+  password?: boolean
   isPreview?: boolean
   previewValue?: WorkflowTableRow[] | null
   disabled?: boolean
@@ -38,13 +48,15 @@ interface TableCellProps {
   column: string
   cellIndex: number
   columnsCount: number
+  /** Whether this cell holds a secret and must be concealed while unfocused */
+  password: boolean
   isPreview: boolean
   disabled: boolean
   blockId: string
   inputController: ReturnType<typeof useSubBlockInput>
   updateCellValue: (rowIndex: number, column: string, newValue: string) => void
-  inputRefs: React.MutableRefObject<Map<string, HTMLInputElement>>
-  overlayRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  inputRefs: Map<string, HTMLInputElement>
+  overlayRefs: Map<string, HTMLDivElement>
   accessiblePrefixes: ReturnType<typeof useAccessibleReferencePrefixes>
   workspaceId: string
   subBlockId: string
@@ -56,6 +68,7 @@ function TableCell({
   column,
   cellIndex,
   columnsCount,
+  password,
   isPreview,
   disabled,
   blockId,
@@ -68,6 +81,7 @@ function TableCell({
   subBlockId,
 }: TableCellProps) {
   const activeSearchTarget = useActiveSearchTarget()
+  const [isFocused, setIsFocused] = useState(false)
   // Defensive programming: ensure row.cells exists and has the expected structure
   const hasValidCells = row.cells && typeof row.cells === 'object'
   if (!hasValidCells) logger.warn('Table row has malformed cells data:', row)
@@ -83,6 +97,9 @@ function TableCell({
     valuePath: [rowIndex, 'cells', column],
   })
 
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+  const displayValue = shouldMask ? maskSecretText(cellValue) : cellValue
+
   // Get field state and handlers for this cell
   const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
   const handlers = inputController.fieldHelpers.createFieldHandlers(
@@ -91,7 +108,7 @@ function TableCell({
     (newValue) => updateCellValue(rowIndex, column, newValue)
   )
   const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
-    const overlay = overlayRefs.current.get(cellKey)
+    const overlay = overlayRefs.get(cellKey)
     if (overlay) {
       overlay.scrollLeft = e.currentTarget.scrollLeft
     }
@@ -121,7 +138,7 @@ function TableCell({
       return
     }
     const nextCellKey = `${rowIndex + 1}-${column}`
-    const nextInput = inputRefs.current.get(nextCellKey)
+    const nextInput = inputRefs.get(nextCellKey)
     // `isConnected` guards against a stale ref: position-keyed entries can
     // outlive a deleted row, and focusing a detached node would steal focus
     // from the current cell. A real next row's input is always connected.
@@ -134,8 +151,8 @@ function TableCell({
 
   const syncScrollAfterUpdate = () => {
     requestAnimationFrame(() => {
-      const input = inputRefs.current.get(cellKey)
-      const overlay = overlayRefs.current.get(cellKey)
+      const input = inputRefs.get(cellKey)
+      const overlay = overlayRefs.get(cellKey)
       if (input && overlay) {
         overlay.scrollLeft = input.scrollLeft
       }
@@ -144,7 +161,6 @@ function TableCell({
 
   const baseTagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
     cellKey,
-    cellValue,
     (newValue) => updateCellValue(rowIndex, column, newValue)
   )
   const tagSelectHandler = (tag: string) => {
@@ -154,7 +170,6 @@ function TableCell({
 
   const baseEnvVarSelectHandler = inputController.fieldHelpers.createEnvVarSelectHandler(
     cellKey,
-    cellValue,
     (newValue) => updateCellValue(rowIndex, column, newValue)
   )
   const envVarSelectHandler = (envVar: string) => {
@@ -172,39 +187,45 @@ function TableCell({
       <div className='relative w-full'>
         <input
           ref={(el) => {
-            if (el) inputRefs.current.set(cellKey, el)
-            else inputRefs.current.delete(cellKey)
+            if (el) inputRefs.set(cellKey, el)
+            else inputRefs.delete(cellKey)
           }}
           type='text'
-          value={cellValue}
+          value={displayValue}
           placeholder={column}
           onChange={handlers.onChange}
           onKeyDown={handleKeyDown}
           onScroll={handleScroll}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
-          onFocus={handlers.onFocus}
+          onFocus={(e) => {
+            setIsFocused(true)
+            handlers.onFocus(e)
+          }}
+          onBlur={() => setIsFocused(false)}
           disabled={isPreview || disabled}
           autoComplete='off'
           autoCorrect='off'
           autoCapitalize='off'
           spellCheck='false'
-          className='w-full bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
+          className='w-full bg-transparent px-2.5 py-2 text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-hidden [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
         />
         <div
           ref={(el) => {
-            if (el) overlayRefs.current.set(cellKey, el)
-            else overlayRefs.current.delete(cellKey)
+            if (el) overlayRefs.set(cellKey, el)
+            else overlayRefs.delete(cellKey)
           }}
           data-overlay={cellKey}
           className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
         >
-          <div className='whitespace-pre py-2 font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
-            {formatDisplayText(cellValue, {
-              accessiblePrefixes,
-              highlightAll: !accessiblePrefixes,
-              workflowSearchHighlight,
-            })}
+          <div className='whitespace-pre py-2 text-[var(--text-primary)] text-sm leading-[21px]'>
+            {shouldMask
+              ? displayValue
+              : formatDisplayText(cellValue, {
+                  accessiblePrefixes,
+                  highlightAll: !accessiblePrefixes,
+                  workflowSearchHighlight,
+                })}
           </div>
         </div>
         {fieldState.showEnvVars && (
@@ -218,7 +239,7 @@ function TableCell({
             onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
             inputRef={
               {
-                current: inputRefs.current.get(cellKey) || null,
+                current: inputRefs.get(cellKey) || null,
               } as React.RefObject<HTMLInputElement>
             }
           />
@@ -234,7 +255,7 @@ function TableCell({
             onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
             inputRef={
               {
-                current: inputRefs.current.get(cellKey) || null,
+                current: inputRefs.get(cellKey) || null,
               } as React.RefObject<HTMLInputElement>
             }
           />
@@ -248,6 +269,7 @@ export function Table({
   blockId,
   subBlockId,
   columns,
+  password = false,
   isPreview = false,
   previewValue,
   disabled = false,
@@ -275,8 +297,10 @@ export function Table({
   const value = isPreview ? previewValue : storeValue
 
   // Create refs for input and overlay elements
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
-  const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const inputElementsRef = useRef<Map<string, HTMLInputElement> | null>(null)
+  const inputRefs = (inputElementsRef.current ??= new Map())
+  const overlayElementsRef = useRef<Map<string, HTMLDivElement> | null>(null)
+  const overlayRefs = (overlayElementsRef.current ??= new Map())
 
   // Memoized template for empty cells for current columns
   const emptyCellsTemplate = useMemo(
@@ -378,7 +402,7 @@ export function Table({
             <th
               key={column}
               className={cn(
-                'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
+                'bg-transparent px-2.5 py-[5px] text-left text-[var(--text-tertiary)] text-sm',
                 index < columns.length - 1 && 'border-[var(--border-1)] border-r'
               )}
             >
@@ -396,6 +420,7 @@ export function Table({
     !disabled && (
       <td className='w-0 p-0'>
         <Button
+          aria-label='Delete row'
           variant='ghost'
           className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
@@ -424,6 +449,7 @@ export function Table({
                     column={column}
                     cellIndex={cellIndex}
                     columnsCount={columns.length}
+                    password={password && cellIndex > 0}
                     isPreview={isPreview}
                     disabled={disabled}
                     blockId={blockId}

@@ -1,77 +1,87 @@
 /**
  * Tests for getUserUsageLimit.
  *
- * Org-scoped members carry a null `currentUsageLimit` by design, so a user
- * whose subscription stops being org-scoped without a resync is left null.
- * The limit read must self-heal that state to the plan/free base plus prepaid
- * balance instead of failing closed and blocking every execution.
- *
- * @vitest-environment node
+ * Legacy membership syncs may leave a null personal usage limit. The limit
+ * read must recover the plan/free base plus prepaid balance, and subsequent
+ * subscription syncs must preserve independent personal and organization pools.
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+
+import { billingAccessMock } from '@sim/testing/mocks/billing-access.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import {
+  emailUnsubscribeMock,
+  emailUnsubscribeMockFns,
+} from '@sim/testing/mocks/email-unsubscribe.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(() => {
   resetDbChainMock()
 })
 
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
+
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
+
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
+
+vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
+  computeWeeklyRefreshConsumed: vi.fn(),
+}))
+
+vi.mock('@/components/emails', () => emailTemplatesMock)
+
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
+
+vi.mock('@/lib/messaging/email/unsubscribe', () => emailUnsubscribeMock)
+
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+import {
+  getUserUsageLimit,
+  maybeSendUsageThresholdEmail,
+  syncUsageLimitsFromSubscription,
+} from '@/lib/billing/core/usage'
+
+const { mockGetEmailPreferences } = emailUnsubscribeMockFns
+const mockIsOrgAdminRole = workspaceAuthzMockFns.mockIsOrgAdminRole
 const {
   mockGetFreeTierLimit,
-  mockGetHighestPrioritySubscription,
   mockGetPerUserMinimumLimit,
   mockHasPaidSubscriptionStatus,
   mockIsOrgScopedSubscription,
-} = vi.hoisted(() => ({
-  mockGetFreeTierLimit: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetPerUserMinimumLimit: vi.fn(),
-  mockHasPaidSubscriptionStatus: vi.fn(),
-  mockIsOrgScopedSubscription: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  canEditUsageLimit: vi.fn(),
-  getFreeTierLimit: mockGetFreeTierLimit,
-  getPerUserMinimumLimit: mockGetPerUserMinimumLimit,
-  getPlanPricing: vi.fn(() => ({ basePrice: 20 })),
-  hasPaidSubscriptionStatus: mockHasPaidSubscriptionStatus,
-  hasUsableSubscriptionAccess: vi.fn(),
-  isOrgScopedSubscription: mockIsOrgScopedSubscription,
-}))
-
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
-
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/credits/daily-refresh', () => ({
-  computeDailyRefreshConsumed: vi.fn(),
-  getOrgMemberRefreshBounds: vi.fn(),
-}))
-
-vi.mock('@/components/emails', () => ({
-  getEmailSubject: vi.fn(),
-  renderCreditsExhaustedEmail: vi.fn(),
-  renderFreeTierUpgradeEmail: vi.fn(),
-  renderUsageThresholdEmail: vi.fn(),
-}))
-
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  sendEmail: vi.fn(),
-}))
-
-vi.mock('@/lib/messaging/email/unsubscribe', () => ({
-  getEmailPreferences: vi.fn(),
-}))
-
-import { getUserUsageLimit, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+} = billingSubscriptionUtilsMockFns
+const { mockGetHighestPrioritySubscription, mockGetHighestPriorityPersonalSubscription } =
+  billingPlanMockFns
+const {
+  mockGetEmailSubject,
+  mockGetLimitEmailSubject,
+  mockRenderCreditsExhaustedEmail: mockRenderCreditsExhausted,
+  mockRenderFreeTierUpgradeEmail: mockRenderFreeTierUpgrade,
+  mockRenderUsageLimitReachedEmail: mockRenderUsageLimitReached,
+  mockRenderUsageThresholdEmail: mockRenderUsageThreshold,
+} = emailTemplatesMockFns
+const { mockSendEmail } = emailMailerMockFns
+billingSubscriptionUtilsMockFns.mockGetPlanPricing.mockReturnValue({ basePrice: 20 } as never)
+mockGetEmailSubject.mockReturnValue('Subject')
+mockGetLimitEmailSubject.mockReturnValue('Limit subject')
+mockRenderCreditsExhausted.mockResolvedValue('<html>free</html>')
+mockRenderFreeTierUpgrade.mockResolvedValue('<html>nudge</html>')
+mockRenderUsageLimitReached.mockResolvedValue('<html>reached</html>')
+mockRenderUsageThreshold.mockResolvedValue('<html>warning</html>')
+mockSendEmail.mockResolvedValue({ success: true })
 
 const PRO_SUBSCRIPTION = {
   id: 'sub-1',
@@ -85,19 +95,9 @@ const PRO_SUBSCRIPTION = {
 
 describe('getUserUsageLimit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsOrgScopedSubscription.mockReturnValue(false)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
-  })
-
-  it('returns the stored limit when set', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '25' }])
-
-    const limit = await getUserUsageLimit('user-1', null)
-
-    expect(limit).toBe(25)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('throws when no userStats row exists', async () => {
@@ -155,24 +155,97 @@ describe('getUserUsageLimit', () => {
     expect(limit).toBe(30)
   })
 
-  it('still returns the fallback when the heal write fails', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: null }])
-    dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection lost'))
-    mockGetFreeTierLimit.mockReturnValue(10)
+  it.each([
+    { plan: 'enterprise', configured: '12.005', seats: 3, expected: 12.005 },
+    { plan: 'enterprise', configured: '0', seats: 3, expected: 0 },
+    { plan: 'enterprise', configured: null, seats: 3, expected: 0 },
+    { plan: 'team', configured: '10', seats: 3, expected: 60 },
+    { plan: 'team', configured: '80', seats: 3, expected: 80 },
+    { plan: 'team', configured: null, seats: 0, expected: 20 },
+  ])(
+    'reads the $plan organization limit once for configured=$configured and seats=$seats',
+    async ({ plan, configured, seats, expected }) => {
+      mockIsOrgScopedSubscription.mockReturnValue(true)
+      queueTableRows(schemaMock.organization, [{ orgUsageLimit: configured }])
+      await expect(
+        getUserUsageLimit('user-1', {
+          referenceId: 'org-1',
+          plan,
+          seats,
+          status: 'active',
+          periodStart: null,
+          periodEnd: null,
+        })
+      ).resolves.toBe(expected)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
 
-    await expect(getUserUsageLimit('user-1', null)).resolves.toBe(10)
+  it('still rejects a missing organization without adopting the display fallback', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    queueTableRows(schemaMock.organization, [])
+    await expect(
+      getUserUsageLimit('user-1', {
+        referenceId: 'org-missing',
+        plan: 'team',
+        seats: 3,
+        status: 'active',
+        periodStart: null,
+        periodEnd: null,
+      })
+    ).rejects.toThrow('Organization not found: org-missing for user: user-1')
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('syncUsageLimitsFromSubscription', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsOrgScopedSubscription.mockReturnValue(false)
+    mockHasPaidSubscriptionStatus.mockImplementation((status: string) => status === 'active')
+  })
+
+  it.each([
+    { plan: 'pro', minimum: 40 },
+    { plan: 'enterprise', minimum: 0 },
+  ])(
+    'preserves a personal $plan cap when the user also belongs to an enterprise organization',
+    async ({ plan, minimum }) => {
+      const personalSubscription = { plan, referenceId: 'user-1', status: 'active' }
+      mockGetHighestPriorityPersonalSubscription.mockResolvedValue(personalSubscription)
+      mockGetHighestPrioritySubscription.mockResolvedValue({
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        status: 'active',
+      })
+      mockIsOrgScopedSubscription.mockReturnValue(true)
+      mockGetPerUserMinimumLimit.mockReturnValue(minimum)
+      dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '80', creditBalance: '1' }])
+
+      await syncUsageLimitsFromSubscription('user-1')
+
+      expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledExactlyOnceWith('user-1', {
+        onError: 'throw',
+      })
+      expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+      expect(mockGetPerUserMinimumLimit).toHaveBeenCalledWith(personalSubscription)
+      const update = dbChainMockFns.set.mock.calls[0]?.[0]
+      expect(update?.currentUsageLimit).not.toBeNull()
+      expect(JSON.stringify(update?.currentUsageLimit)).toContain('greatest')
+    }
+  )
+
+  it('does not reset a personal cap when its subscription lookup fails', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockRejectedValueOnce(new Error('db unavailable'))
+    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '80' }])
+
+    await expect(syncUsageLimitsFromSubscription('user-1')).rejects.toThrow('db unavailable')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('raises a paid personal limit to plan base plus the exact prepaid balance', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(PRO_SUBSCRIPTION)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(PRO_SUBSCRIPTION)
     mockGetPerUserMinimumLimit.mockReturnValue(40)
     dbChainMockFns.limit.mockResolvedValueOnce([
       { currentUsageLimit: '40', creditBalance: '0.005' },
@@ -188,7 +261,7 @@ describe('syncUsageLimitsFromSubscription', () => {
   })
 
   it('restores free-tier base plus prepaid after a downgrade or org departure', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
     mockGetPerUserMinimumLimit.mockReturnValue(10)
     dbChainMockFns.limit.mockResolvedValueOnce([
       { currentUsageLimit: null, creditBalance: '0.006' },
@@ -204,7 +277,7 @@ describe('syncUsageLimitsFromSubscription', () => {
   })
 
   it('does not retain a higher paid custom cap after downgrade to free', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
     mockGetPerUserMinimumLimit.mockReturnValue(10)
     dbChainMockFns.limit.mockResolvedValueOnce([
       { currentUsageLimit: '100', creditBalance: '0.006' },
@@ -220,7 +293,7 @@ describe('syncUsageLimitsFromSubscription', () => {
   })
 
   it('preserves a higher custom personal limit', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(PRO_SUBSCRIPTION)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(PRO_SUBSCRIPTION)
     mockGetPerUserMinimumLimit.mockReturnValue(40)
     dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '50', creditBalance: '1' }])
 
@@ -230,5 +303,76 @@ describe('syncUsageLimitsFromSubscription', () => {
     const expression = JSON.stringify(update?.currentUsageLimit)
     expect(expression).toContain('greatest')
     expect(expression).toContain('creditBalance')
+  })
+})
+
+describe('maybeSendUsageThresholdEmail', () => {
+  const paidUser = {
+    scope: 'user' as const,
+    planName: 'Pro',
+    userId: 'user-1',
+    userEmail: 'user-1@example.com',
+    userName: 'Ada',
+    workspaceId: 'ws-1',
+    periodStart: new Date('2026-09-01T00:00:00.000Z'),
+    limit: 20,
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: true })
+    mockGetEmailPreferences.mockResolvedValue(null)
+    mockIsOrgAdminRole.mockReturnValue(true)
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'claimed' }])
+  })
+
+  afterAll(() => {
+    resetEnvFlagsMock()
+  })
+
+  /** Who received which email, identified by its subject and rendered template. */
+  function sentMessages() {
+    return mockSendEmail.mock.calls.map(([message]) => ({
+      to: message.to,
+      subject: message.subject,
+      html: message.html,
+    }))
+  }
+
+  it('emails a paid personal account at 100% with the raise-your-limit template', async () => {
+    queueTableRows(schemaMock.userStats, [{ unclaimed: true }])
+    await maybeSendUsageThresholdEmail({
+      ...paidUser,
+      usageBefore: 19,
+      costDelta: 1,
+    })
+
+    expect(sentMessages()).toEqual([
+      { to: 'user-1@example.com', subject: 'Limit subject', html: '<html>reached</html>' },
+    ])
+  })
+
+  it('fans out to org admins at 100% and skips non-admin members', async () => {
+    mockIsOrgAdminRole.mockImplementation((role: unknown) => role === 'admin')
+    queueTableRows(schemaMock.organization, [{ unclaimed: true }])
+    queueTableRows(schemaMock.member, [
+      { email: 'admin@example.com', name: 'Admin', enabled: null, role: 'admin' },
+      { email: 'member@example.com', name: 'Member', enabled: null, role: 'member' },
+    ])
+
+    await maybeSendUsageThresholdEmail({
+      scope: 'organization',
+      planName: 'Team',
+      organizationId: 'org-1',
+      workspaceId: 'ws-1',
+      periodStart: new Date('2026-09-01T00:00:00.000Z'),
+      usageBefore: 499,
+      costDelta: 1,
+      limit: 500,
+    })
+
+    expect(sentMessages()).toEqual([
+      { to: 'admin@example.com', subject: 'Limit subject', html: '<html>reached</html>' },
+    ])
   })
 })

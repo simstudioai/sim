@@ -137,6 +137,12 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           envFrom:
+            # Bundled Redis URL. Listed FIRST so any operator-supplied REDIS_URL
+            # in a later source overrides it — see templates/configmap-redis.yaml.
+            {{- if include "sim.chartManagesRedis" . }}
+            - configMapRef:
+                name: {{ include "sim.fullname" . }}-redis
+            {{- end }}
             # App secrets (authentication keys shared with main app)
             - secretRef:
                 name: {{ include "sim.appSecretName" . }}

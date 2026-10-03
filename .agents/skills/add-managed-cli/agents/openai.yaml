@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Managed CLI"
+  short_description: "Add a verified CLI to sandbox images"
+  default_prompt: "Use $add-managed-cli to add a pinned, verified CLI to Sim sandbox images."

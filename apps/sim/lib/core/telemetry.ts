@@ -18,47 +18,39 @@
 
 import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 
 /**
  * GenAI Semantic Convention Attributes
  */
 const GenAIAttributes = {
-  // System attributes
   SYSTEM: 'gen_ai.system',
   REQUEST_MODEL: 'gen_ai.request.model',
   RESPONSE_MODEL: 'gen_ai.response.model',
 
-  // Token usage
   USAGE_INPUT_TOKENS: 'gen_ai.usage.input_tokens',
   USAGE_OUTPUT_TOKENS: 'gen_ai.usage.output_tokens',
   USAGE_TOTAL_TOKENS: 'gen_ai.usage.total_tokens',
 
-  // Request/Response
   REQUEST_TEMPERATURE: 'gen_ai.request.temperature',
   REQUEST_TOP_P: 'gen_ai.request.top_p',
   REQUEST_MAX_TOKENS: 'gen_ai.request.max_tokens',
   RESPONSE_FINISH_REASON: 'gen_ai.response.finish_reason',
 
-  // Agent-specific
   AGENT_ID: 'gen_ai.agent.id',
   AGENT_NAME: 'gen_ai.agent.name',
   AGENT_TASK: 'gen_ai.agent.task',
 
-  // Workflow-specific
   WORKFLOW_ID: 'gen_ai.workflow.id',
   WORKFLOW_NAME: 'gen_ai.workflow.name',
   WORKFLOW_VERSION: 'gen_ai.workflow.version',
   WORKFLOW_EXECUTION_ID: 'gen_ai.workflow.execution_id',
 
-  // Tool-specific
   TOOL_NAME: 'gen_ai.tool.name',
   TOOL_DESCRIPTION: 'gen_ai.tool.description',
 
-  // Cost tracking
   COST_TOTAL: 'gen_ai.cost.total',
   COST_INPUT: 'gen_ai.cost.input',
   COST_OUTPUT: 'gen_ai.cost.output',
@@ -66,7 +58,6 @@ const GenAIAttributes = {
 
 const logger = createLogger('OTelIntegration')
 
-// Lazy-load tracer
 let _tracer: ReturnType<typeof trace.getTracer> | null = null
 
 function getTracer() {
@@ -335,7 +326,6 @@ export function createOTelSpansForWorkflowExecution(params: {
   endTime: string
   totalDurationMs: number
   status: 'success' | 'error'
-  error?: string
 }): void {
   try {
     const tracer = getTracer()
@@ -358,11 +348,8 @@ export function createOTelSpansForWorkflowExecution(params: {
     if (params.status === 'error') {
       rootSpan.setStatus({
         code: SpanStatusCode.ERROR,
-        message: params.error || 'Workflow execution failed',
+        message: 'Workflow execution failed',
       })
-      if (params.error) {
-        rootSpan.recordException(new Error(params.error))
-      }
     } else {
       rootSpan.setStatus({ code: SpanStatusCode.OK })
     }
@@ -388,57 +375,11 @@ export function createOTelSpansForWorkflowExecution(params: {
 }
 
 /**
- * Create a real-time OpenTelemetry span for a block execution
- * Can be called from block handlers during execution for real-time tracing
- */
-export async function traceBlockExecution<T>(
-  blockType: string,
-  blockId: string,
-  blockName: string,
-  fn: (span: Span) => Promise<T>
-): Promise<T> {
-  const tracer = getTracer()
-
-  const blockMapping = BLOCK_TYPE_MAPPING[blockType] || {
-    spanName: `block.${blockType}`,
-    spanKind: 'internal',
-    getAttributes: () => ({}),
-  }
-
-  return tracer.startActiveSpan(
-    blockMapping.spanName,
-    {
-      attributes: {
-        [TraceAttr.BlockType]: blockType,
-        [TraceAttr.BlockId]: blockId,
-        [TraceAttr.BlockName]: blockName,
-      },
-    },
-    async (span) => {
-      try {
-        const result = await fn(span)
-        span.setStatus({ code: SpanStatusCode.OK })
-        return result
-      } catch (error) {
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: getErrorMessage(error, 'Block execution failed'),
-        })
-        span.recordException(toError(error))
-        throw error
-      } finally {
-        span.end()
-      }
-    }
-  )
-}
-
-/**
  * Track platform events (workflow creation, knowledge base operations, etc.)
  */
 export function trackPlatformEvent(
   eventName: string,
-  attributes: Record<string, string | number | boolean>
+  attributes: Record<string, string | number | boolean | string[]>
 ): void {
   try {
     const tracer = getTracer()
@@ -451,39 +392,17 @@ export function trackPlatformEvent(
     })
     span.setStatus({ code: SpanStatusCode.OK })
     span.end()
-  } catch (error) {
+  } catch {
     // Silently fail
   }
 }
 
-// ============================================================================
-// PLATFORM TELEMETRY EVENTS
-// ============================================================================
-//
-// Naming Convention:
-//   Event:     platform.{resource}.{past_tense_action}
-//   Attribute: {resource}.{attribute_name}
-//
-// Examples:
-//   Event:     platform.user.signed_up
-//   Attribute: user.id, user.auth_method, workspace.id
-//
-// Categories:
-//   - User/Auth:      platform.user.*
-//   - Workspace:      platform.workspace.*
-//   - Workflow:       platform.workflow.*
-//   - Knowledge Base: platform.knowledge_base.*
-//   - MCP:            platform.mcp.*
-//   - API Keys:       platform.api_key.*
-//   - OAuth:          platform.oauth.*
-//   - Webhook:        platform.webhook.*
-//   - Billing:        platform.billing.*
-//   - Template:       platform.template.*
-// ============================================================================
-
 /**
- * Platform Events - Typed event tracking helpers
- * These provide type-safe, consistent telemetry across the platform
+ * Typed platform event tracking helpers.
+ *
+ * Naming convention: events are `platform.{resource}.{past_tense_action}`
+ * (e.g. `platform.user.signed_up`); attributes are `{resource}.{attribute_name}`
+ * (e.g. `user.id`, `workspace.id`).
  */
 export const PlatformEvents = {
   /**
@@ -672,7 +591,6 @@ export const PlatformEvents = {
     blocksExecuted: number
     hasErrors: boolean
     totalCost?: number
-    errorMessage?: string
   }) => {
     trackPlatformEvent('platform.workflow.executed', {
       'workflow.id': attrs.workflowId,
@@ -682,7 +600,6 @@ export const PlatformEvents = {
       'execution.blocks_executed': attrs.blocksExecuted,
       'execution.has_errors': attrs.hasErrors,
       ...(attrs.totalCost !== undefined && { 'execution.total_cost': attrs.totalCost }),
-      ...(attrs.errorMessage && { 'execution.error_message': attrs.errorMessage }),
     })
   },
 
@@ -738,13 +655,31 @@ export const PlatformEvents = {
    */
   knowledgeBaseSearched: (attrs: {
     knowledgeBaseId: string
+    knowledgeBaseIds: string[]
+    documentIds: string[]
+    connectorTypes: string[]
     resultsCount: number
     workspaceId?: string
+    actorUserId?: string
+    principalKind: string
+    delegatedServiceId?: string
+    /** Whether the search ran as a person (`user`) or as the workspace (`workspace`). */
+    accessScopeKind?: 'user' | 'workspace'
+    surface?: string
   }) => {
     trackPlatformEvent('platform.knowledge_base.searched', {
       'knowledge_base.id': attrs.knowledgeBaseId,
+      'knowledge_base.ids': attrs.knowledgeBaseIds,
+      'search.document_ids': attrs.documentIds,
+      'search.documents_count': attrs.documentIds.length,
+      'search.connector_types': attrs.connectorTypes,
       'search.results_count': attrs.resultsCount,
+      'search.principal_kind': attrs.principalKind,
       ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      ...(attrs.actorUserId && { 'user.id': attrs.actorUserId }),
+      ...(attrs.delegatedServiceId && { 'search.delegated_service': attrs.delegatedServiceId }),
+      ...(attrs.accessScopeKind && { 'search.access_scope_kind': attrs.accessScopeKind }),
+      ...(attrs.surface && { 'search.surface': attrs.surface }),
     })
   },
 

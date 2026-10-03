@@ -1,7 +1,7 @@
 import type { RdsDeleteParams, RdsDeleteResponse } from '@/tools/rds/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
+export const deleteTool: InternalToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
   id: 'rds_delete',
   name: 'RDS Delete',
   description: 'Delete data from an Amazon RDS table using the Data API',
@@ -59,13 +59,8 @@ export const deleteTool: ToolConfig<RdsDeleteParams, RdsDeleteResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/rds/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

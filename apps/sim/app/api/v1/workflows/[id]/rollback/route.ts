@@ -7,10 +7,10 @@ import {
   v1RollbackWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
 import { parseOptionalJsonBody, parseRequest } from '@/lib/api/server'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
-import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
@@ -52,9 +52,9 @@ export const POST = withRouteHandler(
         return v1ValidationErrorResponse(body.error)
       }
 
-      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
+      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id, 'deploy.api')
       if (!target.ok) return target.response
-      const { workflow, workspaceId } = target
+      const { workflow } = target
 
       if (!workflow.isDeployed) {
         return NextResponse.json({ error: 'Workflow is not deployed' }, { status: 400 })

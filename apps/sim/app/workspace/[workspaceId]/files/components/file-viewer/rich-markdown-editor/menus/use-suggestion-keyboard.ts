@@ -4,6 +4,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
@@ -47,9 +48,21 @@ export function useSuggestionKeyboard<T>(
   }, [activeIndex, containerRef])
 
   const latest = useRef({ items, activeIndex, onSelect })
-  latest.current = { items, activeIndex, onSelect }
+  useLayoutEffect(() => {
+    latest.current = { items, activeIndex, onSelect }
+  })
 
   const onKeyDown = useCallback(({ event }: { event: KeyboardEvent }) => {
+    if (
+      event.isComposing ||
+      event.keyCode === 229 ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    ) {
+      return false
+    }
     const { items, activeIndex, onSelect } = latest.current
     if (items.length === 0) return false
     if (event.key === 'ArrowUp') {

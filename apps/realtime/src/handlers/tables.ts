@@ -1,0 +1,440 @@
+import { createLogger } from '@sim/logger'
+import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
+import { ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
+import {
+  type JoinTablePayload,
+  TABLE_PRESENCE_EVENTS,
+  type TableCellRef,
+  type TableCellSelection,
+} from '@sim/realtime-protocol/table-presence'
+import { resolveAvatarUrl } from '@/handlers/avatar'
+import { evictSocketFromRoom, requestEvictionCleanup } from '@/handlers/room-eviction'
+import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
+import type { AuthenticatedSocket } from '@/middleware/auth'
+import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
+import type { IRoomManager, UserPresence } from '@/rooms'
+import { filterVisiblePresence, sweepStalePresence } from '@/rooms/presence-visibility'
+
+const logger = createLogger('TablePresenceHandlers')
+
+/** Longest accepted row/column id — real ids are UUIDs/short ids; this bounds a hostile payload. */
+const MAX_CELL_ID_LENGTH = 200
+
+/** The table presence room ref for a table id. */
+const tableRoom = (tableId: string): RoomRef => ({ type: ROOM_TYPES.TABLE, id: tableId })
+
+/**
+ * The permission occupying a table room requires. Sourced from the shared map so
+ * the join check, the per-operation gate below, and the access re-validation sweep
+ * can never drift apart.
+ */
+const TABLE_ACTION = ROOM_MEMBERSHIP_ACTIONS[ROOM_TYPES.TABLE]
+
+/**
+ * Per-operation authorization for an already-joined socket, mirroring the file-doc
+ * gate: room membership is not a standing right, so a collaborator whose workspace
+ * access was revoked stops publishing presence into the room without waiting for
+ * the next re-validation sweep.
+ *
+ * Reads the shared role cache without awaiting (`undefined` = nothing fresh cached,
+ * which means "unknown", not "denied") and kicks off a background refresh in that
+ * case, so the exposure window is the cache TTL rather than the socket's lifetime.
+ * On a confirmed loss of access it evicts, which also clears the room mapping this
+ * handler resolves every operation through.
+ */
+function isTableAccessAllowed(
+  socket: AuthenticatedSocket,
+  room: RoomRef
+): { allowed: boolean; revoked: boolean } {
+  const userId = socket.userId
+  if (!userId) return { allowed: false, revoked: false }
+
+  const cached = peekRoomPermission(userId, room)
+  if (cached === undefined) {
+    void resolveCurrentRoomPermission(userId, room, TABLE_ACTION).catch(() => {})
+    return { allowed: true, revoked: false }
+  }
+  if (satisfiesRoomMembership(cached, ROOM_TYPES.TABLE)) return { allowed: true, revoked: false }
+  return { allowed: false, revoked: true }
+}
+
+function isCellRef(value: unknown): value is TableCellRef {
+  if (typeof value !== 'object' || value === null) return false
+  const ref = value as { rowId?: unknown; columnId?: unknown }
+  return (
+    typeof ref.rowId === 'string' &&
+    ref.rowId.length <= MAX_CELL_ID_LENGTH &&
+    typeof ref.columnId === 'string' &&
+    ref.columnId.length <= MAX_CELL_ID_LENGTH
+  )
+}
+
+/**
+ * Validate + whitelist an untrusted peer's selection before it is stored and
+ * rebroadcast (it ultimately flows into a DOM query on every viewer). Returns the
+ * normalized selection — `null` for a legitimately cleared selection — or `undefined`
+ * for anything malformed, so the caller drops it. Only the known fields survive, so a
+ * hostile client can't amplify an oversized object through the room.
+ */
+function normalizeCellSelection(cell: unknown): TableCellSelection | undefined {
+  if (cell === null) return null
+  if (typeof cell !== 'object') return undefined
+  const candidate = cell as { anchor?: unknown; focus?: unknown; editing?: unknown }
+  if (!isCellRef(candidate.anchor) || !isCellRef(candidate.focus)) return undefined
+  return {
+    anchor: { rowId: candidate.anchor.rowId, columnId: candidate.anchor.columnId },
+    focus: { rowId: candidate.focus.rowId, columnId: candidate.focus.columnId },
+    ...(candidate.editing === true ? { editing: true } : {}),
+  }
+}
+
+/**
+ * Evicts a socket from a table room after a confirmed loss of access, then drops
+ * its presence so peers stop seeing its selection.
+ *
+ * The eviction leaves the Socket.IO room immediately, which is also how the sweep
+ * discovers work — so a presence removal that fails here would be unretryable and
+ * strand a ghost collaborator until disconnect. The removal is therefore attempted
+ * inline (peers see the departure at once) and handed to the sweep's retrying
+ * cleanup lane if it fails or reports nothing removed, which is the same signal
+ * the sweep treats as a deferrable failure.
+ */
+async function evictFromTable(
+  socket: AuthenticatedSocket,
+  roomManager: IRoomManager,
+  room: RoomRef
+): Promise<void> {
+  evictSocketFromRoom(socket, room, 'Your access to this table has been revoked', roomManager.io)
+  try {
+    // `false` conflates "already gone" with a transport error the manager swallowed;
+    // deferring on it is harmless (the lane drops a cleanup it finds already clean)
+    // and is the only signal a swallowed failure gives us.
+    const removed = await roomManager.removeUserFromRoom(room, socket.id)
+    if (!removed) {
+      requestEvictionCleanup(socket.id, room)
+      return
+    }
+    await roomManager.broadcastPresenceUpdate(room, socket.id)
+  } catch (error) {
+    logger.warn(
+      `Presence cleanup failed for evicted table socket ${socket.id}; deferring to the sweep`,
+      error
+    )
+    requestEvictionCleanup(socket.id, room)
+  }
+}
+
+/**
+ * Live cell-selection presence for the table grid. Mirrors the workspace-files
+ * join flow but is table-scoped (room id = tableId) with a bidirectional
+ * cell-selection channel — the grid analog of the workflow cursor/selection
+ * relay. Table *data* still flows through the one-way durable event stream
+ * (`lib/table/events.ts`); this socket carries only ephemeral presence.
+ *
+ * Table rooms are namespaced (`table:${id}`), so every broadcast targets
+ * `roomName(room)`, never the bare `room.id` (which the workflow handler can use
+ * only because a workflow room's name equals its id).
+ */
+export function setupTablesHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
+  // Monotonic per-socket generation: each JOIN/LEAVE bumps it synchronously on arrival, and a
+  // queued or in-flight op that finds a newer generation aborts — a fast table switch A→B thus
+  // cancels A the instant B arrives.
+  let joinGeneration = 0
+  // The table the socket currently intends to be in (set when a join is enqueued). A leave
+  // targeting it — or an unscoped leave — bumps the generation to cancel that join; a leave for a
+  // DIFFERENT table must NOT (a table switch), mirroring workspace-files.
+  let currentTableId: string | null = null
+  // Serialize this socket's room mutations (JOIN + LEAVE) so their multi-step async Redis commits
+  // can never interleave: two concurrent joins would otherwise race on the single-valued
+  // socket→room map (a late addUserToRoom clobbering a newer join's entry). This restores the
+  // atomic-commit property the synchronous sibling handlers (file-doc, workspace-files) get for
+  // free. CELL_SELECTION is NOT chained — it only touches presence activity, never the map.
+  let opChain: Promise<void> = Promise.resolve()
+
+  socket.on(TABLE_PRESENCE_EVENTS.JOIN, ({ tableId, tabSessionId }: JoinTablePayload) => {
+    // Validate the id BEFORE claiming a generation, so a malformed join can't advance
+    // joinGeneration and cancel a legitimate in-flight join for another table.
+    if (typeof tableId !== 'string' || tableId.length === 0) {
+      socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+        tableId: typeof tableId === 'string' ? tableId : '',
+        error: 'Invalid table id',
+        code: 'INVALID_PAYLOAD',
+        retryable: false,
+      })
+      return
+    }
+    const joinAttempt = (joinGeneration += 1)
+    currentTableId = tableId
+    opChain = opChain
+      .then(() => runJoin(tableId, tabSessionId, joinAttempt))
+      .catch((error) => logger.error('Error joining table room:', error))
+    // Returned so callers awaiting this op (e.g. tests) can await its completion; Socket.IO
+    // ignores a handler's return value.
+    return opChain
+  })
+
+  async function runJoin(tableId: string, tabSessionId: string | undefined, joinAttempt: number) {
+    // True once this JOIN has been superseded — a newer JOIN/LEAVE bumped joinGeneration, or the
+    // socket disconnected. Because ops are serialized, no other op mutates room state while this
+    // one runs, so only two checks are needed: skip a superseded queued op (here), and one final
+    // check right before the membership commit.
+    const superseded = () => joinGeneration !== joinAttempt || socket.disconnected
+    if (superseded()) return
+    try {
+      const userId = socket.userId
+      const userName = socket.userName
+
+      if (!userId || !userName) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Authentication required',
+          code: 'AUTHENTICATION_REQUIRED',
+          retryable: false,
+        })
+        return
+      }
+
+      if (!roomManager.isReady()) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Realtime unavailable',
+          code: 'ROOM_MANAGER_UNAVAILABLE',
+          retryable: true,
+        })
+        return
+      }
+
+      const room = tableRoom(tableId)
+
+      const authorized = await resolveRoomJoinAuth({
+        userId,
+        room,
+        action: TABLE_ACTION,
+        logger,
+        logLabel: `table room for ${userId}`,
+        messages: {
+          verifyFailed: 'Failed to verify table access',
+          notFound: 'Table not found',
+          accessDenied: 'Access denied to table',
+        },
+        emitError: ({ error, code, retryable }) =>
+          socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, { tableId, error, code, retryable }),
+      })
+      if (!authorized) return
+
+      // Server-authenticated avatar for the presence roster.
+      const avatarUrl = await resolveAvatarUrl(socket, userId)
+
+      // Reclaim presence orphaned by an ungraceful disconnect (no `disconnecting`
+      // event fires on a pod crash; the room hashes have no TTL). Returns the roster it
+      // read so the same-tab dedup below reuses it instead of issuing a second read.
+      const roster = await sweepStalePresence(roomManager, room)
+
+      // Clean up the same user's stale socket from the same tab (a reconnect that raced
+      // the old socket's disconnect), so presence shows one entry. Reuses the sweep's
+      // roster snapshot; re-removing an already-swept entry is a harmless no-op.
+      if (tabSessionId) {
+        for (const existing of roster) {
+          if (
+            existing.socketId !== socket.id &&
+            existing.userId === userId &&
+            existing.tabSessionId === tabSessionId
+          ) {
+            await roomManager.removeUserFromRoom(room, existing.socketId)
+            await roomManager.io.in(existing.socketId).socketsLeave(roomName(room))
+          }
+        }
+      }
+
+      // Re-check access too: the access re-validation sweep records a revocation BEFORE
+      // it evicts, so a join that authorized just before the revocation must not
+      // complete afterwards and put the socket back in the room. RE-RESOLVES rather
+      // than peeking — a peek treats an expired entry as unknown and fails open, which
+      // a join stalled longer than the cache TTL would slip through. Normally a cache
+      // hit (this join's own authorize just warmed it).
+      const currentPermission = await resolveCurrentRoomPermission(userId, room, TABLE_ACTION)
+      if (!satisfiesRoomMembership(currentPermission, ROOM_TYPES.TABLE)) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Access denied to table',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
+
+      // Only now that the join is certain to proceed, leave a previously-joined table room
+      // if switching. Deliberately AFTER the access re-check: a denial there aborts the
+      // join, and leaving first would silently drop the client from a prior table it may
+      // still be allowed to occupy. No generation guard is needed around this —
+      // serialization guarantees no concurrent op committed to a different room during the
+      // lookup, so `currentRoom` is the socket's genuine prior room, safe to leave.
+      const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
+      if (currentRoom && currentRoom.id !== tableId) {
+        socket.leave(roomName(currentRoom))
+        await roomManager.removeUserFromRoom(currentRoom, socket.id)
+        await roomManager.broadcastPresenceUpdate(currentRoom)
+      }
+
+      // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
+      // awaits above — including the access re-resolve — bumped the generation, or the socket
+      // disconnected.
+      if (superseded()) return
+
+      // The prior-room leave above is the one place this handler still awaits AFTER the
+      // authoritative access re-check (file-doc and the workspace-list rooms leave
+      // synchronously, so they have no such window). A sweep revocation landing in that
+      // window would otherwise let this join put a revoked socket back in the room, since
+      // `superseded()` only watches the join generation. A cache PEEK is the right
+      // instrument here and needs no await: the authoritative resolve moments ago wrote a
+      // fresh entry, so the only way this reads differently is a newer decision recorded
+      // since — exactly the revocation being guarded against. Synchronous, so nothing can
+      // interleave between it and the join below.
+      // `undefined` stays "unknown, not denied" here as everywhere else in this handler —
+      // only a definitively cached insufficient permission aborts a join the authoritative
+      // check just passed.
+      const finalCheck = peekRoomPermission(userId, room)
+      if (finalCheck !== undefined && !satisfiesRoomMembership(finalCheck, ROOM_TYPES.TABLE)) {
+        socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+          tableId,
+          error: 'Access denied to table',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+        return
+      }
+
+      socket.join(roomName(room))
+
+      const presence: UserPresence = {
+        userId,
+        room,
+        userName,
+        socketId: socket.id,
+        tabSessionId,
+        joinedAt: Date.now(),
+        lastActivity: Date.now(),
+        role: authorized.workspacePermission ?? 'read',
+        avatarUrl,
+      }
+
+      // If the socket disconnects during this commit (disconnect cleanup runs off the op chain),
+      // this write can land after it, leaving a stale presence entry. Benign and self-correcting:
+      // filterVisiblePresence hides it and sweepStalePresence reclaims it (same as the siblings).
+      await roomManager.addUserToRoom(room, socket.id, presence)
+
+      // Filter the join ack to live members so a new joiner never briefly sees a
+      // ghost from an entry the sweep hasn't reclaimed yet.
+      const presenceUsers = await filterVisiblePresence(
+        roomManager.io,
+        room,
+        await roomManager.getRoomUsers(room)
+      )
+      socket.emit(TABLE_PRESENCE_EVENTS.JOIN_SUCCESS, {
+        tableId,
+        socketId: socket.id,
+        presenceUsers,
+      })
+
+      // Post-success, purely decorative: notify peers. The user is already joined and acked, so a
+      // Redis blip here must not surface as a join failure — swallow it (the next healthy broadcast
+      // reconciles peers). Kept OUT of the rollback catch below, which is only for pre-success failures.
+      try {
+        await roomManager.broadcastPresenceUpdate(room)
+      } catch (error) {
+        logger.warn(`Post-join presence broadcast failed for table room ${tableId}`, error)
+      }
+
+      logger.info(`User ${userId} (${userName}) joined table room ${tableId}`)
+    } catch (error) {
+      logger.error('Error joining table room:', error)
+      // Roll back a partial join: cleanup keys off the socket→room map, so a `socket.join` that
+      // landed without a matching `addUserToRoom` (a throw in between) would otherwise leave the
+      // socket stranded in the Socket.IO room, unreclaimable by any later op. A failure between the
+      // commit and the success ack rolls back too and surfaces a retryable error, so the client
+      // retries rather than hanging. Safe to run even when superseded — serialization means the
+      // newer op hasn't committed yet, so this touches only this join's own (this-table) state.
+      try {
+        const room = tableRoom(tableId)
+        socket.leave(roomName(room))
+        await roomManager.removeUserFromRoom(room, socket.id)
+      } catch {
+        // Best-effort rollback — the original join failure is the one surfaced below, so a
+        // secondary cleanup error must not mask it or throw out of the error handler.
+      }
+      // Suppress the client-facing error when this join was already superseded: the client has moved
+      // to a newer table, and a retryable error naming the abandoned one could make it re-join and
+      // supersede the newer join. The rollback above still runs.
+      if (superseded()) return
+      socket.emit(TABLE_PRESENCE_EVENTS.JOIN_ERROR, {
+        tableId,
+        error: 'Failed to join table',
+        code: 'JOIN_FAILED',
+        retryable: true,
+      })
+    }
+  }
+
+  socket.on(TABLE_PRESENCE_EVENTS.LEAVE, (payload?: { tableId?: string }) => {
+    // Cancel an in-flight/queued join whose table the client is now leaving (or an unscoped
+    // leave). Scope to the current table intent so a stale/deferred leave for a DIFFERENT table
+    // can't cancel the join the client has since switched to. Bumped synchronously here — before
+    // the teardown is enqueued — so it cancels a running join at its next generation check.
+    if (!payload?.tableId || payload.tableId === currentTableId) {
+      joinGeneration += 1
+      currentTableId = null
+    }
+    opChain = opChain
+      .then(() => runLeave(payload))
+      .catch((error) => logger.error('Error leaving table room:', error))
+    return opChain
+  })
+
+  async function runLeave(payload?: { tableId?: string }) {
+    try {
+      if (!roomManager.isReady()) return
+      const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
+      if (!room) return
+      // Scope the leave to a specific table when the client provides one: a deferred leave from a
+      // prior view must not evict the socket from a room it has since switched into.
+      if (payload?.tableId && payload.tableId !== room.id) return
+      socket.leave(roomName(room))
+      await roomManager.removeUserFromRoom(room, socket.id)
+      await roomManager.broadcastPresenceUpdate(room, socket.id)
+    } catch (error) {
+      logger.error('Error leaving table room:', error)
+    }
+  }
+
+  socket.on(TABLE_PRESENCE_EVENTS.CELL_SELECTION, async ({ cell }: { cell: unknown }) => {
+    try {
+      // Drop a malformed/oversized selection from an untrusted peer before it is stored
+      // or rebroadcast (`undefined` = invalid; `null` = a legitimately cleared selection).
+      const selection = normalizeCellSelection(cell)
+      if (selection === undefined) return
+
+      const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.TABLE)
+      if (!room) return
+
+      // Membership was authorized at join; re-check it here so a revoked viewer
+      // stops publishing presence into the room mid-session.
+      const access = isTableAccessAllowed(socket, room)
+      if (!access.allowed) {
+        if (access.revoked) await evictFromTable(socket, roomManager, room)
+        return
+      }
+
+      // Persist so a later joiner sees this viewer's current selection in the join ack.
+      await roomManager.updateUserActivity(room, socket.id, { cell: selection })
+
+      // Relay to peers (namespaced room → roomName, not room.id). Peers already know this
+      // socket's identity from the presence roster, so the delta carries only id + cell.
+      socket.to(roomName(room)).emit(TABLE_PRESENCE_EVENTS.CELL_SELECTION, {
+        socketId: socket.id,
+        cell: selection,
+      })
+    } catch (error) {
+      logger.error(`Error handling table cell selection for socket ${socket.id}:`, error)
+    }
+  })
+}

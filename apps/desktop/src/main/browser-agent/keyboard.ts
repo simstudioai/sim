@@ -1,17 +1,26 @@
 /**
  * Keyboard machinery for `browser_press_key` and internal key dispatch:
- * parsing "Cmd+Shift+Z"-style combos and building the trusted CDP
- * keyDown/keyUp pair. Pure logic except {@link dispatchKeyCombo}.
+ * parsing "Cmd+Shift+Z"-style combos and building the trusted CDP key events —
+ * each modifier's own press and release around the main key's keyDown/keyUp
+ * pair. Pure logic except {@link dispatchKeyCombo}.
  */
+import { getErrorMessage } from '@sim/utils/errors'
 import type { WebContents } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import { ToolError } from '@/main/browser-agent/errors'
+
+const applicationMenuIsolationDepth = new WeakMap<WebContents, number>()
 
 interface KeyDescriptor {
   key: string
   code: string
   keyCode: number
 }
+
+const CONTROL_KEY: KeyDescriptor = { key: 'Control', code: 'ControlLeft', keyCode: 17 }
+const SHIFT_KEY: KeyDescriptor = { key: 'Shift', code: 'ShiftLeft', keyCode: 16 }
+const ALT_KEY: KeyDescriptor = { key: 'Alt', code: 'AltLeft', keyCode: 18 }
+const META_KEY: KeyDescriptor = { key: 'Meta', code: 'MetaLeft', keyCode: 91 }
 
 const NAMED_KEYS: Record<string, KeyDescriptor> = {
   enter: { key: 'Enter', code: 'Enter', keyCode: 13 },
@@ -33,50 +42,192 @@ const NAMED_KEYS: Record<string, KeyDescriptor> = {
   end: { key: 'End', code: 'End', keyCode: 35 },
   pageup: { key: 'PageUp', code: 'PageUp', keyCode: 33 },
   pagedown: { key: 'PageDown', code: 'PageDown', keyCode: 34 },
+  ',': { key: ',', code: 'Comma', keyCode: 188 },
+  comma: { key: ',', code: 'Comma', keyCode: 188 },
+  '.': { key: '.', code: 'Period', keyCode: 190 },
+  period: { key: '.', code: 'Period', keyCode: 190 },
+  '/': { key: '/', code: 'Slash', keyCode: 191 },
+  ';': { key: ';', code: 'Semicolon', keyCode: 186 },
+  "'": { key: "'", code: 'Quote', keyCode: 222 },
+  '[': { key: '[', code: 'BracketLeft', keyCode: 219 },
+  ']': { key: ']', code: 'BracketRight', keyCode: 221 },
+  '\\': { key: '\\', code: 'Backslash', keyCode: 220 },
+  '-': { key: '-', code: 'Minus', keyCode: 189 },
+  '=': { key: '=', code: 'Equal', keyCode: 187 },
+  '`': { key: '`', code: 'Backquote', keyCode: 192 },
+  plus: { key: '+', code: 'Equal', keyCode: 187 },
+  insert: { key: 'Insert', code: 'Insert', keyCode: 45 },
+  control: CONTROL_KEY,
+  ctrl: CONTROL_KEY,
+  shift: SHIFT_KEY,
+  alt: ALT_KEY,
+  option: ALT_KEY,
+  meta: META_KEY,
+  cmd: META_KEY,
+  command: META_KEY,
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, index) => [
+      `f${index + 1}`,
+      { key: `F${index + 1}`, code: `F${index + 1}`, keyCode: 112 + index },
+    ])
+  ),
 }
 
-export interface ParsedCombo extends KeyDescriptor {
+const SHIFTED_CHARACTERS: Record<string, string> = {
+  '1': '!',
+  '2': '@',
+  '3': '#',
+  '4': '$',
+  '5': '%',
+  '6': '^',
+  '7': '&',
+  '8': '*',
+  '9': '(',
+  '0': ')',
+  '-': '_',
+  '=': '+',
+  '[': '{',
+  ']': '}',
+  '\\': '|',
+  ';': ':',
+  "'": '"',
+  ',': '<',
+  '.': '>',
+  '/': '?',
+  '`': '~',
+}
+
+const BASE_CHARACTER_DESCRIPTORS: Record<string, KeyDescriptor> = Object.fromEntries(
+  Object.values(NAMED_KEYS)
+    .filter((descriptor) => descriptor.key.length === 1)
+    .map((descriptor) => [descriptor.key, descriptor])
+)
+for (let digit = 0; digit <= 9; digit++) {
+  const key = String(digit)
+  BASE_CHARACTER_DESCRIPTORS[key] = {
+    key,
+    code: `Digit${key}`,
+    keyCode: key.charCodeAt(0),
+  }
+}
+const BASE_FOR_SHIFTED_CHARACTER: Record<string, string> = Object.fromEntries(
+  Object.entries(SHIFTED_CHARACTERS).map(([base, shifted]) => [shifted, base])
+)
+
+/** Modifier keys in the fixed order a chord presses them, each with the flag its key-down sets. */
+const MODIFIER_KEYS: readonly { flag: keyof KeyModifiers; descriptor: KeyDescriptor }[] = [
+  { flag: 'ctrl', descriptor: CONTROL_KEY },
+  { flag: 'alt', descriptor: ALT_KEY },
+  { flag: 'shift', descriptor: SHIFT_KEY },
+  { flag: 'meta', descriptor: META_KEY },
+]
+
+export interface KeyModifiers {
   ctrl: boolean
   meta: boolean
   shift: boolean
   alt: boolean
 }
 
-export function parseKeyCombo(combo: string): ParsedCombo {
-  const parts = combo
-    .split('+')
-    .map((part) => part.trim())
-    .filter(Boolean)
-  if (parts.length === 0) throw new ToolError(`Unrecognized key: "${combo}"`)
-  const modifiers = { ctrl: false, meta: false, shift: false, alt: false }
-  const keyPart = parts[parts.length - 1]
-  for (const part of parts.slice(0, -1)) {
-    const lower = part.toLowerCase()
-    if (lower === 'control' || lower === 'ctrl') modifiers.ctrl = true
-    else if (lower === 'meta' || lower === 'cmd' || lower === 'command') modifiers.meta = true
-    else if (lower === 'shift') modifiers.shift = true
-    else if (lower === 'alt' || lower === 'option') modifiers.alt = true
-    else throw new ToolError(`Unrecognized modifier: "${part}"`)
+export interface ParsedCombo extends KeyDescriptor, KeyModifiers {}
+
+export class KeyDispatchError extends Error {
+  constructor(
+    message: string,
+    readonly keyDownDispatched: boolean
+  ) {
+    super(message)
+    this.name = 'KeyDispatchError'
   }
+}
+
+export function parseKeyCombo(
+  combo: string,
+  platform: NodeJS.Platform = process.platform
+): ParsedCombo {
+  const trimmedCombo = combo.trim()
+  const parts =
+    trimmedCombo === '+'
+      ? ['+']
+      : trimmedCombo.endsWith('++')
+        ? [
+            ...trimmedCombo
+              .slice(0, -2)
+              .split('+')
+              .map((part) => part.trim())
+              .filter(Boolean),
+            '+',
+          ]
+        : trimmedCombo
+            .split('+')
+            .map((part) => part.trim())
+            .filter(Boolean)
+  if (parts.length === 0) throw new ToolError(`Unrecognized key: "${combo}"`)
+  const modifiers = parseModifiers(parts.slice(0, -1), platform)
+  const keyPart = parts[parts.length - 1]
   const named = NAMED_KEYS[keyPart.toLowerCase()]
-  if (named) return { ...named, ...modifiers }
+  const ownModifier = named && MODIFIER_KEYS.find((modifier) => modifier.descriptor === named)
+  if (ownModifier) modifiers[ownModifier.flag] = true
+  if (named) {
+    const key = modifiers.shift ? (SHIFTED_CHARACTERS[named.key] ?? named.key) : named.key
+    return { ...named, key, ...modifiers }
+  }
   if (/^[a-zA-Z]$/.test(keyPart)) {
     const upper = keyPart.toUpperCase()
     const key = modifiers.shift ? upper : keyPart.toLowerCase()
     return { key, code: `Key${upper}`, keyCode: upper.charCodeAt(0), ...modifiers }
   }
   if (/^[0-9]$/.test(keyPart)) {
-    return { key: keyPart, code: `Digit${keyPart}`, keyCode: keyPart.charCodeAt(0), ...modifiers }
+    const key = modifiers.shift ? (SHIFTED_CHARACTERS[keyPart] ?? keyPart) : keyPart
+    return { key, code: `Digit${keyPart}`, keyCode: keyPart.charCodeAt(0), ...modifiers }
   }
   if (keyPart.length === 1) {
+    const base = BASE_FOR_SHIFTED_CHARACTER[keyPart]
+    if (base) {
+      const descriptor = BASE_CHARACTER_DESCRIPTORS[base]
+      return { ...descriptor, key: keyPart, ...modifiers, shift: true }
+    }
     return { key: keyPart, code: '', keyCode: keyPart.charCodeAt(0), ...modifiers }
   }
   throw new ToolError(`Unrecognized key: "${keyPart}"`)
 }
 
+/**
+ * Parses modifier names ("Shift", "Cmd", "Mod", …). `Mod` is the platform's primary
+ * shortcut modifier: Meta on macOS, Control elsewhere.
+ */
+export function parseModifiers(
+  names: readonly string[],
+  platform: NodeJS.Platform = process.platform
+): KeyModifiers {
+  const modifiers = { ctrl: false, meta: false, shift: false, alt: false }
+  for (const name of names) {
+    const lower = name.trim().toLowerCase()
+    if (lower === 'control' || lower === 'ctrl') modifiers.ctrl = true
+    else if (lower === 'meta' || lower === 'cmd' || lower === 'command') modifiers.meta = true
+    else if (
+      lower === 'mod' ||
+      lower === 'primary' ||
+      lower === 'controlormeta' ||
+      lower === 'commandorcontrol'
+    ) {
+      if (platform === 'darwin') modifiers.meta = true
+      else modifiers.ctrl = true
+    } else if (lower === 'shift') modifiers.shift = true
+    else if (lower === 'alt' || lower === 'option') modifiers.alt = true
+    else throw new ToolError(`Unrecognized modifier: "${name}"`)
+  }
+  return modifiers
+}
+
 /** CDP `Input` modifier bitmask: Alt=1, Ctrl=2, Meta=4, Shift=8. */
-function cdpModifiers(combo: ParsedCombo): number {
-  return (combo.alt ? 1 : 0) | (combo.ctrl ? 2 : 0) | (combo.meta ? 4 : 0) | (combo.shift ? 8 : 0)
+export function cdpModifiers(modifiers: KeyModifiers): number {
+  return (
+    (modifiers.alt ? 1 : 0) |
+    (modifiers.ctrl ? 2 : 0) |
+    (modifiers.meta ? 4 : 0) |
+    (modifiers.shift ? 8 : 0)
+  )
 }
 
 /**
@@ -136,20 +287,8 @@ function macEditingCommands(combo: ParsedCombo, platform: NodeJS.Platform): stri
  */
 function insertedTextFor(combo: ParsedCombo): string | undefined {
   if (combo.key === 'Enter') return '\r'
-  const printable = combo.key.length === 1 && !combo.ctrl && !combo.meta
+  const printable = combo.key.length === 1 && !combo.ctrl && !combo.meta && !combo.alt
   return printable ? combo.key : undefined
-}
-
-/**
- * Whether a combo would put characters into whatever the page has focused.
- * Shares {@link insertedTextFor} with the dispatcher so a guard built on this
- * cannot drift from what is actually sent.
- */
-export function comboInsertsText(
-  rawCombo: ParsedCombo,
-  platform: NodeJS.Platform = process.platform
-): boolean {
-  return insertedTextFor(normalizeComboForPlatform(rawCombo, platform)) !== undefined
 }
 
 /**
@@ -170,7 +309,6 @@ export function buildKeyDispatchPlan(
     key: combo.key,
     code: combo.code,
     windowsVirtualKeyCode: combo.keyCode,
-    nativeVirtualKeyCode: combo.keyCode,
   }
   const text = insertedTextFor(combo)
   const commands = macEditingCommands(combo, platform)
@@ -180,12 +318,110 @@ export function buildKeyDispatchPlan(
     ...(text !== undefined ? { text } : {}),
     ...(commands.length > 0 ? { commands } : {}),
   }
-  return [down, { ...base, type: 'keyUp' }]
+  const ownModifier = MODIFIER_KEYS.find(({ descriptor }) => descriptor.key === combo.key)
+  const upModifiers = ownModifier
+    ? cdpModifiers({ ...combo, [ownModifier.flag]: false })
+    : modifiers
+  return [down, { ...base, type: 'keyUp', modifiers: upModifiers }]
 }
 
-/** Presses a combo through the trusted pipeline. Throws on CDP failure. */
+/**
+ * The separate modifier key presses around a chord's main key: a real keyboard sends Control, then
+ * Shift, then Y, and releases in reverse, so pages that track held keys see each modifier. Each
+ * key-down carries the modifiers held so far, and each key-up the ones still held.
+ */
+export function modifierKeyEvents(
+  rawCombo: ParsedCombo,
+  platform: NodeJS.Platform = process.platform
+): { downs: cdp.CdpKeyEvent[]; ups: cdp.CdpKeyEvent[] } {
+  const combo = normalizeComboForPlatform(rawCombo, platform)
+  const held = { ctrl: false, meta: false, shift: false, alt: false }
+  const pressed = MODIFIER_KEYS.filter(
+    ({ flag, descriptor }) => combo[flag] && descriptor.key !== combo.key
+  )
+  const event = ({ key, code, keyCode }: KeyDescriptor) => ({
+    key,
+    code,
+    windowsVirtualKeyCode: keyCode,
+  })
+  const downs = pressed.map(({ flag, descriptor }) => {
+    held[flag] = true
+    return { ...event(descriptor), type: 'rawKeyDown' as const, modifiers: cdpModifiers(held) }
+  })
+  const ups = [...pressed].reverse().map(({ flag, descriptor }) => {
+    held[flag] = false
+    return { ...event(descriptor), type: 'keyUp' as const, modifiers: cdpModifiers(held) }
+  })
+  return { downs, ups }
+}
+
+/**
+ * Presses a combo through the trusted pipeline. Throws on CDP failure.
+ *
+ * Electron normally lets modified key events escape a focused WebContents to
+ * application-menu accelerators. Agent input must stay inside the browser — a
+ * page-level Cmd shortcut must never reload, close, or open a native window in
+ * Sim — so menu handling is suspended for the whole chord, modifier presses
+ * included. The depth counter keeps overlapping tool calls from re-enabling it
+ * too early.
+ */
 export async function dispatchKeyCombo(contents: WebContents, combo: ParsedCombo): Promise<void> {
   const [down, up] = buildKeyDispatchPlan(combo)
-  await cdp.dispatchKeyEvent(contents, down)
-  await cdp.dispatchKeyEvent(contents, up)
+  const modifierKeys = modifierKeyEvents(combo)
+  const isolatesApplicationMenu = combo.ctrl || combo.meta || combo.alt
+  if (isolatesApplicationMenu) {
+    const depth = applicationMenuIsolationDepth.get(contents) ?? 0
+    if (depth === 0) contents.setIgnoreMenuShortcuts(true)
+    applicationMenuIsolationDepth.set(contents, depth + 1)
+  }
+  const presses = [...modifierKeys.downs, down]
+  let pressesAttempted = 0
+  try {
+    // Count before awaiting: Blink may receive a key-down and then lose the
+    // CDP acknowledgement during navigation/process swap. In that ambiguous
+    // case cleanup is required and a synthetic retry could double-act.
+    for (const press of presses) {
+      pressesAttempted++
+      await cdp.dispatchKeyEvent(contents, press)
+    }
+    await cdp.dispatchKeyEvent(contents, up)
+    for (const event of modifierKeys.ups) await cdp.dispatchKeyEvent(contents, event)
+  } catch (error) {
+    if (pressesAttempted > 0 && !contents.isDestroyed()) {
+      // Like pointer cleanup, this is best effort. The original key-up may
+      // have reached Blink before its CDP response was lost; a duplicate
+      // release is harmless, while omitting it can leave input state stuck.
+      // Only keys whose press was attempted are released: a key-up for a key
+      // that never went down can itself trigger a page's keyup handler.
+      const heldModifiers = Math.min(pressesAttempted, modifierKeys.downs.length)
+      const releases = [
+        ...(pressesAttempted === presses.length ? [up] : []),
+        ...modifierKeys.ups.slice(modifierKeys.ups.length - heldModifiers),
+      ]
+      for (const release of releases) {
+        await cdp.dispatchKeyEvent(contents, release).catch(() => {})
+      }
+    }
+    throw new KeyDispatchError(
+      getErrorMessage(error, 'Trusted key dispatch failed'),
+      pressesAttempted > 0
+    )
+  } finally {
+    if (isolatesApplicationMenu) {
+      const depth = applicationMenuIsolationDepth.get(contents) ?? 1
+      if (depth > 1) {
+        applicationMenuIsolationDepth.set(contents, depth - 1)
+      } else {
+        applicationMenuIsolationDepth.delete(contents)
+        if (!contents.isDestroyed()) {
+          // Menu restoration is cleanup, not evidence that page input failed.
+          // Never let a synchronous Electron cleanup error cause the driver to
+          // retry a key that may already have reached the page.
+          try {
+            contents.setIgnoreMenuShortcuts(false)
+          } catch {}
+        }
+      }
+    }
+  }
 }

@@ -52,8 +52,6 @@ export interface ChipTimePickerProps {
   disabled?: boolean
   /** Stretch the field to fill its container (mirrors `Chip`'s `fullWidth`). */
   fullWidth?: boolean
-  /** Removes the default `mx-0.5` cluster margin (mirrors `Chip`'s `flush`). */
-  flush?: boolean
   /** Layout/sizing only — width overrides, margins. The chrome is owned by the chip field. */
   className?: string
 }
@@ -66,11 +64,11 @@ export interface ChipTimePickerProps {
  * doesn't parse reverts to the last committed time.
  *
  * @example
- * <ChipTimePicker value={time} onChange={setTime} flush />
+ * <ChipTimePicker value={time} onChange={setTime} />
  */
 const ChipTimePicker = React.forwardRef<HTMLInputElement, ChipTimePickerProps>(
   function ChipTimePicker(
-    { value, onChange, placeholder = '10:00 AM', disabled, fullWidth, flush, className },
+    { value, onChange, placeholder = '10:00 AM', disabled, fullWidth, className },
     ref
   ) {
     const [text, setText] = React.useState(() => formatTimeLabel(value))
@@ -124,7 +122,7 @@ const ChipTimePicker = React.forwardRef<HTMLInputElement, ChipTimePickerProps>(
         aria-label='Time'
         autoComplete='off'
         spellCheck={false}
-        className={cn(fullWidth ? 'w-full' : 'w-[88px]', flush ? 'mx-0' : 'mx-0.5', className)}
+        className={cn(fullWidth ? 'w-full' : 'w-[88px]', className)}
       />
     )
   }

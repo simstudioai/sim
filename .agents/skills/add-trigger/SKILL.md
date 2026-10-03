@@ -191,7 +191,7 @@ export const {Service}Block: BlockConfig = {
 - **V2 defines its own `subBlocks`** (e.g., Google Sheets): Add trigger to V2 (the visible block). V1 is hidden and doesn't need it.
 - **Single block, no V2** (e.g., Google Drive): Add trigger directly.
 
-`generate-docs.ts` deduplicates by base type (first match wins). If V1 is processed first without triggers, the V2 triggers won't appear in `integrations.json`. Always verify by checking the output after running the script.
+`generate-docs.ts` documents only visible blocks (`category: 'tools'`, not `hideFromToolbar`, not `preview`), one per base type. A trigger appears only if that visible block lists it in `triggers.available`. Always verify by checking the output after running the script.
 
 ## Provider Handler
 
@@ -218,7 +218,7 @@ If none apply, you don't need a handler. The default handler provides bearer tok
 ```typescript
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
 import type { EventMatchContext, FormatInputContext, FormatInputResult, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
@@ -236,6 +236,7 @@ export const {service}Handler: WebhookProviderHandler = {
     headerName: 'X-{Service}-Signature',
     validateFn: validate{Service}Signature,
     providerLabel: '{Service}',
+    requireSecret: true,
   }),
 
   async matchEvent({ body, requestId, providerConfig }: EventMatchContext) {
@@ -252,7 +253,7 @@ export const {service}Handler: WebhookProviderHandler = {
     return {
       input: {
         eventType: b.type,
-        resourceId: (b.data as Record<string, unknown>)?.id || '',
+        resourceId: (b.data as Record<string, unknown>)?.id ?? null,
         resource: b.data,
       },
     }
@@ -437,7 +438,7 @@ export const {service}PollingTrigger: TriggerConfig = {
   polling: true,               // REQUIRED — routes to polling infrastructure
 
   subBlocks: [
-    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger' },
+    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', canonicalParamId: 'oauthCredential', requiredScopes: [], required: true, mode: 'trigger' },
     // ... service-specific config fields (dropdowns, inputs, switches) ...
     { id: 'triggerInstructions', type: 'text', title: 'Setup Instructions', hideFromPreview: true, mode: 'trigger', defaultValue: '...' },
   ],
@@ -460,10 +461,18 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 
 ```yaml
 {service}WebhookPoll:
+  enabled: true
+  name: {service}-webhook-poll
   schedule: "*/1 * * * *"
+  path: "/api/webhooks/poll/{service}"
   concurrencyPolicy: Forbid
-  url: "http://sim:3000/api/webhooks/poll/{service}"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
 ```
+
+Mirror the existing `rssWebhookPoll` entry, and add the matching line to `docker/crontab` under
+`# Polling triggers` (copy the existing `rss` line's format). `bun run check:cron-parity` fails when
+the two disagree.
 
 ### Reference Implementations
 
@@ -472,13 +481,30 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 - Cursor-based (changes API): `apps/sim/lib/webhooks/polling/google-drive.ts`
 - Timestamp-based: `apps/sim/lib/webhooks/polling/google-calendar.ts`
 
+## Option Lists: `selectorKey` or `options`, never a per-block fetcher
+
+Trigger sub-blocks follow the same rules as block sub-blocks: see the `add-block` skill → Option
+Lists, `.claude/rules/sim-integrations.md`, and the `add-selector` skill. Trigger-specific: the
+shared context builder runs in trigger mode, and it aliases only the legacy credential ids
+`credential` / `botCredential` / `customBotCredential` / `manualBotCredential`. Any other trigger
+credential sub-block (such as `triggerCredentials`) needs `canonicalParamId: 'oauthCredential'`, or a
+manifest `sourceFields` alias when a legacy source id must be retained.
+
 ## Checklist
+
+Webhook and polling routes are legitimate external ingress boundaries. They must not call this
+Sim app's own API routes to reuse provider or business logic. Extract the shared provider operation
+or authorized application use case and call it directly from the trigger handler and any other
+server adapter. HTTP is reserved for an actual cross-process/capability boundary. Tool work uses a
+registered `InternalToolConfig.operation`; a `directExecution` property fails
+`bun run check:tool-request-boundary`.
 
 ### Trigger Definition
 - [ ] Created `utils.ts` with options, instructions, extra fields, and output builders
 - [ ] Primary trigger has `includeDropdown: true`; secondary triggers do NOT
 - [ ] All triggers use `buildTriggerSubBlocks` helper
 - [ ] Created `index.ts` barrel export
+- [ ] Trigger files never statically value-import `@/blocks`, directly or transitively (`import type` and dynamic `import()` are fine); `bun run check:trigger-block-cycle` enforces this
 
 ### Registration
 - [ ] All triggers in `triggers/registry.ts` → `TRIGGER_REGISTRY`
@@ -489,6 +515,7 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 - [ ] Handler file at `apps/sim/lib/webhooks/providers/{service}.ts`
 - [ ] Registered in `providers/registry.ts` (alphabetical)
 - [ ] Signature validator is a private function inside the handler file
+- [ ] `createHmacVerifier` passes `requireSecret: true` when the provider always signs
 - [ ] `formatInput` output keys match trigger `outputs` exactly
 - [ ] Event matching uses dynamic `await import()` for trigger utils
 
@@ -504,10 +531,13 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 - [ ] First poll seeds state and emits nothing
 - [ ] Added provider to `POLLING_PROVIDERS` in `triggers/constants.ts`
 - [ ] Added handler to `POLLING_HANDLERS` in `lib/webhooks/polling/registry.ts`
-- [ ] Added cron job to `helm/sim/values.yaml`
+- [ ] Added cron job to `helm/sim/values.yaml` and the matching `docker/crontab` line; `bun run check:cron-parity` passes
 - [ ] Payload shape matches trigger `outputs` schema
 
 ### Testing
 - [ ] `bun run type-check` passes
 - [ ] Manually verify output keys match trigger `outputs` keys
 - [ ] Trigger UI shows correctly in the block
+- [ ] Ran `bun run scripts/generate-docs.ts` and committed the refreshed pages — trigger sections
+      render into the owning integration's docs page, and CI's `bun run docs:check` fails on stale
+      pages

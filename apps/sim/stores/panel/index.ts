@@ -5,4 +5,9 @@ export { usePanelEditorSearchStore, usePanelEditorStore } from './editor'
 export { usePanelStore } from './store'
 // Toolbar
 export { useToolbarStore } from './toolbar'
-export type { ChatContext, PanelTab } from './types'
+export type {
+  BrowserTextSelection,
+  ChatContext,
+  PanelTab,
+  TerminalTextSelection,
+} from './types'

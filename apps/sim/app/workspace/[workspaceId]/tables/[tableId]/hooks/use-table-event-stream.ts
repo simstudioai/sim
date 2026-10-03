@@ -5,8 +5,15 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
+import { getClientFingerprint } from '@/lib/api/client-id'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
-import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
+import type {
+  RowData,
+  RowExecutionMetadata,
+  RowExecutions,
+  TableDefinition,
+  TableRow,
+} from '@/lib/table'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import {
   consumeInitiatedExport,
@@ -34,6 +41,99 @@ interface UseTableEventStreamArgs {
   /** Fired when the server halts a dispatch because the billed account is over
    *  its usage limit. The page surfaces an upgrade prompt + redirect. */
   onUsageLimitReached?: (event: { dispatchId?: string; message: string }) => void
+}
+
+const TERMINAL_CELL_STATUSES = new Set<RowExecutionMetadata['status']>([
+  'completed',
+  'cancelled',
+  'error',
+])
+const ACTIVE_CELL_STATUSES = new Set<RowExecutionMetadata['status']>([
+  'pending',
+  'queued',
+  'running',
+])
+const PICKUP_CELL_STATUSES = new Set<RowExecutionMetadata['status']>(['queued', 'running'])
+
+/**
+ * Accepts only transitions that are owned by the cached attempt. A fresh run
+ * first writes an id-less pending pre-stamp and then claims it with a queued or
+ * running event. That handoff is the only identified event allowed to replace
+ * an id-less active state.
+ */
+function canApplyCellEvent(
+  prevExec: RowExecutionMetadata | undefined,
+  event: Extract<TableEvent, { kind: 'cell' }>
+): boolean {
+  if (TERMINAL_CELL_STATUSES.has(event.status)) {
+    if (!prevExec || prevExec.executionId !== event.executionId) return false
+    if (!TERMINAL_CELL_STATUSES.has(prevExec.status)) return true
+    if (prevExec.status === event.status) return true
+
+    /**
+     * Cancellation may repair an error emitted by the exact worker after the
+     * workflow log had already accepted cancellation. Once cancellation is in
+     * cache, however, delayed terminal events from that worker cannot replace it.
+     */
+    return event.status === 'cancelled' && prevExec.status === 'error'
+  }
+
+  if (!ACTIVE_CELL_STATUSES.has(event.status)) return false
+
+  if (event.executionId !== null) {
+    if (!prevExec) return false
+    const isFirstPickup =
+      prevExec.status === 'pending' &&
+      prevExec.executionId === null &&
+      PICKUP_CELL_STATUSES.has(event.status)
+    if (isFirstPickup) return true
+    return ACTIVE_CELL_STATUSES.has(prevExec.status) && prevExec.executionId === event.executionId
+  }
+
+  if (event.status !== 'pending') return false
+  if (!prevExec) return true
+  if (TERMINAL_CELL_STATUSES.has(prevExec.status)) return false
+
+  /**
+   * The run mutation optimistically marks a terminal attempt pending while
+   * retaining its old execution id. The server's id-less pre-stamp owns the
+   * next generation and is allowed to replace that synthetic state. A real
+   * paused attempt carries a job id and remains protected.
+   */
+  return prevExec.status === 'pending' && prevExec.jobId === null
+}
+
+/**
+ * Applies a cell event without letting a transition from an older attempt
+ * replace the current attempt in the row cache.
+ */
+export function applyCellEventToRow(
+  row: TableRow,
+  event: Extract<TableEvent, { kind: 'cell' }>
+): TableRow | null {
+  if (row.id !== event.rowId) return null
+
+  const prevExec = row.executions?.[event.groupId]
+  if (!canApplyCellEvent(prevExec, event)) return null
+
+  const nextExec: RowExecutionMetadata = {
+    status: event.status,
+    executionId: event.executionId,
+    jobId: event.jobId,
+    // Preserve workflowId from cache; SSE payload doesn't carry it.
+    workflowId: prevExec?.workflowId ?? '',
+    error: event.error,
+    ...(event.runningBlockIds ? { runningBlockIds: event.runningBlockIds } : {}),
+    ...(event.blockErrors ? { blockErrors: event.blockErrors } : {}),
+  }
+  const nextExecutions: RowExecutions = {
+    ...(row.executions ?? {}),
+    [event.groupId]: nextExec,
+  }
+  const nextData: RowData = event.outputs
+    ? ({ ...row.data, ...event.outputs } as RowData)
+    : row.data
+  return { ...row, executions: nextExecutions, data: nextData }
 }
 
 /**
@@ -146,43 +246,34 @@ export function useTableEventStream({
       }, ROWS_INVALIDATE_DEBOUNCE_MS)
     }
 
+    /**
+     * This tab's fingerprint as it appears on a broadcast it caused. Resolved once, asynchronously;
+     * until it lands `applyEdit` simply takes the refetch path, which is the pre-existing behavior.
+     */
+    let ownFingerprint: string | undefined
+    void getClientFingerprint().then((fingerprint) => {
+      ownFingerprint = fingerprint
+    })
+
+    /**
+     * A manual row edit landed. Refetch the rows so the winning last-write value shows live —
+     * unless this tab is the one that made it.
+     *
+     * The signal names its originator only for writes whose mutation hook already applies the
+     * server's answer to every cached rows query, active or not (single-row create, update,
+     * delete). For those the refetch is pure duplication: on a scrolled table it re-fetches every
+     * loaded page, and on delete it races the refetch the hook itself issued. Other tabs see
+     * someone else's fingerprint and refetch normally; an unattributed edit refetches everywhere.
+     */
+    const applyEdit = (event: Extract<TableEvent, { kind: 'edit' }>): void => {
+      if (event.originatorId && event.originatorId === ownFingerprint) return
+      scheduleRowsInvalidate()
+    }
+
     const applyCell = (event: Extract<TableEvent, { kind: 'cell' }>): void => {
-      const {
-        rowId,
-        groupId,
-        status,
-        executionId,
-        jobId,
-        error,
-        outputs,
-        runningBlockIds,
-        blockErrors,
-      } = event
-      void snapshotAndMutateRows(
-        queryClient,
-        tableId,
-        (row) => {
-          if (row.id !== rowId) return null
-          const prevExec = row.executions?.[groupId]
-          const nextExec: RowExecutionMetadata = {
-            status,
-            executionId: executionId ?? null,
-            jobId: jobId ?? null,
-            // Preserve workflowId from cache; SSE payload doesn't carry it.
-            workflowId: prevExec?.workflowId ?? '',
-            error: error ?? null,
-            ...(runningBlockIds ? { runningBlockIds } : {}),
-            ...(blockErrors ? { blockErrors } : {}),
-          }
-          const nextExecutions: RowExecutions = {
-            ...(row.executions ?? {}),
-            [groupId]: nextExec,
-          }
-          const nextData: RowData = outputs ? ({ ...row.data, ...outputs } as RowData) : row.data
-          return { ...row, executions: nextExecutions, data: nextData }
-        },
-        { cancelInFlight: false }
-      )
+      void snapshotAndMutateRows(queryClient, tableId, (row) => applyCellEventToRow(row, event), {
+        cancelInFlight: false,
+      })
       // `runningByRowId` (the "X running" badge + per-row gutter) is
       // server-derived: refetch the snapshot on the throttle instead of
       // maintaining client-side ±1 deltas, which drift on unloaded rows,
@@ -253,7 +344,7 @@ export function useTableEventStream({
         // Keep the tray's export list fresh between its polls.
         void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
         if (status === 'ready' && jobId && consumeInitiatedExport(jobId)) {
-          void downloadExportResult(workspaceId, tableId, jobId)
+          void downloadExportResult(workspaceId, jobId)
             .then(() => toast.success('Export ready — downloading'))
             .catch((err) => {
               logger.error('Export download failed', { tableId, jobId, err })
@@ -379,14 +470,36 @@ export function useTableEventStream({
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
           else if (entry.event?.kind === 'job') applyJob(entry.event)
           else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
+          else if (entry.event?.kind === 'edit') applyEdit(entry.event)
+          // A collaborator changed the table structure: mirror the local
+          // invalidateTableSchema set — the definition (exact, so rows stay on the
+          // debounce), the run-state + enrichment sibling queries under detail (a group
+          // delete/restructure can otherwise leave a stale running badge or enrichment
+          // panel), the tables list (column/row counts), and the debounced rows.
+          else if (entry.event?.kind === 'schema') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.enrichmentDetails(tableId) })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+            scheduleRowsInvalidate()
+          }
+          // A collaborator changed the column layout (width/pin/order): refetch the
+          // definition alone (it carries the metadata) — the grid re-applies it without
+          // a rows refetch. Exact, so rows/run-state stay put.
+          else if (entry.event?.kind === 'metadata') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+          }
+          // A collaborator toggled a table lock: re-read the definition so every open
+          // viewer's gating updates. `exact` avoids refetching every rows page
+          // (rowsRoot nests under detail); no row data changed.
           else if (entry.event?.kind === 'definition') {
-            // A lock/schema change on the definition — re-read it so every open
-            // viewer's gating updates. `exact` avoids refetching every rows page
-            // (rowsRoot nests under detail); no row data changed.
-            void queryClient.invalidateQueries({
-              queryKey: tableKeys.detail(tableId),
-              exact: true,
-            })
+            void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+          }
+          // A collaborator changed the table's shared saved views (create/rename/delete/
+          // re-save): refetch the views list alone. Views are presentation state layered on
+          // the already-loaded table, so no rows/definition refetch is needed.
+          else if (entry.event?.kind === 'views') {
+            void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
           }
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })

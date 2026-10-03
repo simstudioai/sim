@@ -1,3 +1,5 @@
+'use client'
+
 import { memo, type ReactNode, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
@@ -5,6 +7,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Chip,
+  chipFieldTextClass,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +27,13 @@ const SEARCH_ICON = (
 
 const RESOURCE_MENU_EDGE_OFFSET = 6
 
+/**
+ * Section heading inside a filter popover ("File Type", "Owner", …). One constant so every
+ * resource list labels its filter sections identically — muted at the field-title size, per
+ * the label role in `sim-styling.md`.
+ */
+export const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
+
 type SortDirection = 'asc' | 'desc'
 
 export interface ColumnOption {
@@ -38,6 +48,7 @@ export interface SortConfig {
   active: { column: string; direction: SortDirection } | null
   onSort: (column: string, direction: SortDirection) => void
   onClear?: () => void
+  keepOpenOnSelect?: boolean
 }
 
 export interface FilterTag {
@@ -91,6 +102,18 @@ interface ResourceOptionsProps {
    * widgets; primary actions belong in the header's `actions`.
    */
   aside?: ReactNode
+  /**
+   * Mirror of {@link aside} on the other side: rendered immediately to the RIGHT
+   * of the filter/sort cluster and still grouped with it — e.g. the table editor's
+   * Columns menu, which reads as the last item in the Filter/Sort/Columns row.
+   */
+  asideEnd?: ReactNode
+  /**
+   * Control pinned to the far RIGHT of the bar, opposite the filter/sort cluster —
+   * e.g. the table editor's Save-view button. Unlike `aside` it is a real action,
+   * so it is separated from the menu group rather than joined to it.
+   */
+  trailing?: ReactNode
 }
 
 export const ResourceOptions = memo(function ResourceOptions({
@@ -99,6 +122,8 @@ export const ResourceOptions = memo(function ResourceOptions({
   filter,
   filterTags,
   aside,
+  asideEnd,
+  trailing,
 }: ResourceOptionsProps) {
   /**
    * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
@@ -111,16 +136,25 @@ export const ResourceOptions = memo(function ResourceOptions({
   const isToggleFilter = filter?.mode === 'toggle'
   const popoverFilter = filter && filter.mode !== 'toggle' ? filter : null
 
-  const hasContent = search || sort || filter || aside || (filterTags && filterTags.length > 0)
+  const hasContent =
+    search ||
+    sort ||
+    filter ||
+    aside ||
+    asideEnd ||
+    trailing ||
+    (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
     <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
       <div className='flex items-center'>
         {search && <SearchSection search={search} />}
-        <div className={cn('flex shrink-0 items-center gap-1.5', search && 'ml-auto')}>
+        {/* `ml-auto` moves to `trailing` when present so the menu cluster stays put
+            and only the trailing action is pushed to the far edge. */}
+        <div className={cn('flex shrink-0 items-center gap-1.5', search && !trailing && 'ml-auto')}>
           {aside}
-          <div className='flex items-center'>
+          <div className='flex items-center gap-1'>
             {filterTags?.map((tag) => (
               <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
                 {tag.label}
@@ -140,7 +174,7 @@ export const ResourceOptions = memo(function ResourceOptions({
                 }
               >
                 <PopoverPrimitive.Anchor asChild>
-                  <div className='flex items-center'>
+                  <div className='flex items-center gap-1'>
                     <PopoverPrimitive.Trigger asChild>
                       <Chip active={popoverFilter.active} leftIcon={ListFilter}>
                         Filter
@@ -167,7 +201,7 @@ export const ResourceOptions = memo(function ResourceOptions({
                     sideOffset={6}
                     className={cn(
                       POPOVER_ANIMATION_CLASSES,
-                      'z-50 w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                      'z-[var(--z-popover)] w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xs'
                     )}
                   >
                     {popoverFilter.content}
@@ -177,7 +211,9 @@ export const ResourceOptions = memo(function ResourceOptions({
             ) : null}
             {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
           </div>
+          {asideEnd}
         </div>
+        {trailing && <div className='ml-auto flex shrink-0 items-center gap-1.5'>{trailing}</div>}
       </div>
     </div>
   )
@@ -196,7 +232,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
             active={search.highlightedTagIndex === i}
             className='max-w-[280px] shrink-0'
           >
-            <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block truncate'>
+            <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block'>
               {tag.label}: {tag.value}
             </FloatingOverflowText>
           </Chip>
@@ -210,22 +246,23 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
           onFocus={search.onFocus}
           onBlur={search.onBlur}
           placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
-          className='min-w-[80px] flex-1 bg-transparent py-1 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+          className={cn(chipFieldTextClass, 'min-w-[80px] flex-1 bg-transparent py-1')}
         />
       </div>
       {search.tags?.length || search.value ? (
         <button
           type='button'
+          aria-label='Clear search'
           className='mr-0.5 flex size-[14px] shrink-0 items-center justify-center text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-body)]'
           onClick={search.onClearAll ?? (() => search.onChange(''))}
         >
-          <span className='text-caption'>✕</span>
+          <X className='size-[12px]' />
         </button>
       ) : null}
       {search.dropdown && (
         <div
           ref={search.dropdownRef}
-          className='absolute top-full left-0 z-50 mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+          className='absolute top-full left-0 z-[var(--z-dropdown)] mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-xs'
         >
           {search.dropdown}
         </div>
@@ -247,7 +284,7 @@ export const SortDropdown = memo(function SortDropdown({
   open,
   onOpenChange,
 }: SortDropdownProps) {
-  const { options, active, onSort, onClear } = config
+  const { options, active, onSort, onClear, keepOpenOnSelect = false } = config
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
@@ -263,7 +300,12 @@ export const SortDropdown = memo(function SortDropdown({
       >
         {active && onClear && (
           <>
-            <DropdownMenuItem onSelect={onClear}>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                if (keepOpenOnSelect) event.preventDefault()
+                onClear()
+              }}
+            >
               <X />
               Clear sort
             </DropdownMenuItem>
@@ -278,7 +320,8 @@ export const SortDropdown = memo(function SortDropdown({
           return (
             <DropdownMenuItem
               key={option.id}
-              onSelect={() => {
+              onSelect={(event) => {
+                if (keepOpenOnSelect) event.preventDefault()
                 if (isActive) {
                   onSort(option.id, active.direction === 'asc' ? 'desc' : 'asc')
                 } else {
@@ -287,7 +330,7 @@ export const SortDropdown = memo(function SortDropdown({
               }}
             >
               {Icon && <Icon />}
-              <FloatingOverflowText label={option.label} className='block truncate' />
+              <FloatingOverflowText label={option.label} className='block' />
               {DirectionIcon && (
                 <DirectionIcon className='ml-auto size-[12px] text-[var(--text-tertiary)]' />
               )}

@@ -1,8 +1,10 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type McpTransport = 'streamable-http'
 
-/** `oauth` uses the SDK's authProvider; `headers` is a static map; `none` is unauthenticated. */
+/** `oauth` uses an OAuth grant; `headers` is a static map; `none` is unauthenticated. */
 export type McpAuthType = 'none' | 'headers' | 'oauth'
 
 export interface McpServerStatusConfig {
@@ -23,6 +25,7 @@ export interface McpServerConfig {
    */
   userId?: string
   workspaceId?: string
+  organizationId?: string
   headers?: Record<string, string>
   timeout?: number
   retries?: number
@@ -88,8 +91,10 @@ export interface McpToolSchema {
 /** SDK `Tool` plus the server context Sim tracks. */
 export interface McpTool extends Pick<Tool, 'name' | 'description'> {
   inputSchema: McpToolSchema
+  canonicalServerId?: string
   serverId: string
   serverName: string
+  managedConnectorId?: ManagedMcpConnectorId
 }
 
 export interface McpToolCall {
@@ -129,6 +134,24 @@ export class McpConnectionError extends McpError {
   constructor(message: string, serverName: string) {
     super(`Failed to connect to "${serverName}": ${message}`)
     this.name = 'McpConnectionError'
+  }
+}
+
+/**
+ * Thrown when discovery is refused because the server is inside the
+ * negative-cache cooldown that follows a recent failure. No connection was
+ * attempted, so the condition clears on its own.
+ *
+ * It is a distinct class rather than an `McpConnectionError` whose message
+ * happens to contain "cooldown" because `McpConnectionError` interpolates the
+ * server's display name into that message: a server a caller named after the
+ * word matched the substring test and borrowed this case's wording, telling them
+ * to wait out a cooldown that was never entered.
+ */
+export class McpServerCooldownError extends McpConnectionError {
+  constructor(serverName: string) {
+    super('Server recently failed and is in cooldown — try again shortly.', serverName)
+    this.name = 'McpServerCooldownError'
   }
 }
 
@@ -174,20 +197,23 @@ export interface McpClientOptions {
   securityPolicy?: McpSecurityPolicy
   onToolsChanged?: McpToolsChangedCallback
   /**
-   * Pre-resolved IP address to pin all transport HTTP connections to. When
-   * set, the SDK transport uses a custom fetch backed by an undici Agent with
-   * a fixed DNS lookup, preventing DNS-rebinding (TOCTOU) attacks between
-   * URL validation and connection. Should be supplied by callers that have
-   * just validated the URL via `validateMcpServerSsrf`.
+   * Address returned by `validateMcpServerSsrf` for this URL. A private/loopback
+   * address (only permitted on a self-hosted deployment whose policy allows it)
+   * pins every transport connection to it, so the name cannot rebind elsewhere
+   * after validation. A public address or none leaves the transport on the SSRF
+   * guard, which validates every connect and redirect hop itself.
    */
   resolvedIP?: string
   /**
-   * SDK-compatible OAuth client provider. When provided, the underlying
-   * StreamableHTTPClientTransport delegates token discovery, refresh, and
-   * 401 recovery to it. Should be supplied for `authType === 'oauth'`
-   * server configs.
+   * SDK provider for an enrollment whose grant has not been persisted yet.
+   * Persisted runtime grants must use oauthCredentials to coordinate refreshes.
+   * Supply exactly one of these for an OAuth server.
    */
   authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
+  /** Runtime OAuth grants coordinate refreshes across clients using persisted credentials. */
+  oauthCredentials?: import('@/lib/mcp/oauth/coordinated-fetch').McpOauthSession
+  /** Encrypted-only provenance for Secrets-tab references resolved into this connection. */
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 export interface ToolsChangedEvent {

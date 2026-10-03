@@ -1,4 +1,5 @@
-import { env, getEnv } from '../config/env'
+import { CONSENT_BACKEND_URL } from '../../consent/constants'
+import { env, envBoolean, getEnv } from '../config/env'
 import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
 
 /**
@@ -6,7 +7,8 @@ import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
  *
  * NOTE: This file is loaded by next.config.ts at build time, before @/ path
  * aliases are resolved. Do NOT import from ../utils/urls (which uses @/ imports).
- * Keep all URL constants local to this file.
+ * Keep URL constants local to this file, or in a leaf module reachable by a
+ * relative import that itself pulls in no `@/` paths (../../consent/constants).
  */
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
@@ -42,7 +44,35 @@ function getHostnameFromUrl(url: string | undefined): string[] {
   }
 }
 
-export interface CSPDirectives {
+const IPV4_HOSTNAME = /^\d{1,3}(\.\d{1,3}){3}$/
+
+/**
+ * Origins the browser PUTs presigned uploads to for a custom `S3_ENDPOINT`. The
+ * endpoint origin itself is always allowed: the S3 SDK falls back to path-style
+ * for IP hosts and bucket names that aren't DNS-safe even without
+ * `S3_FORCE_PATH_STYLE`. Virtual-hosted addressing also needs the bucket
+ * subdomains, which a `*.` source matches (never the bare host). Ports are kept
+ * because a host-source without one only matches the scheme's default port.
+ */
+function getS3EndpointSources(
+  endpoint: string | undefined,
+  forcePathStyle: string | undefined
+): string[] {
+  if (!endpoint) return []
+  let url: URL
+  try {
+    url = new URL(endpoint)
+  } catch {
+    return []
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return []
+  const origin = `${url.protocol}//${url.host}`
+  const isIpHost = IPV4_HOSTNAME.test(url.hostname) || url.hostname.startsWith('[')
+  if (envBoolean(forcePathStyle) || isIpHost) return [origin]
+  return [origin, `${url.protocol}//*.${url.host}`]
+}
+
+interface CSPDirectives {
   'default-src'?: string[]
   'script-src'?: string[]
   'style-src'?: string[]
@@ -76,16 +106,16 @@ const STATIC_SCRIPT_SRC = [
     ? [
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
+        // Google Ads conversion tag — gtag.js pulls conversion_async.js from
+        // googleadservices and the remarketing tag from googleads.doubleclick
+        'https://www.googleadservices.com',
+        'https://googleads.g.doubleclick.net',
         'https://analytics.ahrefs.com',
-        // HubSpot tracking (landing pages) — loader plus the
-        // analytics/form-tracking/banner scripts it injects as <script> tags
-        'https://*.hs-scripts.com',
-        'https://*.hs-analytics.net',
-        'https://*.hscollectedforms.net',
-        'https://*.hs-banner.com',
         // X (Twitter) conversion pixel (landing pages) — the base code injects
         // uwt.js as a <script> tag from static.ads-twitter.com
         'https://static.ads-twitter.com',
+        // Freebuff Ads conversion tag — freebuff-tag.js
+        'https://freebuff.com',
       ]
     : []),
 ] as const
@@ -107,6 +137,7 @@ const STATIC_CONNECT_SRC = [
   'https://*.supabase.co',
   'https://api.github.com',
   'https://github.com/*',
+  'https://status.sim.ai',
   'https://challenges.cloudflare.com',
   // Cal.com booking embed (landing /demo) — embed XHR/availability calls
   'https://app.cal.com',
@@ -115,6 +146,9 @@ const STATIC_CONNECT_SRC = [
   ...(isDev ? ['ws://localhost:4722'] : []),
   ...(isHosted
     ? [
+        // Blocked here, the consent runtime silently falls back to an offline
+        // policy and the banner shows to every visitor worldwide.
+        CONSENT_BACKEND_URL,
         'https://www.googletagmanager.com',
         'https://*.google-analytics.com',
         'https://*.analytics.google.com',
@@ -122,14 +156,14 @@ const STATIC_CONNECT_SRC = [
         'https://www.google.com',
         'https://analytics.ahrefs.com',
         'https://*.g.doubleclick.net',
-        // HubSpot tracking — form-tracking API (hscollectedforms.js).
-        // The visitor beacon itself is an image pixel (img-src, already
-        // permitted below), not a connect-src request.
-        'https://*.hscollectedforms.net',
+        // Google Ads conversion tag — conversion beacons
+        'https://www.googleadservices.com',
         // X (Twitter) conversion pixel — uwt.js sends conversion beacons here
         // via fetch/sendBeacon. The t.co image-pixel fallback is already
         // covered by the `https:` wildcard in img-src.
         'https://analytics.twitter.com',
+        // Freebuff Ads conversion tag — beacons to /api/advertisers/conversions/client
+        'https://freebuff.com',
       ]
     : []),
 ] as const
@@ -144,6 +178,12 @@ const STATIC_FRAME_SRC = [
   'https://drive.google.com',
   'https://docs.google.com',
   'https://*.google.com',
+  // Google Ads conversion tag — the conversion linker writes its cookie from
+  // a hidden iframe on these origins; without them the ping still fires but
+  // cross-domain click attribution silently drops. Hosted-only, like the
+  // script-src and connect-src entries: the consent provider that loads the
+  // tag never mounts off hosted, so nothing self-hosted can frame these.
+  ...(isHosted ? ['https://td.doubleclick.net', 'https://www.googleadservices.com'] : []),
   'https://www.youtube.com',
   'https://player.vimeo.com',
   'https://www.dailymotion.com',
@@ -165,11 +205,10 @@ const STATIC_FRAME_SRC = [
   'https://www.mixcloud.com',
   'https://tenor.com',
   'https://giphy.com',
-  ...(isHosted ? ['https://www.googletagmanager.com'] : []),
 ] as const
 
 // Build-time CSP directives (for next.config.ts)
-export const buildTimeCSPDirectives: CSPDirectives = {
+const buildTimeCSPDirectives: CSPDirectives = {
   'default-src': ["'self'"],
   'script-src': [...STATIC_SCRIPT_SRC],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
@@ -192,6 +231,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
+    ...getS3EndpointSources(env.S3_ENDPOINT, env.S3_FORCE_PATH_STYLE),
   ],
 
   'frame-src': [...STATIC_FRAME_SRC],
@@ -240,6 +280,10 @@ export function generateRuntimeCSP(): string {
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
   const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
   const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
+  const s3EndpointSources = getS3EndpointSources(
+    getEnv('S3_ENDPOINT'),
+    getEnv('S3_FORCE_PATH_STYLE')
+  )
 
   const runtimeDirectives: CSPDirectives = {
     ...buildTimeCSPDirectives,
@@ -255,6 +299,7 @@ export function generateRuntimeCSP(): string {
       ...brandLogoDomains,
       ...privacyDomains,
       ...termsDomains,
+      ...s3EndpointSources,
     ],
   }
 
@@ -291,27 +336,4 @@ export function getChatEmbedCSPPolicy(): string {
     ],
     'frame-ancestors': ['*'],
   })
-}
-
-/**
- * Add a source to a specific directive (modifies build-time directives)
- */
-export function addCSPSource(directive: keyof CSPDirectives, source: string): void {
-  if (!buildTimeCSPDirectives[directive]) {
-    buildTimeCSPDirectives[directive] = []
-  }
-  if (!buildTimeCSPDirectives[directive]!.includes(source)) {
-    buildTimeCSPDirectives[directive]!.push(source)
-  }
-}
-
-/**
- * Remove a source from a specific directive (modifies build-time directives)
- */
-export function removeCSPSource(directive: keyof CSPDirectives, source: string): void {
-  if (buildTimeCSPDirectives[directive]) {
-    buildTimeCSPDirectives[directive] = buildTimeCSPDirectives[directive]!.filter(
-      (s: string) => s !== source
-    )
-  }
 }

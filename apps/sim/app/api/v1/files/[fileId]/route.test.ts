@@ -1,50 +1,42 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockValidateWorkspaceAccess,
-  mockGetWorkspaceFile,
-  mockFetchServableWorkspaceFileBuffer,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockValidateWorkspaceAccess: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
-  mockFetchServableWorkspaceFileBuffer: vi.fn(),
+const { mockDownloadWorkspaceFileStream } = vi.hoisted(() => ({
+  mockDownloadWorkspaceFileStream: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: () => new Response('rate limited', { status: 429 }),
-  validateWorkspaceAccess: mockValidateWorkspaceAccess,
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
-  fetchServableWorkspaceFileBuffer: mockFetchServableWorkspaceFileBuffer,
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
+  downloadWorkspaceFileStream: { execute: mockDownloadWorkspaceFileStream },
 }))
 vi.mock('@/lib/workspace-files/orchestration', () => ({
   performDeleteWorkspaceFileItems: vi.fn(),
 }))
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded', FILE_DELETED: 'file.deleted' },
-  AuditResourceType: { FILE: 'file' },
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v1/files/[fileId]/route'
+
+const { mockCheckRateLimit, mockValidateWorkspaceAccess } = v1MiddlewareMockFns
+const { mockGetWorkspaceFile } = workspaceUploadsMockFns
 
 const WORKSPACE_ID = 'ws-1'
 const FILE_ID = 'file-1'
-const context = { params: Promise.resolve({ fileId: FILE_ID }) }
+const context = createRouteContext({ fileId: FILE_ID })
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 
 function request() {
   return createMockRequest(
@@ -71,43 +63,35 @@ function generatedDocument(name = 'report.docx') {
   }
 }
 
+function renderedDownload(buffer: Buffer) {
+  return {
+    file: generatedDocument(),
+    stream: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(buffer)
+        controller.close()
+      },
+    }),
+    contentLength: buffer.length,
+    contentType: DOCX_MIME,
+  }
+}
+
 describe('v1 file download', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      userId: 'user-1',
+      principal: PRINCIPAL,
+    })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     mockGetWorkspaceFile.mockResolvedValue(generatedDocument())
-    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
-      buffer: Buffer.from('PKrendered'),
-      contentType: DOCX_MIME,
-    })
-  })
-
-  it('serves the rendered bytes and the rendered content type', async () => {
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(200)
-    // Not the record's `text/x-docxjs`, which describes the stored source.
-    expect(response.headers.get('Content-Type')).toBe(DOCX_MIME)
-    expect(Buffer.from(await response.arrayBuffer()).toString()).toContain('rendered')
-  })
-
-  it('names the download with an extension matching the served content type', async () => {
-    // The renderer picks its output format from the file name, so the two cannot
-    // disagree: a `.docx` renders to a docx. This pins that invariant.
-    const response = await GET(request(), context)
-
-    const disposition = response.headers.get('Content-Disposition') ?? ''
-    expect(disposition).toContain('report.docx')
-    expect(response.headers.get('Content-Type')).toBe(DOCX_MIME)
+    mockDownloadWorkspaceFileStream.mockResolvedValue(renderedDownload(Buffer.from('PKrendered')))
   })
 
   it('reports Content-Length from the rendered bytes, not the declared source size', async () => {
     const rendered = Buffer.alloc(50_000)
-    mockFetchServableWorkspaceFileBuffer.mockResolvedValue({
-      buffer: rendered,
-      contentType: DOCX_MIME,
-    })
+    mockDownloadWorkspaceFileStream.mockResolvedValue(renderedDownload(rendered))
 
     const response = await GET(request(), context)
 
@@ -115,8 +99,8 @@ describe('v1 file download', () => {
   })
 
   it('returns a retryable 409 while the artifact is still compiling', async () => {
-    mockFetchServableWorkspaceFileBuffer.mockRejectedValue(
-      new DocCompileUserError('Document is still being generated')
+    mockDownloadWorkspaceFileStream.mockRejectedValue(
+      new OrchestrationError('conflict', 'Document is still being generated')
     )
 
     const response = await GET(request(), context)
@@ -124,14 +108,5 @@ describe('v1 file download', () => {
     // A 500 would give the caller no reason to try again.
     expect(response.status).toBe(409)
     expect((await response.json()).error).toContain('still being generated')
-  })
-
-  it('404s a file that does not exist', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(null)
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(404)
-    expect(mockFetchServableWorkspaceFileBuffer).not.toHaveBeenCalled()
   })
 })

@@ -1,24 +1,35 @@
 import type { ReactNode } from 'react'
+import {
+  RESOURCE_LIST_GRID,
+  RESOURCE_LIST_STACK,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 interface IntegrationSectionProps {
   label: string
+  description?: string
+  layout?: 'grid' | 'list'
   children: ReactNode
 }
 
 /**
- * Labeled section used throughout the integrations surface. Renders a small
- * caption, a divider, and a responsive auto-fit grid for its children so the
- * vertical rhythm stays consistent across the integrations list, the connected
- * credentials list, and the integration detail page templates.
+ * Labeled section used throughout the integrations surface: the shared
+ * {@link SettingsSection} label/divider chrome wrapped around the shared
+ * resource grid or list, so the integrations list, the connected credentials
+ * list, and the integration detail templates cannot drift from settings.
  */
-export function IntegrationSection({ label, children }: IntegrationSectionProps) {
+export function IntegrationSection({
+  label,
+  description,
+  layout = 'grid',
+  children,
+}: IntegrationSectionProps) {
   return (
-    <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>{label}</span>
-      <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
-      <div className='-mx-2 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'>
-        {children}
-      </div>
-    </section>
+    <SettingsSection label={label}>
+      {description && (
+        <p className='mb-3 text-[var(--text-muted)] text-caption leading-relaxed'>{description}</p>
+      )}
+      <div className={layout === 'list' ? RESOURCE_LIST_STACK : RESOURCE_LIST_GRID}>{children}</div>
+    </SettingsSection>
   )
 }

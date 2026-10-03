@@ -1,4 +1,5 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { CustomBlockInputFieldType } from '@/blocks/custom/build-config'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
 export type ProviderId =
@@ -13,10 +14,12 @@ export type ProviderId =
   | 'cerebras'
   | 'groq'
   | 'sakana'
+  | 'typesafe'
   | 'nvidia'
   | 'meta'
   | 'zai'
   | 'kimi'
+  | 'kie'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'
@@ -28,25 +31,24 @@ export type ProviderId =
   | 'litellm'
   | 'bedrock'
 
-export interface ModelPricing {
+export interface ModelTokenPricing {
   input: number // Per 1M tokens
   cachedInput?: number // Per 1M tokens (if supported)
   output: number // Per 1M tokens
+}
+
+export interface ModelPricingTier extends ModelTokenPricing {
+  /** Tier applies to the full request when total input tokens exceed this value. */
+  aboveInputTokens: number
+}
+
+export interface ModelPricing extends ModelTokenPricing {
+  /** Additional input-size tiers; the highest matching threshold wins. */
+  tiers?: ModelPricingTier[]
   updatedAt: string // Last updated date
 }
 
 export type ModelPricingMap = Record<string, ModelPricing>
-
-interface TokenInfo {
-  input?: number
-  output?: number
-  total?: number
-}
-
-interface TransformedResponse {
-  content: string
-  tokens?: TokenInfo
-}
 
 export interface ProviderConfig {
   id: string
@@ -82,6 +84,8 @@ export type TimeSegment = ProviderTimingSegment
 
 export interface ProviderResponse {
   content: string
+  /** Structured answers returned by a native evaluation model. */
+  answers?: Record<string, unknown>
   model: string
   tokens?: {
     /** Tokens billed at the base input rate, excluding cache reads and writes. */
@@ -119,8 +123,9 @@ export interface ProviderResponse {
 export type ToolUsageControl = 'auto' | 'force' | 'none'
 
 export interface ProviderToolConfig {
+  /** Canonical registry id when {@link id} is a request-scoped provider wire alias. */
+  canonicalId?: string
   id: string
-  name: string
   description: string
   params: Record<string, any>
   parameters: {
@@ -129,8 +134,34 @@ export interface ProviderToolConfig {
     required: string[]
   }
   usageControl?: ToolUsageControl
+  /**
+   * Params the model may never supply, because the tool declares them
+   * `user-only` or `hidden`. Stripped from the model's arguments before they
+   * merge with the user's — omitting them from {@link ProviderToolConfig.parameters}
+   * alone does not stop a model from emitting one anyway.
+   */
+  modelBlockedParams?: string[]
   /** Block-level params transformer — converts SubBlock values to tool-ready params */
   paramsTransform?: (params: Record<string, any>) => Record<string, any>
+  /**
+   * Params {@link ProviderToolConfig.paramsTransform} decodes from a JSON string into
+   * an object or array.
+   *
+   * The resolved-secret projection must give these keys the same treatment it gives a
+   * `json`/`array` block input: a projected copy holds `{{NAME}}` placeholders that are
+   * not valid JSON, so without this the real params parse to an object while the
+   * projected ones stay a string, and the shape divergence silently marks the
+   * provenance registry incomplete.
+   */
+  jsonShapedParamKeys?: readonly string[]
+  /**
+   * A custom (deploy-as-block) block's Start input fields, resolved from its binding
+   * rather than the block config — the server overlay builds those with `inputFields: []`.
+   *
+   * The resolved-secret projection reassembles `inputMapping` and must decode it against
+   * the identical fields, or its shape diverges from the executed copy.
+   */
+  customBlockInputFields?: readonly CustomBlockInputFieldType[]
 }
 
 export interface Message {
@@ -153,7 +184,19 @@ export interface Message {
   tool_call_id?: string
 }
 
+/** Native evaluation values are validated against the selected provider's schema. */
+export interface EvaluationInput {
+  state: unknown
+  questions: unknown
+}
+
 export interface ProviderRequest {
+  evaluation?: EvaluationInput
+  /** Server-installed stable identity resolver; never accepted from an API payload. */
+  resolveToolInvocationId?: (
+    providerCallId: string | undefined,
+    toolId: string
+  ) => string | undefined
   model: string
   systemPrompt?: string
   context?: string
@@ -207,6 +250,13 @@ export interface ProviderRequest {
   isDeployedContext?: boolean
   callChain?: string[]
   /**
+   * The invoking run's execution id. Propagated into the `_context` of every
+   * tool the LLM invokes so a tool that starts its own child execution (a
+   * custom block) can correlate that child back to a REAL invoking run rather
+   * than a freshly-minted id, and can honour its cancellation.
+   */
+  executionId?: string
+  /**
    * Immutable actor/payer decision captured before execution. Propagated into
    * the `_context` of every tool the LLM invokes so internal routes that
    * require the billing attribution header (e.g. knowledge search) receive it.
@@ -227,8 +277,17 @@ export class ProviderError extends Error {
     duration: number
   }
 
-  constructor(message: string, timing: { startTime: string; endTime: string; duration: number }) {
-    super(message)
+  /**
+   * `options.cause` should carry the error being wrapped. `name` is deliberately
+   * overwritten with `'ProviderError'`, so without a cause every classification the
+   * original carried — notably a transport `TimeoutError` — is lost to callers.
+   */
+  constructor(
+    message: string,
+    timing: { startTime: string; endTime: string; duration: number },
+    options?: ErrorOptions
+  ) {
+    super(message, options)
     this.name = 'ProviderError'
     this.timing = timing
   }

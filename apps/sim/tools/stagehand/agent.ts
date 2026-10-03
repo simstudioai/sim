@@ -1,11 +1,8 @@
-import { createLogger } from '@sim/logger'
 import type { StagehandAgentParams, StagehandAgentResponse } from '@/tools/stagehand/types'
 import { STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES } from '@/tools/stagehand/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-const logger = createLogger('StagehandAgentTool')
-
-export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse> = {
+export const agentTool: InternalToolConfig<StagehandAgentParams, StagehandAgentResponse> = {
   id: 'stagehand_agent',
   name: 'Stagehand Agent',
   description: 'Run an autonomous web agent to complete tasks and extract structured data',
@@ -63,17 +60,19 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/stagehand/agent',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        task: params.task,
+        variables: params.variables,
+        outputSchema: params.outputSchema,
+      }),
+    },
+    input: (params) => {
       let startUrl = params.startUrl
       if (startUrl && !startUrl.match(/^https?:\/\//i)) {
         startUrl = `https://${startUrl.trim()}`
-        logger.info(`Normalized URL from ${params.startUrl} to ${startUrl}`)
       }
 
       return {

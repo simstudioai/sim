@@ -3,9 +3,8 @@
  * Sim window, when it is visible, and which window owns it.
  *
  * The browser is ONE native surface shared by every app window, so exactly one
- * window may drive it at a time. That, the renderer bounds lease, and the
- * occlusion snapshot are the intricate parts of the browser and are kept here,
- * apart from tab bookkeeping.
+ * window may drive it at a time. That and the renderer bounds lease are kept
+ * here, apart from tab bookkeeping.
  *
  * Depends on the session only through {@link PanelHost}, injected once at
  * startup. Tab state changes are pushed in by the session calling {@link layout};
@@ -19,7 +18,9 @@ import type {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, WebContentsView } from 'electron'
+import { zoomPercentOf } from '@/main/browser-agent/context-menu'
 import type { AgentTab } from '@/main/browser-agent/session'
+import { reassertTabThrottling } from '@/main/browser-agent/session'
 
 const logger = createLogger('BrowserAgentPanel')
 
@@ -30,26 +31,31 @@ const logger = createLogger('BrowserAgentPanel')
  */
 const PANEL_LEASE_TTL_MS = 2_500
 const PANEL_LEASE_CHECK_MS = 1_000
+const MAX_PANEL_SNAPSHOT_PIXELS = 16_777_216
+const MAX_PANEL_SNAPSHOT_DATA_URL_LENGTH = 32 * 1024 * 1024
 
 /** What the panel needs from the session, supplied once by {@link initPanel}. */
 export interface PanelHost {
   getMainWindow: () => BrowserWindow | null
   /** The tab whose view should be composited, or null when there is none. */
   activeTab: () => AgentTab | null
-  /**
-   * Materializes the initial tab when the panel first becomes visible: a
-   * visible browser resource always represents one open browser window, and
-   * the tab strip, omnibox, and native session must not disagree about that.
-   */
-  ensureInitialTab: () => void
+  /** Native backdrop used by a blank tab before its first page paint. */
+  backgroundColor: () => string
+  /** Hydrates the active scope's saved pages when the panel first becomes visible. */
+  restoreActiveScope: () => void
   /** Lets the session drop focus tracking for a view that is no longer attached. */
   onViewDetached: (view: WebContentsView | null) => void
+  /** Invalidates field-anchored UI when the page moves, hides, or detaches. */
+  onGeometryChanged?: () => void
+  /** Runs after each layout that leaves the active view attached and visible. */
+  onViewShown?: (view: WebContentsView) => void
 }
 
 let host: PanelHost = {
   getMainWindow: () => null,
   activeTab: () => null,
-  ensureInitialTab: () => {},
+  backgroundColor: () => '#ffffff',
+  restoreActiveScope: () => {},
   onViewDetached: () => {},
 }
 
@@ -57,20 +63,29 @@ let host: PanelHost = {
 let panelBounds: BrowserPanelBounds | null = null
 /** How {@link panelBounds} derives from the viewport, when the renderer said. */
 let panelAnchor: BrowserPanelAnchor | null = null
-/** True while the view is actually hidden for renderer-owned UI above it. */
+/** True only after a replacement frame has painted in Sim's renderer. */
 let panelOccluded = false
-/**
- * What the renderer last reported, which leads {@link panelOccluded} while a
- * frame is being captured. Hiding is what has to wait: the renderer paints its
- * snapshot the moment it believes the panel is occluded, and the only frame it
- * has until the new one lands is the one from the previous overlay — a picture
- * of a different scroll position, or nothing at all. Staying visible until the
- * replacement is sent means the swap is invisible instead of a flash.
- */
-let panelOcclusionRequested = false
+/** Window whose renderer currently owns the native-surface replacement lease. */
+let occlusionOwnerWindow: BrowserWindow | null = null
+/** Invalidates captures when ownership, scope, or panel visibility changes. */
+let panelCaptureGeneration = 0
+let inFlightPanelCapture: {
+  generation: number
+  key: string
+  promise: Promise<BrowserPanelSnapshot | null>
+} | null = null
+let queuedPanelCapture: {
+  key: string
+  ownerWindow: BrowserWindow | undefined
+  promise: Promise<BrowserPanelSnapshot | null>
+  reject: (reason?: unknown) => void
+  resolve: (snapshot: BrowserPanelSnapshot | null) => void
+  scopeId: string
+} | null = null
 let panelLeaseAt = 0
 let leaseTimer: ReturnType<typeof setInterval> | null = null
-let panelSnapshotGeneration = 0
+/** Chat whose native browser surface may currently be composited. */
+let activePanelScopeId: string | null = null
 /** The window currently hosting the active view, for re-parenting checks. */
 let hostedWindow: BrowserWindow | null = null
 /** The app window whose renderer most recently leased the visible panel. */
@@ -80,6 +95,24 @@ let panelOwnerWindow: BrowserWindow | null = null
 let attachedView: WebContentsView | null = null
 let lastAppliedBounds = ''
 let lastAppliedVisibility: boolean | null = null
+interface OccludablePanelFrame {
+  view: WebContentsView
+  win: BrowserWindow
+  scopeId: string
+  tabId: string
+  shellZoom: number
+  nativeBounds: BrowserPanelBounds
+}
+/** Geometry of the painted frame that is currently allowed to replace the view. */
+let occludableFrame: OccludablePanelFrame | null = null
+/**
+ * Each chat's agent tab, kept in a window even while no panel shows it. A view that is in no
+ * window has no compositor surface: CDP input on it never acknowledges and captures never
+ * complete. Parked invisibly, it renders exactly like the hidden panel view does.
+ */
+const agentViews = new Map<string, WebContentsView>()
+/** Agent views parked invisibly, with the window each one is parked in. */
+const parkedViews = new Map<WebContentsView, BrowserWindow>()
 /** The host window whose `resize` currently drives {@link layout}, if any. */
 let resizeBoundWindow: BrowserWindow | null = null
 /** Captures nothing, so one instance serves every window it is bound to. */
@@ -91,6 +124,8 @@ export function initPanel(panelHost: PanelHost): void {
   // by the next session: a stale owner window that rejects legitimate panel
   // updates, a lease timer polling for a panel that no longer exists, a
   // `lastApplied*` value that dedupes away the first layout of the new one.
+  agentViews.clear()
+  for (const view of [...parkedViews.keys()]) unparkView(view)
   detachAttachedView()
   resetOcclusion()
   if (leaseTimer !== null) {
@@ -102,6 +137,39 @@ export function initPanel(panelHost: PanelHost): void {
   panelAnchor = null
   panelLeaseAt = 0
   panelOwnerWindow = null
+  activePanelScopeId = null
+}
+
+/**
+ * Moves the singleton compositor to another chat. Bounds are renderer leases,
+ * so the new chat must report its own rect before any native page is shown.
+ */
+export function activatePanelScope(scopeId: string | null): void {
+  if (activePanelScopeId === scopeId) return
+  activePanelScopeId = scopeId
+  resetOcclusion()
+  detachAttachedView()
+  panelBounds = null
+  panelAnchor = null
+  panelLeaseAt = 0
+  panelOwnerWindow = null
+}
+
+/** Retags an active pending scope without tearing down the compositor. */
+export function migratePanelScope(fromScopeId: string, toScopeId: string): void {
+  const agentView = agentViews.get(fromScopeId)
+  if (agentView) {
+    agentViews.delete(fromScopeId)
+    if (!agentViews.has(toScopeId)) agentViews.set(toScopeId, agentView)
+    else if (!isAgentView(agentView)) unparkView(agentView)
+  }
+  if (activePanelScopeId !== fromScopeId) return
+  activePanelScopeId = toScopeId
+  panelCaptureGeneration++
+}
+
+export function getActivePanelScopeId(): string | null {
+  return activePanelScopeId
 }
 
 /**
@@ -126,7 +194,11 @@ export function panelWindow(): BrowserWindow | null {
  * owned, only the owner — so a stale report from a second window cannot hide
  * or steal the singleton browser surface.
  */
-export function panelUpdateAllowed(ownerWindow?: BrowserWindow): boolean {
+export function panelUpdateAllowed(
+  ownerWindow?: BrowserWindow,
+  scopeId = activePanelScopeId
+): boolean {
+  if (!scopeId || scopeId !== activePanelScopeId) return false
   if (!ownerWindow) return true
   const owner = panelOwner()
   return owner === null || owner === ownerWindow
@@ -141,8 +213,10 @@ export function panelUpdateAllowed(ownerWindow?: BrowserWindow): boolean {
  */
 export function canReportPanelBounds(
   win: BrowserWindow,
-  focusedWindow: BrowserWindow | null
+  focusedWindow: BrowserWindow | null,
+  scopeId = activePanelScopeId
 ): boolean {
+  if (!scopeId || scopeId !== activePanelScopeId) return false
   const owner = panelOwner()
   return owner === null || owner === win || focusedWindow === win
 }
@@ -228,31 +302,49 @@ function clampToContent(
  * Clears the tracked attachment before touching Electron objects so a stale
  * host or child view cannot leave layout permanently wedged after teardown.
  */
-export function detachAttachedView(): void {
+function detachAttachedView(): void {
   const view = attachedView
   const win = hostedWindow
   attachedView = null
   hostedWindow = null
   lastAppliedBounds = ''
   lastAppliedVisibility = null
+  occludableFrame = null
   unbindHostResize()
   host.onViewDetached(view)
+  host.onGeometryChanged?.()
 
   if (!view || !win) return
   try {
     if (win.isDestroyed() || view.webContents.isDestroyed()) return
+    // An agent view stays in the main window, which outlives any secondary window.
+    if (isAgentView(view) && win === host.getMainWindow()) {
+      view.setVisible(false)
+      parkedViews.set(view, win)
+      return
+    }
     win.contentView.removeChildView(view)
   } catch (error) {
     logger.warn('Could not detach embedded browser view', {
       error: getErrorMessage(error, 'unknown'),
     })
   }
+  if (isAgentView(view)) parkAgentViews()
+}
+
+/** Reveals the native view and invalidates every frame captured for its old state. */
+function resetOcclusion(): void {
+  panelOccluded = false
+  occlusionOwnerWindow = null
+  occludableFrame = null
+  panelCaptureGeneration++
+  queuedPanelCapture?.resolve(null)
+  queuedPanelCapture = null
 }
 
 /**
  * Stops the attached view painting without giving up its compositor surface,
- * so showing it again is immediate. A hidden view takes no input either, which
- * is what lets renderer UI sit where it used to be.
+ * so showing it again is immediate when the browser resource becomes visible.
  */
 function hideAttachedView(): void {
   const view = attachedView
@@ -267,6 +359,7 @@ function hideAttachedView(): void {
       error: getErrorMessage(error, 'unknown'),
     })
   }
+  host.onGeometryChanged?.()
 }
 
 /**
@@ -274,80 +367,71 @@ function hideAttachedView(): void {
  * tab must not pull the visible tab out of the window.
  */
 export function detachIfAttached(view: WebContentsView): void {
+  for (const [scopeId, agentView] of agentViews) {
+    if (agentView === view) agentViews.delete(scopeId)
+  }
   if (attachedView === view) {
     detachAttachedView()
   }
-}
-
-/** Forgets both halves of the occlusion state, so a later report is not deduped away. */
-function resetOcclusion(): void {
-  panelOccluded = false
-  panelOcclusionRequested = false
-  panelSnapshotGeneration++
+  unparkView(view)
 }
 
 /**
- * Captures the current browser frame for the renderer to display while the
- * native view is hidden beneath an overlay.
- *
- * The capture is a copy of the compositor surface, so it can never relayout the
- * page — but asking to capture a VISIBLE page as hidden perturbs its visibility
- * bookkeeping, and Chromium flashes overlay scrollbars across that transition.
- * The frame then freezes the flash, and the swap shows a scrollbar the live page
- * did not have. So the flag tracks what the view actually is: hidden only for
- * the one caller that captures an already-hidden page (a tab switched while the
- * panel is occluded), where it stops Chromium promoting it back for the shot.
+ * Registers the tab a chat's agent drives, so it stays composited while the panel shows
+ * another tab or no panel is open. Null releases the chat's previous agent tab.
  */
-/** Widest the placeholder snapshot needs to be; it sits behind a transient overlay. */
-const SNAPSHOT_MAX_WIDTH = 1024
-const SNAPSHOT_JPEG_QUALITY = 70
-
-/**
- * Turns a captured frame into a compact JPEG data URL. Resize is a native
- * operation and JPEG encode runs in native code too, so both are far cheaper
- * than a full-resolution PNG `toDataURL`, which encodes synchronously on the
- * event loop.
- */
-function encodeSnapshot(image: Electron.NativeImage): string {
-  const { width } = image.getSize()
-  const scaled = width > SNAPSHOT_MAX_WIDTH ? image.resize({ width: SNAPSHOT_MAX_WIDTH }) : image
-  const jpeg = scaled.toJPEG(SNAPSHOT_JPEG_QUALITY)
-  return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+export function setAgentView(scopeId: string, view: WebContentsView | null): void {
+  const previous = agentViews.get(scopeId)
+  if (view) agentViews.set(scopeId, view)
+  else agentViews.delete(scopeId)
+  if (previous && previous !== view && !isAgentView(previous)) unparkView(previous)
+  parkAgentViews()
 }
 
-function capturePanelSnapshot(onSettled?: () => void): void {
-  const active = host.activeTab()
-  const win = panelWindow()
-  if (!active || !win || active.view.webContents.isDestroyed()) {
-    onSettled?.()
-    return
+function isAgentView(view: WebContentsView): boolean {
+  for (const agentView of agentViews.values()) {
+    if (agentView === view) return true
   }
+  return false
+}
 
-  const generation = ++panelSnapshotGeneration
-  const tabId = active.id
-  void active.view.webContents
-    .capturePage(undefined, { stayHidden: panelOccluded })
-    .then((image) => {
-      if (generation !== panelSnapshotGeneration || image.isEmpty()) return
-      // Ownership can move while the capture is in flight. This frame is a
-      // picture of the page, so it goes to the window still showing the
-      // browser or nowhere at all.
-      if (panelWindow() !== win || win.isDestroyed()) return
-      // Downscale and JPEG-encode before crossing IPC. capturePage returns a
-      // device-pixel PNG — on a retina half-window that is millions of pixels,
-      // and toDataURL's PNG encode is synchronous on the main process, so a
-      // full-size encode stalls every window's input for the frame. This is a
-      // placeholder shown under a transient overlay, so a downscaled JPEG is
-      // indistinguishable and an order of magnitude cheaper to encode and send.
-      const snapshot: BrowserPanelSnapshot = { dataUrl: encodeSnapshot(image), tabId }
-      win.webContents.send('browser-agent:panel-snapshot', snapshot)
-    })
-    .catch((error) => {
-      logger.warn('Could not capture browser panel snapshot', {
-        error: getErrorMessage(error),
+/** Parks every agent view that no window holds, keeping renderer focus where it was. */
+function parkAgentViews(): void {
+  const win = host.getMainWindow()
+  if (!win || win.isDestroyed()) return
+  for (const view of agentViews.values()) {
+    if (view === attachedView || view.webContents.isDestroyed()) continue
+    const parkedIn = parkedViews.get(view)
+    if (parkedIn && !parkedIn.isDestroyed()) continue
+    // addChildView hands keyboard focus to the parked view; give it back to whichever of the
+    // Sim renderer or the visible browser page held it.
+    const focused = [win.webContents, attachedView?.webContents].find(
+      (contents) => contents && !contents.isDestroyed() && contents.isFocused()
+    )
+    try {
+      view.setVisible(false)
+      win.contentView.addChildView(view)
+      parkedViews.set(view, win)
+    } catch (error) {
+      logger.warn('Could not park the agent browser view', {
+        error: getErrorMessage(error, 'unknown'),
       })
+    }
+    focused?.focus()
+  }
+}
+
+function unparkView(view: WebContentsView): void {
+  const win = parkedViews.get(view)
+  if (!win) return
+  parkedViews.delete(view)
+  try {
+    if (!win.isDestroyed() && !view.webContents.isDestroyed()) win.contentView.removeChildView(view)
+  } catch (error) {
+    logger.warn('Could not unpark the agent browser view', {
+      error: getErrorMessage(error, 'unknown'),
     })
-    .finally(() => onSettled?.())
+  }
 }
 
 /**
@@ -380,14 +464,12 @@ export function layout(): void {
   const win = panelWindow()
   const active = host.activeTab()
   const showing = active !== null && panelBounds !== null && win !== null
-  const activeViewChanged = showing && attachedView !== active?.view
 
   // Detach only when the attached view cannot stay where it is: no tab is
   // active, a different tab took over, or the hosting window changed.
   //
-  // A panel that is merely hidden keeps its view attached and invisible, for
-  // the same reason occlusion does (see setPanelOccluded): removing the view
-  // gives up its compositor surface, and rebuilding that on the way back is a
+  // A panel hidden behind another resource keeps its view attached and invisible:
+  // removing the view gives up its compositor surface, and rebuilding it is a
   // blank repaint that reads as the page having reloaded. Every switch to
   // another resource and back hides the panel, so that was every switch.
   if (
@@ -398,17 +480,31 @@ export function layout(): void {
   }
   if (!showing || !active || !win || panelBounds === null) {
     hideAttachedView()
+    parkAgentViews()
     return
   }
 
   if (attachedView !== active.view) {
-    win.contentView.addChildView(active.view)
+    // A parked agent view already sits in this window; adopting it in place avoids the
+    // blank repaint a remove-and-add costs.
+    const parkedIn = parkedViews.get(active.view)
+    parkedViews.delete(active.view)
+    if (parkedIn !== win) {
+      if (parkedIn && !parkedIn.isDestroyed()) parkedIn.contentView.removeChildView(active.view)
+      // addChildView hands keyboard focus to the newly attached WebContentsView.
+      // Agent-driven attaches happen while the user may be typing in the chat
+      // composer, so if the renderer held focus before the attach, give it back —
+      // automation drives the page over CDP and never needs OS focus.
+      const rendererHadFocus = !win.webContents.isDestroyed() && win.webContents.isFocused()
+      win.contentView.addChildView(active.view)
+      if (rendererHadFocus) {
+        win.webContents.focus()
+      }
+    }
     hostedWindow = win
     attachedView = active.view
-    if (panelOccluded && activeViewChanged) {
-      capturePanelSnapshot()
-    }
   }
+  parkAgentViews()
   bindHostResize(win)
   const zoom = win.webContents.getZoomFactor()
   const [contentWidth, contentHeight] = win.getContentSize()
@@ -430,13 +526,373 @@ export function layout(): void {
   const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
   if (boundsKey !== lastAppliedBounds) {
     lastAppliedBounds = boundsKey
+    occludableFrame = null
     active.view.setBounds(bounds)
+    host.onGeometryChanged?.()
   }
   const visible = !panelOccluded
-  if (visible !== lastAppliedVisibility) {
+  if (lastAppliedVisibility !== visible) {
     lastAppliedVisibility = visible
     active.view.setVisible(visible)
+    host.onGeometryChanged?.()
+    if (visible && !active.view.webContents.isDestroyed()) {
+      // invalidate() recomposites the LAST frame — which is blank when the
+      // page finished loading while this view was hidden and background
+      // throttling suspended the rAF its SPA paints from. The page then sits
+      // "loaded" but white until the user re-navigates by hand. Pulse
+      // throttling off so the renderer actually produces a first frame, then
+      // hand the policy back to the session (which keeps the automation-tab
+      // exemption intact).
+      const contents = active.view.webContents
+      contents.setBackgroundThrottling(false)
+      contents.invalidate()
+      setTimeout(() => {
+        if (!contents.isDestroyed()) reassertTabThrottling()
+      }, 1_000)
+    }
   }
+  if (visible) host.onViewShown?.(active.view)
+}
+
+/** Converts the applied native DIP rectangle back into Sim viewport CSS pixels. */
+function viewportBoundsFor(
+  nativeBounds: BrowserPanelBounds,
+  shellZoom: number
+): BrowserPanelBounds {
+  return {
+    x: nativeBounds.x / shellZoom,
+    y: nativeBounds.y / shellZoom,
+    width: nativeBounds.width / shellZoom,
+    height: nativeBounds.height / shellZoom,
+  }
+}
+
+function sameBounds(left: BrowserPanelBounds, right: BrowserPanelBounds): boolean {
+  return (
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height
+  )
+}
+
+function frameGeometryIsCurrent(frame: OccludablePanelFrame): boolean {
+  return (
+    activePanelScopeId === frame.scopeId &&
+    host.activeTab()?.id === frame.tabId &&
+    attachedView === frame.view &&
+    panelWindow() === frame.win &&
+    !frame.win.isDestroyed() &&
+    !frame.view.webContents.isDestroyed() &&
+    frame.win.webContents.getZoomFactor() === frame.shellZoom &&
+    sameBounds(frame.view.getBounds(), frame.nativeBounds)
+  )
+}
+
+/** A blank tab needs only its native backdrop, not a compositor capture. */
+function blankSnapshot(
+  scopeId: string,
+  tabId: string,
+  zoomPercent: number,
+  viewportBounds: BrowserPanelBounds
+): BrowserPanelSnapshot {
+  return {
+    scopeId,
+    tabId,
+    zoomPercent,
+    viewportBounds,
+    dataUrl: `data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><path fill="${host.backgroundColor()}" d="M0 0h1v1H0z"/></svg>`
+    )}`,
+  }
+}
+
+function queuePanelCapture(
+  key: string,
+  ownerWindow: BrowserWindow | undefined,
+  scopeId: string
+): Promise<BrowserPanelSnapshot | null> {
+  if (queuedPanelCapture?.key === key) return queuedPanelCapture.promise
+
+  panelCaptureGeneration++
+  queuedPanelCapture?.resolve(null)
+  let resolveCapture!: (snapshot: BrowserPanelSnapshot | null) => void
+  let rejectCapture!: (reason?: unknown) => void
+  const promise = new Promise<BrowserPanelSnapshot | null>((resolve, reject) => {
+    resolveCapture = resolve
+    rejectCapture = reject
+  })
+  queuedPanelCapture = {
+    key,
+    ownerWindow,
+    promise,
+    reject: rejectCapture,
+    resolve: resolveCapture,
+    scopeId,
+  }
+  return promise
+}
+
+function startQueuedPanelCapture(): void {
+  const queued = queuedPanelCapture
+  if (!queued) return
+  queuedPanelCapture = null
+  void capturePanelSnapshot(queued.ownerWindow, queued.scopeId).then(queued.resolve, queued.reject)
+}
+
+/**
+ * Captures the compositor surface without resizing or lossy encoding.
+ *
+ * This image temporarily replaces the native view while renderer-owned chrome
+ * is open, so any scaling or JPEG compression is visible as a veil over the
+ * page. Keeping the frame at native resolution and in PNG makes that surface
+ * swap visually seamless.
+ */
+export async function capturePanelSnapshot(
+  ownerWindow?: BrowserWindow,
+  scopeId = activePanelScopeId
+): Promise<BrowserPanelSnapshot | null> {
+  if (!scopeId || !panelUpdateAllowed(ownerWindow, scopeId) || panelBounds === null) {
+    return null
+  }
+  const active = host.activeTab()
+  const win = panelWindow()
+  if (!active || !win || active.view.webContents.isDestroyed()) return null
+
+  // Ensure the snapshot describes the bounds Electron is actually painting,
+  // not merely the renderer host that requested them.
+  layout()
+  if (attachedView !== active.view) return null
+
+  const tabId = active.id
+  const contents = active.view.webContents
+  const shellZoom = win.webContents.getZoomFactor()
+  const nativeBounds = active.view.getBounds()
+  const frame: OccludablePanelFrame = {
+    view: active.view,
+    win,
+    scopeId,
+    tabId,
+    shellZoom,
+    nativeBounds,
+  }
+  const viewportBounds = viewportBoundsFor(nativeBounds, shellZoom)
+  const contentsZoom = contents.getZoomFactor()
+  const zoomPercent = zoomPercentOf(contentsZoom)
+  const url = contents.getURL()
+  if (url === '' || url === 'about:blank') {
+    panelCaptureGeneration++
+    occludableFrame = null
+    if (!frameGeometryIsCurrent(frame)) return null
+    occludableFrame = frame
+    return blankSnapshot(scopeId, tabId, zoomPercent, viewportBounds)
+  }
+  if (
+    nativeBounds.width <= 0 ||
+    nativeBounds.height <= 0 ||
+    nativeBounds.width * nativeBounds.height > MAX_PANEL_SNAPSHOT_PIXELS
+  ) {
+    logger.warn('Browser panel is too large to capture safely', {
+      width: nativeBounds.width,
+      height: nativeBounds.height,
+    })
+    return null
+  }
+
+  const captureKey = JSON.stringify([
+    win.id,
+    scopeId,
+    tabId,
+    url,
+    contentsZoom,
+    shellZoom,
+    nativeBounds.x,
+    nativeBounds.y,
+    nativeBounds.width,
+    nativeBounds.height,
+  ])
+  if (
+    inFlightPanelCapture?.key === captureKey &&
+    inFlightPanelCapture.generation === panelCaptureGeneration
+  ) {
+    return inFlightPanelCapture.promise
+  }
+  if (inFlightPanelCapture) return queuePanelCapture(captureKey, ownerWindow, scopeId)
+
+  occludableFrame = null
+  const generation = ++panelCaptureGeneration
+  let capture: ReturnType<typeof contents.capturePage>
+  try {
+    /** Refresh an occluded frame without exposing the native view above renderer overlays. */
+    capture = contents.capturePage(undefined, { stayHidden: panelOccluded })
+  } catch (error) {
+    logger.warn('Could not capture browser panel for a toolbar menu', {
+      error: getErrorMessage(error, 'unknown'),
+    })
+    return null
+  }
+  const promise = capture
+    .then((image): BrowserPanelSnapshot | null => {
+      const imageSize = image.getSize()
+      if (
+        generation !== panelCaptureGeneration ||
+        scopeId !== activePanelScopeId ||
+        host.activeTab()?.id !== tabId ||
+        panelWindow() !== win ||
+        win.isDestroyed() ||
+        !frameGeometryIsCurrent(frame) ||
+        image.isEmpty() ||
+        imageSize.width <= 0 ||
+        imageSize.height <= 0 ||
+        imageSize.width * imageSize.height > MAX_PANEL_SNAPSHOT_PIXELS
+      ) {
+        return null
+      }
+      const dataUrl = image.toDataURL()
+      if (dataUrl.length > MAX_PANEL_SNAPSHOT_DATA_URL_LENGTH) {
+        logger.warn('Browser panel snapshot exceeded the encoded size limit', {
+          bytes: dataUrl.length,
+        })
+        return null
+      }
+      const snapshot: BrowserPanelSnapshot = {
+        scopeId,
+        tabId,
+        zoomPercent,
+        viewportBounds,
+        dataUrl,
+      }
+      occludableFrame = frame
+      return snapshot
+    })
+    .catch((error) => {
+      logger.warn('Could not capture browser panel for a toolbar menu', {
+        error: getErrorMessage(error, 'unknown'),
+      })
+      return null
+    })
+    .finally(() => {
+      if (inFlightPanelCapture?.promise !== promise) return
+      inFlightPanelCapture = null
+      startQueuedPanelCapture()
+    })
+  inFlightPanelCapture = { generation, key: captureKey, promise }
+  return promise
+}
+
+/**
+ * Swaps the native page only after the renderer confirms its exact frame has
+ * painted. Hiding changes visibility alone: bounds and compositor attachment
+ * remain untouched, so revealing cannot relayout or restack the page.
+ */
+export function setPanelOccluded(
+  occluded: boolean,
+  ownerWindow?: BrowserWindow,
+  scopeId = activePanelScopeId,
+  force = false
+): boolean {
+  if (!scopeId) return false
+
+  if (scopeId !== activePanelScopeId) {
+    const currentOwner = occlusionOwnerWindow ?? panelOwner() ?? host.getMainWindow()
+    const requesterOwnsNativeSurface =
+      !ownerWindow || currentOwner === null || ownerWindow === currentOwner
+
+    // Every app window has its own renderer modal state, but the Browser is a
+    // singleton native surface hosted by only one of them. A background
+    // renderer on another chat therefore has nothing local to hide or reveal.
+    // Acknowledge its forced modal lease as a scoped no-op so its strict
+    // pre-paint gate can proceed, while still rejecting stale requests from
+    // the window that actually owns the native surface.
+    if (!requesterOwnsNativeSurface && !occluded) return true
+    if (
+      !requesterOwnsNativeSurface &&
+      force &&
+      ownerWindow &&
+      !ownerWindow.isDestroyed() &&
+      !ownerWindow.isFocused()
+    ) {
+      return true
+    }
+    return false
+  }
+
+  // Once ownership has transferred, an old renderer still needs to retire its
+  // local replacement when its modal closes. The old lease was released by
+  // the transfer, so revealing an already-visible panel is a scoped no-op.
+  if (!occluded && !panelOccluded) return true
+  // Another focused window may have replaced this renderer's lease with its
+  // own modal lease. Retiring the displaced renderer's local snapshot is also
+  // a no-op: it must not reveal the CURRENT owner's still-occluded view.
+  if (!occluded && ownerWindow && occlusionOwnerWindow && ownerWindow !== occlusionOwnerWindow) {
+    return true
+  }
+
+  const panelAllowed = panelUpdateAllowed(ownerWindow, scopeId)
+  const focusedForceTransfer =
+    occluded &&
+    force &&
+    !panelAllowed &&
+    Boolean(ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.isFocused())
+  const forceWithoutLocalSurface =
+    occluded &&
+    force &&
+    !panelAllowed &&
+    Boolean(ownerWindow && !ownerWindow.isDestroyed() && !ownerWindow.isFocused())
+  // An unfocused non-owner window has no native view in its compositor. It can
+  // safely open its own renderer modal without mutating the focused/owning
+  // window's lease. If it later gains focus while the marker remains, the
+  // bounds-report guard establishes a real hidden lease before transfer.
+  if (forceWithoutLocalSurface) return true
+  if (!panelAllowed && !focusedForceTransfer) return false
+
+  // A focused second window can open a modal before its next rAF reports new
+  // panel bounds. Transfer a HIDDEN, bounds-less lease atomically: the old
+  // window stops painting now and the new window's first bounds attach the
+  // singleton already hidden. Clearing the old rect also prevents a reveal at
+  // another window's geometry if the modal closes unusually quickly.
+  if (focusedForceTransfer && ownerWindow) {
+    panelOwnerWindow = ownerWindow
+    panelBounds = null
+    panelAnchor = null
+    panelLeaseAt = 0
+    panelOccluded = true
+    occlusionOwnerWindow = ownerWindow
+    occludableFrame = null
+    panelCaptureGeneration++
+    layout()
+    return true
+  }
+
+  if (!occluded) {
+    if (ownerWindow && occlusionOwnerWindow && ownerWindow !== occlusionOwnerWindow) return false
+    panelOccluded = false
+    occlusionOwnerWindow = null
+    occludableFrame = null
+    layout()
+    return true
+  }
+
+  // A pre-paint modal handshake can arrive one React commit before the panel
+  // reports its first bounds. A forced lease must still stick in that state so
+  // a view attached later in the same frame starts hidden, rather than briefly
+  // punching through the already-visible renderer effect.
+  if (occluded && (panelBounds === null || host.activeTab() === null) && !force) return false
+  if (panelOccluded) {
+    return !ownerWindow || !occlusionOwnerWindow || ownerWindow === occlusionOwnerWindow
+  }
+  layout()
+  // The lossless frame is the normal path. A full-screen renderer effect
+  // may explicitly force the final fallback after capture/geometry retries:
+  // a temporarily blank/blurred host is preferable to a native rectangle
+  // punching above a modal or global takeover. Ordinary popovers never force
+  // this path because they must remain pixel-neutral.
+  if ((!occludableFrame || !frameGeometryIsCurrent(occludableFrame)) && !force) return false
+  panelOccluded = true
+  occlusionOwnerWindow = ownerWindow ?? panelWindow()
+  occludableFrame = null
+  layout()
+  return true
 }
 
 /**
@@ -447,8 +903,10 @@ export function layout(): void {
 export function setPanelBounds(
   bounds: BrowserPanelBounds | null,
   ownerWindow?: BrowserWindow,
-  anchor?: BrowserPanelAnchor
+  anchor?: BrowserPanelAnchor,
+  scopeId = activePanelScopeId
 ): void {
+  if (!scopeId || scopeId !== activePanelScopeId) return
   // A closing window releases the panel from its `closed` handler, by which
   // point Electron has already destroyed it. That release has to be honoured
   // or the panel stays "visible" with a dead owner, and the next layout
@@ -459,16 +917,20 @@ export function setPanelBounds(
   // must not pull the browser out from under the window displaying it.
   if (bounds === null && !panelUpdateAllowed(ownerWindow)) return
   if (bounds !== null) {
-    panelOwnerWindow = ownerWindow ?? host.getMainWindow()
+    const nextOwner = ownerWindow ?? host.getMainWindow()
+    // Occlusion belongs to a renderer window, not to the mutable singleton.
+    // Moving the native view to another window releases the previous window's
+    // lease; the new owner must establish its own if it also has a modal.
+    if (occlusionOwnerWindow && nextOwner !== occlusionOwnerWindow) resetOcclusion()
+    panelOwnerWindow = nextOwner
   } else {
     panelOwnerWindow = null
   }
   panelBounds = bounds
   panelAnchor = bounds === null ? null : (anchor ?? null)
   if (bounds !== null) {
-    host.ensureInitialTab()
-  }
-  if (bounds === null) {
+    host.restoreActiveScope()
+  } else {
     resetOcclusion()
   }
   panelLeaseAt = Date.now()
@@ -488,31 +950,4 @@ export function setPanelBounds(
     }, PANEL_LEASE_CHECK_MS)
   }
   layout()
-}
-
-/**
- * Renderer-reported native-surface occlusion. The view stays attached and
- * keeps its bounds while hidden, avoiding the flicker and restacking caused by
- * removing and re-adding it for every tooltip or menu.
- *
- * Revealing is immediate; hiding waits for the frame that replaces it (see
- * {@link panelOcclusionRequested}). A capture that fails or finds nothing to
- * photograph still hides, so an overlay is never left with the page on top.
- */
-export function setPanelOccluded(occluded: boolean, ownerWindow?: BrowserWindow): void {
-  if (!panelUpdateAllowed(ownerWindow)) return
-  if (panelOcclusionRequested === occluded) return
-  panelOcclusionRequested = occluded
-  if (!occluded) {
-    panelOccluded = false
-    layout()
-    return
-  }
-  capturePanelSnapshot(() => {
-    // The overlay can close while its frame is being taken; hiding then would
-    // blank the page with nothing above it.
-    if (!panelOcclusionRequested) return
-    panelOccluded = true
-    layout()
-  })
 }

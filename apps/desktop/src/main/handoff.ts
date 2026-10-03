@@ -2,9 +2,11 @@ import type { Server } from 'node:http'
 import { createServer } from 'node:http'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import type { BrowserWindow } from 'electron'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
+import { showShellDialog } from '@/main/dialogs'
 import type { EventRecorder } from '@/main/observability'
 
 const logger = createLogger('DesktopHandoff')
@@ -43,6 +45,7 @@ export interface HandoffCallback {
 export interface ConnectHandoffCallback {
   state: string
   error?: string
+  credentialId?: string
 }
 
 export interface HandoffCallbacks {
@@ -64,14 +67,20 @@ export interface HandoffManagerDeps {
 
 /** Optional scope a chip-initiated connect carries into /desktop/connect. */
 export interface ConnectScope {
+  sourceRequestId?: string
   workspaceId?: string
   credentialId?: string
+  draftId?: string
+  chatAttemptId?: string
 }
 
 export interface HandoffManager {
   begin(): Promise<boolean>
   beginConnect(providerId: string, scope?: ConnectScope): Promise<boolean>
   consume(state: string, kind: HandoffKind): boolean
+  consumeConnect(state: string): ConnectScope | null
+  prepareSourceConnect(): string
+  cancelSourceConnect(requestId: string): boolean
   clear(): void
 }
 
@@ -89,9 +98,16 @@ export function createHandoffManager(
   callbacks: HandoffCallbacks
 ): HandoffManager {
   const now = deps.now ?? Date.now
+  let flowRevision = 0
+  let preparedSource: { requestId: string; expiresAt: number } | null = null
   let loopbackServer: Server | null = null
   let loopbackTimer: NodeJS.Timeout | undefined
-  let pending: { state: string; createdAt: number; kind: HandoffKind } | null = null
+  let pending: {
+    state: string
+    createdAt: number
+    kind: HandoffKind
+    connectScope?: ConnectScope
+  } | null = null
 
   const stopLoopback = () => {
     clearTimeout(loopbackTimer)
@@ -129,12 +145,22 @@ export function createHandoffManager(
       parse: (url) => {
         const state = url.searchParams.get('state') ?? ''
         const error = url.searchParams.get('error')
-        if (!STATE_PATTERN.test(state) || (error !== null && !ERROR_SLUG_PATTERN.test(error))) {
+        const credentialId = url.searchParams.get('credentialId')
+        if (
+          !STATE_PATTERN.test(state) ||
+          (error !== null && !ERROR_SLUG_PATTERN.test(error)) ||
+          (credentialId !== null && !/^[A-Za-z0-9_-]{1,128}$/.test(credentialId))
+        ) {
           return null
         }
         return {
           state,
-          dispatch: () => callbacks.onConnect({ state, ...(error !== null ? { error } : {}) }),
+          dispatch: () =>
+            callbacks.onConnect({
+              state,
+              ...(error !== null ? { error } : {}),
+              ...(credentialId ? { credentialId } : {}),
+            }),
         }
       },
     },
@@ -200,7 +226,11 @@ export function createHandoffManager(
       })
     } catch (error) {
       logger.error('Could not start the loopback server', { error })
-      loopbackServer = null
+      if (loopbackServer === server) loopbackServer = null
+      return undefined
+    }
+    if (loopbackServer !== server) {
+      server.close()
       return undefined
     }
     loopbackTimer = setTimeout(stopLoopback, HANDOFF_TTL_MS)
@@ -209,25 +239,58 @@ export function createHandoffManager(
   }
 
   const clear = () => {
+    flowRevision++
+    preparedSource = null
     stopLoopback()
     pending = null
+  }
+
+  const consumePending = (state: string, kind: HandoffKind): NonNullable<typeof pending> | null => {
+    if (!pending || pending.kind !== kind) return null
+    if (now() - pending.createdAt > HANDOFF_TTL_MS) {
+      clear()
+      return null
+    }
+    if (!safeCompare(pending.state, state)) return null
+    const consumed = pending
+    clear()
+    return consumed
   }
 
   const beginFlow = async (
     kind: HandoffKind,
     landingPath: string,
-    params: Record<string, string>
+    params: Record<string, string>,
+    connectScope?: ConnectScope
   ): Promise<boolean> => {
+    if (pending?.connectScope?.sourceRequestId)
+      callbacks.onConnect({ state: pending.state, error: 'superseded' })
+    const revision = ++flowRevision
     const state = generateShortId(STATE_LENGTH)
     // startLoopback() already tore down any prior server; if this bind fails,
     // clear the now-orphaned pending so a superseded flow can't linger as a
     // dangling entry pointing at a server that no longer exists.
     const port = await startLoopback()
+    if (revision !== flowRevision) return false
     if (!port) {
       clear()
       return false
     }
-    pending = { state, createdAt: now(), kind }
+    preparedSource = null
+    pending = {
+      state,
+      createdAt: now(),
+      kind,
+      ...(connectScope ? { connectScope: { ...connectScope } } : {}),
+    }
+    if (connectScope?.sourceRequestId) {
+      clearTimeout(loopbackTimer)
+      loopbackTimer = setTimeout(() => {
+        if (pending?.state !== state) return
+        callbacks.onConnect({ state, error: 'expired' })
+        clear()
+      }, 10 * 60_000)
+    }
     const landing = new URL(landingPath, deps.origin())
     for (const [key, value] of Object.entries(params)) {
       landing.searchParams.set(key, value)
@@ -236,7 +299,7 @@ export function createHandoffManager(
     landing.searchParams.set('port', String(port))
     deps.events.record(kind === 'login' ? 'handoff_started' : 'connect_handoff_started')
     const opened = await deps.openExternal(landing.toString())
-    if (!opened) {
+    if (!opened && pending?.state === state) {
       clear()
     }
     return opened
@@ -257,25 +320,54 @@ export function createHandoffManager(
       // of quietly attaching the credential to the wrong account. Omitted when
       // unknown (offline, signed out): the page then falls back to its normal
       // login redirect rather than blocking a connect on a failed probe.
+      if (
+        scope.sourceRequestId &&
+        (preparedSource?.requestId !== scope.sourceRequestId || preparedSource.expiresAt <= now())
+      )
+        return false
+      const revision = ++flowRevision
       const userId = await deps.currentUserId()
-      return beginFlow('connect', '/desktop/connect', {
-        provider: providerId,
-        ...(userId ? { user: userId } : {}),
-        ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
-        ...(scope.credentialId ? { credentialId: scope.credentialId } : {}),
-      })
+      if (
+        revision !== flowRevision ||
+        (scope.sourceRequestId && (!userId || preparedSource?.requestId !== scope.sourceRequestId))
+      )
+        return false
+      return beginFlow(
+        'connect',
+        '/desktop/connect',
+        {
+          provider: providerId,
+          ...(userId ? { user: userId } : {}),
+          ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+          ...(scope.credentialId ? { credentialId: scope.credentialId } : {}),
+          ...(scope.draftId ? { draftId: scope.draftId } : {}),
+          ...(scope.sourceRequestId ? { sourceRequestId: scope.sourceRequestId } : {}),
+        },
+        scope
+      )
     },
     consume(state: string, kind: HandoffKind) {
-      if (!pending || pending.kind !== kind) {
-        return false
-      }
-      if (now() - pending.createdAt > HANDOFF_TTL_MS) {
+      return consumePending(state, kind) !== null
+    },
+    consumeConnect(state: string) {
+      const consumed = consumePending(state, 'connect')
+      return consumed ? { ...(consumed.connectScope ?? {}) } : null
+    },
+    prepareSourceConnect() {
+      if (pending?.connectScope?.sourceRequestId)
+        callbacks.onConnect({ state: pending.state, error: 'superseded' })
+      clear()
+      const requestId = generateShortId(32)
+      preparedSource = { requestId, expiresAt: now() + 10 * 60_000 }
+      return requestId
+    },
+    cancelSourceConnect(requestId: string) {
+      if (preparedSource?.requestId === requestId) {
         clear()
-        return false
+        return true
       }
-      if (!safeCompare(pending.state, state)) {
-        return false
-      }
+      if (pending?.connectScope?.sourceRequestId !== requestId) return false
+      callbacks.onConnect({ state: pending.state, error: 'cancelled' })
       clear()
       return true
     },
@@ -364,12 +456,34 @@ export interface AuthFlow {
  * back on /login.
  */
 export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
+  /**
+   * The main window, or null when one cannot be obtained.
+   *
+   * Both entry points below are dispatched fire-and-forget from index.ts, and
+   * the wired `ensureMainWindow` throws when no window can be created or
+   * restored — which is reachable if the user closed the window while signing
+   * in through their browser. With no global `unhandledRejection` handler in
+   * main, letting that escape turned it into an unhandled rejection raised from
+   * the loopback callback. Recorded rather than swallowed: a sign-in that
+   * cannot present itself is exactly what the event log is for.
+   */
+  const resolveWindow = async (reason: string): Promise<BrowserWindow | null> => {
+    try {
+      return await deps.ensureMainWindow()
+    } catch (error) {
+      const message = getErrorMessage(error, 'Main window unavailable')
+      deps.events.record('handoff_redeem_fail', { reason, error: message })
+      logger.error('No window available for the sign-in handoff', { reason, error: message })
+      return null
+    }
+  }
+
   const failInWindow = async (win: BrowserWindow, reason: string, status?: number) => {
     deps.events.record(
       'handoff_redeem_fail',
       status === undefined ? { reason } : { reason, status }
     )
-    void dialog.showMessageBox(win, {
+    void showShellDialog(win, {
       type: 'error',
       message: 'Sign-in failed',
       detail: 'The sign-in could not be completed. Try signing in again.',
@@ -383,8 +497,9 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
     async beginLoginHandoff() {
       const opened = await deps.handoff.begin()
       if (!opened) {
-        const win = await deps.ensureMainWindow()
-        void dialog.showMessageBox(win, {
+        const win = await resolveWindow('begin_window')
+        if (!win) return
+        void showShellDialog(win, {
           type: 'error',
           message: 'Couldn’t start sign-in',
           detail: 'Sim could not open your browser to sign in. Try again.',
@@ -392,7 +507,8 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
       }
     },
     async handleCallback(callback: HandoffCallback) {
-      const win = await deps.ensureMainWindow()
+      const win = await resolveWindow('callback_window')
+      if (!win) return
       if (!deps.handoff.consume(callback.state, 'login')) {
         await failInWindow(win, 'state')
         return
@@ -418,6 +534,10 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
 export interface ConnectHandoffResult {
   ok: boolean
   error?: string
+  sourceRequestId?: string
+  credentialId?: string
+  /** Exact Mothership chat attempt, or null for ordinary integration flows. */
+  chatAttemptId: string | null
 }
 
 export interface ConnectFlowDeps {
@@ -451,19 +571,34 @@ export function createConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
       return opened
     },
     handleCallback(callback: ConnectHandoffCallback) {
-      if (!deps.handoff.consume(callback.state, 'connect')) {
+      const scope = deps.handoff.consumeConnect(callback.state)
+      if (!scope) {
         deps.events.record('connect_handoff_state_fail')
         return
       }
       if (callback.error === undefined) {
         deps.events.record('connect_handoff_ok')
         deps.focusMainWindow()
-        deps.notifyRenderer({ ok: true })
+        deps.notifyRenderer({
+          ok: true,
+          chatAttemptId: scope.chatAttemptId ?? null,
+          ...(scope.sourceRequestId
+            ? {
+                sourceRequestId: scope.sourceRequestId,
+                ...(callback.credentialId ? { credentialId: callback.credentialId } : {}),
+              }
+            : {}),
+        })
         return
       }
       deps.events.record('connect_handoff_error', { error: callback.error })
-      deps.focusMainWindow()
-      deps.notifyRenderer({ ok: false, error: callback.error })
+      if (!['cancelled', 'superseded', 'expired'].includes(callback.error)) deps.focusMainWindow()
+      deps.notifyRenderer({
+        ok: false,
+        error: callback.error,
+        chatAttemptId: scope.chatAttemptId ?? null,
+        ...(scope.sourceRequestId ? { sourceRequestId: scope.sourceRequestId } : {}),
+      })
     },
   }
 }

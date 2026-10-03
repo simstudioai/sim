@@ -43,6 +43,10 @@ export const chainOfThoughtTool: ToolConfig<DSPyChainOfThoughtParams, DSPyChainO
     },
 
     request: {
+      modelInput: {
+        mode: 'project',
+        select: (params) => ({ question: params.question, context: params.context }),
+      },
       method: 'POST',
       url: (params) => {
         const baseUrl = params.baseUrl.replace(/\/$/, '')

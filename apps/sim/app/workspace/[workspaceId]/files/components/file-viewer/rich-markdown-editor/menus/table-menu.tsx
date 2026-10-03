@@ -1,38 +1,37 @@
 import { useCallback, useState } from 'react'
-import { posToDOMRect } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, Rows3, Trash } from '@sim/emcn/icons'
+import { NodeSelection, PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
+import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
+import { BUBBLE_MENU_CLASS } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu-chrome'
 import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  Columns3,
-  Rows3,
-  Table as TableIcon,
-  Trash2,
-} from 'lucide-react'
-import { ToolbarButton, ToolbarDivider } from './toolbar-button'
-
-/** Pins the toolbar to the viewport instead of tracking the (often wide) table as it scrolls horizontally. */
-const FLOATING_OPTIONS = { strategy: 'fixed' } as const
-
-/** Renders into the body so a transformed/clipping ancestor can't reparent the fixed toolbar and shift it. */
-const APPEND_TO_BODY = () => document.body
+  ToolbarButton,
+  ToolbarDivider,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/toolbar-button'
+import { useBubbleMenuFloating } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-bubble-menu-floating'
+import { useEditorToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-editor-toolbar'
 
 interface TableBubbleMenuProps {
   editor: Editor
-  /** The editor's scrollable viewport, used to keep the toolbar on-screen for a table taller than it. */
+  /** The editor's scrollable viewport, so the toolbar repositions with the cell as the pane scrolls. */
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
+}
+
+const shouldShowTableMenu = ({ editor }: { editor: Editor }) => {
+  const { selection } = editor.state
+  return (
+    editor.isEditable &&
+    editor.isActive('table') &&
+    !(selection instanceof NodeSelection && isImageNode(selection.node))
+  )
 }
 
 /**
  * Floating toolbar shown whenever the selection is inside a table: row/column insert-before/after,
- * row/column delete, header-row toggle, and delete-table. `@tiptap/extension-table` already exposes
- * all of these as editor commands (`addRowBefore`, `addColumnAfter`, …) — this is UI only, no schema
- * or serializer change.
+ * row/column delete, and delete-table. The fixed header row is required by the Markdown storage
+ * format; capability checks omit operations that would remove it or insert a body row before it.
  */
 export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuProps) {
   const [menuKey] = useState(() => new PluginKey('markdownTableMenu'))
@@ -40,89 +39,86 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
-      headerRow: e.isActive('tableHeader'),
+      editable: e.isEditable,
+      addRowBefore: e.can().addRowBefore(),
+      deleteRow: e.can().deleteRow(),
     }),
   })
 
-  // Recomputed on every call (not cached by selection key) — the same table cell can land at a
-  // different screen position purely from scrolling with no selection change, and Floating UI's
-  // `autoUpdate` re-invokes this on scroll/resize expecting a fresh rect each time.
-  const resolveAnchor = useCallback(() => {
-    const { view, state } = editor
-    if (!view.dom.isConnected) return null
-    const { from, to } = state.selection
-    const selection = posToDOMRect(view, from, to)
-    const viewport = scrollContainerRef.current?.getBoundingClientRect()
-    const rect =
-      viewport && selection.top < viewport.top
-        ? new DOMRect(selection.left, viewport.top, selection.width, 0)
-        : selection
-    return { getBoundingClientRect: () => rect, getClientRects: () => [rect] }
-  }, [editor, scrollContainerRef])
+  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
+  const canFocus = useCallback(
+    () =>
+      shouldShowTableMenu({ editor }) &&
+      editor.state.doc
+        .textBetween(editor.state.selection.from, editor.state.selection.to, ' ')
+        .trim().length === 0,
+    [editor]
+  )
+  const toolbar = useEditorToolbar({
+    editor,
+    pluginKey: menuKey,
+    canFocus,
+  })
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey={menuKey}
       getReferencedVirtualElement={resolveAnchor}
-      options={FLOATING_OPTIONS}
-      appendTo={APPEND_TO_BODY}
-      role='toolbar'
-      aria-label='Table editing'
+      appendTo={appendTo}
       updateDelay={0}
-      shouldShow={({ editor: e }) => e.isEditable && e.isActive('table')}
-      className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-150 ease-out motion-reduce:animate-none'
+      shouldShow={shouldShowTableMenu}
+      hidden={!active.editable}
+      className={BUBBLE_MENU_CLASS}
     >
-      <ToolbarButton
-        icon={ArrowUp}
-        label='Insert row above'
-        isActive={false}
-        onClick={() => editor.chain().focus().addRowBefore().run()}
-      />
-      <ToolbarButton
-        icon={ArrowDown}
-        label='Insert row below'
-        isActive={false}
-        onClick={() => editor.chain().focus().addRowAfter().run()}
-      />
-      <ToolbarButton
-        icon={Rows3}
-        label='Delete row'
-        isActive={false}
-        onClick={() => editor.chain().focus().deleteRow().run()}
-      />
-      <ToolbarDivider />
-      <ToolbarButton
-        icon={ArrowLeft}
-        label='Insert column left'
-        isActive={false}
-        onClick={() => editor.chain().focus().addColumnBefore().run()}
-      />
-      <ToolbarButton
-        icon={ArrowRight}
-        label='Insert column right'
-        isActive={false}
-        onClick={() => editor.chain().focus().addColumnAfter().run()}
-      />
-      <ToolbarButton
-        icon={Columns3}
-        label='Delete column'
-        isActive={false}
-        onClick={() => editor.chain().focus().deleteColumn().run()}
-      />
-      <ToolbarDivider />
-      <ToolbarButton
-        icon={TableIcon}
-        label='Toggle header row'
-        isActive={active.headerRow}
-        onClick={() => editor.chain().focus().toggleHeaderRow().run()}
-      />
-      <ToolbarButton
-        icon={Trash2}
-        label='Delete table'
-        isActive={false}
-        onClick={() => editor.chain().focus().deleteTable().run()}
-      />
+      <div
+        {...toolbar}
+        role='toolbar'
+        aria-label='Table editing'
+        className='flex items-center gap-0.5'
+      >
+        {active.addRowBefore && (
+          <ToolbarButton
+            icon={ArrowUp}
+            label='Insert row above'
+            onClick={() => editor.chain().focus().addRowBefore().run()}
+          />
+        )}
+        <ToolbarButton
+          icon={ArrowDown}
+          label='Insert row below'
+          onClick={() => editor.chain().focus().addRowAfter().run()}
+        />
+        {active.deleteRow && (
+          <ToolbarButton
+            icon={Rows3}
+            label='Delete row'
+            onClick={() => editor.chain().focus().deleteRow().run()}
+          />
+        )}
+        <ToolbarDivider />
+        <ToolbarButton
+          icon={ArrowLeft}
+          label='Insert column left'
+          onClick={() => editor.chain().focus().addColumnBefore().run()}
+        />
+        <ToolbarButton
+          icon={ArrowRight}
+          label='Insert column right'
+          onClick={() => editor.chain().focus().addColumnAfter().run()}
+        />
+        <ToolbarButton
+          icon={Columns3}
+          label='Delete column'
+          onClick={() => editor.chain().focus().deleteColumn().run()}
+        />
+        <ToolbarDivider />
+        <ToolbarButton
+          icon={Trash}
+          label='Delete table'
+          onClick={() => editor.chain().focus().deleteTable().run()}
+        />
+      </div>
     </BubbleMenu>
   )
 }

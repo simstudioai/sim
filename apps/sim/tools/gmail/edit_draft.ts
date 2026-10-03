@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 interface GmailEditDraftParams {
   accessToken: string
@@ -24,7 +24,10 @@ interface GmailEditDraftResponse {
   }
 }
 
-export const gmailEditDraftV2Tool: ToolConfig<GmailEditDraftParams, GmailEditDraftResponse> = {
+export const gmailEditDraftV2Tool: InternalToolConfig<
+  GmailEditDraftParams,
+  GmailEditDraftResponse
+> = {
   id: 'gmail_edit_draft_v2',
   name: 'Gmail Edit Draft',
   description: 'Update an existing Gmail draft in place without deleting and recreating it.',
@@ -105,13 +108,8 @@ export const gmailEditDraftV2Tool: ToolConfig<GmailEditDraftParams, GmailEditDra
     },
   },
 
-  request: {
-    url: '/api/tools/gmail/edit-draft',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: GmailEditDraftParams) => ({
+  operation: {
+    input: (params: GmailEditDraftParams) => ({
       accessToken: params.accessToken,
       draftId: params.draftId?.trim(),
       to: params.to,

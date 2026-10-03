@@ -1,9 +1,8 @@
 import { ApiIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { RequestResponse } from '@/tools/http/types'
 
-export const ApiBlock: BlockConfig<RequestResponse> = {
+export const ApiBlock: BlockConfig = {
   type: 'api',
   name: 'API',
   description: 'Use any API',
@@ -17,6 +16,16 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#2F55FF',
   icon: ApiIcon,
+  canvasPresentation: {
+    defaultTitle: 'API',
+    sentences: {
+      default: [
+        { text: 'Send', field: 'method', after: 'request to', core: true },
+        { field: 'url', core: true },
+        { text: ', with body', field: 'body' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'url',
@@ -56,6 +65,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'body',
       title: 'Body',
       type: 'code',
+      language: 'json',
       placeholder: 'Enter JSON...',
       wandConfig: {
         enabled: true,
@@ -124,6 +134,22 @@ Example:
       mode: 'advanced',
     },
     {
+      id: 'redirectPolicyVersion',
+      title: 'Redirect policy version',
+      type: 'short-input',
+      defaultValue: 'standard-v1',
+      hidden: true,
+    },
+    {
+      id: 'sendCredentialsOnCrossOriginRedirect',
+      title: 'Send credentials on cross-origin redirects',
+      type: 'switch',
+      defaultValue: true,
+      description:
+        'Forward credential-bearing headers when a redirect changes scheme, host, or port. Enabled by default for compatibility; disable it when redirected destinations should not receive the same credentials.',
+      mode: 'advanced',
+    },
+    {
       id: 'proxyUrl',
       title: 'Proxy URL',
       type: 'short-input',
@@ -152,6 +178,14 @@ Example:
     retryNonIdempotent: {
       type: 'boolean',
       description: 'Allow retries for non-idempotent methods like POST/PATCH',
+    },
+    redirectPolicyVersion: {
+      type: 'string',
+      description: 'Persisted redirect-policy compatibility version',
+    },
+    sendCredentialsOnCrossOriginRedirect: {
+      type: 'boolean',
+      description: 'Send credential-bearing headers on redirects to a different origin',
     },
     proxyUrl: {
       type: 'string',

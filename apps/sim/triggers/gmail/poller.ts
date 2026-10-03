@@ -1,11 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { GmailIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { gmailLabelsSelectorContract } from '@/lib/api/contracts/selectors/google'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('GmailPollingTrigger')
 
 export const gmailPollingTrigger: TriggerConfig = {
   id: 'gmail_poller',
@@ -21,6 +15,7 @@ export const gmailPollingTrigger: TriggerConfig = {
       id: 'triggerCredentials',
       title: 'Credentials',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
       description: 'This trigger requires google email credentials to access your account.',
       serviceId: 'gmail',
       requiredScopes: [],
@@ -30,33 +25,13 @@ export const gmailPollingTrigger: TriggerConfig = {
     {
       id: 'labelIds',
       title: 'Gmail Labels to Monitor',
+      canvasNoun: 'a label',
       type: 'dropdown',
+      selectorKey: 'gmail.labels',
       multiSelect: true,
       placeholder: 'Select Gmail labels to monitor for new emails',
       description: 'Choose which Gmail labels to monitor. Leave empty to monitor all emails.',
       required: false,
-      options: [], // Will be populated dynamically from user's Gmail labels
-      fetchOptions: async (blockId: string) => {
-        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
-          | string
-          | null
-        if (!credentialId) {
-          // Return a sentinel to prevent infinite retry loops when credential is missing
-          throw new Error('No Gmail credential selected')
-        }
-        try {
-          const data = await requestJson(gmailLabelsSelectorContract, {
-            query: { credentialId },
-          })
-          return data.labels.map((label) => ({
-            id: label.id,
-            label: label.name,
-          }))
-        } catch (error) {
-          logger.error('Error fetching Gmail labels:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials'],
       mode: 'trigger',
     },

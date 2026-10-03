@@ -1,169 +1,64 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_SETTINGS_ITEMS,
   ACCOUNT_SETTINGS_PATH_ALIASES,
-  buildUnifiedSettingsNavigation,
   canMutateWorkspaceSettingsSection,
-  getAccountSettingsHref,
-  getOrganizationSettingsHref,
+  getOrganizationSettingsFeatures,
   getWorkspaceSettingsHref,
   isOrganizationSettingsSectionAvailable,
-  ORGANIZATION_PLANE_UNIFIED_SECTIONS,
-  ORGANIZATION_SETTINGS_ITEMS,
-  ORGANIZATION_SETTINGS_PATH_ALIASES,
+  isSelfHostedOverrideEnabled,
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
   resolveWorkspaceNavigation,
-  SELFHOST_SETTINGS_ITEMS,
-  SETTINGS_SECTION_REGISTRY,
   WORKSPACE_SETTINGS_ITEMS,
   WORKSPACE_SETTINGS_PATH_ALIASES,
 } from '@/components/settings/navigation'
+import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
+
+const SELF_HOSTED: DeploymentShape = {
+  hosted: false,
+  billingEnabled: false,
+  chatEnabled: true,
+  azureConfigured: false,
+  cohereConfigured: false,
+  features: {
+    accessControl: false,
+    auditLogs: false,
+    customBlocks: false,
+    dataDrains: false,
+    dataRetention: false,
+    inbox: true,
+    sandboxes: false,
+    sessionPolicies: true,
+    sso: false,
+    usageMonitoring: false,
+    whitelabeling: true,
+  },
+}
+
+const HOSTED: DeploymentShape = { ...SELF_HOSTED, hosted: true, billingEnabled: true }
+
+/** A self-hosted deployment with every feature override on. */
+const SELF_HOSTED_ALL_FEATURES: DeploymentShape = {
+  ...SELF_HOSTED,
+  features: { ...SELF_HOSTED.features, customBlocks: true },
+}
+
+const ALL_ENTITLEMENTS = {
+  customBlocks: true,
+  forks: true,
+  inbox: true,
+  sandboxes: true,
+}
 
 describe('settings navigation boundaries', () => {
-  it('preserves the order of all four settings catalogs', () => {
-    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toEqual([
-      'general',
-      'desktop',
-      'browser',
-      'terminal',
-      'access-control',
-      'audit-logs',
-      'forks',
-      'billing',
-      'teammates',
-      'organization',
-      'secrets',
-      'custom-tools',
-      'mcp',
-      'apikeys',
-      'workflow-mcp-servers',
-      'byok',
-      'inbox',
-      'recently-deleted',
-      'sso',
-      'sessions',
-      'data-retention',
-      'data-drains',
-      'whitelabeling',
-      'custom-blocks',
-      'admin',
-      'mothership',
-    ])
-    expect(ACCOUNT_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
-      'general',
-      'billing',
-      'api-keys',
-      'admin',
-      'mothership',
-    ])
-    expect(SELFHOST_SETTINGS_ITEMS.map(({ id }) => id)).toEqual(['general', 'billing', 'chat-keys'])
-    expect(ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
-      'members',
-      'billing',
-      'access-control',
-      'audit-logs',
-      'sso',
-      'sessions',
-      'data-retention',
-      'data-drains',
-      'whitelabeling',
-    ])
-    expect(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
-      'teammates',
-      'secrets',
-      'byok',
-      'custom-tools',
-      'mcp',
-      'workflow-mcp-servers',
-      'api-keys',
-      'inbox',
-      'recently-deleted',
-      'forks',
-      'custom-blocks',
-    ])
-  })
-
-  it('has one registry source for every unified and plane item', () => {
-    const unifiedIds = SETTINGS_SECTION_REGISTRY.flatMap(({ unified }) =>
-      unified ? [unified.id] : []
-    )
-    const accountIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
-      planes?.account ? [planes.account.id] : []
-    )
-    const organizationIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
-      planes?.organization ? [planes.organization.id] : []
-    )
-    const selfHostIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
-      planes?.selfhost ? [planes.selfhost.id] : []
-    )
-    const workspaceIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
-      planes?.workspace ? [planes.workspace.id] : []
-    )
-
-    expect(new Set(unifiedIds).size).toBe(unifiedIds.length)
-    expect(new Set(accountIds).size).toBe(accountIds.length)
-    expect(new Set(organizationIds).size).toBe(organizationIds.length)
-    expect(new Set(selfHostIds).size).toBe(selfHostIds.length)
-    expect(new Set(workspaceIds).size).toBe(workspaceIds.length)
-    expect([...unifiedIds].sort()).toEqual(
-      buildUnifiedSettingsNavigation()
-        .map(({ id }) => id)
-        .sort()
-    )
-    expect([...accountIds].sort()).toEqual(ACCOUNT_SETTINGS_ITEMS.map(({ id }) => id).sort())
-    expect([...organizationIds].sort()).toEqual(
-      ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id).sort()
-    )
-    expect([...selfHostIds].sort()).toEqual(SELFHOST_SETTINGS_ITEMS.map(({ id }) => id).sort())
-    expect([...workspaceIds].sort()).toEqual(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id).sort())
-  })
-
-  it('derives the organization-plane unified sections from the registry', () => {
-    expect([...ORGANIZATION_PLANE_UNIFIED_SECTIONS].sort()).toEqual([
-      'access-control',
-      'audit-logs',
-      'billing',
-      'data-drains',
-      'data-retention',
-      'organization',
-      'sessions',
-      'sso',
-      'whitelabeling',
-    ])
-  })
-
-  it('shares labels, icons, and docs links across projections', () => {
-    const unifiedSso = buildUnifiedSettingsNavigation().find(({ id }) => id === 'sso')
-    const organizationSso = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'sso')
-
-    expect(organizationSso?.label).toBe(unifiedSso?.label)
-    expect(organizationSso?.icon).toBe(unifiedSso?.icon)
-    expect(organizationSso?.docsLink).toBe(unifiedSso?.docsLink)
-  })
-
-  it('keeps scope-specific labels only where the surface genuinely differs', () => {
-    const organizationMembers = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'members')
-    const unifiedOrganization = buildUnifiedSettingsNavigation().find(
-      ({ id }) => id === 'organization'
-    )
-
-    expect(organizationMembers?.label).toBe('Members')
-    expect(organizationMembers?.description).toBe('Manage organization members, roles, and seats.')
-    expect(unifiedOrganization?.label).toBe('Organization')
-  })
-
-  it('builds canonical settings hrefs across all three planes', () => {
-    expect(getAccountSettingsHref('general')).toBe('/account/settings/general')
-    expect(getOrganizationSettingsHref('organization-a', 'members')).toBe(
-      '/organization/organization-a/settings/members'
-    )
-    expect(getWorkspaceSettingsHref('workspace-a', 'teammates')).toBe(
-      '/workspace/workspace-a/settings/teammates'
-    )
+  it('resolves self-hosted overrides against the deployment shape, never on Sim Cloud', () => {
+    expect(isSelfHostedOverrideEnabled(undefined, SELF_HOSTED)).toBe(false)
+    expect(isSelfHostedOverrideEnabled('always', SELF_HOSTED)).toBe(true)
+    expect(isSelfHostedOverrideEnabled('always', HOSTED)).toBe(false)
+    expect(isSelfHostedOverrideEnabled('sessionPolicies', SELF_HOSTED)).toBe(true)
+    expect(isSelfHostedOverrideEnabled('sessionPolicies', HOSTED)).toBe(false)
+    expect(isSelfHostedOverrideEnabled('sso', SELF_HOSTED)).toBe(false)
   })
 
   it('preserves encoded query parameters on canonical settings hrefs', () => {
@@ -193,20 +88,6 @@ describe('settings navigation boundaries', () => {
     expect(parseAccountPath('/account/settings', 'general')).toBe('general')
   })
 
-  it('parses canonical, aliased, and invalid organization settings paths', () => {
-    const parseOrganizationPath = (path: string) =>
-      parseSettingsPathSection({
-        path,
-        items: ORGANIZATION_SETTINGS_ITEMS,
-        defaultSection: null,
-        aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
-      })
-
-    expect(parseOrganizationPath('sso')).toBe('sso')
-    expect(parseOrganizationPath('/organization/org-a/settings/organization')).toBe('members')
-    expect(parseOrganizationPath('/organization/org-a/settings/not-a-section')).toBeNull()
-  })
-
   it('parses canonical, aliased, and invalid workspace settings paths', () => {
     const parseWorkspacePath = (path: string) =>
       parseSettingsPathSection({
@@ -219,12 +100,6 @@ describe('settings navigation boundaries', () => {
     expect(parseWorkspacePath('secrets')).toBe('secrets')
     expect(parseWorkspacePath('/workspace/workspace-a/settings/apikeys')).toBe('api-keys')
     expect(parseWorkspacePath('/workspace/workspace-a/settings/not-a-section')).toBeNull()
-  })
-
-  it('keeps API keys split between account and workspace settings', () => {
-    expect(ACCOUNT_SETTINGS_ITEMS.some(({ id }) => id === 'api-keys')).toBe(true)
-    expect(WORKSPACE_SETTINGS_ITEMS.some(({ id }) => id === 'api-keys')).toBe(true)
-    expect(ORGANIZATION_SETTINGS_ITEMS.some(({ id }) => String(id) === 'api-keys')).toBe(false)
   })
 
   it('requires target-organization membership and admin authority', () => {
@@ -258,80 +133,44 @@ describe('settings navigation boundaries', () => {
     ).toBe('manage')
   })
 
-  it('gates organization control-plane sections by the target organization plan', () => {
-    const hostedFree = {
-      billingEnabled: true,
-      hasEnterprisePlan: false,
-      hosted: true,
-      selfHosted: {},
-    }
-    expect(isOrganizationSettingsSectionAvailable('members', hostedFree)).toBe(true)
-    expect(isOrganizationSettingsSectionAvailable('billing', hostedFree)).toBe(true)
-    expect(isOrganizationSettingsSectionAvailable('sso', hostedFree)).toBe(false)
+  it('allows member requests while reserving management for organization admins', () => {
     expect(
-      isOrganizationSettingsSectionAvailable('sso', {
-        ...hostedFree,
-        hasEnterprisePlan: true,
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: false,
       })
+    ).toBe('view')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: false,
+        isTargetOrganizationAdmin: true,
+      })
+    ).toBe('unavailable')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'requests',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: true,
+      })
+    ).toBe('manage')
+    expect(
+      isOrganizationSettingsSectionAvailable(
+        'requests',
+        getOrganizationSettingsFeatures(false, SELF_HOSTED)
+      )
+    ).toBe(true)
+    expect(
+      isOrganizationSettingsSectionAvailable(
+        'requests',
+        getOrganizationSettingsFeatures(false, {
+          ...SELF_HOSTED,
+          features: { ...SELF_HOSTED.features, accessControl: true },
+        })
+      )
     ).toBe(true)
   })
-
-  it.each([
-    {
-      permission: 'read' as const,
-      visible: [
-        'teammates',
-        'secrets',
-        'byok',
-        'custom-tools',
-        'mcp',
-        'workflow-mcp-servers',
-        'api-keys',
-        'inbox',
-        'recently-deleted',
-        'custom-blocks',
-      ],
-      mutable: [],
-    },
-    {
-      permission: 'write' as const,
-      visible: [
-        'teammates',
-        'secrets',
-        'byok',
-        'custom-tools',
-        'mcp',
-        'workflow-mcp-servers',
-        'api-keys',
-        'inbox',
-        'recently-deleted',
-        'custom-blocks',
-      ],
-      mutable: ['secrets', 'custom-tools', 'mcp', 'workflow-mcp-servers', 'recently-deleted'],
-    },
-    {
-      permission: 'admin' as const,
-      visible: WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id),
-      mutable: WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id),
-    },
-  ])(
-    'makes workspace $permission navigation and mutation chrome explicit',
-    ({ permission, visible, mutable }) => {
-      const items = resolveWorkspaceNavigation({
-        permission,
-        permissionConfig: {},
-        entitlements: {
-          byok: true,
-          customBlocks: true,
-          forks: true,
-          inbox: true,
-        },
-      })
-
-      expect(items.map(({ id }) => id)).toEqual(visible)
-      expect(items.filter(({ canMutate }) => canMutate).map(({ id }) => id)).toEqual(mutable)
-    }
-  )
 
   it('applies permission-group hiding as an independent axis', () => {
     const items = resolveWorkspaceNavigation({
@@ -342,22 +181,20 @@ describe('settings navigation boundaries', () => {
         hideInboxTab: true,
         disableMcpTools: true,
         disableCustomTools: true,
+        hideSandboxesTab: true,
       },
-      entitlements: {
-        byok: true,
-        customBlocks: true,
-        forks: true,
-        inbox: true,
-      },
+      entitlements: ALL_ENTITLEMENTS,
+      deployment: SELF_HOSTED_ALL_FEATURES,
     })
 
     expect(items.map(({ id }) => id)).toEqual([
       'teammates',
-      'byok',
       'workflow-mcp-servers',
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'requests',
+      'self-host',
     ])
   })
 

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelDeleteDomainParams, VercelDeleteDomainResponse } from '@/tools/vercel/types'
 
 export const vercelDeleteDomainTool: ToolConfig<
@@ -43,7 +44,7 @@ export const vercelDeleteDomainTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v6/domains/${params.domain.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v6/domains/${safeUrlPathSegment(params.domain, 'domain')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params: VercelDeleteDomainParams) => ({

@@ -1,6 +1,6 @@
-import { Link, Section, Text } from '@react-email/components'
+import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -27,9 +27,7 @@ export function UsageThresholdEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
         You're approaching your monthly budget on the {planName} plan.
@@ -43,23 +41,15 @@ export function UsageThresholdEmail({
         </Text>
       </Section>
 
-      {/* Divider */}
-      <div style={baseStyles.divider} />
-
       <Text style={baseStyles.paragraph}>
         To avoid interruptions, consider increasing your monthly limit.
       </Text>
 
-      <Link href={ctaLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Review Limits</Text>
-      </Link>
+      <EmailButton href={ctaLink}>Review Limits</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        One-time notification at 80% usage.
-      </Text>
+      <Text style={baseStyles.footnote}>One-time notification at 80% usage.</Text>
     </EmailLayout>
   )
 }

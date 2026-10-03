@@ -1,19 +1,35 @@
 import { QdrantIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { QdrantResponse } from '@/tools/qdrant/types'
 
-export const QdrantBlock: BlockConfig<QdrantResponse> = {
+export const QdrantBlock: BlockConfig = {
   type: 'qdrant',
   name: 'Qdrant',
   description: 'Use Qdrant vector database',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Qdrant into the workflow. Can upsert, search, and fetch points.',
-  docsLink: 'https://qdrant.tech/documentation/',
+  docsLink: 'https://docs.sim.ai/integrations/qdrant',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#1A223F',
   icon: QdrantIcon,
+  canvasPresentation: {
+    defaultTitle: 'Qdrant',
+    sentences: {
+      byOperation: {
+        upsert: [{ text: 'Upsert points into', field: 'collection', core: true }],
+        search: [
+          { text: 'Search', field: 'collection', after: 'for similar vectors', core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        fetch: [
+          { text: 'Fetch points', field: 'ids', core: true },
+          { text: 'from', field: 'collection', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -259,7 +275,7 @@ export const QdrantBlockMeta = {
       modules: ['files', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
-      alsoIntegrations: ['google_drive', 'openai'],
+      alsoIntegrations: ['google_drive', 'embeddings'],
     },
     {
       icon: QdrantIcon,
@@ -315,7 +331,7 @@ export const QdrantBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'vector-search', 'automation'],
-      alsoIntegrations: ['openai', 'zendesk'],
+      alsoIntegrations: ['embeddings', 'zendesk'],
     },
   ],
   skills: [

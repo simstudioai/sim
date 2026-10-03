@@ -1,8 +1,7 @@
 import { BrowserUseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { BrowserUseResponse } from '@/tools/browser_use/types'
 
-export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
+export const BrowserUseBlock: BlockConfig = {
   type: 'browser_use',
   name: 'Browser Use',
   description: 'Run browser automation tasks',
@@ -14,6 +13,15 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: BrowserUseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Browser Use',
+    sentences: {
+      default: [
+        { text: 'Run the browser task', field: 'task', core: true },
+        { text: ', starting at', field: 'startUrl' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'task',
@@ -32,6 +40,8 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       id: 'variables',
       title: 'Variables (Secrets)',
       type: 'table',
+      password: true,
+      required: false,
       columns: ['Key', 'Value'],
     },
     {

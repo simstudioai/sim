@@ -1,16 +1,9 @@
-import { runManagedAgentSession } from '@/lib/managed-agents/run-session'
-import {
-  isTruthyAck,
-  normalizeFiles,
-  normalizeMemoryAccess,
-  normalizeSessionParameters,
-  normalizeStringList,
-} from '@/tools/managed_agent/normalizers'
 import type {
   ManagedAgentRunSessionParams,
   ManagedAgentRunSessionResponse,
 } from '@/tools/managed_agent/types'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Opens a Claude Platform Managed Agent session and returns the assistant
@@ -18,11 +11,10 @@ import type { ToolConfig } from '@/tools/types'
  *
  * The block's `credential` picker supplies a Claude Platform service-account
  * credential; the executor resolves it to the workspace API key and injects
- * `accessToken` before `directExecution` runs. The session lifecycle
- * (`runManagedAgentSession`) is pure `fetch` with no server-only deps, so the
- * tool module stays safe to import from the client registry.
+ * `accessToken` before the registered operation runs.
  */
-export const managedAgentRunSessionTool: ToolConfig<
+
+export const managedAgentRunSessionTool: InternalToolConfig<
   ManagedAgentRunSessionParams,
   ManagedAgentRunSessionResponse
 > = {
@@ -114,95 +106,15 @@ export const managedAgentRunSessionTool: ToolConfig<
       description: 'Key/value session metadata forwarded to the session.',
     },
   },
-
-  // Unused: `directExecution` runs the session and short-circuits the HTTP
-  // path, but `ToolConfig` requires a `request` shape.
-  request: {
-    url: () => '',
-    method: 'POST',
-    headers: () => ({}),
-  },
-
-  directExecution: async (params, signal): Promise<ManagedAgentRunSessionResponse> => {
-    const apiKey = params.accessToken
-    if (!apiKey) {
-      return {
-        success: false,
-        output: { content: '', sessionId: '' },
-        error: 'No Claude Platform credential is selected, or it could not be resolved.',
-      }
-    }
-
-    const agentId = params.agent?.trim()
-    const environmentId = params.environment?.trim()
-    if (!agentId || !environmentId) {
-      return {
-        success: false,
-        output: { content: '', sessionId: '' },
-        error: 'An agent and an environment are required.',
-      }
-    }
-
-    const vaultIds = normalizeStringList(params.vaults)
-    if (vaultIds.length > 0 && !isTruthyAck(params.vaultsAck)) {
-      return {
-        success: false,
-        output: { content: '', sessionId: '' },
-        error:
-          'Vault authorization is required — check the "I am authorized to use these vaults" acknowledgement on the block, or remove the selected vault(s).',
-      }
-    }
-
-    const files = normalizeFiles(params.files)
-    const sessionParameters = normalizeSessionParameters(params.sessionParameters)
-    const memoryStoreId = params.memoryStoreId?.trim() || undefined
-    const memoryAccess = normalizeMemoryAccess(params.memoryAccess)
-    const memoryInstructions = params.memoryInstructions?.trim() || undefined
-
-    // Title the Anthropic session so it is traceable to its Sim workflow from
-    // the Claude Platform console. Only the workflow id is available in the
-    // client-safe execution context (names would require a DB lookup).
-    const workflowId = params._context?.workflowId?.trim()
-    const title = workflowId ? `Sim workflow ${workflowId}` : undefined
-
-    const environmentType =
-      params.environmentType === 'self_hosted' || params.environmentType === 'cloud'
-        ? params.environmentType
-        : undefined
-
-    const result = await runManagedAgentSession({
-      apiKey,
-      agentId,
-      environmentId,
-      userMessage: (params.userMessage ?? '').toString(),
-      ...(environmentType ? { environmentType } : {}),
-      ...(title ? { title } : {}),
-      ...(vaultIds.length > 0 ? { vaultIds } : {}),
-      ...(memoryStoreId ? { memoryStoreId } : {}),
-      ...(memoryStoreId && memoryAccess ? { memoryAccess } : {}),
-      ...(memoryStoreId && memoryInstructions ? { memoryInstructions } : {}),
-      ...(files.length > 0 ? { files } : {}),
-      ...(sessionParameters ? { sessionParameters } : {}),
-      ...(signal ? { signal } : {}),
-    })
-
-    if (!result.ok) {
-      return {
-        success: false,
-        output: { content: result.content, sessionId: result.sessionId ?? '' },
-        error: result.error ?? 'Managed Agent session failed',
-      }
-    }
-
-    return {
-      success: true,
-      output: {
-        content: result.content,
-        sessionId: result.sessionId ?? '',
-        ...(result.inputTokens !== undefined ? { inputTokens: result.inputTokens } : {}),
-        ...(result.outputTokens !== undefined ? { outputTokens: result.outputTokens } : {}),
-      },
-    }
+  operation: {
+    input: createInternalToolOperationInput,
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        userMessage: params.userMessage,
+        memoryInstructions: params.memoryInstructions,
+      }),
+    },
   },
 
   outputs: {

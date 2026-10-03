@@ -1,19 +1,28 @@
-import { db } from '@sim/db'
-import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetExecutionContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
+import { projectCostTotal, resolveLogFieldProjection } from '@/lib/logs/log-projection'
+import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
+import { sanitizeExecutionSnapshotState } from '@/lib/logs/snapshot-sanitizer'
+import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
+  concealedWorkspaceAccessResponse,
   createRateLimitResponse,
-  validateWorkspaceAccess,
+  resolveWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1ExecutionAPI')
+
+function countWorkflowStateBlocks(workflowState: unknown): number {
+  if (!workflowState || typeof workflowState !== 'object' || Array.isArray(workflowState)) return 0
+  const blocks = (workflowState as Record<string, unknown>).blocks
+  if (!blocks || typeof blocks !== 'object' || Array.isArray(blocks)) return 0
+  return Object.keys(blocks).length
+}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ executionId: string }> }) => {
@@ -34,37 +43,43 @@ export const GET = withRouteHandler(
 
       logger.debug(`Fetching execution data for: ${executionId}`)
 
-      const rows = await db
-        .select()
-        .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, executionId))
-        .limit(1)
+      const workflowLog = await getPublicWorkflowLog({ column: 'executionId', value: executionId })
 
-      if (rows.length === 0) {
+      if (!workflowLog) {
         return NextResponse.json({ error: 'Workflow execution not found' }, { status: 404 })
       }
 
-      const workflowLog = rows[0]
-
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, workflowLog.workspaceId)
+      const accessError = await resolveWorkspaceAccess(
+        rateLimit,
+        userId,
+        workflowLog.workspaceId,
+        'none'
+      )
       if (accessError) {
-        return NextResponse.json({ error: 'Workflow execution not found' }, { status: 404 })
+        return concealedWorkspaceAccessResponse(accessError, 'Workflow execution not found')
       }
 
-      const [snapshot] = await db
-        .select()
-        .from(workflowExecutionSnapshots)
-        .where(eq(workflowExecutionSnapshots.id, workflowLog.stateSnapshotId))
-        .limit(1)
+      /** `logs.cost` is a projection, not a gate — see `resolveLogFieldProjection`. */
+      const projection = await resolveLogFieldProjection(
+        capabilityGovernedUserId(rateLimit),
+        workflowLog.workspaceId
+      )
 
-      if (!snapshot) {
+      /**
+       * The stored snapshot carries `password: true` sub-block values and `oauth-input`
+       * credential ids, so it is redacted before it reaches this public wire — the same
+       * treatment the v2 run detail applies. A snapshot the sanitizer cannot walk projects
+       * as `null`, which keeps the pre-existing "not found" outcome for an absent one.
+       */
+      const workflowState = sanitizeExecutionSnapshotState(workflowLog.workflowState)
+      if (!workflowState) {
         return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })
       }
 
       const response = {
         executionId,
         workflowId: workflowLog.workflowId,
-        workflowState: snapshot.stateData,
+        workflowState,
         executionMetadata: {
           trigger: workflowLog.trigger,
           startedAt: workflowLog.startedAt.toISOString(),
@@ -72,17 +87,15 @@ export const GET = withRouteHandler(
           totalDurationMs: workflowLog.totalDurationMs,
           // Sourced from the cost_total projection of the usage_log ledger
           // (the deprecated cost jsonb column was dropped).
-          cost: workflowLog.costTotal != null ? { total: Number(workflowLog.costTotal) } : null,
+          cost: projectCostTotal(workflowLog.costTotal, projection),
         },
       }
 
       logger.debug(`Successfully fetched execution data for: ${executionId}`)
-      logger.debug(
-        `Workflow state contains ${Object.keys((snapshot.stateData as any)?.blocks || {}).length} blocks`
-      )
+      logger.debug(`Workflow state contains ${countWorkflowStateBlocks(workflowState)} blocks`)
 
       // Get user's workflow execution limits and usage
-      const limits = await getUserLimits(userId)
+      const limits = projectUserLimits(await getUserLimits(userId), projection)
 
       // Create response with limits information
       const apiResponse = createApiResponse(

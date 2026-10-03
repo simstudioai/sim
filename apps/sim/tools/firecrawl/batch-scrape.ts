@@ -2,6 +2,12 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import {
+  applyFirecrawlFormatModelInput,
+  applyFirecrawlScrapeOptionsModelInput,
+  selectFirecrawlFormatModelInput,
+  selectFirecrawlScrapeOptionsModelInput,
+} from '@/tools/firecrawl/model-input'
 import type {
   FirecrawlBatchScrapeParams,
   FirecrawlBatchScrapeResponse,
@@ -105,6 +111,29 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
     hosting: firecrawlHosting(),
 
     request: {
+      modelInput: {
+        mode: 'project',
+        select: (params) =>
+          params.formats
+            ? { formats: selectFirecrawlFormatModelInput(params.formats) }
+            : { scrapeOptions: selectFirecrawlScrapeOptionsModelInput(params.scrapeOptions) },
+        applyProjected: (selectedParams, projectedSelection) => {
+          if (Object.hasOwn(projectedSelection, 'formats')) {
+            return {
+              formats: applyFirecrawlFormatModelInput(
+                selectedParams.formats,
+                projectedSelection.formats
+              ),
+            }
+          }
+          return {
+            scrapeOptions: applyFirecrawlScrapeOptionsModelInput(
+              selectedParams.scrapeOptions,
+              projectedSelection.scrapeOptions
+            ),
+          }
+        },
+      },
       method: 'POST',
       url: 'https://api.firecrawl.dev/v2/batch/scrape',
       headers: (params) => ({

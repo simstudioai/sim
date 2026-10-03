@@ -1,5 +1,20 @@
 import * as React from 'react'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
+
+export const tableVariants = cva('w-full caption-bottom text-small', {
+  variants: {
+    variant: {
+      default: '',
+      list: 'border-separate border-spacing-x-0 border-spacing-y-0.5 [&_tr]:border-0 [&_th]:h-8 [&_th]:p-2 [&_th]:font-normal [&_th]:text-[var(--text-muted)] [&_th]:text-caption [&_td]:p-2 [&_td]:text-[var(--text-muted)] [&_td]:text-caption [&_td:first-child]:rounded-l-lg [&_td:last-child]:rounded-r-lg',
+    },
+  },
+  defaultVariants: { variant: 'default' },
+})
+
+interface TableProps
+  extends React.HTMLAttributes<HTMLTableElement>,
+    VariantProps<typeof tableVariants> {}
 
 /**
  * A simple Table component for displaying data.
@@ -22,10 +37,10 @@ import { cn } from '../../lib/cn'
  * </Table>
  * ```
  */
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, variant, ...props }, ref) => (
     <div className='relative w-full overflow-auto'>
-      <table ref={ref} className={cn('w-full caption-bottom text-small', className)} {...props} />
+      <table ref={ref} className={cn(tableVariants({ variant }), className)} {...props} />
     </div>
   )
 )
@@ -54,7 +69,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      'border-t bg-[color-mix(in_srgb,var(--surface-3)_50%,transparent)] font-medium [&>tr]:last:border-b-0',
+      'border-t bg-[color-mix(in_srgb,var(--surface-3)_50%,transparent)] [&>tr]:last:border-b-0',
       className
     )}
     {...props}
@@ -80,7 +95,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      'h-10 px-3 py-2 text-left align-middle font-medium text-[var(--text-secondary)] [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+      'h-10 px-3 py-2 text-left align-middle text-[var(--text-secondary)] [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
       className
     )}
     {...props}

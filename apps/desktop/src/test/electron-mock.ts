@@ -6,20 +6,28 @@ import { vi } from 'vitest'
  * file that touches an electron-importing module mocks it with:
  *
  *   vi.mock('electron', () => import('@/test/electron-mock'))
+ *
+ * Tests steer the stubs through {@link electronMockFns}, imported from this
+ * same module, e.g. `electronMockFns.mockCanPromptTouchID.mockReturnValue(true)`.
  */
 
 export const app = {
   name: 'Sim',
   isPackaged: false,
+  userAgentFallback:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Sim/1.0.0 Chrome/140.0.7339.207 Electron/43.1.1 Safari/537.36',
   getVersion: vi.fn(() => '1.0.0'),
   getName: vi.fn(() => 'Sim'),
   setName: vi.fn(),
   getPath: vi.fn(() => '/tmp/sim-desktop-test'),
   getAppPath: vi.fn(() => '/tmp/sim-desktop-test/app'),
   isReady: vi.fn(() => true),
+  isInApplicationsFolder: vi.fn(() => true),
   on: vi.fn(),
   once: vi.fn(),
   quit: vi.fn(),
+  exit: vi.fn(),
+  relaunch: vi.fn(),
   focus: vi.fn(),
   enableSandbox: vi.fn(),
   requestSingleInstanceLock: vi.fn(() => true),
@@ -30,12 +38,19 @@ export const app = {
   dock: { downloadFinished: vi.fn() },
 }
 
+/** Squirrel.Mac's native updater; tests replay its events through `on` calls. */
+export const autoUpdater = {
+  on: vi.fn(),
+}
+
 export const crashReporter = {
   start: vi.fn(),
 }
 
 export const shell = {
+  beep: vi.fn(),
   openExternal: vi.fn(() => Promise.resolve()),
+  openPath: vi.fn(() => Promise.resolve('')),
   showItemInFolder: vi.fn(),
 }
 
@@ -53,11 +68,25 @@ export const safeStorage = {
 
 export const clipboard = {
   writeText: vi.fn(),
+  readText: vi.fn(() => ''),
+}
+
+export const systemPreferences = {
+  getMediaAccessStatus: vi.fn(() => 'granted'),
+  askForMediaAccess: vi.fn(() => Promise.resolve(true)),
+  canPromptTouchID: vi.fn(() => false),
+  promptTouchID: vi.fn(() => Promise.resolve()),
 }
 
 export const nativeTheme = {
   shouldUseDarkColors: false,
   on: vi.fn(),
+}
+
+export const screen = {
+  getDisplayMatching: vi.fn(() => ({
+    workArea: { x: 0, y: 0, width: 1440, height: 900 },
+  })),
 }
 
 export const Menu = {
@@ -74,9 +103,28 @@ export const session = {
   fromPartition: vi.fn(),
 }
 
+export const protocol = {
+  registerSchemesAsPrivileged: vi.fn(),
+  handle: vi.fn(),
+  isProtocolHandled: vi.fn(() => false),
+}
+
 export const ipcMain = {
   on: vi.fn(),
   handle: vi.fn(),
+}
+
+/** Renderer/preload side of IPC. */
+export const ipcRenderer = {
+  on: vi.fn(),
+  once: vi.fn(),
+  send: vi.fn(),
+  invoke: vi.fn(() => Promise.resolve(undefined)),
+  removeListener: vi.fn(),
+}
+
+export const contextBridge = {
+  exposeInMainWorld: vi.fn(),
 }
 
 export const nativeImage = {
@@ -95,6 +143,17 @@ export const nativeImage = {
     setTemplateImage: vi.fn(),
     getSize: vi.fn(() => ({ width: options.width, height: options.height })),
   })),
+  /**
+   * Decodes nothing: tests pass short base64 stand-ins rather than real images.
+   * Reports empty so callers take their undecodable-capture fallback, and let a
+   * test opt into the resize path by overriding this mock with a sized image.
+   */
+  createFromBuffer: vi.fn((_buffer: unknown) => ({
+    isEmpty: vi.fn(() => true),
+    getSize: vi.fn(() => ({ width: 0, height: 0 })),
+    resize: vi.fn(),
+    toJPEG: vi.fn(() => Buffer.alloc(0)),
+  })),
 }
 
 export class Tray {
@@ -104,6 +163,7 @@ export class Tray {
   }
   setToolTip = vi.fn()
   setContextMenu = vi.fn()
+  setIgnoreDoubleClickEvents = vi.fn()
   popUpContextMenu = vi.fn()
   on = vi.fn()
   destroy = vi.fn()
@@ -130,16 +190,25 @@ function createWebContentsMock() {
     getTitle: vi.fn(() => 'Example'),
     loadURL: vi.fn(() => Promise.resolve()),
     reload: vi.fn(),
+    stop: vi.fn(),
+    print: vi.fn(),
     focus: vi.fn(),
+    invalidate: vi.fn(),
+    beginFrameSubscription: vi.fn(),
+    endFrameSubscription: vi.fn(),
     isFocused: vi.fn(() => false),
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
+    isLoadingMainFrame: vi.fn(() => false),
     findInPage: vi.fn(() => 1),
     stopFindInPage: vi.fn(),
     setBackgroundThrottling: vi.fn(),
+    setUserAgent: vi.fn(),
+    setIgnoreMenuShortcuts: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),
+    forcefullyCrashRenderer: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
     capturePage: vi.fn(() => {
@@ -157,6 +226,7 @@ function createWebContentsMock() {
     navigationHistory: {
       canGoBack: vi.fn(() => false),
       canGoForward: vi.fn(() => false),
+      getActiveIndex: vi.fn(() => 0),
       goBack: vi.fn(),
       goForward: vi.fn(),
     },
@@ -170,7 +240,8 @@ function createWebContentsMock() {
     session: {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
-      webRequest: { onBeforeRequest: vi.fn() },
+      setUserAgent: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
       on: vi.fn(),
     },
   }
@@ -179,21 +250,33 @@ function createWebContentsMock() {
 export class WebContentsView {
   webContents = createWebContentsMock()
   setBackgroundColor = vi.fn()
-  setVisible = vi.fn()
-  setBounds = vi.fn()
+  private visible = true
+  setVisible = vi.fn((visible: boolean) => {
+    this.visible = visible
+  })
+  getVisible = vi.fn(() => this.visible)
+  private bounds = { x: 0, y: 0, width: 0, height: 0 }
+  setBounds = vi.fn((bounds: { x: number; y: number; width: number; height: number }) => {
+    this.bounds = { ...bounds }
+  })
+  getBounds = vi.fn(() => ({ ...this.bounds }))
 }
 
 export class BrowserWindow {
   static fromWebContents = vi.fn(() => null)
   static getFocusedWindow = vi.fn(() => null)
+  static nextId = 1
   /** Constructor tracking for tests (the class itself is not a vi.fn mock). */
   static instances: BrowserWindow[] = []
   static lastOptions: Record<string, unknown> | undefined
+  readonly id = BrowserWindow.nextId++
   constructor(options?: Record<string, unknown>) {
     BrowserWindow.instances.push(this)
     BrowserWindow.lastOptions = options
   }
   webContents = {
+    ipc: { on: vi.fn(), handle: vi.fn() },
+    mainFrame: { url: '' },
     on: vi.fn(),
     getURL: vi.fn(() => ''),
     loadURL: vi.fn(() => Promise.resolve()),
@@ -203,6 +286,8 @@ export class BrowserWindow {
     getZoomFactor: vi.fn(() => 1),
     executeJavaScript: vi.fn(() => Promise.resolve(true)),
     focus: vi.fn(),
+    isFocused: vi.fn(() => false),
+    isDestroyed: vi.fn(() => false),
     send: vi.fn(),
     setWindowOpenHandler: vi.fn(),
     isDevToolsOpened: vi.fn(() => false),
@@ -220,6 +305,7 @@ export class BrowserWindow {
   getNormalBounds = vi.fn(() => ({ x: 0, y: 0, width: 1360, height: 860 }))
   getBounds = vi.fn(() => ({ x: 1292, y: 41, width: 420, height: 150 }))
   setBounds = vi.fn()
+  setContentSize = vi.fn()
   loadURL = vi.fn(() => Promise.resolve())
   loadFile = vi.fn(() => Promise.resolve())
   focus = vi.fn()
@@ -239,4 +325,82 @@ export class BrowserWindow {
     addChildView: vi.fn(),
     removeChildView: vi.fn(),
   }
+}
+
+/**
+ * Stable handles to the most-steered electron stubs, keyed `mock<Member>`
+ * (namespaced where a bare member name would be ambiguous). Each entry is the
+ * very `vi.fn` the mocked module exposes, so overriding it here changes what
+ * the code under test sees. Defaults are the ones declared above, e.g.
+ * `mockCanPromptTouchID` returns `false`, `mockIsEncryptionAvailable` returns
+ * `true`, `mockShowMessageBox` resolves `{ response: 0, checkboxChecked: false }`,
+ * `mockGetFocusedWindow` and `mockFromWebContents` return `null`.
+ */
+export const electronMockFns = {
+  mockAppGetPath: app.getPath,
+  mockAppGetVersion: app.getVersion,
+  mockAppQuit: app.quit,
+  mockAppOn: app.on,
+  mockShowMessageBox: dialog.showMessageBox,
+  mockShowMessageBoxSync: dialog.showMessageBoxSync,
+  mockShowOpenDialog: dialog.showOpenDialog,
+  mockOpenExternal: shell.openExternal,
+  mockOpenPath: shell.openPath,
+  mockShowItemInFolder: shell.showItemInFolder,
+  mockIsEncryptionAvailable: safeStorage.isEncryptionAvailable,
+  mockEncryptString: safeStorage.encryptString,
+  mockDecryptString: safeStorage.decryptString,
+  mockClipboardWriteText: clipboard.writeText,
+  mockClipboardReadText: clipboard.readText,
+  mockGetMediaAccessStatus: systemPreferences.getMediaAccessStatus,
+  mockAskForMediaAccess: systemPreferences.askForMediaAccess,
+  mockCanPromptTouchID: systemPreferences.canPromptTouchID,
+  mockPromptTouchID: systemPreferences.promptTouchID,
+  mockBuildFromTemplate: Menu.buildFromTemplate,
+  mockSetApplicationMenu: Menu.setApplicationMenu,
+  mockNetFetch: net.fetch,
+  mockFromPartition: session.fromPartition,
+  mockIpcMainOn: ipcMain.on,
+  mockIpcMainHandle: ipcMain.handle,
+  mockIpcRendererOn: ipcRenderer.on,
+  mockIpcRendererOnce: ipcRenderer.once,
+  mockIpcRendererSend: ipcRenderer.send,
+  mockIpcRendererInvoke: ipcRenderer.invoke,
+  mockIpcRendererRemoveListener: ipcRenderer.removeListener,
+  mockExposeInMainWorld: contextBridge.exposeInMainWorld,
+  mockGetFocusedWindow: BrowserWindow.getFocusedWindow,
+  mockFromWebContents: BrowserWindow.fromWebContents,
+}
+
+/**
+ * The electron module shape as one object, for factories that need to spread
+ * or partially override it:
+ *
+ *   vi.mock('electron', () => ({ ...electronMock, nativeTheme: { ... } }))
+ *
+ * Prefer `vi.mock('electron', () => import('@/test/electron-mock'))` otherwise.
+ */
+export const electronMock = {
+  app,
+  autoUpdater,
+  crashReporter,
+  shell,
+  dialog,
+  safeStorage,
+  clipboard,
+  systemPreferences,
+  nativeTheme,
+  screen,
+  Menu,
+  net,
+  session,
+  protocol,
+  ipcMain,
+  ipcRenderer,
+  contextBridge,
+  nativeImage,
+  Tray,
+  Notification,
+  WebContentsView,
+  BrowserWindow,
 }

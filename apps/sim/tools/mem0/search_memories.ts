@@ -59,6 +59,10 @@ export const mem0SearchMemoriesTool: ToolConfig<Mem0SearchMemoriesParams, Mem0Re
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ query: params.query }),
+    },
     url: 'https://api.mem0.ai/v3/memories/search/',
     method: 'POST',
     headers: (params) => ({

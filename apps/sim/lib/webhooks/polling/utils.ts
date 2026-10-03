@@ -2,14 +2,14 @@ import { db } from '@sim/db'
 import { account, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
-import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
-import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
   resolveServiceAccountToken,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
+import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 /** Concurrency limit for parallel webhook processing. Standardized across all providers. */

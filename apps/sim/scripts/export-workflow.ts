@@ -14,11 +14,6 @@
  */
 
 // Suppress console logs from imported modules - only JSON should go to stdout
-const originalConsole = {
-  log: console.log,
-  warn: console.warn,
-  error: console.error,
-}
 console.log = () => {}
 console.warn = () => {}
 console.error = () => {}
@@ -30,7 +25,6 @@ import { workflow } from '../../../packages/db/schema.js'
 import { loadWorkflowFromNormalizedTables } from '../lib/workflows/persistence/utils.js'
 import { sanitizeForExport } from '../lib/workflows/sanitization/json-sanitizer.js'
 
-// ---------- CLI argument parsing ----------
 const args = process.argv.slice(2)
 const workflowId = args[0]
 const outputFile = args[1] // Optional output filename
@@ -48,7 +42,6 @@ if (!workflowId) {
   process.exit(1)
 }
 
-// ---------- Main export function ----------
 async function exportWorkflow(workflowId: string, outputFile?: string): Promise<void> {
   try {
     // Fetch workflow metadata
@@ -109,7 +102,6 @@ async function exportWorkflow(workflowId: string, outputFile?: string): Promise<
   }
 }
 
-// ---------- Execute ----------
 exportWorkflow(workflowId, outputFile)
   .then(() => {
     process.exit(0)

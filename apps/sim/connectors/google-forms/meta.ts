@@ -24,6 +24,7 @@ export const googleFormsConnectorMeta: ConnectorMeta = {
     ],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxForms'] },
   configFields: [
     {
       id: 'folderSelector',

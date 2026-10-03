@@ -1,7 +1,7 @@
 import type { OutlookCopyParams, OutlookCopyResponse } from '@/tools/outlook/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const outlookCopyTool: ToolConfig<OutlookCopyParams, OutlookCopyResponse> = {
+export const outlookCopyTool: InternalToolConfig<OutlookCopyParams, OutlookCopyResponse> = {
   id: 'outlook_copy',
   name: 'Outlook Copy',
   description: 'Copy an Outlook message to another folder',
@@ -33,13 +33,8 @@ export const outlookCopyTool: ToolConfig<OutlookCopyParams, OutlookCopyResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/outlook/copy',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: OutlookCopyParams) => ({
+  operation: {
+    input: (params: OutlookCopyParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
       destinationId: params.destinationId,

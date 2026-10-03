@@ -1,7 +1,7 @@
 import type { DynamoDBQueryParams, DynamoDBQueryResponse } from '@/tools/dynamodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> = {
+export const queryTool: InternalToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> = {
   id: 'dynamodb_query',
   name: 'DynamoDB Query',
   description: 'Query items from a DynamoDB table using key conditions',
@@ -85,13 +85,8 @@ export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> =
     },
   },
 
-  request: {
-    url: '/api/tools/dynamodb/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

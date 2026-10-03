@@ -3,7 +3,7 @@ import { cn } from '@sim/emcn'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { useParams, useRouter } from 'next/navigation'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
+import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 import { mentionIcon } from './mention-icon'
 import { MarkdownMention, type MentionAttrs } from './mention-node'
 import { simLinkPath } from './sim-link'
@@ -13,8 +13,8 @@ import { simLinkPath } from './sim-link'
  * in `prompt-editor.tsx`): a borderless inline icon + label that flows with the
  * surrounding prose — no pill background, no padding, normal weight, body text
  * color, and a 12px icon. Integration icons keep their brand color via
- * {@link getBareIconStyle} (see {@link MentionChipView}); other kinds stay
- * monochrome through the `--text-icon` fallback below.
+ * {@link BrandIcon} (see {@link MentionChipView}); other kinds stay
+ * monochrome through its `--text-icon` fallback.
  *
  * No explicit label color — an element's own explicit `color` always wins over an inherited one
  * regardless of ancestor specificity, so hardcoding `--text-primary` here (redundant with the prose
@@ -24,7 +24,7 @@ import { simLinkPath } from './sim-link'
  * in rich-markdown-editor.css.
  */
 const CHIP_CLASS =
-  'mention-chip mx-px inline-flex items-center gap-1 align-middle leading-[1.5] [&>svg]:size-[12px] [&>svg]:shrink-0 [&>svg]:text-[var(--text-icon)]'
+  'mention-chip mx-px inline-flex items-center gap-1 align-middle leading-[1.5] [&>svg]:size-[12px] [&>svg]:shrink-0'
 
 /**
  * Live chip: an entity icon + label matching the chat input's mention rendering. Where the host opted
@@ -37,8 +37,7 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const params = useParams()
   const { kind, id, label } = node.attrs as MentionAttrs
   const Icon = mentionIcon(kind, id, label) as StyleableIcon | undefined
-  const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
-  const navigable = editor.storage.mention?.navigable === true
+  const navigable = editor.storage.mentionMenu?.navigable === true
   const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
   const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
 
@@ -55,7 +54,7 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
       onClick={path ? handleClick : undefined}
       title={label}
     >
-      {Icon && <Icon style={iconStyle} />}
+      {Icon && <BrandIcon icon={Icon} />}
       <span>{label}</span>
     </NodeViewWrapper>
   )

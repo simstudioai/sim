@@ -1,13 +1,18 @@
+import { omit } from '@sim/utils/object'
 import { MicrosoftDataverseIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DataverseResponse } from '@/tools/microsoft_dataverse/types'
 
-export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
+/** Canonical upload pair for the file column payload, basic then advanced. */
+const FILE_FIELD = ['uploadFile', 'fileReference'] as const
+
+export const MicrosoftDataverseBlock = {
   type: 'microsoft_dataverse',
-  name: 'Microsoft Dataverse',
+  name: 'Microsoft Dataverse (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'microsoft_dataverse_v2' },
   description: 'Manage records in Microsoft Dataverse tables',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -17,6 +22,89 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: MicrosoftDataverseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Microsoft Dataverse',
+    sentences: {
+      byOperation: {
+        list_records: [
+          { text: 'List records from', field: 'entitySetName', core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', up to', field: 'top', after: 'records' },
+        ],
+        get_record: [
+          { text: 'Fetch record', field: 'recordId', core: true },
+          { text: 'from', field: 'entitySetName' },
+        ],
+        create_record: [
+          { text: 'Create a record in', field: 'entitySetName', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        update_record: [
+          { text: 'Update record', field: 'recordId', core: true },
+          { text: 'in', field: 'entitySetName' },
+          { text: ', setting', field: 'data' },
+        ],
+        upsert_record: [
+          { text: 'Create or update record', field: 'recordId', core: true },
+          { text: 'in', field: 'entitySetName' },
+          { text: ', with', field: 'data' },
+        ],
+        delete_record: [
+          { text: 'Delete record', field: 'recordId', core: true },
+          { text: 'from', field: 'entitySetName' },
+        ],
+        create_multiple: [
+          { text: 'Create', field: 'records', core: true },
+          { text: 'in', field: 'entitySetName', core: true },
+        ],
+        update_multiple: [
+          { text: 'Update', field: 'records', core: true },
+          { text: 'in', field: 'entitySetName', core: true },
+        ],
+        fetchxml_query: [
+          { text: 'Run a FetchXML query against', field: 'entitySetName', core: true },
+        ],
+        search: [
+          { text: 'Search for', field: 'searchTerm', core: true },
+          { text: 'across', field: 'searchEntities' },
+          { text: ', up to', field: 'top', after: 'results' },
+        ],
+        execute_action: [
+          { text: 'Execute action', field: 'actionName', core: true },
+          { text: 'on record', field: 'recordId' },
+          { text: 'in', field: 'entitySetName' },
+        ],
+        execute_function: [
+          { text: 'Call function', field: 'functionName', core: true },
+          { text: 'on record', field: 'recordId' },
+          { text: 'in', field: 'entitySetName' },
+        ],
+        upload_file: [
+          { text: 'Upload', field: FILE_FIELD, core: true },
+          { text: 'to column', field: 'fileColumn', core: true },
+          { text: 'on record', field: 'recordId' },
+        ],
+        download_file: [
+          { text: 'Download the file in column', field: 'fileColumn', core: true },
+          { text: 'from record', field: 'recordId' },
+        ],
+        associate: [
+          { text: 'Link record', field: 'recordId', core: true },
+          { text: 'to', field: 'targetRecordId' },
+          { text: 'through', field: 'navigationProperty' },
+        ],
+        disassociate: [
+          { text: 'Unlink record', field: 'recordId', core: true },
+          { text: 'from', field: 'targetRecordId' },
+          { text: 'through', field: 'navigationProperty' },
+        ],
+        get_entity_metadata: [
+          { text: 'Read the definition of table', field: 'entityLogicalName', core: true },
+        ],
+        whoami: ['Read the signed-in user, business unit, and organization'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -700,6 +788,43 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     metadata: {
       type: 'json',
       description: 'Full raw table metadata response (get table metadata)',
+    },
+  },
+} satisfies BlockConfig
+
+export const MicrosoftDataverseV2Block: BlockConfig = {
+  ...MicrosoftDataverseBlock,
+  type: 'microsoft_dataverse_v2',
+  name: 'Microsoft Dataverse',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...MicrosoftDataverseBlock.tools,
+    access: MicrosoftDataverseBlock.tools.access.map((toolId) =>
+      toolId === 'microsoft_dataverse_download_file'
+        ? 'microsoft_dataverse_download_file_v2'
+        : toolId
+    ),
+    config: {
+      ...MicrosoftDataverseBlock.tools.config,
+      tool: (params) => {
+        const toolId = MicrosoftDataverseBlock.tools.config.tool(params)
+        return toolId === 'microsoft_dataverse_download_file'
+          ? 'microsoft_dataverse_download_file_v2'
+          : toolId
+      },
+    },
+  },
+  outputs: {
+    ...omit(MicrosoftDataverseBlock.outputs, ['fileContent', 'fileSize', 'mimeType']),
+    fileName: {
+      type: 'string',
+      description: 'Name of the uploaded file',
+      condition: { field: 'operation', value: 'upload_file' },
+    },
+    success: {
+      ...MicrosoftDataverseBlock.outputs.success,
+      condition: { field: 'operation', value: 'download_file', not: true },
     },
   },
 }

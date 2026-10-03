@@ -4,9 +4,9 @@ import {
   STT_SEGMENT_OUTPUT_PROPERTIES,
   STT_SENTIMENT_OUTPUT_PROPERTIES,
 } from '@/tools/stt/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
+export const assemblyaiSttTool: InternalToolConfig<SttParams, SttResponse> = {
   id: 'stt_assemblyai',
   name: 'AssemblyAI STT',
   description: 'Transcribe audio to text using AssemblyAI with advanced NLP features',
@@ -93,17 +93,12 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/stt',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: SttParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ language: params.language }),
+    },
+    input: (params) => ({
       provider: 'assemblyai',
       apiKey: params.apiKey,
       model: params.model,
@@ -113,13 +108,10 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
       diarization: params.diarization || false,
-      sentiment: (params as any).sentiment || false,
-      entityDetection: (params as any).entityDetection || false,
-      piiRedaction: (params as any).piiRedaction || false,
-      summarization: (params as any).summarization || false,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
+      sentiment: params.sentiment || false,
+      entityDetection: params.entityDetection || false,
+      piiRedaction: params.piiRedaction || false,
+      summarization: params.summarization || false,
     }),
   },
 
@@ -197,20 +189,16 @@ const assemblyaiSttV2Params = {
   entityDetection: assemblyaiSttTool.params.entityDetection,
   piiRedaction: assemblyaiSttTool.params.piiRedaction,
   summarization: assemblyaiSttTool.params.summarization,
-} satisfies ToolConfig['params']
+} satisfies InternalToolConfig['params']
 
-export const assemblyaiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+export const assemblyaiSttV2Tool: InternalToolConfig<SttV2Params, SttResponse> = {
   ...assemblyaiSttTool,
   id: 'stt_assemblyai_v2',
   name: 'AssemblyAI STT',
   params: assemblyaiSttV2Params,
-  request: {
-    ...assemblyaiSttTool.request,
-    body: (
-      params: SttV2Params & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    ...assemblyaiSttTool.operation,
+    input: (params) => ({
       provider: 'assemblyai',
       apiKey: params.apiKey,
       model: params.model,
@@ -223,9 +211,6 @@ export const assemblyaiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
       entityDetection: params.entityDetection || false,
       piiRedaction: params.piiRedaction || false,
       summarization: params.summarization || false,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 }

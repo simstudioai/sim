@@ -1,9 +1,8 @@
 import { MailgunIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { SendMessageResult } from '@/tools/mailgun/types'
 
-export const MailgunBlock: BlockConfig<SendMessageResult> = {
+export const MailgunBlock: BlockConfig = {
   type: 'mailgun',
   name: 'Mailgun',
   description: 'Send emails and manage mailing lists with Mailgun',
@@ -14,6 +13,33 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
   integrationType: IntegrationType.Email,
   bgColor: '#C12126',
   icon: MailgunIcon,
+  canvasPresentation: {
+    defaultTitle: 'Mailgun',
+    sentences: {
+      byOperation: {
+        send_message: [
+          { text: 'Send', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+        ],
+        get_message: [{ text: 'Fetch stored message', field: 'messageKey', core: true }],
+        list_messages: [
+          { text: 'List message events for', field: 'domain', core: true },
+          { text: ', of type', field: 'event' },
+        ],
+        create_mailing_list: [
+          { text: 'Create mailing list', field: 'address', core: true },
+          { text: ', named', field: 'name' },
+        ],
+        get_mailing_list: [{ text: 'Fetch mailing list', field: 'address', core: true }],
+        add_list_member: [
+          { text: 'Add', field: 'memberAddress', core: true },
+          { text: 'to mailing list', field: 'address' },
+        ],
+        list_domains: ['List all domains'],
+        get_domain: [{ text: 'Fetch domain', field: 'domain', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -44,6 +70,16 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       required: true,
     },
     {
+      id: 'region',
+      title: 'Region',
+      type: 'dropdown',
+      options: [
+        { label: 'US', id: 'us' },
+        { label: 'EU', id: 'eu' },
+      ],
+      value: () => 'us',
+    },
+    {
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
@@ -66,6 +102,7 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
     {
       id: 'to',
       title: 'To Email',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'recipient@example.com',
       condition: { field: 'operation', value: 'send_message' },
@@ -377,6 +414,7 @@ Return ONLY the JSON object - no explanations or markdown.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Mailgun API key' },
+    region: { type: 'string', description: 'Mailgun account region: "us" or "eu"' },
     domain: { type: 'string', description: 'Mailgun domain' },
     // Message inputs
     from: { type: 'string', description: 'Sender email address' },

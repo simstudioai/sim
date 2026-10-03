@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaApiError,
-  OktaCreateUserParams,
-  OktaCreateUserResponse,
-  OktaUser,
-} from '@/tools/okta/types'
+import type { OktaCreateUserParams, OktaCreateUserResponse, OktaUser } from '@/tools/okta/types'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaCreateUser')
@@ -88,15 +84,14 @@ export const oktaCreateUserTool: ToolConfig<OktaCreateUserParams, OktaCreateUser
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const activate = params.activate ?? true
+      const activate =
+        params.activate === undefined || params.activate === null
+          ? true
+          : isOktaFlagEnabled(params.activate)
       return `https://${domain}/api/v1/users?activate=${activate}`
     },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
     body: (params) => {
       const profile: Record<string, string> = {
         firstName: params.firstName,
@@ -123,14 +118,7 @@ export const oktaCreateUserTool: ToolConfig<OktaCreateUserParams, OktaCreateUser
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to create user in Okta')
+      await throwOktaError(response, logger, 'Failed to create user in Okta')
     }
 
     const user: OktaUser = await response.json()

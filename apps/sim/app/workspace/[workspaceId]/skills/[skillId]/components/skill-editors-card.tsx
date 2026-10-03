@@ -42,6 +42,7 @@ export function SkillEditorsCard({ editors, canEdit }: SkillEditorsCardProps) {
                 userId: editor.userId,
                 userName: editor.userName,
                 userEmail: editor.userEmail,
+                userImage: editor.userImage,
                 role: 'editor',
               }}
               roleOptions={SKILL_EDITOR_ROLE_OPTIONS}

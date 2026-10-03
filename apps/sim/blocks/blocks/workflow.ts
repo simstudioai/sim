@@ -9,6 +9,15 @@ export const WorkflowBlock: BlockConfig = {
   category: 'blocks',
   bgColor: '#6366F1',
   icon: WorkflowIcon,
+  canvasPresentation: {
+    defaultTitle: 'Workflow',
+    sentences: {
+      default: [
+        { text: 'Run', field: ['workflowId', 'manualWorkflowId'], core: true },
+        { text: ', passing', field: 'input' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'workflowId',
@@ -35,6 +44,22 @@ export const WorkflowBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Select a variable to pass to the child workflow',
       description: 'This variable will be available as start.input in the child workflow',
+      required: false,
+    },
+    {
+      /**
+       * Only meaningful when this block is used as an agent tool: on the canvas the
+       * child's inputs are wired through `input`, but a tool row has to collect them
+       * per-field. `context: 'tool-input'` keeps it off the canvas, and declaring it
+       * here is what lets the tool row build its fields from sub-blocks alone instead
+       * of a hard-coded `workflow_executor` branch.
+       */
+      id: 'inputMapping',
+      title: 'Workflow Inputs',
+      type: 'workflow-input-mapper',
+      context: 'tool-input',
+      dependsOn: ['workflowId'],
+      condition: { field: 'workflowId', value: '', not: true },
       required: false,
     },
   ],

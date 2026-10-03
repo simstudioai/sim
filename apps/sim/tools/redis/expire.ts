@@ -1,7 +1,7 @@
 import type { RedisExpireParams, RedisExpireResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisExpireTool: ToolConfig<RedisExpireParams, RedisExpireResponse> = {
+export const redisExpireTool: InternalToolConfig<RedisExpireParams, RedisExpireResponse> = {
   id: 'redis_expire',
   name: 'Redis EXPIRE',
   description: 'Set an expiration time (in seconds) on a key in Redis.',
@@ -28,11 +28,8 @@ export const redisExpireTool: ToolConfig<RedisExpireParams, RedisExpireResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'EXPIRE',
       args: [params.key, params.seconds],

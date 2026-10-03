@@ -11,6 +11,7 @@
  */
 
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { selectValueToNames } from '@/lib/table/select-values'
 import type { ColumnDefinition, JsonValue, RowData } from '@/lib/table/types'
 
@@ -24,7 +25,7 @@ import type { ColumnDefinition, JsonValue, RowData } from '@/lib/table/types'
  * must reach consumers byte-identical to what is stored.
  */
 export function formatCellValue(value: unknown, column: ColumnDefinition): JsonValue {
-  if (column.type === 'select') return selectValueToNames(column, value)
+  if (columnTypeOf(column).storesOpaqueIds) return selectValueToNames(column, value)
   return value as JsonValue
 }
 

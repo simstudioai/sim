@@ -1,13 +1,12 @@
-import type { CreateUserParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { CreateUserParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
+  baseSapConcurInput,
   scimUserOutputProperties,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createUserTool: ToolConfig<CreateUserParams, SapConcurProxyResponse> = {
+export const createUserTool: InternalToolConfig<CreateUserParams, SapConcurResponse> = {
   id: 'sap_concur_create_user',
   name: 'SAP Concur Create User',
   description: 'Create a new user identity (POST /profile/identity/v4.1/Users).',
@@ -59,21 +58,19 @@ export const createUserTool: ToolConfig<CreateUserParams, SapConcurProxyResponse
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'SCIM User payload (schemas, userName, name, emails, active, etc.)',
+      description:
+        'SCIM User payload. Required: schemas (include both "urn:ietf:params:scim:schemas:core:2.0:User" and "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"), userName, name.familyName, name.givenName, emails[].value, and companyId — which is required and immutable and must be set inside the "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" block, not at the top level. Optional: active, displayName, timezone, and other SCIM User attributes.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/profile/identity/v4.1/Users`,
       method: 'POST',
       body: params.body,
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

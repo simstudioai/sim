@@ -2,11 +2,13 @@
  * Executor handler for the Pi Coding Agent block. Resolves the model key,
  * skills, and memory, selects a backend by `mode`, and runs it — streaming the
  * agent's text to the client when the block is selected for streaming output,
- * otherwise returning a plain block output. The handler depends only on the
- * {@link PiBackendRun} seam and never reaches into backend internals.
+ * otherwise returning a plain block output. Create PR optionally composes the
+ * internal Babysit continuation in its backend.
  */
 
 import { createLogger } from '@sim/logger'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
+import type { SandboxCostSink } from '@/lib/execution/remote-sandbox/types'
 import type { BlockOutput } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import {
@@ -14,40 +16,48 @@ import {
   ToolNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import { runCloudPlanPi } from '@/executor/handlers/pi/cloud/plan/backend'
+import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type {
   PiBackendRun,
+  PiCloudBranchRunParams,
+  PiCloudPlanRunParams,
   PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
+  PiPullRequestState,
   PiRunParams,
   PiRunResult,
   PiSearchConfig,
-} from '@/executor/handlers/pi/backend'
-import { runCloudPi } from '@/executor/handlers/pi/cloud-backend'
-import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+} from '@/executor/handlers/pi/core/backend'
 import {
   appendPiMemory,
   loadPiMemory,
   type PiMemoryConfig,
   resolvePiSkills,
-} from '@/executor/handlers/pi/context'
-import { streamTextForEvent } from '@/executor/handlers/pi/events'
+} from '@/executor/handlers/pi/core/context'
+import type { PiRunTotals } from '@/executor/handlers/pi/core/events'
+import { streamTextForEvent } from '@/executor/handlers/pi/core/events'
 import {
   computePiCost,
   PI_SEARCH_PROVIDERS,
   parsePiSearchProvider,
   resolvePiModelKey,
   resolvePiSearchKey,
-} from '@/executor/handlers/pi/keys'
-import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+} from '@/executor/handlers/pi/core/keys'
+import { runLocalPi } from '@/executor/handlers/pi/local/backend'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
-import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
   ExecutionContext,
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
+import { attachTrustedExecutionCost } from '@/executor/utils/errors'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type { ModelCost } from '@/providers/cost-policy'
 import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -55,6 +65,9 @@ import type { SerializedBlock } from '@/serializer/types'
 const logger = createLogger('PiBlockHandler')
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const REVIEW_EVENTS = ['COMMENT', 'REQUEST_CHANGES'] as const
+const MAX_REVIEW_MENTIONS = 10
+const MAX_REVIEW_MENTION_LENGTH = 200
+const MAX_REVIEW_MENTIONS_INPUT_LENGTH = 2_000
 
 function asOptString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -70,9 +83,107 @@ function isReviewEvent(value: string): value is PiCloudReviewRunParams['reviewEv
   return REVIEW_EVENTS.some((event) => event === value)
 }
 
+/**
+ * Reads a `switch` subblock, tolerating the string form.
+ *
+ * A switch reaches a handler as `'true'`/`'false'` when its value arrived through
+ * a variable reference, an API trigger payload, or a legacy serialized workflow —
+ * `wait-handler` coerces the same way. Both polarities need it: a strict `=== true`
+ * silently disables an enabled toggle, and a strict `!== false` silently enables a
+ * disabled one.
+ */
+function isSwitchEnabled(value: unknown, defaultValue = false): boolean {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return defaultValue
+}
+
+function isPullRequestState(value: string): value is PiPullRequestState {
+  return value === 'preserve' || value === 'draft' || value === 'ready'
+}
+
 function parsePiMode(value: unknown): PiRunParams['mode'] {
-  if (value === 'cloud' || value === 'cloud_review' || value === 'local') return value
+  if (value === 'babysit') {
+    throw new Error(
+      'Standalone Babysit mode was removed. Use Create PR or Update PR with Babysit Mode enabled.'
+    )
+  }
+  if (
+    value === 'cloud' ||
+    value === 'cloud_branch' ||
+    value === 'cloud_plan' ||
+    value === 'cloud_review' ||
+    value === 'local'
+  ) {
+    return value
+  }
   throw new Error(`Invalid Pi mode: ${String(value)}`)
+}
+
+/** Parses the bounded, comma-separated issue comments used to request re-review. */
+export function parsePiReviewMentions(value: unknown): string[] {
+  if (value === undefined || value === null || value === '') return []
+  if (typeof value !== 'string') {
+    throw new Error('Invalid reviewMentions: expected a comma-separated string.')
+  }
+  if (value.length > MAX_REVIEW_MENTIONS_INPUT_LENGTH) {
+    throw new Error(
+      `reviewMentions must be at most ${MAX_REVIEW_MENTIONS_INPUT_LENGTH} characters.`
+    )
+  }
+
+  const mentions = value
+    .split(',')
+    .map((mention) => mention.trim())
+    .filter(Boolean)
+  if (mentions.length > MAX_REVIEW_MENTIONS) {
+    throw new Error(`reviewMentions may contain at most ${MAX_REVIEW_MENTIONS} entries.`)
+  }
+  const tooLong = mentions.find((mention) => mention.length > MAX_REVIEW_MENTION_LENGTH)
+  if (tooLong) {
+    throw new Error(
+      `Each reviewMentions entry must be at most ${MAX_REVIEW_MENTION_LENGTH} characters.`
+    )
+  }
+  // Every entry becomes its own issue comment, re-posted after each pushed round, so a
+  // stray comma in prose ("@cursor review this, focusing on auth") would otherwise leave
+  // "focusing on auth" on the pull request once per round. Requiring a mention shape
+  // turns that into a setup error before anything is posted.
+  const notAMention = mentions.find((mention) => !mention.startsWith('@'))
+  if (notAMention) {
+    throw new Error(
+      `Each reviewMentions entry must start with "@" — got "${notAMention}". Separate reviewers with commas, and avoid commas inside a single mention.`
+    )
+  }
+  return mentions
+}
+
+/**
+ * What a Pi block charges: its model tokens plus the Sim-paid sandbox compute.
+ *
+ * Sandbox cost rides in `toolCost` so it survives a BYOK run — the model side is
+ * zero by definition there, and the ledger bills a model row on `total > 0`.
+ * Folding it in is what makes a BYOK Pi session bill for the provider time it
+ * actually consumed instead of nothing at all.
+ *
+ * Shared with the failure path deliberately: an agent that ran and then reported
+ * an error consumed exactly the same tokens and sandbox seconds as one that
+ * succeeded, so both have to arrive at the same number.
+ */
+function buildPiCost(
+  model: string,
+  isBYOK: boolean,
+  totals: PiRunTotals,
+  sandboxCost: number
+): ModelCost {
+  const modelCost = computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK)
+  if (sandboxCost <= 0) return modelCost
+
+  return {
+    ...modelCost,
+    toolCost: sandboxCost,
+    total: modelCost.total + sandboxCost,
+  }
 }
 
 export class PiBlockHandler implements BlockHandler {
@@ -85,10 +196,24 @@ export class PiBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
-    const task = asOptString(inputs.task)
-    if (!task) throw new Error('Task is required')
-    const model = asOptString(inputs.model) ?? DEFAULT_MODEL
     const mode = parsePiMode(inputs.mode)
+    const resolvedTask = asOptString(inputs.task)
+    if (!resolvedTask) throw new Error('Task is required')
+    const taskProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { task: resolvedTask },
+      [['task']]
+    )
+    if (!taskProjection.complete || typeof taskProjection.value.task !== 'string') {
+      refuseResolvedSecretProjection({
+        site: 'pi.taskModelInput',
+        message: 'Pi input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'task',
+      })
+    }
+    const task = taskProjection.value.task
+    const model = asOptString(inputs.model) ?? DEFAULT_MODEL
 
     const providerId = getProviderFromModel(model)
     if (!isPiSupportedProvider(providerId)) {
@@ -97,7 +222,7 @@ export class PiBlockHandler implements BlockHandler {
     const piModel = resolvePiModelId(providerId, model)
     if (!piModel) {
       throw new Error(
-        `Pi model "${model}" is not available for provider "${providerId}" in the installed Pi catalog`
+        `Pi model "${model}" is not available for provider "${providerId}" in the installed Pi catalog. Choose a supported Pi model in the block settings.`
       )
     }
 
@@ -150,6 +275,8 @@ export class PiBlockHandler implements BlockHandler {
       }
       return this.runPi(ctx, block, runCloudReviewPi, params)
     }
+    const skills = await resolvePiSkills(inputs.skills, ctx.workspaceId)
+
     const memoryConfig: PiMemoryConfig = {
       memoryType: asOptString(inputs.memoryType) as PiMemoryConfig['memoryType'],
       conversationId: asOptString(inputs.conversationId),
@@ -159,7 +286,7 @@ export class PiBlockHandler implements BlockHandler {
     }
     const contextualBase = {
       ...base,
-      skills: await resolvePiSkills(inputs.skills, ctx.workspaceId),
+      skills,
       initialMessages: await loadPiMemory(ctx, memoryConfig),
     }
 
@@ -172,7 +299,8 @@ export class PiBlockHandler implements BlockHandler {
       }
       const usePrivateKey = inputs.authMethod === 'privateKey'
       const port = parseOptionalNumberInput(inputs.port, 'port', { integer: true, min: 1 }) ?? 22
-      const tools = await buildSimToolSpecs(ctx, inputs.tools)
+      const sandboxCost: SandboxCostSink = { total: 0 }
+      const tools = await buildSimToolSpecs(ctx, inputs.tools, sandboxCost)
       const params: PiLocalRunParams = {
         ...contextualBase,
         mode: 'local',
@@ -187,14 +315,79 @@ export class PiBlockHandler implements BlockHandler {
           passphrase: usePrivateKey ? asRawString(inputs.passphrase) : undefined,
         },
       }
-      return this.runPi(ctx, block, runLocalPi, params, memoryConfig)
+      return this.runPi(ctx, block, runLocalPi, params, memoryConfig, sandboxCost)
     }
 
     const owner = asOptString(inputs.owner)
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      throw new Error('Create PR requires repository owner, name, and a GitHub token')
+      const label =
+        mode === 'cloud_branch' ? 'Update PR' : mode === 'cloud_plan' ? 'Plan' : 'Create PR'
+      throw new Error(`${label} requires repository owner, name, and a GitHub token`)
+    }
+
+    if (mode === 'cloud_plan') {
+      const params: PiCloudPlanRunParams = {
+        ...contextualBase,
+        mode: 'cloud_plan',
+        owner,
+        repo,
+        githubToken,
+        baseBranch: asOptString(inputs.baseBranch),
+      }
+      return this.runPi(ctx, block, runCloudPlanPi, params, memoryConfig)
+    }
+    // A `switch` subblock reaches a handler as the string 'true' when its value came
+    // through a variable reference, an API trigger payload, or a legacy serialized
+    // workflow (see the same coercion in `wait-handler`). A strict boolean compare
+    // silently opened a draft PR and skipped Babysit entirely while the editor showed
+    // the toggle on and Reviewer Mentions as required.
+    const babysitMode = isSwitchEnabled(inputs.babysitMode)
+    const reviewMentions = babysitMode ? parsePiReviewMentions(inputs.reviewMentions) : []
+    if (babysitMode && reviewMentions.length === 0) {
+      const label = mode === 'cloud_branch' ? 'Update PR' : 'Create PR'
+      throw new Error(`${label} Babysit Mode requires at least one reviewer mention`)
+    }
+    const maxRounds = babysitMode
+      ? (parseOptionalNumberInput(inputs.maxRounds, 'maxRounds', {
+          integer: true,
+          min: 1,
+          max: 10,
+        }) ?? 3)
+      : undefined
+
+    if (mode === 'cloud_branch') {
+      const targetBranch = asOptString(inputs.targetBranch)
+      if (!targetBranch) {
+        throw new Error('Update PR requires a target branch')
+      }
+      const prState = asOptString(inputs.prState) ?? 'preserve'
+      if (!isPullRequestState(prState)) {
+        throw new Error('Invalid PR state. Use preserve, draft, or ready.')
+      }
+      const params: PiCloudBranchRunParams = {
+        ...contextualBase,
+        mode: 'cloud_branch',
+        owner,
+        repo,
+        githubToken,
+        targetBranch,
+        baseBranch: asOptString(inputs.baseBranch),
+        prTitle: asOptString(inputs.prTitle),
+        prBody: asOptString(inputs.prBody),
+        prState,
+        ...(babysitMode
+          ? {
+              babysit: {
+                maxRounds: maxRounds ?? 3,
+                reviewMentions,
+                ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+              },
+            }
+          : {}),
+      }
+      return this.runPi(ctx, block, runCloudBranchPi, params, memoryConfig)
     }
     const params: PiCloudRunParams = {
       ...contextualBase,
@@ -204,9 +397,21 @@ export class PiBlockHandler implements BlockHandler {
       githubToken,
       baseBranch: asOptString(inputs.baseBranch),
       branchName: asOptString(inputs.branchName),
-      draft: inputs.draft !== false,
+      // `draft` defaults on, so the negative form is the one that must tolerate the
+      // string: `'false'` from a variable reference would otherwise read as truthy
+      // and open a draft PR against the user's explicit setting.
+      draft: babysitMode ? false : isSwitchEnabled(inputs.draft, true),
       prTitle: asOptString(inputs.prTitle),
       prBody: asOptString(inputs.prBody),
+      ...(babysitMode
+        ? {
+            babysit: {
+              maxRounds: maxRounds ?? 3,
+              reviewMentions,
+              ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+            },
+          }
+        : {}),
     }
     return this.runPi(ctx, block, runCloudPi, params, memoryConfig)
   }
@@ -217,8 +422,8 @@ export class PiBlockHandler implements BlockHandler {
    *
    * The host-side tool is built here rather than in a backend because it needs the
    * {@link ExecutionContext}, which backends never receive — they see only `{ onEvent, signal }`.
-   * Create PR gets no tool: it registers a sandbox extension instead, so a spec built here could
-   * never execute.
+   * Sandbox modes get no host tool: they register a sandbox extension instead, so a spec built here
+   * could never execute.
    */
   private async resolveSearch(
     ctx: ExecutionContext,
@@ -232,8 +437,9 @@ export class PiBlockHandler implements BlockHandler {
 
     // Authorization before credentials, which is the order `executeTool` itself uses and is
     // observable: reversed, a denied user's stored key is fetched and decrypted and they are told to
-    // add a key instead of being denied. The preflight is also the only denylist check Create PR
-    // gets, because its extension calls the provider directly and never reaches `executeTool`.
+    // add a key instead of being denied. The preflight is also the only denylist check cloud
+    // authoring gets, because its extension calls the provider directly and never reaches
+    // `executeTool`.
     try {
       await assertPermissionsAllowed({
         userId: ctx.userId,
@@ -250,15 +456,38 @@ export class PiBlockHandler implements BlockHandler {
       throw error
     }
 
+    const rawSearchApiKey = inputs.searchApiKey
     const apiKey = resolvePiSearchKey({
       provider,
-      apiKey: asOptString(inputs.searchApiKey),
+      apiKey: asOptString(rawSearchApiKey),
     })
-
     const credentials = { provider, apiKey }
-    return mode === 'cloud'
-      ? credentials
-      : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
+    if (mode === 'cloud' || mode === 'cloud_branch' || mode === 'cloud_plan') return credentials
+
+    const searchInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { searchApiKey: rawSearchApiKey },
+      [['searchApiKey']]
+    )
+    if (!searchInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'pi.searchApiKeyInput',
+        message: 'Pi search input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'searchApiKey',
+      })
+    }
+    const projectedApiKey = Object.is(searchInputProjection.value.searchApiKey, rawSearchApiKey)
+      ? apiKey
+      : resolvePiSearchKey({
+          provider,
+          apiKey: asOptString(searchInputProjection.value.searchApiKey),
+        })
+
+    return {
+      ...credentials,
+      tool: buildPiSearchToolSpec(ctx, credentials, mode, projectedApiKey),
+    }
   }
 
   private isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedBlock): boolean {
@@ -273,30 +502,45 @@ export class PiBlockHandler implements BlockHandler {
 
   private buildOutput(
     result: PiRunResult,
+    mode: PiRunParams['mode'],
     model: string,
     isBYOK: boolean,
     startTime: number,
-    startTimeISO: string
+    startTimeISO: string,
+    sandboxCost = 0
   ): NormalizedBlockOutput {
     const { totals } = result
     const endTime = Date.now()
+    const cost = buildPiCost(model, isBYOK, totals, sandboxCost)
     return {
       content: totals.finalText,
       model,
-      changedFiles: result.changedFiles ?? [],
-      diff: result.diff ?? '',
+      ...(mode === 'cloud_plan'
+        ? {}
+        : {
+            changedFiles: result.changedFiles ?? [],
+            diff: result.diff ?? '',
+          }),
       ...(result.prUrl ? { prUrl: result.prUrl } : {}),
       ...(result.branch ? { branch: result.branch } : {}),
       ...(result.reviewUrl ? { reviewUrl: result.reviewUrl } : {}),
       ...(typeof result.commentsPosted === 'number'
         ? { commentsPosted: result.commentsPosted }
         : {}),
+      ...(typeof result.rounds === 'number' ? { rounds: result.rounds } : {}),
+      ...(typeof result.threadsClean === 'boolean' ? { threadsClean: result.threadsClean } : {}),
+      ...(typeof result.checksGreen === 'boolean' ? { checksGreen: result.checksGreen } : {}),
+      ...(typeof result.threadsResolved === 'number'
+        ? { threadsResolved: result.threadsResolved }
+        : {}),
+      ...(typeof result.commitsPushed === 'number' ? { commitsPushed: result.commitsPushed } : {}),
+      ...(typeof result.stopReason === 'string' ? { stopReason: result.stopReason } : {}),
       tokens: {
         input: totals.inputTokens,
         output: totals.outputTokens,
         total: totals.inputTokens + totals.outputTokens,
       },
-      cost: computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK),
+      cost,
       providerTiming: {
         startTime: startTimeISO,
         endTime: new Date(endTime).toISOString(),
@@ -310,7 +554,15 @@ export class PiBlockHandler implements BlockHandler {
     block: SerializedBlock,
     backend: PiBackendRun<P>,
     params: P,
-    memoryConfig?: PiMemoryConfig
+    memoryConfig?: PiMemoryConfig,
+    /**
+     * One sink for every Sim-paid sandbox this block touches. Local mode fills it
+     * from the Function tools it runs host-side; cloud modes fill it from the
+     * sandbox the agent itself runs in. They are mutually exclusive in practice,
+     * and sharing one total means neither can be forgotten at the point the cost
+     * is folded into the block's output.
+     */
+    sandboxCost: SandboxCostSink = { total: 0 }
   ): Promise<BlockOutput | StreamingExecution> {
     const startTime = Date.now()
     const startTimeISO = new Date(startTime).toISOString()
@@ -331,21 +583,44 @@ export class PiBlockHandler implements BlockHandler {
           try {
             const result = await backend(params, {
               onEvent: (event) => {
+                if (params.mode === 'cloud_plan') return
                 const text = streamTextForEvent(event)
                 if (text) controller.enqueue(encoder.encode(text))
               },
               signal: ctx.abortSignal,
+              sandboxCost,
             })
             if (result.totals.errorMessage) {
-              controller.error(new Error(result.totals.errorMessage))
+              const error = new Error(result.totals.errorMessage)
+              attachTrustedExecutionCost(
+                error,
+                buildPiCost(params.model, params.isBYOK, result.totals, sandboxCost.total)
+              )
+              controller.error(error)
               return
+            }
+            if (params.mode === 'cloud_plan' && result.totals.finalText) {
+              controller.enqueue(encoder.encode(result.totals.finalText))
             }
             Object.assign(
               output,
-              this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+              this.buildOutput(
+                result,
+                params.mode,
+                params.model,
+                params.isBYOK,
+                startTime,
+                startTimeISO,
+                sandboxCost.total
+              )
             )
             if (memoryConfig) {
-              await appendPiMemory(ctx, memoryConfig, params.task, result.totals.finalText)
+              await appendPiMemory(
+                ctx,
+                memoryConfig,
+                params.task,
+                result.memoryText ?? result.totals.finalText
+              )
             }
             controller.close()
           } catch (error) {
@@ -367,13 +642,42 @@ export class PiBlockHandler implements BlockHandler {
       }
     }
 
-    const result = await backend(params, { onEvent: () => {}, signal: ctx.abortSignal })
+    const result = await backend(params, {
+      onEvent: () => {},
+      signal: ctx.abortSignal,
+      sandboxCost,
+    })
     if (result.totals.errorMessage) {
-      throw new Error(result.totals.errorMessage)
+      /*
+       * The backend returned, so the sandbox was billed and the sink holds the
+       * charge — but this throw skips `buildOutput`, which is what would have
+       * published it. Carrying the cost on the error is what keeps a session
+       * whose agent reported a failure from being run for free, the same way the
+       * Function handler carries its tool cost onto the error it raises.
+       */
+      const error = new Error(result.totals.errorMessage)
+      attachTrustedExecutionCost(
+        error,
+        buildPiCost(params.model, params.isBYOK, result.totals, sandboxCost.total)
+      )
+      throw error
     }
     if (memoryConfig) {
-      await appendPiMemory(ctx, memoryConfig, params.task, result.totals.finalText)
+      await appendPiMemory(
+        ctx,
+        memoryConfig,
+        params.task,
+        result.memoryText ?? result.totals.finalText
+      )
     }
-    return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+    return this.buildOutput(
+      result,
+      params.mode,
+      params.model,
+      params.isBYOK,
+      startTime,
+      startTimeISO,
+      sandboxCost.total
+    )
   }
 }

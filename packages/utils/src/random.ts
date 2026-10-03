@@ -8,6 +8,8 @@ export const LOWERCASE_ALPHANUMERIC_ALPHABET = 'abcdefghijklmnopqrstuvwxyz012345
 
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 
+const UINT32_SAMPLE_SPACE_SIZE = 0x100000000
+
 /**
  * Generates cryptographically secure random bytes.
  * @param length - Number of bytes to generate
@@ -60,7 +62,10 @@ export function randomFloat(): number {
 export function randomInt(min: number, max: number): number {
   const range = max - min
   if (range <= 0) throw new RangeError(`randomInt: max (${max}) must be greater than min (${min})`)
-  const threshold = (0x100000000 - (0x100000000 % range)) >>> 0
+  if (range > UINT32_SAMPLE_SPACE_SIZE) {
+    throw new RangeError('randomInt: range must not exceed 2^32')
+  }
+  const threshold = UINT32_SAMPLE_SPACE_SIZE - (UINT32_SAMPLE_SPACE_SIZE % range)
   let value: number
   do {
     ;[value] = crypto.getRandomValues(new Uint32Array(1))

@@ -1,37 +1,32 @@
+import { COVER_OG_SIZE, createCoverOgImage } from '@/lib/og/cover-image'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
-import { createLandingOgImage } from '@/app/(landing)/og-utils'
 import { buildProvenance } from '@/app/f/[token]/utils'
 
 export const dynamic = 'force-dynamic'
 export const contentType = 'image/png'
-export const size = {
-  width: 1200,
-  height: 630,
-}
+export const size = COVER_OG_SIZE
 
 /**
- * Social-preview card for a shared file. Public shares show the file name +
- * provenance; protected (password / email / SSO) and unknown shares stay generic
- * so the filename never leaks pre-auth.
+ * Social-preview card for a shared file, on the same brandbook cover template
+ * as library posts and docs pages. Public shares show the file name +
+ * provenance; protected (password / email / SSO) and unknown shares stay
+ * generic so the filename never leaks pre-auth.
  */
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const resolved = await resolveActiveShareByToken(token)
 
   if (!resolved || resolved.share.authType !== 'public') {
-    return createLandingOgImage({
-      eyebrow: 'Shared file',
+    return createCoverOgImage({
       title: 'Protected file',
       subtitle: 'Authentication is required to view this file',
     })
   }
 
   const { file, workspaceName, ownerName } = resolved
-  const subtitle = buildProvenance(workspaceName, ownerName) || 'Shared via Sim'
 
-  return createLandingOgImage({
-    eyebrow: 'Shared file',
+  return createCoverOgImage({
     title: file.originalName,
-    subtitle,
+    subtitle: buildProvenance(workspaceName, ownerName) || 'Shared via Sim',
   })
 }

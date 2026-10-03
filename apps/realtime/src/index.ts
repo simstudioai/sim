@@ -6,6 +6,9 @@ import { createSocketIOServer, shutdownSocketIOAdapter } from '@/config/socket'
 import { assertSchemaCompatibility } from '@/database/preflight'
 import { env } from '@/env'
 import { setupAllHandlers } from '@/handlers'
+import { waitForConnectionCleanup } from '@/handlers/connection'
+import { flushAllFileDocRooms } from '@/handlers/file-doc'
+import { getFileDocStore, initFileDocStore } from '@/handlers/file-doc-store'
 import { type AuthenticatedSocket, authenticateSocket } from '@/middleware/auth'
 import { type IRoomManager, MemoryRoomManager, RedisRoomManager } from '@/rooms'
 import { createHttpHandler } from '@/routes/http'
@@ -54,6 +57,10 @@ async function main() {
 
   // Initialize room manager (Redis or in-memory based on config)
   const roomManager = await createRoomManager(io)
+
+  // Initialize the shared Yjs backend for collaborative file docs (Redis Streams). Enabled only when
+  // REDIS_URL is set; otherwise the relay runs its original single-replica in-memory doc path.
+  await initFileDocStore(env.REDIS_URL)
 
   // Set up authentication middleware
   io.use(authenticateSocket)
@@ -106,10 +113,39 @@ async function main() {
     logger.info(`Health check available at: http://localhost:${PORT}/health`)
   })
 
+  let shuttingDown = false
   const shutdown = async () => {
+    // SIGINT and SIGTERM both bind this; a double signal (or SIGTERM then SIGINT during the drain)
+    // must not run the whole teardown twice — that means a second forced-exit timer and a second
+    // Redis quit (which throws "The client is closed").
+    if (shuttingDown) return
+    shuttingDown = true
     logger.info('Shutting down Socket.IO server...')
 
+    const shutdownTimer = setTimeout(() => {
+      logger.error('Forced shutdown after timeout')
+      process.exit(1)
+    }, SHUTDOWN_TIMEOUT_MS)
+
     accessRevalidation.stop()
+
+    // Flush open collaborative docs to durable markdown BEFORE tearing down Redis/the store — the
+    // per-socket disconnect flush is fire-and-forget and would race process exit.
+    try {
+      await flushAllFileDocRooms()
+      logger.info('Flushed open collaborative documents')
+    } catch (error) {
+      logger.error('Error flushing collaborative documents on shutdown:', error)
+    }
+
+    /** Transport closure permits reconnection; a namespace DISCONNECT intentionally does not. */
+    try {
+      await io.close()
+      await waitForConnectionCleanup()
+      await flushAllFileDocRooms()
+    } catch (error) {
+      logger.error('Error draining socket connections on shutdown:', error)
+    }
 
     try {
       await roomManager.shutdown()
@@ -124,15 +160,15 @@ async function main() {
       logger.error('Error during Socket.IO adapter shutdown:', error)
     }
 
-    httpServer.close(() => {
-      logger.info('Socket.IO server closed')
-      process.exit(0)
-    })
+    try {
+      await getFileDocStore().shutdown()
+    } catch (error) {
+      logger.error('Error during FileDocStore shutdown:', error)
+    }
 
-    setTimeout(() => {
-      logger.error('Forced shutdown after timeout')
-      process.exit(1)
-    }, SHUTDOWN_TIMEOUT_MS)
+    clearTimeout(shutdownTimer)
+    logger.info('Socket.IO server closed')
+    process.exit(0)
   }
 
   process.on('SIGINT', shutdown)

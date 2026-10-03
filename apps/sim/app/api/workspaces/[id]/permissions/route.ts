@@ -1,238 +1,109 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { member, permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
-import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
+import {
+  getWorkspacePermissionsContract,
+  updateWorkspacePermissionsContract,
+} from '@/lib/api/contracts/workspaces'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { InternalUnauthenticatedError } from '@/lib/api/server/routes/internal-json-route'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application/workspace-authorization'
+import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  getUsersWithPermissions,
-  getWorkspacePermissionsForViewer,
-  hasWorkspaceAdminAccess,
-} from '@/lib/workspaces/permissions/utils'
+  readWorkspacePermissions,
+  updateWorkspacePermissions,
+  workspacePermissionOperations,
+} from '@/lib/workspaces/application/manage-permissions'
+import { WorkspacePermissionError } from '@/lib/workspaces/permissions/management-store'
 
-const logger = createLogger('WorkspacesPermissionsAPI')
+function permissionErrorResponse(error: unknown): NextResponse {
+  // Preserve the existing HTTP error envelope while the shared use case stays transport-neutral.
+  if (error instanceof OrchestrationError && error.cause instanceof HttpError)
+    return permissionErrorResponse(error.cause)
+  if (error instanceof WorkspacePermissionError)
+    return NextResponse.json({ error: error.message }, { status: error.statusCode })
+  if (error instanceof InternalUnauthenticatedError)
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  if (
+    error instanceof InsufficientWorkspacePermissionsError ||
+    error instanceof NoWorkspaceAccessError
+  )
+    return NextResponse.json(
+      {
+        error: 'Admin access required to update permissions',
+      },
+      { status: 403 }
+    )
+  if (error instanceof OrchestrationError)
+    return NextResponse.json(
+      { error: error.message },
+      { status: statusForOrchestrationError(error.code) }
+    )
+  throw error
+}
 
-/**
- * GET /api/workspaces/[id]/permissions
- *
- * Retrieves all users who have permissions for the specified workspace.
- * Returns user details along with their specific permissions.
- *
- * @param workspaceId - The workspace ID from the URL parameters
- * @returns Array of users with their permissions for the workspace
- */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    try {
-      const { id: workspaceId } = await params
-      const session = await getSession()
+export const GET = defineInternalJsonRoute({
+  contract: getWorkspacePermissionsContract,
+  auth: internalSessionAuth,
+  operation: workspacePermissionOperations.read,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve the existing workspace roster read policy.',
+  }),
+  errorPolicy: {
+    project(error) {
+      if (error instanceof InternalUnauthenticatedError)
+        return internalErrorResponse(401, { error: 'Authentication required' })
+      if (
+        error instanceof InsufficientWorkspacePermissionsError ||
+        error instanceof NoWorkspaceAccessError ||
+        (error instanceof OrchestrationError && error.code === 'not_found')
+      )
+        return internalErrorResponse(404, { error: 'Workspace not found or access denied' })
+      return null
+    },
+  },
+  mapInput: ({ params }) => ({ workspaceId: params.id }),
+  useCase: readWorkspacePermissions,
+})
 
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      const result = await getWorkspacePermissionsForViewer(workspaceId, session.user.id)
-
-      if (!result) {
-        return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
-      }
-
-      return NextResponse.json(result)
-    } catch (error) {
-      logger.error('Error fetching workspace permissions:', error)
-      return NextResponse.json({ error: 'Failed to fetch workspace permissions' }, { status: 500 })
-    }
-  }
-)
-
-/**
- * PATCH /api/workspaces/[id]/permissions
- *
- * Updates permissions for existing workspace members.
- * Only admin users can update permissions.
- *
- * @param workspaceId - The workspace ID from the URL parameters
- * @param updates - Array of permission updates for users
- * @returns Success message or error
- */
+/** The existing access-before-body lifecycle uses the canonical use case's authorization phase. */
 export const PATCH = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
+      const principal = await internalSessionAuth.authenticate()
       const { id: workspaceId } = await context.params
-      const session = await getSession()
-
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-
-      if (!hasAdminAccess) {
-        return NextResponse.json(
-          { error: 'Admin access required to update permissions' },
-          { status: 403 }
-        )
-      }
-
-      const parsed = await parseRequest(updateWorkspacePermissionsContract, request, context)
-      if (!parsed.success) return parsed.response
-      const body = parsed.data.body
-
-      const workspaceRow = await db
-        .select({
-          billedAccountUserId: workspace.billedAccountUserId,
-          organizationId: workspace.organizationId,
-        })
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .limit(1)
-
-      if (!workspaceRow.length) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
-
-      const billedAccountUserId = workspaceRow[0].billedAccountUserId
-      const organizationId = workspaceRow[0].organizationId
-
-      if (organizationId) {
-        const targetUserIds = body.updates.map((update) => update.userId)
-        const orgAdminTargets = await db
-          .select({ userId: member.userId })
-          .from(member)
-          .where(
-            and(
-              eq(member.organizationId, organizationId),
-              inArray(member.userId, targetUserIds),
-              inArray(member.role, [...ORG_ADMIN_ROLES])
-            )
-          )
-        if (orgAdminTargets.length > 0) {
-          return NextResponse.json(
-            { error: 'Organization admins are workspace admins and their role cannot be changed' },
-            { status: 400 }
-          )
-        }
-      }
-
-      const selfUpdate = body.updates.find((update) => update.userId === session.user.id)
-      if (selfUpdate && selfUpdate.permissions !== 'admin') {
-        return NextResponse.json(
-          { error: 'Cannot remove your own admin permissions' },
-          { status: 400 }
-        )
-      }
-
-      if (
-        billedAccountUserId &&
-        body.updates.some(
-          (update) => update.userId === billedAccountUserId && update.permissions !== 'admin'
-        )
-      ) {
-        return NextResponse.json(
-          { error: 'Workspace billing account must retain admin permissions' },
-          { status: 400 }
-        )
-      }
-
-      // Capture existing permissions and user info for audit metadata
-      const existingPerms = await db
-        .select({
-          userId: permissions.userId,
-          permissionType: permissions.permissionType,
-          email: user.email,
-        })
-        .from(permissions)
-        .innerJoin(user, eq(permissions.userId, user.id))
-        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
-
-      const permLookup = new Map(
-        existingPerms.map((p) => [p.userId, { permission: p.permissionType, email: p.email }])
-      )
-
-      await db.transaction(async (tx) => {
-        for (const update of body.updates) {
-          await tx
-            .delete(permissions)
-            .where(
-              and(
-                eq(permissions.userId, update.userId),
-                eq(permissions.entityType, 'workspace'),
-                eq(permissions.entityId, workspaceId)
-              )
-            )
-
-          await tx.insert(permissions).values({
-            id: generateId(),
-            userId: update.userId,
-            entityType: 'workspace' as const,
-            entityId: workspaceId,
-            permissionType: update.permissions,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-        }
+      await updateWorkspacePermissions.authorize({ principal, input: { workspaceId, updates: [] } })
+      const parsed = await parseRequest(updateWorkspacePermissionsContract, request, context, {
+        validationErrorResponse: (error) =>
+          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
       })
-
-      const [wsEnvRow] = await db
-        .select({ variables: workspaceEnvironment.variables })
-        .from(workspaceEnvironment)
-        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-        .limit(1)
-      const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
-      if (wsEnvKeys.length > 0) {
-        await syncWorkspaceEnvCredentials({
-          workspaceId,
-          envKeys: wsEnvKeys,
-          actingUserId: session.user.id,
-        })
-      }
-
-      const updatedUsers = await getUsersWithPermissions(workspaceId)
-
-      for (const update of body.updates) {
+      if (!parsed.success) return parsed.response
+      const result = await updateWorkspacePermissions.execute({
+        principal,
+        input: { workspaceId, updates: parsed.data.body.updates },
+        request,
+      })
+      for (const change of result.changes) {
         captureServerEvent(
-          session.user.id,
+          principal.userId,
           'workspace_member_role_changed',
-          { workspace_id: workspaceId, new_role: update.permissions },
+          { workspace_id: workspaceId, new_role: change.newRole },
           { groups: { workspace: workspaceId } }
         )
-
-        recordAudit({
-          workspaceId,
-          actorId: session.user.id,
-          action: AuditAction.MEMBER_ROLE_CHANGED,
-          resourceType: AuditResourceType.WORKSPACE,
-          resourceId: workspaceId,
-          resourceName: permLookup.get(update.userId)?.email ?? update.userId,
-          actorName: session.user.name ?? undefined,
-          actorEmail: session.user.email ?? undefined,
-          description: `Changed permissions for ${permLookup.get(update.userId)?.email ?? update.userId} from ${permLookup.get(update.userId)?.permission ?? 'none'} to ${update.permissions}`,
-          metadata: {
-            targetUserId: update.userId,
-            targetEmail: permLookup.get(update.userId)?.email ?? undefined,
-            previousRole: permLookup.get(update.userId)?.permission ?? null,
-            newRole: update.permissions,
-          },
-          request,
-        })
       }
-
-      return NextResponse.json({
-        message: 'Permissions updated successfully',
-        users: updatedUsers,
-        total: updatedUsers.length,
-      })
+      return NextResponse.json({ message: result.message })
     } catch (error) {
-      logger.error('Error updating workspace permissions:', error)
-      return NextResponse.json({ error: 'Failed to update workspace permissions' }, { status: 500 })
+      return permissionErrorResponse(error)
     }
   }
 )

@@ -4,7 +4,7 @@ import { createSubflowSentinelNode } from '@/executor/dag/construction/sentinels
 import {
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 
 export class ParallelConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {

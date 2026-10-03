@@ -11,6 +11,13 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
  * namespace serves the file, knowledge-base, and table trees. It is separate from the
  * resource's own type, which is why a page listing folders alongside its resources resolves
  * two `usePinnedIds` sets.
+ *
+ * `workspace` pins the workspace itself, so its row stores `workspaceId === resourceId`.
+ * It is the one kind not read back through `GET /api/pinned-items`, which lists the pins
+ * *inside* one workspace where the switcher needs the pins *of* every workspace; those ids
+ * ride along on the `/api/workspaces` payload it already loads, which also lets the sidebar
+ * prefetch hydrate them so pinned-first ordering is right on first paint. Writes still go
+ * through the pin routes below, which is what keeps pin/unpin a per-row delta.
  */
 export const pinnedResourceTypeSchema = z.enum([
   'workflow',
@@ -18,6 +25,7 @@ export const pinnedResourceTypeSchema = z.enum([
   'knowledge_base',
   'table',
   'folder',
+  'workspace',
 ])
 export type PinnedResourceType = z.output<typeof pinnedResourceTypeSchema>
 

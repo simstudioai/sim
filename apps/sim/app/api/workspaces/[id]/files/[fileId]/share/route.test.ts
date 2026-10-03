@@ -1,171 +1,72 @@
-/**
- * @vitest-environment node
- */
-import { auditMock, authMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkspaceFile, mockGetShareForResource, mockUpsertFileShare, mockValidateSharing } =
-  vi.hoisted(() => ({
-    mockGetWorkspaceFile: vi.fn(),
-    mockGetShareForResource: vi.fn(),
-    mockUpsertFileShare: vi.fn(),
-    mockValidateSharing: vi.fn(),
-  }))
-
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
+const mocks = vi.hoisted(() => ({
+  getShare: vi.fn(),
+  updateShare: vi.fn(),
 }))
 
-vi.mock('@/lib/public-shares/share-manager', () => {
-  class ShareValidationError extends Error {
-    constructor(message: string) {
-      super(message)
-      this.name = 'ShareValidationError'
-    }
-  }
-  return {
-    getShareForResource: mockGetShareForResource,
-    upsertFileShare: mockUpsertFileShare,
-    ShareValidationError,
-  }
-})
+vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
+  getWorkspaceFileShare: {
+    operation: { id: 'files.share.read', minimumRole: 'read', workspaceApiKey: 'allow' },
+    execute: mocks.getShare,
+  },
+  updateWorkspaceFileShare: {
+    operation: { id: 'files.share.update', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.updateShare,
+  },
+}))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => {
-  class PublicFileSharingNotAllowedError extends Error {
-    constructor() {
-      super('Public file sharing is not allowed based on your permission group settings')
-      this.name = 'PublicFileSharingNotAllowedError'
-    }
-  }
-  return { validatePublicFileSharing: mockValidateSharing, PublicFileSharingNotAllowedError }
-})
+import {
+  DelegatedWorkspaceAuthorizationError,
+  NoWorkspaceAccessError,
+  WorkspaceApiKeyScopeAuthorizationError,
+} from '@/lib/core/application'
+import { GET } from '@/app/api/workspaces/[id]/files/[fileId]/share/route'
 
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@sim/audit', () => auditMock)
-
-const WS = '7727ef3f-8cf6-4686-b063-2bb006a10785'
-const FILE_ID = 'wf_abc'
-
-import { ShareValidationError } from '@/lib/public-shares/share-manager'
-import { GET, PUT } from '@/app/api/workspaces/[id]/files/[fileId]/share/route'
-
-const params = (id = WS, fileId = FILE_ID) => ({ params: Promise.resolve({ id, fileId }) })
-
-const putRequest = (body: unknown) =>
-  new NextRequest(`http://localhost/api/workspaces/${WS}/files/${FILE_ID}/share`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-
-const getRequest = () =>
-  new NextRequest(`http://localhost/api/workspaces/${WS}/files/${FILE_ID}/share`)
-
+const WORKSPACE_ID = 'workspace-1'
+const FILE_ID = 'wf_1'
 const SHARE = {
-  id: 'sh_1',
+  id: 'shr_1',
   token: 'tok_1',
   url: 'https://sim.ai/f/tok_1',
   isActive: true,
   resourceType: 'file' as const,
   resourceId: FILE_ID,
+  authType: 'public' as const,
+  hasPassword: false,
+  allowedEmails: [] as string[],
+}
+const context = createRouteContext({ id: WORKSPACE_ID, fileId: FILE_ID })
+
+function getRequest() {
+  return createMockRequest({
+    url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/share`,
+  })
 }
 
-describe('share route', () => {
+describe('/api/workspaces/[id]/files/[fileId]/share', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: 'user-1', name: 'User One', email: 'u@example.com' },
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
     })
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockGetWorkspaceFile.mockResolvedValue({ id: FILE_ID, name: 'report.pdf' })
-    mockGetShareForResource.mockResolvedValue(SHARE)
-    mockUpsertFileShare.mockResolvedValue(SHARE)
-    mockValidateSharing.mockResolvedValue(undefined) // policy allows by default
+    mocks.getShare.mockResolvedValue({ share: SHARE })
+    mocks.updateShare.mockResolvedValue({ share: SHARE })
   })
 
-  describe('GET', () => {
-    it('returns 401 when unauthenticated', async () => {
-      authMockFns.mockGetSession.mockResolvedValueOnce(null)
-      const res = await GET(getRequest(), params())
-      expect(res.status).toBe(401)
-    })
+  it.each([
+    new NoWorkspaceAccessError(),
+    new WorkspaceApiKeyScopeAuthorizationError(),
+    new DelegatedWorkspaceAuthorizationError(),
+  ])('conceals a cross-tenant denial as an absent file: %s', async (error) => {
+    mocks.getShare.mockRejectedValueOnce(error)
 
-    it('returns 403 when the caller has no workspace access', async () => {
-      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce(null)
-      const res = await GET(getRequest(), params())
-      expect(res.status).toBe(403)
-    })
+    const response = await GET(getRequest(), context)
 
-    it('returns the share for a member', async () => {
-      const res = await GET(getRequest(), params())
-      expect(res.status).toBe(200)
-      expect(await res.json()).toEqual({ share: SHARE })
-    })
-  })
-
-  describe('PUT', () => {
-    it('returns 403 for a read-only member', async () => {
-      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce('read')
-      const res = await PUT(putRequest({ isActive: true }), params())
-      expect(res.status).toBe(403)
-      expect(mockUpsertFileShare).not.toHaveBeenCalled()
-    })
-
-    it('maps a ShareValidationError to 400, not 500', async () => {
-      mockUpsertFileShare.mockRejectedValueOnce(
-        new ShareValidationError('Password is required for password-protected shares')
-      )
-      const res = await PUT(putRequest({ isActive: true, authType: 'password' }), params())
-      expect(res.status).toBe(400)
-      expect((await res.json()).error).toBe('Password is required for password-protected shares')
-    })
-
-    it('returns 404 when the file is not in the workspace', async () => {
-      mockGetWorkspaceFile.mockResolvedValueOnce(null)
-      const res = await PUT(putRequest({ isActive: true }), params())
-      expect(res.status).toBe(404)
-      expect(mockUpsertFileShare).not.toHaveBeenCalled()
-    })
-
-    it('enables the share for a writer', async () => {
-      const res = await PUT(putRequest({ isActive: true }), params())
-      expect(res.status).toBe(200)
-      expect(mockUpsertFileShare).toHaveBeenCalledWith({
-        workspaceId: WS,
-        fileId: FILE_ID,
-        userId: 'user-1',
-        isActive: true,
-      })
-      expect(await res.json()).toEqual({ share: SHARE })
-    })
-
-    it('returns 403 when org access-control disables public sharing (enable)', async () => {
-      const { PublicFileSharingNotAllowedError } = await import(
-        '@/ee/access-control/utils/permission-check'
-      )
-      mockValidateSharing.mockRejectedValueOnce(new PublicFileSharingNotAllowedError())
-      const res = await PUT(putRequest({ isActive: true }), params())
-      expect(res.status).toBe(403)
-      expect(mockUpsertFileShare).not.toHaveBeenCalled()
-    })
-
-    it('allows disabling a share even when policy disallows enabling', async () => {
-      mockValidateSharing.mockRejectedValue(new Error('should not be called for disable'))
-      const res = await PUT(putRequest({ isActive: false }), params())
-      expect(res.status).toBe(200)
-      expect(mockValidateSharing).not.toHaveBeenCalled()
-      expect(mockUpsertFileShare).toHaveBeenCalledWith({
-        workspaceId: WS,
-        fileId: FILE_ID,
-        userId: 'user-1',
-        isActive: false,
-      })
-    })
-
-    it('rejects a missing isActive body', async () => {
-      const res = await PUT(putRequest({}), params())
-      expect(res.status).toBe(400)
-    })
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'File not found' })
   })
 })

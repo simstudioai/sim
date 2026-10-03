@@ -1,29 +1,46 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
-const BROWSER_RESOURCE: MothershipResource = {
-  type: 'browser',
-  id: 'browser-session',
-  title: 'Browser',
-}
+const DOCS_TAB: MothershipResource = { type: 'browser', id: '1', title: 'Docs' }
+const DASHBOARD_TAB: MothershipResource = { type: 'browser', id: '2', title: 'Dashboard' }
 
 describe('buildResourceAttachments', () => {
+  it('keeps the selected saved table view in the chat request', () => {
+    expect(
+      buildResourceAttachments(
+        [{ type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view' }],
+        'table-1',
+        'chat-test'
+      )
+    ).toEqual([
+      { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view', active: true },
+    ])
+  })
   beforeEach(() => {
-    useBrowserSessionStore.setState({
+    const session = {
       pageState: null,
       tabs: [],
       activeTabId: null,
-      tabsSupported: false,
-      panelSnapshot: null,
+      automationTabId: null,
+      automationActive: false,
+      automationNeedsAttention: false,
+      agentRunIds: [],
       sessionAlive: true,
+      suspended: false,
+    }
+    useBrowserSessionStore.setState({
+      ...session,
+      activeScopeId: 'chat-test',
+      sessions: { 'chat-test': session },
     })
   })
 
-  it('adds every live browser tab and marks only the selected tab active', () => {
-    useBrowserSessionStore.setState({
-      tabsSupported: true,
+  it('enriches every browser tab resource and marks only the selected tab active', () => {
+    const store = useBrowserSessionStore.getState()
+    store.setTabsState({
+      scopeId: 'chat-test',
       activeTabId: '2',
       tabs: [
         {
@@ -43,17 +60,19 @@ describe('buildResourceAttachments', () => {
       ],
     })
 
-    expect(buildResourceAttachments([BROWSER_RESOURCE], BROWSER_RESOURCE.id)).toEqual([
+    expect(
+      buildResourceAttachments([DOCS_TAB, DASHBOARD_TAB], DASHBOARD_TAB.id, 'chat-test')
+    ).toEqual([
       {
         type: 'browser',
-        id: 'browser-session:1',
+        id: '1',
         title: 'Docs',
         active: false,
         url: 'https://docs.sim.ai',
       },
       {
         type: 'browser',
-        id: 'browser-session:2',
+        id: '2',
         title: 'Dashboard',
         active: true,
         url: 'https://sim.ai/workspace',
@@ -61,9 +80,10 @@ describe('buildResourceAttachments', () => {
     ])
   })
 
-  it('keeps all browser tabs open rather than active when another resource is selected', () => {
-    useBrowserSessionStore.setState({
-      tabsSupported: true,
+  it('keeps a browser tab open rather than active when another resource is selected', () => {
+    const store = useBrowserSessionStore.getState()
+    store.setTabsState({
+      scopeId: 'chat-test',
       activeTabId: '1',
       tabs: [
         {
@@ -76,30 +96,48 @@ describe('buildResourceAttachments', () => {
       ],
     })
 
-    const attachments = buildResourceAttachments([BROWSER_RESOURCE], 'workflow-1')
+    const attachments = buildResourceAttachments([DOCS_TAB], 'workflow-1', 'chat-test')
 
-    expect(attachments?.[0]).toMatchObject({ id: 'browser-session:1', active: false })
+    expect(attachments?.[0]).toMatchObject({ id: '1', active: false })
   })
 
-  it('falls back to the active page for older single-tab desktop versions', () => {
-    useBrowserSessionStore.setState({
-      pageState: {
-        url: 'https://sim.ai',
-        title: 'Sim',
-        loading: false,
-        canGoBack: false,
-        canGoForward: false,
-      },
+  it('reads attachments only from the requested chat scope', () => {
+    const store = useBrowserSessionStore.getState()
+    store.setTabsState({
+      scopeId: 'chat-a',
+      activeTabId: 'same-id',
+      tabs: [
+        {
+          tabId: 'same-id',
+          title: 'A',
+          url: 'https://a.example',
+          loading: false,
+          active: true,
+        },
+      ],
+    })
+    store.setTabsState({
+      scopeId: 'chat-b',
+      activeTabId: 'same-id',
+      tabs: [
+        {
+          tabId: 'same-id',
+          title: 'B',
+          url: 'https://b.example',
+          loading: false,
+          active: true,
+        },
+      ],
     })
 
-    expect(buildResourceAttachments([BROWSER_RESOURCE], BROWSER_RESOURCE.id)).toEqual([
-      {
-        type: 'browser',
-        id: 'browser-session',
-        title: 'Sim',
-        active: true,
-        url: 'https://sim.ai',
-      },
-    ])
+    const sameIdTab: MothershipResource = { type: 'browser', id: 'same-id', title: 'Tab' }
+    expect(buildResourceAttachments([sameIdTab], sameIdTab.id, 'chat-a')?.[0]).toMatchObject({
+      title: 'A',
+      url: 'https://a.example',
+    })
+    expect(buildResourceAttachments([sameIdTab], sameIdTab.id, 'chat-b')?.[0]).toMatchObject({
+      title: 'B',
+      url: 'https://b.example',
+    })
   })
 })

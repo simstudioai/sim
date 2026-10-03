@@ -6,6 +6,7 @@ import {
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 
 export const nextAvailableSlotQuerySchema = z.object({
   fieldType: z.string().min(1),
@@ -13,13 +14,19 @@ export const nextAvailableSlotQuerySchema = z.object({
 
 export const createTagDefinitionBodySchema = z.object({
   tagSlot: z.string().min(1, 'Tag slot is required'),
-  displayName: z.string().min(1, 'Display name is required'),
+  displayName: z
+    .string()
+    .min(1, 'Display name is required')
+    .max(KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH, 'Display name too long'),
   fieldType: z.string().min(1, 'Invalid field type'),
 })
 
 export const documentTagDefinitionInputSchema = z.object({
   tagSlot: z.string().min(1, 'Tag slot is required'),
-  displayName: z.string().min(1, 'Display name is required').max(100, 'Display name too long'),
+  displayName: z
+    .string()
+    .min(1, 'Display name is required')
+    .max(KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH, 'Display name too long'),
   fieldType: z.string().default('text'),
   _originalDisplayName: z.string().optional(),
 })
@@ -144,6 +151,7 @@ export const deleteDocumentTagDefinitionsContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/knowledge/[id]/documents/[documentId]/tag-definitions',
   params: knowledgeDocumentParamsSchema,
+  query: deleteDocumentTagDefinitionsQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({ success: z.literal(true) }).passthrough(),

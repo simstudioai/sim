@@ -1,8 +1,8 @@
 import { creditsToDollars } from '@/lib/billing/credits/conversion'
 import type { LogsQueryRunsParams, LogsQueryRunsResponse } from '@/tools/logs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const logsQueryRunsTool: ToolConfig<LogsQueryRunsParams, LogsQueryRunsResponse> = {
+export const logsQueryRunsTool: InternalToolConfig<LogsQueryRunsParams, LogsQueryRunsResponse> = {
   id: 'logs_query_runs',
   name: 'Query Logs',
   description:
@@ -98,43 +98,38 @@ export const logsQueryRunsTool: ToolConfig<LogsQueryRunsParams, LogsQueryRunsRes
     },
   },
 
-  request: {
-    url: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-      const qs = new URLSearchParams({ workspaceId })
-      if (params.workflowIds) qs.set('workflowIds', params.workflowIds)
-      if (params.folderIds) qs.set('folderIds', params.folderIds)
-      if (params.level && params.level !== 'all') qs.set('level', params.level)
-      if (params.triggers) qs.set('triggers', params.triggers)
-      if (params.startDate) qs.set('startDate', params.startDate)
-      if (params.endDate) qs.set('endDate', params.endDate)
-      if (params.search) qs.set('search', params.search)
-      if (params.costOperator && params.costValue !== undefined && params.costValue !== null) {
-        qs.set('costOperator', params.costOperator)
-        // Costs are credit-denominated for users; the API filters in dollars.
-        qs.set('costValue', String(creditsToDollars(params.costValue)))
-      }
-      if (
+  operation: {
+    input: (params) => ({
+      workflowIds: params.workflowIds,
+      folderIds: params.folderIds,
+      level: params.level === 'all' ? undefined : params.level,
+      triggers: params.triggers,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      search: params.search,
+      costOperator:
+        params.costOperator && params.costValue !== undefined && params.costValue !== null
+          ? params.costOperator
+          : undefined,
+      costValue:
+        params.costOperator && params.costValue !== undefined && params.costValue !== null
+          ? creditsToDollars(params.costValue)
+          : undefined,
+      durationOperator:
         params.durationOperator &&
         params.durationValue !== undefined &&
         params.durationValue !== null
-      ) {
-        qs.set('durationOperator', params.durationOperator)
-        qs.set('durationValue', String(params.durationValue))
-      }
-      if (params.limit !== undefined && params.limit !== null) {
-        qs.set('limit', String(params.limit))
-      }
-      if (params.sortBy) qs.set('sortBy', params.sortBy)
-      if (params.sortOrder) qs.set('sortOrder', params.sortOrder)
-      return `/api/logs?${qs.toString()}`
-    },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
+          ? params.durationOperator
+          : undefined,
+      durationValue:
+        params.durationOperator &&
+        params.durationValue !== undefined &&
+        params.durationValue !== null
+          ? params.durationValue
+          : undefined,
+      limit: params.limit,
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder,
     }),
   },
 

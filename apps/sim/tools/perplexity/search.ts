@@ -81,6 +81,10 @@ export const searchTool: ToolConfig<PerplexitySearchParams, PerplexitySearchResp
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ query: params.query }),
+    },
     method: 'POST',
     url: () => 'https://api.perplexity.ai/search',
     headers: (params) => ({

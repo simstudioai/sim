@@ -1,4 +1,4 @@
-import { defaultShouldDehydrateQuery, isServer, QueryClient } from '@tanstack/react-query'
+import { isServer, QueryClient } from '@tanstack/react-query'
 import { isDesktopApp } from '@/lib/desktop'
 
 export function makeQueryClient() {
@@ -6,7 +6,6 @@ export function makeQueryClient() {
     defaultOptions: {
       queries: {
         staleTime: 30 * 1000,
-        gcTime: 5 * 60 * 1000,
         // The desktop app window lives for days, so cross-session changes —
         // an admin upgrading your org/workspace role, a workspace you were
         // auto-added to, seat/entitlement changes — would otherwise stay
@@ -18,15 +17,18 @@ export function makeQueryClient() {
         // frequent and noisy. Per-query overrides (e.g. useWorkspaceSchedules
         // pins this off) always win over this default.
         refetchOnWindowFocus: isDesktopApp(),
-        retry: 1,
+        /**
+         * Query core already defaults retries to 0 on the server and 3 in the browser;
+         * only the browser number is ours to change. Stating one value for both would
+         * silently opt server prefetches into a retry, and because the layout awaits
+         * them that spends a retry backoff of document latency on a read whose failure
+         * the client recovers from on its own.
+         */
+        retry: isServer ? 0 : 1,
         retryOnMount: false,
       },
       mutations: {
         retry: false,
-      },
-      dehydrate: {
-        shouldDehydrateQuery: (query) =>
-          defaultShouldDehydrateQuery(query) || query.state.status === 'pending',
       },
     },
   })

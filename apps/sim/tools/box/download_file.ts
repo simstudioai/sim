@@ -1,7 +1,50 @@
-import type { ToolConfig } from '@/tools/types'
-import type { BoxDownloadFileParams, BoxDownloadFileResponse } from './types'
+import { omit } from '@sim/utils/object'
+import type {
+  BoxDownloadFileParams,
+  BoxDownloadFileResponse,
+  BoxDownloadFileV2Response,
+} from '@/tools/box/types'
+import type { ToolConfig, ToolFileData } from '@/tools/types'
 
-export const boxDownloadFileTool: ToolConfig<BoxDownloadFileParams, BoxDownloadFileResponse> = {
+async function transformDownloadResponse(response: Response) {
+  if (response.status === 202) {
+    const retryAfter = response.headers.get('retry-after') || 'a few'
+    throw new Error(`File is not yet ready for download. Retry after ${retryAfter} seconds.`)
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Failed to download file: ${response.status}`)
+  }
+
+  const contentType = response.headers.get('content-type') || 'application/octet-stream'
+  const contentDisposition = response.headers.get('content-disposition')
+  let fileName = 'download'
+
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+    if (match?.[1]) {
+      fileName = match[1].replace(/['"]/g, '')
+    }
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  return {
+    success: true,
+    output: {
+      file: {
+        name: fileName,
+        mimeType: contentType,
+        data: buffer,
+        size: buffer.length,
+      },
+    },
+  }
+}
+
+export const boxDownloadFileTool = {
   id: 'box_download_file',
   name: 'Box Download File',
   description: 'Download a file from Box',
@@ -36,40 +79,15 @@ export const boxDownloadFileTool: ToolConfig<BoxDownloadFileParams, BoxDownloadF
   },
 
   transformResponse: async (response) => {
-    if (response.status === 202) {
-      const retryAfter = response.headers.get('retry-after') || 'a few'
-      throw new Error(`File is not yet ready for download. Retry after ${retryAfter} seconds.`)
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(errorText || `Failed to download file: ${response.status}`)
-    }
-
-    const contentType = response.headers.get('content-type') || 'application/octet-stream'
-    const contentDisposition = response.headers.get('content-disposition')
-    let fileName = 'download'
-
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-      if (match?.[1]) {
-        fileName = match[1].replace(/['"]/g, '')
-      }
-    }
-
-    const arrayBuffer = await response.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
+    const result = await transformDownloadResponse(response)
+    const file = result.output.file
+    const content = file.data.toString('base64')
     return {
-      success: true,
+      ...result,
       output: {
-        file: {
-          name: fileName,
-          mimeType: contentType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
-        content: buffer.toString('base64'),
+        ...result.output,
+        file: { ...file, data: content },
+        content,
       },
     }
   },
@@ -84,4 +102,16 @@ export const boxDownloadFileTool: ToolConfig<BoxDownloadFileParams, BoxDownloadF
       description: 'Base64 encoded file content',
     },
   },
+} satisfies ToolConfig<BoxDownloadFileParams, BoxDownloadFileResponse>
+
+export const boxDownloadFileV2Tool: ToolConfig<
+  BoxDownloadFileParams,
+  BoxDownloadFileV2Response<ToolFileData>
+> = {
+  ...boxDownloadFileTool,
+  id: 'box_download_file_v2',
+  version: '2.0.0',
+  request: { ...boxDownloadFileTool.request, responseType: 'binary' },
+  transformResponse: transformDownloadResponse,
+  outputs: omit(boxDownloadFileTool.outputs, ['content']),
 }

@@ -9,10 +9,10 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useMutation } from '@tanstack/react-query'
 import imageCompression from 'browser-image-compression'
-import { X } from 'lucide-react'
 import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -53,14 +53,14 @@ interface HelpModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflowId?: string
-  workspaceId: string
+  workspaceId?: string
 }
 
 interface SubmitHelpVariables {
   data: FormValues
   images: ImageWithPreview[]
   workflowId?: string
-  workspaceId: string
+  workspaceId?: string
 }
 
 async function compressImage(file: File): Promise<File> {
@@ -93,7 +93,7 @@ async function submitHelpRequest({ data, images, workflowId, workspaceId }: Subm
   formData.append('subject', data.subject)
   formData.append('message', data.message)
   formData.append('type', data.type)
-  formData.append('workspaceId', workspaceId)
+  if (workspaceId) formData.append('workspaceId', workspaceId)
   formData.append('userAgent', navigator.userAgent)
   if (workflowId) {
     formData.append('workflowId', workflowId)
@@ -250,8 +250,8 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Help & support' size='md'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Contact support' size='md'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Contact support</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
         <button type='submit' hidden disabled={helpMutation.isPending || isProcessing} />
@@ -328,6 +328,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                         className='object-contain'
                       />
                       <button
+                        aria-label='Remove image'
                         type='button'
                         className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
                         onClick={() => removeImage(index)}

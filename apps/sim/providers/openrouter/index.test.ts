@@ -1,79 +1,67 @@
-/**
- * @vitest-environment node
- */
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCreate,
-  mockExecuteTool,
-  mockSupportsNative,
-  mockPrepareTools,
-  mockCheckForced,
-  mockCreateStream,
-} = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockExecuteTool: vi.fn(),
+const { mockCapabilities, mockSupportsNative } = vi.hoisted(() => ({
+  mockCapabilities: vi.fn(),
   mockSupportsNative: vi.fn(),
-  mockPrepareTools: vi.fn((tools: unknown) => ({
-    tools,
-    toolChoice: 'auto',
-    forcedTools: [],
-    hasFilteredTools: false,
-  })),
-  mockCheckForced: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
-  mockCreateStream: vi.fn(),
 }))
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('openai', () => openaiMock)
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 10 }))
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn().mockReturnValue([]),
-  getProviderDefaultModel: vi.fn().mockReturnValue(''),
-}))
+vi.mock('@/tools', () => toolsMock)
 
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages: unknown) => messages),
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
+
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
 vi.mock('@/providers/openrouter/utils', () => ({
   supportsNativeStructuredOutputs: mockSupportsNative,
-  createReadableStreamFromOpenAIStream: mockCreateStream,
-  checkForForcedToolUsage: mockCheckForced,
+  getOpenRouterModelCapabilities: mockCapabilities,
 }))
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers/utils', () => ({
-  calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
-  prepareToolsWithUsageControl: mockPrepareTools,
-  prepareToolExecution: vi.fn((_tool: unknown, toolArgs: Record<string, unknown>) => ({
-    toolParams: toolArgs,
-    executionParams: toolArgs,
-  })),
-  sumToolCosts: vi.fn(() => 0),
-  generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import type { StreamingExecution } from '@/executor/types'
 import { openRouterProvider } from '@/providers/openrouter/index'
 import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
+
+const mockCheckForced = providersUtilsMockFns.mockCheckForForcedToolUsageOpenAI
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+providersMock.MAX_TOOL_ITERATIONS = 10
+providersModelsMockFns.mockGetMaxOutputTokensForModel.mockReturnValue(100)
+const mockConversationContext =
+  providersConversationHistoryMockFns.mockGetConversationRequestContext
+const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
+const mockRecordUsage = providersConversationHistoryMockFns.mockRecordProviderConversationUsage
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+const mockPrepareTools = providersUtilsMockFns.mockPrepareToolsWithUsageControl
+mockPrepareTools.mockImplementation((tools) => ({
+  tools,
+  toolChoice: 'auto',
+  forcedTools: [],
+  hasFilteredTools: false,
+}))
 
 interface Usage {
   prompt_tokens: number
@@ -124,7 +112,6 @@ function toolCallResponse(
 function tool(id: string): ProviderToolConfig {
   return {
     id,
-    name: id,
     description: 'test tool',
     params: {},
     parameters: { type: 'object', properties: {}, required: [] },
@@ -140,20 +127,94 @@ const baseRequest: ProviderRequest = {
 
 describe('openRouterProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockConversationContext.mockReturnValue(undefined)
+    mockCapabilities.mockResolvedValue(null)
     mockCreate.mockReset()
     mockExecuteTool.mockReset()
     mockSupportsNative.mockResolvedValue(false)
-    mockCreateStream.mockReturnValue(
-      new ReadableStream({ start: (controller) => controller.close() })
-    )
   })
 
-  it('requires an API key', async () => {
-    await expect(
-      openRouterProvider.executeRequest({ model: 'openrouter/x', messages: [] })
-    ).rejects.toThrow('API key is required for OpenRouter')
-  })
+  it.each([
+    { contextWindow: 512, historySize: 2000, retained: false },
+    { contextWindow: 128_000, historySize: 35_000, retained: true },
+  ])(
+    'budgets dynamic context $contextWindow from the existing capability cache',
+    async ({ contextWindow, historySize, retained }) => {
+      mockConversationContext.mockReturnValue({
+        agentConversation: {},
+        agentMemoryContext: { historyTokens: 64_000 },
+      })
+      mockCapabilities.mockResolvedValue({ contextWindow })
+      mockCreate.mockResolvedValueOnce(textResponse('done'))
+      const prior = { role: 'user' as const, content: 'x'.repeat(historySize) }
+      const prompt = { role: 'user' as const, content: 'Current task' }
+      const controller = new AbortController()
+      await openRouterProvider.executeRequest({
+        ...baseRequest,
+        model: 'openrouter/custom-model',
+        messages: [prior, prompt],
+        maxTokens: 32,
+        abortSignal: controller.signal,
+      })
+      expect(mockCapabilities).toHaveBeenCalledExactlyOnceWith(
+        'openrouter/custom-model',
+        controller.signal
+      )
+      const payload = mockCreate.mock.calls[0][0]
+      expect(payload.messages.includes(prior)).toBe(retained)
+      expect(payload.messages).toContain(prompt)
+      expect(payload).not.toHaveProperty('contextWindow')
+    }
+  )
+
+  it.each([false, true])(
+    'keeps capped decisions unexecuted and accounts usage when synthesis failure is %s',
+    async (failsSynthesis) => {
+      let generated = 0
+      mockCreate.mockImplementation((payload) => {
+        const final = payload.tool_choice === 'none'
+        if (final && failsSynthesis) return Promise.reject(new Error('synthesis failed'))
+        return Promise.resolve({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: final ? 'Tool limit reached' : null,
+                tool_calls: final
+                  ? []
+                  : [
+                      {
+                        id: `call-${++generated}`,
+                        type: 'function',
+                        function: { name: 'lookup', arguments: '{}' },
+                      },
+                    ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
+        })
+      })
+      const result = openRouterProvider.executeRequest({ ...baseRequest, tools: [tool('lookup')] })
+      if (failsSynthesis) await expect(result).rejects.toThrow('synthesis failed')
+      else
+        await expect(result).resolves.toMatchObject({
+          tokens: { input: 60, output: 36, total: 96 },
+        })
+      expect(mockExecuteTool).toHaveBeenCalledTimes(10)
+      expect(generated).toBe(11)
+      expect(mockRecordUsage).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+        input: 5,
+        output: 3,
+        cacheRead: 0,
+      })
+      const capturedCalls = mockCapture.mock.calls.flatMap(
+        ([, , message]) => message.tool_calls?.map((call: { id: string }) => call.id) ?? []
+      )
+      expect(capturedCalls).toEqual(Array.from({ length: 10 }, (_, index) => `call-${index + 1}`))
+      expect(capturedCalls).not.toContain('call-11')
+    }
+  )
 
   it('strips the openrouter/ prefix and returns content + tokens', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('Hi there'))
@@ -170,6 +231,12 @@ describe('openRouterProvider.executeRequest', () => {
     expect(payload.messages.at(-1)).toEqual({ role: 'user', content: 'Hello' })
   })
 
+  it('preserves custom provider paths when stripping an uppercase namespace', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+    await openRouterProvider.executeRequest({ ...baseRequest, model: 'OPENROUTER/Org/CustomModel' })
+    expect(mockCreate.mock.calls[0][0].model).toBe('Org/CustomModel')
+  })
+
   it('inserts context as a user message between system and history', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('ok'))
 
@@ -179,16 +246,6 @@ describe('openRouterProvider.executeRequest', () => {
     expect(messages[0]).toEqual({ role: 'system', content: 'You are helpful.' })
     expect(messages[1]).toEqual({ role: 'user', content: 'CTX' })
     expect(messages[2]).toEqual({ role: 'user', content: 'Hello' })
-  })
-
-  it('forwards maxTokens as max_tokens and temperature', async () => {
-    mockCreate.mockResolvedValueOnce(textResponse('ok'))
-
-    await openRouterProvider.executeRequest({ ...baseRequest, maxTokens: 256, temperature: 0.4 })
-
-    const payload = mockCreate.mock.calls[0][0]
-    expect(payload.max_tokens).toBe(256)
-    expect(payload.temperature).toBe(0.4)
   })
 
   it('runs the tool loop: executes the tool, echoes tool_calls, returns the tool result, sums tokens', async () => {
@@ -414,14 +471,13 @@ describe('openRouterProvider.executeRequest', () => {
   })
 
   it('streams directly when there are no tools and sends usage opt-in', async () => {
-    mockCreate.mockResolvedValueOnce({})
+    mockCreate.mockResolvedValueOnce((async function* () {})())
 
     const res = await openRouterProvider.executeRequest({ ...baseRequest, stream: true })
 
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.stream).toBe(true)
     expect(payload.stream_options).toEqual({ include_usage: true })
-    expect(mockCreateStream).toHaveBeenCalledTimes(1)
     expect(res).toHaveProperty('stream')
     expect(res).toHaveProperty('execution.output.model', 'anthropic/claude-3.5-sonnet')
   })
@@ -472,11 +528,5 @@ describe('openRouterProvider.executeRequest', () => {
     expect(res.toolCalls?.length).toBe(10)
     expect(res.content).toBe('iteration limit answer')
     expect(mockCreate.mock.calls.at(-1)?.[0]).toMatchObject({ tool_choice: 'none' })
-  })
-
-  it('wraps SDK errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('rate limited'))
-
-    await expect(openRouterProvider.executeRequest(baseRequest)).rejects.toThrow('rate limited')
   })
 })

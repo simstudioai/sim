@@ -1,0 +1,269 @@
+import type { mcpServers } from '@sim/db/schema'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { events, hoisted } = vi.hoisted(() => ({
+  events: [] as string[],
+  hoisted: {
+    idState: vi.fn(),
+    create: vi.fn(),
+    effects: vi.fn(),
+    getServer: vi.fn(),
+    listServers: vi.fn(),
+  },
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/mcp/orchestration', () => ({
+  applyMcpServerMutationEffects: hoisted.effects,
+  createMcpServer: hoisted.create,
+  deleteMcpServer: vi.fn(),
+  updateMcpServer: vi.fn(),
+}))
+vi.mock('@/lib/mcp/queries', () => ({
+  getMcpServerIdState: hoisted.idState,
+  getWorkspaceMcpServer: hoisted.getServer,
+  listWorkspaceMcpServers: hoisted.listServers,
+}))
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
+
+import {
+  createMcpServerUseCase,
+  discoverMcpServerToolsUseCase,
+  discoverMcpToolsUseCase,
+  getMcpServerUseCase,
+} from '@/lib/mcp/application/use-cases'
+
+const mocks = {
+  ...hoisted,
+  discoverServerTools: mcpServiceMockFns.mockDiscoverServerTools,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  audit: auditMockFns.mockRecordAudit,
+}
+
+type McpServerRow = typeof mcpServers.$inferSelect
+const workspace = {
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: null,
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'owner-1',
+}
+const server = {
+  id: 'mcp-server-1',
+  workspaceId: workspace.workspaceId,
+  createdBy: 'owner-1',
+  name: 'Docs server',
+  description: null,
+  transport: 'streamable-http',
+  url: 'https://mcp.example.com/sse',
+  authType: 'headers',
+  oauthClientId: null,
+  oauthClientSecret: null,
+  headers: {},
+  timeout: 30_000,
+  retries: 3,
+  enabled: true,
+  lastConnected: null,
+  connectionStatus: 'connected',
+  lastError: null,
+  statusConfig: {},
+  toolCount: 0,
+  lastToolsRefresh: null,
+  totalRequests: 0,
+  lastUsed: null,
+  deletedAt: null,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
+} as McpServerRow
+
+describe('MCP server application use cases', () => {
+  beforeEach(() => {
+    events.length = 0
+    mocks.loadContext.mockResolvedValue(workspace)
+    mocks.resolvePermission.mockResolvedValue('write')
+    mocks.idState.mockResolvedValue(null)
+    mocks.create.mockResolvedValue({
+      success: true,
+      serverId: server.id,
+      server,
+      updated: false,
+    })
+    mocks.audit.mockImplementation(() => events.push('audit'))
+    mocks.effects.mockImplementation(async () => events.push('effects'))
+    mocks.getServer.mockResolvedValue(server)
+    mocks.listServers.mockResolvedValue({ data: [server], nextCursorKeys: null })
+    mocks.discoverServerTools.mockResolvedValue([])
+  })
+
+  it('resolves a selected organization server through canonical scope and current permissions', async () => {
+    mocks.loadContext.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'org-1' })
+    const args = {
+      principal: { kind: 'session' as const, userId: 'reader' },
+      input: { organizationId: 'org-1', serverId: server.id },
+    }
+    await expect(getMcpServerUseCase.execute(args)).resolves.toMatchObject({
+      server: { id: server.id },
+    })
+    expect(mocks.getServer).toHaveBeenCalledWith({ serverId: server.id })
+    expect(mocks.loadContext).toHaveBeenCalledWith(server.workspaceId)
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(getMcpServerUseCase.execute(args)).rejects.toMatchObject({ code: 'forbidden' })
+  })
+  it('conceals an organization-selected server in another organization before discovery', async () => {
+    mocks.loadContext.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'other' })
+    await expect(
+      getMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { organizationId: 'org-1', serverId: server.id },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+  })
+
+  it('does not return registration details after access is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(
+      getMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('distinguishes an absent scoped registration from a lookup outage', async () => {
+    const args = {
+      principal: { kind: 'session' as const, userId: 'reader' },
+      input: { workspaceId: workspace.workspaceId, serverId: 'foreign' },
+    }
+    mocks.getServer.mockResolvedValueOnce(null)
+    await expect(getMcpServerUseCase.execute(args)).rejects.toMatchObject({ code: 'not_found' })
+    mocks.getServer.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(getMcpServerUseCase.execute(args)).rejects.toThrow('database unavailable')
+  })
+
+  /**
+   * The message reaches the REST API and the CLI alike, so it names the
+   * operation and the server it collided with rather than an HTTP endpoint only
+   * one of those two callers can reach.
+   */
+  it('rejects an existing live URL before mutation and audit', async () => {
+    mocks.idState.mockResolvedValueOnce({ deleted: false })
+
+    await expect(
+      createMcpServerUseCase.execute({
+        principal: createSessionPrincipal(),
+        input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: expect.stringContaining('Update that server instead of creating a new one'),
+    })
+
+    mocks.idState.mockResolvedValueOnce({ deleted: false })
+    await expect(
+      createMcpServerUseCase.execute({
+        principal: createSessionPrincipal(),
+        input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+      })
+    ).rejects.toMatchObject({ message: expect.not.stringMatching(/\/api\/v2\//) })
+
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.effects).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A server id is derived from the workspace and endpoint URL, so re-registering
+   * a URL that was soft-deleted reuses the same row. That is a create from the
+   * caller's side — the resource they asked for did not exist a moment ago — so it
+   * must succeed with the create's 201 rather than collide with its own tombstone.
+   * The conflict guard therefore keys on the id state's `deleted` flag, not on
+   * whether the writer reported an update.
+   */
+  it('creates over a soft-deleted registration rather than colliding with its tombstone', async () => {
+    mocks.idState.mockResolvedValueOnce({ deleted: true })
+    mocks.create.mockResolvedValueOnce({
+      success: true,
+      serverId: server.id,
+      server,
+      updated: true,
+    })
+
+    const result = await createMcpServerUseCase.execute({
+      principal: createSessionPrincipal(),
+      input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+    })
+
+    expect(result.server.id).toBe(server.id)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ existingServerBehavior: 'reject' })
+    )
+    expect(events).toEqual(['audit', 'effects'])
+  })
+
+  /**
+   * The pre-check reads the id state outside the write, so two concurrent creates
+   * of the same URL can both pass it. The unique index is what actually decides,
+   * and its `23505` must surface as the same conflict the pre-check reports —
+   * otherwise the loser of the race gets a 500 for a condition the API defines.
+   */
+  it('reports the unique-index loser of a concurrent create as a conflict', async () => {
+    mocks.create.mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' })
+    )
+
+    await expect(
+      createMcpServerUseCase.execute({
+        principal: createSessionPrincipal(),
+        input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.effects).not.toHaveBeenCalled()
+  })
+
+  it('rejects workspace-key tool discovery before protected loading', async () => {
+    await expect(
+      discoverMcpToolsUseCase.execute({
+        principal: createWorkspaceApiKeyPrincipal({
+          workspaceId: workspace.workspaceId,
+          keyId: 'workspace-key-1',
+        }),
+        input: { workspaceId: workspace.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.loadContext).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit managed connection ID for a Credential Group server', async () => {
+    mocks.getServer.mockResolvedValueOnce({ ...server, credentialGroupId: 'group-1' })
+
+    await expect(
+      discoverMcpServerToolsUseCase.execute({
+        principal: createPersonalApiKeyPrincipal(),
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Credential Group MCP servers require an explicit managed connection ID',
+    })
+
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+  })
+})

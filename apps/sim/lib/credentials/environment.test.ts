@@ -1,26 +1,142 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { credential, environment, permissions, workspace } from '@sim/db/schema'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
+import {
+  billingIdentityLockMock,
+  billingIdentityLockMockFns,
+} from '@sim/testing/mocks/billing-identity-lock.mock'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getWorkspaceEnvKeyAdminAccess } from '@/lib/credentials/environment'
+import type { DbOrTx } from '@/lib/db/types'
 
-describe('getWorkspaceEnvKeyAdminAccess', () => {
+const { mockLockPersonalEnvMap } = vi.hoisted(() => ({
+  mockLockPersonalEnvMap: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+
+vi.mock('@/lib/credentials/env-locks', () => ({
+  lockPersonalEnvMap: mockLockPersonalEnvMap,
+}))
+
+import {
+  createWorkspaceEnvCredentials,
+  getEnrolledManagedOAuthCredentials,
+  getPersonalEnvKeyRawAccess,
+  getWorkspaceEnvKeyAdminAccess,
+  syncPersonalEnvCredentialsForUser,
+} from '@/lib/credentials/environment'
+
+const mockAcquireUserBillingIdentityLock =
+  billingIdentityLockMockFns.mockAcquireUserBillingIdentityLock
+
+describe('managed OAuth credential lookup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  it('returns empty sets without querying when no keys are provided', async () => {
-    const result = await getWorkspaceEnvKeyAdminAccess({
+  it.each(['active', 'revoked'] as const)(
+    'bounds lookup and preserves %s binding checks',
+    async (status) => {
+      queueTableRows(credential, [
+        {
+          id: 'mine',
+          providerId: 'slack',
+          displayName: 'Slack',
+          credentialGroupOptionId: 'option',
+          managedOauthStatus: status,
+          enrollmentStatus: 'completed',
+          groupName: 'Connected accounts',
+          groupStatus: 'active',
+          groupOptions: [{ id: 'option', status: 'active' }],
+        },
+      ])
+      const result = await getEnrolledManagedOAuthCredentials('workspace', 'person', 'mine')
+      expect(eq).toHaveBeenCalledWith(credential.id, 'mine')
+      expect(eq).toHaveBeenCalledWith(credential.workspaceId, 'workspace')
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
+      expect(result).toHaveLength(status === 'active' ? 1 : 0)
+    }
+  )
+})
+
+describe('getPersonalEnvKeyRawAccess', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('allows own values and only active admin grants for other personal values', async () => {
+    queueTableRows(credential, [
+      {
+        envKey: 'SHARED_ADMIN',
+        envOwnerUserId: 'owner-2',
+        role: 'admin',
+        status: 'active',
+      },
+      {
+        envKey: 'SHARED_MEMBER',
+        envOwnerUserId: 'owner-3',
+        role: 'member',
+        status: 'active',
+      },
+      {
+        envKey: 'REVOKED_ADMIN',
+        envOwnerUserId: 'owner-4',
+        role: 'admin',
+        status: 'revoked',
+      },
+    ])
+
+    const result = await getPersonalEnvKeyRawAccess({
       workspaceId: 'ws-1',
-      envKeys: [],
       userId: 'u-1',
+      personalOwners: {
+        OWN_KEY: 'u-1',
+        SHARED_ADMIN: 'owner-2',
+        SHARED_MEMBER: 'owner-3',
+        REVOKED_ADMIN: 'owner-4',
+      },
     })
 
+    expect([...result.ownedKeys]).toEqual(['OWN_KEY'])
+    expect([...result.adminKeys]).toEqual(['SHARED_ADMIN'])
+  })
+
+  it('requires the admin grant to belong to the exact effective secret owner', async () => {
+    queueTableRows(credential, [
+      {
+        envKey: 'COLLISION',
+        envOwnerUserId: 'owner-a',
+        role: 'admin',
+        status: 'active',
+      },
+      {
+        envKey: 'COLLISION',
+        envOwnerUserId: 'owner-b',
+        role: 'member',
+        status: 'active',
+      },
+    ])
+
+    const result = await getPersonalEnvKeyRawAccess({
+      workspaceId: 'ws-1',
+      userId: 'u-1',
+      personalOwners: { COLLISION: 'owner-b' },
+    })
+
+    expect(result.ownedKeys.size).toBe(0)
     expect(result.adminKeys.size).toBe(0)
-    expect(result.knownKeys.size).toBe(0)
-    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+})
+
+describe('getWorkspaceEnvKeyAdminAccess', () => {
+  beforeEach(() => {
+    resetDbChainMock()
   })
 
   it('marks a key admin only for an active admin membership, known for any credential', async () => {
@@ -46,16 +162,150 @@ describe('getWorkspaceEnvKeyAdminAccess', () => {
     ])
     expect(result.knownKeys.has('ABSENT')).toBe(false)
   })
+})
 
-  it('dedupes and drops empty keys before issuing a single query', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
+describe('syncPersonalEnvCredentialsForUser', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockAcquireUserBillingIdentityLock.mockResolvedValue(undefined)
+    mockLockPersonalEnvMap.mockResolvedValue(undefined)
+  })
 
-    await getWorkspaceEnvKeyAdminAccess({
-      workspaceId: 'ws-1',
-      envKeys: ['A', 'A', '', 'B'],
-      userId: 'u-1',
+  it('locks the map before the transfer fence and reads current keys before reconciling', async () => {
+    const base = dbChainMock.db
+    const tx = {
+      select: vi.fn(base.select),
+      insert: vi.fn(base.insert),
+      delete: vi.fn(base.delete),
+    } as unknown as DbOrTx
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => callback(tx))
+    queueTableRows(environment, [{ variables: { API_KEY: 'encrypted' } }])
+    queueTableRows(permissions, [{ workspaceId: 'ws-1' }])
+    queueTableRows(workspace, [])
+    queueTableRows(credential, [{ id: 'credential-1' }])
+
+    await syncPersonalEnvCredentialsForUser({
+      userId: 'user-1',
     })
 
-    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+    expect(mockLockPersonalEnvMap).toHaveBeenCalledWith(tx, 'user-1')
+    expect(mockLockPersonalEnvMap.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAcquireUserBillingIdentityLock.mock.invocationCallOrder[0]
+    )
+    expect(mockAcquireUserBillingIdentityLock).toHaveBeenCalledWith(tx, 'user-1')
+    expect(mockAcquireUserBillingIdentityLock.mock.invocationCallOrder[0]).toBeLessThan(
+      (tx.select as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not recreate source credentials when transfer won the user lock', async () => {
+    const base = dbChainMock.db
+    const tx = {
+      select: vi.fn(base.select),
+      insert: vi.fn(base.insert),
+      delete: vi.fn(base.delete),
+    } as unknown as DbOrTx
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => callback(tx))
+    queueTableRows(environment, [{ variables: { API_KEY: 'encrypted' } }])
+    queueTableRows(permissions, [])
+    queueTableRows(workspace, [])
+
+    await syncPersonalEnvCredentialsForUser({
+      userId: 'user-1',
+    })
+
+    expect(mockAcquireUserBillingIdentityLock.mock.invocationCallOrder[0]).toBeLessThan(
+      (tx.select as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]
+    )
+    expect(tx.insert).not.toHaveBeenCalled()
+    expect(tx.delete).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { label: 'missing', rows: [] },
+    { label: 'empty', rows: [{ variables: {} }] },
+  ])(
+    'cleans archived-workspace mirrors with a $label map and no active workspaces',
+    async ({ rows }) => {
+      queueTableRows(environment, rows)
+      const deleteWhere = vi.fn().mockResolvedValue([])
+      dbChainMock.db.delete.mockReturnValue({ where: deleteWhere })
+
+      await syncPersonalEnvCredentialsForUser({ userId: 'user-1' })
+
+      expect(dbChainMock.db.delete).toHaveBeenCalledWith(credential)
+      expect(flattenMockConditions(deleteWhere.mock.calls[0][0])).toEqual([
+        { type: 'eq', left: credential.type, right: 'env_personal' },
+        { type: 'eq', left: credential.envOwnerUserId, right: 'user-1' },
+      ])
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { label: 'no active workspaces', activeWorkspaces: [] },
+    { label: 'an active workspace', activeWorkspaces: [{ workspaceId: 'active-workspace' }] },
+  ])(
+    'prunes deleted keys across archived workspaces with $label, preserving current keys and owners',
+    async ({ activeWorkspaces }) => {
+      queueTableRows(environment, [{ variables: { KEEP: 'encrypted', NEW: 'encrypted-new' } }])
+      queueTableRows(permissions, activeWorkspaces)
+      queueTableRows(workspace, [])
+      const deleteWhere = vi.fn().mockResolvedValue([])
+      dbChainMock.db.delete.mockReturnValue({ where: deleteWhere })
+
+      await syncPersonalEnvCredentialsForUser({ userId: 'user-1' })
+
+      expect(flattenMockConditions(deleteWhere.mock.calls[0][0])).toEqual([
+        { type: 'eq', left: credential.type, right: 'env_personal' },
+        { type: 'eq', left: credential.envOwnerUserId, right: 'user-1' },
+        { type: 'notInArray', column: credential.envKey, values: ['KEEP', 'NEW'] },
+      ])
+      if (activeWorkspaces.length === 0) {
+        expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      } else {
+        expect(dbChainMockFns.values).toHaveBeenCalledWith([
+          expect.objectContaining({ workspaceId: 'active-workspace', envKey: 'KEEP' }),
+          expect.objectContaining({ workspaceId: 'active-workspace', envKey: 'NEW' }),
+        ])
+      }
+    }
+  )
+})
+
+describe('createWorkspaceEnvCredentials', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  /**
+   * The membership row count is keys × members, and neither is bounded by the
+   * request contract. A single statement past Postgres's 65535 bind parameters
+   * throws — and because this now runs inside the value's transaction, that
+   * would roll back the save on every retry rather than half-committing it.
+   */
+  it('splits a keys x members write too wide for one statement', async () => {
+    const keys = Array.from({ length: 40 }, (_, i) => `KEY_${i}`)
+    queueTableRows(workspace, [{ ownerId: 'owner-1' }])
+    queueTableRows(
+      permissions,
+      Array.from({ length: 60 }, (_, i) => ({ userId: `member-${i}` }))
+    )
+    // Every chunk of the credential insert reports its rows back as created.
+    dbChainMockFns.returning.mockImplementation(() =>
+      Promise.resolve(keys.map((_, i) => ({ id: `credential-${i}` })))
+    )
+
+    await createWorkspaceEnvCredentials({
+      workspaceId: 'ws-1',
+      newKeys: keys,
+      actingUserId: 'member-0',
+    })
+
+    const rowsPerCall = dbChainMockFns.values.mock.calls.map(([rows]) =>
+      Array.isArray(rows) ? rows.length : 1
+    )
+    expect(rowsPerCall.length).toBeGreaterThan(1)
+    expect(Math.max(...rowsPerCall)).toBeLessThanOrEqual(500)
   })
 })

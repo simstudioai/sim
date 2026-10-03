@@ -1,11 +1,31 @@
 'use client'
 
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader, toast } from '@sim/emcn'
+import { Fragment } from 'react'
+import {
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalSeparator,
+  ChipTag,
+  toast,
+} from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import type { InvitationDetails } from '@/lib/api/contracts/invitations'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
+import { InvitationDisclosure } from '@/app/invite/components/invitation-disclosure'
+import { InvitationWorkspaceAccess } from '@/app/invite/components/invitation-workspace-access'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import {
   useAcceptMyInvitation,
   useDeclineMyInvitation,
@@ -19,7 +39,7 @@ const logger = createLogger('ViewInvitationsModal')
  * invites are labeled by the org (even when workspace grants ride along);
  * workspace invites by their workspace(s).
  */
-function invitationLabel(inv: InvitationDetails): string {
+function invitationLabel(inv: MyInvitation): string {
   if (inv.kind === 'organization') {
     return inv.organizationName ?? 'Organization'
   }
@@ -29,13 +49,6 @@ function invitationLabel(inv: InvitationDetails): string {
     return extra > 0 ? `${first} +${extra}` : first
   }
   return 'Workspace'
-}
-
-/** Secondary line: who invited, plus role (org) or permission (workspace). */
-function invitationSubLabel(inv: InvitationDetails): string {
-  const invitedBy = inv.inviterName ? `Invited by ${inv.inviterName}` : 'Invited'
-  const detail = inv.kind === 'organization' ? inv.role : inv.grants[0]?.permission
-  return detail ? `${invitedBy} · ${detail}` : invitedBy
 }
 
 interface ViewInvitationsModalProps {
@@ -51,16 +64,22 @@ interface ViewInvitationsModalProps {
  * the joined workspace; declining keeps it open for the remaining rows.
  */
 export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModalProps) {
-  const { data: invitations } = useMyPendingInvitations(open)
+  const invitationsQuery = useMyPendingInvitations(open)
+  const invitations = invitationsQuery.data ?? []
   const acceptInvitation = useAcceptMyInvitation()
   const declineInvitation = useDeclineMyInvitation()
   const router = useRouter()
 
   const isBusy = acceptInvitation.isPending || declineInvitation.isPending
 
-  const handleAccept = async (inv: InvitationDetails) => {
+  const handleAccept = async (inv: MyInvitation) => {
+    if (isBusy || (inv.membershipIntent === 'internal' && !inv.joinPreview)) return
     try {
-      const result = await acceptInvitation.mutateAsync({ invitationId: inv.id })
+      const result = await acceptInvitation.mutateAsync({
+        invitationId: inv.id,
+        disclosedWorkspaceIds: inv.joinPreview?.workspaceIdsToMove,
+        disclosedOutcome: inv.joinPreview?.outcome,
+      })
       toast.success(`Joined ${invitationLabel(inv)}`)
       onOpenChange(false)
       router.push(result.redirectPath)
@@ -75,7 +94,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
     }
   }
 
-  const handleDecline = async (inv: InvitationDetails) => {
+  const handleDecline = async (inv: MyInvitation) => {
     try {
       await declineInvitation.mutateAsync({ invitationId: inv.id })
     } catch (error) {
@@ -90,42 +109,114 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Pending invitations'>
       <ChipModalHeader onClose={() => onOpenChange(false)}>Invitations</ChipModalHeader>
       <ChipModalBody>
-        {!invitations || invitations.length === 0 ? (
-          <p className='px-2 text-[var(--text-muted)] text-sm'>No pending invitations.</p>
+        {invitationsQuery.isError ? (
+          <SettingsQueryErrorState
+            error={invitationsQuery.error}
+            fallback='Could not load invitations'
+            isRetrying={invitationsQuery.isFetching}
+            onRetry={() => void invitationsQuery.refetch()}
+            variant='inline'
+          />
+        ) : invitationsQuery.isPending ? (
+          <SettingsEmptyState variant='inline'>Loading invitations…</SettingsEmptyState>
+        ) : invitations.length === 0 ? (
+          <SettingsEmptyState variant='inline'>No pending invitations.</SettingsEmptyState>
         ) : (
-          invitations.map((inv) => (
-            <div key={inv.id} className='flex items-center gap-2 px-2'>
-              <div className='min-w-0 flex-1'>
-                <p className='truncate text-[var(--text-body)] text-sm'>{invitationLabel(inv)}</p>
-                <p className='truncate text-[var(--text-muted)] text-caption'>
-                  {invitationSubLabel(inv)}
-                </p>
+          invitations.map((inv, index) => {
+            const isDisclosureMissing = inv.membershipIntent === 'internal' && !inv.joinPreview
+            const singleWorkspaceGrant =
+              inv.kind === 'workspace' && inv.grants.length === 1 ? inv.grants[0] : null
+            const showJoinNotice = inv.joinPreview
+              ? inv.joinPreview.outcome !== 'external'
+              : inv.membershipIntent === 'internal'
+            const showWorkspaceAccess = !singleWorkspaceGrant && inv.grants.length > 0
+            const hasDetails = showJoinNotice || showWorkspaceAccess
+            const actions = (
+              <div className='ml-auto flex shrink-0 gap-2'>
+                <Chip
+                  disabled={isBusy}
+                  onClick={() => void handleDecline(inv)}
+                  aria-label={`Decline invitation to ${invitationLabel(inv)}`}
+                >
+                  Decline
+                </Chip>
+                <Chip
+                  variant='primary'
+                  disabled={isBusy || isDisclosureMissing}
+                  onClick={() => void handleAccept(inv)}
+                >
+                  Accept
+                </Chip>
               </div>
-              <Chip
-                variant='primary'
-                disabled={isBusy}
-                onClick={() => void handleAccept(inv)}
-                className='flex-shrink-0'
-              >
-                Accept
-              </Chip>
-              <Chip
-                disabled={isBusy}
-                onClick={() => void handleDecline(inv)}
-                aria-label={`Decline invitation to ${invitationLabel(inv)}`}
-                className='flex-shrink-0'
-              >
-                Decline
-              </Chip>
-            </div>
-          ))
+            )
+            return (
+              <Fragment key={inv.id}>
+                {index > 0 && <ChipModalSeparator />}
+                <section aria-label={`Invitation to ${invitationLabel(inv)}`} className='space-y-4'>
+                  <div className='flex flex-wrap items-center gap-3 px-2'>
+                    <div className='min-w-0 flex-1 basis-[240px]'>
+                      <SettingsResourceRow
+                        flush
+                        icon={
+                          singleWorkspaceGrant && (
+                            <IdentityTile
+                              initial={getWorkspaceInitial(
+                                singleWorkspaceGrant.workspaceName ?? undefined
+                              )}
+                              logoUrl={singleWorkspaceGrant.workspaceLogoUrl}
+                            />
+                          )
+                        }
+                        iconVariant='custom'
+                        title={invitationLabel(inv)}
+                        description={inv.inviterName ? `Invited by ${inv.inviterName}` : 'Invited'}
+                        badge={
+                          singleWorkspaceGrant && (
+                            <ChipTag variant='gray'>
+                              {singleWorkspaceGrant.permission} access
+                            </ChipTag>
+                          )
+                        }
+                      />
+                    </div>
+                    {!hasDetails && actions}
+                  </div>
+                  {showJoinNotice && (
+                    <ChipModalField type='custom' title='Before you join'>
+                      <InvitationDisclosure
+                        invitation={inv}
+                        joinPreview={inv.joinPreview}
+                        showWorkspaceAccess={false}
+                      />
+                      {isDisclosureMissing && (
+                        <Chip
+                          disabled={isBusy || invitationsQuery.isFetching}
+                          onClick={() => void invitationsQuery.refetch()}
+                        >
+                          Refresh invitation
+                        </Chip>
+                      )}
+                    </ChipModalField>
+                  )}
+                  {showWorkspaceAccess && (
+                    <ChipModalField type='custom' title='Workspace access'>
+                      <InvitationWorkspaceAccess grants={inv.grants} />
+                    </ChipModalField>
+                  )}
+                  {hasDetails && <div className='flex px-2'>{actions}</div>}
+                </section>
+              </Fragment>
+            )
+          })
         )}
       </ChipModalBody>
-      <ChipModalFooter
-        hideCancel
-        onCancel={() => onOpenChange(false)}
-        primaryAction={{ label: 'Done', onClick: () => onOpenChange(false) }}
-      />
+      {invitations.length === 0 && (
+        <ChipModalFooter
+          defaultAction='dismiss'
+          cancelLabel='Done'
+          onCancel={() => onOpenChange(false)}
+        />
+      )}
     </ChipModal>
   )
 }

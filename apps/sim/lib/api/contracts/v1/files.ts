@@ -35,15 +35,6 @@ export const v1ListFilesContract = defineRouteContract({
   },
 })
 
-export const v1UploadFileContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/v1/files',
-  response: {
-    mode: 'json',
-    schema: v1FilesResponseSchema,
-  },
-})
-
 export const v1DownloadFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/files/[fileId]',

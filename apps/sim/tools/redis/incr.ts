@@ -1,7 +1,7 @@
 import type { RedisIncrParams, RedisIncrResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisIncrTool: ToolConfig<RedisIncrParams, RedisIncrResponse> = {
+export const redisIncrTool: InternalToolConfig<RedisIncrParams, RedisIncrResponse> = {
   id: 'redis_incr',
   name: 'Redis INCR',
   description: 'Increment the integer value of a key by one in Redis.',
@@ -22,11 +22,8 @@ export const redisIncrTool: ToolConfig<RedisIncrParams, RedisIncrResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'INCR',
       args: [params.key],

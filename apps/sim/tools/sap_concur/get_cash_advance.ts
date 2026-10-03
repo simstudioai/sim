@@ -1,13 +1,12 @@
-import type { GetCashAdvanceParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetCashAdvanceParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getCashAdvanceTool: ToolConfig<GetCashAdvanceParams, SapConcurProxyResponse> = {
+export const getCashAdvanceTool: InternalToolConfig<GetCashAdvanceParams, SapConcurResponse> = {
   id: 'sap_concur_get_cash_advance',
   name: 'SAP Concur Get Cash Advance',
   description: 'Get a cash advance (GET /cashadvance/v4.1/cashadvances/{cashAdvanceId}).',
@@ -62,27 +61,28 @@ export const getCashAdvanceTool: ToolConfig<GetCashAdvanceParams, SapConcurProxy
       description: 'Cash advance ID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const cashAdvanceId = trimRequired(params.cashAdvanceId, 'cashAdvanceId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/cashadvance/v4.1/cashadvances/${encodeURIComponent(cashAdvanceId)}`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
       type: 'json',
       description: 'Cash advance detail payload',
       properties: {
-        cashAdvanceId: { type: 'string', description: 'Unique identifier of the cash advance' },
+        cashAdvanceId: {
+          type: 'string',
+          description: 'Unique identifier of the cash advance',
+          optional: true,
+        },
         name: { type: 'string', description: 'Cash advance name', optional: true },
         purpose: {
           type: 'string',

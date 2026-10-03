@@ -1,19 +1,16 @@
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableRowGetParams, TableRowResponse } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = {
+export const tableGetRowTool: InternalToolConfig<TableRowGetParams, TableRowResponse> = {
   id: 'table_get_row',
   name: 'Get Row',
   description: 'Get a single row by ID',
   version: '1.0.0',
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     rowId: {
       type: 'string',
       required: true,
@@ -22,32 +19,26 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
     },
   },
 
-  request: {
-    url: (params: TableRowGetParams) => {
+  operation: {
+    secretProvenance: { response: { incomplete: 'propagate' } },
+    input: (params: TableRowGetParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
-      return `/api/table/${params.tableId}/rows/${params.rowId}?workspaceId=${encodeURIComponent(workspaceId)}`
+      return { tableId: params.tableId, rowId: params.rowId, workspaceId }
     },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
   },
 
   transformResponse: async (response): Promise<TableRowResponse> => {
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        row: data.row,
-        message: data.message || 'Row retrieved successfully',
-      },
-    }
+    return tableSuccess({
+      row: data.row,
+      message: data.message || 'Row retrieved successfully',
+    })
   },
 
   outputs: {

@@ -1,63 +1,66 @@
+import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import type { BrowserWindow, WebContents } from 'electron'
-import { Menu } from 'electron'
 import { normalizeOrigin } from '@/main/browser-credentials/origin'
+import { CredentialPicker } from '@/main/browser-credentials/picker'
 import type { CredentialVault } from '@/main/browser-credentials/vault'
+import type {
+  CredentialFieldBounds,
+  CredentialFillResult,
+  CredentialFillStatus,
+  CredentialFormReport,
+} from '@/shared/browser-credentials'
 
 const logger = createLogger('BrowserCredentialFill')
+const FILL_TIMEOUT_MS = 2_000
 
-/**
- * Decides when a credential may be filled, and does the filling.
- *
- * The page can navigate at any point between "this page has a login form",
- * "the user opened the chooser", and "the user picked an account" — and a fill
- * aimed at the wrong document means a password handed to the wrong site. So
- * every authorization is bound to a specific tab and a specific navigation
- * generation, and that binding is revalidated immediately before plaintext
- * leaves the vault, not just when the chooser opened.
- *
- * The chooser is a native menu rather than renderer chrome. That is a security
- * property, not a styling choice: the selection happens in a surface the main
- * process owns and the page (and the Sim renderer) cannot synthesize, which is
- * the main-process-controlled confirmation the design calls for. It also means
- * no credential id has to cross the preload bridge at all.
- */
-
-interface FormState {
-  origin: string
-  hasLoginForm: boolean
-  /**
-   * Whether the page currently has somewhere to put a password.
-   *
-   * False on the first step of an identifier-first sign-in, which asks for an
-   * email and only reveals the password field after it is submitted. Those
-   * steps are still worth filling — the username is what they want — so the
-   * password simply is not sent to a page that has nowhere to put it.
-   */
-  hasPasswordField: boolean
-  /** Bumped on every navigation, so a stale authorization cannot be replayed. */
+interface FormState extends CredentialFormReport {
   generation: number
+}
+
+interface PickerHost {
+  window: BrowserWindow
+  anchor: CredentialFieldBounds
 }
 
 export interface FillCoordinatorDeps {
   vault: CredentialVault
-  /** The tab the user is actually looking at. */
-  getActiveContents: () => WebContents | null
-  /** Push the fill affordance's visibility to the Sim renderer. */
-  onAvailabilityChanged: (available: boolean) => void
+  getActiveContents: (scopeId?: string) => WebContents | null
+  scopeOwnsContents: (scopeId: string, contents: WebContents) => boolean
+  onAvailabilityChanged: (available: boolean, contents: WebContents | null) => void
+  /** Screen coordinates for the focused field, only while its native page is visible. */
+  pickerHost?: (contents: WebContents, bounds: CredentialFieldBounds) => PickerHost | null
 }
 
-export interface FormStateReport {
-  origin: string
-  hasLoginForm: boolean
-  /** Absent from shells that predate identifier-first support; assumed true. */
-  hasPasswordField?: boolean
+interface SelectionAuthorization {
+  pickerVersion?: number
+  credentialIds: ReadonlySet<string>
+  generation: number
+  targetId: string
 }
 
+interface PendingFill {
+  pickerVersion?: number
+  requestId: string
+  targetId: string
+  generation: number
+  complete: (status: CredentialFillStatus) => void
+}
+
+/** Keeps authorization in main and binds every user selection to a live document and form. */
 export class FillCoordinator {
   private readonly states = new WeakMap<WebContents, FormState>()
   private readonly generations = new WeakMap<WebContents, number>()
-  private lastAvailability = false
+  private readonly selectionAuthorizations = new WeakMap<WebContents, SelectionAuthorization>()
+  private readonly pendingFills = new Map<WebContents, PendingFill>()
+  private readonly availabilityRefreshes = new WeakMap<WebContents, number>()
+  private availabilityRefreshWithoutContents = 0
+  private readonly lastAvailability = new WeakMap<WebContents, boolean>()
+  private lastAvailabilityWithoutContents = false
+  private picker: { view: CredentialPicker; contents: WebContents; targetId: string } | null = null
+  private pickerVersion = 0
+  private disposed = false
 
   constructor(private readonly deps: FillCoordinatorDeps) {}
 
@@ -65,133 +68,314 @@ export class FillCoordinator {
     return this.generations.get(contents) ?? 0
   }
 
-  /**
-   * Records what the browser preload observed. The report is trusted only as
-   * far as it goes: it can claim a form exists, but the origin it names is
-   * checked against the live URL before any fill.
-   */
-  noteFormState(contents: WebContents, report: FormStateReport): void {
+  noteFormState(contents: WebContents, report: CredentialFormReport): void {
+    const previous = this.states.get(contents)
     const origin = normalizeOrigin(report.origin)
-    if (origin === null) {
+    if (previous?.targetId !== report.targetId || previous?.origin !== origin) {
+      this.selectionAuthorizations.delete(contents)
+      this.pendingFills.get(contents)?.complete('stale-target')
+      if (this.picker?.contents === contents) this.dismissPicker()
+    }
+    if (origin === null || !report.targetId || !report.hasLoginForm) {
       this.states.delete(contents)
     } else {
-      this.states.set(contents, {
-        origin,
-        hasLoginForm: report.hasLoginForm,
-        hasPasswordField: report.hasPasswordField ?? true,
-        generation: this.generationFor(contents),
-      })
+      this.states.set(contents, { ...report, origin, generation: this.generationFor(contents) })
+    }
+    if (this.picker?.contents === contents) {
+      const host = report.bounds ? this.deps.pickerHost?.(contents, report.bounds) : null
+      if (host) this.picker.view.position(host.anchor)
+      else this.dismissPicker()
     }
     void this.refreshAvailability()
   }
 
-  /**
-   * Invalidates everything known about a tab's page. Called on every
-   * navigation, including in-page ones — a single-page app can swap a login
-   * form for a different site's UI without a document load.
-   */
-  noteNavigation(contents: WebContents): void {
+  noteNavigation(contents: WebContents, sameDocument = false): void {
     this.generations.set(contents, this.generationFor(contents) + 1)
     this.states.delete(contents)
+    this.selectionAuthorizations.delete(contents)
+    this.pendingFills.get(contents)?.complete('stale-target')
+    if (this.picker?.contents === contents) this.dismissPicker()
+    if (sameDocument && !contents.isDestroyed()) contents.send('browser-credentials:rescan')
     void this.refreshAvailability()
   }
 
   forget(contents: WebContents): void {
-    this.states.delete(contents)
+    this.noteNavigation(contents)
     this.generations.delete(contents)
-    void this.refreshAvailability()
   }
 
-  /** Whether the active tab has a login form with at least one saved match. */
-  async isFillAvailable(): Promise<boolean> {
-    const contents = this.deps.getActiveContents()
-    if (!contents || contents.isDestroyed()) return false
+  dispose(): void {
+    this.disposed = true
+    this.dismissPicker()
+    for (const pending of this.pendingFills.values()) pending.complete('stale-target')
+  }
+
+  private async isFillAvailableFor(contents: WebContents | null): Promise<boolean> {
+    if (this.disposed || !contents || contents.isDestroyed()) return false
     const state = this.states.get(contents)
-    if (!state?.hasLoginForm) return false
-    if (!this.deps.vault.isAvailable()) return false
+    if (!state?.hasLoginForm || !this.deps.vault.isAvailable()) return false
     return (await this.deps.vault.listForOrigin(state.origin)).length > 0
   }
 
-  async refreshAvailability(): Promise<void> {
-    const available = await this.isFillAvailable()
-    if (available === this.lastAvailability) return
-    this.lastAvailability = available
-    this.deps.onAvailabilityChanged(available)
+  isFillAvailable(): Promise<boolean> {
+    return this.isFillAvailableFor(this.deps.getActiveContents())
   }
 
-  /**
-   * Shows the native account chooser near a point in the window.
-   *
-   * Only usernames are listed; no password is read until the user picks one.
-   * The navigation generation is captured here and carried into the fill, so a
-   * page that moves while the menu is open invalidates the choice.
-   */
-  async showChooser(window: BrowserWindow, anchor: { x: number; y: number }): Promise<boolean> {
-    const contents = this.deps.getActiveContents()
-    if (!contents || contents.isDestroyed()) return false
+  /** Kept for hosted renderers that still use the previous toolbar chooser. */
+  async listFillOptions(
+    scopeId?: string,
+    pickerVersion?: number
+  ): Promise<BrowserCredentialMetadata[]> {
+    const contents = this.deps.getActiveContents(scopeId)
+    if (!contents || contents.isDestroyed()) return []
     const state = this.states.get(contents)
-    if (!state?.hasLoginForm) return false
-
+    if (!state?.targetId || !this.deps.vault.isAvailable()) return []
+    const authorization = {
+      pickerVersion,
+      generation: state.generation,
+      targetId: state.targetId,
+      credentialIds: new Set<string>(),
+    }
+    if (!this.isStillAuthorized(contents, authorization, scopeId)) return []
     const matches = await this.deps.vault.listForOrigin(state.origin)
-    if (matches.length === 0) return false
+    if (!this.isStillAuthorized(contents, authorization, scopeId)) return []
+    authorization.credentialIds = new Set(matches.map((credential) => credential.id))
+    this.selectionAuthorizations.set(contents, authorization)
+    return matches
+  }
 
-    const authorizedGeneration = state.generation
-    const menu = Menu.buildFromTemplate(
-      matches.map((credential) => ({
-        label: credential.username || '(no username)',
-        click: () => {
-          void this.fill(contents, credential.id, authorizedGeneration).catch(() => {})
-        },
-      }))
+  async fillCredential(credentialId: string, scopeId?: string): Promise<boolean> {
+    return (await this.fillSelected(credentialId, scopeId)) === 'filled'
+  }
+
+  private async fillSelected(
+    credentialId: string,
+    scopeId?: string,
+    expected?: SelectionAuthorization
+  ): Promise<CredentialFillStatus> {
+    const contents = this.deps.getActiveContents(scopeId)
+    if (!contents || contents.isDestroyed()) return 'stale-target'
+    const authorization = this.selectionAuthorizations.get(contents)
+    this.selectionAuthorizations.delete(contents)
+    if (expected && authorization !== expected) return 'stale-target'
+    if (!authorization?.credentialIds.has(credentialId)) return 'stale-target'
+    if (!this.isStillAuthorized(contents, authorization, scopeId)) return 'stale-target'
+    const state = this.states.get(contents)!
+    const credential = await this.deps.vault.readForFill(credentialId, state.origin)
+    if (!credential) return 'failed'
+    if (!this.isStillAuthorized(contents, authorization, scopeId)) return 'stale-target'
+    this.pendingFills.get(contents)?.complete('stale-target')
+    const requestId = generateId()
+    return new Promise<CredentialFillStatus>((resolve) => {
+      const complete = (status: CredentialFillStatus) => {
+        if (this.pendingFills.get(contents)?.requestId !== requestId) return
+        clearTimeout(timeout)
+        this.pendingFills.delete(contents)
+        if (status === 'filled') logger.info('Filled a user-selected saved credential')
+        resolve(status)
+      }
+      const timeout = setTimeout(() => complete('failed'), FILL_TIMEOUT_MS)
+      this.pendingFills.set(contents, { requestId, ...authorization, complete })
+      try {
+        contents.send('browser-credentials:fill', {
+          requestId,
+          targetId: authorization.targetId,
+          origin: state.origin,
+          username: credential.username,
+          password: state.hasPasswordField ? credential.password : undefined,
+        })
+      } catch {
+        complete('failed')
+      }
+    })
+  }
+
+  noteFillResult(contents: WebContents, result: CredentialFillResult): void {
+    const pending = this.pendingFills.get(contents)
+    if (!pending || pending.requestId !== result.requestId) return
+    const authorized = this.isStillAuthorized(contents, pending)
+    pending.complete(authorized ? result.status : 'stale-target')
+  }
+
+  async refreshAvailability(force = false): Promise<void> {
+    if (this.disposed) return
+    const contents = this.deps.getActiveContents()
+    if (this.picker && this.picker.contents !== contents) this.dismissPicker()
+    for (const [owner, pending] of this.pendingFills) {
+      if (owner !== contents) pending.complete('stale-target')
+    }
+    const refresh = contents
+      ? (this.availabilityRefreshes.get(contents) ?? 0) + 1
+      : this.availabilityRefreshWithoutContents + 1
+    if (contents) this.availabilityRefreshes.set(contents, refresh)
+    else this.availabilityRefreshWithoutContents = refresh
+    const available = await this.isFillAvailableFor(contents)
+    if (this.disposed || this.deps.getActiveContents() !== contents) return
+    if (
+      (contents
+        ? this.availabilityRefreshes.get(contents)
+        : this.availabilityRefreshWithoutContents) !== refresh
     )
-    menu.popup({ window, x: Math.round(anchor.x), y: Math.round(anchor.y) })
+      return
+    const previous = contents
+      ? this.lastAvailability.get(contents)
+      : this.lastAvailabilityWithoutContents
+    if (!available && this.picker?.contents === contents) this.dismissPicker()
+    if (!force && available === previous) return
+    if (contents) this.lastAvailability.set(contents, available)
+    else this.lastAvailabilityWithoutContents = available
+    this.deps.onAvailabilityChanged(available, contents)
+  }
+
+  /** Real input in the active page opens or focuses the trusted account picker. */
+  async requestPicker(contents: WebContents, action: 'open' | 'focus' | 'dismiss'): Promise<void> {
+    if (this.deps.getActiveContents() !== contents) return
+    if (action === 'dismiss') {
+      this.dismissPicker()
+      return
+    }
+    const state = this.states.get(contents)
+    if (!state || !this.fieldPickerHost(contents)) return
+    if (!this.picker || this.picker.targetId !== state.targetId) {
+      if (!(await this.openPicker(contents, () => this.fieldPickerHost(contents)))) return
+    }
+    if (
+      action === 'focus' &&
+      this.picker?.contents === contents &&
+      this.picker.targetId === state.targetId
+    )
+      this.picker.view.focus()
+  }
+
+  /** Older hosted clients retain a functional chooser during independent desktop/web rollouts. */
+  async showChooser(
+    window: BrowserWindow,
+    anchor: { x: number; y: number },
+    scopeId?: string
+  ): Promise<boolean> {
+    const contents = this.deps.getActiveContents(scopeId)
+    if (!contents) return false
+    const useFieldHost = Boolean(this.fieldPickerHost(contents))
+    const opened = await this.openPicker(
+      contents,
+      () => {
+        if (useFieldHost) return this.fieldPickerHost(contents)
+        if (window.isDestroyed()) return null
+        const bounds = window.getContentBounds()
+        return {
+          window,
+          anchor: { x: bounds.x + anchor.x, y: bounds.y + anchor.y, width: 1, height: 1 },
+        }
+      },
+      scopeId
+    )
+    if (opened) this.picker?.view.focus()
+    return opened
+  }
+
+  private async openPicker(
+    contents: WebContents,
+    resolveHost: () => PickerHost | null,
+    scopeId?: string
+  ): Promise<boolean> {
+    this.dismissPicker()
+    const version = this.pickerVersion
+    const matches = await this.listFillOptions(scopeId, version)
+    if (
+      version !== this.pickerVersion ||
+      this.deps.getActiveContents(scopeId) !== contents ||
+      contents.isDestroyed()
+    )
+      return false
+    const state = this.states.get(contents)
+    const authorization = this.selectionAuthorizations.get(contents)
+    if (
+      !state?.targetId ||
+      !authorization ||
+      !this.isStillAuthorized(contents, authorization, scopeId)
+    )
+      return false
+    if (!matches.length) return false
+    const host = resolveHost()
+    if (
+      !host ||
+      host.window.isDestroyed() ||
+      !host.window.isVisible() ||
+      host.window.isMinimized() ||
+      !host.window.isFocused()
+    ) {
+      this.dismissPicker()
+      return false
+    }
+    const { window, anchor } = host
+    const view = new CredentialPicker({
+      parent: window,
+      anchor,
+      configuration: {
+        origin: state.origin,
+        accounts: matches.map(({ id, username }) => ({ id, username })),
+      },
+      select: (id) => this.fillSelected(id, scopeId, authorization),
+      restoreFocus: () => {
+        if (
+          !window.isDestroyed() &&
+          window.isVisible() &&
+          !window.isMinimized() &&
+          this.isStillAuthorized(
+            contents,
+            { generation: authorization.generation, targetId: authorization.targetId },
+            scopeId
+          )
+        ) {
+          window.focus()
+          contents.focus()
+        }
+      },
+      closed: () => {
+        if (this.picker?.view === view) this.dismissPicker()
+        if (this.selectionAuthorizations.get(contents) === authorization)
+          this.selectionAuthorizations.delete(contents)
+      },
+    })
+    this.picker = { view, contents, targetId: state.targetId }
     return true
   }
 
-  /**
-   * Performs one authorized fill.
-   *
-   * Every precondition is checked again here rather than trusted from when the
-   * chooser opened, and once more after the vault read, because that read is
-   * asynchronous and the page can navigate inside it.
-   */
-  private async fill(
-    contents: WebContents,
-    credentialId: string,
-    authorizedGeneration: number
-  ): Promise<void> {
-    if (!this.isStillAuthorized(contents, authorizedGeneration)) return
-    const state = this.states.get(contents)
-    if (!state) return
-
-    // The origin the preload reported must still be the document's real
-    // origin. This is the check that stops a fill following a page that
-    // navigated to another site.
-    if (normalizeOrigin(contents.getURL()) !== state.origin) return
-
-    const credential = await this.deps.vault.readForFill(credentialId, state.origin)
-    if (credential === null) return
-
-    if (!this.isStillAuthorized(contents, authorizedGeneration)) return
-    if (normalizeOrigin(contents.getURL()) !== state.origin) return
-
-    contents.send('browser-credentials:fill', {
-      origin: state.origin,
-      username: credential.username,
-      // Withheld on an identifier-first step: the page has no password field,
-      // so sending it would put plaintext in a document that cannot use it.
-      password: state.hasPasswordField ? credential.password : undefined,
-    })
-    // Counts and outcomes only — never the origin, username, or password.
-    logger.info('Filled a saved credential at the user\u2019s request')
+  private fieldPickerHost(contents: WebContents): PickerHost | null {
+    const bounds = this.states.get(contents)?.bounds
+    return bounds ? (this.deps.pickerHost?.(contents, bounds) ?? null) : null
   }
 
-  private isStillAuthorized(contents: WebContents, authorizedGeneration: number): boolean {
-    if (contents.isDestroyed()) return false
-    // A fill must land in the tab the user is looking at. Switching tabs
-    // between choosing and filling cancels it.
-    if (this.deps.getActiveContents() !== contents) return false
-    if (this.generationFor(contents) !== authorizedGeneration) return false
-    return this.states.get(contents)?.generation === authorizedGeneration
+  dismissPicker(): void {
+    this.pickerVersion++
+    for (const pending of this.pendingFills.values()) {
+      if (pending.pickerVersion !== undefined) pending.complete('stale-target')
+    }
+    const picker = this.picker
+    this.picker = null
+    picker?.view.close()
+  }
+
+  private isStillAuthorized(
+    contents: WebContents,
+    authorization: { generation: number; targetId: string; pickerVersion?: number },
+    scopeId?: string
+  ): boolean {
+    if (
+      this.disposed ||
+      (authorization.pickerVersion !== undefined &&
+        authorization.pickerVersion !== this.pickerVersion)
+    )
+      return false
+    if (contents.isDestroyed() || this.deps.getActiveContents(scopeId) !== contents) return false
+    if (scopeId && !this.deps.scopeOwnsContents(scopeId, contents)) return false
+    const state = this.states.get(contents)
+    return Boolean(
+      state?.hasLoginForm &&
+        state.targetId === authorization.targetId &&
+        this.generationFor(contents) === authorization.generation &&
+        state.generation === authorization.generation &&
+        normalizeOrigin(contents.getURL()) === state.origin
+    )
   }
 }

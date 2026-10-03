@@ -2,7 +2,11 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest'
-import { isAllowedExternalUrl, sanitizeRenderedHyperlinks } from '@/lib/core/security/url-safety'
+import {
+  isAllowedExternalUrl,
+  sanitizeRenderedHyperlinks,
+  stripEmbeddedFrames,
+} from '@/lib/core/security/url-safety'
 
 describe('isAllowedExternalUrl', () => {
   it('allows http, https, and mailto URLs', () => {
@@ -28,21 +32,14 @@ describe('sanitizeRenderedHyperlinks', () => {
     return container
   }
 
-  it('strips javascript: hrefs from a docx-preview hyperlink rendering', () => {
-    const container = containerWithAnchor(
-      "javascript:document.body.setAttribute('data-xss-fired','1')"
-    )
+  it.each([
+    "javascript:document.body.setAttribute('data-xss-fired','1')",
+    'data:text/html,<script>alert(1)</script>',
+    'vbscript:msgbox(1)',
+  ])('strips the scriptable href %s', (href) => {
+    const container = containerWithAnchor(href)
     sanitizeRenderedHyperlinks(container)
-    const anchor = container.querySelector('a')
-    expect(anchor?.hasAttribute('href')).toBe(false)
-  })
-
-  it('strips data: and vbscript: hrefs', () => {
-    for (const href of ['data:text/html,<script>alert(1)</script>', 'vbscript:msgbox(1)']) {
-      const container = containerWithAnchor(href)
-      sanitizeRenderedHyperlinks(container)
-      expect(container.querySelector('a')?.hasAttribute('href')).toBe(false)
-    }
+    expect(container.querySelector('a')?.hasAttribute('href')).toBe(false)
   })
 
   it('preserves same-document bookmark anchors', () => {
@@ -57,5 +54,23 @@ describe('sanitizeRenderedHyperlinks', () => {
     const anchor = container.querySelector('a')
     expect(anchor?.getAttribute('href')).toBe('https://example.com/report')
     expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer')
+  })
+})
+
+describe('stripEmbeddedFrames', () => {
+  it('removes a srcdoc iframe and leaves sibling content intact', () => {
+    const container = document.createElement('div')
+    container.innerHTML =
+      '<p>page</p><iframe srcdoc="&lt;script&gt;fetch(1)&lt;/script&gt;"></iframe>'
+    stripEmbeddedFrames(container)
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.querySelector('p')?.textContent).toBe('page')
+  })
+
+  it('removes object and embed plugin elements', () => {
+    const container = document.createElement('div')
+    container.innerHTML = '<object data="x"></object><embed src="x" />'
+    stripEmbeddedFrames(container)
+    expect(container.querySelectorAll('object, embed').length).toBe(0)
   })
 })

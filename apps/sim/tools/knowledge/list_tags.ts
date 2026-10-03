@@ -1,7 +1,7 @@
 import type { KnowledgeListTagsResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeListTagsTool: ToolConfig<any, KnowledgeListTagsResponse> = {
+export const knowledgeListTagsTool: InternalToolConfig<any, KnowledgeListTagsResponse> = {
   id: 'knowledge_list_tags',
   name: 'Knowledge List Tags',
   description: 'List all tag definitions for a knowledge base',
@@ -16,12 +16,8 @@ export const knowledgeListTagsTool: ToolConfig<any, KnowledgeListTagsResponse> =
     },
   },
 
-  request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/tag-definitions`,
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
+  operation: {
+    input: (params) => ({ knowledgeBaseId: params.knowledgeBaseId }),
   },
 
   transformResponse: async (response, params): Promise<KnowledgeListTagsResponse> => {

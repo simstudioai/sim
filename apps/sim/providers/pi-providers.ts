@@ -6,14 +6,6 @@ import {
 } from '@/providers/pi-provider-configs'
 import type { BYOKProviderId } from '@/tools/types'
 
-/**
- * Shared provider and model bridge for the Pi model picker, executor, host SDK,
- * and E2B CLI.
- */
-export const PI_SUPPORTED_PROVIDER_IDS: readonly PiSupportedProvider[] = PI_PROVIDER_CONFIGS.map(
-  ({ id }) => id
-)
-
 const PI_PROVIDER_CONFIG_BY_ID = new Map<string, PiProviderConfig>(
   PI_PROVIDER_CONFIGS.map((config) => [config.id, config])
 )
@@ -25,6 +17,20 @@ const PI_MODEL_IDS_BY_PROVIDER_ID = new Map<PiSupportedProvider, ReadonlySet<str
 /** Whether Sim can run the provider through Pi's single-key flow. */
 export function isPiSupportedProvider(providerId: string): providerId is PiSupportedProvider {
   return PI_PROVIDER_CONFIG_BY_ID.has(providerId)
+}
+
+/**
+ * Whether a Pi block mode hands the model API key into the sandbox and
+ * therefore always requires the user's own key. Create PR (`cloud`), Update PR
+ * (`cloud_branch`), and Plan (`cloud_plan`) run the model client inside the
+ * sandbox, so Sim never supplies a hosted key for them: the block always shows the API Key field,
+ * copilot validation never strips it, and execution requires BYOK. Review Code
+ * and Local Dev keep the model client in Sim and follow the normal hosted-key
+ * rules. All three enforcement sites (block condition, edit-workflow
+ * validation, key resolution) consume this predicate so they cannot drift.
+ */
+export function isPiByokOnlyMode(mode: unknown): boolean {
+  return mode === 'cloud' || mode === 'cloud_branch' || mode === 'cloud_plan'
 }
 
 /** Returns Pi's provider ID for a supported Sim provider. */

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nonEmptyIdSchema, versionNumberPathSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -8,24 +9,27 @@ import {
 } from '@/lib/workflows/deployment-lifecycle'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const deployedWorkflowStateSchema = z.custom<WorkflowState>(
-  (value) => typeof value === 'object' && value !== null,
-  'Expected workflow state'
-)
+export const deployedWorkflowStateSchema = z
+  .custom<WorkflowState>(
+    (value) => typeof value === 'object' && value !== null,
+    'Expected workflow state'
+  )
+  .meta({
+    id: 'DeployedWorkflowState',
+    title: 'Deployed workflow state',
+    description: 'Workflow graph snapshot pinned by a deployment version.',
+    type: 'object',
+    additionalProperties: true,
+  })
 
 export const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.coerce.number().int().positive(),
+  version: versionNumberPathSchema,
 })
 
 export const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.union([z.number().int().positive(), z.literal('active')]),
-})
-
-export const deploymentVersionRouteParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.string().min(1, 'Invalid version'),
+  version: z.union([versionNumberPathSchema, z.literal('active')]),
 })
 
 export const updatePublicApiBodySchema = z.object({
@@ -63,43 +67,86 @@ export type ActivateDeploymentVersionBody = z.input<typeof activateDeploymentVer
 
 export const deploymentOperationStatusSchema = z.enum(DEPLOYMENT_OPERATION_STATUSES)
 
-export const deploymentComponentReadinessSchema = z.enum([
-  ...DEPLOYMENT_COMPONENT_STATUSES,
-  'not_applicable',
-])
+export const deploymentComponentReadinessSchema = z
+  .enum([...DEPLOYMENT_COMPONENT_STATUSES, 'not_applicable'])
+  .describe('Readiness of one deployment side-effect component.')
 
-export const deploymentReadinessSchema = z.object({
-  webhooks: deploymentComponentReadinessSchema,
-  schedules: deploymentComponentReadinessSchema,
-  mcp: deploymentComponentReadinessSchema,
-})
+export const deploymentReadinessSchema = z
+  .object({
+    webhooks: deploymentComponentReadinessSchema.describe('Webhook synchronization readiness.'),
+    schedules: deploymentComponentReadinessSchema.describe('Schedule synchronization readiness.'),
+    mcp: deploymentComponentReadinessSchema.describe('MCP synchronization readiness.'),
+  })
+  .meta({
+    id: 'DeploymentReadiness',
+    title: 'Deployment readiness',
+    description: 'Readiness of the side effects required to activate a deployment.',
+  })
 
-export const deploymentOperationSummarySchema = z.object({
-  id: z.string(),
-  deploymentVersionId: z.string(),
-  version: z.number().int().positive(),
-  action: z.enum(DEPLOYMENT_OPERATION_ACTIONS),
-  status: deploymentOperationStatusSchema,
-  readiness: deploymentReadinessSchema,
-  requestedAt: z.string(),
-  activatedAt: z.string().nullable().optional(),
-  error: z
-    .object({
-      code: z.string(),
-      message: z.string(),
-      retryable: z.boolean(),
-    })
-    .nullable()
-    .optional(),
-})
+export const deploymentOperationErrorSchema = z
+  .object({
+    code: z.string().describe('Stable deployment failure code.'),
+    message: z.string().describe('Human-readable deployment failure message.'),
+    retryable: z.boolean().describe('Whether retrying the deployment may succeed.'),
+  })
+  .meta({
+    id: 'DeploymentOperationError',
+    title: 'Deployment operation error',
+    description: 'Failure details for a deployment lifecycle operation.',
+  })
+
+export const deploymentOperationSummarySchema = z
+  .object({
+    id: z.string().describe('Unique deployment operation identifier.'),
+    deploymentVersionId: z.string().describe('Deployment version targeted by this operation.'),
+    version: z.number().int().positive().describe('Numeric deployment version.'),
+    action: z
+      .enum(DEPLOYMENT_OPERATION_ACTIONS)
+      .describe('Operation being performed on the deployment version.'),
+    status: deploymentOperationStatusSchema.describe('Current deployment lifecycle status.'),
+    isCurrent: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Whether this operation still describes the current deployment attempt.'),
+    readiness: deploymentReadinessSchema,
+    requestedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the deployment operation was requested.')
+      .meta({ format: 'date-time' }),
+    activatedAt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('ISO 8601 activation timestamp, or null before activation completes.')
+      .meta({ format: 'date-time' }),
+    error: deploymentOperationErrorSchema
+      .nullable()
+      .optional()
+      .describe('Deployment failure details, or null when no failure occurred.'),
+  })
+  .meta({
+    id: 'DeploymentOperationSummary',
+    title: 'Deployment operation',
+    description: 'Lifecycle state of a deployment or version-activation attempt.',
+  })
 
 export type DeploymentOperationSummary = z.output<typeof deploymentOperationSummarySchema>
 
-export const activeDeploymentSummarySchema = z.object({
-  deploymentVersionId: z.string(),
-  version: z.number().int().positive(),
-  deployedAt: z.string(),
-})
+export const activeDeploymentSummarySchema = z
+  .object({
+    deploymentVersionId: z.string().describe('Identifier of the active deployment version.'),
+    version: z.number().int().positive().describe('Numeric active deployment version.'),
+    deployedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when this version became active.')
+      .meta({ format: 'date-time' }),
+  })
+  .meta({
+    id: 'ActiveDeploymentSummary',
+    title: 'Active deployment',
+    description: 'Summary of the workflow version currently serving API executions.',
+  })
 
 export const deploymentVersionPatchBodySchema = deploymentVersionMetadataFieldsSchema
   .extend({
@@ -147,6 +194,21 @@ export const deploymentVersionsResponseSchema = z.object({
 
 export type DeploymentVersionsResponse = z.output<typeof deploymentVersionsResponseSchema>
 
+/**
+ * Zod's default strip, deliberately not `.passthrough()`.
+ *
+ * The route builder responds with `schema.parse(body)`, so stripping is what
+ * holds this `read`-level status response to its narrow projection: a presenter
+ * that later widens it into the admin-gated detail fields cannot put them on
+ * the wire. `.strict()` would instead throw, and since `requestJson` parses with
+ * this same schema, a new bundle reading an older pod's wider payload mid
+ * rollout would take the whole chat tab down with it.
+ *
+ * Stripping is silent, so it is the last line rather than the only one:
+ * `WorkflowChatDeploymentStatus` types the projection at its source, and
+ * widening it needs a cast the boundary audit already refuses. See
+ * `readWorkflowChatDeploymentStatus` for why the projection is this narrow.
+ */
 export const chatDeploymentStatusSchema = z.object({
   isDeployed: z.boolean(),
   deployment: z
@@ -154,7 +216,6 @@ export const chatDeploymentStatusSchema = z.object({
       id: z.string(),
       identifier: z.string(),
     })
-    .passthrough()
     .nullable(),
 })
 
@@ -291,10 +352,16 @@ export const listDeploymentVersionsContract = defineRouteContract({
   },
 })
 
+const deploymentVersionStateQuerySchema = z.object({
+  expectedDeploymentVersionId: nonEmptyIdSchema.optional(),
+})
+export type DeploymentVersionStateQuery = z.input<typeof deploymentVersionStateQuerySchema>
+
 export const getDeploymentVersionStateContract = defineRouteContract({
   method: 'GET',
   path: '/api/workflows/[id]/deployments/[version]',
   params: deploymentVersionParamsSchema,
+  query: deploymentVersionStateQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({

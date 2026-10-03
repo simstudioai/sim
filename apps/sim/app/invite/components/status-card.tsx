@@ -1,13 +1,18 @@
 'use client'
 import { Chip, cn, Loader } from '@sim/emcn'
-import { useRouter } from 'next/navigation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
+
+/** A document navigation, so the marketing surface initializes its own theme store. */
+function returnHome(): void {
+  window.location.href = '/'
+}
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
   title: string
   description: string | React.ReactNode
+  details?: React.ReactNode
   icon?: 'userPlus' | 'mail' | 'users' | 'error' | 'success' | 'warning'
   actions?: Array<{
     label: string
@@ -24,20 +29,17 @@ export function InviteStatusCard({
   type,
   title,
   description,
+  details,
   icon: _icon,
   actions = EMPTY_ACTIONS,
   isExpiredError = false,
 }: InviteStatusCardProps) {
-  const router = useRouter()
-
   if (type === 'loading') {
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
-            Loading
-          </h1>
-          <p className='font-[380] text-[var(--text-muted)]'>{description}</p>
+          <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>Loading</h1>
+          <p className='text-[var(--text-muted)]'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
           <Loader className='size-8 text-[var(--text-muted)]' animate />
@@ -49,15 +51,14 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
-          {title}
-        </h1>
-        <p className='font-[380] text-[var(--text-muted)]'>{description}</p>
+        <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>{title}</h1>
+        <p className='text-[var(--text-muted)]'>{description}</p>
       </div>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
+        {details}
         {isExpiredError && (
-          <AuthSubmitButton type='button' onClick={() => router.push('/')} loadingLabel=''>
+          <AuthSubmitButton type='button' onClick={returnHome} loadingLabel=''>
             Request New Invitation
           </AuthSubmitButton>
         )}
@@ -78,10 +79,9 @@ export function InviteStatusCard({
             <Chip
               key={action.label}
               fullWidth
-              flush
               onClick={action.onClick}
               disabled={action.disabled || action.loading}
-              className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+              className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border)]')}
             >
               {action.loading ? (
                 <span className='flex items-center gap-2'>

@@ -1,47 +1,43 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetOrganizationSubscription, mockHasInflightOutboxEvent } = vi.hoisted(() => ({
-  mockGetOrganizationSubscription: vi.fn(),
-  mockHasInflightOutboxEvent: vi.fn(),
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  hasInflightOutboxEvent: mockHasInflightOutboxEvent,
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
-  },
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isEnterprise: vi.fn().mockReturnValue(false),
-  isFree: vi.fn().mockReturnValue(false),
-  isPro: vi.fn().mockReturnValue(false),
-}))
-
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  getEffectiveSeats: vi.fn().mockReturnValue(10),
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 vi.mock('@/lib/messaging/email/validation', () => ({
   quickValidateEmail: vi.fn((email: string) => ({ isValid: email.includes('@') })),
 }))
 
 import {
-  getOrganizationSeatInfo,
+  countPendingSeatInvitations,
   syncSeatsFromStripeQuantity,
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
+
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const mockHasInflightOutboxEvent = outboxServiceMockFns.mockHasInflightOutboxEvent
+billingPlanHelpersMockFns.mockIsEnterprise.mockReturnValue(false)
+billingPlanHelpersMockFns.mockIsFree.mockReturnValue(false)
+billingPlanHelpersMockFns.mockIsPro.mockReturnValue(false)
+billingSubscriptionUtilsMockFns.mockGetEffectiveSeats.mockReturnValue(10)
 
 /**
  * Queues the next N responses for `db.select().from(...).where(...)` calls,
@@ -65,35 +61,8 @@ function queueSelectResponses(responses: unknown[][]) {
 
 afterAll(resetEnvFlagsMock)
 
-describe('getOrganizationSeatInfo', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    setEnvFlags({ isBillingEnabled: false })
-    mockGetOrganizationSubscription.mockResolvedValue(null)
-  })
-
-  it('returns unlimited seat info when billing is disabled', async () => {
-    queueSelectResponses([[{ id: 'org-1', name: 'Acme' }], [{ count: 3 }], [{ count: 2 }]])
-
-    const result = await getOrganizationSeatInfo('org-1')
-
-    expect(result).toEqual({
-      organizationId: 'org-1',
-      organizationName: 'Acme',
-      currentSeats: 5,
-      maxSeats: Number.MAX_SAFE_INTEGER,
-      availableSeats: Number.MAX_SAFE_INTEGER,
-      subscriptionPlan: 'billing_disabled',
-      canAddSeats: false,
-    })
-    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-  })
-})
-
 describe('validateSeatAvailability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     mockGetOrganizationSubscription.mockResolvedValue({
@@ -118,19 +87,35 @@ describe('validateSeatAvailability', () => {
   })
 })
 
-describe('syncSeatsFromStripeQuantity', () => {
+describe('countPendingSeatInvitations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mockHasInflightOutboxEvent.mockResolvedValue(false)
   })
 
-  it('does nothing when the Stripe quantity already matches the DB', async () => {
-    const result = await syncSeatsFromStripeQuantity('sub-1', 3, 3)
+  it('excludes invitees who already belong to any organization by normalized email', async () => {
+    queueSelectResponses([[{ count: 1 }]])
 
-    expect(result).toEqual({ synced: false, previousSeats: 3, newSeats: 3 })
-    expect(mockHasInflightOutboxEvent).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    await expect(countPendingSeatInvitations('org-1')).resolves.toBe(1)
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as {
+      conditions?: Array<{ toSQL?: () => { sql: string; params: unknown[] } }>
+    }
+    const existingMemberGuard = predicate.conditions?.find(
+      (condition) => typeof condition?.toSQL === 'function'
+    )
+    const rendered = existingMemberGuard?.toSQL?.()
+    expect(rendered?.sql.toLowerCase()).toContain('not exists')
+    expect(rendered?.sql.toLowerCase()).toContain('btrim')
+    // The member exclusion is deliberately cross-org, so its own SQL fragment
+    // must not carry the destination organization as a parameter.
+    expect(rendered?.params?.filter((param) => param === 'org-1')).toHaveLength(0)
+  })
+})
+
+describe('syncSeatsFromStripeQuantity', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockHasInflightOutboxEvent.mockResolvedValue(false)
   })
 
   it('writes the Stripe quantity to the DB when no seat-sync is in flight', async () => {

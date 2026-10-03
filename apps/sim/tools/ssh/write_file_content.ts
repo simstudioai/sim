@@ -1,7 +1,7 @@
 import type { SSHResponse, SSHWriteFileContentParams } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const writeFileContentTool: ToolConfig<SSHWriteFileContentParams, SSHResponse> = {
+export const writeFileContentTool: InternalToolConfig<SSHWriteFileContentParams, SSHResponse> = {
   id: 'ssh_write_file_content',
   name: 'SSH Write File Content',
   description: 'Write or append content to a remote file',
@@ -70,13 +70,8 @@ export const writeFileContentTool: ToolConfig<SSHWriteFileContentParams, SSHResp
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/write-file-content',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

@@ -54,10 +54,12 @@ export function TablesListContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {onCreateTable && (
-          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
-            <Plus />
-            Create table
+        {/* Import CSV, New folder, New table — the order the page header presents
+            them once `orderHeaderActions` has pinned the primary action last. */}
+        {onUploadCsv && (
+          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadCsv}>
+            <Upload />
+            Import CSV
           </DropdownMenuItem>
         )}
         {onCreateFolder && (
@@ -66,10 +68,10 @@ export function TablesListContextMenu({
             New folder
           </DropdownMenuItem>
         )}
-        {onUploadCsv && (
-          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadCsv}>
-            <Upload />
-            Import CSV
+        {onCreateTable && (
+          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
+            <Plus />
+            New table
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

@@ -15,17 +15,7 @@ import {
   type PinnedItemApi,
   type PinnedResourceType,
 } from '@/lib/api/contracts'
-
-export const PINNED_ITEMS_STALE_TIME = 60 * 1000
-
-export const pinnedItemKeys = {
-  all: ['pinnedItems'] as const,
-  lists: () => [...pinnedItemKeys.all, 'list'] as const,
-  /** Prefix covering every per-resourceType list in a workspace — the invalidation target. */
-  workspaceLists: (workspaceId?: string) => [...pinnedItemKeys.lists(), workspaceId ?? ''] as const,
-  list: (workspaceId?: string, resourceType?: PinnedResourceType) =>
-    [...pinnedItemKeys.workspaceLists(workspaceId), resourceType ?? ''] as const,
-}
+import { PINNED_ITEMS_STALE_TIME, pinnedItemKeys } from '@/hooks/queries/utils/pinned-item-keys'
 
 async function fetchPinnedItems(
   workspaceId: string,

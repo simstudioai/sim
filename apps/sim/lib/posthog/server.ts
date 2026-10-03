@@ -36,6 +36,8 @@ function getClient(): PostHog | null {
 type PersonProperties = Record<string, string | number | boolean>
 
 interface CaptureOptions {
+  /** Stable event identity used by PostHog to collapse retried server captures. */
+  insertId?: string
   /**
    * Associate this event with workspace-level group analytics.
    * Pass `{ workspace: workspaceId }`.
@@ -51,6 +53,60 @@ interface CaptureOptions {
    * Use for immutable milestones like `first_execution_at`.
    */
   setOnce?: PersonProperties
+}
+
+/**
+ * What the ambient request context contributes to every event: the request it
+ * happened in, which client the user was on (web, desktop, CLI, an SDK) and,
+ * for the CLI, which AI coding agent was driving it; how the request
+ * authenticated; and, when one workflow's run made the call, the chain of
+ * workflows behind it. Stamped here rather than at each of the many capture
+ * sites so no event can forget it, and only for properties the caller did not
+ * set itself.
+ */
+function contextProperties(explicit: Record<string, unknown>): Record<string, unknown> {
+  const context = getRequestContext()
+  if (!context) return {}
+  const merged: Record<string, unknown> = {}
+  const stamp = (key: string, value: unknown) => {
+    if (value !== undefined && !(key in explicit)) merged[key] = value
+  }
+
+  stamp('request_id', context.requestId)
+  stamp('api_method', context.method)
+  stamp('api_path', context.path)
+
+  stamp('surface', context.client?.surface)
+  stamp('client_version', context.client?.version)
+  stamp('client_name', context.client?.name)
+  stamp('coding_agent', context.client?.agent)
+
+  stamp('auth_kind', context.auth?.kind)
+  stamp('auth_service', context.auth?.service)
+  stamp('auth_client_id', context.auth?.clientId)
+
+  const chain = context.callChain
+  if (chain && chain.length > 0) {
+    stamp('call_chain_depth', chain.length)
+    stamp('call_chain_root_workflow_id', chain[0])
+    stamp('caller_workflow_id', chain[chain.length - 1])
+  }
+  return merged
+}
+
+function buildCaptureProperties<E extends PostHogEventName>(
+  properties: PostHogEventMap[E],
+  options?: CaptureOptions
+): Record<string, unknown> {
+  const props = properties as Record<string, unknown>
+  return {
+    ...properties,
+    ...contextProperties(props),
+    ...(options?.insertId ? { $insert_id: options.insertId } : {}),
+    ...(options?.groups ? { $groups: options.groups } : {}),
+    ...(options?.set ? { $set: options.set } : {}),
+    ...(options?.setOnce ? { $set_once: options.setOnce } : {}),
+  }
 }
 
 /**
@@ -71,18 +127,10 @@ export function captureServerEvent<E extends PostHogEventName>(
     const client = getClient()
     if (!client) return
 
-    const contextRequestId = getRequestContext()?.requestId
-    const props = properties as Record<string, unknown>
     client.capture({
       distinctId,
       event,
-      properties: {
-        ...properties,
-        ...(contextRequestId && !('request_id' in props) ? { request_id: contextRequestId } : {}),
-        ...(options?.groups ? { $groups: options.groups } : {}),
-        ...(options?.set ? { $set: options.set } : {}),
-        ...(options?.setOnce ? { $set_once: options.setOnce } : {}),
-      },
+      properties: buildCaptureProperties(properties, options),
     })
   } catch (error) {
     logger.warn('Failed to capture PostHog server event', { event, error })

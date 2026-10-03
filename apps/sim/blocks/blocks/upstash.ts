@@ -1,44 +1,8 @@
 import { UpstashIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  UpstashRedisCommandResponse,
-  UpstashRedisDeleteResponse,
-  UpstashRedisExistsResponse,
-  UpstashRedisExpireResponse,
-  UpstashRedisGetResponse,
-  UpstashRedisHGetAllResponse,
-  UpstashRedisHGetResponse,
-  UpstashRedisHSetResponse,
-  UpstashRedisIncrbyResponse,
-  UpstashRedisIncrResponse,
-  UpstashRedisKeysResponse,
-  UpstashRedisLPushResponse,
-  UpstashRedisLRangeResponse,
-  UpstashRedisSetnxResponse,
-  UpstashRedisSetResponse,
-  UpstashRedisTtlResponse,
-} from '@/tools/upstash/types'
 
-type UpstashResponse =
-  | UpstashRedisGetResponse
-  | UpstashRedisSetResponse
-  | UpstashRedisDeleteResponse
-  | UpstashRedisKeysResponse
-  | UpstashRedisCommandResponse
-  | UpstashRedisHSetResponse
-  | UpstashRedisHGetResponse
-  | UpstashRedisHGetAllResponse
-  | UpstashRedisIncrResponse
-  | UpstashRedisIncrbyResponse
-  | UpstashRedisExpireResponse
-  | UpstashRedisTtlResponse
-  | UpstashRedisLPushResponse
-  | UpstashRedisLRangeResponse
-  | UpstashRedisExistsResponse
-  | UpstashRedisSetnxResponse
-
-export const UpstashBlock: BlockConfig<UpstashResponse> = {
+export const UpstashBlock: BlockConfig = {
   type: 'upstash',
   name: 'Upstash',
   description: 'Serverless Redis with Upstash',
@@ -50,6 +14,57 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
   bgColor: '#181C1E',
   authMode: AuthMode.ApiKey,
   icon: UpstashIcon,
+  canvasPresentation: {
+    defaultTitle: 'Upstash',
+    sentences: {
+      byOperation: {
+        get: [{ text: 'Read key', field: 'key', core: true }],
+        set: [
+          { text: 'Set key', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+          { text: ', expiring in', field: 'ex', after: 'seconds' },
+        ],
+        delete: [{ text: 'Delete key', field: 'key', core: true }],
+        keys: ['List keys', { text: 'matching', field: 'pattern' }],
+        hset: [
+          { text: 'Set field', field: 'field', core: true },
+          { text: 'in hash', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+        ],
+        hget: [
+          { text: 'Read field', field: 'field', core: true },
+          { text: 'from hash', field: 'key', core: true },
+        ],
+        hgetall: [{ text: 'Read every field of hash', field: 'key', core: true }],
+        incr: [{ text: 'Increment', field: 'key', core: true, after: 'by one' }],
+        incrby: [
+          { text: 'Increment', field: 'key', core: true },
+          { text: 'by', field: 'increment' },
+        ],
+        exists: [{ text: 'Check whether key', field: 'key', core: true, after: 'exists' }],
+        setnx: [
+          { text: 'Set key', field: 'key', core: true },
+          { text: 'to', field: 'value' },
+          'only if it does not exist',
+        ],
+        lpush: [
+          { text: 'Prepend', field: 'value', core: true },
+          { text: 'to list', field: 'key', core: true },
+        ],
+        lrange: [
+          { text: 'Read list', field: 'key', core: true },
+          { text: 'from index', field: 'start' },
+          { text: 'to', field: 'stop' },
+        ],
+        expire: [
+          { text: 'Expire key', field: 'key', core: true },
+          { text: 'in', field: 'seconds', after: 'seconds' },
+        ],
+        ttl: [{ text: 'Read time to live of key', field: 'key', core: true }],
+        command: [{ text: 'Run command', field: 'command', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

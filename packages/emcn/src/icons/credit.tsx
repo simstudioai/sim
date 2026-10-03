@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * Credit icon component - circular token with inner ring
+ * Credit icon component - coin with an inner ring
  * @param props - SVG properties including className, fill, etc.
  */
 export function Credit(props: SVGProps<SVGSVGElement>) {
@@ -19,8 +19,8 @@ export function Credit(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <circle cx='10.25' cy='9.75' r='8.5' />
-      <circle cx='10.25' cy='9.75' r='3.5' />
+      <circle cx='10.25' cy='9.75' r='8.75' />
+      <circle cx='10.25' cy='9.75' r='3.25' />
     </svg>
   )
 }

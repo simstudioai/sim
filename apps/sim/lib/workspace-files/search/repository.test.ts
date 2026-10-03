@@ -1,0 +1,107 @@
+import { db } from '@sim/db'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
+import {
+  compileFileSearchPattern,
+  FileSearchPatternError,
+} from '@/lib/workspace-files/search/pattern'
+import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
+
+/**
+ * The shape a failed query really arrives in, captured from PostgreSQL 17
+ * through drizzle 0.45: the driver's SQLSTATE sits on `cause`, not on the
+ * `DrizzleQueryError` that reaches the caller.
+ */
+function driverError(code: string): Error {
+  const driver = Object.assign(new Error('driver detail with query text'), { code })
+  return new Error('Failed query', { cause: driver })
+}
+
+describe('searchWorkspaceFileIndex fault mapping', () => {
+  afterEach(() => vi.useRealTimers())
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it.each([
+    ['57014', /Search timed out/],
+    ['2201B', /Invalid search pattern/],
+  ])('turns SQLSTATE %s into a fault the caller can act on', async (code, message) => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(driverError(code))
+
+    const search = searchWorkspaceFileIndex({
+      workspaceId: 'workspace-1',
+      pattern: compileFileSearchPattern('error \\d+', 'regex'),
+      maxResults: 50,
+    })
+
+    await expect(search).rejects.toBeInstanceOf(FileSearchPatternError)
+    await expect(search).rejects.toThrow(message)
+  })
+
+  it('tells the caller to retry when the lock guard fires, not to fix the query', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(driverError('55P03'))
+
+    const search = searchWorkspaceFileIndex({
+      workspaceId: 'workspace-1',
+      pattern: compileFileSearchPattern('error \\d+', 'regex'),
+      maxResults: 50,
+    })
+
+    await expect(search).rejects.toBeInstanceOf(WorkspaceFileSearchUnavailableError)
+    await expect(search).rejects.not.toBeInstanceOf(FileSearchPatternError)
+    await expect(search).rejects.toThrow(/Try again shortly/)
+  })
+
+  it('does not reinterpret an unrelated database fault', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(driverError('23505'))
+
+    await expect(
+      searchWorkspaceFileIndex({
+        workspaceId: 'workspace-1',
+        pattern: compileFileSearchPattern('error \\d+', 'regex'),
+        maxResults: 50,
+      })
+    ).rejects.not.toBeInstanceOf(FileSearchPatternError)
+  })
+
+  it('caps how long a search may hold its connection', async () => {
+    dbChainMockFns.execute
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ slot: 1 }])
+      .mockResolvedValueOnce([{ slot: 1 }])
+    await searchWorkspaceFileIndex({
+      workspaceId: 'workspace-1',
+      pattern: compileFileSearchPattern('needle', 'exact'),
+      maxResults: 50,
+    })
+
+    const guards = JSON.stringify(dbChainMockFns.execute.mock.calls[0]?.[0])
+    expect(guards).toContain('statement_timeout')
+    expect(guards).toContain('lock_timeout')
+    expect(db.transaction).toHaveBeenCalled()
+  })
+  it('bounds the caller while BEGIN is stalled and does not run late search SQL', async () => {
+    vi.useFakeTimers()
+    const acquired = Promise.withResolvers<void>()
+    let transactionFinished!: Promise<unknown>
+    dbChainMockFns.transaction.mockImplementationOnce((callback) => {
+      transactionFinished = acquired.promise.then(() => callback(db))
+      return transactionFinished
+    })
+    const waiting = expect(
+      searchWorkspaceFileIndex({
+        workspaceId: 'workspace-1',
+        pattern: compileFileSearchPattern('needle', 'exact'),
+        maxResults: 50,
+      })
+    ).rejects.toBeInstanceOf(WorkspaceFileSearchUnavailableError)
+    await vi.advanceTimersByTimeAsync(15000)
+    await waiting
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+    acquired.resolve()
+    await expect(transactionFinished).rejects.toThrow('Operation deadline expired')
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+  })
+})

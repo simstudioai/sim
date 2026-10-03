@@ -19,27 +19,28 @@ import {
   ExpandableContent,
   handleKeyboardActivation,
   Info,
+  OverflowText,
 } from '@sim/emcn'
-import clsx from 'clsx'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Lock, Search } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
+import {
+  type DragItemInfo,
+  ToolbarItemContextMenu,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
 import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
-import {
-  buildCustomBlockConfig,
-  CUSTOM_BLOCK_TILE_COLOR,
-  isCustomBlockType,
-} from '@/blocks/custom/build-config'
+import { BlockTile } from '@/blocks/block-tile'
+import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { getCustomBlockTile } from '@/blocks/custom/custom-block-icon'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
+import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -54,6 +55,11 @@ interface BlockItem {
   icon?: ComponentType<{ className?: string }>
   bgColor?: string
   docsLink?: string
+  restricted?: boolean
+}
+
+interface RestrictedBlockItem extends BlockItem {
+  section: 'triggers' | 'blocks' | 'tools'
 }
 
 interface ToolbarItemProps {
@@ -63,7 +69,7 @@ interface ToolbarItemProps {
     e: React.DragEvent<HTMLElement>,
     type: string,
     enableTriggerMode: boolean,
-    dragItemInfo?: { name: string; bgColor: string; iconElement: HTMLElement | null }
+    dragItemInfo?: DragItemInfo
   ) => void
   onClick: (type: string, enableTriggerMode: boolean) => void
   onContextMenu: (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => void
@@ -83,11 +89,11 @@ const ToolbarItem = memo(function ToolbarItem({
 
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLElement>) => {
-      const iconElement = e.currentTarget.querySelector('.toolbar-item-icon')
+      const iconContainer = e.currentTarget.querySelector<HTMLElement>('[data-toolbar-item-icon]')
       onDragStart(e, item.type, isTriggerCapable, {
         name: item.name,
         bgColor: item.bgColor ?? '#666666',
-        iconElement: iconElement as HTMLElement | null,
+        iconContainer,
       })
     },
     [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart]
@@ -117,34 +123,27 @@ const ToolbarItem = memo(function ToolbarItem({
     <div
       ref={itemRef}
       role='button'
-      aria-label={`Add ${item.name}`}
+      aria-label={item.restricted ? `Request access to ${item.name}` : `Add ${item.name}`}
       tabIndex={-1}
-      draggable
-      onDragStart={handleDragStart}
+      draggable={!item.restricted}
+      onDragStart={item.restricted ? undefined : handleDragStart}
       onClick={addBlockToPanel}
-      onContextMenu={handleContextMenu}
+      onContextMenu={item.restricted ? undefined : handleContextMenu}
       className={cn(
         chipVariants({ fullWidth: true }),
-        'focus-visible:bg-[var(--surface-active)] focus-visible:outline-none active:cursor-grabbing'
+        'focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden',
+        !item.restricted && 'active:cursor-grabbing'
       )}
       onKeyDown={handleKeyDown}
     >
-      <div
-        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-        style={{ background: item.bgColor }}
-      >
-        {Icon && (
-          <Icon
-            className={clsx(
-              'toolbar-item-icon transition-transform duration-200',
-              getTileIconColorClass(item.bgColor),
-              'group-hover:scale-110',
-              'size-[10px]'
-            )}
-          />
-        )}
-      </div>
-      <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{item.name}</span>
+      <BlockTile
+        blockType={item.type}
+        icon={Icon}
+        bgColor={item.bgColor}
+        data-toolbar-item-icon=''
+      />
+      <OverflowText label={item.name} className='flex-1 text-[var(--text-body)]' />
+      {item.restricted && <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden />}
     </div>
   )
 })
@@ -318,7 +317,7 @@ const ToolbarSection = memo(function ToolbarSection({
 
   return (
     <section>
-      <div className='sticky top-0 z-10 flex w-full flex-shrink-0 items-center gap-2 bg-[var(--bg)] px-4 pt-3 pb-2'>
+      <div className='sticky top-0 z-10 flex w-full shrink-0 items-center gap-2 bg-[var(--bg)] px-4 pt-3 pb-2'>
         <button
           type='button'
           onClick={toggle}
@@ -328,7 +327,7 @@ const ToolbarSection = memo(function ToolbarSection({
         >
           <span className='text-[var(--text-muted)] text-small'>{label}</span>
           <ChevronDown
-            className={clsx(
+            className={cn(
               'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
@@ -337,7 +336,7 @@ const ToolbarSection = memo(function ToolbarSection({
         <Info>{tooltip}</Info>
       </div>
       <Expandable expanded={expanded}>
-        <ExpandableContent className={animate ? undefined : '!animate-none'}>
+        <ExpandableContent className={animate ? undefined : 'animate-none!'}>
           <div className='flex flex-col gap-0.5 px-2'>
             {items.map((item, index) => (
               <ToolbarItem
@@ -389,11 +388,13 @@ export const Toolbar = memo(
     const blockItemRefs = useRef<Array<HTMLDivElement | null>>([])
     const customBlockItemRefs = useRef<Array<HTMLDivElement | null>>([])
     const toolItemRefs = useRef<Array<HTMLDivElement | null>>([])
+    const restrictedItemRefs = useRef<Array<HTMLDivElement | null>>([])
 
     const triggerRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
     const blockRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
     const customBlockRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
     const toolRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
+    const restrictedRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
 
     const getTriggerRefCallback = useCallback((index: number) => {
       if (!triggerRefCallbacks.current[index]) {
@@ -431,8 +432,20 @@ export const Toolbar = memo(
       return toolRefCallbacks.current[index]
     }, [])
 
+    const getRestrictedRefCallback = (index: number) => {
+      if (!restrictedRefCallbacks.current[index]) {
+        restrictedRefCallbacks.current[index] = (el) => {
+          restrictedItemRefs.current[index] = el
+        }
+      }
+      return restrictedRefCallbacks.current[index]
+    }
+
     const posthog = usePostHog()
-    const { filterBlocks } = usePermissionConfig()
+    const { filterBlocks, isBlockRequestable } = usePermissionConfig()
+    const accessRequests = useWorkspaceAccessRequestFeatures()
+    const accessRequestsEnabled = accessRequests.data?.enabled === true
+    const [requestedBlockType, setRequestedBlockType] = useState<string | null>(null)
     const sandboxAllowedBlocks = useSandboxBlockConstraints()
 
     const expandedSections = useToolbarStore((state) => state.expandedSections)
@@ -481,6 +494,18 @@ export const Toolbar = memo(
     const allTriggers = getTriggers(blockOverlayVersion)
     const allBlocks = getBlocks(blockOverlayVersion)
     const allTools = getTools(blockOverlayVersion)
+    const requestedBlock = requestedBlockType
+      ? (allTriggers.find((item) => item.type === requestedBlockType) ??
+        allBlocks.find((item) => item.type === requestedBlockType) ??
+        allTools.find((item) => item.type === requestedBlockType))
+      : undefined
+
+    if (
+      requestedBlockType !== null &&
+      (!requestedBlock || !workspaceId || !accessRequestsEnabled)
+    ) {
+      setRequestedBlockType(null)
+    }
 
     // Published custom blocks are their own section. Exclude disabled blocks (still
     // resolvable so placed instances survive, but not offered for new placement) and
@@ -490,10 +515,7 @@ export const Toolbar = memo(
       return customBlocksData
         .filter((cb) => cb.enabled && cb.workflowId !== currentWorkflowId)
         .map((cb) => {
-          const icon = getCustomBlockIcon(cb.iconUrl, fallbackIconUrl)
-          // An image (uploaded or whitelabel) renders on a transparent tile; the
-          // default glyph keeps the neutral tile so it stays visible.
-          const tileColor = cb.iconUrl || fallbackIconUrl ? 'transparent' : CUSTOM_BLOCK_TILE_COLOR
+          const { icon, bgColor } = getCustomBlockTile(cb.iconUrl, fallbackIconUrl)
           return {
             name: cb.name,
             type: cb.type,
@@ -506,14 +528,21 @@ export const Toolbar = memo(
                 exposedOutputs: cb.exposedOutputs,
               },
               cb.inputFields,
-              { icon, bgColor: tileColor }
+              { icon, bgColor }
             ),
             icon,
-            bgColor: tileColor,
+            bgColor,
           } satisfies BlockItem
         })
         .sort((a, b) => a.name.localeCompare(b.name))
     }, [customBlocksData, currentWorkflowId, fallbackIconUrl])
+
+    const handleRequestItemClick = useCallback(
+      (type: string) => {
+        if (accessRequestsEnabled) setRequestedBlockType(type)
+      },
+      [accessRequestsEnabled]
+    )
 
     const visibleTriggers = useMemo(() => {
       if (sandboxAllowedBlocks !== null) return []
@@ -537,6 +566,32 @@ export const Toolbar = memo(
       if (sandboxAllowedBlocks === null) return permitted
       return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
     }, [filterBlocks, allTools, sandboxAllowedBlocks])
+
+    const restrictedItems = useMemo((): RestrictedBlockItem[] => {
+      if (!accessRequestsEnabled) return []
+      const categories = [
+        { section: 'triggers', items: sandboxAllowedBlocks === null ? allTriggers : [] },
+        { section: 'blocks', items: allBlocks },
+        { section: 'tools', items: allTools },
+      ] as const
+      return categories.flatMap(({ section, items }) =>
+        items
+          .filter(
+            (item) =>
+              !isCustomBlockType(item.type) &&
+              isBlockRequestable(item.type) &&
+              (sandboxAllowedBlocks === null || sandboxAllowedBlocks.includes(item.type))
+          )
+          .map((item) => ({ ...item, restricted: true, section }))
+      )
+    }, [
+      accessRequestsEnabled,
+      allTriggers,
+      allBlocks,
+      allTools,
+      isBlockRequestable,
+      sandboxAllowedBlocks,
+    ])
 
     const normalizedQuery = searchQuery.trim().toLowerCase()
     const isSearching = normalizedQuery.length > 0
@@ -565,6 +620,11 @@ export const Toolbar = memo(
       return visibleTools.filter((tool) => tool.name.toLowerCase().includes(normalizedQuery))
     }, [visibleTools, isSearching, normalizedQuery])
 
+    const filteredRestrictedItems = useMemo(() => {
+      if (!isSearching) return restrictedItems
+      return restrictedItems.filter((item) => item.name.toLowerCase().includes(normalizedQuery))
+    }, [restrictedItems, isSearching, normalizedQuery])
+
     /**
      * Trim ref arrays to current filtered length to prevent stale refs from
      * polluting keyboard navigation when items disappear (search, sandbox).
@@ -573,6 +633,7 @@ export const Toolbar = memo(
     blockItemRefs.current.length = filteredBlocks.length
     customBlockItemRefs.current.length = filteredCustomBlocks.length
     toolItemRefs.current.length = filteredTools.length
+    restrictedItemRefs.current.length = filteredRestrictedItems.length
 
     /**
      * Section expansion is derived during search (force-expand sections with
@@ -609,11 +670,11 @@ export const Toolbar = memo(
      * If there's a query, keep search mode active so ArrowUp/Down navigation continues
      * to work after focus moves into the section lists.
      */
-    const handleSearchBlur = useCallback(() => {
-      if (!searchQuery.trim()) {
+    const handleSearchBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+      if (!searchQuery.trim() && !rootRef.current?.contains(event.relatedTarget)) {
         setIsSearchActive(false)
       }
-    }, [searchQuery])
+    }
 
     const handleItemContextMenu = useCallback(
       (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => {
@@ -665,11 +726,11 @@ export const Toolbar = memo(
     }, [isContextMenuOpen, closeContextMenu])
 
     /**
-     * Keyboard navigation across the three sections.
+     * Keyboard navigation follows visible section order, ending with access requests.
      *
      * - Active only when the toolbar tab is active and search mode is on.
      * - Skips collapsed or empty sections so focus only lands on visible items.
-     * - ArrowDown traverses search → triggers → blocks → tools.
+     * - ArrowDown traverses search → triggers → blocks → custom blocks → tools → access required.
      * - ArrowUp moves backward; from the first item of the first visible section
      *   it wraps back to the search input.
      */
@@ -684,7 +745,7 @@ export const Toolbar = memo(
         if (!toolbarRoot || !activeEl || !toolbarRoot.contains(activeEl)) return
 
         type SectionList = {
-          key: ToolbarSectionKey
+          key: ToolbarSectionKey | 'restricted'
           items: HTMLDivElement[]
         }
 
@@ -702,12 +763,22 @@ export const Toolbar = memo(
               : [],
           },
           {
+            key: 'customBlocks',
+            items: sectionExpanded.customBlocks
+              ? customBlockItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+              : [],
+          },
+          {
             key: 'tools',
             items: sectionExpanded.tools
               ? toolItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
               : [],
           },
         ]
+        allSections.push({
+          key: 'restricted',
+          items: restrictedItemRefs.current.filter((el): el is HTMLDivElement => el !== null),
+        })
         const sections = allSections.filter((section) => section.items.length > 0)
 
         let sectionIndex = -1
@@ -782,6 +853,7 @@ export const Toolbar = memo(
       isSearchActive,
       sectionExpanded.triggers,
       sectionExpanded.blocks,
+      sectionExpanded.customBlocks,
       sectionExpanded.tools,
     ])
 
@@ -796,11 +868,11 @@ export const Toolbar = memo(
         <div
           role='button'
           tabIndex={0}
-          className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
+          className='mx-[-1px] flex shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
           onClick={focusSearch}
           onKeyDown={(event) => handleKeyboardActivation(event, focusSearch)}
         >
-          <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
+          <h2 className='text-[var(--text-primary)] text-sm'>Toolbar</h2>
           <div className='flex shrink-0 items-center gap-2'>
             {!isSearchActive ? (
               <Button
@@ -818,11 +890,21 @@ export const Toolbar = memo(
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onBlur={handleSearchBlur}
-                className='w-full border-none bg-transparent pr-0.5 text-right font-medium text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
+                className='w-full border-none bg-transparent pr-0.5 text-right text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-hidden'
               />
             )}
           </div>
         </div>
+
+        {requestedBlock && workspaceId && accessRequestsEnabled && (
+          <RequestAccessModal
+            key={`${workspaceId}:${requestedBlock.type}`}
+            scope={{ kind: 'workspace', workspaceId }}
+            target={{ kind: 'integration', id: requestedBlock.type }}
+            label={requestedBlock.name}
+            onClose={() => setRequestedBlockType(null)}
+          />
+        )}
 
         {/* Single scroll container with three collapsible sections */}
         <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-none pb-3'>
@@ -888,6 +970,29 @@ export const Toolbar = memo(
             onItemClick={handleItemClick}
             onContextMenu={handleItemContextMenu}
           />
+          {filteredRestrictedItems.length > 0 && (
+            <section aria-label='Access required'>
+              <div className='sticky top-0 z-10 flex w-full items-center gap-2 bg-[var(--bg)] px-4 pt-3 pb-2'>
+                <span className='flex-1 text-[var(--text-muted)] text-small'>Access required</span>
+                <Info>
+                  Ask your organization admin to enable these blocks for your permission group.
+                </Info>
+              </div>
+              <div className='flex flex-col gap-0.5 px-2'>
+                {filteredRestrictedItems.map((item, index) => (
+                  <ToolbarItem
+                    key={`${item.section}-${item.type}`}
+                    item={item}
+                    isTrigger={item.section === 'triggers'}
+                    onDragStart={handleDragStart}
+                    onClick={handleRequestItemClick}
+                    onContextMenu={handleItemContextMenu}
+                    itemRef={getRestrictedRefCallback(index)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Toolbar Item Context Menu */}

@@ -1,47 +1,470 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
+import { FileParserError } from '@/lib/file-parsers/errors'
+import { imageAltText } from '@/lib/file-parsers/office-text'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { decodeTextBuffer, sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('HtmlParser')
 
+/**
+ * Bounds the DOM tree, which costs ~500 bytes per markup token (`<`) on cheerio
+ * 1.1.2: measured at 0.2M/1M/2M tokens as 101/504/1008 MB retained, linear
+ * across all three.
+ *
+ * A 50,000-row by 8-column table export is ~900k tokens in only 8.7 MB, so a
+ * tighter cap rejects ordinary exports; 999k tokens in a 10 MB body parses
+ * inside a 2 GB heap.
+ */
+const MAX_HTML_MARKUP_TOKENS = 1_000_000
+
+/**
+ * Bounds the body, which governs peak memory: extraction materialises the text
+ * several times over (UTF-16 buffer copy, per-node strings, the joined output).
+ *
+ * Measured against a 2 GB heap with the token cap saturated: 32 MB parses,
+ * 48 MB parses, 64 MB aborts the process. Deliberately NOT raised to the
+ * shared 100 MB document limit — that limit governs what may be uploaded, and
+ * a 100 MB body aborts here even with few tokens. Any change to this number
+ * needs the same abort test, not a consistency argument.
+ */
+const MAX_HTML_INPUT_BYTES = 32 * 1024 * 1024
+
+const MARKUP_TOKEN_BYTE = 0x3c
+
+/**
+ * Raised when a document exceeds the limits above, so an input rejected on
+ * resource grounds is not reported as a malformed file.
+ */
+export class HtmlComplexityError extends FileParserError {
+  constructor(message: string) {
+    super('complexity_limit', message)
+    this.name = 'HtmlComplexityError'
+  }
+}
+
+export function isHtmlComplexityError(error: unknown): error is HtmlComplexityError {
+  return error instanceof HtmlComplexityError
+}
+
+function exceedsMarkupTokenLimit(buffer: Buffer): boolean {
+  let count = 0
+  let index = buffer.indexOf(MARKUP_TOKEN_BYTE)
+
+  while (index !== -1) {
+    if (++count > MAX_HTML_MARKUP_TOKENS) return true
+    index = buffer.indexOf(MARKUP_TOKEN_BYTE, index + 1)
+  }
+
+  return false
+}
+
+/**
+ * `cheerio.load` builds the entire parse5 tree before returning, so an outsized
+ * document has to be rejected on the buffer, before the string copy.
+ */
+function assertHtmlWithinLimits(buffer: Buffer): void {
+  if (buffer.length > MAX_HTML_INPUT_BYTES) {
+    throw new HtmlComplexityError(
+      `HTML document is ${buffer.length} bytes, above the maximum of ${MAX_HTML_INPUT_BYTES} bytes`
+    )
+  }
+
+  if (exceedsMarkupTokenLimit(buffer)) {
+    throw new HtmlComplexityError(
+      `HTML document exceeds the maximum of ${MAX_HTML_MARKUP_TOKENS} markup tokens`
+    )
+  }
+}
+
+/**
+ * The same caps for HTML that already exists as a string — markup another
+ * converter produced in memory (mammoth's DOCX rendering) — measured without
+ * copying it into a buffer.
+ */
+export function assertHtmlStringWithinLimits(html: string): void {
+  const byteLength = Buffer.byteLength(html, 'utf8')
+  if (byteLength > MAX_HTML_INPUT_BYTES) {
+    throw new HtmlComplexityError(
+      `HTML document is ${byteLength} bytes, above the maximum of ${MAX_HTML_INPUT_BYTES} bytes`
+    )
+  }
+
+  let count = 0
+  let index = html.indexOf('<')
+  while (index !== -1) {
+    if (++count > MAX_HTML_MARKUP_TOKENS) {
+      throw new HtmlComplexityError(
+        `HTML document exceeds the maximum of ${MAX_HTML_MARKUP_TOKENS} markup tokens`
+      )
+    }
+    index = html.indexOf('<', index + 1)
+  }
+}
+
+const NON_CONTENT_SELECTOR = 'script, style, noscript, meta, link, iframe, object, embed, svg'
+
+/** Block elements inside a table cell; `.text()` would otherwise glue their words together. */
+const CELL_BLOCK_SELECTOR = 'p, div, li, br, h1, h2, h3, h4, h5, h6, tr'
+
+/** mammoth renders a footnote's or endnote's return link as `<a href="#footnote-ref-N">↑</a>`. */
+const FOOTNOTE_BACKLINK_SELECTOR = 'a[href^="#footnote-ref"], a[href^="#endnote-ref"]'
+
+/**
+ * Strips the non-content markup and HTML comments from a loaded document so the
+ * structured walk sees only what a reader would.
+ */
+function stripNonContent($: cheerio.CheerioAPI): void {
+  $(NON_CONTENT_SELECTOR).remove()
+  $(FOOTNOTE_BACKLINK_SELECTOR).remove()
+
+  $.root()
+    .contents()
+    .filter(function () {
+      return this.type === 'comment'
+    })
+    .remove()
+}
+
+/**
+ * Converts an HTML document into structured plain text: headings and paragraphs
+ * on their own lines, `•`/`1.` list markers with nesting indents, and tables as
+ * `[Table]` / `| a | b |` / `[/Table]` rows. Shared by {@link HtmlParser} and the
+ * DOCX parser, which routes mammoth's HTML rendering through the same walk so
+ * both formats produce the same shape.
+ */
+export function htmlToStructuredText(html: string): string {
+  const $ = cheerio.load(html)
+  stripNonContent($)
+  return extractStructuredText($)
+}
+
+function extractStructuredText($: cheerio.CheerioAPI): string {
+  const contentParts: string[] = []
+
+  const rootElement = $('body').length > 0 ? $('body') : $.root()
+
+  processElement($, rootElement, contentParts, 0)
+
+  return contentParts.join('\n').trim()
+}
+
+type AnyNode = ReturnType<cheerio.Cheerio<never>['contents']> extends cheerio.Cheerio<infer N>
+  ? N
+  : never
+
+type ElementNode = Extract<AnyNode, { tagName: string }>
+
+function isTagNode(node: AnyNode): node is ElementNode {
+  return node.type === 'tag'
+}
+
+/**
+ * Recursively process elements to extract text with structure
+ */
+function processElement(
+  $: cheerio.CheerioAPI,
+  element: cheerio.Cheerio<AnyNode>,
+  contentParts: string[],
+  depth: number
+): void {
+  element.contents().each((_, node) => {
+    if (node.type === 'text') {
+      const text = $(node).text().trim()
+      if (text) {
+        contentParts.push(text)
+      }
+      return
+    }
+
+    if (!isTagNode(node)) return
+
+    const $node = $(node)
+    const tagName = node.tagName.toLowerCase()
+
+    switch (tagName) {
+      case 'h1':
+      case 'h2':
+      case 'h3':
+      case 'h4':
+      case 'h5':
+      case 'h6': {
+        const headingText = $node.text().trim()
+        if (headingText) {
+          contentParts.push(`\n${headingText}\n`)
+        }
+        break
+      }
+
+      case 'p': {
+        const paragraphText = $node.text().trim()
+        if (paragraphText) {
+          contentParts.push(`${paragraphText}\n`)
+        }
+        break
+      }
+
+      case 'br':
+        contentParts.push('\n')
+        break
+
+      case 'hr':
+        contentParts.push('\n---\n')
+        break
+
+      case 'li':
+        processListItem($, $node, contentParts, depth, null)
+        break
+
+      case 'ul':
+      case 'ol':
+        contentParts.push('\n')
+        processList($, $node, contentParts, depth + 1, tagName === 'ol')
+        contentParts.push('\n')
+        break
+
+      case 'table':
+        processTable($, $node, contentParts)
+        break
+
+      case 'blockquote': {
+        const quoteText = $node.text().trim()
+        if (quoteText) {
+          contentParts.push(`\n> ${quoteText}\n`)
+        }
+        break
+      }
+
+      case 'pre':
+      case 'code': {
+        const codeText = $node.text().trim()
+        if (codeText) {
+          contentParts.push(`\n\`\`\`\n${codeText}\n\`\`\`\n`)
+        }
+        break
+      }
+
+      case 'a': {
+        const linkText = $node.text().trim()
+        const href = $node.attr('href')
+        if (linkText) {
+          if (href?.startsWith('http')) {
+            contentParts.push(`${linkText} (${href})`)
+          } else {
+            contentParts.push(linkText)
+          }
+        }
+        break
+      }
+
+      case 'img': {
+        const image = imageAltText($node.attr('alt'))
+        if (image) contentParts.push(image)
+        break
+      }
+
+      default:
+        processElement($, $node, contentParts, depth)
+    }
+  })
+}
+
+/**
+ * Walks a list's children, numbering `<ol>` items from its `start` attribute and
+ * bulleting `<ul>` items. Non-item children are walked as ordinary content.
+ */
+function processList(
+  $: cheerio.CheerioAPI,
+  list: cheerio.Cheerio<AnyNode>,
+  contentParts: string[],
+  depth: number,
+  ordered: boolean
+): void {
+  const start = Number.parseInt(list.attr('start') ?? '1', 10)
+  let index = Number.isFinite(start) ? start : 1
+
+  list.children().each((_, child) => {
+    const $child = $(child)
+    if (isTagNode(child) && child.tagName.toLowerCase() === 'li') {
+      processListItem($, $child, contentParts, depth, ordered ? index++ : null)
+    } else {
+      processElement($, $child, contentParts, depth)
+    }
+  })
+}
+
+/**
+ * Emits a list item as one marked line built from its own inline text, then
+ * walks any nested lists so their items keep their own markers and indent.
+ */
+function processListItem(
+  $: cheerio.CheerioAPI,
+  item: cheerio.Cheerio<AnyNode>,
+  contentParts: string[],
+  depth: number,
+  ordinal: number | null
+): void {
+  const ownText: string[] = []
+  const nestedLists: cheerio.Cheerio<AnyNode>[] = []
+
+  item.contents().each((_, child) => {
+    if (isTagNode(child)) {
+      const childTag = child.tagName.toLowerCase()
+      if (childTag === 'ul' || childTag === 'ol') {
+        nestedLists.push($(child))
+        return
+      }
+    }
+    const $child = $(child)
+    $child.find(CELL_BLOCK_SELECTOR).after(' ')
+    const text = $child.text().replace(/\s+/g, ' ').trim()
+    if (text) ownText.push(text)
+  })
+
+  const itemText = ownText.join(' ').trim()
+  if (itemText) {
+    const indent = '  '.repeat(Math.min(Math.max(depth - 1, 0), 3))
+    const marker = ordinal === null ? '•' : `${ordinal}.`
+    contentParts.push(`${indent}${marker} ${itemText}`)
+  }
+
+  for (const nested of nestedLists) {
+    const nestedTag = nested.prop('tagName')?.toLowerCase()
+    processList($, nested, contentParts, depth + 1, nestedTag === 'ol')
+  }
+}
+
+/** A table's own rows: direct `<tr>` children and those under its section elements. */
+function directRows(table: cheerio.Cheerio<AnyNode>): cheerio.Cheerio<AnyNode> {
+  return table.children('thead, tbody, tfoot').children('tr').add(table.children('tr'))
+}
+
+/** Nested tables whose nearest enclosing table is the cell's own. */
+function topLevelNestedTables(
+  $: cheerio.CheerioAPI,
+  cell: cheerio.Cheerio<AnyNode>
+): cheerio.Cheerio<AnyNode> {
+  const own = cell.closest('table').get(0)
+  return cell.find('table').filter((_, nested) => $(nested).parents('table').get(0) === own)
+}
+
+/**
+ * The cells of a table in reading order, each rendered with {@link cellText},
+ * for a table nested inside another table's cell.
+ */
+function flattenedTableCells($: cheerio.CheerioAPI, table: cheerio.Cheerio<AnyNode>): string[] {
+  const cells: string[] = []
+  directRows(table).each((_, row) => {
+    $(row)
+      .children('td, th')
+      .each((_, cell) => {
+        const text = cellText($, $(cell))
+        if (text) cells.push(text)
+      })
+  })
+  return cells
+}
+
+/**
+ * One cell's text on a single line. A text-only cell — the common case in a
+ * data table — is read directly. Block elements inside the cell get a space
+ * so adjacent paragraphs do not glue together — this mutates the live DOM, and
+ * runs before `extractHeadings`/`extractLinks`, so heading or link text inside a
+ * cell gains those spaces too. A nested table is rendered on a clone of the cell
+ * as its cells joined with ` / `, without `[Table]` markers or pipes, so the
+ * outer row stays one line and the inner text appears exactly once.
+ */
+function cellText($: cheerio.CheerioAPI, cell: cheerio.Cheerio<AnyNode>): string {
+  if (cell.children().length === 0) {
+    return cell.text().replace(/\s+/g, ' ').trim()
+  }
+
+  const nested = topLevelNestedTables($, cell)
+  if (nested.length === 0) {
+    cell.find(CELL_BLOCK_SELECTOR).after(' ')
+    return cell.text().replace(/\s+/g, ' ').trim()
+  }
+
+  const clone = cell.clone()
+  topLevelNestedTables($, clone).each((_, table) => {
+    const $table = $(table)
+    $table.replaceWith(` ${flattenedTableCells($, $table).join(' / ')} `)
+  })
+  clone.find(CELL_BLOCK_SELECTOR).after(' ')
+  return clone.text().replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Renders a table as `[Table]`, one `| a | b |` line per row, `[/Table]`. Only
+ * the table's own rows and each row's own cells are visited, so a nested table
+ * contributes to its containing cell (see {@link cellText}) and is never
+ * emitted a second time as rows of its own.
+ */
+function processTable(
+  $: cheerio.CheerioAPI,
+  table: cheerio.Cheerio<AnyNode>,
+  contentParts: string[]
+): void {
+  contentParts.push('\n[Table]')
+
+  directRows(table).each((_, row) => {
+    const cells: string[] = []
+
+    $(row)
+      .children('td, th')
+      .each((_, cell) => {
+        cells.push(cellText($, $(cell)))
+      })
+
+    if (cells.length > 0) {
+      contentParts.push(`| ${cells.join(' | ')} |`)
+    }
+  })
+
+  contentParts.push('[/Table]\n')
+}
+
 export class HtmlParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
+    let buffer: Buffer
+
+    /** Scoped to the read alone so `parseBuffer`'s typed rejections reach callers intact. */
     try {
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      const buffer = await readFile(filePath)
-      return this.parseBuffer(buffer)
+      buffer = await readFile(filePath)
     } catch (error) {
       logger.error('HTML file error:', error)
-      throw new Error(`Failed to parse HTML file: ${(error as Error).message}`)
+      throw new Error(`Failed to parse HTML file: ${getErrorMessage(error, 'Unknown error')}`)
     }
+
+    return this.parseBuffer(buffer)
   }
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+    if (!buffer || buffer.length === 0) {
+      throw new FileParserError('empty_input', 'Empty buffer provided')
+    }
+
+    assertHtmlWithinLimits(buffer)
+
     try {
       logger.info('Parsing HTML buffer, size:', buffer.length)
 
-      const htmlContent = buffer.toString('utf-8')
+      const decoded = decodeTextBuffer(buffer)
+      const htmlContent = decoded.text
       const $ = cheerio.load(htmlContent)
 
-      // Extract meta information before removing tags
       const title = $('title').text().trim()
       const metaDescription = $('meta[name="description"]').attr('content') || ''
 
-      $('script, style, noscript, meta, link, iframe, object, embed, svg').remove()
+      stripNonContent($)
 
-      $.root()
-        .contents()
-        .filter(function () {
-          return this.type === 'comment'
-        })
-        .remove()
-
-      const content = this.extractStructuredText($)
+      const content = extractStructuredText($)
 
       const sanitizedContent = sanitizeTextForUTF8(content)
 
@@ -65,6 +488,8 @@ export class HtmlParser implements FileParser {
           links: links.slice(0, 50),
           hasImages: $('img').length > 0,
           imageCount: $('img').length,
+          encoding: decoded.encoding,
+          warning: decoded.warning,
           hasTable: $('table').length > 0,
           tableCount: $('table').length,
           hasList: $('ul, ol').length > 0,
@@ -72,174 +497,27 @@ export class HtmlParser implements FileParser {
         },
       }
     } catch (error) {
+      /**
+       * Every `RangeError` reachable here is resource exhaustion the pre-parse
+       * caps cannot predict: a stack overflow inside cheerio's recursive
+       * `.text()` on deeply nested markup, or an over-long string from joining
+       * the extracted parts. Both must stay fail-closed rather than degrade to
+       * the route's raw-text fallback.
+       */
+      if (error instanceof RangeError) {
+        logger.warn('HTML document exhausted parser resources:', error)
+        throw new HtmlComplexityError(
+          `HTML document could not be extracted within resource limits: ${error.message}`
+        )
+      }
+
       logger.error('HTML buffer parsing error:', error)
-      throw new Error(`Failed to parse HTML buffer: ${(error as Error).message}`)
+      throw new FileParserError(
+        'invalid_format',
+        `Failed to parse HTML buffer: ${getErrorMessage(error, 'Unknown error')}`,
+        error
+      )
     }
-  }
-
-  /**
-   * Extract structured text content preserving document hierarchy
-   */
-  private extractStructuredText($: cheerio.CheerioAPI): string {
-    const contentParts: string[] = []
-
-    const rootElement = $('body').length > 0 ? $('body') : $.root()
-
-    this.processElement($, rootElement, contentParts, 0)
-
-    return contentParts.join('\n').trim()
-  }
-
-  /**
-   * Recursively process elements to extract text with structure
-   */
-  private processElement(
-    $: cheerio.CheerioAPI,
-    element: cheerio.Cheerio<any>,
-    contentParts: string[],
-    depth: number
-  ): void {
-    element.contents().each((_, node) => {
-      if (node.type === 'text') {
-        const text = $(node).text().trim()
-        if (text) {
-          contentParts.push(text)
-        }
-      } else if (node.type === 'tag') {
-        const $node = $(node)
-        const tagName = node.tagName?.toLowerCase()
-
-        switch (tagName) {
-          case 'h1':
-          case 'h2':
-          case 'h3':
-          case 'h4':
-          case 'h5':
-          case 'h6': {
-            const headingText = $node.text().trim()
-            if (headingText) {
-              contentParts.push(`\n${headingText}\n`)
-            }
-            break
-          }
-
-          case 'p': {
-            const paragraphText = $node.text().trim()
-            if (paragraphText) {
-              contentParts.push(`${paragraphText}\n`)
-            }
-            break
-          }
-
-          case 'br':
-            contentParts.push('\n')
-            break
-
-          case 'hr':
-            contentParts.push('\n---\n')
-            break
-
-          case 'li': {
-            const listItemText = $node.text().trim()
-            if (listItemText) {
-              const indent = '  '.repeat(Math.min(depth, 3))
-              contentParts.push(`${indent}• ${listItemText}`)
-            }
-            break
-          }
-
-          case 'ul':
-          case 'ol':
-            contentParts.push('\n')
-            this.processElement($, $node, contentParts, depth + 1)
-            contentParts.push('\n')
-            break
-
-          case 'table':
-            this.processTable($, $node, contentParts)
-            break
-
-          case 'blockquote': {
-            const quoteText = $node.text().trim()
-            if (quoteText) {
-              contentParts.push(`\n> ${quoteText}\n`)
-            }
-            break
-          }
-
-          case 'pre':
-          case 'code': {
-            const codeText = $node.text().trim()
-            if (codeText) {
-              contentParts.push(`\n\`\`\`\n${codeText}\n\`\`\`\n`)
-            }
-            break
-          }
-
-          case 'div':
-          case 'section':
-          case 'article':
-          case 'main':
-          case 'aside':
-          case 'nav':
-          case 'header':
-          case 'footer':
-            this.processElement($, $node, contentParts, depth)
-            break
-
-          case 'a': {
-            const linkText = $node.text().trim()
-            const href = $node.attr('href')
-            if (linkText) {
-              if (href?.startsWith('http')) {
-                contentParts.push(`${linkText} (${href})`)
-              } else {
-                contentParts.push(linkText)
-              }
-            }
-            break
-          }
-
-          case 'img': {
-            const alt = $node.attr('alt')
-            if (alt) {
-              contentParts.push(`[Image: ${alt}]`)
-            }
-            break
-          }
-
-          default:
-            this.processElement($, $node, contentParts, depth)
-        }
-      }
-    })
-  }
-
-  /**
-   * Process table elements to extract structured data
-   */
-  private processTable(
-    $: cheerio.CheerioAPI,
-    table: cheerio.Cheerio<any>,
-    contentParts: string[]
-  ): void {
-    contentParts.push('\n[Table]')
-
-    table.find('tr').each((_, row) => {
-      const $row = $(row)
-      const cells: string[] = []
-
-      $row.find('td, th').each((_, cell) => {
-        const cellText = $(cell).text().trim()
-        cells.push(cellText || '')
-      })
-
-      if (cells.length > 0) {
-        contentParts.push(`| ${cells.join(' | ')} |`)
-      }
-    })
-
-    contentParts.push('[/Table]\n')
   }
 
   /**

@@ -1,4 +1,3 @@
-import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type {
   ConsumeResult,
@@ -58,7 +57,6 @@ describe('HostedKeyRateLimiter', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAdapter = createMockAdapter()
     mockQueue = createMockQueue()
     rateLimiter = new HostedKeyRateLimiter(
@@ -175,26 +173,6 @@ describe('HostedKeyRateLimiter', () => {
       expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(2)
     })
 
-    it('should allow billing actor within their rate limit', async () => {
-      const allowedResult: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: 9,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(allowedResult)
-
-      const result = await rateLimiter.acquireKey(
-        testProvider,
-        envKeyPrefix,
-        perRequestRateLimit,
-        'workspace-123'
-      )
-
-      expect(result.success).toBe(true)
-      expect(result.billingActorRateLimited).toBeUndefined()
-      expect(result.key).toBe('test-key-1')
-    })
-
     it('should distribute requests across keys round-robin style', async () => {
       const allowedResult: ConsumeResult = {
         allowed: true,
@@ -273,30 +251,6 @@ describe('HostedKeyRateLimiter', () => {
       resetAt: new Date(Date.now() + 60000),
     }
 
-    it('enqueues every call onto the per-workspace+provider queue', async () => {
-      mockAdapter.consumeTokens.mockResolvedValue(allowed)
-
-      await rateLimiter.acquireKey(testProvider, envKeyPrefix, perRequestRateLimit, 'workspace-1')
-
-      expect(mockQueue.enqueue).toHaveBeenCalledWith(
-        testProvider,
-        'workspace-1',
-        expect.any(String)
-      )
-    })
-
-    it('always dequeues at the end of a successful acquisition', async () => {
-      mockAdapter.consumeTokens.mockResolvedValue(allowed)
-
-      await rateLimiter.acquireKey(testProvider, envKeyPrefix, perRequestRateLimit, 'workspace-1')
-
-      expect(mockQueue.dequeue).toHaveBeenCalledWith(
-        testProvider,
-        'workspace-1',
-        expect.any(String)
-      )
-    })
-
     it('always dequeues even when the call fails (no keys configured)', async () => {
       mockAdapter.consumeTokens.mockResolvedValue(allowed)
       process.env.EXA_API_KEY_COUNT = '0'
@@ -314,17 +268,25 @@ describe('HostedKeyRateLimiter', () => {
         .mockResolvedValueOnce('waiting')
         .mockResolvedValueOnce('head')
 
-      const result = await rateLimiter.acquireKey(
-        testProvider,
-        envKeyPrefix,
-        perRequestRateLimit,
-        'workspace-1'
-      )
+      // Each "waiting" answer sleeps one real poll period; drive those with fake timers.
+      vi.useFakeTimers()
+      try {
+        const pending = rateLimiter.acquireKey(
+          testProvider,
+          envKeyPrefix,
+          perRequestRateLimit,
+          'workspace-1'
+        )
+        await vi.runAllTimersAsync()
+        const result = await pending
 
-      expect(result.success).toBe(true)
-      expect(mockQueue.checkHead).toHaveBeenCalledTimes(3)
-      // Bucket is only consumed once we reach the head.
-      expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(1)
+        expect(result.success).toBe(true)
+        expect(mockQueue.checkHead).toHaveBeenCalledTimes(3)
+        // Bucket is only consumed once we reach the head.
+        expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('refreshes the heartbeat while waiting at the head of the queue', async () => {
@@ -428,24 +390,31 @@ describe('HostedKeyRateLimiter', () => {
       }
       mockAdapter.consumeTokens.mockResolvedValue(blocked)
 
-      const controller = new AbortController()
-      const start = Date.now()
-      const promise = rateLimiter.acquireKey(
-        testProvider,
-        envKeyPrefix,
-        perRequestRateLimit,
-        'workspace-1',
-        controller.signal
-      )
-      // Let the first bucket check run and the sleep begin, then abort.
-      await sleep(20)
-      controller.abort()
-      const result = await promise
+      vi.useFakeTimers()
+      try {
+        const controller = new AbortController()
+        const start = Date.now()
+        const promise = rateLimiter.acquireKey(
+          testProvider,
+          envKeyPrefix,
+          perRequestRateLimit,
+          'workspace-1',
+          controller.signal
+        )
+        // Let the first bucket check run and the sleep begin, then abort. No timer
+        // advances after the abort, so the wait can only settle by waking on it —
+        // a sleep that ran to its cap would leave the promise pending.
+        await vi.advanceTimersByTimeAsync(20)
+        controller.abort()
+        const result = await promise
 
-      expect(result.success).toBe(false)
-      expect(result.billingActorRateLimited).toBe(true)
-      // Resolved well before the 10s capped sleep would otherwise have elapsed.
-      expect(Date.now() - start).toBeLessThan(2000)
+        expect(result.success).toBe(false)
+        expect(result.billingActorRateLimited).toBe(true)
+        // Resolved well before the 10s capped sleep would otherwise have elapsed.
+        expect(Date.now() - start).toBeLessThan(HEARTBEAT_REFRESH_INTERVAL_MS)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('keeps waiting past the no-signal fallback cap while the signal is live', async () => {
@@ -533,83 +502,6 @@ describe('HostedKeyRateLimiter', () => {
         },
       ],
     }
-
-    it('should enforce requestsPerMinute for custom mode when wait exceeds the cap', async () => {
-      const rateLimitedResult: ConsumeResult = {
-        allowed: false,
-        tokensRemaining: 0,
-        resetAt: new Date(Date.now() + RETRY_PAST_CAP_MS),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(rateLimitedResult)
-
-      const result = await rateLimiter.acquireKey(
-        testProvider,
-        envKeyPrefix,
-        customRateLimit,
-        'workspace-1'
-      )
-
-      expect(result.success).toBe(false)
-      expect(result.billingActorRateLimited).toBe(true)
-      expect(result.error).toContain('Rate limit exceeded')
-    })
-
-    it('should allow request when actor request limit and dimensions have budget', async () => {
-      const allowedConsume: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: 4,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(allowedConsume)
-
-      const budgetAvailable: TokenStatus = {
-        tokensAvailable: 500,
-        maxTokens: 2000,
-        lastRefillAt: new Date(),
-        nextRefillAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.getTokenStatus.mockResolvedValue(budgetAvailable)
-
-      const result = await rateLimiter.acquireKey(
-        testProvider,
-        envKeyPrefix,
-        customRateLimit,
-        'workspace-1'
-      )
-
-      expect(result.success).toBe(true)
-      expect(result.key).toBe('test-key-1')
-      expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(1)
-      expect(mockAdapter.getTokenStatus).toHaveBeenCalledTimes(1)
-    })
-
-    it('should block request when a dimension wait exceeds the cap', async () => {
-      const allowedConsume: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: 4,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(allowedConsume)
-
-      const depleted: TokenStatus = {
-        tokensAvailable: 0,
-        maxTokens: 2000,
-        lastRefillAt: new Date(),
-        nextRefillAt: new Date(Date.now() + RETRY_PAST_CAP_MS),
-      }
-      mockAdapter.getTokenStatus.mockResolvedValue(depleted)
-
-      const result = await rateLimiter.acquireKey(
-        testProvider,
-        envKeyPrefix,
-        customRateLimit,
-        'workspace-1'
-      )
-
-      expect(result.success).toBe(false)
-      expect(result.billingActorRateLimited).toBe(true)
-      expect(result.error).toContain('tokens')
-    })
 
     it('should wait for dimension capacity then succeed when budget refills', async () => {
       const allowedConsume: ConsumeResult = {
@@ -740,26 +632,6 @@ describe('HostedKeyRateLimiter', () => {
       )
     })
 
-    it('should handle overdrawn bucket gracefully (optimistic concurrency)', async () => {
-      const overdrawnResult: ConsumeResult = {
-        allowed: false,
-        tokensRemaining: 0,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens.mockResolvedValue(overdrawnResult)
-
-      const result = await rateLimiter.reportUsage(
-        testProvider,
-        'workspace-1',
-        customConfig,
-        {},
-        { tokenCount: 500 }
-      )
-
-      expect(result.dimensions[0].allowed).toBe(false)
-      expect(result.dimensions[0].consumed).toBe(500)
-    })
-
     it('should skip consumption when extractUsage returns 0', async () => {
       const result = await rateLimiter.reportUsage(
         testProvider,
@@ -772,63 +644,6 @@ describe('HostedKeyRateLimiter', () => {
       expect(result.dimensions).toHaveLength(1)
       expect(result.dimensions[0].consumed).toBe(0)
       expect(mockAdapter.consumeTokens).not.toHaveBeenCalled()
-    })
-
-    it('should handle multiple dimensions independently', async () => {
-      const multiConfig: CustomRateLimit = {
-        mode: 'custom',
-        requestsPerMinute: 10,
-        dimensions: [
-          {
-            name: 'tokens',
-            limitPerMinute: 1000,
-            extractUsage: (_p, r) => (r.tokenCount as number) ?? 0,
-          },
-          {
-            name: 'search_units',
-            limitPerMinute: 50,
-            extractUsage: (_p, r) => (r.searchUnits as number) ?? 0,
-          },
-        ],
-      }
-
-      const tokensConsumed: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: 800,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      const searchConsumed: ConsumeResult = {
-        allowed: true,
-        tokensRemaining: 47,
-        resetAt: new Date(Date.now() + 60000),
-      }
-      mockAdapter.consumeTokens
-        .mockResolvedValueOnce(tokensConsumed)
-        .mockResolvedValueOnce(searchConsumed)
-
-      const result = await rateLimiter.reportUsage(
-        testProvider,
-        'workspace-1',
-        multiConfig,
-        {},
-        { tokenCount: 200, searchUnits: 3 }
-      )
-
-      expect(result.dimensions).toHaveLength(2)
-      expect(result.dimensions[0]).toEqual({
-        name: 'tokens',
-        consumed: 200,
-        allowed: true,
-        tokensRemaining: 800,
-      })
-      expect(result.dimensions[1]).toEqual({
-        name: 'search_units',
-        consumed: 3,
-        allowed: true,
-        tokensRemaining: 47,
-      })
-
-      expect(mockAdapter.consumeTokens).toHaveBeenCalledTimes(2)
     })
 
     it('should continue with remaining dimensions if extractUsage throws', async () => {

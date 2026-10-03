@@ -1,11 +1,10 @@
-import { getErrorMessage, toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram/constants'
+import { INSTAGRAM_GRAPH_BASE } from '@/tools/instagram/constants'
 import type { InstagramPublishResponse } from '@/tools/instagram/types'
 
 export const INSTAGRAM_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
@@ -108,198 +107,6 @@ export async function readGraphError(response: Response): Promise<string> {
   return text || response.statusText
 }
 
-export async function resolveIgUserId(
-  accessToken: string,
-  igUserId?: string,
-  signal?: AbortSignal
-): Promise<string> {
-  if (igUserId && igUserId.trim().length > 0) {
-    return igUserId.trim()
-  }
-
-  const response = await fetch(graphUrl('/me', { fields: 'user_id' }), {
-    headers: bearerHeaders(accessToken),
-    signal,
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to resolve Instagram user id: ${await readGraphError(response)}`)
-  }
-
-  const data = await readGraphJson<{ user_id?: string | number }>(
-    response,
-    'Instagram user response',
-    signal
-  )
-  if (data.user_id == null || data.user_id === '') {
-    throw new Error('Instagram /me response did not include a user_id')
-  }
-  return String(data.user_id)
-}
-
-export type ContainerStatusCode = 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED'
-
-export async function getContainerStatus(
-  accessToken: string,
-  containerId: string,
-  signal?: AbortSignal
-): Promise<{ statusCode: ContainerStatusCode | null; status: string | null }> {
-  const response = await fetch(graphUrl(`/${containerId}`, { fields: 'status_code,status' }), {
-    headers: bearerHeaders(accessToken),
-    signal,
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to get container status: ${await readGraphError(response)}`)
-  }
-
-  const data = await readGraphJson<{ status_code?: string; status?: string }>(
-    response,
-    'Instagram container status response',
-    signal
-  )
-  return {
-    statusCode: (data.status_code as ContainerStatusCode | undefined) ?? null,
-    status: data.status ?? null,
-  }
-}
-
-const POLL_INTERVAL_MS = 60_000
-const POLL_MAX_ATTEMPTS = 6
-
-async function waitForNextPoll(signal?: AbortSignal): Promise<void> {
-  if (!signal) {
-    await sleep(POLL_INTERVAL_MS)
-    return
-  }
-
-  if (signal.aborted) {
-    throw toError(signal.reason ?? new Error('Instagram publishing was cancelled'))
-  }
-
-  let abortHandler: (() => void) | undefined
-  const aborted = new Promise<never>((_, reject) => {
-    abortHandler = () =>
-      reject(toError(signal.reason ?? new Error('Instagram publishing was cancelled')))
-    signal.addEventListener('abort', abortHandler, { once: true })
-  })
-
-  try {
-    await Promise.race([sleep(POLL_INTERVAL_MS), aborted])
-  } finally {
-    if (abortHandler) signal.removeEventListener('abort', abortHandler)
-  }
-}
-
-export async function waitForContainerReady(
-  accessToken: string,
-  containerId: string,
-  signal?: AbortSignal
-): Promise<{ statusCode: ContainerStatusCode; status: string | null }> {
-  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-    const { statusCode, status } = await getContainerStatus(accessToken, containerId, signal)
-
-    if (statusCode === 'FINISHED' || statusCode === 'PUBLISHED') {
-      return { statusCode, status }
-    }
-    if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
-      throw new Error(
-        `Instagram media container ${containerId} failed with status ${statusCode}${status ? `: ${status}` : ''}`
-      )
-    }
-
-    if (attempt < POLL_MAX_ATTEMPTS - 1) {
-      await waitForNextPoll(signal)
-    }
-  }
-
-  throw new Error(`Timed out waiting for Instagram container ${containerId} to finish processing`)
-}
-
-/**
- * Graph content publishing endpoints document query/form parameters, not JSON
- * bodies (JSON is only documented for the messaging endpoints), so publish
- * POSTs are sent form-encoded.
- */
-async function postGraphForm(
-  accessToken: string,
-  path: string,
-  params: Record<string, unknown>,
-  signal?: AbortSignal
-): Promise<Response> {
-  const form = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null) {
-      form.set(key, String(value))
-    }
-  }
-
-  return fetch(graphUrl(path), {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: form.toString(),
-    signal,
-  })
-}
-
-export async function createMediaContainer(
-  accessToken: string,
-  igUserId: string,
-  body: Record<string, unknown>,
-  signal?: AbortSignal
-): Promise<string> {
-  const response = await postGraphForm(accessToken, `/${igUserId}/media`, body, signal)
-
-  if (!response.ok) {
-    throw new Error(`Failed to create media container: ${await readGraphError(response)}`)
-  }
-
-  const data = await readGraphJson<{ id?: string | number }>(
-    response,
-    'Instagram create container response',
-    signal
-  )
-  const id = idString(data.id)
-  if (!id) {
-    throw new Error('Create media container response missing id')
-  }
-  return id
-}
-
-export async function publishMediaContainer(
-  accessToken: string,
-  igUserId: string,
-  creationId: string,
-  signal?: AbortSignal
-): Promise<string> {
-  const response = await postGraphForm(
-    accessToken,
-    `/${igUserId}/media_publish`,
-    {
-      creation_id: creationId,
-    },
-    signal
-  )
-
-  if (!response.ok) {
-    throw new Error(`Failed to publish media: ${await readGraphError(response)}`)
-  }
-
-  const data = await readGraphJson<{ id?: string | number }>(
-    response,
-    'Instagram publish media response',
-    signal
-  )
-  const id = idString(data.id)
-  if (!id) {
-    throw new Error('Publish media response missing id')
-  }
-  return id
-}
-
 /**
  * Shared transformResponse for the publish tools, which all proxy through
  * internal API routes returning `{ success, output, error }`.
@@ -373,12 +180,21 @@ function isCompleteInstagramPublishOutput(
   )
 }
 
-export function parseCommaSeparated(value?: string): string[] {
-  if (!value) return []
-  return value
+export function parseCommaSeparated(value: unknown): string[] {
+  if (typeof value !== 'string') {
+    throw new Error('Instagram insight metrics must be a non-empty comma-separated string')
+  }
+
+  const items = value
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean)
+
+  if (items.length === 0) {
+    throw new Error('Instagram insight metrics must be a non-empty comma-separated string')
+  }
+
+  return items
 }
 
 /** Clamp Graph pagination `limit` to a safe range (default 25, max 100). */

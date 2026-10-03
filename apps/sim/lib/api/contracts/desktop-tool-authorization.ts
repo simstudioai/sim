@@ -1,12 +1,16 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+/** A client tool call id the desktop main process presents for native execution. */
+export const desktopToolCallIdSchema = z
+  .string()
+  .min(1, 'Tool call ID is required')
+  .max(256, 'Tool call ID is too long')
+  .regex(/^[^\x00-\x1f\x7f]+$/, 'Tool call ID contains invalid control characters')
+
 export const authorizeDesktopToolBodySchema = z.object({
-  toolCallId: z
-    .string()
-    .min(1, 'Tool call ID is required')
-    .max(256, 'Tool call ID is too long')
-    .regex(/^[^\x00-\x1f\x7f]+$/, 'Tool call ID contains invalid control characters'),
+  claim: z.boolean().optional(),
+  toolCallId: desktopToolCallIdSchema,
 })
 
 export type AuthorizeDesktopToolBody = z.input<typeof authorizeDesktopToolBodySchema>
@@ -14,6 +18,7 @@ export type AuthorizeDesktopToolBody = z.input<typeof authorizeDesktopToolBodySc
 export const authorizeDesktopToolResponseSchema = z.object({
   toolName: z.string().min(1),
   args: z.record(z.string(), z.unknown()),
+  chatId: z.string().min(1),
 })
 
 export type AuthorizeDesktopToolResponse = z.output<typeof authorizeDesktopToolResponseSchema>

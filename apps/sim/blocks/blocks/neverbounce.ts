@@ -1,8 +1,7 @@
 import { NeverBounceIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { NeverBounceResponse } from '@/tools/neverbounce/types'
 
-export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
+export const NeverBounceBlock: BlockConfig = {
   type: 'neverbounce',
   name: 'NeverBounce',
   description: 'Verify email deliverability and check account credits',
@@ -14,6 +13,17 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#064AF4',
   icon: NeverBounceIcon,
+  canvasPresentation: {
+    defaultTitle: 'NeverBounce',
+    sentences: {
+      byOperation: {
+        neverbounce_verify_email: [
+          { text: 'Verify deliverability of', field: 've_email', core: true },
+        ],
+        neverbounce_get_credits: ['Read remaining paid and free verification credits'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -1,7 +1,7 @@
 import type { ThinkingToolParams, ThinkingToolResponse } from '@/tools/thinking/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> = {
+export const thinkingTool: InternalToolConfig<ThinkingToolParams, ThinkingToolResponse> = {
   id: 'thinking_tool',
   name: 'Thinking Tool',
   description:
@@ -18,13 +18,8 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/thinking',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: ThinkingToolParams) => ({
+  operation: {
+    input: (params: ThinkingToolParams) => ({
       thought: params.thought,
     }),
   },

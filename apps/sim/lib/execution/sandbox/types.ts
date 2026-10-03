@@ -24,6 +24,12 @@ export interface SandboxBroker<TArgs = unknown, TResult = unknown> {
 export interface SandboxBrokerContext {
   workspaceId: string
   requestId: string
+  onWorkspaceFileAccess?: (identity: {
+    fileId: string
+    key: string
+    context: 'workspace' | 'mothership'
+    contentUpdatedAt: Date
+  }) => void
 }
 
 export interface SandboxTaskInput {

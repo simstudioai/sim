@@ -88,4 +88,28 @@ describe('trackPanelFocus', () => {
     cleanup()
     panel.remove()
   })
+
+  it('reclaims a focused panel after its window loses and regains focus', () => {
+    const panel = document.createElement('div')
+    const terminalInput = document.createElement('textarea')
+    panel.appendChild(terminalInput)
+    document.body.append(panel)
+    const reportFocus = vi.fn()
+
+    const cleanup = trackPanelFocus(panel, reportFocus)
+    terminalInput.focus()
+    expect(document.activeElement).toBe(terminalInput)
+    expect(reportFocus).toHaveBeenLastCalledWith(true)
+
+    window.dispatchEvent(new Event('blur'))
+    expect(document.activeElement).toBe(terminalInput)
+    expect(reportFocus).toHaveBeenLastCalledWith(false)
+
+    window.dispatchEvent(new Event('focus'))
+    expect(reportFocus).toHaveBeenLastCalledWith(true)
+    expect(reportFocus.mock.calls).toEqual([[true], [false], [true]])
+
+    cleanup()
+    panel.remove()
+  })
 })

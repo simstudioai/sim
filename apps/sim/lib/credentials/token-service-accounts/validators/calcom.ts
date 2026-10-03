@@ -1,3 +1,4 @@
+import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -54,12 +55,11 @@ export async function validateCalcomServiceAccount(
   const userId = String(body.data.id)
   const username = body.data.username
   const email = body.data.email
-  const storedMetadata: Record<string, string> = { userId }
-  if (email) storedMetadata.email = email
+  const label = username || email
 
   return {
     displayName: username || email || 'Cal.com account',
-    auditMetadata: { calcomUserId: userId },
-    storedMetadata,
+    principal: userPrincipal(userId, label),
+    auditMetadata: {},
   }
 }

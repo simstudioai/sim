@@ -13,7 +13,7 @@
 import { db } from '@sim/db'
 import { folder as folderTable, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq } from 'drizzle-orm'
+import { and, count, eq, isNull } from 'drizzle-orm'
 import { adminV1ListWorkspaceFoldersContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -46,19 +46,23 @@ export const GET = withRouteHandler(
         return notFoundResponse('Workspace')
       }
 
+      /**
+       * Without the `deletedAt` filter the count and the page both include rows sitting in
+       * Recently Deleted, so an operator sees phantom folders and an inflated total, and this
+       * endpoint disagrees with every user-facing folder list.
+       */
+      const activeWorkflowFolders = and(
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
+      )
+
       const [countResult, folders] = await Promise.all([
-        db
-          .select({ total: count() })
-          .from(folderTable)
-          .where(
-            and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, 'workflow'))
-          ),
+        db.select({ total: count() }).from(folderTable).where(activeWorkflowFolders),
         db
           .select()
           .from(folderTable)
-          .where(
-            and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, 'workflow'))
-          )
+          .where(activeWorkflowFolders)
           .orderBy(folderTable.sortOrder, folderTable.name)
           .limit(limit)
           .offset(offset),

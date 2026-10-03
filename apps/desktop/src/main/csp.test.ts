@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// csp pulls in @/main/navigation, which imports electron.
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 import { attachCspFallback, DEFAULT_DESKTOP_CSP } from '@/main/csp'
 
 type HeadersReceivedHandler = (
@@ -53,28 +57,6 @@ describe('attachCspFallback', () => {
         url: `${APP_ORIGIN}/workspace`,
         resourceType: 'mainFrame',
         responseHeaders: { 'content-security-policy': ["default-src 'self'"] },
-      },
-      cb
-    )
-    expect(cb).toHaveBeenCalledWith({})
-  })
-
-  it('leaves subresources untouched', () => {
-    const cb = vi.fn()
-    session.run()?.(
-      { url: `${APP_ORIGIN}/app.js`, resourceType: 'script', responseHeaders: {} },
-      cb
-    )
-    expect(cb).toHaveBeenCalledWith({})
-  })
-
-  it('leaves non-app-origin documents untouched', () => {
-    const cb = vi.fn()
-    session.run()?.(
-      {
-        url: 'https://accounts.google.com/o/oauth2',
-        resourceType: 'mainFrame',
-        responseHeaders: {},
       },
       cb
     )

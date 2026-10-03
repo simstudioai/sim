@@ -26,3 +26,23 @@ export function parseFolderedRowId(rowId: string): ParsedFolderedRowId {
   }
   return { kind: 'resource', id: rowId }
 }
+
+/**
+ * Splits a selection of foldered row ids into the two id lists every bulk operation takes.
+ *
+ * A foldered list holds folder rows and resource rows in one selection (see
+ * {@link folderRowId}), so every consumer needs this same split before it can call an API.
+ */
+export function splitFolderedRowIds(rowIds: Iterable<string>): {
+  folderIds: string[]
+  resourceIds: string[]
+} {
+  const folderIds: string[] = []
+  const resourceIds: string[] = []
+  for (const rowId of rowIds) {
+    const parsed = parseFolderedRowId(rowId)
+    if (parsed.kind === 'folder') folderIds.push(parsed.id)
+    else resourceIds.push(parsed.id)
+  }
+  return { folderIds, resourceIds }
+}

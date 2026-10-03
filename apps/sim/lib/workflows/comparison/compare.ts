@@ -1,25 +1,27 @@
-import { createLogger } from '@sim/logger'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import {
+  blockRetryEquals,
+  collectErrorSourceBlockIds,
+  resolveEffectiveErrorEnabled,
+} from '@sim/workflow-types/workflow'
+import { resolveCanonicalBlockSpec } from '@/lib/workflows/canonical/block-spec'
+import {
+  type CanonicalFieldSpec,
+  canonicalizeSubBlockValue,
+} from '@/lib/workflows/canonical/subblock-value'
 import {
   extractBlockFieldsForComparison,
-  extractSubBlockRest,
   filterSubBlockIds,
+  type NormalizedEdge,
   normalizedStringify,
   normalizeEdge,
   normalizeLoop,
   normalizeParallel,
-  normalizeSubBlockValue,
   normalizeTriggerConfigValues,
   normalizeValue,
   normalizeVariables,
   sanitizeVariable,
-} from './normalize'
-import { formatValueForDisplay, resolveFieldLabel, resolveValueForDisplay } from './resolve-values'
-
-const MAX_CHANGES_PER_BLOCK = 6
-const MAX_EDGE_DETAILS = 3
-
-const logger = createLogger('WorkflowComparison')
+} from '@/lib/workflows/comparison/normalize'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
  * Compare the current workflow state with the deployed state to detect meaningful changes.
@@ -41,21 +43,61 @@ interface FieldChange {
   newValue: unknown
 }
 
+export interface BlockFieldChange extends FieldChange {
+  scope: 'block' | 'subblock'
+}
+
+/** The loop configuration fields a container diff compares, in the order they are reported. */
+export const LOOP_CONFIG_FIELDS = [
+  'loopType',
+  'iterations',
+  'forEachItems',
+  'whileCondition',
+  'doWhileCondition',
+] as const
+
+/** The parallel configuration fields a container diff compares, in the order they are reported. */
+export const PARALLEL_CONFIG_FIELDS = ['parallelType', 'count', 'distribution'] as const
+
+export type ContainerConfigField =
+  | (typeof LOOP_CONFIG_FIELDS)[number]
+  | (typeof PARALLEL_CONFIG_FIELDS)[number]
+
 /**
- * Result of workflow diff analysis between two workflow states
+ * A loop or parallel container present on both sides whose configuration or
+ * membership differs. Added and removed containers are reported as blocks.
  */
+export interface ContainerChange {
+  id: string
+  kind: 'loop' | 'parallel'
+  name?: string
+  changes: FieldChange[]
+  /** Block ids that are inside the container on the current side only */
+  nodesAdded: string[]
+  /** Block ids that were inside the container on the previous side only */
+  nodesRemoved: string[]
+}
+
+/** A connection's canonical endpoints and the block names from its own version. */
+export interface EdgeChange extends NormalizedEdge {
+  sourceName: string
+  targetName: string
+}
+
+/** Result of workflow diff analysis between two workflow states. */
 export interface WorkflowDiffSummary {
   addedBlocks: Array<{ id: string; type: string; name?: string }>
   removedBlocks: Array<{ id: string; type: string; name?: string }>
-  modifiedBlocks: Array<{ id: string; type: string; name?: string; changes: FieldChange[] }>
+  modifiedBlocks: Array<{ id: string; type: string; name?: string; changes: BlockFieldChange[] }>
   edgeChanges: {
     added: number
     removed: number
-    addedDetails: Array<{ sourceName: string; targetName: string }>
-    removedDetails: Array<{ sourceName: string; targetName: string }>
+    addedDetails: EdgeChange[]
+    removedDetails: EdgeChange[]
   }
   loopChanges: { added: number; removed: number; modified: number }
   parallelChanges: { added: number; removed: number; modified: number }
+  containerChanges: ContainerChange[]
   variableChanges: {
     added: number
     removed: number
@@ -65,6 +107,111 @@ export interface WorkflowDiffSummary {
     modifiedNames: string[]
   }
   hasChanges: boolean
+}
+
+/**
+ * Field-by-field description of a container that changed, from the normalized
+ * shapes the equality check already uses so the two can never disagree.
+ */
+function describeContainerChange(
+  id: string,
+  kind: ContainerChange['kind'],
+  name: string | undefined,
+  current: { nodes: string[] } | null,
+  previous: { nodes: string[] } | null,
+  fields: readonly string[]
+): ContainerChange {
+  const changes: FieldChange[] = []
+  const currentRecord = (current ?? {}) as Record<string, unknown>
+  const previousRecord = (previous ?? {}) as Record<string, unknown>
+  for (const field of fields) {
+    if (normalizedStringify(currentRecord[field]) !== normalizedStringify(previousRecord[field])) {
+      changes.push({
+        field,
+        oldValue: previousRecord[field] ?? null,
+        newValue: currentRecord[field] ?? null,
+      })
+    }
+  }
+  const currentNodes = new Set(current?.nodes ?? [])
+  const previousNodes = new Set(previous?.nodes ?? [])
+  return {
+    id,
+    kind,
+    name,
+    changes,
+    nodesAdded: [...currentNodes].filter((node) => !previousNodes.has(node)),
+    nodesRemoved: [...previousNodes].filter((node) => !currentNodes.has(node)),
+  }
+}
+
+/**
+ * A container's configuration as it would be reported field by field, keeping
+ * only the fields its loop or parallel type uses. For a container that exists
+ * on one side, so its card can show what it runs as a change from nothing.
+ */
+export function containerConfigFields(
+  state: Pick<WorkflowState, 'loops' | 'parallels'>,
+  id: string
+): Array<{ field: ContainerConfigField; value: unknown }> {
+  const loop = normalizeLoop(state.loops?.[id])
+  const parallel = loop ? undefined : normalizeParallel(state.parallels?.[id])
+  const record = (loop ?? parallel) as Record<string, unknown> | undefined
+  if (!record) return []
+  const fields: readonly ContainerConfigField[] = loop ? LOOP_CONFIG_FIELDS : PARALLEL_CONFIG_FIELDS
+  return fields
+    .filter((field) => record[field] !== undefined)
+    .map((field) => ({ field, value: record[field] }))
+}
+
+/** Whether any counted section of a summary reports a difference. */
+export function summaryHasChanges(summary: Omit<WorkflowDiffSummary, 'hasChanges'>): boolean {
+  return (
+    summary.addedBlocks.length > 0 ||
+    summary.removedBlocks.length > 0 ||
+    summary.modifiedBlocks.length > 0 ||
+    summary.edgeChanges.added > 0 ||
+    summary.edgeChanges.removed > 0 ||
+    summary.loopChanges.added > 0 ||
+    summary.loopChanges.removed > 0 ||
+    summary.loopChanges.modified > 0 ||
+    summary.parallelChanges.added > 0 ||
+    summary.parallelChanges.removed > 0 ||
+    summary.parallelChanges.modified > 0 ||
+    summary.variableChanges.added > 0 ||
+    summary.variableChanges.removed > 0 ||
+    summary.variableChanges.modified > 0
+  )
+}
+
+/**
+ * Fields the comparison engine counts but a reviewer never needs to see: pure
+ * canvas presentation. They still drive "needs redeploy", so the summary keeps
+ * them and {@link omitPresentationChanges} hides them for review. The
+ * basic/advanced mode memory is NOT one of them: with both values stored, the
+ * mode decides which one executes.
+ */
+export function isPresentationField(field: string): boolean {
+  return field === 'horizontalHandles' || field.endsWith('.properties')
+}
+
+/**
+ * The summary with presentation-only field changes removed, and any block that
+ * only had those dropped from the modified list, so the canvas and the list
+ * agree on what counts as a change.
+ */
+export function omitPresentationChanges(summary: WorkflowDiffSummary): WorkflowDiffSummary {
+  const modifiedBlocks = summary.modifiedBlocks
+    .map((block) => ({
+      ...block,
+      changes: block.changes.filter(
+        (change) => change.scope !== 'block' || !isPresentationField(change.field)
+      ),
+    }))
+    .filter((block) => block.changes.length > 0)
+  const next = { ...summary, modifiedBlocks }
+  next.hasChanges = summaryHasChanges(next)
+  return next
 }
 
 /**
@@ -81,6 +228,7 @@ export function generateWorkflowDiffSummary(
     edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
     loopChanges: { added: 0, removed: 0, modified: 0 },
     parallelChanges: { added: 0, removed: 0, modified: 0 },
+    containerChanges: [],
     variableChanges: {
       added: 0,
       removed: 0,
@@ -108,6 +256,7 @@ export function generateWorkflowDiffSummary(
       const sourceBlock = currentBlocks[edge.source]
       const targetBlock = currentBlocks[edge.target]
       result.edgeChanges.addedDetails.push({
+        ...normalizeEdge(edge),
         sourceName: sourceBlock?.name || sourceBlock?.type || edge.source,
         targetName: targetBlock?.name || targetBlock?.type || edge.target,
       })
@@ -131,6 +280,8 @@ export function generateWorkflowDiffSummary(
   const previousBlocks = previousState.blocks || {}
   const currentBlockIds = new Set(Object.keys(currentBlocks))
   const previousBlockIds = new Set(Object.keys(previousBlocks))
+  const currentErrorSources = collectErrorSourceBlockIds(currentState.edges)
+  const previousErrorSources = collectErrorSourceBlockIds(previousState.edges)
 
   for (const id of currentBlockIds) {
     if (!previousBlockIds.has(id)) {
@@ -159,7 +310,7 @@ export function generateWorkflowDiffSummary(
 
     const currentBlock = currentBlocks[id]
     const previousBlock = previousBlocks[id]
-    const changes: FieldChange[] = []
+    const changes: BlockFieldChange[] = []
 
     const {
       blockRest: currentRest,
@@ -172,6 +323,26 @@ export function generateWorkflowDiffSummary(
       subBlocks: previousSubBlocks,
     } = extractBlockFieldsForComparison(previousBlock)
 
+    /**
+     * Outside the structural gate below: the flag alone can match while the edges
+     * disagree, and reading it alone pins a block with a stale `errorEnabled: false`
+     * and a live error edge to "needs redeploy" forever.
+     */
+    const currentErrorEnabled = resolveEffectiveErrorEnabled(currentBlock, id, currentErrorSources)
+    const previousErrorEnabled = resolveEffectiveErrorEnabled(
+      previousBlock,
+      id,
+      previousErrorSources
+    )
+    if (currentErrorEnabled !== previousErrorEnabled) {
+      changes.push({
+        scope: 'block',
+        field: 'errorEnabled',
+        oldValue: previousErrorEnabled,
+        newValue: currentErrorEnabled,
+      })
+    }
+
     const normalizedCurrentBlock = { ...currentRest, data: currentDataRest, subBlocks: undefined }
     const normalizedPreviousBlock = {
       ...previousRest,
@@ -183,27 +354,49 @@ export function generateWorkflowDiffSummary(
       normalizedStringify(normalizedCurrentBlock) !== normalizedStringify(normalizedPreviousBlock)
     ) {
       if (currentBlock.type !== previousBlock.type) {
-        changes.push({ field: 'type', oldValue: previousBlock.type, newValue: currentBlock.type })
+        changes.push({
+          scope: 'block',
+          field: 'type',
+          oldValue: previousBlock.type,
+          newValue: currentBlock.type,
+        })
       }
       if (currentBlock.name !== previousBlock.name) {
-        changes.push({ field: 'name', oldValue: previousBlock.name, newValue: currentBlock.name })
+        changes.push({
+          scope: 'block',
+          field: 'name',
+          oldValue: previousBlock.name,
+          newValue: currentBlock.name,
+        })
       }
       if (currentBlock.enabled !== previousBlock.enabled) {
         changes.push({
+          scope: 'block',
           field: 'enabled',
           oldValue: previousBlock.enabled,
           newValue: currentBlock.enabled,
         })
       }
+      /** `errorEnabled` is compared above, against the edges as well as the flag. */
       const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({
+            scope: 'block',
             field,
             oldValue: previousBlock[field],
             newValue: currentBlock[field],
           })
         }
+      }
+      /** Outside `blockFields`, whose `!!` coercion cannot tell two policies apart. */
+      if (!blockRetryEquals(currentBlock.retry, previousBlock.retry)) {
+        changes.push({
+          scope: 'block',
+          field: 'retry',
+          oldValue: previousBlock.retry,
+          newValue: currentBlock.retry,
+        })
       }
       if (normalizedStringify(currentDataRest) !== normalizedStringify(previousDataRest)) {
         const allDataKeys = new Set([
@@ -215,6 +408,7 @@ export function generateWorkflowDiffSummary(
             normalizedStringify(currentDataRest[key]) !== normalizedStringify(previousDataRest[key])
           ) {
             changes.push({
+              scope: 'block',
               field: `data.${key}`,
               oldValue: previousDataRest[key] ?? null,
               newValue: currentDataRest[key] ?? null,
@@ -231,43 +425,45 @@ export function generateWorkflowDiffSummary(
       ...new Set([...Object.keys(normalizedCurrentSubs), ...Object.keys(normalizedPreviousSubs)]),
     ])
 
+    /*
+     * Resolved from the CURRENT definition and applied to both sides, so a field
+     * added to a block definition after a workflow was deployed reads the same
+     * on the frozen snapshot as on the live draft.
+     */
+    const blockSpec = resolveCanonicalBlockSpec(currentBlock)
+
     for (const subId of allSubBlockIds) {
       const currentSub = normalizedCurrentSubs[subId] as Record<string, unknown> | undefined
       const previousSub = normalizedPreviousSubs[subId] as Record<string, unknown> | undefined
 
-      if (!currentSub || !previousSub) {
+      /*
+       * A field the definition does not declare still gets blank-collapsed; it
+       * just has no default to compare against. Falling back to the stored type
+       * keeps the shape rules working for undeclared and custom-block fields.
+       */
+      const declared = blockSpec?.fields.get(subId)
+      const spec: CanonicalFieldSpec = {
+        type: (declared?.type ?? currentSub?.type ?? previousSub?.type) as string | undefined,
+        defaultValue: declared?.defaultValue,
+        emptyIsValid: declared?.emptyIsValid,
+      }
+
+      /*
+       * Absence and blankness are the same answer here, so a key present on one
+       * side only is not itself a change — it is a change only if the value it
+       * holds resolves to something. Comparing presence directly is what made
+       * `acceptOtherMethods: false` on the live side differ from a deployed
+       * snapshot that predates the field.
+       */
+      const currentValue = canonicalizeSubBlockValue(subId, currentSub?.value, spec)
+      const previousValue = canonicalizeSubBlockValue(subId, previousSub?.value, spec)
+
+      if (normalizedStringify(currentValue) !== normalizedStringify(previousValue)) {
         changes.push({
+          scope: 'subblock',
           field: subId,
-          oldValue: (previousSub as Record<string, unknown> | undefined)?.value ?? null,
-          newValue: (currentSub as Record<string, unknown> | undefined)?.value ?? null,
-        })
-        continue
-      }
-
-      const subType = currentSub.type ?? previousSub.type
-      const currentValue = normalizeSubBlockValue(subId, currentSub.value, subType)
-      const previousValue = normalizeSubBlockValue(subId, previousSub.value, subType)
-
-      if (typeof currentValue === 'string' && typeof previousValue === 'string') {
-        if (currentValue !== previousValue) {
-          changes.push({ field: subId, oldValue: previousSub.value, newValue: currentSub.value })
-        }
-      } else {
-        const normalizedCurrent = normalizeValue(currentValue)
-        const normalizedPrevious = normalizeValue(previousValue)
-        if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
-          changes.push({ field: subId, oldValue: previousSub.value, newValue: currentSub.value })
-        }
-      }
-
-      const currentSubRest = extractSubBlockRest(currentSub)
-      const previousSubRest = extractSubBlockRest(previousSub)
-
-      if (normalizedStringify(currentSubRest) !== normalizedStringify(previousSubRest)) {
-        changes.push({
-          field: `${subId}.properties`,
-          oldValue: previousSubRest,
-          newValue: currentSubRest,
+          oldValue: previousSub?.value ?? null,
+          newValue: currentSub?.value ?? null,
         })
       }
     }
@@ -284,31 +480,31 @@ export function generateWorkflowDiffSummary(
 
   const currentEdges = (currentState.edges || []).map(normalizeEdge)
   const previousEdges = (previousState.edges || []).map(normalizeEdge)
-  const currentEdgeSet = new Set(currentEdges.map(normalizedStringify))
-  const previousEdgeSet = new Set(previousEdges.map(normalizedStringify))
+  const currentEdgeMap = new Map(currentEdges.map((edge) => [normalizedStringify(edge), edge]))
+  const previousEdgeMap = new Map(previousEdges.map((edge) => [normalizedStringify(edge), edge]))
 
-  const resolveBlockName = (blockId: string): string => {
-    const block = currentBlocks[blockId] || previousBlocks[blockId]
+  const resolveBlockName = (blocks: WorkflowState['blocks'], blockId: string): string => {
+    const block = blocks[blockId]
     return block?.name || block?.type || blockId
   }
 
-  for (const edgeStr of currentEdgeSet) {
-    if (!previousEdgeSet.has(edgeStr)) {
+  for (const [edgeKey, edge] of currentEdgeMap) {
+    if (!previousEdgeMap.has(edgeKey)) {
       result.edgeChanges.added++
-      const edge = JSON.parse(edgeStr) as { source: string; target: string }
       result.edgeChanges.addedDetails.push({
-        sourceName: resolveBlockName(edge.source),
-        targetName: resolveBlockName(edge.target),
+        ...edge,
+        sourceName: resolveBlockName(currentBlocks, edge.source),
+        targetName: resolveBlockName(currentBlocks, edge.target),
       })
     }
   }
-  for (const edgeStr of previousEdgeSet) {
-    if (!currentEdgeSet.has(edgeStr)) {
+  for (const [edgeKey, edge] of previousEdgeMap) {
+    if (!currentEdgeMap.has(edgeKey)) {
       result.edgeChanges.removed++
-      const edge = JSON.parse(edgeStr) as { source: string; target: string }
       result.edgeChanges.removedDetails.push({
-        sourceName: resolveBlockName(edge.source),
-        targetName: resolveBlockName(edge.target),
+        ...edge,
+        sourceName: resolveBlockName(previousBlocks, edge.source),
+        targetName: resolveBlockName(previousBlocks, edge.target),
       })
     }
   }
@@ -322,10 +518,23 @@ export function generateWorkflowDiffSummary(
     if (!previousLoopIds.includes(id)) {
       result.loopChanges.added++
     } else {
-      const normalizedCurrent = normalizeValue(normalizeLoop(currentLoops[id]))
-      const normalizedPrevious = normalizeValue(normalizeLoop(previousLoops[id]))
-      if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
+      const normalizedCurrent = normalizeLoop(currentLoops[id])
+      const normalizedPrevious = normalizeLoop(previousLoops[id])
+      if (
+        normalizedStringify(normalizeValue(normalizedCurrent)) !==
+        normalizedStringify(normalizeValue(normalizedPrevious))
+      ) {
         result.loopChanges.modified++
+        result.containerChanges.push(
+          describeContainerChange(
+            id,
+            'loop',
+            currentBlocks[id]?.name ?? previousBlocks[id]?.name,
+            normalizedCurrent ?? null,
+            normalizedPrevious ?? null,
+            LOOP_CONFIG_FIELDS
+          )
+        )
       }
     }
   }
@@ -344,10 +553,23 @@ export function generateWorkflowDiffSummary(
     if (!previousParallelIds.includes(id)) {
       result.parallelChanges.added++
     } else {
-      const normalizedCurrent = normalizeValue(normalizeParallel(currentParallels[id]))
-      const normalizedPrevious = normalizeValue(normalizeParallel(previousParallels[id]))
-      if (normalizedStringify(normalizedCurrent) !== normalizedStringify(normalizedPrevious)) {
+      const normalizedCurrent = normalizeParallel(currentParallels[id])
+      const normalizedPrevious = normalizeParallel(previousParallels[id])
+      if (
+        normalizedStringify(normalizeValue(normalizedCurrent)) !==
+        normalizedStringify(normalizeValue(normalizedPrevious))
+      ) {
         result.parallelChanges.modified++
+        result.containerChanges.push(
+          describeContainerChange(
+            id,
+            'parallel',
+            currentBlocks[id]?.name ?? previousBlocks[id]?.name,
+            normalizedCurrent ?? null,
+            normalizedPrevious ?? null,
+            PARALLEL_CONFIG_FIELDS
+          )
+        )
       }
     }
   }
@@ -385,238 +607,7 @@ export function generateWorkflowDiffSummary(
     }
   }
 
-  result.hasChanges =
-    result.addedBlocks.length > 0 ||
-    result.removedBlocks.length > 0 ||
-    result.modifiedBlocks.length > 0 ||
-    result.edgeChanges.added > 0 ||
-    result.edgeChanges.removed > 0 ||
-    result.loopChanges.added > 0 ||
-    result.loopChanges.removed > 0 ||
-    result.loopChanges.modified > 0 ||
-    result.parallelChanges.added > 0 ||
-    result.parallelChanges.removed > 0 ||
-    result.parallelChanges.modified > 0 ||
-    result.variableChanges.added > 0 ||
-    result.variableChanges.removed > 0 ||
-    result.variableChanges.modified > 0
+  result.hasChanges = summaryHasChanges(result)
 
   return result
-}
-
-/**
- * Convert a WorkflowDiffSummary to a human-readable string for AI description generation
- */
-export function formatDiffSummaryForDescription(summary: WorkflowDiffSummary): string {
-  if (!summary.hasChanges) {
-    return 'No structural changes detected (configuration may have changed)'
-  }
-
-  const changes: string[] = []
-
-  for (const block of summary.addedBlocks) {
-    const name = block.name || block.type
-    changes.push(`Added block: ${name} (${block.type})`)
-  }
-
-  for (const block of summary.removedBlocks) {
-    const name = block.name || block.type
-    changes.push(`Removed block: ${name} (${block.type})`)
-  }
-
-  for (const block of summary.modifiedBlocks) {
-    const name = block.name || block.type
-    const meaningfulChanges = block.changes.filter((c) => !c.field.endsWith('.properties'))
-    for (const change of meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)) {
-      const fieldLabel = resolveFieldLabel(block.type, change.field)
-      const oldStr = formatValueForDisplay(change.oldValue)
-      const newStr = formatValueForDisplay(change.newValue)
-      changes.push(`Modified ${name}: ${fieldLabel} changed from "${oldStr}" to "${newStr}"`)
-    }
-    if (meaningfulChanges.length > MAX_CHANGES_PER_BLOCK) {
-      changes.push(
-        `  ...and ${meaningfulChanges.length - MAX_CHANGES_PER_BLOCK} more changes in ${name}`
-      )
-    }
-  }
-
-  formatEdgeChanges(summary, changes)
-  formatCountChanges(summary.loopChanges, 'loop', changes)
-  formatCountChanges(summary.parallelChanges, 'parallel group', changes)
-  formatVariableChanges(summary, changes)
-
-  return changes.join('\n')
-}
-
-/**
- * Converts a WorkflowDiffSummary to a human-readable string with resolved display names.
- * Resolves IDs (credentials, channels, workflows, etc.) to human-readable names using
- * the selector registry infrastructure.
- *
- * @param summary - The diff summary to format
- * @param currentState - The current workflow state for context extraction
- * @param workflowId - The workflow ID for API calls
- * @returns A formatted string describing the changes with resolved names
- */
-export async function formatDiffSummaryForDescriptionAsync(
-  summary: WorkflowDiffSummary,
-  currentState: WorkflowState,
-  workflowId: string
-): Promise<string> {
-  if (!summary.hasChanges) {
-    return 'No structural changes detected (configuration may have changed)'
-  }
-
-  const changes: string[] = []
-
-  for (const block of summary.addedBlocks) {
-    const name = block.name || block.type
-    changes.push(`Added block: ${name} (${block.type})`)
-  }
-
-  for (const block of summary.removedBlocks) {
-    const name = block.name || block.type
-    changes.push(`Removed block: ${name} (${block.type})`)
-  }
-
-  const modifiedBlockPromises = summary.modifiedBlocks.map(async (block) => {
-    const name = block.name || block.type
-    const blockChanges: string[] = []
-    const meaningfulChanges = block.changes.filter((c) => !c.field.endsWith('.properties'))
-
-    const changesToProcess = meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)
-    const resolvedChanges = await Promise.all(
-      changesToProcess.map(async (change) => {
-        const context = {
-          blockType: block.type,
-          subBlockId: change.field,
-          workflowId,
-          currentState,
-          blockId: block.id,
-        }
-
-        const [oldResolved, newResolved] = await Promise.all([
-          resolveValueForDisplay(change.oldValue, context),
-          resolveValueForDisplay(change.newValue, context),
-        ])
-
-        return {
-          field: resolveFieldLabel(block.type, change.field),
-          oldLabel: oldResolved.displayLabel,
-          newLabel: newResolved.displayLabel,
-        }
-      })
-    )
-
-    for (const resolved of resolvedChanges) {
-      blockChanges.push(
-        `Modified ${name}: ${resolved.field} changed from "${resolved.oldLabel}" to "${resolved.newLabel}"`
-      )
-    }
-
-    if (meaningfulChanges.length > MAX_CHANGES_PER_BLOCK) {
-      blockChanges.push(
-        `  ...and ${meaningfulChanges.length - MAX_CHANGES_PER_BLOCK} more changes in ${name}`
-      )
-    }
-
-    return blockChanges
-  })
-
-  const allModifiedBlockChanges = await Promise.all(modifiedBlockPromises)
-  for (const blockChanges of allModifiedBlockChanges) {
-    changes.push(...blockChanges)
-  }
-
-  formatEdgeChanges(summary, changes)
-  formatCountChanges(summary.loopChanges, 'loop', changes)
-  formatCountChanges(summary.parallelChanges, 'parallel group', changes)
-  formatVariableChanges(summary, changes)
-
-  logger.info('Generated async diff description', {
-    workflowId,
-    changeCount: changes.length,
-    modifiedBlocks: summary.modifiedBlocks.length,
-  })
-
-  return changes.join('\n')
-}
-
-function formatEdgeDetailList(
-  edges: Array<{ sourceName: string; targetName: string }>,
-  total: number,
-  verb: string,
-  changes: string[]
-): void {
-  if (edges.length === 0) {
-    changes.push(`${verb} ${total} connection(s)`)
-    return
-  }
-  for (const edge of edges.slice(0, MAX_EDGE_DETAILS)) {
-    changes.push(`${verb} connection: ${edge.sourceName} -> ${edge.targetName}`)
-  }
-  if (total > MAX_EDGE_DETAILS) {
-    changes.push(`  ...and ${total - MAX_EDGE_DETAILS} more ${verb.toLowerCase()} connection(s)`)
-  }
-}
-
-function formatEdgeChanges(summary: WorkflowDiffSummary, changes: string[]): void {
-  if (summary.edgeChanges.added > 0) {
-    formatEdgeDetailList(
-      summary.edgeChanges.addedDetails ?? [],
-      summary.edgeChanges.added,
-      'Added',
-      changes
-    )
-  }
-  if (summary.edgeChanges.removed > 0) {
-    formatEdgeDetailList(
-      summary.edgeChanges.removedDetails ?? [],
-      summary.edgeChanges.removed,
-      'Removed',
-      changes
-    )
-  }
-}
-
-function formatCountChanges(
-  counts: { added: number; removed: number; modified: number },
-  label: string,
-  changes: string[]
-): void {
-  if (counts.added > 0) changes.push(`Added ${counts.added} ${label}(s)`)
-  if (counts.removed > 0) changes.push(`Removed ${counts.removed} ${label}(s)`)
-  if (counts.modified > 0) changes.push(`Modified ${counts.modified} ${label}(s)`)
-}
-
-function formatVariableChanges(summary: WorkflowDiffSummary, changes: string[]): void {
-  const categories = [
-    {
-      count: summary.variableChanges.added,
-      names: summary.variableChanges.addedNames ?? [],
-      verb: 'added',
-    },
-    {
-      count: summary.variableChanges.removed,
-      names: summary.variableChanges.removedNames ?? [],
-      verb: 'removed',
-    },
-    {
-      count: summary.variableChanges.modified,
-      names: summary.variableChanges.modifiedNames ?? [],
-      verb: 'modified',
-    },
-  ] as const
-
-  const varParts: string[] = []
-  for (const { count, names, verb } of categories) {
-    if (count > 0) {
-      varParts.push(
-        names.length > 0 ? `${verb} ${names.map((n) => `"${n}"`).join(', ')}` : `${count} ${verb}`
-      )
-    }
-  }
-  if (varParts.length > 0) {
-    changes.push(`Variables: ${varParts.join(', ')}`)
-  }
 }

@@ -45,7 +45,6 @@ export const CalendarDayCell = forwardRef<HTMLButtonElement, CalendarDayCellProp
         className={cn(
           chipVariants({
             variant: selected ? 'primary' : today ? 'border' : undefined,
-            flush: true,
           }),
           'justify-center p-0',
           fullWidth ? 'h-[30px] w-full' : 'size-[30px]',

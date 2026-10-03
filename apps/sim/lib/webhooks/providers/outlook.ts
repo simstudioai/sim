@@ -1,14 +1,15 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import type {
   FormatInputContext,
   FormatInputResult,
   PollingConfigContext,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:Outlook')
 
@@ -29,7 +30,7 @@ export const outlookHandler: WebhookProviderHandler = {
     logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
 
     try {
-      const providerConfig = (webhookData.providerConfig as Record<string, unknown>) || {}
+      const providerConfig = toRecord(webhookData.providerConfig)
       const credentialId = providerConfig.credentialId as string | undefined
 
       if (!credentialId) {

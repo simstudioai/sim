@@ -6,7 +6,7 @@ import {
   materializeLargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeValueRef, LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
-import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/materialization.server'
+import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { REFERENCE } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'

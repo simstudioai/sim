@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -69,8 +69,8 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
   const isDirty = draft !== currentValue
   const isSaving = savePersonal.isPending || upsertWorkspace.isPending
 
-  const save = async () => {
-    if (!credential || !canEdit || isConflicted || !isDirty || isSaving) return
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!credential || !canEdit || isConflicted || !isDirty || isSaving) return true
     try {
       if (isPersonal) {
         const { data: latest } = await refetchPersonal()
@@ -79,7 +79,7 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
             description: 'Could not load your latest secrets. Please try again in a moment.',
           })
           logger.warn('Aborted personal secret save: latest environment unavailable')
-          return
+          return false
         }
         const merged: Record<string, string> = Object.fromEntries(
           Object.entries(latest).map(([key, entry]) => [key, entry.value])
@@ -89,13 +89,48 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
       } else {
         await upsertWorkspace.mutateAsync({ workspaceId, variables: { [envKey]: draft } })
       }
+      return true
     } catch (error) {
       toast.error("Couldn't save value", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
       logger.error('Failed to save secret value', error)
+      return false
     }
-  }
+  }, [
+    credential,
+    canEdit,
+    isConflicted,
+    isDirty,
+    isSaving,
+    isPersonal,
+    envKey,
+    draft,
+    workspaceId,
+    refetchPersonal,
+    savePersonal.mutateAsync,
+    upsertWorkspace.mutateAsync,
+  ])
 
-  return { value: draft, setValue: setDraft, canEdit, isConflicted, isDirty, save, isSaving }
+  const discard = useCallback(() => setDraft(currentValue), [currentValue])
+
+  /**
+   * Memoized so the object itself is stable, not just its callbacks: consumers
+   * pass the whole value as one unit into {@link useCredentialDetailForm}'s
+   * `section`, where a fresh object each render would churn the combined
+   * save/discard identities regardless of the callbacks inside it.
+   */
+  return useMemo(
+    () => ({
+      value: draft,
+      setValue: setDraft,
+      canEdit,
+      isConflicted,
+      isDirty,
+      save,
+      discard,
+      isSaving,
+    }),
+    [draft, canEdit, isConflicted, isDirty, save, discard, isSaving]
+  )
 }

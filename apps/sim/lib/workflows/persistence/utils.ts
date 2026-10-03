@@ -17,18 +17,27 @@ import {
 import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } from '@sim/workflow-persistence/save'
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
+import {
+  collectErrorSourceBlockIds,
+  normalizeWorkflowEdgeHandles,
+} from '@sim/workflow-types/workflow'
+import type { Edge } from '@xyflow/react'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
-import type { Edge } from 'reactflow'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   backfillCanonicalModes,
+  migrateCanonicalModeIds,
   migrateSubblockIds,
 } from '@/lib/workflows/migrations/subblock-migrations'
 import { backfillWhatsAppInteractiveType } from '@/lib/workflows/migrations/whatsapp-interactive-type'
+import {
+  assertNoWithheldBlockType,
+  type WorkflowPersistGovernance,
+} from '@/lib/workflows/persistence/block-access-guard'
 import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 
@@ -37,6 +46,13 @@ const logger = createLogger('WorkflowDBHelpers')
 export type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
+
+export class NoActiveDeploymentError extends Error {
+  constructor(workflowId: string) {
+    super(`Workflow ${workflowId} has no active deployment`)
+    this.name = 'NoActiveDeploymentError'
+  }
+}
 
 function hasReturnedRows(result: unknown): boolean {
   if (Array.isArray(result)) return result.length > 0
@@ -83,13 +99,19 @@ export interface DeployedWorkflowData extends NormalizedWorkflowData {
   variables?: Record<string, unknown>
 }
 
+/**
+ * Whether the active deployment of `workflowId` contains `blockId`. Answered by
+ * the database so the (often hundreds of KB) deployed state never leaves it.
+ */
 export async function blockExistsInDeployment(
   workflowId: string,
   blockId: string
 ): Promise<boolean> {
   try {
     const [result] = await db
-      .select({ state: workflowDeploymentVersion.state })
+      .select({
+        exists: sql<boolean>`json_typeof(${workflowDeploymentVersion.state} -> 'blocks' -> ${blockId}) = 'object'`,
+      })
       .from(workflowDeploymentVersion)
       .where(
         and(
@@ -99,12 +121,7 @@ export async function blockExistsInDeployment(
       )
       .limit(1)
 
-    if (!result?.state) {
-      return false
-    }
-
-    const state = result.state as WorkflowState
-    return !!state.blocks?.[blockId]
+    return result?.exists === true
   } catch (error) {
     logger.error(`Error checking block ${blockId} in deployment for workflow ${workflowId}:`, error)
     return false
@@ -120,10 +137,21 @@ const DEPLOYED_STATE_CACHE_TTL_MS = 5 * 60 * 1000
  * absolute on purpose — it bounds the one non-immutable part, the live credential
  * remap in `applyBlockMigrations` — so credential changes still propagate.
  */
-const deployedStateCache = new LRUCache<string, DeployedWorkflowData>({
+const deployedStateCache = new LRUCache<
+  string,
+  { workflowId: string; state: DeployedWorkflowData }
+>({
   max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
   ttl: DEPLOYED_STATE_CACHE_TTL_MS,
 })
+
+function getCachedDeploymentState(
+  workflowId: string,
+  deploymentVersionId: string
+): DeployedWorkflowData | undefined {
+  const cached = deployedStateCache.get(deploymentVersionId)
+  return cached?.workflowId === workflowId ? structuredClone(cached.state) : undefined
+}
 
 /** Evicts one deployed-state entry, or clears the cache when no id is given. */
 export function invalidateDeployedStateCache(deploymentVersionId?: string): void {
@@ -134,39 +162,95 @@ export function invalidateDeployedStateCache(deploymentVersionId?: string): void
   deployedStateCache.clear()
 }
 
+/**
+ * Deliberately module-private: it queries the global pool, so calling it inside
+ * a transaction callback is the nested checkout `packages/db/tx-tripwire.ts`
+ * throws on. Keeping it unexported is what stops a future caller reaching for it
+ * from somewhere that already holds a connection — the same reasoning that made
+ * `materializeDeploymentState` take a `workspaceId` instead of resolving one.
+ */
+async function resolveWorkspaceId(workflowId: string, provided?: string): Promise<string> {
+  if (provided) return provided
+  const workflowContext = await getActiveWorkflowContext(workflowId)
+  if (!workflowContext?.workspaceId) {
+    throw new Error(`Workflow ${workflowId} has no workspace`)
+  }
+  return workflowContext.workspaceId
+}
+
 interface DeploymentStateRow {
   id: string
   state: unknown
 }
 
-async function materializeDeploymentState(
+/**
+ * Projects a deployment version's frozen jsonb into the shape change detection
+ * compares against.
+ *
+ * Exported because both sides of "needs redeploy" must be materialized the same
+ * way. The client asks through `/api/workflows/[id]/deployed`; the server asks
+ * through `checkNeedsRedeployment`. When only one of them ran the migrations,
+ * the handle canonicalization and the `errorEnabled` backfill below, the two
+ * surfaces answered the same question differently for the same workflow.
+ */
+/**
+ * `workspaceId` is required rather than resolved here on purpose. Resolving it
+ * means `getActiveWorkflowContext`, which queries the global pool, and
+ * `checkNeedsRedeployment` calls this from inside a REPEATABLE READ transaction
+ * that already holds a pooled connection — the nested checkout
+ * `packages/db/tx-tripwire.ts` exists to catch. Taking the id as an argument
+ * makes the violation unrepresentable rather than merely avoided.
+ */
+export async function materializeDeploymentState(
   workflowId: string,
   version: DeploymentStateRow,
-  providedWorkspaceId?: string
+  workspaceId: string,
+  executor?: DbOrTx,
+  options: { cache?: boolean } = {}
 ): Promise<DeployedWorkflowData> {
-  const cached = deployedStateCache.get(version.id)
-  if (cached) {
-    return structuredClone(cached)
-  }
+  const cached =
+    options.cache === false ? undefined : getCachedDeploymentState(workflowId, version.id)
+  if (cached) return cached
 
   const state = version.state as WorkflowState & { variables?: Record<string, unknown> }
-  let resolvedWorkspaceId = providedWorkspaceId
-  if (!resolvedWorkspaceId) {
-    const workflowContext = await getActiveWorkflowContext(workflowId)
-    resolvedWorkspaceId = workflowContext?.workspaceId
-  }
-
-  if (!resolvedWorkspaceId) {
-    throw new Error(`Workflow ${workflowId} has no workspace`)
-  }
 
   const { blocks: migratedBlocks } = await applyBlockMigrations(
     state.blocks || {},
-    resolvedWorkspaceId
+    workspaceId,
+    executor
   )
+  /*
+   * Read straight out of the version's jsonb blob, so unlike every path that
+   * goes through `loadWorkflowFromNormalizedTables` these handles were never
+   * canonicalized. Change detection diffs this against a normalized live state,
+   * so a snapshot holding a side-anchored id would report every edge as
+   * added-and-removed and pin the workflow to "needs redeploy" forever.
+   */
+  const edges = normalizeWorkflowEdgeHandles(state.edges)
+
+  /**
+   * An error edge means the error output is on. Every version before the toggle
+   * drew that port unconditionally, so a snapshot with such an edge was taken
+   * from a block that had the output — and the migration backfilling the flag
+   * only reaches the live tables, never a version's frozen jsonb. Without this
+   * the deployed side reads `false` against a live `true` and every workflow
+   * deployed before the toggle asks to be redeployed once. This backfills only
+   * the deployed side, so change detection must apply `resolveEffectiveErrorEnabled`
+   * to the live side too — reading the raw flag there compares a block against
+   * itself forever. Same rule the block renderers apply; none may read the flag alone.
+   */
+  const errorSourceBlockIds = collectErrorSourceBlockIds(edges)
+  const blocks: DeployedWorkflowData['blocks'] = {}
+  for (const [blockId, block] of Object.entries(migratedBlocks)) {
+    blocks[blockId] =
+      block.errorEnabled || !errorSourceBlockIds.has(blockId)
+        ? block
+        : { ...block, errorEnabled: true }
+  }
+
   const deployedState: DeployedWorkflowData = {
-    blocks: migratedBlocks,
-    edges: state.edges || [],
+    blocks,
+    edges,
     loops: state.loops || {},
     parallels: state.parallels || {},
     variables: state.variables || {},
@@ -174,7 +258,9 @@ async function materializeDeploymentState(
     deploymentVersionId: version.id,
   }
 
-  deployedStateCache.set(version.id, deployedState)
+  if (options.cache !== false) {
+    deployedStateCache.set(version.id, { workflowId, state: deployedState })
+  }
   return structuredClone(deployedState)
 }
 
@@ -200,24 +286,36 @@ export async function loadDeployedWorkflowState(
       .limit(1)
 
     if (!active?.state) {
-      throw new Error(`Workflow ${workflowId} has no active deployment`)
+      throw new NoActiveDeploymentError(workflowId)
     }
 
-    return materializeDeploymentState(workflowId, active, providedWorkspaceId)
+    return materializeDeploymentState(
+      workflowId,
+      active,
+      await resolveWorkspaceId(workflowId, providedWorkspaceId)
+    )
   } catch (error) {
-    logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
+    // An undeployed workflow is an outcome each caller handles, not a load failure.
+    if (!(error instanceof NoActiveDeploymentError)) {
+      logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
+    }
     throw error
   }
 }
 
 /**
  * Loads an immutable deployment snapshot by ID for work admitted before a later cutover.
+ * A cached materialization of this workflow's version (the same entry
+ * {@link materializeDeploymentState} serves) is returned without reading the row again.
  */
 export async function loadWorkflowDeploymentVersionState(
   workflowId: string,
   deploymentVersionId: string,
   providedWorkspaceId?: string
 ): Promise<DeployedWorkflowData> {
+  const cached = getCachedDeploymentState(workflowId, deploymentVersionId)
+  if (cached) return cached
+
   const [version] = await db
     .select({
       id: workflowDeploymentVersion.id,
@@ -236,7 +334,11 @@ export async function loadWorkflowDeploymentVersionState(
     throw new Error(`Deployment ${deploymentVersionId} was not found for workflow ${workflowId}`)
   }
 
-  return materializeDeploymentState(workflowId, version, providedWorkspaceId)
+  return materializeDeploymentState(
+    workflowId,
+    version,
+    await resolveWorkspaceId(workflowId, providedWorkspaceId)
+  )
 }
 
 interface MigrationContext {
@@ -289,6 +391,11 @@ const applyBlockMigrations = createMigrationPipeline([
       ctx.workspaceId,
       ctx.executor
     )
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
+  (ctx) => {
+    const { blocks, migrated } = migrateCanonicalModeIds(ctx.blocks)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
@@ -467,8 +574,8 @@ async function migrateCredentialIds(
  * Load workflow from normalized tables and apply all block migrations
  * (credential ID rewrites, agent message migration, subblock ID migrations,
  * WhatsApp interactive-type backfill, canonical-mode backfill, tool
- * sanitization). Returns null if the workflow has not been migrated to
- * normalized tables yet.
+ * sanitization). An existing blockless workflow returns an explicit empty
+ * graph; null is reserved for a missing workflow or a failed load.
  */
 export async function loadWorkflowFromNormalizedTables(
   workflowId: string,
@@ -563,11 +670,56 @@ export function buildWorkflowDeploymentSnapshot(
   }
 }
 
+/**
+ * The one door every normalized-table write goes through, and therefore the one
+ * place the workspace's integration allowlist can be enforced for all of them.
+ *
+ * `governance` is required rather than optional: a whole-graph write hands over
+ * finished blocks naming whatever types it likes, so every caller has to state
+ * whose grants judge them. Passing `{ subjectUserId: null }` is how a caller
+ * declares itself actorless — the executor persisting a run's own graph, a fork
+ * copying rows, workspace creation seeding a starter workflow — and that is a
+ * claim a reader can check, where an omitted argument was not.
+ *
+ * The check runs before any transaction is opened so a refusal never holds the
+ * workflow's row lock, and it throws rather than folding into the `{ success }`
+ * union: the union collapses to a 500 at every caller, and this refusal is a
+ * 403.
+ */
+const ADMITTED_WORKFLOW_STATE = Symbol('admitted-workflow-state')
+
+export interface AdmittedWorkflowState {
+  readonly [ADMITTED_WORKFLOW_STATE]: true
+  readonly state: WorkflowState
+}
+
+/** Evaluates authoring policy before a compound mutation acquires database locks. */
+export async function admitWorkflowState(
+  state: WorkflowState,
+  governance: WorkflowPersistGovernance
+): Promise<AdmittedWorkflowState> {
+  await assertNoWithheldBlockType(governance, Object.values(state.blocks))
+  return { [ADMITTED_WORKFLOW_STATE]: true, state: structuredClone(state) }
+}
+
+/** Persists a previously admitted graph on the caller's business transaction. */
+export async function saveAdmittedWorkflowState(
+  tx: DbOrTx,
+  workflowId: string,
+  admitted: AdmittedWorkflowState
+): Promise<{ success: boolean; error?: string }> {
+  if (!admitted[ADMITTED_WORKFLOW_STATE]) throw new Error('Workflow state was not admitted')
+  return saveWorkflowToNormalizedTablesRaw(workflowId, admitted.state, tx)
+}
+
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
   state: WorkflowState,
+  governance: WorkflowPersistGovernance,
   externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
+  await assertNoWithheldBlockType(governance, Object.values(state.blocks))
+
   if (externalTx) {
     return saveWorkflowToNormalizedTablesRaw(workflowId, state, externalTx)
   }
@@ -611,13 +763,15 @@ export async function updateDeploymentVersionMetadata(params: {
   version: number
   name?: string | null
   description?: string | null
+  tx?: DbOrTx
 }): Promise<{ name: string | null; description: string | null } | null> {
+  const executor = params.tx ?? db
   const updateData: { name?: string | null; description?: string | null } = {}
   if (params.name !== undefined) updateData.name = params.name
   if (params.description !== undefined) updateData.description = params.description
 
   if (Object.keys(updateData).length === 0) {
-    const [row] = await db
+    const [row] = await executor
       .select({
         name: workflowDeploymentVersion.name,
         description: workflowDeploymentVersion.description,
@@ -633,7 +787,7 @@ export async function updateDeploymentVersionMetadata(params: {
     return row ?? null
   }
 
-  const [updated] = await db
+  const [updated] = await executor
     .update(workflowDeploymentVersion)
     .set(updateData)
     .where(
@@ -905,7 +1059,7 @@ export async function findPreviousDeploymentVersion(
  */
 export async function getWorkflowDeploymentVersion(
   workflowId: string,
-  version: number
+  version: number | 'active'
 ): Promise<{
   id: string
   version: number
@@ -915,6 +1069,10 @@ export async function getWorkflowDeploymentVersion(
   createdAt: Date
   state: unknown
 } | null> {
+  const versionPredicate =
+    version === 'active'
+      ? eq(workflowDeploymentVersion.isActive, true)
+      : eq(workflowDeploymentVersion.version, version)
   const [row] = await db
     .select({
       id: workflowDeploymentVersion.id,
@@ -926,18 +1084,27 @@ export async function getWorkflowDeploymentVersion(
       state: workflowDeploymentVersion.state,
     })
     .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.version, version)
-      )
-    )
+    .where(and(eq(workflowDeploymentVersion.workflowId, workflowId), versionPredicate))
     .limit(1)
 
   return row ?? null
 }
 
-export async function listWorkflowVersions(workflowId: string): Promise<{
+export interface ListWorkflowVersionsOptions {
+  /** Caps the rows read. Omitted reads every version. */
+  limit?: number
+  /**
+   * Keyset bound for the `version DESC` ordering: returns only versions
+   * strictly below this number, i.e. the page *after* it. Paired with `limit`
+   * this keeps a paginated caller off a full-table read.
+   */
+  afterVersion?: number
+}
+
+export async function listWorkflowVersions(
+  workflowId: string,
+  options: ListWorkflowVersionsOptions = {}
+): Promise<{
   versions: Array<{
     id: string
     version: number
@@ -952,22 +1119,29 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
 }> {
   const { user } = await import('@sim/db')
 
+  const versionConditions = [eq(workflowDeploymentVersion.workflowId, workflowId)]
+  if (options.afterVersion !== undefined) {
+    versionConditions.push(lt(workflowDeploymentVersion.version, options.afterVersion))
+  }
+
+  const versionQuery = db
+    .select({
+      id: workflowDeploymentVersion.id,
+      version: workflowDeploymentVersion.version,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+      isActive: workflowDeploymentVersion.isActive,
+      createdAt: workflowDeploymentVersion.createdAt,
+      createdBy: workflowDeploymentVersion.createdBy,
+      deployedByName: user.name,
+    })
+    .from(workflowDeploymentVersion)
+    .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
+    .where(and(...versionConditions))
+    .orderBy(desc(workflowDeploymentVersion.version))
+
   const [rows, [currentOperation]] = await Promise.all([
-    db
-      .select({
-        id: workflowDeploymentVersion.id,
-        version: workflowDeploymentVersion.version,
-        name: workflowDeploymentVersion.name,
-        description: workflowDeploymentVersion.description,
-        isActive: workflowDeploymentVersion.isActive,
-        createdAt: workflowDeploymentVersion.createdAt,
-        createdBy: workflowDeploymentVersion.createdBy,
-        deployedByName: user.name,
-      })
-      .from(workflowDeploymentVersion)
-      .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
-      .where(eq(workflowDeploymentVersion.workflowId, workflowId))
-      .orderBy(desc(workflowDeploymentVersion.version)),
+    options.limit !== undefined ? versionQuery.limit(options.limit) : versionQuery,
     /**
      * Only the workflow's current (latest-generation) operation carries a
      * status marker: a failed or in-flight attempt is live information until

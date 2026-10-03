@@ -573,6 +573,36 @@ export const pipedreamProfile: CompetitorProfile = {
           { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Partial: at the package layer only. A code step declares its own third-party dependencies inline, any npm package in Node.js (`import axios from "axios@0.19.2"` pins an exact version, and `^`/`~` ranges are accepted) and any PyPI package in Python (`import requests`, with `# pipedream add-package pandas==2.0.0` to pin), with no package.json or requirements.txt to maintain. The OS layer underneath is not user-configurable — there is no custom image, Dockerfile, or apt-level control: Bash steps ship a Pipedream-chosen set of binaries (curl, jq, git), and the docs state that packages needing binaries or system libraries absent from the execution environment are unsupported.',
+        detail:
+          'Pipedream\'s docs are explicit that workflows start with no packages installed and that importing a module is what makes it available for that step, so the dependency set is genuinely user-controlled per step rather than a vendor-curated allowlist. System-level configuration is not exposed: Pipedream\'s Python docs say of packages requiring environment binaries that "we cannot support these types of packages at this time," and the Bash docs direct users who need a package preinstalled to file a support request, with downloading and building software into the 2GB `/tmp` scratch directory at run time as the only self-service workaround. There is no custom-image, Dockerfile, or apt-level configuration, and because Pipedream is cloud-hosted only there is no self-hosted runtime a team could rebuild instead.',
+        shortValue: 'Packages only: any npm or PyPI dependency, fixed OS image',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs',
+            label: 'Pipedream Docs: Running Node.js in Workflows (npm packages)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/python',
+            label: 'Pipedream Docs: Running Python in Workflows (PyPI packages)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/bash/',
+            label: 'Pipedream Docs: Running Bash in Workflows (preinstalled binaries)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/limits/',
+            label: 'Pipedream Docs: Limits (2GB `/tmp` disk)',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value: 'Yes: workflows can be hosted as HTTP/REST endpoints',
         detail:
@@ -872,6 +902,41 @@ export const pipedreamProfile: CompetitorProfile = {
             url: 'https://pipedream.com/docs/workspaces/sso',
             label: 'Single Sign On Overview',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          "Not publicly documented: Pipedream's workspace administration and SSO documentation enumerates the security controls available to admins — requiring two-factor authentication for all members, configuring SAML/Google/Okta SSO, SCIM provisioning, and managing verified domains, all on the Business plan — and includes no absolute session lifetime, idle timeout, or forced re-authentication interval. Pipedream also does not publish a fixed session length for the dashboard, so the absence of an admin control is inferred from the documentation rather than stated by Pipedream.",
+        detail:
+          "Neither the workspace administration docs, the SSO overview, nor the Privacy and Security page mentions session duration, idle timeout, or re-authentication frequency; the only session-related announcement Pipedream has published was a one-time invalidation of all login sessions during a September 2021 maintenance window, which stated no ongoing policy. Workspaces on SSO inherit whatever re-authentication cadence the upstream identity provider enforces, but that is the IdP's policy rather than a Pipedream-side control. The one expiration Pipedream does publish covers API credentials rather than signed-in user sessions: REST API OAuth access tokens expire after 1 hour.",
+        shortValue: 'No documented admin session lifetime or idle timeout',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows/workspaces/',
+            label: 'Pipedream Docs: Managing workspaces (2FA, SSO, verified domains)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows/workspaces/sso/',
+            label: 'Pipedream Docs: Single Sign-On Overview',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://pipedream.com/docs/privacy-and-security/',
+            label: 'Pipedream Docs: Privacy and Security',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://pipedream.com/community/t/update-to-pipedream-login-session-handling-on-monday-september-6th/1174',
+            label: 'Pipedream Community: Update to login session handling',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://pipedream.com/docs/rest-api/auth',
+            label: 'Pipedream Docs: REST API Authentication (1-hour access tokens)',
+            asOf: '2026-08-10',
           },
         ],
       },

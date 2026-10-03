@@ -1,5 +1,12 @@
 import type { AshbyOffer } from '@/tools/ashby/types'
-import { ashbyAuthHeaders, ashbyErrorMessage, mapOffer, OFFER_OUTPUTS } from '@/tools/ashby/utils'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  ashbyLimit,
+  ashbyTimestamp,
+  mapOffer,
+  OFFER_OUTPUTS,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListOffersParams {
@@ -9,6 +16,9 @@ interface AshbyListOffersParams {
   syncToken?: string
   createdAfter?: string
   applicationId?: string
+  offerStatus?: string[]
+  acceptanceStatus?: string[]
+  approvalStatus?: string[]
 }
 
 interface AshbyListOffersResponse extends ToolResponse {
@@ -16,6 +26,7 @@ interface AshbyListOffersResponse extends ToolResponse {
     offers: AshbyOffer[]
     moreDataAvailable: boolean
     nextCursor: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -63,6 +74,24 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
       visibility: 'user-or-llm',
       description: 'Return only offers for the specified application UUID',
     },
+    offerStatus: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Non-empty array of offer process statuses to include',
+    },
+    acceptanceStatus: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Non-empty array of offer acceptance statuses to include',
+    },
+    approvalStatus: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Non-empty array of latest-version approval statuses to include',
+    },
   },
 
   request: {
@@ -72,13 +101,18 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
-      if (params.createdAfter) {
-        const ms = new Date(params.createdAfter).getTime()
-        if (!Number.isNaN(ms)) body.createdAfter = ms
-      }
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
+      if (params.createdAfter)
+        body.createdAfter = ashbyTimestamp(params.createdAfter, 'createdAfter')
       if (params.syncToken) body.syncToken = params.syncToken
       if (params.applicationId) body.applicationId = params.applicationId.trim()
+      if (Array.isArray(params.offerStatus) && params.offerStatus.length > 0)
+        body.offerStatus = params.offerStatus
+      if (Array.isArray(params.acceptanceStatus) && params.acceptanceStatus.length > 0)
+        body.acceptanceStatus = params.acceptanceStatus
+      if (Array.isArray(params.approvalStatus) && params.approvalStatus.length > 0)
+        body.approvalStatus = params.approvalStatus
       return body
     },
   },
@@ -96,6 +130,7 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
         offers: (data.results ?? []).map(mapOffer),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -116,6 +151,11 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
     nextCursor: {
       type: 'string',
       description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    nextSyncCursor: {
+      type: 'string',
+      description: 'Opaque token for the next incremental sync, returned on the final page',
       optional: true,
     },
   },

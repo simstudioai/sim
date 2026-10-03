@@ -3,22 +3,106 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  acceptInvitationContract,
-  getInvitationContract,
-  type InvitationDetails,
-} from '@/lib/api/contracts/invitations'
+import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
-import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
+import { InvitationDisclosure, InviteLayout, InviteStatusCard } from '@/app/invite/components'
+import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
+import { workspaceKeys } from '@/hooks/queries/workspace'
+import { clearUserData } from '@/stores'
 
 const logger = createLogger('InviteById')
+
+/** Workspace names listed in the invitation title before collapsing into an "and N more" tail. */
+const MAX_LISTED_WORKSPACE_NAMES = 3
+
+/** A document navigation, so the marketing surface initializes its own theme store. */
+function returnHome(): void {
+  window.location.href = '/'
+}
+
+/**
+ * Goes through the shared builder so the invite page cannot drift from the
+ * cross-link shape the auth pages use.
+ */
+function inviteAuthLink(
+  path: '/login' | '/signup',
+  callbackUrl: string,
+  isNewUser = false
+): string {
+  return buildAuthCrossLink(path, { callbackUrl, isInviteFlow: true, isNewUser })
+}
+
+interface InviteAction {
+  label: string
+  onClick: () => void
+}
+
+interface SignedOutPromptParams {
+  registrationDisabled: boolean
+  isNewUser: boolean
+  callbackUrl: string
+  navigate: (href: string) => void
+}
+
+/**
+ * What a signed-out visitor is offered, as one branch so the copy and the
+ * buttons under it can never disagree about what they may do.
+ *
+ * Under DISABLE_REGISTRATION only signing in is possible — `/signup` rejects
+ * the visitor server-side, so offering it would be a dead end.
+ */
+function signedOutPrompt({
+  registrationDisabled,
+  isNewUser,
+  callbackUrl,
+  navigate,
+}: SignedOutPromptParams): { description: string; actions: InviteAction[] } {
+  const signIn: InviteAction = {
+    label: 'Sign in',
+    onClick: () => navigate(inviteAuthLink('/login', callbackUrl)),
+  }
+
+  if (registrationDisabled) {
+    return {
+      description: 'Account creation is disabled on this instance',
+      actions: [signIn],
+    }
+  }
+
+  if (isNewUser) {
+    return {
+      description: 'Create an account to join this workspace on Sim',
+      actions: [
+        {
+          label: 'Create an account',
+          onClick: () => navigate(inviteAuthLink('/signup', callbackUrl)),
+        },
+        { ...signIn, label: 'I already have an account' },
+      ],
+    }
+  }
+
+  return {
+    description: 'Sign in to your account to accept this invitation',
+    actions: [
+      signIn,
+      {
+        label: 'Create an account',
+        onClick: () => navigate(inviteAuthLink('/signup', callbackUrl, true)),
+      },
+    ],
+  }
+}
 
 function runBestEffortCacheRefresh(cache: string, refresh: () => Promise<unknown>): void {
   void Promise.resolve()
@@ -38,11 +122,13 @@ type InviteErrorCode =
   | 'already-processed'
   | 'email-mismatch'
   | 'workspace-not-found'
+  | 'disclosure-outdated'
   | 'user-not-found'
   | 'already-member'
   | 'already-in-organization'
   | 'no-seats-available'
   | 'upgrade-required'
+  | 'external-requires-paid-plan'
   | 'invalid-invitation'
   | 'missing-invitation-id'
   | 'server-error'
@@ -86,6 +172,12 @@ function getInviteError(code: string): InviteError {
       code: 'workspace-not-found',
       message: 'The workspace associated with this invitation could not be found.',
     },
+    'disclosure-outdated': {
+      code: 'disclosure-outdated',
+      message:
+        'Your workspaces changed since this page loaded. Review the updated notice and accept again.',
+      canRetry: true,
+    },
     'user-not-found': {
       code: 'user-not-found',
       message: 'Your user account could not be found. Please try signing out and signing back in.',
@@ -110,6 +202,12 @@ function getInviteError(code: string): InviteError {
       code: 'upgrade-required',
       message:
         'The workspace owner needs an active paid plan with billing set up before you can join. Ask them to update their plan, then try again.',
+      canRetry: true,
+    },
+    'external-requires-paid-plan': {
+      code: 'external-requires-paid-plan',
+      message:
+        'External collaborators need their own paid Sim plan. Upgrade your plan, or ask the organization to re-invite you as a member — that uses one of their seats instead.',
       canRetry: true,
     },
     'invalid-invitation': {
@@ -165,15 +263,22 @@ function codeFromStatus(status: number): InviteErrorCode {
 }
 
 function codeFromApiClientError(error: ApiClientError): string {
+  if (error.code && getInviteError(error.code).code !== 'unknown') return error.code
+
   if (error.body && typeof error.body === 'object') {
     const code = (error.body as { error?: unknown }).error
-    if (typeof code === 'string' && code.length > 0) return code
+    if (typeof code === 'string' && getInviteError(code).code !== 'unknown') return code
   }
 
   return codeFromStatus(error.status)
 }
 
-export default function Invite() {
+interface InviteProps {
+  /** DISABLE_REGISTRATION. See {@link signedOutPrompt}. */
+  registrationDisabled: boolean
+}
+
+export default function Invite({ registrationDisabled }: InviteProps) {
   const router = useRouter()
   const params = useParams()
   const inviteId = params.id as string
@@ -181,71 +286,83 @@ export default function Invite() {
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
   const queryClient = useQueryClient()
-  const [invitation, setInvitation] = useState<InvitationDetails | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<InviteError | null>(null)
+  const [actionError, setActionError] = useState<InviteError | null>(null)
   const [isAccepting, setIsAccepting] = useState(false)
   const [accepted, setAccepted] = useState(false)
-  const [isNewUser, setIsNewUser] = useState(false)
-  const [token, setToken] = useState<string | null>(null)
+  /** `undefined` until the effect reads storage; `null` once read and empty. */
+  const [storedToken, setStoredToken] = useState<string | null | undefined>(undefined)
+
+  const isNewUser = searchParams.get('new') === 'true'
+  const errorReason = searchParams.get('error')
+  const urlError = errorReason ? getInviteError(errorReason) : null
+  /** `|| null` so an empty `?token=` falls back to storage rather than querying with ''. */
+  const tokenFromQuery = searchParams.get('token') || null
+  /**
+   * Derived during render so the invitation query key is correct on the first
+   * commit; an effect-set token refetches under a second key whenever the
+   * session cache is already warm at mount.
+   */
+  const token = tokenFromQuery ?? storedToken ?? null
+  const isTokenResolved = tokenFromQuery !== null || storedToken !== undefined
 
   useEffect(() => {
-    const errorReason = searchParams.get('error')
-    const isNew = searchParams.get('new') === 'true'
-    setIsNewUser(isNew)
-
-    const tokenFromQuery = searchParams.get('token')
     if (tokenFromQuery) {
-      setToken(tokenFromQuery)
       sessionStorage.setItem(inviteTokenStorageKey, tokenFromQuery)
-    } else {
-      const storedToken = sessionStorage.getItem(inviteTokenStorageKey)
-      if (storedToken) {
-        setToken(storedToken)
-      }
+      return
     }
+    setStoredToken(sessionStorage.getItem(inviteTokenStorageKey))
+  }, [tokenFromQuery, inviteTokenStorageKey])
 
-    if (errorReason) {
-      setError(getInviteError(errorReason))
-      setIsLoading(false)
-    }
-  }, [searchParams, inviteId, inviteTokenStorageKey])
+  const invitationQuery = useInvitationDetails(inviteId, token, session?.user?.id ?? null, {
+    enabled: Boolean(session?.user) && isTokenResolved,
+  })
+  const invitation = invitationQuery.data?.invitation ?? null
+  const joinPreview = invitationQuery.data?.joinPreview ?? null
+  const isWrongAccount = Boolean(
+    invitation &&
+      session?.user &&
+      normalizeEmail(session.user.email || '') !== normalizeEmail(invitation.email)
+  )
+  const isDisclosureMissing = invitation?.membershipIntent === 'internal' && !joinPreview
+  const isLoading = Boolean(session?.user) && (!isTokenResolved || invitationQuery.isPending)
 
-  useEffect(() => {
-    if (!session?.user) return
-
-    async function fetchInvitation() {
-      setIsLoading(true)
-      try {
-        const data = await requestJson(getInvitationContract, {
-          params: { id: inviteId },
-          query: { token: token ?? undefined },
-        })
-        setInvitation(data.invitation)
-        setError(null)
-      } catch (fetchError) {
-        logger.error('Error fetching invitation:', fetchError)
-        const code =
-          fetchError instanceof ApiClientError
-            ? codeFromApiClientError(fetchError)
-            : 'network-error'
-        setError(getInviteError(code))
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchInvitation()
-  }, [session?.user, inviteId, token])
+  const fetchError = invitationQuery.error
+    ? getInviteError(
+        invitationQuery.error instanceof ApiClientError
+          ? codeFromApiClientError(invitationQuery.error)
+          : 'network-error'
+      )
+    : null
+  /**
+   * Action errors (accept failures) outrank fetch errors; the URL error param
+   * only shows until the invitation loads successfully.
+   */
+  const error =
+    actionError ??
+    fetchError ??
+    (isWrongAccount ? getInviteError('email-mismatch') : null) ??
+    (invitationQuery.data ? null : urlError)
 
   const handleAcceptInvitation = async () => {
-    if (!session?.user || !invitation) return
+    if (!session?.user || !invitation || isWrongAccount || isDisclosureMissing || isAccepting)
+      return
     setIsAccepting(true)
 
     try {
       const data = await requestJson(acceptInvitationContract, {
         params: { id: inviteId },
-        body: { token: token ?? undefined },
+        body: {
+          token: token ?? undefined,
+          /**
+           * Disclosure token: acceptance rejects with disclosure-outdated if
+           * the sweep set no longer matches what this screen showed. Sent
+           * whenever a preview rendered — a no-join preview means the user
+           * was shown that nothing moves (an empty disclosed set), which
+           * must also conflict if acceptance would sweep anything.
+           */
+          disclosedWorkspaceIds: joinPreview ? joinPreview.workspaceIdsToMove : undefined,
+          disclosedOutcome: joinPreview?.outcome,
+        },
       })
 
       setAccepted(true)
@@ -259,13 +376,32 @@ export default function Invite() {
       runBestEffortCacheRefresh('organization', () =>
         queryClient.invalidateQueries({ queryKey: organizationKeys.all })
       )
+      /**
+       * Acceptance can attach the invitee's owned workspaces into the org —
+       * the workspace list must not keep serving the stale personal set.
+       */
+      runBestEffortCacheRefresh('workspaces', () =>
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
+      )
     } catch (acceptError) {
       logger.error('Error accepting invitation:', acceptError)
       const code =
         acceptError instanceof ApiClientError
           ? codeFromApiClientError(acceptError)
           : 'network-error'
-      setError(getInviteError(code))
+      const serverMessage =
+        acceptError instanceof ApiClientError &&
+        acceptError.body &&
+        typeof acceptError.body === 'object' &&
+        typeof (acceptError.body as { message?: unknown }).message === 'string'
+          ? ((acceptError.body as { message: string }).message as string)
+          : null
+      const baseError = getInviteError(code)
+      setActionError(
+        code === 'server-error' && serverMessage
+          ? { ...baseError, message: serverMessage }
+          : baseError
+      )
       setIsAccepting(false)
     }
   }
@@ -277,49 +413,21 @@ export default function Invite() {
   }
 
   if (!session?.user && !isPending) {
-    const callbackUrl = encodeURIComponent(getCallbackUrl())
+    const prompt = signedOutPrompt({
+      registrationDisabled,
+      isNewUser,
+      callbackUrl: getCallbackUrl(),
+      navigate: router.push,
+    })
+
     return (
       <InviteLayout>
         <InviteStatusCard
           type='login'
           title="You've been invited!"
-          description={
-            isNewUser
-              ? 'Create an account to join this workspace on Sim'
-              : 'Sign in to your account to accept this invitation'
-          }
+          description={prompt.description}
           icon='userPlus'
-          actions={[
-            ...(isNewUser
-              ? [
-                  {
-                    label: 'Create an account',
-                    onClick: () =>
-                      router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`),
-                  },
-                  {
-                    label: 'I already have an account',
-                    onClick: () =>
-                      router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
-                  },
-                ]
-              : [
-                  {
-                    label: 'Sign in',
-                    onClick: () =>
-                      router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
-                  },
-                  {
-                    label: 'Create an account',
-                    onClick: () =>
-                      router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`),
-                  },
-                ]),
-            {
-              label: 'Return to Home',
-              onClick: () => router.push('/'),
-            },
-          ]}
+          actions={[...prompt.actions, { label: 'Return to Home', onClick: returnHome }]}
         />
       </InviteLayout>
     )
@@ -334,7 +442,7 @@ export default function Invite() {
   }
 
   if (error) {
-    const callbackUrl = encodeURIComponent(getCallbackUrl())
+    const callbackUrl = getCallbackUrl()
 
     if (error.code === 'email-mismatch') {
       return (
@@ -348,11 +456,22 @@ export default function Invite() {
               {
                 label: 'Sign in with a different account',
                 onClick: async () => {
-                  await client.signOut()
-                  router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)
+                  const loginUrl = inviteAuthLink('/login', callbackUrl)
+                  let canNavigateInApp = false
+                  try {
+                    const [, inMemoryResetSucceeded] = await Promise.all([
+                      client.signOut(),
+                      clearUserData(),
+                    ])
+                    canNavigateInApp = inMemoryResetSucceeded
+                  } catch (error) {
+                    logger.error('Error signing out:', { error })
+                  }
+                  if (canNavigateInApp) router.push(loginUrl)
+                  else window.location.assign(loginUrl)
                 },
               },
-              { label: 'Return to Home', onClick: () => router.push('/') },
+              { label: 'Return to Home', onClick: returnHome },
             ]}
           />
         </InviteLayout>
@@ -368,8 +487,8 @@ export default function Invite() {
             description={error.message}
             icon='users'
             actions={[
-              { label: 'Manage Team Settings', onClick: () => router.push('/workspace') },
-              { label: 'Return to Home', onClick: () => router.push('/') },
+              { label: 'Manage Team Settings', onClick: () => router.push(APP_ENTRY_PATH) },
+              { label: 'Return to Home', onClick: returnHome },
             ]}
           />
         </InviteLayout>
@@ -387,13 +506,17 @@ export default function Invite() {
             actions={[
               {
                 label: 'Sign in to continue',
-                onClick: () => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
+                onClick: () => router.push(inviteAuthLink('/login', callbackUrl)),
               },
-              {
-                label: 'Create an account',
-                onClick: () => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`),
-              },
-              { label: 'Return to Home', onClick: () => router.push('/') },
+              ...(registrationDisabled
+                ? []
+                : [
+                    {
+                      label: 'Create an account',
+                      onClick: () => router.push(inviteAuthLink('/signup', callbackUrl)),
+                    },
+                  ]),
+              { label: 'Return to Home', onClick: returnHome },
             ]}
           />
         </InviteLayout>
@@ -404,7 +527,7 @@ export default function Invite() {
     if (error.canRetry) {
       actions.push({ label: 'Try Again', onClick: () => window.location.reload() })
     }
-    actions.push({ label: 'Return to Home', onClick: () => router.push('/') })
+    actions.push({ label: 'Return to Home', onClick: returnHome })
 
     return (
       <InviteLayout>
@@ -420,9 +543,19 @@ export default function Invite() {
     )
   }
 
+  /**
+   * Names every granted workspace, not just the primary one — an invitation can
+   * span several, and the email already lists them all.
+   */
+  const grantedWorkspaceNames =
+    invitation?.grants
+      .map((grant) => grant.workspaceName)
+      .filter((name): name is string => Boolean(name)) ?? []
   const displayName =
     invitation?.kind === 'workspace'
-      ? invitation.grants[0]?.workspaceName || 'a workspace'
+      ? grantedWorkspaceNames.length > 0
+        ? formatQuotedNameList(grantedWorkspaceNames, MAX_LISTED_WORKSPACE_NAMES)
+        : 'a workspace'
       : invitation?.organizationName || 'an organization'
 
   if (accepted) {
@@ -433,7 +566,7 @@ export default function Invite() {
           title='Welcome!'
           description={`You have successfully joined ${displayName}. Redirecting...`}
           icon='success'
-          actions={[{ label: 'Return to Home', onClick: () => router.push('/') }]}
+          actions={[{ label: 'Return to Home', onClick: returnHome }]}
         />
       </InviteLayout>
     )
@@ -446,16 +579,28 @@ export default function Invite() {
       <InviteStatusCard
         type='invitation'
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
-        description={`You've been invited to join ${displayName}. Click accept below to join.`}
+        description={`You've been invited to join ${displayName}.`}
+        details={
+          invitation && <InvitationDisclosure invitation={invitation} joinPreview={joinPreview} />
+        }
         icon={isOrg ? 'users' : 'mail'}
         actions={[
           {
             label: 'Accept Invitation',
             onClick: handleAcceptInvitation,
-            disabled: isAccepting,
+            disabled: isAccepting || isDisclosureMissing,
             loading: isAccepting,
           },
-          { label: 'Return to Home', onClick: () => router.push('/') },
+          ...(isDisclosureMissing
+            ? [
+                {
+                  label: 'Refresh invitation',
+                  onClick: () => void invitationQuery.refetch(),
+                  disabled: invitationQuery.isFetching,
+                },
+              ]
+            : []),
+          { label: 'Return to Home', onClick: returnHome },
         ]}
       />
     </InviteLayout>

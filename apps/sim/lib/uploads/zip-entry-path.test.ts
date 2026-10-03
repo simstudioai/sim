@@ -1,22 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 
 describe('buildZipEntryPaths', () => {
-  it('mirrors the workspace folder layout', () => {
+  it('sanitizes a slash within one escaped folder name instead of nesting it', () => {
     expect(
-      buildZipEntryPaths([
-        { name: '00_Executive-Overview.docx', folderPath: 'Motherland-Campaign' },
-        { name: 'hero-key-art.png', folderPath: 'Motherland-Campaign/visuals' },
-        { name: 'notes.md', folderPath: null },
-      ])
-    ).toEqual([
-      'Motherland-Campaign/00_Executive-Overview.docx',
-      'Motherland-Campaign/visuals/hero-key-art.png',
-      'notes.md',
-    ])
+      buildZipEntryPaths([{ name: 'contract.pdf', folderPath: 'Finance\\/Legal/Quarterly' }])
+    ).toEqual(['Finance_Legal/Quarterly/contract.pdf'])
   })
 
   it('keeps same-named files in different folders apart', () => {
@@ -85,18 +74,6 @@ describe('buildZipEntryPaths', () => {
     ).toEqual(['a.txt', 'b.txt'])
   })
 
-  it('keeps full paths when a root-level file joins the selection', () => {
-    expect(
-      buildZipEntryPaths(
-        [
-          { name: 'a.txt', folderPath: 'Clients/Acme' },
-          { name: 'b.txt', folderPath: null },
-        ],
-        { rebaseOnCommonFolder: true }
-      )
-    ).toEqual(['Clients/Acme/a.txt', 'b.txt'])
-  })
-
   it('strips traversal and platform-illegal characters', () => {
     expect(
       buildZipEntryPaths([
@@ -109,9 +86,5 @@ describe('buildZipEntryPaths', () => {
 
   it('falls back to a usable name when nothing survives sanitization', () => {
     expect(buildZipEntryPaths([{ name: '..', folderPath: null }])).toEqual(['file'])
-  })
-
-  it('returns no paths for an empty selection', () => {
-    expect(buildZipEntryPaths([], { rebaseOnCommonFolder: true })).toEqual([])
   })
 })

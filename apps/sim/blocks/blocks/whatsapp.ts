@@ -2,7 +2,6 @@ import { WhatsAppIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { WhatsAppResponse } from '@/tools/whatsapp/types'
 import { getTrigger } from '@/triggers'
 
 /** Yes/No dropdowns serialize as `'true'`/`'false'` strings; the tools expect booleans. */
@@ -12,7 +11,13 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
-export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
+/**
+ * Upload Media's file is a canonical basic/advanced pair — an advanced-mode
+ * user has only the reference filled, so both members have to be listed.
+ */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'uploadFileRef'] as const
+
+export const WhatsAppBlock: BlockConfig = {
   type: 'whatsapp',
   name: 'WhatsApp',
   description: 'Send WhatsApp messages',
@@ -25,6 +30,54 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   bgColor: '#25D366',
   iconColor: '#25D366',
   icon: WhatsAppIcon,
+  canvasPresentation: {
+    defaultTitle: 'WhatsApp',
+    /* Everything the trigger configures is plumbing — callback URL, verify
+       token, app secret — so the sentence names the two things the `messages`
+       subscription actually delivers: inbound messages and outbound statuses. */
+    triggerSentences: {
+      default: ['Run on an incoming message or a status update'],
+    },
+    sentences: {
+      byOperation: {
+        send_message: [
+          { text: 'Send', field: 'message', core: true },
+          { text: 'to', field: 'phoneNumber', core: true },
+        ],
+        send_template: [
+          { text: 'Send template', field: 'templateName', core: true },
+          { text: 'to', field: 'phoneNumber', core: true },
+        ],
+        send_media: [
+          { text: 'Send', field: 'mediaType', core: true },
+          { text: 'to', field: 'phoneNumber', core: true },
+          { text: ', captioned', field: 'caption' },
+        ],
+        send_interactive: [
+          {
+            text: 'Send a message with',
+            field: 'interactiveType',
+            core: true,
+          },
+          { text: 'to', field: 'phoneNumber', core: true },
+        ],
+        send_reaction: [
+          { text: 'React with', field: 'emoji', core: true },
+          { text: 'to message', field: 'messageId', core: true },
+        ],
+        mark_read: [{ text: 'Mark message', field: 'messageId', core: true, after: 'as read' }],
+        upload_media: [
+          {
+            text: 'Upload',
+            field: UPLOAD_FILE_FIELD,
+            core: true,
+            after: 'and return a media ID',
+          },
+        ],
+        get_media: [{ text: 'Download media', field: 'downloadMediaId', core: true }],
+      },
+    },
+  },
   triggerAllowed: true,
   subBlocks: [
     {

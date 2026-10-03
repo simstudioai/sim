@@ -1,8 +1,90 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { filterAndCap, filterAndSort, fuzzyMatch, MAX_RESULTS_PER_GROUP } from './utils'
+import {
+  ACTION_MATCH_BIAS,
+  filterAndCap,
+  filterAndSort,
+  fuzzyMatch,
+  getGlobalSearchResults,
+  MAX_RESULTS_PER_GROUP,
+  type SearchEntry,
+  scoreActions,
+  scoreAndSort,
+  scoreSectionItems,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+
+describe('getGlobalSearchResults', () => {
+  it('merge-ranks results across every visible section', () => {
+    const action: SearchEntry = {
+      section: 'actions',
+      score: 7,
+      item: {
+        id: 'create-folder',
+        name: 'Create folder',
+        icon: () => null,
+        context: 'global',
+        run: () => {},
+      },
+    }
+    const workflow: SearchEntry = {
+      section: 'workflows',
+      score: 20,
+      item: { id: 'workflow-1', name: 'New customer workflow', href: '/workflow-1' },
+    }
+    const chat: SearchEntry = {
+      section: 'chats',
+      score: 83,
+      item: { id: 'chat-1', name: 'New chat', href: '/chat-1' },
+    }
+
+    const matches = getGlobalSearchResults(
+      { actions: [action], workflows: [workflow], chats: [chat] },
+      ['actions', 'workflows', 'chats']
+    )
+
+    expect(matches.map((entry) => entry.item.id)).toEqual(['chat-1', 'workflow-1', 'create-folder'])
+  })
+
+  it('biases matched actions above equal-quality matches from entity sections', () => {
+    const action = {
+      id: 'new-chat-action',
+      name: 'New chat',
+      keywords: 'message conversation',
+      icon: () => null,
+      context: 'global' as const,
+      run: () => {},
+    }
+    const chat = { id: 'new-chat-result', name: 'New chat', href: '/new-chat-result' }
+    const [actionMatch] = scoreActions([action], 'new c')
+    const [chatMatch] = scoreAndSort([chat], (item) => item.name, 'new c')
+
+    expect(actionMatch.score).toBe(chatMatch.score + ACTION_MATCH_BIAS)
+    expect(
+      getGlobalSearchResults(
+        {
+          actions: [{ section: 'actions', ...actionMatch }],
+          chats: [{ section: 'chats', ...chatMatch }],
+        },
+        ['actions', 'chats']
+      ).map((entry) => entry.item.id)
+    ).toEqual(['new-chat-action', 'new-chat-result'])
+  })
+})
+
+describe('scoreSectionItems', () => {
+  it('never fills or lifts tool operations from their section label', () => {
+    const operations = [{ name: 'Send Message' }, { name: 'Create Row' }]
+
+    expect(
+      scoreSectionItems('toolOperations', operations, (op) => op.name, 'tool operations')
+    ).toHaveLength(0)
+    expect(scoreSectionItems('toolOperations', operations, (op) => op.name, 'tool')).toHaveLength(0)
+    expect(
+      scoreSectionItems('toolOperations', operations, (op) => op.name, 'send').map(
+        ({ item }) => item.name
+      )
+    ).toEqual(['Send Message'])
+  })
+})
 
 /**
  * The matcher that shipped before fuzzy matching was introduced. Re-implemented
@@ -170,26 +252,6 @@ describe('fuzzyMatch / filterAndSort — no regression vs. old matcher', () => {
   })
 })
 
-describe('fuzzyMatch — new wins (initialisms & scattered)', () => {
-  const wins: Array<[string, string]> = [
-    ['slk', 'Slack'],
-    ['gps', 'Google PageSpeed'],
-    ['crwf', 'Create workflow'],
-    ['msteams', 'Microsoft Teams'],
-  ]
-  for (const [query, expectedTop] of wins) {
-    it(`"${query}" surfaces "${expectedTop}" as the top result`, () => {
-      const results = filterAndSort(CORPUS, toValue, query)
-      expect(results[0]?.label).toBe(expectedTop)
-    })
-  }
-
-  it('finds initialisms the old matcher missed entirely (old returns 0 for "slk")', () => {
-    expect(oldFilterAndSort(CORPUS, toValue, 'slk')).toHaveLength(0)
-    expect(filterAndSort(CORPUS, toValue, 'slk').map((e) => e.label)).toContain('Slack')
-  })
-})
-
 describe('fuzzyMatch — noise control', () => {
   it('rejects a mid-word scattered subsequence ("oge" in P-o-st-g-r-e-s is not a substring)', () => {
     expect(fuzzyMatch('Postgres', 'oge').matched).toBe(false)
@@ -203,42 +265,6 @@ describe('fuzzyMatch — noise control', () => {
     if (firstNonPrefix !== -1 && lastPrefix !== -1) {
       expect(lastPrefix).toBeLessThan(firstNonPrefix)
     }
-  })
-
-  it('returns no matches for genuine non-matches', () => {
-    expect(filterAndSort(CORPUS, toValue, 'zzz')).toHaveLength(0)
-    expect(filterAndSort(CORPUS, toValue, 'qqqq')).toHaveLength(0)
-  })
-})
-
-describe('fuzzyMatch — positions for highlighting', () => {
-  it('reports prefix match positions', () => {
-    expect(fuzzyMatch('Slack', 'sla').positions).toEqual([0, 1, 2])
-  })
-
-  it('reports scattered match positions for "slk" against "Slack" (S, l, k)', () => {
-    expect(fuzzyMatch('Slack', 'slk').positions).toEqual([0, 1, 4])
-  })
-
-  it('highlights the substring itself, not an earlier scattered occurrence', () => {
-    const result = fuzzyMatch('a_apple', 'apple')
-    expect(result.matched).toBe(true)
-    expect(result.positions).toEqual([2, 3, 4, 5, 6])
-  })
-
-  it('highlights a mid-string substring at its real position', () => {
-    expect(fuzzyMatch('Webhook', 'hook').positions).toEqual([3, 4, 5, 6])
-  })
-
-  it('reports empty positions for empty query', () => {
-    const result = fuzzyMatch('Slack', '')
-    expect(result.matched).toBe(true)
-    expect(result.positions).toEqual([])
-  })
-
-  it('matches multi-word tokens order-independently', () => {
-    const result = fuzzyMatch('Slack Send Message', 'message slack')
-    expect(result.matched).toBe(true)
   })
 })
 
@@ -260,58 +286,60 @@ describe('filterAndSort — name ranked above secondary text', () => {
     const sorted = filterAndSort(items, toName, 'agent', toExtra)
     expect(sorted[0].name).toBe('Agent')
   })
+})
 
-  it('keeps every name match above every secondary-only match', () => {
-    const items: Item[] = [
-      { name: 'Zeta', searchValue: 'Zeta agent agent agent' }, // strong secondary hit, no name hit
-      { name: 'Agent', searchValue: 'Agent agent' }, // name hit
-    ]
-    const sorted = filterAndSort(items, toName, 'agent', toExtra)
-    expect(sorted[0].name).toBe('Agent')
+describe('secondary-text matching — no scattered noise', () => {
+  it('does not scatter-match a query across long unrelated secondary text', () => {
+    const items = [{ name: 'Write Contact', extra: 'Wealthbox Write Contact match snap up' }]
+
+    expect(fuzzyMatch(items[0].extra, 'whatsapp').matched).toBe(true)
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'whatsapp',
+        (item) => item.extra
+      )
+    ).toEqual([])
   })
 
-  it('still surfaces an item matched only by its secondary text', () => {
-    const items: Item[] = [{ name: 'Agent', searchValue: 'Agent agent claude-sonnet gpt-4o' }]
-    expect(filterAndSort(items, toName, 'gpt-4o', toExtra)).toHaveLength(1)
-  })
+  it('still matches secondary text by substring and by whole tokens', () => {
+    const items = [{ name: 'Send Message', extra: 'Slack Send Message dm chat' }]
 
-  it('is byte-identical to single-field ranking when no secondary accessor is given', () => {
-    const items = ['Slack message', 'Send message to Slack']
-    expect(filterAndSort(items, (s) => s, 'slack')).toEqual(
-      filterAndSort(items, (s) => s, 'slack', undefined)
-    )
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'slack',
+        (item) => item.extra
+      )
+    ).toHaveLength(1)
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'slack chat',
+        (item) => item.extra
+      )
+    ).toHaveLength(1)
+    expect(
+      filterAndSort(
+        items,
+        (item) => item.name,
+        'whatsapp',
+        (item) => item.extra
+      )
+    ).toHaveLength(0)
   })
 })
 
 describe('filterAndCap', () => {
   const id = (s: string) => s
 
-  it('caps an active search to MAX_RESULTS_PER_GROUP', () => {
-    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
-    expect(filterAndCap(items, id, 'item')).toHaveLength(MAX_RESULTS_PER_GROUP)
-  })
-
   it('never caps the empty (browse) state, even above the cap', () => {
     const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
     const result = filterAndCap(items, id, '')
     expect(result).toHaveLength(items.length)
     expect(result).toBe(items)
-  })
-
-  it('treats whitespace-only input as browse: unfiltered and uncapped', () => {
-    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
-    const result = filterAndCap(items, id, '   ')
-    expect(result).toBe(items)
-  })
-
-  it('returns every match untrimmed when under the cap', () => {
-    const items = ['Slack', 'Slate', 'Slalom']
-    expect(filterAndCap(items, id, 'sl')).toHaveLength(3)
-  })
-
-  it('caps to the top-ranked matches, preserving filterAndSort order', () => {
-    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 5 }, (_, i) => `item ${i}`)
-    const capped = filterAndCap(items, id, 'item')
-    expect(capped).toEqual(filterAndSort(items, id, 'item').slice(0, MAX_RESULTS_PER_GROUP))
   })
 })

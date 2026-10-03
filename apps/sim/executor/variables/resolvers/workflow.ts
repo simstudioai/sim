@@ -89,7 +89,7 @@ export class WorkflowResolver implements Resolver {
     const normalizedRefName = normalizeName(variableName)
     const workflowVars = context.executionContext.workflowVariables || this.workflowVariables
 
-    for (const varObj of Object.values(workflowVars)) {
+    for (const [variableId, varObj] of Object.entries(workflowVars)) {
       const v = varObj as any
       if (!v) continue
 
@@ -100,22 +100,43 @@ export class WorkflowResolver implements Resolver {
         value = this.resolveVariableValue(v.value, normalizedType, variableName)
 
         if (pathParts.length > 0) {
-          return this.navigatePathAsync
+          const resolved = this.navigatePathAsync
             ? this.navigatePathAsync(value, pathParts, context)
             : navigatePath(value, pathParts, {
                 allowLargeValueRefs: context.allowLargeValueRefs,
                 executionContext: context.executionContext,
               })
+          return this.importResolvedVariableProvenance(variableId, await resolved, context)
         }
 
         if (!context.allowLargeValueRefs) {
           assertNoLargeValueRefs(value)
         }
-        return value
+        return this.importResolvedVariableProvenance(variableId, value, context)
       }
     }
 
     return undefined
+  }
+
+  private async importResolvedVariableProvenance(
+    variableId: string,
+    value: unknown,
+    context: ResolutionContext
+  ): Promise<unknown> {
+    const registry = context.executionContext.resolvedSecretTraceRegistry
+    const provenance =
+      context.executionContext.workflowVariableResolvedSecretTraceProvenance?.[variableId]
+    if (!registry || !provenance) return value
+
+    const imported = await registry.importProvenanceForValueAtInputPath(
+      provenance,
+      value,
+      context.inputPath,
+      { trusted: true, origin: 'workflowResolver.inputCrossing' }
+    )
+    if (imported.matched) context.onResolvedSecretReference?.()
+    return value
   }
 
   private resolveVariableValue(

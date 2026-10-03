@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -34,9 +36,9 @@ interface UseImportWorkflowProps {
  */
 export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
   const router = useRouter()
-  const createWorkflowMutation = useCreateWorkflow()
+  const { mutateAsync: createWorkflow } = useCreateWorkflow()
   const queryClient = useQueryClient()
-  const createFolderMutation = useCreateFolder()
+  const { mutateAsync: createFolder } = useCreateFolder()
   const clearDiff = useWorkflowDiffStore((state) => state.clearDiff)
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -56,7 +58,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         folderId,
         sortOrder,
         createWorkflow: async ({ name, description, workspaceId, folderId, sortOrder }) =>
-          createWorkflowMutation.mutateAsync({
+          createWorkflow({
             name,
             description,
             workspaceId,
@@ -66,9 +68,13 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }),
       })
 
-      return result?.workflowId ?? null
+      if (!result) {
+        throw new Error('The file does not contain valid workflow JSON.')
+      }
+
+      return result.workflowId
     },
-    [clearDiff, createWorkflowMutation, workspaceId]
+    [clearDiff, createWorkflow, workspaceId]
   )
 
   /**
@@ -89,10 +95,16 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
 
         if (hasZip && fileArray.length === 1) {
           const zipFile = fileArray[0]
-          const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(zipFile)
+          const { workflows: extractedWorkflows, metadata } = await extractWorkflowsFromZip(
+            zipFile
+          ).catch((error: unknown) => {
+            throw new Error('Failed to import ZIP file. Check that it is a valid ZIP archive.', {
+              cause: error,
+            })
+          })
 
           const folderName = metadata?.workspaceName || zipFile.name.replace(/\.zip$/i, '')
-          const importFolder = await createFolderMutation.mutateAsync({
+          const importFolder = await createFolder({
             name: folderName,
             workspaceId,
           })
@@ -131,7 +143,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
                 parentId = await createFolderRecursive(foldersById.get(folder.parentId)!)
               }
 
-              const newFolder = await createFolderMutation.mutateAsync({
+              const newFolder = await createFolder({
                 name: folder.name,
                 workspaceId,
                 parentId,
@@ -163,7 +175,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
                     const folderNameForSegment = workflow.folderPath[i]
 
                     if (!folderMap.has(pathSegment)) {
-                      const subFolder = await createFolderMutation.mutateAsync({
+                      const subFolder = await createFolder({
                         name: folderNameForSegment,
                         workspaceId,
                         parentId,
@@ -187,6 +199,9 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
               if (workflowId) importedWorkflowIds.push(workflowId)
             } catch (error) {
               logger.error(`Failed to import ${workflow.name}:`, error)
+              toast.error(`Failed to import ${workflow.name}`, {
+                description: getErrorMessage(error, 'Workflow import failed'),
+              })
             }
           }
         } else if (jsonFiles.length > 0) {
@@ -198,6 +213,9 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
               if (workflowId) importedWorkflowIds.push(workflowId)
             } catch (error) {
               logger.error(`Failed to import ${workflow.name}:`, error)
+              toast.error(`Failed to import ${workflow.name}`, {
+                description: getErrorMessage(error, 'Workflow import failed'),
+              })
             }
           }
         }
@@ -219,6 +237,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         }
       } catch (error) {
         logger.error('Failed to import workflows:', error)
+        toast.error(getErrorMessage(error, 'Failed to import workflows'))
       } finally {
         setIsImporting(false)
 
@@ -227,7 +246,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         }
       }
     },
-    [importSingleWorkflow, workspaceId, router, createFolderMutation, queryClient]
+    [importSingleWorkflow, workspaceId, router, createFolder, queryClient]
   )
 
   return {

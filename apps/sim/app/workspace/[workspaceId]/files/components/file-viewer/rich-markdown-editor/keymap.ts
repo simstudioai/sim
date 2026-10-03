@@ -3,9 +3,12 @@ import { Extension } from '@tiptap/core'
 import { GapCursor } from '@tiptap/pm/gapcursor'
 import type { ResolvedPos } from '@tiptap/pm/model'
 import { NodeSelection, Plugin, PluginKey, Selection } from '@tiptap/pm/state'
+import { replaceStep } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { MENTION_PLUGIN_KEY } from './mention'
-import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
+import {
+  MENTION_PLUGIN_KEY,
+  SLASH_COMMAND_PLUGIN_KEY,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/suggestion-plugin-keys'
 
 /** Leaf nodes that have no text position, so they can only be reached as a NodeSelection. */
 const SELECTABLE_LEAVES = new Set(['horizontalRule', 'image'])
@@ -19,6 +22,50 @@ const WRAPPER_TYPES = new Set(['listItem', 'taskItem', 'blockquote'])
 
 /** Item node types a list is built from, used to detect an empty item's position within its list. */
 const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem'])
+
+/** The enclosing list/task item at a caret position, with the facts the boundary keys branch on. */
+interface ListItemContext {
+  /** `'listItem'` or `'taskItem'` — the type name `liftListItem` must be called with. */
+  itemType: string
+  /** The item's list is itself inside another list item, i.e. the item is indented. */
+  isNested: boolean
+  /**
+   * The caret's own block (the row the boundary key acts on) has no content. Uses `content.size`, so an
+   * inline image or mention atom counts as content — a bullet holding only an image is NOT block-empty.
+   */
+  blockEmpty: boolean
+  /** The item has more than one child block (continuation paragraph, nested list, block image, …). */
+  hasSiblingBlocks: boolean
+  /** The item is the last child of its immediate list. */
+  isTrailing: boolean
+  /** The caret sits in the item's first child block (the row a boundary key should act on). */
+  isFirstBlock: boolean
+}
+
+/**
+ * Resolves the nearest enclosing list/task item at `$from` and the facts the Backspace/Enter handlers
+ * branch on (nesting, emptiness, trailing position, whether the caret is in the item's first block), or
+ * null when the caret is not inside a list item. Walking up from `$from` finds the item regardless of
+ * how deeply the caret's block is nested inside it.
+ */
+function getListItemContext($from: ResolvedPos): ListItemContext | null {
+  for (let depth = $from.depth; depth >= 1; depth--) {
+    const item = $from.node(depth)
+    if (!LIST_ITEM_TYPES.has(item.type.name)) continue
+    const listDepth = depth - 1
+    const isNested = listDepth >= 1 && LIST_ITEM_TYPES.has($from.node(listDepth - 1).type.name)
+    const list = $from.node(listDepth)
+    return {
+      itemType: item.type.name,
+      isNested,
+      blockEmpty: $from.parent.content.size === 0,
+      hasSiblingBlocks: item.childCount > 1,
+      isTrailing: $from.index(listDepth) === list.childCount - 1,
+      isFirstBlock: $from.depth === depth + 1 && $from.index(depth) === 0,
+    }
+  }
+  return null
+}
 
 const RICH_LEAF_SELECTION_FOCUS_KEY = new PluginKey<boolean>('richLeafSelectionFocus')
 
@@ -53,7 +100,11 @@ function removeEmptyWrappedBlock(editor: Editor, $from: ResolvedPos): boolean {
   const end = $from.after(depth)
   return editor.commands.command(({ tr, dispatch }) => {
     if (dispatch) {
-      tr.delete(start, end)
+      const step = replaceStep(tr.doc, start, end)
+      const next = step?.apply(tr.doc).doc
+      /** A required leading paragraph can be replaced with itself; keep its caret and history. */
+      if (!step || !next || next.eq(tr.doc)) return true
+      tr.step(step)
       const $gap = tr.doc.resolve(start)
       tr.setSelection(
         Selection.findFrom($gap, -1, true) ??
@@ -133,37 +184,16 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
 }
 
 /**
- * Editor-specific keyboard behavior layered on top of StarterKit's defaults:
+ * Keyboard behavior layered over StarterKit. Backspace first undoes autoformatting, then clears
+ * headings, outdents list items, and handles empty wrappers without selecting unrelated content.
+ * Enter exits trailing empty items and outdents nested items. Empty middle items retain the existing
+ * removal behavior: lifting them splits the list and can discard delayed collaborative edits.
+ * Multi-block items remove only the empty block. Code select-all is scoped only while both
+ * endpoints remain inside the same code block, then expands to the document on a second press.
  *
- * - **Backspace** at the start of a heading reverts it to a paragraph (ProseMirror's default joins or
- *   no-ops, stranding the heading style; a second Backspace then merges as usual). At the start of an
- *   *empty block inside a list item, task item, or blockquote* it removes that whole emptied wrapper via
- *   {@link removeEmptyWrappedBlock} instead of ProseMirror's default lift — lifting an empty item out of
- *   the middle of a list/quote splits the container in two and strands an empty paragraph (a visible gap
- *   that also re-parses to a different markdown document), while the default `joinBackward` alternately
- *   no-ops on nested items (leaving them stuck) or merges an empty continuation paragraph into the
- *   previous item. At the start of a block whose previous sibling is a divider or image, where
- *   ProseMirror's `joinBackward` can't cross the leaf and no-ops: an *empty* block is deleted (clearing
- *   the blank line between/below dividers without touching the divider itself), while a *non-empty*
- *   block selects the leaf — so a first Backspace highlights what a second deletes, the same
- *   highlight-before-delete affordance as clicking it and parity with the arrow-key leaf selection.
- * - **Enter** on an *empty, non-trailing list/task item* removes the empty item ({@link
- *   removeEmptyWrappedBlock}) rather than letting the default split the list into two around a stranded
- *   empty paragraph (which does not round-trip). A *trailing* empty item still falls through to the
- *   default, which exits the list — the standard "press Enter on a blank bullet to leave the list".
- * - **Mod-A** inside a code block selects only that block's contents; pressing it again (when the
- *   block is already fully selected) falls through to the default whole-document select-all, the
- *   same scoped behavior as a code editor.
- * - **ArrowUp/ArrowDown** select an adjacent divider or image, whether arrowing off a textblock edge
- *   ({@link selectAdjacentLeaf}) or stepping from one already-selected leaf to the next
- *   ({@link selectAdjacentSelectedLeaf}). (The `Mod-Shift-Arrow` block-reorder chords live separately
- *   in `./block-mover.ts`.)
- *
- * Plus a plugin that (a) highlights dividers/images falling inside a focused range selection (e.g.
- * select-all), which the browser's native text highlight skips because leaves carry no text; hiding
- * that custom decoration on blur keeps it in sync with the native text highlight, and (b) flags the
- * editor (`data-gap-between-leaves`) while a gap cursor sits between two leaves, so the CSS can hide
- * its otherwise-stray caret.
+ * Leaf arrow navigation and focused-range decorations provide keyboard selection for images and
+ * dividers. Suggestions retain their own arrow handling. A root gap between leaves is tagged so
+ * the editor's local styles can suppress a duplicate caret.
  */
 export const RichMarkdownKeymap = Extension.create({
   name: 'richMarkdownKeymap',
@@ -172,16 +202,22 @@ export const RichMarkdownKeymap = Extension.create({
   addKeyboardShortcuts() {
     return {
       Backspace: ({ editor }) => {
+        if (editor.commands.undoInputRule()) return true
         const { selection, doc } = editor.state
         if (!selection.empty || selection.$from.parentOffset !== 0) return false
         const { $from } = selection
-        // A gap cursor at the start of the doc resolves at the top level (`depth === 0`, offset 0):
-        // `$from.before(0)` below throws, and falling through instead is no better — TipTap's
-        // blockquote Backspace handler crashes on the same resolution (`$from.node(-1)` is
-        // undefined). There is nothing before the gap for Backspace to act on, so consume the key.
+        /** Root gaps have no parent boundary and no preceding content to remove. */
         if ($from.depth === 0) return true
         if ($from.parent.type.name === 'heading') {
           return editor.commands.setParagraph()
+        }
+        const listCtx = getListItemContext($from)
+        if (listCtx?.isFirstBlock) {
+          const { itemType, isNested, blockEmpty, hasSiblingBlocks, isTrailing } = listCtx
+          if (isNested || !blockEmpty) return editor.commands.liftListItem(itemType)
+          if (hasSiblingBlocks) return removeEmptyWrappedBlock(editor, $from)
+          if (isTrailing) return editor.commands.liftListItem(itemType)
+          return removeEmptyWrappedBlock(editor, $from)
         }
         if ($from.parent.content.size === 0 && isInsideWrapper($from)) {
           return removeEmptyWrappedBlock(editor, $from)
@@ -207,16 +243,16 @@ export const RichMarkdownKeymap = Extension.create({
         if (!selection.empty || selection.$from.parentOffset !== 0) return false
         const { $from } = selection
         if ($from.parent.content.size !== 0) return false
-        const itemDepth = $from.depth - 1
-        if (itemDepth < 1 || !LIST_ITEM_TYPES.has($from.node(itemDepth).type.name)) return false
-        const listDepth = itemDepth - 1
-        const isTrailingItem = $from.index(listDepth) === $from.node(listDepth).childCount - 1
-        if (isTrailingItem) return false
+        const listCtx = getListItemContext($from)
+        if (!listCtx?.isFirstBlock) return false
+        if (listCtx.isNested) return editor.commands.liftListItem(listCtx.itemType)
+        if (listCtx.hasSiblingBlocks) return removeEmptyWrappedBlock(editor, $from)
+        if (listCtx.isTrailing) return false
         return removeEmptyWrappedBlock(editor, $from)
       },
       'Mod-a': ({ editor }) => {
-        const { $from } = editor.state.selection
-        if ($from.parent.type.name !== 'codeBlock') return false
+        const { $from, $to } = editor.state.selection
+        if ($from.parent.type.name !== 'codeBlock' || !$from.sameParent($to)) return false
         const from = $from.start($from.depth)
         const to = $from.end($from.depth)
         if (editor.state.selection.from === from && editor.state.selection.to === to) return false

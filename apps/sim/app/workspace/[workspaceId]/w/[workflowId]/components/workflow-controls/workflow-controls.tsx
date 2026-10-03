@@ -5,6 +5,9 @@ import {
   Button,
   ChevronDown,
   Cursor,
+  chipHoverSurfaceClass,
+  cn,
+  disclosureChevronClass,
   Hand,
   Popover,
   PopoverAnchor,
@@ -15,9 +18,9 @@ import {
   Tooltip,
   Undo,
 } from '@sim/emcn'
+import { SelectAll } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Scan } from 'lucide-react'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -89,21 +92,28 @@ export const WorkflowControls = memo(function WorkflowControls() {
   return (
     <>
       <div
-        className='absolute bottom-4 left-[16px] z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'
+        /*
+         * 12px off both edges, the same clearance the toast stack keeps from the
+         * terminal and the panel, so the two floating surfaces read as one row.
+         * The toast reaches it as `--terminal-height + 20px` because it anchors
+         * from the viewport and the terminal is itself inset by
+         * CONTENT_WINDOW_GAP; these controls measure from the canvas floor and
+         * wall, so they take the 12 directly.
+         */
+        className='absolute bottom-3 left-3 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
-        <Popover
-          open={isCanvasModeOpen}
-          onOpenChange={setIsCanvasModeOpen}
-          variant='secondary'
-          size='sm'
-        >
+        <Popover open={isCanvasModeOpen} onOpenChange={setIsCanvasModeOpen} size='sm'>
           <Tooltip.Root>
             <PopoverTrigger asChild>
               <div className='flex cursor-pointer items-center gap-1'>
                 <Tooltip.Trigger asChild>
-                  <Button className='size-[28px] rounded-md p-0' variant='active'>
+                  <Button
+                    aria-label={mode === 'hand' ? 'Mover' : 'Pointer'}
+                    className='size-[28px] rounded-sm p-0'
+                    variant='active'
+                  >
                     {mode === 'hand' ? (
                       <Hand className='size-[14px]' />
                     ) : (
@@ -111,9 +121,13 @@ export const WorkflowControls = memo(function WorkflowControls() {
                     )}
                   </Button>
                 </Tooltip.Trigger>
-                <Button className='-m-1 !p-1.5 group' variant='ghost'>
+                <Button
+                  aria-label='Change canvas mode'
+                  variant='ghost'
+                  className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
+                >
                   <ChevronDown
-                    className={`h-[8px] w-[10px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
+                    className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
                   />
                 </Button>
               </div>
@@ -127,7 +141,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 setIsCanvasModeOpen(false)
               }}
             >
-              <Hand className='size-3' />
+              <Hand className='size-[14px]' />
               <span>Mover</span>
             </PopoverItem>
             <PopoverItem
@@ -136,23 +150,24 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 setIsCanvasModeOpen(false)
               }}
             >
-              <Cursor className='size-3' />
+              <Cursor className='size-[14px]' />
               <span>Pointer</span>
             </PopoverItem>
           </PopoverContent>
         </Popover>
 
-        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
+              aria-label='Undo'
               variant='ghost'
-              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
               onClick={undo}
               disabled={!canUndo}
             >
-              <Undo className='size-[16px]' />
+              <Undo className='size-[14px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
@@ -163,12 +178,13 @@ export const WorkflowControls = memo(function WorkflowControls() {
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
+              aria-label='Redo'
               variant='ghost'
-              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
               onClick={redo}
               disabled={!canRedo}
             >
-              <Redo className='size-[16px]' />
+              <Redo className='size-[14px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
@@ -176,16 +192,17 @@ export const WorkflowControls = memo(function WorkflowControls() {
           </Tooltip.Content>
         </Tooltip.Root>
 
-        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
+              aria-label='Fit to View'
               variant='ghost'
-              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
               onClick={handleFitToView}
             >
-              <Scan className='size-[16px]' />
+              <SelectAll className='size-[14px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
@@ -197,9 +214,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
       <Popover
         open={contextMenu !== null}
         onOpenChange={(open) => !open && setContextMenu(null)}
-        variant='secondary'
         size='sm'
-        colorScheme='inverted'
       >
         <PopoverAnchor
           style={{

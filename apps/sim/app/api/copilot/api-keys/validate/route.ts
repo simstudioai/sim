@@ -1,40 +1,70 @@
 import { db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { validateCopilotApiKeyContract } from '@/lib/api/contracts/copilot'
+import {
+  COPILOT_BILLING_BLOCKED_CODE,
+  COPILOT_USAGE_LIMIT_EXCEEDED_CODE,
+  type ValidateCopilotApiKeyBillingBlocked,
+  type ValidateCopilotApiKeyUsageExceeded,
+  validateCopilotApiKeyContract,
+} from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type AccountBillingDecision,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
+  requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
+  requireBillingCallbackAttribution,
   requireBillingRequestIdHeader,
   resolveLegacyV0BillingAttribution,
+  resolveOrganizationBillingAttribution,
   serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  readMidRunAccountUsageVerdict,
+  readMidRunUsageVerdict,
+} from '@/lib/billing/core/mid-run-usage'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  authorizeCopilotChatCallback,
+  type CopilotContinuationBilling,
+  checkCopilotContinuationBilling,
+} from '@/lib/mothership/application/authorize-chat-callback'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
+import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ATTRIBUTION_HEADER,
   BILLING_REQUEST_ID_HEADER,
   COPILOT_BILLING_PROTOCOL,
   COPILOT_BILLING_PROTOCOL_HEADER,
+  COPILOT_VALIDATION_PURPOSE,
   type CopilotBillingProtocol,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { checkInternalApiKey } from '@/lib/copilot/request/http'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isCopilotBillingProtocolRequired } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/generated/billing-protocol-v1'
+import { CopilotValidateOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { checkInternalApiKey } from '@/lib/mothership/request/http'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotApiKeysValidate')
+
+const CONTINUATION_BLOCKED_MESSAGE = 'Continuation billing account is blocked'
 
 function invalidBillingProtocolResponse(): NextResponse {
   return NextResponse.json({ error: 'Invalid billing attribution protocol' }, { status: 400 })
@@ -50,7 +80,7 @@ type AdmissionBillingDecision =
       userId: string
     }
   | {
-      kind: 'legacy-workspace'
+      kind: 'legacy-scoped'
       attribution: BillingAttributionSnapshot
       includeAttribution: boolean
     }
@@ -60,34 +90,51 @@ type AdmissionBillingDecision =
     }
 
 /**
- * Resolves admission against the versioned Go callback protocol.
+ * Resolves new-turn admission against the versioned Go callback protocol.
  *
- * Markerless old-Go admission is explicitly legacy-v0. A locally resolvable
+ * Markerless self-hosted admission is legacy-v0. A locally resolvable
  * workspace selects its current payer; an absent or opaque workspace preserves
- * account billing. Because old Go cannot return admission material, this
- * mutable resolution is repeated at callback time. Direct-v1 remains scoped
- * only to the authenticated Chat/Copilot key owner's hosted account, and
- * attributed-v1 never falls back from its immutable envelope.
+ * account billing. Only new-turn admission resolves a mutable payer; continuation
+ * restores the original checkpoint decision. Direct-v1 remains scoped only to the
+ * authenticated Chat/Copilot key owner's hosted account, and attributed-v1
+ * never falls back from its immutable envelope.
  */
 async function resolveAdmissionBillingDecision(
   req: NextRequest,
   protocol: CopilotBillingProtocol | undefined,
   actorUserId: string,
-  workspaceId: string | undefined
+  workspaceId: string | undefined,
+  organizationId: string | undefined,
+  chatId: string | undefined
 ): Promise<AdmissionBillingDecision | NextResponse> {
   const hasBillingRequestId = Boolean(req.headers.get(BILLING_REQUEST_ID_HEADER))
   const hasBillingAttribution = Boolean(req.headers.get(BILLING_ATTRIBUTION_HEADER))
   const hasBillingAccountDecision = Boolean(req.headers.get(BILLING_ACCOUNT_DECISION_HEADER))
 
+  if (organizationId && protocol === undefined) return invalidBillingProtocolResponse()
+  if (organizationId && protocol !== COPILOT_BILLING_PROTOCOL.direct) {
+    if (!chatId) return invalidBillingProtocolResponse()
+    const principal = createTrustedOrganizationCopilotPrincipal(
+      {
+        userId: actorUserId,
+        organizationId,
+        chatId,
+        delegationId: req.headers.get(BILLING_REQUEST_ID_HEADER) ?? generateId(),
+      },
+      { audience: 'sim:copilot-billing', ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS }
+    )
+    await authorizeOrganizationChatDelegation.execute({ principal })
+  }
+
   if (protocol === COPILOT_BILLING_PROTOCOL.attributed) {
-    if (!workspaceId || hasBillingAccountDecision) {
+    if ((!workspaceId && !organizationId) || hasBillingAccountDecision) {
       return invalidBillingProtocolResponse()
     }
     try {
       requireBillingRequestIdHeader(req.headers)
       const attribution = requireBillingAttributionHeader(req.headers, {
         actorUserId,
-        workspaceId,
+        ...(organizationId ? { organizationId } : { workspaceId }),
       })
       return { kind: 'attributed', attribution }
     } catch {
@@ -116,15 +163,23 @@ async function resolveAdmissionBillingDecision(
     return invalidBillingProtocolResponse()
   }
 
-  if (protocol === undefined && isCopilotBillingProtocolRequired) {
+  if (protocol === undefined && isHosted) {
     return invalidBillingProtocolResponse()
   }
 
   if (hasBillingRequestId || hasBillingAttribution || hasBillingAccountDecision) {
     return invalidBillingProtocolResponse()
   }
-  if (protocol === COPILOT_BILLING_PROTOCOL.legacy && !workspaceId) {
+  if (protocol === COPILOT_BILLING_PROTOCOL.legacy && !workspaceId && !organizationId) {
     return invalidBillingProtocolResponse()
+  }
+
+  if (organizationId) {
+    return {
+      kind: 'legacy-scoped',
+      attribution: await resolveOrganizationBillingAttribution({ actorUserId, organizationId }),
+      includeAttribution: true,
+    }
   }
 
   if (workspaceId) {
@@ -134,7 +189,7 @@ async function resolveAdmissionBillingDecision(
     })
     if (attribution) {
       return {
-        kind: 'legacy-workspace',
+        kind: 'legacy-scoped',
         attribution,
         includeAttribution: protocol === COPILOT_BILLING_PROTOCOL.legacy,
       }
@@ -144,6 +199,52 @@ async function resolveAdmissionBillingDecision(
   return { kind: 'legacy-account', userId: actorUserId }
 }
 
+/** Restores only the checkpoint's admitted payer; continuation never re-resolves billing. */
+function resolveContinuationBilling(
+  req: NextRequest,
+  protocol: CopilotBillingProtocol | undefined,
+  scope: { userId: string; workspaceId?: string; organizationId?: string }
+): CopilotContinuationBilling | null | NextResponse {
+  const hasAttribution = Boolean(req.headers.get(BILLING_ATTRIBUTION_HEADER))
+  const hasDecision = Boolean(req.headers.get(BILLING_ACCOUNT_DECISION_HEADER))
+  try {
+    if (protocol === COPILOT_BILLING_PROTOCOL.direct) {
+      if (hasAttribution) return invalidBillingProtocolResponse()
+      requireBillingRequestIdHeader(req.headers)
+      const decision = requireAccountBillingDecisionHeader(req.headers)
+      if (decision.userId !== scope.userId) return invalidBillingProtocolResponse()
+      return { kind: 'account', decision }
+    }
+    if (hasDecision) return invalidBillingProtocolResponse()
+    if (protocol === COPILOT_BILLING_PROTOCOL.attributed) {
+      if (!scope.workspaceId && !scope.organizationId) return invalidBillingProtocolResponse()
+      requireBillingRequestIdHeader(req.headers)
+    } else {
+      if (protocol !== undefined && protocol !== COPILOT_BILLING_PROTOCOL.legacy) {
+        return invalidBillingProtocolResponse()
+      }
+      if (req.headers.has(BILLING_REQUEST_ID_HEADER)) return invalidBillingProtocolResponse()
+      if (protocol === undefined && (isHosted || hasAttribution)) {
+        return invalidBillingProtocolResponse()
+      }
+      if (!hasAttribution) {
+        return !isHosted && !isBillingEnabled ? null : invalidBillingProtocolResponse()
+      }
+    }
+    if (!scope.workspaceId && !scope.organizationId) return invalidBillingProtocolResponse()
+    return {
+      kind: 'attributed',
+      attribution: requireBillingCallbackAttribution(req.headers, {
+        actorUserId: scope.userId,
+        workspaceId: scope.workspaceId,
+        organizationId: scope.organizationId,
+      }),
+    }
+  } catch {
+    return invalidBillingProtocolResponse()
+  }
+}
+
 async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise<{
   isExceeded: boolean
   currentUsage: number
@@ -151,7 +252,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
   scope: string
   accountBillingDecision?: AccountBillingDecision
 }> {
-  if (admission.kind === 'attributed' || admission.kind === 'legacy-workspace') {
+  if (admission.kind === 'attributed' || admission.kind === 'legacy-scoped') {
     const usage = await checkAttributedUsageLimits(admission.attribution)
     const enforcedUsage =
       usage.scope === 'member' && usage.memberUsage ? usage.memberUsage : usage.payerUsage
@@ -168,7 +269,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
       onError: 'throw',
     })
     const billingContext = deriveBillingContext(admission.userId, subscription)
-    const usage = await checkServerSideUsageLimits(admission.userId, subscription)
+    const usage = await checkServerSideUsageLimits(admission.userId, subscription, billingContext)
     return {
       isExceeded: usage.isExceeded,
       currentUsage: usage.currentUsage,
@@ -180,7 +281,11 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
         billingPeriod: {
           start: billingContext.billingPeriod.start.toISOString(),
           end: billingContext.billingPeriod.end.toISOString(),
+          ...(billingContext.billingPeriod.source
+            ? { source: billingContext.billingPeriod.source }
+            : {}),
         },
+        ...(subscription ? { payerSubscriptionId: subscription.id } : {}),
       },
     }
   }
@@ -250,7 +355,8 @@ export const POST = withRouteHandler((req: NextRequest) =>
         )
         if (!parsed.success) return parsed.response
 
-        const { userId, workspaceId } = parsed.data.body
+        const { userId, workspaceId, organizationId, chatId, purpose } = parsed.data.body
+        const startedAt = performance.now()
         const protocol = parsed.data.headers?.[COPILOT_BILLING_PROTOCOL_HEADER]
         span.setAttribute(TraceAttr.UserId, userId)
 
@@ -262,8 +368,121 @@ export const POST = withRouteHandler((req: NextRequest) =>
           return NextResponse.json({ error: 'User not found' }, { status: 403 })
         }
 
-        logger.info('[API VALIDATION] Validating usage limit', { userId })
-        const admission = await resolveAdmissionBillingDecision(req, protocol, userId, workspaceId)
+        if (purpose !== COPILOT_VALIDATION_PURPOSE.newTurn) {
+          const billing =
+            purpose === COPILOT_VALIDATION_PURPOSE.continuation
+              ? resolveContinuationBilling(req, protocol, { userId, workspaceId, organizationId })
+              : null
+          if (billing instanceof NextResponse || (protocol === undefined && isHosted)) {
+            span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InvalidBody)
+            span.setAttribute(TraceAttr.HttpStatusCode, 400)
+            return billing instanceof NextResponse ? billing : invalidBillingProtocolResponse()
+          }
+
+          /** Unbilled local legacy turns have no admitted Sim resource scope to restore. */
+          const localUnbilledCallback =
+            (protocol === undefined || protocol === COPILOT_BILLING_PROTOCOL.legacy) &&
+            !req.headers.has(BILLING_ATTRIBUTION_HEADER) &&
+            !req.headers.has(BILLING_ACCOUNT_DECISION_HEADER) &&
+            !isHosted &&
+            !isBillingEnabled
+          if (
+            purpose === COPILOT_VALIDATION_PURPOSE.cancellation &&
+            protocol !== COPILOT_BILLING_PROTOCOL.direct &&
+            !localUnbilledCallback &&
+            !workspaceId &&
+            !organizationId
+          ) {
+            span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InvalidBody)
+            span.setAttribute(TraceAttr.HttpStatusCode, 400)
+            return invalidBillingProtocolResponse()
+          }
+          /** Direct keys carry self-hosted scope IDs that do not name hosted Sim resources. */
+          if (protocol !== COPILOT_BILLING_PROTOCOL.direct && !localUnbilledCallback) {
+            await authorizeCopilotChatCallback({
+              userId,
+              workspaceId,
+              organizationId,
+              chatId,
+              purpose,
+              delegationId: req.headers.get(BILLING_REQUEST_ID_HEADER) ?? generateId(),
+            })
+          }
+          const blocked = billing ? await checkCopilotContinuationBilling(billing) : null
+          logger.info('[API VALIDATION] Lifecycle authorization validated', {
+            userId,
+            purpose,
+            billingProtocol: protocol ?? COPILOT_BILLING_PROTOCOL.legacy,
+            blocked: blocked?.blocked ?? false,
+            elapsedMs: Math.round(performance.now() - startedAt),
+          })
+          // A continuation, and a worker's periodic re-check of a long run, also reads the
+          // original payer's spend through the cached execution usage gate. A read that fails
+          // admits: the run is already under way, and the next re-check reads again.
+          const verdict =
+            !blocked?.blocked && purpose === COPILOT_VALIDATION_PURPOSE.continuation && billing
+              ? billing.kind === 'attributed'
+                ? await readMidRunUsageVerdict(billing.attribution)
+                : await readMidRunAccountUsageVerdict(billing.decision)
+              : null
+          if (blocked?.blocked || verdict?.status === 'blocked') {
+            span.setAttribute(
+              TraceAttr.CopilotValidateOutcome,
+              CopilotValidateOutcome.UsageExceeded
+            )
+            span.setAttribute(TraceAttr.HttpStatusCode, 402)
+            return NextResponse.json<ValidateCopilotApiKeyBillingBlocked>(
+              {
+                code: COPILOT_BILLING_BLOCKED_CODE,
+                error:
+                  (blocked?.blocked
+                    ? blocked.message
+                    : verdict?.status === 'blocked'
+                      ? verdict.message
+                      : undefined) ?? CONTINUATION_BLOCKED_MESSAGE,
+              },
+              { status: 402 }
+            )
+          }
+          if (verdict?.status === 'exceeded') {
+            logger.info('[API VALIDATION] Continuation usage exceeded', { userId })
+            span.setAttribute(
+              TraceAttr.CopilotValidateOutcome,
+              CopilotValidateOutcome.UsageExceeded
+            )
+            span.setAttribute(TraceAttr.HttpStatusCode, 402)
+            const usageUpgrade = await resolveUsageUpgradePayload(
+              userId,
+              billing?.kind === 'attributed' ? billing.attribution : verdict.payer,
+              verdict.scope
+            )
+            return NextResponse.json<ValidateCopilotApiKeyUsageExceeded>(
+              {
+                code: COPILOT_USAGE_LIMIT_EXCEEDED_CODE,
+                error: usageUpgrade.message,
+                usageUpgrade,
+              },
+              { status: 402 }
+            )
+          }
+          const isEnterprise =
+            purpose === COPILOT_VALIDATION_PURPOSE.cancellation
+              ? false
+              : await isEnterprisePlan(userId)
+          span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.Ok)
+          span.setAttribute(TraceAttr.HttpStatusCode, 200)
+          return NextResponse.json({ isEnterprise })
+        }
+
+        logger.info('[API VALIDATION] Validating usage limit', { userId, purpose })
+        const admission = await resolveAdmissionBillingDecision(
+          req,
+          protocol,
+          userId,
+          workspaceId,
+          organizationId,
+          chatId
+        )
         if (admission instanceof NextResponse) {
           span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InvalidBody)
           span.setAttribute(TraceAttr.HttpStatusCode, admission.status)
@@ -279,15 +498,17 @@ export const POST = withRouteHandler((req: NextRequest) =>
 
         logger.info('[API VALIDATION] Usage limit validated', {
           userId,
+          purpose,
+          elapsedMs: Math.round(performance.now() - startedAt),
           currentUsage,
           limit,
           isExceeded: usage.isExceeded,
           scope: usage.scope,
           billingProtocol: protocol ?? COPILOT_BILLING_PROTOCOL.legacy,
           billingResolution:
-            admission.kind === 'legacy-workspace' ? 'mutable-request-time' : 'immutable-or-account',
+            admission.kind === 'legacy-scoped' ? 'mutable-request-time' : 'immutable-or-account',
           billingPayer:
-            admission.kind === 'attributed' || admission.kind === 'legacy-workspace'
+            admission.kind === 'attributed' || admission.kind === 'legacy-scoped'
               ? admission.attribution.billingEntity
               : (usage.accountBillingDecision?.billingEntity ?? { type: 'account', id: userId }),
         })
@@ -318,16 +539,21 @@ export const POST = withRouteHandler((req: NextRequest) =>
           responseHeaders[BILLING_ACCOUNT_DECISION_HEADER] = serializeAccountBillingDecisionHeader(
             usage.accountBillingDecision
           )
-        } else if (admission.kind === 'legacy-workspace' && admission.includeAttribution) {
+        } else if (admission.kind === 'legacy-scoped' && admission.includeAttribution) {
           responseHeaders[BILLING_ATTRIBUTION_HEADER] = serializeBillingAttributionHeader(
             admission.attribution
           )
         }
 
+        const isEnterprise = await isEnterprisePlan(userId)
+
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.Ok)
         span.setAttribute(TraceAttr.HttpStatusCode, 200)
-        return new NextResponse(null, { status: 200, headers: responseHeaders })
+        return NextResponse.json({ isEnterprise }, { status: 200, headers: responseHeaders })
       } catch (error) {
+        const code = asOrchestrationError(error)?.code
+        if (code === 'not_found' || code === 'forbidden')
+          return NextResponse.json({ error: 'Conversation access denied' }, { status: 403 })
         logger.error('Error validating usage limit', { error })
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InternalError)
         span.setAttribute(TraceAttr.HttpStatusCode, 500)

@@ -1,118 +1,99 @@
-/**
- * @vitest-environment node
- */
-import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertActiveWorkspaceAccess, mockPublishStatusChanged } = vi.hoisted(() => ({
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/copilot/request/http', () => ({
-  ...copilotHttpMock,
-  createForbiddenResponse: vi.fn((message: string) => ({
-    status: 403,
-    ok: false,
-    json: async () => ({ error: message }),
-  })),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: mockAssertActiveWorkspaceAccess,
-  isWorkspaceAccessDeniedError: (error: unknown) =>
-    error instanceof Error && error.message === 'ACCESS_DENIED',
-}))
-
-vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: mockPublishStatusChanged },
-}))
-
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
-
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/mothership/chats/[chatId]/restore/route'
 
-function makeRequest(chatId: string) {
-  return new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}/restore`, {
+const mocks = {
+  authorizeWorkspace: workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation,
+  publish: mothershipChatStatusMockFns.mockPublishChatStatusChanged,
+  session: authMockFns.mockGetSession,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  analytics: posthogServerMockFns.mockCaptureServerEvent,
+  authorizeOrganization: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+}
+
+function request() {
+  return createMockRequest({
     method: 'POST',
+    url: 'http://localhost/api/mothership/chats/chat/restore',
   })
 }
+const context = createRouteContext({ chatId: 'chat' })
 
-function makeContext(chatId: string) {
-  return { params: Promise.resolve({ chatId }) }
-}
-
-describe('POST /api/mothership/chats/[chatId]/restore', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
-      userId: 'user-1',
-      isAuthenticated: true,
-    })
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'workspace-1' }])
-    dbChainMockFns.returning.mockResolvedValue([{ workspaceId: 'workspace-1' }])
-    mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
+beforeEach(() => {
+  resetDbChainMock()
+  mocks.session.mockResolvedValue({ user: { id: 'actor' }, session: { id: 'session' } })
+  mocks.workspace.mockResolvedValue({
+    workspaceId: 'workspace',
+    workspaceOrganizationId: 'org',
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing-owner',
   })
+  mocks.authorizeWorkspace.mockResolvedValue(undefined)
+  mocks.authorizeOrganization.mockResolvedValue(undefined)
+  dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'workspace', organizationId: null }])
+  dbChainMockFns.returning.mockResolvedValue([{ workspaceId: 'workspace', organizationId: null }])
+})
 
-  afterAll(() => {
-    resetDbChainMock()
-  })
-
-  it('returns 401 when unauthenticated', async () => {
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
-      userId: null,
-      isAuthenticated: false,
-    })
-
-    const response = await POST(makeRequest('chat-1'), makeContext('chat-1'))
-    expect(response.status).toBe(401)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 when no soft-deleted chat is owned by the caller', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    const response = await POST(makeRequest('chat-missing'), makeContext('chat-missing'))
+describe('chat restore internal surface', () => {
+  it('conceals missing or another user’s archived chat', async () => {
+    dbChainMockFns.limit.mockResolvedValue([])
+    const response = await POST(request(), context)
     expect(response.status).toBe(404)
-    expect(mockAssertActiveWorkspaceAccess).not.toHaveBeenCalled()
+    expect(await response.json()).toMatchObject({ success: false, error: 'Chat not found' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
-
-  it('returns 403 when the caller lost access to the workspace', async () => {
-    mockAssertActiveWorkspaceAccess.mockRejectedValueOnce(new Error('ACCESS_DENIED'))
-
-    const response = await POST(makeRequest('chat-1'), makeContext('chat-1'))
+  it('preserves workspace access denial', async () => {
+    mocks.authorizeWorkspace.mockRejectedValue(new OrchestrationError('forbidden', 'denied'))
+    const response = await POST(request(), context)
     expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ error: 'Workspace access denied' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
-
-  it('restores the chat, bumping updatedAt and lastSeenAt, and publishes the event', async () => {
-    const response = await POST(makeRequest('chat-1'), makeContext('chat-1'))
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
-    expect(mockAssertActiveWorkspaceAccess).toHaveBeenCalledWith('workspace-1', 'user-1')
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      deletedAt: null,
-      updatedAt: expect.any(Date),
-      lastSeenAt: expect.any(Date),
-    })
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      chatId: 'chat-1',
-      type: 'created',
-    })
+  it('does not publish or report analytics for a concurrent restore', async () => {
+    dbChainMockFns.returning.mockResolvedValue([])
+    expect((await POST(request(), context)).status).toBe(404)
+    expect(mocks.publish).not.toHaveBeenCalled()
+    expect(mocks.analytics).not.toHaveBeenCalled()
   })
-
-  it('returns 404 when the chat is restored concurrently before the update lands', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    const response = await POST(makeRequest('chat-1'), makeContext('chat-1'))
+  it('conceals organization refusal and does not use billing-owner identity', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: null, organizationId: 'org' }])
+    mocks.authorizeOrganization.mockRejectedValue(new OrchestrationError('forbidden', 'denied'))
+    const response = await POST(request(), context)
     expect(response.status).toBe(404)
-    expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+    expect(await response.json()).toMatchObject({ error: 'Chat not found' })
+    expect(mocks.authorizeOrganization).toHaveBeenCalledWith(
+      createSessionPrincipal({ userId: 'actor', sessionId: 'session' }),
+      expect.any(Object),
+      { organizationId: 'org' }
+    )
   })
 })

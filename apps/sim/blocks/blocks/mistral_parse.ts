@@ -8,9 +8,8 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { MistralParserOutput } from '@/tools/mistral/types'
 
-export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
+export const MistralParseBlock: BlockConfig = {
   type: 'mistral_parse',
   name: 'Mistral Parser (Legacy)',
   description: 'Extract text from PDF documents',
@@ -23,6 +22,19 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   integrationType: IntegrationType.AI,
   bgColor: '#000000',
   icon: MistralIcon,
+  canvasPresentation: {
+    defaultTitle: 'Mistral Parser',
+    sentences: {
+      default: [
+        /* The upload/URL switch has no default, so neither member is on a fresh
+           card; the literal carries the sentence until one is chosen. */
+        'Extract text',
+        { text: 'from', field: ['fileUpload', 'filePath'] },
+        { text: ', as', field: 'resultType' },
+        { text: ', pages', field: 'pages' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'inputMethod',
@@ -156,7 +168,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
  * V2 Block - Restored from main branch for backwards compatibility
  * Hidden from toolbar, uses filePath subblock ID for advanced mode
  */
-export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
+export const MistralParseV2Block: BlockConfig = {
   ...MistralParseBlock,
   type: 'mistral_parse_v2',
   name: 'Mistral Parser',
@@ -287,19 +299,34 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
  * V3 Block - New file handling pattern with UserFile normalization
  * Uses fileReference subblock ID with canonicalParamId for proper file handling
  */
-export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
+export const MistralParseV3Block: BlockConfig = {
   ...MistralParseBlock,
   sunset: undefined,
   type: 'mistral_parse_v3',
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
   hideFromToolbar: false,
+  /* v3 renamed the canonical pair's advanced member `filePath` -> `fileReference`,
+     so the inherited sentence would reference a subblock this block lacks. */
+  canvasPresentation: {
+    defaultTitle: 'Mistral Parser',
+    sentences: {
+      default: [
+        /* The upload/URL switch has no default, so neither member is on a fresh
+           card; the literal carries the sentence until one is chosen. */
+        'Extract text',
+        { text: 'from', field: ['fileUpload', 'fileReference'] },
+        { text: ', as', field: 'resultType' },
+        { text: ', pages', field: 'pages' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'fileUpload',
       title: 'PDF Document',
       type: 'file-upload' as SubBlockType,
-      canonicalParamId: 'document',
+      canonicalParamId: 'file',
       acceptedTypes: 'application/pdf',
       placeholder: 'Upload a PDF document',
       mode: 'basic',
@@ -310,7 +337,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
       id: 'fileReference',
       title: 'File Reference',
       type: 'short-input' as SubBlockType,
-      canonicalParamId: 'document',
+      canonicalParamId: 'file',
       placeholder: 'File reference from previous block',
       mode: 'advanced',
       required: true,
@@ -355,7 +382,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
         }
 
         // V3 pattern: use canonical document param directly
-        const documentInput = normalizeFileInput(params.document, { single: true })
+        const documentInput = normalizeFileInput(params.file, { single: true })
         if (!documentInput) {
           throw new Error('PDF document is required')
         }
@@ -394,7 +421,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
     },
   },
   inputs: {
-    document: { type: 'json', description: 'Document input (file upload or file reference)' },
+    file: { type: 'json', description: 'Document input (file upload or file reference)' },
     apiKey: { type: 'string', description: 'Mistral API key' },
     resultType: { type: 'string', description: 'Output format type' },
     pages: { type: 'string', description: 'Page selection' },

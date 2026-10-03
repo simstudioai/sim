@@ -5,14 +5,17 @@ import { useParams, useRouter } from 'next/navigation'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-
-const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 
 interface SettingsNavigationOptions {
   section?: SettingsSection
   mcpServerId?: string
+  browserView?: 'passwords'
+  browserImport?: boolean
+  browserClear?: boolean
 }
 
 interface UseSettingsNavigationReturn {
@@ -34,7 +37,7 @@ export function resolveSettingsHref({
   hostContext,
   viewerUserId,
 }: ResolveSettingsHrefParams): string {
-  if (!workspaceId) return '/workspace'
+  if (!workspaceId) return APP_ENTRY_PATH
   const section = options?.section || 'general'
   if (
     section === 'billing' &&
@@ -46,6 +49,9 @@ export function resolveSettingsHref({
 
   const searchParams = new URLSearchParams()
   if (options?.mcpServerId) searchParams.set('mcpServerId', options.mcpServerId)
+  if (options?.browserView) searchParams.set('browserView', options.browserView)
+  if (options?.browserImport) searchParams.set('browserImport', '1')
+  if (options?.browserClear) searchParams.set('browserClear', '1')
   const query = searchParams.toString()
   const pathname = `/workspace/${workspaceId}/settings/${section}`
   return query ? `${pathname}?${query}` : pathname
@@ -71,25 +77,13 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
     [hostContext, session?.user?.id, workspaceId]
   )
 
-  const popSettingsReturnUrl = useCallback((fallback: string): string => {
-    try {
-      const url = sessionStorage.getItem(SETTINGS_RETURN_URL_KEY)
-      sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
-      return url ?? fallback
-    } catch {
-      return fallback
-    }
-  }, [])
-
   const navigateToSettings = useCallback(
     (options?: SettingsNavigationOptions) => {
       const currentPath = window.location.pathname
       if (currentPath.startsWith(settingsPrefix)) {
         router.replace(getSettingsHref(options), { scroll: false })
       } else {
-        try {
-          sessionStorage.setItem(SETTINGS_RETURN_URL_KEY, currentPath)
-        } catch {}
+        rememberSettingsReturnUrl(getSettingsHref(options))
         router.push(getSettingsHref(options))
       }
     },

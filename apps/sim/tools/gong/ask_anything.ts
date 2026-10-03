@@ -70,6 +70,10 @@ export const askAnythingTool: ToolConfig<GongAskAnythingParams, GongAskAnythingR
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ question: params.question }),
+    },
     url: (params) => {
       const timePeriod = params.timePeriod.trim().toUpperCase()
       if (

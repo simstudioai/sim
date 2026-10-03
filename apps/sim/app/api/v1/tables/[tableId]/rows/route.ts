@@ -28,15 +28,24 @@ import {
   rowDataNameToId,
   sortNamesToIds,
 } from '@/lib/table/column-keys'
+import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { queryRows } from '@/lib/table/rows/service'
 import { resolveFilterSelectValues } from '@/lib/table/select-values'
-import { TableQueryValidationError } from '@/lib/table/sql'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 import {
+  accessError,
+  checkAccess,
+  orchestrationErrorResponse,
+  type TableAccessPrincipal,
+} from '@/app/api/table/utils'
+import {
+  capabilityGovernedUserId,
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  resolveWorkspaceRequestActor,
+  requireWorkspaceRequestActor,
+  tableAccessPrincipal,
   v1ValidationErrorResponse,
   v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
@@ -54,10 +63,12 @@ async function handleBatchInsert(
   requestId: string,
   tableId: string,
   validated: V1BatchInsertTableRowsBody,
-  userId: string,
-  actorUserId: string
+  principal: TableAccessPrincipal,
+  actorUserId: string,
+  /** The gate's subject; see {@link BatchInsertData.capabilityGovernedUserId}. */
+  governedUserId: string | null
 ): Promise<NextResponse> {
-  const accessResult = await checkAccess(tableId, userId, 'write')
+  const accessResult = await checkAccess(tableId, principal, 'write')
   if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
   const { table } = accessResult
@@ -85,10 +96,13 @@ async function handleBatchInsert(
         rows,
         workspaceId: validated.workspaceId,
         userId: actorUserId,
+        capabilityGovernedUserId: governedUserId,
+        secretProvenance: rows.map(createExactEmptyTableRowSecretProvenance),
       },
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -105,7 +119,7 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
@@ -123,7 +137,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1ListTableRowsContract, request, context, {
       validationErrorResponse: (error) => {
         const hasJsonError = error.issues.some(
@@ -143,7 +156,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
-    const accessResult = await checkAccess(tableId, userId, 'read')
+    const accessResult = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'read')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
     const { table } = accessResult
@@ -190,6 +203,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
         totalCount: result.totalCount,
         limit: result.limit,
         offset: result.offset,
+        // Non-null when more rows exist; a page may return fewer than `limit`
+        // rows (byte budget) with more remaining, so page fullness is not a
+        // termination signal — external pagers should stop on null.
+        nextCursor: result.nextCursor,
       },
     })
   } catch (error) {
@@ -216,7 +233,6 @@ export const POST = withRouteHandler(
         return createRateLimitResponse(rateLimit)
       }
 
-      const userId = rateLimit.userId!
       const parsed = await parseRequest(v1CreateTableRowContract, request, context, {
         validationErrorResponse: v1ValidationErrorResponse,
       })
@@ -225,30 +241,30 @@ export const POST = withRouteHandler(
       const { tableId } = parsed.data.params
       if ('rows' in parsed.data.body) {
         const batchValidated = parsed.data.body
-        const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
+        const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId, 'write')
         if (scopeError) return scopeError
-        const actorUserId = await resolveWorkspaceRequestActor(
-          rateLimit,
-          batchValidated.workspaceId
+        const batchActor = await requireWorkspaceRequestActor(rateLimit, batchValidated.workspaceId)
+        if (!batchActor.ok) return batchActor.response
+        const actorUserId = batchActor.actorUserId
+        return handleBatchInsert(
+          requestId,
+          tableId,
+          batchValidated,
+          tableAccessPrincipal(rateLimit),
+          actorUserId,
+          capabilityGovernedUserId(rateLimit)
         )
-        if (!actorUserId) {
-          throw new Error(
-            `Unable to resolve system actor for workspace ${batchValidated.workspaceId}`
-          )
-        }
-        return handleBatchInsert(requestId, tableId, batchValidated, userId, actorUserId)
       }
 
       const validated = parsed.data.body
 
-      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
       if (scopeError) return scopeError
-      const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
-      if (!actorUserId) {
-        throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
-      }
+      const actor = await requireWorkspaceRequestActor(rateLimit, validated.workspaceId)
+      if (!actor.ok) return actor.response
+      const actorUserId = actor.actorUserId
 
-      const accessResult = await checkAccess(tableId, userId, 'write')
+      const accessResult = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
       if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
       const { table } = accessResult
@@ -274,10 +290,13 @@ export const POST = withRouteHandler(
           data: rowData,
           workspaceId: validated.workspaceId,
           userId: actorUserId,
+          capabilityGovernedUserId: capabilityGovernedUserId(rateLimit),
+          secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
         },
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -296,7 +315,7 @@ export const POST = withRouteHandler(
       const validationResponse = v1ValidationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
@@ -315,7 +334,6 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1UpdateRowsByFilterContract, request, context, {
       validationErrorResponse: v1ValidationErrorResponse,
     })
@@ -323,14 +341,13 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
-    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
-    if (!actorUserId) {
-      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
-    }
+    const actor = await requireWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actor.ok) return actor.response
+    const actorUserId = actor.actorUserId
 
-    const accessResult = await checkAccess(tableId, userId, 'write')
+    const accessResult = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
     const { table } = accessResult
@@ -360,9 +377,12 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         data: patchData,
         limit: validated.limit,
         actorUserId,
+        capabilityGovernedUserId: capabilityGovernedUserId(rateLimit),
+        secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       requestId
     )
+    if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
     if (result.affectedCount === 0) {
       return NextResponse.json({
@@ -390,7 +410,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error updating rows by filter:`, error)
@@ -409,7 +429,6 @@ export const DELETE = withRouteHandler(
         return createRateLimitResponse(rateLimit)
       }
 
-      const userId = rateLimit.userId!
       const parsed = await parseRequest(v1DeleteTableRowsContract, request, context, {
         validationErrorResponse: v1ValidationErrorResponse,
       })
@@ -417,10 +436,10 @@ export const DELETE = withRouteHandler(
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
 
-      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
       if (scopeError) return scopeError
 
-      const accessResult = await checkAccess(tableId, userId, 'write')
+      const accessResult = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
       if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
       const { table } = accessResult
@@ -435,6 +454,7 @@ export const DELETE = withRouteHandler(
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
+        if (result.deletedCount > 0) signalTableRowsChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -463,6 +483,7 @@ export const DELETE = withRouteHandler(
         },
         requestId
       )
+      if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -483,7 +504,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)

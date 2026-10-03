@@ -3,11 +3,13 @@ import type {
   ClientCredentialAccountMintOptions,
   ClientCredentialAccountMintResult,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { tenantPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   isTransientProviderStatus,
   parseProviderJson,
   readProviderErrorSnippet,
+  requireClientSecret,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 
@@ -58,7 +60,8 @@ export async function mintZoomServiceAccountToken(
   fields: ClientCredentialAccountFields,
   options?: ClientCredentialAccountMintOptions
 ): Promise<ClientCredentialAccountMintResult> {
-  const basicAuth = Buffer.from(`${fields.clientId}:${fields.clientSecret}`).toString('base64')
+  const clientSecret = requireClientSecret(fields.clientSecret, 'zoom_token_mint', 'Zoom')
+  const basicAuth = Buffer.from(`${fields.clientId}:${clientSecret}`).toString('base64')
   const res = await fetchProvider(
     ZOOM_TOKEN_URL,
     {
@@ -124,7 +127,10 @@ export async function mintZoomServiceAccountToken(
     grantedScopes,
     identity: {
       displayName: `Zoom account ${fields.orgId}`,
-      auditMetadata: { zoomAccountId: fields.orgId, zoomClientId: fields.clientId },
+      // A Server-to-Server app authenticates as the account, not as a Zoom
+      // user; the grant exposes no user identifier at all.
+      principal: tenantPrincipal(fields.orgId),
+      auditMetadata: { zoomClientId: fields.clientId },
       ...(Object.keys(storedMetadata).length > 0 ? { storedMetadata } : {}),
     },
   }

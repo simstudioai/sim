@@ -1,0 +1,69 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
+
+import { downloadGoogleVaultExportFile } from '@/lib/internal/google-vault/operations'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+
+const storedFile = {
+  id: 'stored-file',
+  name: 'stored.bin',
+  size: 5,
+  type: 'application/octet-stream',
+  mimeType: 'application/octet-stream',
+  url: '/api/files/stored',
+  key: 'execution/workspace/workflow/run/stored.bin',
+  context: 'execution',
+} as const
+
+describe('downloadGoogleVaultExportFile', () => {
+  beforeEach(() => {
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: {
+          'content-type': 'application/zip',
+          'content-disposition': "attachment; filename*=UTF-8''vault%20export.zip",
+        },
+      })
+    )
+  })
+
+  it('pins and bounds the GCS download while preserving file output', async () => {
+    const controller = new AbortController()
+    const result = await downloadGoogleVaultExportFile(
+      {
+        accessToken: 'token',
+        matterId: 'matter-1',
+        bucketName: 'bucket-1',
+        objectName: 'exports/result.zip',
+      },
+      { signal: controller.signal }
+    )
+
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      expect.stringContaining('/storage/v1/b/bucket-1/o/exports%2Fresult.zip?alt=media'),
+      '203.0.113.1',
+      {
+        profile: 'configuredEndpoint',
+        method: 'GET',
+        headers: { Authorization: 'Bearer token' },
+        maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        signal: controller.signal,
+      }
+    )
+    expect(result.files).toEqual([
+      { name: 'vault export.zip', mimeType: 'application/zip', buffer: Buffer.from([1, 2, 3]) },
+    ])
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: { file: storedFile },
+    })
+  })
+})

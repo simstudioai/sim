@@ -1,10 +1,9 @@
 import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TwilioSMSBlockOutput } from '@/tools/twilio/types'
 import { getTrigger } from '@/triggers'
 
-export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
+export const TwilioSMSBlock: BlockConfig = {
   type: 'twilio_sms',
   name: 'Twilio SMS',
   description: 'Send SMS messages',
@@ -16,6 +15,27 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   bgColor: '#F22F46', // Twilio brand color
   iconColor: '#F22F46',
   icon: TwilioIcon,
+  canvasPresentation: {
+    defaultTitle: 'Twilio SMS',
+    /*
+     * Both triggers configure only the account SID and auth token used to check
+     * the request signature, so there is no scope to name — and the picker's own
+     * labels ("SMS Received", "Message Status") only restate the card header. So
+     * each trigger gets copy that says what arrives instead.
+     */
+    triggerSentences: {
+      byTrigger: {
+        twilio_sms_received: ['Run on an inbound text message'],
+        twilio_sms_status: ['Run on a delivery status update'],
+      },
+    },
+    sentences: {
+      default: [
+        { text: 'Send', field: 'message', core: true },
+        { text: 'to', field: 'phoneNumbers', core: true },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'phoneNumbers',

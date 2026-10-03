@@ -47,3 +47,15 @@ export function defaultCredentialDisplayName(
   }
   return base
 }
+
+/**
+ * Display name for a custom Slack bot credential.
+ *
+ * Lives in this leaf module because two callers must derive it identically —
+ * the secret builder that sets it at connect time, and the update path that
+ * compares against it to tell a stale system-derived label from one a user
+ * typed. A copied literal would silently break that comparison.
+ */
+export function slackCustomBotDisplayName(teamName?: string | null): string {
+  return teamName || 'Slack bot'
+}

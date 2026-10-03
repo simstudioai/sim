@@ -176,3 +176,40 @@ tests:
             ports:
               - protocol: TCP
                 port: 5432
+
+  - it: restricts egress to HTTPS by default
+    set:
+      <<: *defaults
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+                  except:
+                    - "169.254.169.254/32"
+                    - "169.254.170.2/32"
+            ports:
+              - protocol: TCP
+                port: 443
+
+  # Opt-in for managed datastores on non-443 ports. Metadata endpoints stay
+  # blocked either way — that exclusion is not negotiable.
+  - it: allows unrestricted egress when allowExternalEgress=true
+    set:
+      <<: *defaults
+      networkPolicy.allowExternalEgress: true
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+                  except:
+                    - "169.254.169.254/32"
+                    - "169.254.170.2/32"
+

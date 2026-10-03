@@ -174,24 +174,24 @@ export function parseShapeNode(spNode: SafeXmlNode): ShapeNodeData {
   const base = parseBaseProps(spNode)
   const spPr = spNode.child('spPr')
 
-  // --- Preset geometry ---
+  // Preset geometry
   const prstGeom = spPr.child('prstGeom')
   const presetGeometry = prstGeom.attr('prst')
   const avLst = prstGeom.child('avLst')
   const adjustments = parseAdjustments(avLst)
 
-  // --- Custom geometry ---
+  // Custom geometry
   const custGeom = spPr.child('custGeom')
   const customGeometry = custGeom.exists() ? custGeom : undefined
 
-  // --- Fill ---
+  // Fill
   const fill = findFill(spPr)
 
-  // --- Line ---
+  // Line
   const ln = spPr.child('ln')
   const line = ln.exists() ? ln : undefined
 
-  // --- Line end markers (arrowheads) ---
+  // Line end markers (arrowheads)
   let headEnd: LineEndInfo | undefined
   let tailEnd: LineEndInfo | undefined
   if (ln.exists()) {
@@ -211,11 +211,11 @@ export function parseShapeNode(spNode: SafeXmlNode): ShapeNodeData {
     }
   }
 
-  // --- Text body ---
+  // Text body
   const txBody = spNode.child('txBody')
   const textBody = parseTextBody(txBody)
 
-  // --- Text transform (diagram shapes: dsp:txXfrm gives text box position/size in same space as xfrm)
+  // Text transform (diagram shapes: dsp:txXfrm gives text box position/size in same space as xfrm)
   let textBoxBounds: TextBoxBounds | undefined
   const txXfrm = spNode.child('txXfrm')
   if (txXfrm.exists()) {

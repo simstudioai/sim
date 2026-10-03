@@ -1,9 +1,8 @@
 import { LatexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { LatexResponse } from '@/tools/latex/types'
 
-export const LatexBlock: BlockConfig<LatexResponse> = {
+export const LatexBlock: BlockConfig = {
   type: 'latex',
   name: 'LaTeX',
   description: 'Compile LaTeX documents into PDFs',
@@ -14,6 +13,28 @@ export const LatexBlock: BlockConfig<LatexResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: LatexIcon,
+  canvasPresentation: {
+    defaultTitle: 'LaTeX',
+    sentences: {
+      byOperation: {
+        latex_compile: [
+          'Compile a PDF',
+          { text: 'with', field: 'compiler' },
+          { text: ', named', field: 'fileName' },
+        ],
+        latex_search_packages: [
+          { text: 'Search TeX Live packages for', field: 'packageQuery', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        latex_get_package: [{ text: 'Read details of package', field: 'packageName', core: true }],
+        latex_list_fonts: [
+          'List available fonts',
+          { text: 'matching', field: 'fontQuery' },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

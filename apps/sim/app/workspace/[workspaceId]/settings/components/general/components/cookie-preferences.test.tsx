@@ -1,0 +1,107 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react'
+import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockUseConsentManager, mockSaveConsents, mockRevert, lastProps } = vi.hoisted(() => ({
+  mockUseConsentManager: vi.fn(),
+  mockSaveConsents: vi.fn(),
+  mockRevert: vi.fn(),
+  lastProps: vi.fn(),
+}))
+
+vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@c15t/nextjs/headless', () => ({ useConsentManager: mockUseConsentManager }))
+vi.mock('@/app/_shell/consent/consent-preferences', () => ({
+  CONSENT_LINK_CLASS: 'link',
+  ConsentPreferences: (props: {
+    onChange?: (change: { name: string; revert: () => void }) => void
+    disabled?: boolean
+  }) => {
+    lastProps(props)
+    return (
+      <button
+        type='button'
+        data-testid='toggle'
+        disabled={props.disabled}
+        onClick={() => props.onChange?.({ name: 'measurement', revert: mockRevert })}
+      />
+    )
+  },
+}))
+
+import { CookiePreferences } from '@/app/workspace/[workspaceId]/settings/components/general/components/cookie-preferences'
+
+const mockToastError = emcnMockFns.mockToast.error
+
+let root: Root | null = null
+
+/** The props the switch list was last rendered with. */
+function props() {
+  return lastProps.mock.calls.at(-1)?.[0] as { disabled?: boolean }
+}
+
+function render() {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  act(() => root?.render(<CookiePreferences />))
+  return container
+}
+
+/** Resolves the pending save on demand, so the in-flight state is observable. */
+function deferredSave() {
+  let resolve!: () => void
+  let reject!: (error: Error) => void
+  mockSaveConsents.mockReturnValue(
+    new Promise<void>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+  )
+  return { resolve, reject }
+}
+
+beforeEach(() => {
+  mockUseConsentManager.mockReturnValue({ saveConsents: mockSaveConsents })
+  mockSaveConsents.mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  act(() => root?.unmount())
+  root = null
+})
+
+describe('CookiePreferences', () => {
+  it('locks the switches while a commit is in flight, so two toggles cannot race', async () => {
+    const pending = deferredSave()
+    const container = render()
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="toggle"]')?.click()
+    })
+    expect(props().disabled).toBe(true)
+
+    await act(async () => {
+      pending.resolve()
+    })
+    expect(props().disabled).toBe(false)
+  })
+
+  it('puts the switch back when the commit fails', async () => {
+    mockSaveConsents.mockRejectedValue(new Error('network down'))
+    const container = render()
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="toggle"]')?.click()
+    })
+
+    expect(mockRevert).toHaveBeenCalledTimes(1)
+    expect(mockToastError).toHaveBeenCalled()
+    expect(props().disabled).toBe(false)
+  })
+})

@@ -1,6 +1,6 @@
-import { Link, Text } from '@react-email/components'
+import { Link, Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -22,26 +22,25 @@ export function EnterpriseSubscriptionEmail({
       preview={`Your Enterprise Plan is now active on ${brand.name}`}
       showUnsubscribe={false}
     >
-      <Text style={baseStyles.paragraph}>Hello {userName},</Text>
+      <Text style={baseStyles.greeting}>Hello {userName},</Text>
       <Text style={baseStyles.paragraph}>
-        Your <strong>Enterprise Plan</strong> is now active. You have full access to advanced
-        features and increased capacity for your workflows.
+        Your <EmailStrong>Enterprise Plan</EmailStrong> is now active. You have full access to
+        advanced features and increased capacity for your workflows.
       </Text>
 
-      <Link href={effectiveLoginLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Open {brand.name}</Text>
-      </Link>
+      <Section style={baseStyles.infoBox}>
+        <Text style={baseStyles.infoBoxTitle}>Next steps</Text>
+        <Text style={baseStyles.infoBoxList}>
+          • Invite teammates to your organization
+          <br />• Start building your workflows
+        </Text>
+      </Section>
 
-      <Text style={baseStyles.paragraph}>
-        <strong>Next steps:</strong>
-        <br />• Invite teammates to your organization
-        <br />• Start building your workflows
-      </Text>
+      <EmailButton href={effectiveLoginLink}>Open {brand.name}</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Questions? Reply to this email or contact us at{' '}
         <Link href={`mailto:${brand.supportEmail}`} style={baseStyles.link}>
           {brand.supportEmail}

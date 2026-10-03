@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
+import {
+  type AutoRoutingResult,
+  addAutoRoutingCost,
+  resolveAutoModel,
+  SIM_AUTO_SYSTEM_PREAMBLE,
+} from '@/lib/model-router/resolve'
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
@@ -10,10 +16,14 @@ import {
   isRouterV2BlockType,
   ROUTER,
 } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAuthHeaders } from '@/executor/utils/http'
+import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
+import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
+import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import type { ProviderRequest } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -39,15 +49,16 @@ export class RouterBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
     const isV2 = isRouterV2BlockType(block.metadata?.id)
 
     if (isV2) {
-      return this.executeV2(ctx, block, inputs)
+      return this.executeV2(ctx, block, inputs, nodeMetadata)
     }
 
-    return this.executeLegacy(ctx, block, inputs)
+    return this.executeLegacy(ctx, block, inputs, nodeMetadata)
   }
 
   /**
@@ -56,12 +67,27 @@ export class RouterBlockHandler implements BlockHandler {
   private async executeLegacy(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
+    const promptModelInputPaths: ResolvedSecretInputPath[] = [['prompt']]
+    const modelInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { prompt: inputs.prompt },
+      promptModelInputPaths
+    )
+    if (!modelInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'router.promptModelInput',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'prompt',
+      })
+    }
     const targetBlocks = this.getTargetBlocks(ctx, block)
 
     const routerConfig = {
-      prompt: inputs.prompt,
+      prompt: modelInputProjection.value.prompt,
       model: inputs.model || ROUTER.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
       vertexProject: inputs.vertexProject,
@@ -72,30 +98,35 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockRegion: inputs.bedrockRegion,
     }
 
-    await validateModelProvider(ctx.userId, ctx.workspaceId, routerConfig.model, ctx)
-
-    const providerId = getProviderFromModel(routerConfig.model)
-
     try {
-      const url = new URL('/api/providers', getInternalApiBaseUrl())
-      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
-
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
+      const resolved = await this.resolveModel(
+        ctx,
+        block.id,
+        routerConfig.model,
+        systemPrompt,
+        routerConfig.prompt,
+        false
+      )
+
+      await validateModelProvider(ctx.userId, ctx.workspaceId, resolved.model, ctx)
+      const providerId = getProviderFromModel(resolved.model)
 
       let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await resolveVertexCredential(
-          routerConfig.vertexCredential,
-          ctx.userId,
-          'vertex-router'
-        )
+        finalApiKey = await resolveVertexCredential({
+          credentialId: routerConfig.vertexCredential,
+          actingUserId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
+          callerLabel: 'vertex-router',
+        })
       }
 
-      const providerRequest: Record<string, any> = {
-        provider: providerId,
-        model: routerConfig.model,
-        systemPrompt: systemPrompt,
+      const providerRequest: ProviderRequest = {
+        model: resolved.model,
+        systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
@@ -110,33 +141,28 @@ export class RouterBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: await buildAuthHeaders(ctx.userId),
-        body: JSON.stringify(providerRequest),
+      const { result, usedFallback } = await executeModelRequestWithFallbacks({
+        block,
+        configuredModel: routerConfig.model,
+        fallbackModels: inputs.fallbackModels,
+        fallbackSystemPrompt: systemPrompt,
+        retry: nodeMetadata?.retry,
+        ctx,
+        providerId,
+        request: providerRequest,
+        resolvedSecretTraceRegistry: modelInputProjection.registry,
       })
-
-      if (!response.ok) {
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {}
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
 
       const chosenBlockId = result.content.trim().toLowerCase()
       const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
 
       if (!chosenBlock) {
-        logger.error(
-          `Invalid routing decision. Response content: "${result.content}", available blocks:`,
-          targetBlocks?.map((b) => ({ id: b.id, title: b.title })) || []
-        )
+        logger.error('Invalid routing decision', {
+          responseContentType: typeof result.content,
+          responseContentLength:
+            typeof result.content === 'string' ? result.content.length : undefined,
+          availableBlockCount: targetBlocks?.length ?? 0,
+        })
         throw new Error(`Invalid routing decision: ${chosenBlockId}`)
       }
 
@@ -146,11 +172,14 @@ export class RouterBlockHandler implements BlockHandler {
         total: DEFAULTS.TOKENS.TOTAL,
       }
 
-      const cost = resolveProxiedModelCost(result.cost)
+      const cost = addAutoRoutingCost(
+        resolveProxiedModelCost(result.cost),
+        resolved.autoRouting?.billableRoutingCost ?? 0
+      )
 
       return {
         prompt: inputs.prompt,
-        model: result.model,
+        model: resolved.autoRouting && !usedFallback ? SIM_AUTO_MODEL_ID : result.model,
         tokens: {
           input: tokens.input || DEFAULTS.TOKENS.PROMPT,
           output: tokens.output || DEFAULTS.TOKENS.COMPLETION,
@@ -160,6 +189,7 @@ export class RouterBlockHandler implements BlockHandler {
           input: cost.input,
           output: cost.output,
           total: cost.total,
+          ...(cost.routing === undefined ? {} : { routing: cost.routing }),
         },
         selectedPath: {
           blockId: chosenBlock.id,
@@ -169,7 +199,9 @@ export class RouterBlockHandler implements BlockHandler {
         selectedRoute: String(chosenBlock.id),
       } as BlockOutput
     } catch (error) {
-      logger.error('Router execution failed:', error)
+      logger.error('Router execution failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      })
       throw error
     }
   }
@@ -181,7 +213,8 @@ export class RouterBlockHandler implements BlockHandler {
   private async executeV2(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
     const routes = this.parseRoutes(inputs.routes)
 
@@ -189,8 +222,41 @@ export class RouterBlockHandler implements BlockHandler {
       throw new Error('No routes defined for router')
     }
 
+    const modelInputPaths: ResolvedSecretInputPath[] = [
+      ['context'],
+      ...(Array.isArray(inputs.routes)
+        ? inputs.routes.map((_, index) => ['routes', String(index), 'value'] as const)
+        : [['routes'] as const]),
+    ]
+    const modelInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { context: inputs.context, routes: inputs.routes },
+      modelInputPaths
+    )
+    if (!modelInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'router.contextModelInput',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'context,routes',
+      })
+    }
+    const projectedRoutes = this.parseRoutes(modelInputProjection.value.routes)
+    if (projectedRoutes.length !== routes.length) {
+      refuseResolvedSecretProjection({
+        site: 'router.routeArity',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'routes',
+      })
+    }
+    const modelRoutes = routes.map((route, index) => ({
+      ...route,
+      value: projectedRoutes[index]?.value ?? route.value,
+    }))
+
     const routerConfig = {
-      context: inputs.context,
+      context: modelInputProjection.value.context,
       model: inputs.model || ROUTER.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
       vertexProject: inputs.vertexProject,
@@ -201,30 +267,35 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockRegion: inputs.bedrockRegion,
     }
 
-    await validateModelProvider(ctx.userId, ctx.workspaceId, routerConfig.model, ctx)
-
-    const providerId = getProviderFromModel(routerConfig.model)
-
     try {
-      const url = new URL('/api/providers', getInternalApiBaseUrl())
-      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
-
       const messages = [{ role: 'user', content: routerConfig.context }]
-      const systemPrompt = generateRouterV2Prompt(routerConfig.context, routes)
+      const systemPrompt = generateRouterV2Prompt(routerConfig.context, modelRoutes)
+      const resolved = await this.resolveModel(
+        ctx,
+        block.id,
+        routerConfig.model,
+        systemPrompt,
+        routerConfig.context,
+        true
+      )
+
+      await validateModelProvider(ctx.userId, ctx.workspaceId, resolved.model, ctx)
+      const providerId = getProviderFromModel(resolved.model)
 
       let finalApiKey: string | undefined = routerConfig.apiKey
       if (providerId === 'vertex' && routerConfig.vertexCredential) {
-        finalApiKey = await resolveVertexCredential(
-          routerConfig.vertexCredential,
-          ctx.userId,
-          'vertex-router'
-        )
+        finalApiKey = await resolveVertexCredential({
+          credentialId: routerConfig.vertexCredential,
+          actingUserId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
+          callerLabel: 'vertex-router',
+        })
       }
 
-      const providerRequest: Record<string, any> = {
-        provider: providerId,
-        model: routerConfig.model,
-        systemPrompt: systemPrompt,
+      const providerRequest: ProviderRequest = {
+        model: resolved.model,
+        systemPrompt: resolved.systemPrompt,
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: finalApiKey,
@@ -258,24 +329,17 @@ export class RouterBlockHandler implements BlockHandler {
         },
       }
 
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: await buildAuthHeaders(ctx.userId),
-        body: JSON.stringify(providerRequest),
+      const { result, usedFallback } = await executeModelRequestWithFallbacks({
+        block,
+        configuredModel: routerConfig.model,
+        fallbackModels: inputs.fallbackModels,
+        fallbackSystemPrompt: systemPrompt,
+        retry: nodeMetadata?.retry,
+        ctx,
+        providerId,
+        request: providerRequest,
+        resolvedSecretTraceRegistry: modelInputProjection.registry,
       })
-
-      if (!response.ok) {
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {}
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
 
       let chosenRouteId: string
       let reasoning = ''
@@ -284,9 +348,12 @@ export class RouterBlockHandler implements BlockHandler {
         const parsedResponse = JSON.parse(result.content)
         chosenRouteId = parsedResponse.route?.trim() || ''
         reasoning = parsedResponse.reasoning || ''
-      } catch (_parseError) {
+      } catch (error) {
         logger.error('Router response was not valid JSON despite responseFormat', {
-          content: result.content,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          responseContentType: typeof result.content,
+          responseContentLength:
+            typeof result.content === 'string' ? result.content.length : undefined,
         })
         chosenRouteId = result.content.trim()
       }
@@ -303,11 +370,12 @@ export class RouterBlockHandler implements BlockHandler {
       const chosenRoute = routes.find((r) => r.id === chosenRouteId)
 
       if (!chosenRoute) {
-        const availableRoutes = routes.map((r) => ({ id: r.id, title: r.title }))
-        logger.error(
-          `Invalid routing decision. Response content: "${result.content}". Available routes:`,
-          availableRoutes
-        )
+        logger.error('Invalid routing decision', {
+          responseContentType: typeof result.content,
+          responseContentLength:
+            typeof result.content === 'string' ? result.content.length : undefined,
+          availableRouteCount: routes.length,
+        })
         throw new Error(
           `Router could not determine a valid route. LLM response: "${result.content}". Available route IDs: ${routes.map((r) => r.id).join(', ')}`
         )
@@ -327,11 +395,14 @@ export class RouterBlockHandler implements BlockHandler {
         total: DEFAULTS.TOKENS.TOTAL,
       }
 
-      const cost = resolveProxiedModelCost(result.cost)
+      const cost = addAutoRoutingCost(
+        resolveProxiedModelCost(result.cost),
+        resolved.autoRouting?.billableRoutingCost ?? 0
+      )
 
       return {
         context: inputs.context,
-        model: result.model,
+        model: resolved.autoRouting && !usedFallback ? SIM_AUTO_MODEL_ID : result.model,
         tokens: {
           input: tokens.input || DEFAULTS.TOKENS.PROMPT,
           output: tokens.output || DEFAULTS.TOKENS.COMPLETION,
@@ -341,6 +412,7 @@ export class RouterBlockHandler implements BlockHandler {
           input: cost.input,
           output: cost.output,
           total: cost.total,
+          ...(cost.routing === undefined ? {} : { routing: cost.routing }),
         },
         selectedRoute: chosenRoute.id,
         reasoning,
@@ -357,7 +429,9 @@ export class RouterBlockHandler implements BlockHandler {
             },
       } as BlockOutput
     } catch (error) {
-      logger.error('Router V2 execution failed:', error)
+      logger.error('Router V2 execution failed', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      })
       throw error
     }
   }
@@ -375,41 +449,102 @@ export class RouterBlockHandler implements BlockHandler {
       }
       return []
     } catch (error) {
-      logger.error('Failed to parse routes:', { input, error })
+      logger.error('Failed to parse routes', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        inputType: typeof input,
+        inputLength: typeof input === 'string' ? input.length : undefined,
+      })
       return []
     }
   }
 
+  private async resolveModel(
+    ctx: ExecutionContext,
+    blockId: string,
+    configuredModel: string,
+    systemPrompt: string,
+    lastMessage: unknown,
+    hasResponseFormat: boolean
+  ): Promise<{
+    model: string
+    systemPrompt: string
+    autoRouting: AutoRoutingResult | null
+  }> {
+    if (!isAutoModel(configuredModel)) {
+      return { model: configuredModel, systemPrompt, autoRouting: null }
+    }
+
+    const message =
+      typeof lastMessage === 'string' ? lastMessage : JSON.stringify(lastMessage ?? '')
+    const autoRouting = await resolveAutoModel({
+      ctx,
+      blockId,
+      signals: {
+        systemPrompt,
+        lastMessage: message,
+        messageCount: 1,
+        toolNames: [],
+        mediaKind: 'none',
+        hasResponseFormat,
+        approxInputTokens: Math.ceil((systemPrompt.length + message.length) / 4),
+      },
+      fallbackModel: ROUTER.DEFAULT_MODEL,
+    })
+
+    logger.info('Resolved sim-auto model for router', {
+      blockId,
+      model: autoRouting.model,
+      tier: autoRouting.tier,
+      decidedBy: autoRouting.decidedBy,
+    })
+
+    return {
+      model: autoRouting.model,
+      systemPrompt: [SIM_AUTO_SYSTEM_PREAMBLE, systemPrompt].filter(Boolean).join('\n\n'),
+      autoRouting,
+    }
+  }
+
   private getTargetBlocks(ctx: ExecutionContext, block: SerializedBlock) {
-    return ctx.workflow?.connections
-      .filter((conn) => conn.source === block.id)
-      .map((conn) => {
-        const targetBlock = ctx.workflow?.blocks.find((b) => b.id === conn.target)
-        if (!targetBlock) {
-          throw new Error(`Target block ${conn.target} not found`)
-        }
+    const targetBlocks = []
+    const connections = ctx.workflow?.connections.filter((conn) => conn.source === block.id) ?? []
 
-        let systemPrompt = ''
-        if (isAgentBlockType(targetBlock.metadata?.id)) {
-          const paramsPrompt = targetBlock.config?.params?.systemPrompt
-          const inputsPrompt = targetBlock.inputs?.systemPrompt
-          systemPrompt =
-            (typeof paramsPrompt === 'string' ? paramsPrompt : '') ||
-            (typeof inputsPrompt === 'string' ? inputsPrompt : '') ||
-            ''
-        }
+    for (const conn of connections) {
+      const targetBlock = ctx.workflow?.blocks.find((candidate) => candidate.id === conn.target)
+      if (!targetBlock) {
+        throw new Error(`Target block ${conn.target} not found`)
+      }
 
-        return {
-          id: targetBlock.id,
-          type: targetBlock.metadata?.id,
-          title: targetBlock.metadata?.name,
-          description: targetBlock.metadata?.description,
-          subBlocks: {
-            ...targetBlock.config.params,
-            systemPrompt: systemPrompt,
-          },
-          currentState: ctx.blockStates.get(targetBlock.id)?.output,
-        }
+      let systemPrompt = ''
+      if (isAgentBlockType(targetBlock.metadata?.id)) {
+        const paramsPrompt = targetBlock.config?.params?.systemPrompt
+        const inputsPrompt = targetBlock.inputs?.systemPrompt
+        systemPrompt =
+          (typeof paramsPrompt === 'string' ? paramsPrompt : '') ||
+          (typeof inputsPrompt === 'string' ? inputsPrompt : '') ||
+          ''
+      }
+
+      const targetState = ctx.blockStates.get(targetBlock.id)
+      const stateProvenance = targetState?.resolvedSecretTraceProvenance
+      const currentState =
+        stateProvenance && (!stateProvenance.complete || stateProvenance.entries.length > 0)
+          ? undefined
+          : targetState?.output
+
+      targetBlocks.push({
+        id: targetBlock.id,
+        type: targetBlock.metadata?.id,
+        title: targetBlock.metadata?.name,
+        description: targetBlock.metadata?.description,
+        subBlocks: {
+          ...targetBlock.config.params,
+          systemPrompt,
+        },
+        currentState,
       })
+    }
+
+    return targetBlocks
   }
 }

@@ -1,47 +1,13 @@
-import { TableIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import { listTablesContract } from '@/lib/api/contracts/tables'
-import type { TableDefinition } from '@/lib/table'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { Table } from '@sim/emcn/icons'
 import type { TriggerConfig } from '@/triggers/types'
-
-async function fetchTableColumns(blockId: string): Promise<Array<{ label: string; id: string }>> {
-  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-  if (!activeWorkflowId || !workspaceId) return []
-
-  const blockValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]
-  const tableId = (blockValues?.tableSelector as string) || (blockValues?.manualTableId as string)
-  if (!tableId) return []
-
-  const tables = await getQueryClient().fetchQuery({
-    queryKey: tableKeys.list(workspaceId),
-    queryFn: async ({ signal }): Promise<TableDefinition[]> => {
-      const response = await requestJson(listTablesContract, {
-        query: { workspaceId, scope: 'active' },
-        signal,
-      })
-      return (response.data.tables ?? []) as TableDefinition[]
-    },
-    staleTime: 60 * 1000,
-  })
-
-  const table = tables.find((t: TableDefinition) => t.id === tableId)
-  if (!table?.schema?.columns) return []
-
-  return table.schema.columns.map((col) => ({ id: col.name, label: col.name }))
-}
 
 export const tableNewRowTrigger: TriggerConfig = {
   id: 'table_new_row',
   name: 'Table Trigger',
   provider: 'table',
-  description: 'Triggers when rows are inserted or updated in a table',
+  description: 'Triggers when rows are inserted, updated, or deleted in a table',
   version: '1.0.0',
-  icon: TableIcon,
+  icon: Table,
 
   subBlocks: [
     {
@@ -71,6 +37,7 @@ export const tableNewRowTrigger: TriggerConfig = {
       options: [
         { id: 'insert', label: 'Row Inserted' },
         { id: 'update', label: 'Row Updated' },
+        { id: 'delete', label: 'Row Deleted' },
       ],
       defaultValue: 'insert',
       description: 'The type of event to trigger on.',
@@ -81,15 +48,14 @@ export const tableNewRowTrigger: TriggerConfig = {
       id: 'watchColumns',
       title: 'Watch Columns',
       type: 'dropdown',
+      selectorKey: 'table.columns',
       multiSelect: true,
-      options: [],
       placeholder: 'All columns',
       description: 'Only fire when these columns change. Leave empty to fire on any update.',
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: 'update' },
       dependsOn: { any: ['tableSelector', 'manualTableId'] },
-      fetchOptions: fetchTableColumns,
     },
     {
       id: 'includeHeaders',
@@ -108,7 +74,7 @@ export const tableNewRowTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Select the table to monitor',
-        'Choose whether to trigger on row inserts or updates',
+        'Choose whether to trigger on row inserts, updates, or deletes',
         'For updates, optionally select specific columns to watch',
         'The workflow will trigger automatically when the event occurs',
       ]
@@ -132,11 +98,11 @@ export const tableNewRowTrigger: TriggerConfig = {
     },
     previousRow: {
       type: 'json',
-      description: 'Previous row data before the update (null for inserts)',
+      description: 'Previous row data before an update or deletion (null for inserts)',
     },
     changedColumns: {
       type: 'json',
-      description: 'List of column names that changed (empty for inserts)',
+      description: 'List of column names that changed (empty for inserts and deletes)',
     },
     rowId: {
       type: 'string',

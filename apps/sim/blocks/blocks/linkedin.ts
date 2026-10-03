@@ -2,9 +2,8 @@ import { LinkedInIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { LinkedInResponse } from '@/tools/linkedin/types'
 
-export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
+export const LinkedInBlock: BlockConfig = {
   type: 'linkedin',
   name: 'LinkedIn',
   description: 'Share posts and manage your LinkedIn presence',
@@ -17,6 +16,18 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
   bgColor: '#0072B1',
   iconColor: '#0072B1',
   icon: LinkedInIcon,
+  canvasPresentation: {
+    defaultTitle: 'LinkedIn',
+    sentences: {
+      byOperation: {
+        share_post: [
+          { text: 'Post', field: 'text', after: 'to your feed', core: true },
+          { text: ', visible to', field: 'visibility' },
+        ],
+        get_profile: ['Read your profile'],
+      },
+    },
+  },
   subBlocks: [
     // Operation selection
     {

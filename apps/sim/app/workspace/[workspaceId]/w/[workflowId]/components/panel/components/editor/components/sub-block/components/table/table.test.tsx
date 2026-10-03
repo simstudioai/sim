@@ -1,0 +1,125 @@
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { KEY, SECRET, searchTargetRef } = vi.hoisted(() => ({
+  KEY: 'BROWSER_LOGIN',
+  SECRET: 'hunter2-plaintext',
+  searchTargetRef: { current: null as Record<string, unknown> | null },
+}))
+
+vi.mock('@sim/emcn', () => ({
+  ...emcnMock,
+  Button: ({ children }: { children?: React.ReactNode }) => (
+    <button type='button'>{children}</button>
+  ),
+}))
+
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+
+vi.mock('next/navigation', () => nextNavigationMock)
+
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
+  () => ({ EnvVarDropdown: () => null })
+)
+
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown',
+  () => ({ TagDropdown: () => null })
+)
+
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input',
+  () => ({
+    useSubBlockInput: () => ({
+      fieldHelpers: {
+        getFieldState: () => ({
+          showEnvVars: false,
+          showTags: false,
+          searchTerm: '',
+          cursorPosition: 0,
+          activeSourceBlockId: null,
+        }),
+        createFieldHandlers: () => ({
+          onChange: () => {},
+          onKeyDown: () => {},
+          onDrop: () => {},
+          onDragOver: () => {},
+          onFocus: () => {},
+        }),
+        createTagSelectHandler: () => () => {},
+        createEnvVarSelectHandler: () => () => {},
+        hideFieldDropdowns: () => {},
+      },
+    }),
+  })
+)
+
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value',
+  () => ({
+    useSubBlockValue: () => [[{ id: 'row-1', cells: { Key: KEY, Value: SECRET } }], () => {}],
+  })
+)
+
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider',
+  () => ({ useActiveSearchTarget: () => searchTargetRef.current })
+)
+
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes',
+  () => ({ useAccessibleReferencePrefixes: () => undefined })
+)
+
+import { Table } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
+function render(password: boolean) {
+  return renderToStaticMarkup(
+    <Table
+      blockId='block-1'
+      subBlockId='variables'
+      columns={['Key', 'Value']}
+      password={password}
+    />
+  )
+}
+
+/** A live workflow-search hit on the value cell of the only row. */
+const VALUE_CELL_SEARCH_TARGET = {
+  blockId: 'block-1',
+  subBlockId: 'variables',
+  targetKind: 'subblock',
+  valuePath: [0, 'cells', 'Value'],
+  query: SECRET,
+  rawValue: SECRET,
+  range: { start: 0, end: SECRET.length },
+}
+
+describe('Table password masking', () => {
+  beforeEach(() => {
+    searchTargetRef.current = null
+  })
+
+  it('conceals value cells while leaving the key column legible', () => {
+    const html = render(true)
+
+    expect(html).not.toContain(SECRET)
+    expect(html).toContain(KEY)
+    expect(html).toContain('•')
+  })
+
+  it('keeps a value cell concealed while workflow search targets it', () => {
+    searchTargetRef.current = VALUE_CELL_SEARCH_TARGET
+
+    const html = render(true)
+
+    expect(html).not.toContain(SECRET)
+    expect(html).toContain('•')
+  })
+})

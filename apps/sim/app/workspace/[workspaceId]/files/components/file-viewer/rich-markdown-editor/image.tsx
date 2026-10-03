@@ -1,172 +1,30 @@
-import { useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
-import type { JSONContent } from '@tiptap/core'
-import { Image } from '@tiptap/extension-image'
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, cn } from '@sim/emcn'
+import type { Node } from '@tiptap/core'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { useFileContentSource } from '@/hooks/use-file-content-source'
-import { normalizeLinkHref } from './markdown-fidelity'
-import { useEditorEditable } from './use-editor-editable'
+import { type ProsemirrorBinding, ySyncPluginKey } from '@tiptap/y-tiptap'
+import {
+  MarkdownImage,
+  MarkdownInlineImage,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
+import { createImageTargetGuard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-target'
+import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { useEditorEditable } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/use-editor-editable'
+import { type ImageDimensions, useFileContentSource } from '@/hooks/use-file-content-source'
 
 const MIN_WIDTH = 64
 
-/**
- * A markdown linked image `[![alt](src "t")](href "t2")` — an image wrapped in a link, the canonical
- * form of a README badge. `@tiptap/markdown` parses this as a link mark over an image node, but an
- * image node can't carry inline marks, so the wrapping link is silently dropped. We instead tokenize
- * the whole construct ourselves and hang the link target on the image node's `href` attribute, so it
- * round-trips losslessly (and the file stays editable rather than opening read-only).
- */
-const LINKED_IMAGE_RE =
-  /^\[!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/
-
-/** Escape a value for safe interpolation into a double-quoted HTML attribute. */
-function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
-
-/**
- * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
- * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
- * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
- * wrapped in a markdown link so a linked badge round-trips as `[![alt](src)](href)`.
- *
- * A *sized **and** linked* image is the one case markdown can't represent: the linked-image tokenizer
- * only recognizes `[![alt](src)](href)`, so emitting `[<img …>](href)` would silently drop the link on
- * reparse (and the round-trip-safety probe wouldn't catch it). We keep the link and fall back to the
- * unsized `[![alt](src)](href)` form — the link matters more than the exact dimensions for a badge.
- */
-function imageMarkdown(node: JSONContent): string {
-  const attrs = node.attrs ?? {}
-  const src = typeof attrs.src === 'string' ? attrs.src : ''
-  const alt = typeof attrs.alt === 'string' ? attrs.alt : ''
-  const title = typeof attrs.title === 'string' ? attrs.title : ''
-  const href = typeof attrs.href === 'string' ? attrs.href : ''
-  const hrefTitle = typeof attrs.hrefTitle === 'string' ? attrs.hrefTitle : ''
-  const width = attrs.width
-  const height = attrs.height
-  let image: string
-  if ((width || height) && !href) {
-    const parts = [`src="${escapeAttr(src)}"`]
-    if (alt) parts.push(`alt="${escapeAttr(alt)}"`)
-    if (title) parts.push(`title="${escapeAttr(title)}"`)
-    if (width) parts.push(`width="${escapeAttr(String(width))}"`)
-    if (height) parts.push(`height="${escapeAttr(String(height))}"`)
-    image = `<img ${parts.join(' ')}>`
-  } else {
-    // Escape so an alt with `]`/`[` or a title with `"` can't break out of the `![…](… "…")` syntax
-    // and corrupt the round-trip; a src with spaces/parens goes in angle brackets (CommonMark).
-    const titlePart = title ? ` "${title.replace(/["\\]/g, '\\$&')}"` : ''
-    const safeSrc = /[\s()]/.test(src) ? `<${src}>` : src
-    image = `![${alt.replace(/[\\[\]]/g, '\\$&')}](${safeSrc}${titlePart})`
-  }
-  if (!href) return image
-  // Escape `"`/`\` so an href title can't break out of the `[…](href "title")` syntax (mirrors the
-  // image title escaping above).
-  const hrefTitlePart = hrefTitle ? ` "${hrefTitle.replace(/["\\]/g, '\\$&')}"` : ''
-  return `[${image}](${href}${hrefTitlePart})`
-}
-
-interface MarkdownImageToken {
-  /** Set only by our linked-image tokenizer; absent on the built-in `![](src)` token. */
-  src?: string
-  alt?: string
-  title?: string | null
-  /** Built-in image token holds the source URL here; our linked token holds the link target. */
-  href?: string
-  hrefTitle?: string | null
-  /** Built-in image token holds the alt text here. */
-  text?: string
-}
-
-/** Map both the built-in image token and our linked-image token onto the image node's attributes. */
-function parseImageToken(token: MarkdownImageToken): JSONContent {
-  const isLinked = typeof token.src === 'string'
-  return {
-    type: 'image',
-    attrs: isLinked
-      ? {
-          src: token.src,
-          alt: token.alt ?? '',
-          title: token.title ?? null,
-          href: token.href ?? null,
-          hrefTitle: token.hrefTitle ?? null,
-        }
-      : {
-          src: token.href ?? '',
-          alt: token.text ?? '',
-          title: token.title ?? null,
-          href: null,
-          hrefTitle: null,
-        },
-  }
-}
-
-const widthAttr = {
-  default: null,
-  parseHTML: (element: HTMLElement) => element.getAttribute('width'),
-  renderHTML: (attributes: Record<string, unknown>) =>
-    attributes.width ? { width: String(attributes.width) } : {},
-}
-
-const heightAttr = {
-  default: null,
-  parseHTML: (element: HTMLElement) => element.getAttribute('height'),
-  renderHTML: (attributes: Record<string, unknown>) =>
-    attributes.height ? { height: String(attributes.height) } : {},
-}
-
-/** Link target of a linked image — markdown-only state, never emitted as an HTML `<img>` attribute. */
-const hrefAttr = { default: null, rendered: false }
-const hrefTitleAttr = { default: null, rendered: false }
-
-/**
- * Image node that carries optional `width`/`height` (serialized as an HTML `<img>` tag) and an
- * optional `href`/`hrefTitle` (a wrapping markdown link, for badges). Shared by the headless
- * round-trip path (no node view) and the live {@link ResizableImage}.
- */
-export const MarkdownImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      width: widthAttr,
-      height: heightAttr,
-      href: hrefAttr,
-      hrefTitle: hrefTitleAttr,
-    }
-  },
-  markdownTokenizer: {
-    name: 'image',
-    level: 'inline',
-    start: (src: string) => src.indexOf('[!['),
-    tokenize: (src: string): (MarkdownImageToken & { type: string; raw: string }) | undefined => {
-      const match = LINKED_IMAGE_RE.exec(src)
-      if (!match) return undefined
-      return {
-        type: 'image',
-        raw: match[0],
-        alt: match[1] ?? '',
-        src: match[2],
-        title: match[3] ?? null,
-        href: match[4],
-        hrefTitle: match[5] ?? null,
-      }
-    },
-  },
-  parseMarkdown: parseImageToken,
-  renderMarkdown: imageMarkdown,
-})
+/** A bare pixel count (`"640"`) that needs a `px` suffix, vs. an already-unit'd size (`"50%"`). */
+const BARE_PIXEL_SIZE = /^\d+$/
+const PIXEL_SIZE = /^\d+(?:\.\d+)?px$/
 
 /**
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
  */
-function ResizableImageView({ node, updateAttributes, selected, editor }: ReactNodeViewProps) {
+export function ResizableImageView({ node, selected, editor, getPos }: ReactNodeViewProps) {
   const source = useFileContentSource()
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
@@ -176,21 +34,56 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   const [dragWidth, setDragWidth] = useState<number | null>(null)
   /** Whether the current src failed to load; reset on src change so a retried/edited src can load. */
   const [failed, setFailed] = useState(false)
+  /**
+   * Intrinsic dimensions measured from the loaded image — holds the aspect-ratio box for THIS view when
+   * the content source has no stored dimensions yet (the first-ever view of an image). Reset on src change.
+   */
+  const [measuredDimensions, setMeasuredDimensions] = useState<ImageDimensions | null>(null)
   const attrs = node.attrs as {
     src?: string
     alt?: string
     title?: string
     width?: string | null
+    height?: string | null
     href?: string | null
   }
 
   useEffect(() => () => dragAbortRef.current?.abort(), [])
-  useEffect(() => setFailed(false), [attrs.src])
+
+  // Reset the load-failure flag and this-session measurement when the src changes — adjusted during
+  // render (not in an effect) so the previous image's aspect-ratio box never paints for a frame. A `key`
+  // remount isn't available here: TipTap owns this node view's instantiation.
+  const [prevSrc, setPrevSrc] = useState(attrs.src)
+  if (prevSrc !== attrs.src) {
+    setPrevSrc(attrs.src)
+    setFailed(false)
+    setMeasuredDimensions(null)
+  }
 
   const startResize = (event: React.PointerEvent) => {
     event.preventDefault()
+    if (event.button !== 0 || dragging) return
     const image = imageRef.current
     if (!image) return
+    const binding: ProsemirrorBinding | undefined = ySyncPluginKey.getState(editor.state)?.binding
+    const position = binding ? getPos() : undefined
+    const currentNode = typeof position === 'number' ? editor.state.doc.nodeAt(position) : null
+    const matchesTarget =
+      binding && currentNode ? createImageTargetGuard(binding, currentNode) : undefined
+    /** A node view can be reused for a replacement image, even when every attribute is identical. */
+    const isCurrentTarget = () => {
+      if (!binding) return true
+      const position = getPos()
+      return (
+        matchesTarget !== undefined &&
+        typeof position === 'number' &&
+        matchesTarget(editor.state.doc.nodeAt(position))
+      )
+    }
+    if (!isCurrentTarget()) return
+    const handle = event.currentTarget
+    const pointerId = event.pointerId
+    handle.setPointerCapture(pointerId)
     const startX = event.clientX
     const startWidth = image.offsetWidth
     setDragging(true)
@@ -202,35 +95,118 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
     window.addEventListener(
       'pointermove',
       (move) => {
+        if (move.pointerId !== pointerId) return
         const next = Math.max(MIN_WIDTH, Math.round(startWidth + (move.clientX - startX)))
         dragWidthRef.current = next
         setDragWidth(next)
       },
       { signal }
     )
-    const finish = () => {
+    const finish = (commit: boolean) => {
       const finalWidth = dragWidthRef.current
       setDragging(false)
       setDragWidth(null)
       dragWidthRef.current = null
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
       controller.abort()
-      if (finalWidth !== null) updateAttributes({ width: String(finalWidth) })
+      if (
+        commit &&
+        finalWidth !== null &&
+        editor.isEditable &&
+        !editor.isDestroyed &&
+        isCurrentTarget()
+      ) {
+        const position = getPos()
+        if (typeof position !== 'number') return
+        const tr = editor.state.tr
+          .setNodeAttribute(position, 'width', String(finalWidth))
+          .setNodeAttribute(position, 'height', null)
+        editor.view.dispatch(tr.setSelection(NodeSelection.create(tr.doc, position)))
+      }
     }
-    window.addEventListener('pointerup', finish, { signal })
-    window.addEventListener('pointercancel', finish, { signal })
+    if (binding) {
+      const onTransaction = () => {
+        if (!isCurrentTarget()) finish(false)
+      }
+      editor.on('transaction', onTransaction)
+      signal.addEventListener('abort', () => editor.off('transaction', onTransaction), {
+        once: true,
+      })
+    }
+    window.addEventListener(
+      'pointerup',
+      (up) => {
+        if (up.pointerId === pointerId) finish(true)
+      },
+      { signal }
+    )
+    window.addEventListener(
+      'pointercancel',
+      (cancel) => {
+        if (cancel.pointerId === pointerId) finish(false)
+      },
+      { signal }
+    )
+    window.addEventListener('blur', () => finish(false), { signal })
   }
 
   const committedWidth = attrs.width
-    ? /^\d+$/.test(attrs.width)
+    ? BARE_PIXEL_SIZE.test(attrs.width)
       ? `${attrs.width}px`
       : attrs.width
     : undefined
-  const widthStyle =
+  const committedHeight = attrs.height
+    ? BARE_PIXEL_SIZE.test(attrs.height)
+      ? `${attrs.height}px`
+      : attrs.height
+    : undefined
+  // Stored intrinsic dimensions reserve the box on the very first render. Memoized on the src (not the
+  // live drag width) so a resize drag never re-scans the file list. Falls back to what we measured on
+  // load this session for a first-ever view the metadata hasn't caught up on.
+  const storedDimensions = useMemo(
+    () => source.getImageDimensions?.(attrs.src) ?? null,
+    [source, attrs.src]
+  )
+  // The browser's post-load measurement is authoritative — EXIF-corrected, and correct even when the
+  // stored value is stale (e.g. left over after the file's content was replaced) — so it wins once
+  // available; stored metadata only reserves the box pre-load. Equal in the common case, so no shift.
+  const intrinsicDimensions = measuredDimensions ?? storedDimensions
+  const hasPixelHeight = committedHeight !== undefined && PIXEL_SIZE.test(committedHeight)
+  const authoredDimensions =
+    committedWidth &&
+    committedHeight &&
+    PIXEL_SIZE.test(committedWidth) &&
+    PIXEL_SIZE.test(committedHeight) &&
+    Number.parseFloat(committedWidth) > 0 &&
+    Number.parseFloat(committedHeight) > 0
+      ? { width: Number.parseFloat(committedWidth), height: Number.parseFloat(committedHeight) }
+      : null
+  const displayDimensions =
+    dragWidth === null ? (authoredDimensions ?? intrinsicDimensions) : intrinsicDimensions
+  const displayWidth =
     dragWidth !== null
-      ? { width: `${dragWidth}px` }
-      : committedWidth
-        ? { width: committedWidth }
-        : undefined
+      ? `${dragWidth}px`
+      : (committedWidth ??
+        (intrinsicDimensions && (!committedHeight || hasPixelHeight)
+          ? committedHeight
+            ? `calc(${committedHeight} * ${intrinsicDimensions.width / intrinsicDimensions.height})`
+            : `${intrinsicDimensions.width}px`
+          : undefined))
+  // width + aspect-ratio (with `max-w-full`/`h-auto` from the class list) reserves a responsive box the
+  // image can't reflow into, per the CLS-avoidance pattern for known-ratio responsive images. React drops
+  // the undefined keys, so an unmeasured image simply gets no reservation (its prior behavior).
+  const imageStyle: CSSProperties = {
+    width: displayWidth,
+    height:
+      dragWidth === null && !authoredDimensions && (committedWidth || !hasPixelHeight)
+        ? committedHeight
+        : undefined,
+    maxHeight:
+      dragWidth === null && !committedWidth && hasPixelHeight ? committedHeight : undefined,
+    aspectRatio: displayDimensions
+      ? `${displayDimensions.width} / ${displayDimensions.height}`
+      : undefined,
+  }
 
   // Sanitize the linked-image target before rendering the anchor — a parsed markdown href is
   // untrusted and could be `javascript:`/`data:`; an unsafe value drops the link (image only).
@@ -246,16 +222,30 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
       src={source.resolveImageSrc(attrs.src)}
       alt={attrs.alt ?? ''}
       title={attrs.title ?? undefined}
-      // When editable, the image itself is the drag handle — grab anywhere on it to reorder. (The node
-      // view's wrapper is forced `draggable=false` by the React renderer, so the handle must be a child;
-      // the resize button sits outside this element, so it keeps its own pointer behavior.)
       draggable={editable}
       data-drag-handle={editable ? '' : undefined}
-      style={widthStyle}
+      style={imageStyle}
       onError={() => setFailed(true)}
-      onLoad={() => setFailed(false)}
+      onLoad={(event) => {
+        setFailed(false)
+        const { naturalWidth, naturalHeight } = event.currentTarget
+        if (naturalWidth <= 0 || naturalHeight <= 0) return
+        // The browser's measurement is authoritative. Reserve from it and persist whenever the stored
+        // metadata is absent or disagrees (EXIF-rotated, or stale after a content swap), so a wrong value
+        // self-corrects instead of sticking. Compare the memoized `storedDimensions` the render uses, NOT
+        // a fresh cache read — the memo is non-reactive, and this keeps the guard consistent with render.
+        if (
+          storedDimensions &&
+          storedDimensions.width === naturalWidth &&
+          storedDimensions.height === naturalHeight
+        ) {
+          return
+        }
+        setMeasuredDimensions({ width: naturalWidth, height: naturalHeight })
+        source.reportImageDimensions?.(attrs.src, { width: naturalWidth, height: naturalHeight })
+      }}
       className={cn(
-        'block max-w-full rounded-lg border border-[var(--border)]',
+        'block h-auto max-w-full rounded-lg border border-[var(--border)]',
         editable && 'cursor-grab',
         failed &&
           'min-h-[72px] min-w-[140px] bg-[var(--surface-5)] p-3 text-[var(--text-muted)] text-caption'
@@ -264,7 +254,13 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   )
 
   return (
-    <NodeViewWrapper className='relative my-4 inline-block leading-none'>
+    <NodeViewWrapper
+      as={node.isInline ? 'span' : 'div'}
+      className={cn(
+        'relative inline-block max-w-full leading-none',
+        node.isInline ? 'align-middle' : 'my-4'
+      )}
+    >
       {safeHref ? (
         // The editor's handleClick is the sole navigator (gated on editable/modifier, like text links
         // via openOnClick:false): prevent the anchor's own navigation so a plain click in edit mode
@@ -282,44 +278,56 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
         image
       )}
       {editable && (selected || dragging) && (
-        <button
+        <Button
           type='button'
+          variant='ghost'
+          size='icon'
           aria-label='Resize image'
           onPointerDown={startResize}
-          className='absolute right-1 bottom-1 size-3 cursor-nwse-resize rounded-[3px] border border-[var(--bg)] bg-[var(--brand-secondary)]'
-        />
+          className='absolute right-0 bottom-0 flex size-10 cursor-nwse-resize touch-none items-end justify-end p-1 sm:size-8'
+        >
+          <span className='size-3 rounded-[3px] border border-[var(--bg)] bg-[var(--brand-secondary)]' />
+        </Button>
       )}
     </NodeViewWrapper>
   )
 }
 
 /** Live image node with the drag-to-resize view; same schema + markdown output as the headless one. */
-export const ResizableImage = MarkdownImage.extend({
-  addNodeView() {
-    return ReactNodeViewRenderer(ResizableImageView)
-  },
-  /**
-   * Guarantee a plain click on the image forms a node selection. The image body is also a native drag
-   * source (grab-anywhere reorder), and while prosemirror-view ≥1.32.4 no longer implicitly selects on
-   * drag, the reverse — a click reliably selecting — is not guaranteed for an atom whose body competes
-   * with the drag gesture (see the ProseMirror "Draggable and NodeViews" discussion and TipTap #4526).
-   * Selecting here makes it deterministic while leaving drag-to-reorder intact. Read-only clicks and
-   * modified clicks (Cmd/Ctrl to follow a linked badge, Shift/Alt to extend) fall through to the editor's
-   * `handleClick` / default behavior.
-   */
-  addProseMirrorPlugins() {
-    const nodeName = this.name
-    return [
-      new Plugin({
-        props: {
-          handleClickOn(view, _pos, node, nodePos, event) {
-            if (!view.editable || node.type.name !== nodeName) return false
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false
-            view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos)))
-            return true
+function withImageNodeView(image: Node) {
+  return image.extend({
+    addNodeView() {
+      return ReactNodeViewRenderer(ResizableImageView)
+    },
+    /**
+     * Guarantee a plain click on the image forms a node selection. The image body is also a native drag
+     * source (grab-anywhere reorder), and while prosemirror-view ≥1.32.4 no longer implicitly selects on
+     * drag, the reverse — a click reliably selecting — is not guaranteed for an atom whose body competes
+     * with the drag gesture (see the ProseMirror "Draggable and NodeViews" discussion and TipTap #4526).
+     * Selecting here makes it deterministic while leaving drag-to-reorder intact. Read-only clicks and
+     * modified clicks (Cmd/Ctrl to follow a linked badge, Shift/Alt to extend) fall through to the editor's
+     * `handleClick` / default behavior.
+     */
+    addProseMirrorPlugins() {
+      const nodeName = this.name
+      return [
+        ...(this.parent?.() ?? []),
+        new Plugin({
+          props: {
+            handleClickOn(view, _pos, node, nodePos, event) {
+              if (!view.editable || node.type.name !== nodeName) return false
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false
+              view.dispatch(
+                view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos))
+              )
+              return true
+            },
           },
-        },
-      }),
-    ]
-  },
-})
+        }),
+      ]
+    },
+  })
+}
+
+export const ResizableImage = withImageNodeView(MarkdownImage)
+export const ResizableInlineImage = withImageNodeView(MarkdownInlineImage)

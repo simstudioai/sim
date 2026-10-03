@@ -1,49 +1,17 @@
-import { randomItem } from '@sim/utils/random'
 import { hexToRgb } from '@/lib/colors'
 
-/** Color palette for workspace accents. */
-export const WORKSPACE_COLORS = [
-  '#2ABBF8', // Blue
-  '#22c55e', // Green
-  '#FFCC02', // Yellow
-  '#a855f7', // Purple
-  '#f97316', // Orange
-  '#14b8a6', // Teal
-  '#ff6b6b', // Coral
-] as const
-
-/** Picks a random workspace color from the hero palette. */
-export function getRandomWorkspaceColor(): string {
-  return randomItem(WORKSPACE_COLORS)
-}
-
-const APP_COLORS = [
-  { from: '#4F46E5', to: '#7C3AED' }, // indigo to purple
-  { from: '#7C3AED', to: '#C026D3' }, // purple to fuchsia
-  { from: '#EC4899', to: '#F97316' }, // pink to orange
-  { from: '#14B8A6', to: '#10B981' }, // teal to emerald
-  { from: '#6366F1', to: '#8B5CF6' }, // indigo to violet
-  { from: '#F59E0B', to: '#F97316' }, // amber to orange
-]
-
 /**
- * User color palette matching terminal.tsx RUN_ID_COLORS
- * These colors are used consistently across cursors, avatars, and terminal run IDs
+ * Shared identity palette for cursors, avatars, and collaborator selections.
+ * Colour values live in globals.css; keep the order stable for user ID hashing.
  */
 export const USER_COLORS = [
-  '#4ADE80', // Green
-  '#F472B6', // Pink
-  '#60C5FF', // Blue
-  '#FF8533', // Orange
-  '#C084FC', // Purple
-  '#FCD34D', // Yellow
+  'var(--indicator-active)', // Green
+  'var(--color-pink-400)',
+  'var(--brand-secondary)', // Blue
+  'var(--color-orange-400)',
+  'var(--color-purple-400)',
+  'var(--color-amber-300)',
 ] as const
-
-interface PresenceColorPalette {
-  gradient: string
-  accentColor: string
-  baseColor: string
-}
 
 const HEX_COLOR_REGEX = /^#(?:[0-9a-fA-F]{3}){1,2}$/
 
@@ -59,76 +27,27 @@ function hashIdentifier(identifier: string | number): number {
   return 0
 }
 
-function withAlpha(hexColor: string, alpha: number): string {
-  if (!HEX_COLOR_REGEX.test(hexColor)) {
-    return hexColor
+export function withAlpha(color: string, alpha: number): string {
+  const opacity = Math.min(Math.max(alpha, 0), 1)
+  if (color.startsWith('var(')) {
+    return `color-mix(in srgb, ${color} ${opacity * 100}%, transparent)`
+  }
+  if (!HEX_COLOR_REGEX.test(color)) {
+    return color
   }
 
-  const { r, g, b } = hexToRgb(hexColor)
-  return `rgba(${r}, ${g}, ${b}, ${Math.min(Math.max(alpha, 0), 1)})`
-}
-
-function buildGradient(fromColor: string, toColor: string, rotationSeed: number): string {
-  const rotation = (rotationSeed * 25) % 360
-  return `linear-gradient(${rotation}deg, ${fromColor}, ${toColor})`
-}
-
-export function getPresenceColors(
-  identifier: string | number,
-  explicitColor?: string
-): PresenceColorPalette {
-  const paletteIndex = hashIdentifier(identifier)
-
-  if (explicitColor) {
-    const normalizedColor = explicitColor.trim()
-    const lighterShade = HEX_COLOR_REGEX.test(normalizedColor)
-      ? withAlpha(normalizedColor, 0.85)
-      : normalizedColor
-
-    return {
-      gradient: buildGradient(lighterShade, normalizedColor, paletteIndex),
-      accentColor: normalizedColor,
-      baseColor: lighterShade,
-    }
-  }
-
-  const colorPair = APP_COLORS[paletteIndex % APP_COLORS.length]
-
-  return {
-    gradient: buildGradient(colorPair.from, colorPair.to, paletteIndex),
-    accentColor: colorPair.to,
-    baseColor: colorPair.from,
-  }
+  const { r, g, b } = hexToRgb(color)
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
 /**
  * Gets a consistent color for a user based on their ID.
- * The same user will always get the same color across cursors, avatars, and terminal.
+ * The same user will always get the same color across cursors, avatars, and selections.
  *
  * @param userId - The unique user identifier
- * @returns A hex color string
+ * @returns A CSS colour variable reference
  */
 export function getUserColor(userId: string): string {
   const hash = hashIdentifier(userId)
   return USER_COLORS[hash % USER_COLORS.length]
-}
-
-/**
- * Creates a stable mapping of user IDs to color indices for a list of users.
- * Useful when you need to maintain consistent color assignments across renders.
- *
- * @param userIds - Array of user IDs to map
- * @returns Map of user ID to color index
- */
-export function createUserColorMap(userIds: string[]): Map<string, number> {
-  const colorMap = new Map<string, number>()
-  let colorIndex = 0
-
-  for (const userId of userIds) {
-    if (!colorMap.has(userId)) {
-      colorMap.set(userId, colorIndex++)
-    }
-  }
-
-  return colorMap
 }

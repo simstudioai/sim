@@ -19,9 +19,7 @@ interface WhatYouWillLearnProps {
 export function WhatYouWillLearn({ items, className }: WhatYouWillLearnProps) {
   return (
     <div className={cn('not-prose', className)}>
-      <p className='mb-3 font-medium text-[0.8125rem] text-[var(--text-muted)]'>
-        What you will learn
-      </p>
+      <p className='mb-3 font-medium text-[var(--text-muted)] text-small'>What you will learn</p>
       <div className='divide-y divide-[var(--border)]'>
         {items.map((item) => (
           <div key={item.title} className='py-3.5 first:pt-0 last:pb-0'>

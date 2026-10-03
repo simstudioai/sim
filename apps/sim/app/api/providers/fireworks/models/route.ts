@@ -10,6 +10,7 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
@@ -54,7 +55,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
   }
 
-  if (!apiKey) {
+  /**
+   * On hosted Sim the platform key is the sim-auto pool's inference key, not a
+   * workspace credential: enumerating the whole Fireworks catalog from it would
+   * offer every serverless model as selectable when no key can actually run it
+   * (`getApiKeyWithBYOK` serves the platform key to catalog models only).
+   */
+  if (!apiKey && !isHosted) {
     apiKey = env.FIREWORKS_API_KEY
   }
 

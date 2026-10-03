@@ -1,9 +1,11 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Checkbox, cn, Input, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
-import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
+import { Checkbox, Chip, ChipModalField, cn, Label, Tooltip, Wizard } from '@sim/emcn'
+import { Check, ChevronRight, CircleInfo } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
+import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
+import { buildSlackAppCreationUrl, getSlackAppNameError } from '@/lib/integrations/slack-manifest'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -52,22 +54,14 @@ export function SlackSetupWizard({
 
   return (
     <>
-      <button
-        type='button'
+      <Chip
+        fullWidth
         onClick={() => setOpen(true)}
         disabled={launcherDisabled}
-        className={cn(
-          'flex w-full items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 text-left transition-colors',
-          launcherDisabled
-            ? 'cursor-not-allowed opacity-70'
-            : 'cursor-pointer hover-hover:bg-[var(--surface-6)]'
-        )}
+        rightIcon={ChevronRight}
       >
-        <span className='font-medium font-sans text-[var(--text-primary)] text-sm'>
-          Setup Slack App
-        </span>
-        <ChevronRight className='size-[14px] text-[var(--text-muted)]' />
-      </button>
+        Set up Slack app
+      </Chip>
 
       <WizardModal
         blockId={blockId}
@@ -104,6 +98,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
   const selected = useCapabilitySelection(blockId)
 
   const displayAppName = appName ?? DEFAULT_APP_NAME
+  const nameError = getSlackAppNameError(displayAppName.trim() || DEFAULT_APP_NAME)
   const effectiveWebhookUrl = !isLoading && webhookUrl ? webhookUrl : null
   const canCopy = effectiveWebhookUrl !== null
   const controlsDisabled = isPreview || disabled
@@ -113,7 +108,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       appName: displayAppName.trim() || DEFAULT_APP_NAME,
       webhookUrl: effectiveWebhookUrl,
     })
-    return JSON.stringify(manifest, null, 2)
+    return JSON.stringify(manifest)
   }, [selected, displayAppName, effectiveWebhookUrl])
 
   const handleOpenChange = useCallback(
@@ -133,10 +128,11 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       size='lg'
       height={MODAL_HEIGHT_CLASS}
     >
-      <Wizard.Step title='Configure your bot'>
+      <Wizard.Step title='Configure your bot' canAdvance={!nameError}>
         <StepConfigure
           blockId={blockId}
           appName={displayAppName}
+          nameError={nameError}
           onAppNameChange={(v) => {
             if (!controlsDisabled) setAppName(v)
           }}
@@ -144,22 +140,11 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
           disabled={controlsDisabled}
         />
       </Wizard.Step>
-      <Wizard.Step title='Create the app in Slack'>
-        <StepCreate manifestJson={manifestJson} canCopy={canCopy} />
+      <Wizard.Step title='Create the app in Slack' canAdvance={canCopy}>
+        <StepCreate manifestJson={manifestJson} canCopy={canCopy} isLoading={isLoading} />
       </Wizard.Step>
-      <Wizard.Step title='Paste your Signing Secret'>
-        <StepSecret
-          blockId={blockId}
-          value={signingSecret ?? ''}
-          onChange={(v) => {
-            if (!controlsDisabled) setSigningSecret(v)
-          }}
-          disabled={controlsDisabled}
-        />
-      </Wizard.Step>
-      <Wizard.Step title='Install and paste your Bot Token'>
+      <Wizard.Step title='Install and paste your Bot Token' canAdvance={Boolean(botToken?.trim())}>
         <StepToken
-          blockId={blockId}
           value={botToken ?? ''}
           onChange={(v) => {
             if (!controlsDisabled) setBotToken(v)
@@ -167,7 +152,16 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
           disabled={controlsDisabled}
         />
       </Wizard.Step>
-      <Wizard.Step title='All set'>
+      <Wizard.Step title='Paste your Signing Secret' canAdvance={Boolean(signingSecret?.trim())}>
+        <StepSecret
+          value={signingSecret ?? ''}
+          onChange={(v) => {
+            if (!controlsDisabled) setSigningSecret(v)
+          }}
+          disabled={controlsDisabled}
+        />
+      </Wizard.Step>
+      <Wizard.Step title='Save and verify the Request URL'>
         <StepDone hasSigningSecret={Boolean(signingSecret)} hasBotToken={Boolean(botToken)} />
       </Wizard.Step>
     </Wizard>
@@ -190,7 +184,7 @@ interface SubStepProps {
 function SubStep({ n, children }: SubStepProps) {
   return (
     <li className='flex gap-2.5'>
-      <span className='mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] font-medium text-[var(--text-secondary)] text-xs tabular-nums'>
+      <span className='mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] text-[var(--text-secondary)] text-xs tabular-nums'>
         {n}
       </span>
       <div className='flex-1 text-[var(--text-secondary)] text-sm leading-relaxed'>{children}</div>
@@ -201,6 +195,7 @@ function SubStep({ n, children }: SubStepProps) {
 interface StepConfigureProps {
   blockId: string
   appName: string
+  nameError: string | null
   onAppNameChange: (next: string) => void
   selected: ReadonlySet<string>
   disabled: boolean
@@ -209,32 +204,22 @@ interface StepConfigureProps {
 function StepConfigure({
   blockId,
   appName,
+  nameError,
   onAppNameChange,
   selected,
   disabled,
 }: StepConfigureProps) {
   return (
     <div className='space-y-4'>
-      <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
-        Pick a name and choose what events should trigger your workflow and what actions your bot
-        can take.
-      </p>
-      <div className='space-y-1.5'>
-        <Label
-          htmlFor={`${blockId}-wizard-bot-name`}
-          className='font-medium text-[var(--text-secondary)] text-xs'
-        >
-          Bot name
-        </Label>
-        <Input
-          id={`${blockId}-wizard-bot-name`}
-          value={appName}
-          onChange={(e) => onAppNameChange(e.target.value)}
-          disabled={disabled}
-          placeholder={DEFAULT_APP_NAME}
-          className='h-9 text-sm'
-        />
-      </div>
+      <ChipModalField
+        type='input'
+        title='Bot name'
+        value={appName}
+        onChange={onAppNameChange}
+        disabled={disabled}
+        placeholder={DEFAULT_APP_NAME}
+        error={nameError}
+      />
       <div className='grid grid-cols-2 gap-x-4 gap-y-4'>
         {GROUP_ORDER.map((group) => {
           const items = SLACK_CAPABILITIES.filter((c) => c.group === group)
@@ -258,74 +243,32 @@ function StepConfigure({
 interface StepCreateProps {
   manifestJson: string
   canCopy: boolean
+  isLoading: boolean
 }
 
-function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
-  const [copied, setCopied] = useState<boolean>(false)
-  const [copyFailed, setCopyFailed] = useState<boolean>(false)
-
-  const handleCopy = useCallback(async () => {
-    if (!canCopy) return
-    try {
-      await navigator.clipboard.writeText(manifestJson)
-      setCopyFailed(false)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setCopyFailed(true)
-    }
-  }, [canCopy, manifestJson])
-
+function StepCreate({ manifestJson, canCopy, isLoading }: StepCreateProps) {
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          <div>Copy your manifest:</div>
-          <button
-            type='button'
-            onClick={handleCopy}
-            disabled={!canCopy}
-            className={cn(
-              'mt-2 inline-flex items-center gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-1)] px-3 py-1.5 text-left transition-colors',
-              canCopy
-                ? 'cursor-pointer hover-hover:bg-[var(--surface-hover)]'
-                : 'cursor-not-allowed opacity-70'
-            )}
-          >
-            <span className='font-medium text-[var(--text-secondary)] text-sm'>
-              {canCopy ? 'Click to copy manifest' : 'Deploy once to lock in the webhook URL'}
-            </span>
-            {canCopy &&
-              (copied ? (
-                <Check className='size-[12px] text-[var(--text-success)]' />
-              ) : (
-                <Clipboard className='size-[12px] text-[var(--text-muted)]' />
-              ))}
-          </button>
-          {copyFailed ? (
-            <p className='mt-1.5 text-[var(--text-error)] text-xs'>
-              Couldn't copy manifest — copy it manually from the developer console.
+          <div>Open Slack with your manifest already filled in:</div>
+          <div className='mt-2'>
+            <SlackAppManifest
+              manifest={manifestJson}
+              createAppUrl={buildSlackAppCreationUrl(manifestJson)}
+              disabled={!canCopy}
+            />
+          </div>
+          {!canCopy && (
+            <p role='status' className='mt-2 text-[var(--text-secondary)] text-sm'>
+              {isLoading
+                ? 'Loading the webhook URL…'
+                : 'Webhook URL unavailable. Reload the workflow and try again.'}
             </p>
-          ) : null}
+          )}
         </SubStep>
         <SubStep n={2}>
-          Open the{' '}
-          <a
-            href='https://api.slack.com/apps'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-[var(--brand-secondary)] underline underline-offset-2'
-          >
-            Slack Apps page
-          </a>
-          .
-        </SubStep>
-        <SubStep n={3}>
-          Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
-          workspace.
-        </SubStep>
-        <SubStep n={4}>
-          Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
+          Select your workspace, review the configuration, then click <strong>Create</strong>.
         </SubStep>
       </SubStepList>
     </div>
@@ -333,13 +276,12 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
 }
 
 interface StepSecretProps {
-  blockId: string
   value: string
   onChange: (next: string) => void
   disabled: boolean
 }
 
-function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
+function StepSecret({ value, onChange, disabled }: StepSecretProps) {
   return (
     <div className='space-y-4'>
       <SubStepList>
@@ -352,7 +294,6 @@ function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
       <SecretField
-        id={`${blockId}-wizard-signing-secret`}
         label='Signing Secret'
         value={value}
         onChange={onChange}
@@ -364,19 +305,18 @@ function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
 }
 
 interface StepTokenProps {
-  blockId: string
   value: string
   onChange: (next: string) => void
   disabled: boolean
 }
 
-function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
+function StepToken({ value, onChange, disabled }: StepTokenProps) {
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          In Slack, open <strong>Install App</strong> → <strong>Install to Workspace</strong> and
-          authorize.
+          In Slack, open <strong>OAuth &amp; Permissions</strong> →{' '}
+          <strong>Install to Workspace</strong> and authorize.
         </SubStep>
         <SubStep n={2}>
           Copy the <strong>Bot User OAuth Token</strong> (starts with <code>xoxb-</code>).
@@ -384,7 +324,6 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
       <SecretField
-        id={`${blockId}-wizard-bot-token`}
         label='Bot Token'
         value={value}
         onChange={onChange}
@@ -396,7 +335,6 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
 }
 
 interface SecretFieldProps {
-  id: string
   label: string
   value: string
   onChange: (next: string) => void
@@ -404,27 +342,18 @@ interface SecretFieldProps {
   placeholder?: string
 }
 
-/**
- * Label + SecretInput pair used by the signing-secret and bot-token wizard
- * steps. The masked-on-blur behavior lives in the emcn `SecretInput`
- * primitive; this wrapper just pins the label/input composition the wizard
- * reuses twice.
- */
-function SecretField({ id, label, value, onChange, disabled, placeholder }: SecretFieldProps) {
+function SecretField({ label, value, onChange, disabled, placeholder }: SecretFieldProps) {
   return (
-    <div className='space-y-1.5'>
-      <Label htmlFor={id} className='font-medium text-[var(--text-secondary)] text-xs'>
-        {label}
-      </Label>
-      <SecretInput
-        id={id}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        placeholder={placeholder}
-        className='h-9 text-sm'
-      />
-    </div>
+    <ChipModalField
+      type='input'
+      inputType='password'
+      title={label}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      placeholder={placeholder}
+      autoComplete='off'
+    />
   )
 }
 
@@ -437,14 +366,13 @@ function StepDone({ hasSigningSecret, hasBotToken }: StepDoneProps) {
   return (
     <div className='space-y-4'>
       <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
-        Your Slack app is set up. Save the workflow and Slack will verify the webhook URL
-        automatically.
+        Click Done, then save and deploy the workflow with these credentials. In Slack, open App
+        Manifest and verify the event Request URL before using the trigger.
       </p>
       <div className='flex flex-col gap-2'>
         <StatusRow label='Signing Secret' ok={hasSigningSecret} />
         <StatusRow label='Bot Token' ok={hasBotToken} />
       </div>
-      <p className='text-[var(--text-secondary)] text-sm'>Click Done and save this workflow.</p>
     </div>
   )
 }
@@ -488,9 +416,7 @@ function CapabilityGroup({
 }: CapabilityGroupProps) {
   return (
     <div className='space-y-2'>
-      <div className='font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
-        {label}
-      </div>
+      <div className='text-[var(--text-muted)] text-xs uppercase tracking-wide'>{label}</div>
       <div className='flex flex-col gap-y-2.5'>
         {capabilities.map((c) => (
           <CapabilityRow
@@ -535,13 +461,13 @@ function CapabilityRow({ blockId, capability, checked, disabled }: CapabilityRow
       />
       <Label
         htmlFor={id}
-        className='cursor-pointer text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-60'
+        className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-60'
       >
         {capability.label}
       </Label>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+          <CircleInfo className='size-[14px] cursor-default text-[var(--text-muted)]' />
         </Tooltip.Trigger>
         <Tooltip.Content side='top' align='start' className='max-w-xs'>
           <p>{capability.description}</p>

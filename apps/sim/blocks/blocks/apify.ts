@@ -1,12 +1,11 @@
 import { ApifyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RunActorResult } from '@/tools/apify/types'
 
 const RUN_OPERATIONS = ['apify_run_actor_sync', 'apify_run_actor_async']
 const RUN_OR_TASK_OPERATIONS = [...RUN_OPERATIONS, 'apify_run_task']
 
-export const ApifyBlock: BlockConfig<RunActorResult> = {
+export const ApifyBlock: BlockConfig = {
   type: 'apify',
   name: 'Apify',
   description: 'Run Apify actors and retrieve results',
@@ -18,6 +17,39 @@ export const ApifyBlock: BlockConfig<RunActorResult> = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: ApifyIcon,
+
+  canvasPresentation: {
+    defaultTitle: 'Apify',
+    sentences: {
+      byOperation: {
+        apify_run_actor_sync: [
+          { text: 'Run actor', field: 'actorId', after: 'and wait for results', core: true },
+        ],
+        apify_run_actor_async: [
+          {
+            text: 'Start actor',
+            field: 'actorId',
+            after: ', polling until it finishes',
+            core: true,
+          },
+        ],
+        apify_run_task: [
+          {
+            text: 'Run saved task',
+            field: 'taskId',
+            after: 'and return its dataset items',
+            core: true,
+          },
+        ],
+        apify_get_dataset_items: [
+          { text: 'Fetch items from dataset', field: 'datasetId', core: true },
+          { text: ', limited to', field: 'itemLimit' },
+          { text: ', skipping', field: 'offset' },
+        ],
+        apify_get_run: [{ text: 'Read the status of run', field: 'runId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

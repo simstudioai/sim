@@ -6,7 +6,7 @@ export const devinGetSessionTagsTool: ToolConfig<
   DevinSessionTagsResponse
 > = {
   id: 'devin_get_session_tags',
-  name: 'get_session_tags',
+  name: 'Devin Get Session Tags',
   description: 'Retrieve the tags currently applied to a Devin session.',
   version: '1.0.0',
 

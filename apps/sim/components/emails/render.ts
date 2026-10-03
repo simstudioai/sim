@@ -1,4 +1,5 @@
 import { render } from '@react-email/render'
+import { InboxErrorEmail, InboxResponseEmail } from '@/components/emails/agent/inbox-response-email'
 import {
   ExistingAccountEmail,
   OnboardingFollowupEmail,
@@ -15,19 +16,26 @@ import {
   LimitThresholdEmail,
   PaymentFailedEmail,
   PlanWelcomeEmail,
+  UsageLimitReachedEmail,
   UsageThresholdEmail,
 } from '@/components/emails/billing'
 import {
   BatchInvitationEmail,
+  EnterpriseOwnerInvitationEmail,
   InvitationEmail,
   WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
+import {
+  PermissionAccessRequestEmail,
+  ScheduleDisabledEmail,
+  type SubprocessorChange,
+  SubprocessorChangeEmail,
+} from '@/components/emails/notifications'
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import type { UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-
-export { getEmailSubject, getLimitEmailSubject } from './subjects'
+import type { ScheduleDisableReason } from '@/lib/workflows/schedules/disable-reasons'
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -37,7 +45,6 @@ interface WorkspaceInvitation {
 
 export async function renderOTPEmail(
   otp: string,
-  email: string,
   type:
     | 'sign-in'
     | 'email-verification'
@@ -45,7 +52,7 @@ export async function renderOTPEmail(
     | 'forget-password' = 'email-verification',
   chatTitle?: string
 ): Promise<string> {
-  return await render(OTPVerificationEmail({ otp, email, type, chatTitle }))
+  return await render(OTPVerificationEmail({ otp, type, chatTitle }))
 }
 
 export async function renderExistingAccountEmail(username: string): Promise<string> {
@@ -88,6 +95,16 @@ export async function renderBatchInvitationEmail(
       workspaceInvitations,
       acceptUrl,
     })
+  )
+}
+
+export async function renderEnterpriseOwnerInvitationEmail(
+  organizationName: string,
+  inviteLink: string,
+  expiresInDays: number
+): Promise<string> {
+  return await render(
+    EnterpriseOwnerInvitationEmail({ organizationName, inviteLink, expiresInDays })
   )
 }
 
@@ -134,6 +151,46 @@ export async function renderUsageThresholdEmail(params: {
       ctaLink: params.ctaLink,
     })
   )
+}
+
+export async function renderUsageLimitReachedEmail(params: {
+  userName?: string
+  planName: string
+  scope: 'user' | 'organization'
+  currentUsage: number
+  limit: number
+  ctaLink: string
+}): Promise<string> {
+  return await render(UsageLimitReachedEmail(params))
+}
+
+export async function renderPermissionAccessRequestEmail(params: {
+  kind: 'created' | 'decided'
+  requestLink: string
+}): Promise<string> {
+  return await render(PermissionAccessRequestEmail(params))
+}
+
+export async function renderScheduleDisabledEmail(params: {
+  recipientName?: string
+  resourceName?: string
+  reason: ScheduleDisableReason
+  failedCount?: number
+  manageLink?: string
+}): Promise<string> {
+  return await render(ScheduleDisabledEmail(params))
+}
+
+export async function renderSubprocessorChangeEmail(params: {
+  recipientName?: string
+  changes: SubprocessorChange[]
+  effectiveDate: Date
+  objectionDeadline: Date
+  objectionEmail: string
+  subprocessorListUrl: string
+  subscriptionUrl?: string
+}): Promise<string> {
+  return await render(SubprocessorChangeEmail(params))
 }
 
 export async function renderFreeTierUpgradeEmail(params: {
@@ -259,4 +316,25 @@ export async function renderPaymentFailedEmail(params: {
       failureReason: params.failureReason,
     })
   )
+}
+
+/** Neutralize `javascript:`/`data:` hrefs that agent-authored markdown could emit. */
+function stripUnsafeUrls(html: string): string {
+  return html.replace(/href\s*=\s*(['"])(?:javascript|vbscript|data):.*?\1/gi, 'href="#"')
+}
+
+/** The agent's reply to an inbound email. */
+export async function renderInboxResponseEmail(params: {
+  markdown: string
+  chatUrl: string
+}): Promise<string> {
+  return stripUnsafeUrls(await render(InboxResponseEmail(params)))
+}
+
+/** The agent's reply when the task could not be completed. */
+export async function renderInboxErrorEmail(params: {
+  error: string
+  chatUrl: string
+}): Promise<string> {
+  return stripUnsafeUrls(await render(InboxErrorEmail(params)))
 }

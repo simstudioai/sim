@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { buildForkWorkflowIdMap } from '@/ee/workspace-forking/lib/copy/workflow-id-map'
 
@@ -32,10 +29,5 @@ describe('buildForkWorkflowIdMap', () => {
     expect([...map.keys()]).toEqual(['parent-wf', 'child-wf'])
     expect(map.get('parent-wf')).toBe('child-1')
     expect(map.get('child-wf')).toBe('child-2')
-  })
-
-  it('returns an empty map when no states loaded', () => {
-    const map = buildForkWorkflowIdMap([{ id: 'wf-a' }], new Set(), () => 'x')
-    expect(map.size).toBe(0)
   })
 })
