@@ -10,6 +10,7 @@ let root: Root
 let host: HTMLDivElement
 
 beforeEach(() => {
+  vi.useFakeTimers()
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   vi.stubGlobal(
     'ResizeObserver',
@@ -25,9 +26,12 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  act(() => root.unmount())
+  act(() => {
+    root.unmount()
+    vi.runOnlyPendingTimers()
+  })
   host.remove()
-  vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 function renderOtp(invalid: boolean) {
