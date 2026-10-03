@@ -83,7 +83,9 @@ The lint flags risky *shapes*; it cannot know whether a given drop is *safe righ
      ```
      The reason must be specific and name the PR/version that removed the dependency. An empty reason fails the lint.
    - **Warnings** (`data-backfill`): non-blocking, but confirm the batching/idempotency before merging.
-4. Verify locally: `cd packages/db && bun run db:migrate` against a dev DB.
+4. Regenerate the test schema mock: `bun run scripts/generate-schema-mock.ts` (`check:schema-mock` in `check:audits` fails after any `schema.ts` change until you do).
+5. Re-run `(cd packages/db && bunx drizzle-kit generate)` once your migration is written: it must report no schema changes and write no new file, or CI fails on the schema and migrations disagreeing.
+6. Verify locally: `cd packages/db && bun run db:migrate` against a dev DB.
 
 ## Hard rule
 
