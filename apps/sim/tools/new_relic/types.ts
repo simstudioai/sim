@@ -101,9 +101,3 @@ export interface NewRelicCreateDeploymentEventResponse extends ToolResponse {
     messages: string[]
   }
 }
-
-export type NewRelicResponse =
-  | NewRelicNrqlQueryResponse
-  | NewRelicSearchEntitiesResponse
-  | NewRelicGetEntityResponse
-  | NewRelicCreateDeploymentEventResponse

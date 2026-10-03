@@ -1614,35 +1614,3 @@ export interface JiraGetFieldsResponse extends ToolResponse {
     total: number
   }
 }
-
-export type JiraResponse =
-  | JiraRetrieveResponse
-  | JiraUpdateResponse
-  | JiraWriteResponse
-  | JiraRetrieveResponseBulk
-  | JiraDeleteIssueResponse
-  | JiraAssignIssueResponse
-  | JiraTransitionIssueResponse
-  | JiraSearchIssuesResponse
-  | JiraAddCommentResponse
-  | JiraGetCommentsResponse
-  | JiraUpdateCommentResponse
-  | JiraDeleteCommentResponse
-  | JiraGetAttachmentsResponse
-  | JiraAddAttachmentResponse
-  | JiraDeleteAttachmentResponse
-  | JiraAddWorklogResponse
-  | JiraGetWorklogsResponse
-  | JiraUpdateWorklogResponse
-  | JiraDeleteWorklogResponse
-  | JiraCreateIssueLinkResponse
-  | JiraDeleteIssueLinkResponse
-  | JiraAddWatcherResponse
-  | JiraRemoveWatcherResponse
-  | JiraGetUsersResponse
-  | JiraSearchUsersResponse
-  | JiraListProjectsResponse
-  | JiraGetProjectResponse
-  | JiraGetTransitionsResponse
-  | JiraListIssueTypesResponse
-  | JiraGetFieldsResponse

@@ -165,16 +165,6 @@ export interface ProspeoSearchSuggestionsResponse extends ToolResponse {
   }
 }
 
-export type ProspeoResponse =
-  | ProspeoAccountInformationResponse
-  | ProspeoEnrichPersonResponse
-  | ProspeoEnrichCompanyResponse
-  | ProspeoBulkEnrichPersonResponse
-  | ProspeoBulkEnrichCompanyResponse
-  | ProspeoSearchPersonResponse
-  | ProspeoSearchCompanyResponse
-  | ProspeoSearchSuggestionsResponse
-
 /**
  * Build a Prospeo API error message from a non-OK response payload.
  */

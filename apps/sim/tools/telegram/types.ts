@@ -290,16 +290,4 @@ export interface TelegramGetChatMemberResponse extends ToolResponse {
   }
 }
 
-export type TelegramResponse =
-  | TelegramSendMessageResponse
-  | TelegramSendPhotoResponse
-  | TelegramSendAudioResponse
-  | TelegramSendMediaResponse
-  | TelegramSendDocumentResponse
-  | TelegramDeleteMessageResponse
-  | TelegramCopyMessageResponse
-  | TelegramBooleanResponse
-  | TelegramGetChatResponse
-  | TelegramGetChatMemberResponse
-
 // Legacy type for backwards compatibility

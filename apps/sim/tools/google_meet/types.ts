@@ -155,11 +155,3 @@ export interface GoogleMeetListParticipantsResponse extends ToolResponse {
     totalSize: number | null
   }
 }
-
-export type GoogleMeetResponse =
-  | GoogleMeetCreateSpaceResponse
-  | GoogleMeetGetSpaceResponse
-  | GoogleMeetEndConferenceResponse
-  | GoogleMeetListConferenceRecordsResponse
-  | GoogleMeetGetConferenceRecordResponse
-  | GoogleMeetListParticipantsResponse

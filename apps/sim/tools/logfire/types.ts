@@ -195,8 +195,3 @@ export interface LogfireGetTokenInfoResponse extends ToolResponse {
     spendingCapReachedAt: string | null
   }
 }
-
-export type LogfireResponse =
-  | LogfireQueryResponse
-  | LogfireRecordsResponse
-  | LogfireGetTokenInfoResponse

@@ -657,26 +657,3 @@ export interface CrowdStrikeGetCaseDetailsResponse extends ToolResponse {
     errors: CrowdStrikeApiError[]
   }
 }
-
-export type CrowdStrikeResponse =
-  | CrowdStrikeQuerySensorsResponse
-  | CrowdStrikeGetSensorDetailsResponse
-  | CrowdStrikeGetSensorAggregatesResponse
-  | CrowdStrikeQueryAlertsResponse
-  | CrowdStrikeGetAlertDetailsResponse
-  | CrowdStrikeUpdateAlertsResponse
-  | CrowdStrikePerformHostActionResponse
-  | CrowdStrikeQueryHostGroupsResponse
-  | CrowdStrikeGetHostGroupDetailsResponse
-  | CrowdStrikePerformHostGroupActionResponse
-  | CrowdStrikeQueryIndicatorsResponse
-  | CrowdStrikeIndicatorListResponse
-  | CrowdStrikeDeleteIndicatorsResponse
-  | CrowdStrikeQueryVulnerabilitiesResponse
-  | CrowdStrikeGetVulnerabilityDetailsResponse
-  | CrowdStrikeInitRtrSessionResponse
-  | CrowdStrikeExecuteRtrCommandResponse
-  | CrowdStrikeGetRtrCommandStatusResponse
-  | CrowdStrikeDeleteRtrSessionResponse
-  | CrowdStrikeQueryCasesResponse
-  | CrowdStrikeGetCaseDetailsResponse

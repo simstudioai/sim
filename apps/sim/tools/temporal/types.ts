@@ -306,21 +306,3 @@ export interface TemporalTerminateWorkflowResponse extends ToolResponse {
     workflowId: string
   }
 }
-
-export type TemporalResponse =
-  | TemporalStartWorkflowResponse
-  | TemporalSignalWorkflowResponse
-  | TemporalSignalWithStartResponse
-  | TemporalQueryWorkflowResponse
-  | TemporalUpdateWorkflowResponse
-  | TemporalDescribeWorkflowResponse
-  | TemporalListWorkflowsResponse
-  | TemporalCountWorkflowsResponse
-  | TemporalGetWorkflowHistoryResponse
-  | TemporalCancelWorkflowResponse
-  | TemporalTerminateWorkflowResponse
-  | TemporalResetWorkflowResponse
-  | TemporalListSchedulesResponse
-  | TemporalDescribeScheduleResponse
-  | TemporalScheduleMutationResponse
-  | TemporalDescribeTaskQueueResponse

@@ -360,25 +360,3 @@ export interface InstagramGetMediaInsightsResponse extends ToolResponse {
     }>
   }
 }
-
-export type InstagramResponse =
-  | InstagramGetProfileResponse
-  | InstagramListMediaResponse
-  | InstagramGetMediaResponse
-  | InstagramDownloadMediaResponse
-  | InstagramListStoriesResponse
-  | InstagramPublishResponse
-  | InstagramGetContainerStatusResponse
-  | InstagramGetPublishingLimitResponse
-  | InstagramListCommentsResponse
-  | InstagramReplyToCommentResponse
-  | InstagramHideCommentResponse
-  | InstagramDeleteCommentResponse
-  | InstagramSetCommentsEnabledResponse
-  | InstagramPrivateReplyResponse
-  | InstagramListConversationsResponse
-  | InstagramGetConversationMessagesResponse
-  | InstagramGetMessageResponse
-  | InstagramSendTextMessageResponse
-  | InstagramGetAccountInsightsResponse
-  | InstagramGetMediaInsightsResponse

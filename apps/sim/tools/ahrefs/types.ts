@@ -569,28 +569,3 @@ export interface AhrefsPaidPagesResponse extends ToolResponse {
     paidPages: AhrefsPaidPage[]
   }
 }
-
-export type AhrefsResponse =
-  | AhrefsDomainRatingResponse
-  | AhrefsBacklinksResponse
-  | AhrefsBacklinksStatsResponse
-  | AhrefsReferringDomainsResponse
-  | AhrefsOrganicKeywordsResponse
-  | AhrefsTopPagesResponse
-  | AhrefsKeywordOverviewResponse
-  | AhrefsBrokenBacklinksResponse
-  | AhrefsMetricsResponse
-  | AhrefsOrganicCompetitorsResponse
-  | AhrefsRankTrackerOverviewResponse
-  | AhrefsRankTrackerSerpOverviewResponse
-  | AhrefsRankTrackerCompetitorsOverviewResponse
-  | AhrefsRankTrackerCompetitorsStatsResponse
-  | AhrefsBatchAnalysisResponse
-  | AhrefsSiteAuditPageExplorerResponse
-  | AhrefsDomainRatingHistoryResponse
-  | AhrefsMetricsHistoryResponse
-  | AhrefsRefdomainsHistoryResponse
-  | AhrefsKeywordsHistoryResponse
-  | AhrefsRelatedTermsResponse
-  | AhrefsAnchorsResponse
-  | AhrefsPaidPagesResponse

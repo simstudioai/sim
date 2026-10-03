@@ -153,13 +153,3 @@ export interface TikTokGetPostStatusResponse extends ToolResponse {
     downloadedBytes: number | null
   }
 }
-
-/**
- * Union type of all TikTok responses
- */
-export type TikTokResponse =
-  | TikTokGetUserResponse
-  | TikTokListVideosResponse
-  | TikTokQueryVideosResponse
-  | TikTokUploadVideoDraftResponse
-  | TikTokGetPostStatusResponse

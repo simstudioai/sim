@@ -137,13 +137,3 @@ export interface BrightDataDiscoverResponse extends ToolResponse {
     taskId?: string | null
   }
 }
-
-export type BrightDataResponse =
-  | BrightDataScrapeUrlResponse
-  | BrightDataSerpSearchResponse
-  | BrightDataScrapeDatasetResponse
-  | BrightDataSyncScrapeResponse
-  | BrightDataSnapshotStatusResponse
-  | BrightDataDownloadSnapshotResponse
-  | BrightDataCancelSnapshotResponse
-  | BrightDataDiscoverResponse

@@ -142,7 +142,6 @@ import type {
   ChatRequestMode,
   ContentBlock,
   FileAttachmentForApi,
-  GenericResourceData,
   MothershipResource,
   MothershipResourceType,
   QueuedMessage,
@@ -281,7 +280,6 @@ export interface UseChatReturn {
   editingQueuedId: string | null
   dispatchingHeadId: string | null
   previewSession: FilePreviewSession | null
-  genericResourceData: GenericResourceData | null
   getCurrentRequestId: () => string | undefined
 }
 
@@ -4981,7 +4979,6 @@ export function useChat(
     editingQueuedId,
     dispatchingHeadId,
     previewSession,
-    genericResourceData: null,
     getCurrentRequestId,
   }
 }

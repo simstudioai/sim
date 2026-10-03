@@ -87,17 +87,3 @@ export interface ConvexDocumentDeltasApiResponse {
   hasMore?: boolean
   cursor?: number | string | null
 }
-
-export interface ConvexResponse extends ToolResponse {
-  output: {
-    value?: unknown
-    logLines?: string[]
-    tables?: string[]
-    schemas?: Record<string, unknown>
-    documents?: unknown[]
-    hasMore?: boolean
-    snapshot?: string | null
-    pageCursor?: string | null
-    cursor?: string | null
-  }
-}

@@ -323,25 +323,3 @@ export interface RailwayUpsertVariableResponse extends ToolResponse {
     success: boolean
   }
 }
-
-export type RailwayResponse =
-  | RailwayListProjectsResponse
-  | RailwayGetProjectResponse
-  | RailwayCreateProjectResponse
-  | RailwayUpdateProjectResponse
-  | RailwayDeleteProjectResponse
-  | RailwayTransferProjectResponse
-  | RailwayListProjectMembersResponse
-  | RailwayCreateEnvironmentResponse
-  | RailwayDeleteEnvironmentResponse
-  | RailwayListDeploymentsResponse
-  | RailwayDeployServiceResponse
-  | RailwayCreateServiceResponse
-  | RailwayDeleteServiceResponse
-  | RailwayGetDeploymentResponse
-  | RailwayRestartDeploymentResponse
-  | RailwayRollbackDeploymentResponse
-  | RailwayGetDeploymentLogsResponse
-  | RailwayListVariablesResponse
-  | RailwayUpsertVariableResponse
-  | RailwayDeleteVariableResponse

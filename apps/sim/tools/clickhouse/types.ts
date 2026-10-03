@@ -209,5 +209,3 @@ export interface ClickHouseIntrospectResponse extends ToolResponse {
   }
   error?: string
 }
-
-export interface ClickHouseResponse extends ClickHouseRowsResponse {}

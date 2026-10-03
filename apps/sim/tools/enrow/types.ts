@@ -50,8 +50,6 @@ export interface EnrowVerifyEmailResponse extends ToolResponse {
 
 // Union response type (used in BlockConfig generic)
 
-export type EnrowResponse = EnrowFindEmailResponse | EnrowVerifyEmailResponse
-
 // Shared output property constants
 
 /** Reusable output-property definition for the Enrow job ID. */

@@ -130,10 +130,3 @@ export interface DatagmaGetCreditsResponse extends ToolResponse {
 }
 
 // Union of all response types
-
-export type DatagmaResponse =
-  | DatagmaFindEmailResponse
-  | DatagmaEnrichPersonResponse
-  | DatagmaEnrichCompanyResponse
-  | DatagmaFindPhoneResponse
-  | DatagmaGetCreditsResponse

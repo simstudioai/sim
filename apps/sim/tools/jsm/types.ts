@@ -1037,52 +1037,6 @@ export interface JsmReopenFormResponse extends ToolResponse {
   }
 }
 
-/** Union type for all JSM responses */
-export type JsmResponse =
-  | JsmGetServiceDesksResponse
-  | JsmGetRequestTypesResponse
-  | JsmCreateRequestResponse
-  | JsmGetRequestResponse
-  | JsmGetRequestsResponse
-  | JsmAddCommentResponse
-  | JsmGetCommentsResponse
-  | JsmGetCustomersResponse
-  | JsmAddCustomerResponse
-  | JsmGetOrganizationsResponse
-  | JsmGetQueuesResponse
-  | JsmGetSlaResponse
-  | JsmTransitionRequestResponse
-  | JsmGetTransitionsResponse
-  | JsmCreateOrganizationResponse
-  | JsmAddOrganizationResponse
-  | JsmGetParticipantsResponse
-  | JsmAddParticipantsResponse
-  | JsmGetApprovalsResponse
-  | JsmAnswerApprovalResponse
-  | JsmGetRequestTypeFieldsResponse
-  | JsmGetFormTemplatesResponse
-  | JsmGetFormStructureResponse
-  | JsmGetIssueFormsResponse
-  | JsmAttachFormResponse
-  | JsmSaveFormAnswersResponse
-  | JsmSubmitFormResponse
-  | JsmGetFormResponse
-  | JsmDeleteFormResponse
-  | JsmExternaliseFormResponse
-  | JsmInternaliseFormResponse
-  | JsmCopyFormsResponse
-  | JsmGetFormAnswersResponse
-  | JsmReopenFormResponse
-  | JsmListObjectSchemasResponse
-  | JsmGetObjectSchemaResponse
-  | JsmListObjectTypesResponse
-  | JsmGetObjectTypeAttributesResponse
-  | JsmSearchObjectsAqlResponse
-  | JsmGetObjectResponse
-  | JsmCreateObjectResponse
-  | JsmUpdateObjectResponse
-  | JsmDeleteObjectResponse
-
 /**
  * JSM Assets (Insight / CMDB) tool types.
  *

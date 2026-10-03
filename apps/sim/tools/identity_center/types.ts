@@ -99,11 +99,6 @@ export interface IdentityCenterDescribeAccountParams extends IdentityCenterConne
   accountId: string
 }
 
-export interface IdentityCenterBaseResponse extends ToolResponse {
-  output: { message: string }
-  error?: string
-}
-
 export interface IdentityCenterListInstancesResponse extends ToolResponse {
   output: {
     instances: Array<{

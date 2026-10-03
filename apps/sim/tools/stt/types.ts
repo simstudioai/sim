@@ -89,16 +89,3 @@ export interface SttResponse extends ToolResponse {
     summary?: string
   }
 }
-
-export interface SttBlockResponse extends ToolResponse {
-  output: {
-    transcript: string
-    segments?: TranscriptSegment[]
-    language?: string
-    duration?: number
-    confidence?: number
-    sentiment?: Record<string, unknown>[]
-    entities?: Record<string, unknown>[]
-    summary?: string
-  }
-}

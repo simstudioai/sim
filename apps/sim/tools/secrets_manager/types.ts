@@ -35,11 +35,6 @@ export interface SecretsManagerDeleteSecretParams extends SecretsManagerConnecti
   forceDelete?: boolean | null
 }
 
-export interface SecretsManagerBaseResponse extends ToolResponse {
-  output: { message: string }
-  error?: string
-}
-
 export interface SecretsManagerGetSecretResponse extends ToolResponse {
   output: {
     name: string

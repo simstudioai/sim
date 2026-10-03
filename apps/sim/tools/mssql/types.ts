@@ -65,8 +65,6 @@ export interface MSSQLExecuteResponse extends MSSQLBaseResponse {}
 export interface MSSQLInsertResponse extends MSSQLBaseResponse {}
 export interface MSSQLUpdateResponse extends MSSQLBaseResponse {}
 export interface MSSQLDeleteResponse extends MSSQLBaseResponse {}
-export interface MSSQLResponse extends MSSQLBaseResponse {}
-
 interface MSSQLTableColumn {
   name: string
   type: string

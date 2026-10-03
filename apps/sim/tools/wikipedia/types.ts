@@ -302,9 +302,3 @@ export interface WikipediaRandomPageResponse extends ToolResponse {
     randomPage: WikipediaRandomPage
   }
 }
-
-export type WikipediaResponse =
-  | WikipediaPageSummaryResponse
-  | WikipediaSearchResponse
-  | WikipediaPageContentResponse
-  | WikipediaRandomPageResponse

@@ -333,16 +333,3 @@ export interface InstantlyLeadListResponse extends ToolResponse {
     name: string | null
   }
 }
-
-export type InstantlyResponse =
-  | InstantlyListLeadsResponse
-  | InstantlyLeadResponse
-  | InstantlyDeleteLeadsResponse
-  | InstantlyUpdateLeadInterestStatusResponse
-  | InstantlyListCampaignsResponse
-  | InstantlyCampaignResponse
-  | InstantlyCampaignActionResponse
-  | InstantlyListEmailsResponse
-  | InstantlyEmailResponse
-  | InstantlyListLeadListsResponse
-  | InstantlyLeadListResponse

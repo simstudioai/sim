@@ -27,5 +27,3 @@ export interface NeverBounceGetCreditsResponse extends ToolResponse {
     freeCredits: number
   }
 }
-
-export type NeverBounceResponse = NeverBounceVerifyEmailResponse | NeverBounceGetCreditsResponse

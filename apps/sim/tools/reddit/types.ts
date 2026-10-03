@@ -439,12 +439,3 @@ export interface RedditSubredditInfoResponse extends ToolResponse {
     banner_img: string | null
   }
 }
-
-export type RedditResponse =
-  | RedditHotPostsResponse
-  | RedditPostsResponse
-  | RedditCommentsResponse
-  | RedditWriteResponse
-  | RedditUserResponse
-  | RedditMessagesResponse
-  | RedditSubredditInfoResponse

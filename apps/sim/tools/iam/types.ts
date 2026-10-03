@@ -121,11 +121,6 @@ export interface IAMRemoveUserFromGroupParams extends IAMConnectionConfig {
   groupName: string
 }
 
-export interface IAMBaseResponse extends ToolResponse {
-  output: { message: string }
-  error?: string
-}
-
 export interface IAMListUsersResponse extends ToolResponse {
   output: {
     users: Array<{

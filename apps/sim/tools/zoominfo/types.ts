@@ -126,11 +126,3 @@ export interface ZoomInfoSearchNewsResponse extends ToolResponse {
     totalPages: number | null
   }
 }
-
-export type ZoomInfoResponse =
-  | ZoomInfoSearchCompaniesResponse
-  | ZoomInfoSearchContactsResponse
-  | ZoomInfoEnrichCompaniesResponse
-  | ZoomInfoEnrichContactsResponse
-  | ZoomInfoSearchIntentResponse
-  | ZoomInfoSearchNewsResponse
