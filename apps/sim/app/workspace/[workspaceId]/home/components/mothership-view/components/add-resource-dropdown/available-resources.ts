@@ -12,13 +12,13 @@ import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
-import { useMcpServers } from '@/hooks/queries/mcp'
-import { useSkills } from '@/hooks/queries/skills'
 import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
+import { useMcpServers } from '@/hooks/queries/mcp'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
@@ -159,7 +159,8 @@ export function useAvailableResources(
     { enabled: enabled && Boolean(workspaceId) }
   )
   const skillsEnabled = enabled && Boolean(workspaceId) && !excludeTypes?.includes('skill')
-  const customToolsEnabled = enabled && Boolean(workspaceId) && !excludeTypes?.includes('custom_tool')
+  const customToolsEnabled =
+    enabled && Boolean(workspaceId) && !excludeTypes?.includes('custom_tool')
   const mcpServersEnabled = enabled && Boolean(workspaceId) && !excludeTypes?.includes('mcp_server')
   const { data: skills, isPending: skillsPending } = useSkills(workspaceId, {
     enabled: skillsEnabled,

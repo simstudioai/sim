@@ -578,11 +578,7 @@ function EmbeddedResourceEditorAction({ href, label }: { href: string; label: st
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <TabStripAction
-          variant='subtle'
-          onClick={handleOpen}
-          aria-label={label}
-        >
+        <TabStripAction variant='subtle' onClick={handleOpen} aria-label={label}>
           <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
         </TabStripAction>
       </Tooltip.Trigger>

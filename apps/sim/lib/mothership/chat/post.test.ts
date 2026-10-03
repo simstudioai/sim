@@ -1014,7 +1014,9 @@ describe('handleUnifiedChatPost', () => {
       { type: 'mcp_server', id: 'mcp-1', title: 'GitHub' },
     ])
     expect(resolveActiveResourceContext).not.toHaveBeenCalled()
-    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(expect.objectContaining({ contexts: [] }))
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ contexts: [] })
+    )
   })
 
   it('accepts and forwards more than eight open terminal hints', async () => {

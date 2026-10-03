@@ -1,8 +1,8 @@
 'use client'
 
 import { lazy, type ReactNode, Suspense, useCallback } from 'react'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'

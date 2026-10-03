@@ -4,9 +4,9 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { skillsKeys } from '@/hooks/queries/skills'
 import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 
 describe('panel resource invalidation', () => {
   it('refreshes the Skill and Custom Tool lists', () => {

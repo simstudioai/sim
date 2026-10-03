@@ -50,10 +50,10 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { customToolsQueryOptions, useCustomTools } from '@/hooks/queries/custom-tools'
-import { mcpServersQueryOptions, useMcpServers } from '@/hooks/queries/mcp'
-import { getSkillsQueryOptions, useSkills } from '@/hooks/queries/skills'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { mcpServersQueryOptions, useMcpServers } from '@/hooks/queries/mcp'
+import { getSkillsQueryOptions, useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflows } from '@/hooks/queries/workflows'

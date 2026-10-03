@@ -5,6 +5,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { ResourceType } from '@/lib/mothership/generated/resources'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
@@ -19,8 +20,18 @@ import {
 } from '@/lib/mothership/resources/persistence'
 import { searchResultFromToolResult } from '@/lib/mothership/resources/search-tool-result'
 import { changeStoredChatResources } from '@/lib/mothership/resources/store'
+import type {
+  MothershipResourceType,
+  MothershipResourceUpdate,
+} from '@/lib/mothership/resources/types'
 
 const logger = createLogger('CopilotResourceEffects')
+
+const PANEL_SETTINGS_SECTIONS: Partial<Record<MothershipResourceType, string>> = {
+  skill: 'skills',
+  custom_tool: 'custom-tools',
+  mcp_server: 'mcp',
+}
 
 /**
  * Persist and emit resource events after a successful tool execution.
@@ -41,6 +52,23 @@ export async function handleResourceSideEffects(
 ): Promise<void> {
   // Only organization chats address a workspace; a workspace chat's resources leave it implicit.
   const workspaceId = owner?.organizationId ? owner.workspaceId : undefined
+  const refreshPanelSettings = async (resource: MothershipResourceUpdate) => {
+    const section = PANEL_SETTINGS_SECTIONS[resource.type]
+    const resourceWorkspaceId = resource.workspaceId ?? owner?.workspaceId
+    if (!section || !resourceWorkspaceId) return
+    await onEvent?.({
+      type: MothershipStreamV1EventType.resource,
+      payload: {
+        op: 'refresh',
+        resource: {
+          type: 'settings',
+          scope: 'workspace',
+          workspaceId: resourceWorkspaceId,
+          id: section,
+        },
+      },
+    })
+  }
   // Cheap early exit so we don't emit a span for tools that can never
   // produce resources (most of them). The span only shows up for tools
   // that might actually do resource work.
@@ -75,27 +103,30 @@ export async function handleResourceSideEffects(
         if (deleted.length > 0) {
           isDeleteOp = true
           removedCount = deleted.length
-          // Detached from the span lifecycle — the span ends before the
-          // DB call completes. That is intentional; we want the span to
-          // reflect the synchronous decision + event emission, not the
-          // best-effort persistence.
-          removeChatResources(chatId, deleted).catch((err) => {
+          // Panel refreshes re-read stored chat resources, so they must follow the write.
+          const removal = removeChatResources(chatId, deleted).catch((err) => {
             logger.warn('Failed to remove chat resources after deletion', {
               chatId,
               error: toError(err).message,
             })
           })
+          if (deleted.some((resource) => PANEL_SETTINGS_SECTIONS[resource.type])) await removal
 
           for (let index = 0; index < deleted.length; index += 1) {
             if (isAborted()) break
             const resource = deleted[index]
             const projected = projectedDeleted[index]
+            const nativeResourceType = ResourceType.safeParse(resource.type)
+            if (!nativeResourceType.success) {
+              await refreshPanelSettings(resource)
+              continue
+            }
             await onEvent?.({
               type: MothershipStreamV1EventType.resource,
               payload: {
                 op: MothershipStreamV1ResourceOp.remove,
                 resource: {
-                  type: resource.type,
+                  type: nativeResourceType.data,
                   id: resource.id,
                   ...(resource.workspaceId ? { workspaceId: resource.workspaceId } : {}),
                   title: projected?.title ?? '',
@@ -141,12 +172,13 @@ export async function handleResourceSideEffects(
           const upserts = resources.filter(
             (resource) => !('clearViewId' in resource && resource.clearViewId === true)
           )
-          persistChatResources(chatId, upserts).catch((err) => {
+          const persistence = persistChatResources(chatId, upserts).catch((err) => {
             logger.warn('Failed to persist chat resources', {
               chatId,
               error: toError(err).message,
             })
           })
+          if (upserts.some((resource) => PANEL_SETTINGS_SECTIONS[resource.type])) await persistence
 
           for (const resource of resources) {
             if (isAborted()) break
@@ -175,11 +207,16 @@ export async function handleResourceSideEffects(
               })
               continue
             }
+            const nativeResourceType = ResourceType.safeParse(resource.type)
+            if (!nativeResourceType.success) {
+              await refreshPanelSettings(resource)
+              continue
+            }
             await onEvent?.({
               type: MothershipStreamV1EventType.resource,
               payload: {
                 op: MothershipStreamV1ResourceOp.upsert,
-                resource,
+                resource: { ...resource, type: nativeResourceType.data },
                 ...(toolName === 'search_workspace' && resource.type === 'search'
                   ? {
                       searchResult: searchResultFromToolResult(projectedResult.output, actorUserId),

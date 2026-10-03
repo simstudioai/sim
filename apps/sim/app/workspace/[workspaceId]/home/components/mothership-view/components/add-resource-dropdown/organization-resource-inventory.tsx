@@ -15,7 +15,10 @@ export function OrganizationResourceInventory({
   excludeTypes?: readonly MothershipResourceType[]
   onChange: (workspaceId: string, inventory: AvailableResources) => void
 }) {
-  const inventory = useAvailableResources(workspaceId, { includeFolderMentions: true, excludeTypes })
+  const inventory = useAvailableResources(workspaceId, {
+    includeFolderMentions: true,
+    excludeTypes,
+  })
   useEffect(() => {
     onChange(workspaceId, inventory)
   }, [workspaceId, inventory, onChange])

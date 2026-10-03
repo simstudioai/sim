@@ -21,8 +21,8 @@ import {
   shouldActivateResourceEvent,
   type useChat,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
-import { useResourceTransitionGuard } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-transition-guard'
 import { useMothershipResize } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-resize'
+import { useResourceTransitionGuard } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-transition-guard'
 import {
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
