@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const clientMocks = vi.hoisted(() => ({
   executeOracleStatements: vi.fn(),
@@ -26,8 +26,6 @@ const CONNECTION = {
 } as const
 
 describe('Oracle Database introspection', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('formats dimensions for common Oracle column types', () => {
     expect(
       oracleIntrospectionInternals.formatOracleType({

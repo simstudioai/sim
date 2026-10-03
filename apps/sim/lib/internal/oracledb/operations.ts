@@ -175,7 +175,3 @@ export async function executeOracleIntrospection(
     schemas: result.schemas,
   }
 }
-
-export const oracleOperationInternals = {
-  connectionFromInput,
-}

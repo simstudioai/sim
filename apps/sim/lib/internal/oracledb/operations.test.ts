@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const clientMocks = vi.hoisted(() => ({
   executeOracleStatements: vi.fn(),
@@ -33,8 +33,6 @@ const CONNECTION = {
 } as const
 
 describe('Oracle Database operations', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('runs Query in one read-only worker request and forwards cancellation', async () => {
     const controller = new AbortController()
     clientMocks.executeOracleStatements.mockResolvedValue([

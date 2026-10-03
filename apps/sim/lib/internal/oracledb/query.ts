@@ -358,7 +358,7 @@ function assertIdentifier(identifier: string, label: string): void {
   }
 }
 
-export function quoteOracleIdentifier(identifier: string, label = 'Identifier'): string {
+function quoteOracleIdentifier(identifier: string, label = 'Identifier'): string {
   assertIdentifier(identifier, label)
   return `"${identifier.replaceAll('"', '""')}"`
 }
@@ -490,8 +490,4 @@ export function buildOracleDelete(
     sql: `DELETE FROM ${qualifiedTable(schema, table)} WHERE ${where.trim()}`,
     binds: {},
   }
-}
-
-export const oracleQueryInternals = {
-  scanOracleSql,
 }

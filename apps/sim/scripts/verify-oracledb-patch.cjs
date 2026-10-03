@@ -67,8 +67,5 @@ if (require.main === module) {
 }
 
 module.exports = {
-  EXPECTED_NODE_MAJOR,
-  EXPECTED_ORACLEDB_VERSION,
-  EXPECTED_SOURCE_HASHES,
   verifyOracleDbPatch,
 }

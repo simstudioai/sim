@@ -27,6 +27,8 @@
         "vitest.integration.setup.ts",
         // Spawned worker and assets bundled/loaded by filename.
         "lib/execution/isolated-vm-worker.cjs",
+        // Oracle's client spawns this standalone Node worker by filename.
+        "lib/internal/oracledb/oracle-worker.cjs",
         "lib/execution/sandbox/bundles/*.{ts,cjs}",
         // Compile-time fixture compatibility assertion, included by tsconfig.
         "lib/table/fixture-contract.ts",

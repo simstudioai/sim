@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { createExecutionContext } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const operationMocks = vi.hoisted(() => {
   class OracleOperationInputError extends Error {}
@@ -105,8 +105,6 @@ const EXECUTION_MOCKS = [
 ]
 
 describe('executeOracledbTool', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('validates and executes Query with cancellation', async () => {
     const controller = new AbortController()
     operationMocks.executeOracleQuery.mockResolvedValue({

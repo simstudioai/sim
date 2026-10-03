@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import type { OracleConnectionConfig, OracleExecutionResponse } from '@/tools/oracledb/types'
 
 export const ORACLE_CONNECTION_PARAMS = {
@@ -90,23 +91,19 @@ export function buildOracleConnectionInput(params: OracleConnectionConfig) {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /** Converts the bounded internal-operation response into the common database tool result. */
 export async function transformOracleExecutionResponse(
   response: Response,
   defaults: { failure: string; success: string }
 ): Promise<OracleExecutionResponse> {
   const payload: unknown = await response.json()
-  const data = isRecord(payload) ? payload : {}
+  const data = toRecord(payload)
 
   if (!response.ok) {
     throw new Error(typeof data.error === 'string' ? data.error : defaults.failure)
   }
 
-  const rows = Array.isArray(data.rows) ? data.rows : []
+  const rows = toArray(data.rows)
   const rowCount = typeof data.rowCount === 'number' ? data.rowCount : rows.length
 
   return {

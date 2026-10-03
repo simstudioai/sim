@@ -72,7 +72,6 @@ class FakeChild extends EventEmitter {
 
 describe('Oracle worker client', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     proxyMocks.close.mockResolvedValue(undefined)
     proxyMocks.createOracleConnectProxy.mockResolvedValue({
       host: '127.0.0.1',

@@ -205,7 +205,6 @@ export const oracleQueryInputSchema = connectionSchema({
   query: querySchema,
   binds: bindsSchema,
 })
-export const oracleExecuteInputSchema = oracleQueryInputSchema
 export const oracleInsertInputSchema = connectionSchema({
   schema: identifierSchema.optional(),
   table: identifierSchema,
@@ -228,7 +227,7 @@ export const oracleIntrospectInputSchema = connectionSchema({
 
 export type OracleConnectionInput = z.output<typeof oracleConnectionInputSchema>
 export type OracleQueryInput = z.output<typeof oracleQueryInputSchema>
-export type OracleExecuteInput = z.output<typeof oracleExecuteInputSchema>
+export type OracleExecuteInput = z.output<typeof oracleQueryInputSchema>
 export type OracleInsertInput = z.output<typeof oracleInsertInputSchema>
 export type OracleUpdateInput = z.output<typeof oracleUpdateInputSchema>
 export type OracleDeleteInput = z.output<typeof oracleDeleteInputSchema>

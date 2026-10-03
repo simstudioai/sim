@@ -46,8 +46,11 @@ const operationFields = {
 } as const
 
 describe('Oracle Database public integration contract', () => {
-  const buildParams = OracleDatabaseBlock.tools.config.params!
-  const selectTool = OracleDatabaseBlock.tools.config.tool!
+  const buildParams = OracleDatabaseBlock.tools.config.params
+  const selectTool = OracleDatabaseBlock.tools.config.tool
+  if (typeof buildParams !== 'function' || typeof selectTool !== 'function') {
+    throw new Error('Oracle Database block must declare tool and parameter builders')
+  }
 
   const connection = {
     host: 'db.example.com',

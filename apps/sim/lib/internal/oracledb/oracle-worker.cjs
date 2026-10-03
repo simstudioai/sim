@@ -19,6 +19,7 @@ let requestConnection
 class RowLimitError extends Error {}
 
 function isRecord(value) {
+  // utils-lint-allow: This standalone Node worker ships without the @sim/utils package.
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

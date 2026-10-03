@@ -47,10 +47,10 @@ function workerSemaphore(): OracleWorkerSemaphore {
   return carrier[ORACLE_WORKER_SEMAPHORE]
 }
 
-export class OracleWorkerError extends Error {}
+class OracleWorkerError extends Error {}
 
 function cleanupWorkerWaiter(waiter: WorkerSlotWaiter): void {
-  waiter.signal?.removeEventListener('abort', waiter.onAbort!)
+  if (waiter.onAbort) waiter.signal?.removeEventListener('abort', waiter.onAbort)
   if (waiter.timeout) clearTimeout(waiter.timeout)
   const waiters = workerSemaphore().waiters
   const index = waiters.indexOf(waiter)
@@ -60,7 +60,8 @@ function cleanupWorkerWaiter(waiter: WorkerSlotWaiter): void {
 function releaseWorkerSlot(): void {
   const semaphore = workerSemaphore()
   while (semaphore.waiters.length > 0) {
-    const waiter = semaphore.waiters.shift()!
+    const waiter = semaphore.waiters.shift()
+    if (!waiter) break
     cleanupWorkerWaiter(waiter)
     if (waiter.signal?.aborted) {
       waiter.reject(waiter.signal.reason)

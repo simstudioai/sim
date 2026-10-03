@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import { buildOracleConnectionInput, ORACLE_CONNECTION_PARAMS } from '@/tools/oracledb/shared'
 import {
   ORACLE_TABLE_OUTPUT_PROPERTIES,
@@ -6,10 +7,6 @@ import {
   type OracleTableSchema,
 } from '@/tools/oracledb/types'
 import type { InternalToolConfig } from '@/tools/types'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 export const oracleIntrospectTool: InternalToolConfig<
   OracleIntrospectParams,
@@ -38,7 +35,7 @@ export const oracleIntrospectTool: InternalToolConfig<
   },
   transformResponse: async (response) => {
     const payload: unknown = await response.json()
-    const data = isRecord(payload) ? payload : {}
+    const data = toRecord(payload)
 
     if (!response.ok) {
       throw new Error(
@@ -53,7 +50,7 @@ export const oracleIntrospectTool: InternalToolConfig<
           typeof data.message === 'string'
             ? data.message
             : 'Schema introspection completed successfully',
-        tables: Array.isArray(data.tables) ? (data.tables as OracleTableSchema[]) : [],
+        tables: toArray<OracleTableSchema>(data.tables),
         schemas: Array.isArray(data.schemas)
           ? data.schemas.filter((schema): schema is string => typeof schema === 'string')
           : [],

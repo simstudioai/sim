@@ -4,13 +4,13 @@
 
 import { once } from 'node:events'
 import net from 'node:net'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const validationMocks = vi.hoisted(() => ({
-  validateDatabaseHost: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => validationMocks)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   createOracleConnectProxy,
@@ -55,10 +55,9 @@ async function listen(server: net.Server): Promise<number> {
 }
 
 describe('Oracle loopback CONNECT proxy', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => inputValidationMockFns.mockValidateDatabaseHost.mockReset())
 
   afterEach(async () => {
-    vi.restoreAllMocks()
     await Promise.all(
       Array.from(servers, (server) =>
         server.listening
@@ -72,7 +71,7 @@ describe('Oracle loopback CONNECT proxy', () => {
   it('validates the requested target and dials only the pinned IP', async () => {
     const upstream = net.createServer((socket) => socket.pipe(socket))
     const upstreamPort = await listen(upstream)
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    inputValidationMockFns.mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '127.0.0.1',
       originalHostname: 'redirect.example.com',
@@ -86,7 +85,7 @@ describe('Oracle loopback CONNECT proxy', () => {
     client.write('oracle-net-payload')
     const [echo] = (await once(client, 'data')) as [Buffer]
     expect(echo.toString()).toBe('oracle-net-payload')
-    expect(validationMocks.validateDatabaseHost).toHaveBeenCalledWith(
+    expect(inputValidationMockFns.mockValidateDatabaseHost).toHaveBeenCalledWith(
       'redirect.example.com',
       'Oracle Database host',
       { logDetails: false }
@@ -96,7 +95,7 @@ describe('Oracle loopback CONNECT proxy', () => {
   })
 
   it('blocks a private or otherwise denied redirect before dialing it', async () => {
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    inputValidationMockFns.mockValidateDatabaseHost.mockResolvedValue({
       isValid: false,
       error: 'Oracle Database host resolves to a blocked address',
     })
@@ -115,7 +114,7 @@ describe('Oracle loopback CONNECT proxy', () => {
   it('revalidates every redirect tunnel instead of trusting the first destination', async () => {
     const upstream = net.createServer((socket) => socket.pipe(socket))
     const upstreamPort = await listen(upstream)
-    validationMocks.validateDatabaseHost
+    inputValidationMockFns.mockValidateDatabaseHost
       .mockResolvedValueOnce({
         isValid: true,
         resolvedIP: '127.0.0.1',
@@ -140,10 +139,9 @@ describe('Oracle loopback CONNECT proxy', () => {
     redirect.write(`CONNECT redirect.example.com:${upstreamPort} HTTP/1.1\r\n\r\n`)
     const [redirectResponse] = (await once(redirect, 'data')) as [Buffer]
     expect(redirectResponse.toString()).toContain('403 CONNECT Target Blocked')
-    expect(validationMocks.validateDatabaseHost.mock.calls.map(([host]) => host)).toEqual([
-      'initial.example.com',
-      'redirect.example.com',
-    ])
+    expect(
+      inputValidationMockFns.mockValidateDatabaseHost.mock.calls.map(([host]) => host)
+    ).toEqual(['initial.example.com', 'redirect.example.com'])
     redirect.destroy()
     await proxy.close()
   })
@@ -162,7 +160,7 @@ describe('Oracle loopback CONNECT proxy', () => {
   it('rejects oversized or ambiguous CONNECT authorities before validation', () => {
     expect(oracleConnectProxyInternals.parseConnectTarget(`${'a'.repeat(1021)}:1521`)).toBeNull()
     expect(oracleConnectProxyInternals.parseConnectTarget('db.example.com /:1521')).toBeNull()
-    expect(validationMocks.validateDatabaseHost).not.toHaveBeenCalled()
+    expect(inputValidationMockFns.mockValidateDatabaseHost).not.toHaveBeenCalled()
   })
 
   it('bounds the complete HTTP CONNECT header', async () => {
@@ -173,12 +171,12 @@ describe('Oracle loopback CONNECT proxy', () => {
     )
 
     expect(response).toContain('431 Request Header Fields Too Large')
-    expect(validationMocks.validateDatabaseHost).not.toHaveBeenCalled()
+    expect(inputValidationMockFns.mockValidateDatabaseHost).not.toHaveBeenCalled()
     await proxy.close()
   })
 
   it('allows at most eight redirect tunnels for one operation', async () => {
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    inputValidationMockFns.mockValidateDatabaseHost.mockResolvedValue({
       isValid: false,
       error: 'blocked for test',
     })
@@ -193,7 +191,7 @@ describe('Oracle loopback CONNECT proxy', () => {
       sendRawConnect(proxy.port, 'CONNECT redirect-8.example.com:1521 HTTP/1.1\r\n\r\n')
     ).resolves.toContain('429 Too Many CONNECT Requests')
 
-    expect(validationMocks.validateDatabaseHost).toHaveBeenCalledTimes(8)
+    expect(inputValidationMockFns.mockValidateDatabaseHost).toHaveBeenCalledTimes(8)
     expect(proxy.getFailureReason()).toContain('redirect tunnel limit')
     await proxy.close()
   })
@@ -205,7 +203,7 @@ describe('Oracle loopback CONNECT proxy', () => {
       socket.once('close', () => upstreamSockets.delete(socket))
     })
     const upstreamPort = await listen(upstream)
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    inputValidationMockFns.mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '127.0.0.1',
       originalHostname: 'db.example.com',
@@ -226,7 +224,7 @@ describe('Oracle loopback CONNECT proxy', () => {
       `CONNECT db.example.com:${upstreamPort} HTTP/1.1\r\n\r\n`
     )
     expect(overflowResponse).not.toContain('200 Connection Established')
-    expect(validationMocks.validateDatabaseHost).toHaveBeenCalledTimes(2)
+    expect(inputValidationMockFns.mockValidateDatabaseHost).toHaveBeenCalledTimes(2)
 
     for (const client of clients) client.destroy()
     for (const socket of upstreamSockets) socket.destroy()
@@ -234,7 +232,7 @@ describe('Oracle loopback CONNECT proxy', () => {
   })
 
   it('times out a stalled upstream dial and cleans up both sockets', async () => {
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    inputValidationMockFns.mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
       originalHostname: 'db.example.com',
@@ -272,7 +270,7 @@ describe('Oracle loopback CONNECT proxy', () => {
     })
     const upstream = net.createServer((socket) => resolveUpstream?.(socket))
     const upstreamPort = await listen(upstream)
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    inputValidationMockFns.mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '127.0.0.1',
       originalHostname: 'db.example.com',

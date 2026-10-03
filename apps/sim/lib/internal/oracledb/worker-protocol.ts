@@ -1,11 +1,12 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { OracleBindScalar, OracleConnectionInput } from '@/lib/internal/oracledb/schema'
 
 export const ORACLE_WORKER_PROTOCOL_VERSION = 1
-export const ORACLE_MAX_WORKER_REQUEST_BYTES = 8 * 1024 * 1024
+const ORACLE_MAX_WORKER_REQUEST_BYTES = 8 * 1024 * 1024
 export const ORACLE_MAX_WORKER_RESPONSE_BYTES = 10 * 1024 * 1024 + 64 * 1024
-export const ORACLE_MAX_WORKER_STATEMENTS = 8
+const ORACLE_MAX_WORKER_STATEMENTS = 8
 
-export interface OracleWorkerConnection extends OracleConnectionInput {
+interface OracleWorkerConnection extends OracleConnectionInput {
   proxyHost: '127.0.0.1'
   proxyPort: number
 }
@@ -32,13 +33,13 @@ export interface OracleWorkerStatementResult {
   truncationReason?: string
 }
 
-export interface OracleWorkerSuccess {
+interface OracleWorkerSuccess {
   protocolVersion: typeof ORACLE_WORKER_PROTOCOL_VERSION
   ok: true
   results: OracleWorkerStatementResult[]
 }
 
-export interface OracleWorkerFailure {
+interface OracleWorkerFailure {
   protocolVersion: typeof ORACLE_WORKER_PROTOCOL_VERSION
   ok: false
   error: {
@@ -48,18 +49,14 @@ export interface OracleWorkerFailure {
 
 export type OracleWorkerResponse = OracleWorkerSuccess | OracleWorkerFailure
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function parseStatementResult(value: unknown): OracleWorkerStatementResult {
-  if (!isRecord(value) || !Array.isArray(value.rows)) {
+  if (!isRecordLike(value) || !Array.isArray(value.rows)) {
     throw new Error('Oracle worker returned an invalid statement result')
   }
   if (!Number.isSafeInteger(value.rowCount) || (value.rowCount as number) < 0) {
     throw new Error('Oracle worker returned an invalid row count')
   }
-  if (value.rows.some((row) => !isRecord(row))) {
+  if (value.rows.some((row) => !isRecordLike(row))) {
     throw new Error('Oracle worker returned a non-object row')
   }
   if (value.truncated !== undefined && typeof value.truncated !== 'boolean') {
@@ -80,12 +77,12 @@ function parseStatementResult(value: unknown): OracleWorkerStatementResult {
 }
 
 export function parseOracleWorkerResponse(value: unknown): OracleWorkerResponse {
-  if (!isRecord(value) || value.protocolVersion !== ORACLE_WORKER_PROTOCOL_VERSION) {
+  if (!isRecordLike(value) || value.protocolVersion !== ORACLE_WORKER_PROTOCOL_VERSION) {
     throw new Error('Oracle worker returned an unsupported protocol response')
   }
 
   if (value.ok === false) {
-    if (!isRecord(value.error) || typeof value.error.message !== 'string') {
+    if (!isRecordLike(value.error) || typeof value.error.message !== 'string') {
       throw new Error('Oracle worker returned an invalid error response')
     }
     return {

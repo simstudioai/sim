@@ -1,9 +1,9 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export type OracleProtocol = 'tcp' | 'tcps'
-export type OracleConnectionType = 'serviceName' | 'sid'
-export type OracleBindScalar = string | number | null
-export type OracleBinds = Record<string, OracleBindScalar>
+type OracleProtocol = 'tcp' | 'tcps'
+type OracleConnectionType = 'serviceName' | 'sid'
+type OracleBindScalar = string | number | null
+type OracleBinds = Record<string, OracleBindScalar>
 
 /** Connection fields accepted by every Oracle Database tool. */
 export interface OracleConnectionConfig {
@@ -70,13 +70,13 @@ export interface OracleInsertResponse extends OracleExecutionResponse {}
 export interface OracleUpdateResponse extends OracleExecutionResponse {}
 export interface OracleDeleteResponse extends OracleExecutionResponse {}
 
-export interface OracleColumnReference {
+interface OracleColumnReference {
   schema: string
   table: string
   column: string
 }
 
-export interface OracleTableColumn {
+interface OracleTableColumn {
   name: string
   type: string
   nullable: boolean
@@ -86,14 +86,14 @@ export interface OracleTableColumn {
   references?: OracleColumnReference
 }
 
-export interface OracleForeignKey {
+interface OracleForeignKey {
   column: string
   referencesSchema: string
   referencesTable: string
   referencesColumn: string
 }
 
-export interface OracleTableIndex {
+interface OracleTableIndex {
   name: string
   columns: string[]
   unique: boolean
@@ -138,7 +138,7 @@ export const ORACLE_EXECUTION_OUTPUTS = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Output definition for the columns returned by Oracle schema introspection. */
-export const ORACLE_COLUMN_OUTPUT_PROPERTIES = {
+const ORACLE_COLUMN_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Column name' },
   type: { type: 'string', description: 'Oracle data type, including length or precision' },
   nullable: { type: 'boolean', description: 'Whether the column allows NULL values' },
@@ -158,7 +158,7 @@ export const ORACLE_COLUMN_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Output definition for foreign key constraints returned by introspection. */
-export const ORACLE_FOREIGN_KEY_OUTPUT_PROPERTIES = {
+const ORACLE_FOREIGN_KEY_OUTPUT_PROPERTIES = {
   column: { type: 'string', description: 'Local column name' },
   referencesSchema: { type: 'string', description: 'Referenced schema name' },
   referencesTable: { type: 'string', description: 'Referenced table name' },
@@ -166,7 +166,7 @@ export const ORACLE_FOREIGN_KEY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Output definition for indexes returned by introspection. */
-export const ORACLE_INDEX_OUTPUT_PROPERTIES = {
+const ORACLE_INDEX_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Index name' },
   columns: {
     type: 'array',

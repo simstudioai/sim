@@ -11,7 +11,6 @@ import {
 } from '@/lib/internal/oracledb/operations'
 import {
   oracleDeleteInputSchema,
-  oracleExecuteInputSchema,
   oracleInsertInputSchema,
   oracleIntrospectInputSchema,
   oracleQueryInputSchema,
@@ -68,7 +67,7 @@ export const executeOracledbTool: InternalToolOperationHandler = async ({
       )
     case 'oracledb_execute':
       return executeOperation(
-        oracleExecuteInputSchema,
+        oracleQueryInputSchema,
         input,
         executeOracleStatement,
         'Oracle Database execute failed',
