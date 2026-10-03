@@ -86,6 +86,67 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  'oracle_fusion_risk_management.process': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.risk': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.control': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.issue': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.process_assessment_result': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.risk_assessment_result': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.control_assessment_result': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.advanced_control': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.open_incident': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.advanced_control_job': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.assignment_group': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracle_fusion_risk_management.securable_type': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },

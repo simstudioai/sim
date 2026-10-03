@@ -162,6 +162,7 @@ export type OAuthService =
   | 'monday'
   | 'manageengine-sdp'
   | 'zoho-desk'
+  | 'oracle_fusion_risk_management'
 
 export interface OAuthProviderConfig {
   name: string
