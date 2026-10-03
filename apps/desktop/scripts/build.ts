@@ -32,6 +32,11 @@ const appIcon = identityForOrigin(bakedDefaultOrigin).icon
 const generatedIcon = 'build/generated-icon.icon'
 rmSync(generatedIcon, { force: true, recursive: true })
 cpSync(appIcon, generatedIcon, { recursive: true })
+// Windows has no Icon Composer path; electron-builder builds the .ico from the
+// same 1024px logo the macOS bundle is composed from.
+const generatedWindowsIcon = 'build/generated-icon.png'
+rmSync(generatedWindowsIcon, { force: true })
+cpSync(join(appIcon, 'Assets', 'logo.png'), generatedWindowsIcon)
 console.log(`• Selecting desktop icon: ${appIcon}`)
 
 function compileNativeHelpSearch(): void {

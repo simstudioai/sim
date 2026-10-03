@@ -1,13 +1,16 @@
 /**
- * Fetches the node-pty prebuilt binaries for every architecture the macOS
- * universal build ships.
+ * Fetches the node-pty prebuilt binaries for every architecture the host
+ * platform's build ships: both halves of the macOS universal app, or x64 and
+ * arm64 on Windows.
  *
  * `@lydell/node-pty` selects its native binary at runtime from a per-arch
- * package (`@lydell/node-pty-darwin-arm64`, `-darwin-x64`), each declaring a
- * matching `cpu` field. Package managers honour that field, so installing on
- * an arm64 Mac leaves the x64 binary absent and the x64 half of the universal
- * app ships without a working PTY. Fetching the tarball directly is the only
- * way to get both without lying about the host architecture.
+ * package (`@lydell/node-pty-darwin-arm64`, `-win32-x64`, …), each declaring
+ * matching `os` and `cpu` fields. Package managers honour those fields, so
+ * installing on an arm64 Mac leaves the x64 binary absent and the x64 half of
+ * the universal app ships without a working PTY. Fetching the tarball directly
+ * is the only way to get both without lying about the host architecture. The
+ * per-arch packages are `optionalDependencies` so electron-builder's
+ * dependency walk skips the other platform's rather than failing the build.
  *
  * Both binaries live at distinct paths, so `@electron/universal` never has to
  * lipo them together — it sees byte-identical trees in both halves and keeps
@@ -32,7 +35,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 
 const logger = createLogger('DesktopPtyPrebuilds')
 
-const REQUIRED_ARCHES = ['darwin-arm64', 'darwin-x64'] as const
+const REQUIRED_ARCHES_FOR_PLATFORM: Partial<Record<NodeJS.Platform, readonly string[]>> = {
+  darwin: ['darwin-arm64', 'darwin-x64'],
+  win32: ['win32-x64', 'win32-arm64'],
+}
+
+/** The addon each prebuild ships: a Unix pty, or the ConPTY bridge on Windows. */
+function prebuildBinary(arch: string): string {
+  return arch.startsWith('win32-') ? 'conpty.node' : 'pty.node'
+}
 
 const desktopDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const workspaceRoot = dirname(dirname(desktopDir))
@@ -110,17 +121,22 @@ async function fetchPrebuild(arch: string, version: string): Promise<void> {
 }
 
 async function run(): Promise<void> {
+  const requiredArches = REQUIRED_ARCHES_FOR_PLATFORM[process.platform]
+  if (!requiredArches) {
+    throw new Error(`No desktop packaging target for platform "${process.platform}"`)
+  }
   const version = await pinnedVersion()
-  for (const arch of REQUIRED_ARCHES) {
+  for (const arch of requiredArches) {
     const dir = packageDir(arch)
-    if (existsSync(join(dir, 'prebuilds', arch, 'pty.node'))) {
+    const binary = prebuildBinary(arch)
+    if (existsSync(join(dir, 'prebuilds', arch, binary))) {
       logger.info('node-pty prebuild present', { arch })
       continue
     }
     logger.info('Fetching node-pty prebuild', { arch, version })
     await fetchPrebuild(arch, version)
-    if (!existsSync(join(dir, 'prebuilds', arch, 'pty.node'))) {
-      throw new Error(`Downloaded @lydell/node-pty-${arch} but pty.node is missing`)
+    if (!existsSync(join(dir, 'prebuilds', arch, binary))) {
+      throw new Error(`Downloaded @lydell/node-pty-${arch} but ${binary} is missing`)
     }
   }
 }

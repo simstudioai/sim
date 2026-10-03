@@ -202,10 +202,15 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         { label: 'Check for Updates…', click: deps.checkForUpdates },
         { label: 'Sign Out', click: deps.signOut },
         { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
+        // The hide roles are macOS-only; elsewhere they render as blank rows.
+        ...(process.platform === 'darwin'
+          ? ([
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+            ] satisfies MenuItemConstructorOptions[])
+          : []),
         { role: 'quit' },
       ],
     },

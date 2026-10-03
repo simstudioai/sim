@@ -1,4 +1,4 @@
-# Sim Desktop (macOS)
+# Sim Desktop (macOS, Windows)
 
 A thin Electron shell around the hosted Sim web app. The renderer loads the configured origin (default `https://www.sim.ai` — the origin the server actually serves; the apex 301s there) as a normal top-level page in a bundled, pinned Chromium — rendering is identical to Chrome of that version on every machine. No UI is re-implemented and no server stack is bundled.
 
@@ -101,6 +101,17 @@ Overall this is **within normal thin-wrapper coupling** — every item is either
 ## Packaging & release
 
 Local unsigned build: `bun run package:dir` (app in `release/mac-universal/`). Signed: `bun run package:mac` with `CSC_LINK`/`CSC_KEY_PASSWORD` exported.
+
+### Windows
+
+Build on a Windows host (electron-builder cross-compiles NSIS from macOS/Linux only with Wine, which is not supported here). Prerequisites: Bun ≥ 1.4.2, Node ≥ 20, and `tar` (built into Windows 10+). No C++ toolchain is needed: `scripts/build.ts` skips the AppKit Help-search addon off macOS, and node-pty ships ConPTY prebuilds (`@lydell/node-pty-win32-{x64,arm64}`, fetched by `scripts/ensure-pty-prebuilds.ts` the same way the macOS arches are).
+
+- `bun run package:win:dir` — unpacked app in `release/win-unpacked/` (x64; add `--arm64` for `release/win-arm64-unpacked/`).
+- `bun run package:win` — NSIS installer + zip per arch (`Sim-<version>-<arch>.exe`), from the same `electron-builder.yml`.
+- Signing: set `CSC_LINK`/`CSC_KEY_PASSWORD` to an Authenticode `.pfx`; unsigned builds trigger SmartScreen on first launch.
+- Bun does not run electron's `postinstall` on Windows; if `node_modules/electron/dist/electron.exe` is missing after `bun install`, run `node node_modules/electron/install.js` once.
+
+Windows parity gaps (deliberate, see "Known caveats"): no auto-update (the updater is a no-op off macOS — the installer must be re-downloaded), no Help-menu docs search, no Chrome cookie/password import, no Terminal.app/iTerm2 theme import, and the agent terminal launches PowerShell uninstrumented (shell integration is zsh/bash only), so the agent is refused with `NO_SHELL_INTEGRATION` while the user's terminal still works.
 
 Local unsigned pre-release share: `SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai bun run package:share` builds a DMG whose fresh installs default to that origin (baked at build time; official builds leave it unset → prod) and skips per-file signature timestamps. Recipients must clear quarantine once: `xattr -cr /Applications/Sim.app`.
 
@@ -216,6 +227,7 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 - Third-party web analytics (GTM/GA) are blocked at the network layer by default (`blockThirdPartyAnalytics`); first-party PostHog `/ingest` is untouched.
 - `Cmd+F` opens the native find overlay in built-in browser tabs. The hosted Sim workspace continues to use Monaco- and table-specific find surfaces.
 - Sign-in uses only the `127.0.0.1` loopback callback, which needs no OS registration — so it completes identically under `bun run dev` (unpackaged) and in a packaged build. There is no custom URL scheme.
+- Windows uses the native title bar (the `hiddenInset` traffic-light lane is macOS-only) and the tray's monochrome template icon is drawn as-is, so it is hard to see on a dark taskbar; the tray can be turned off in Desktop settings. Secure storage falls back to DPAPI via `safeStorage`, so remembered grants and credentials still work.
 
 ## Electron upgrades
 

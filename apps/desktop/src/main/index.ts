@@ -901,7 +901,17 @@ function main(): void {
 // The name follows the build's channel ("Sim", "Sim Dev", …) so one developer
 // can run one install per environment side by side — separate settings,
 // sessions, locks, and update feeds.
-app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
+const launchChannel = channelForOrigin(DEFAULT_ORIGIN)
+app.setName(APP_NAME_FOR_CHANNEL[launchChannel])
+// Windows groups taskbar buttons and attributes toast notifications by this
+// id; without it an unpackaged run shows up as a generic Electron app. Mirrors
+// the per-channel appId in scripts/channels.ts so the installed shortcut and
+// the running process agree.
+if (process.platform === 'win32') {
+  app.setAppUserModelId(
+    launchChannel === 'prod' ? 'ai.sim.desktop' : `ai.sim.desktop.${launchChannel}`
+  )
+}
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }

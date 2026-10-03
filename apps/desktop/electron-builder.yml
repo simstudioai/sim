@@ -71,6 +71,26 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: true
 
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  # electron-builder derives the multi-size .ico from this PNG; scripts/build.ts
+  # copies the selected channel's 1024px logo here next to the .icon bundle.
+  icon: build/generated-icon.png
+  # Unsigned: SmartScreen warns on first launch until a code-signing
+  # certificate is configured (CSC_LINK / CSC_KEY_PASSWORD, as on macOS).
+  signAndEditExecutable: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  shortcutName: ${productName}
+
 dmg:
   sign: false
   title: ${productName}
