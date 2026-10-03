@@ -1,6 +1,6 @@
 ---
 title: Databricks
-description: Run SQL queries and manage jobs on Databricks
+description: Run SQL, manage jobs, and ask Genie agents on Databricks
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -27,7 +27,7 @@ In Sim, the Databricks integration enables your agents to interact with your dat
 
 ## Usage Instructions
 
-Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.
+Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Ask Genie spaces (Genie agents) questions in natural language and get back answers, the generated SQL, result rows, and charts, continuing a conversation across follow-ups, or run Genie agent mode for multi-step research reports. Requires a Personal Access Token and workspace host URL.
 
 
 
@@ -379,5 +379,436 @@ Get the state, configuration, and resource details of a single Databricks cluste
 |   ↳ `clusterSource` | string | Origin \(API, UI, JOB, MODELS, PIPELINE, PIPELINE_MAINTENANCE, SQL\) |
 |   ↳ `autoterminationMinutes` | number | Minutes of inactivity before auto-termination \(0 = disabled\) |
 |   ↳ `startTime` | number | Cluster start timestamp \(epoch ms\) |
+
+### Databricks Genie Ask
+
+Ask a Databricks Genie space a question in natural language and wait for the answer. Starts a new conversation, or continues an existing one when a conversation ID is given. Returns the text answer, the SQL Genie generated, and the query result rows.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `content` | string | Yes | The question to ask Genie |
+| `conversationId` | string | No | Continue this conversation so Genie uses its earlier messages as context. Omit to start a new conversation. |
+| `enableVisualization` | boolean | No | Ask Genie to also generate a chart when one fits the answer |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversationId` | string | Genie conversation ID |
+| `messageId` | string | Genie message ID |
+| `status` | string | Message status \(SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED\) |
+| `content` | string | The question that was asked |
+| `answer` | string | Genie's text answer or summary |
+| `followUpQuestion` | string | Clarifying question Genie asked instead of, or alongside, an answer |
+| `queryTitle` | string | Title of the generated query |
+| `sql` | string | SQL query Genie generated |
+| `queryDescription` | string | Plain-language description of the generated SQL |
+| `queryAttachmentId` | string | Attachment ID of the generated query, used to fetch or re-run its result |
+| `statementId` | string | SQL statement ID of the generated query |
+| `rowCount` | number | Number of rows the generated query returned |
+| `thoughts` | array | How Genie interpreted the question and built the SQL \(Public Preview\) |
+|   ↳ `type` | string | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
+|   ↳ `content` | string | Markdown-formatted thought |
+| `suggestedQuestions` | array | Follow-up questions suggested by Genie |
+| `visualizations` | array | Charts Genie generated \(only when visualization was requested\) |
+|   ↳ `attachmentId` | string | Visualization attachment ID, used to download the chart |
+|   ↳ `title` | string | Chart title |
+|   ↳ `queryAttachmentId` | string | Query attachment the chart was built from |
+| `error` | string | Why Genie failed to answer |
+| `errorType` | string | Genie error type |
+| `createdTimestamp` | number | When the message was created |
+| `columns` | array | Column schema of the query result |
+|   ↳ `name` | string | Column name |
+|   ↳ `position` | number | Column position \(0-based\) |
+|   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
+| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
+| `totalRows` | number | Total number of rows in the result |
+| `truncated` | boolean | Whether the result set was truncated |
+
+### Databricks Genie Get Message
+
+Get a Genie message's status and answer, including the generated SQL, visualizations, and suggested follow-up questions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation |
+| `messageId` | string | Yes | The ID of the Genie message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversationId` | string | Genie conversation ID |
+| `messageId` | string | Genie message ID |
+| `status` | string | Message status \(SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED\) |
+| `content` | string | The question that was asked |
+| `answer` | string | Genie's text answer or summary |
+| `followUpQuestion` | string | Clarifying question Genie asked instead of, or alongside, an answer |
+| `queryTitle` | string | Title of the generated query |
+| `sql` | string | SQL query Genie generated |
+| `queryDescription` | string | Plain-language description of the generated SQL |
+| `queryAttachmentId` | string | Attachment ID of the generated query, used to fetch or re-run its result |
+| `statementId` | string | SQL statement ID of the generated query |
+| `rowCount` | number | Number of rows the generated query returned |
+| `thoughts` | array | How Genie interpreted the question and built the SQL \(Public Preview\) |
+|   ↳ `type` | string | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
+|   ↳ `content` | string | Markdown-formatted thought |
+| `suggestedQuestions` | array | Follow-up questions suggested by Genie |
+| `visualizations` | array | Charts Genie generated \(only when visualization was requested\) |
+|   ↳ `attachmentId` | string | Visualization attachment ID, used to download the chart |
+|   ↳ `title` | string | Chart title |
+|   ↳ `queryAttachmentId` | string | Query attachment the chart was built from |
+| `error` | string | Why Genie failed to answer |
+| `errorType` | string | Genie error type |
+| `createdTimestamp` | number | When the message was created |
+
+### Databricks Genie List Messages
+
+List the messages in a Genie conversation with their answers and generated SQL, for example to replay a conversation history.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation |
+| `pageSize` | number | No | Maximum number of messages to return per page \(default 20, max 100\) |
+| `pageToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Messages in the conversation |
+|   ↳ `conversationId` | string | Genie conversation ID |
+|   ↳ `messageId` | string | Genie message ID |
+|   ↳ `status` | string | Message status \(SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED\) |
+|   ↳ `content` | string | The question that was asked |
+|   ↳ `answer` | string | Genie's text answer or summary |
+|   ↳ `followUpQuestion` | string | Clarifying question Genie asked instead of, or alongside, an answer |
+|   ↳ `queryTitle` | string | Title of the generated query |
+|   ↳ `sql` | string | SQL query Genie generated |
+|   ↳ `queryDescription` | string | Plain-language description of the generated SQL |
+|   ↳ `queryAttachmentId` | string | Attachment ID of the generated query, used to fetch or re-run its result |
+|   ↳ `statementId` | string | SQL statement ID of the generated query |
+|   ↳ `rowCount` | number | Number of rows the generated query returned |
+|   ↳ `thoughts` | array | How Genie interpreted the question and built the SQL \(Public Preview\) |
+|     ↳ `type` | string | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
+|     ↳ `content` | string | Markdown-formatted thought |
+|   ↳ `suggestedQuestions` | array | Follow-up questions suggested by Genie |
+|   ↳ `visualizations` | array | Charts Genie generated \(only when visualization was requested\) |
+|     ↳ `attachmentId` | string | Visualization attachment ID, used to download the chart |
+|     ↳ `title` | string | Chart title |
+|     ↳ `queryAttachmentId` | string | Query attachment the chart was built from |
+|   ↳ `error` | string | Why Genie failed to answer |
+|   ↳ `errorType` | string | Genie error type |
+|   ↳ `createdTimestamp` | number | When the message was created |
+| `nextPageToken` | string | Token for the next page of results |
+
+### Databricks Genie Get Query Result
+
+Get the rows returned by the SQL query Genie generated for a message. Available once the message is EXECUTING_QUERY or COMPLETED.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation |
+| `messageId` | string | Yes | The ID of the Genie message |
+| `attachmentId` | string | Yes | The query attachment ID \(queryAttachmentId from Ask Genie or Get Genie Message\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | array | Column schema of the query result |
+|   ↳ `name` | string | Column name |
+|   ↳ `position` | number | Column position \(0-based\) |
+|   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
+| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
+| `totalRows` | number | Total number of rows in the result |
+| `truncated` | boolean | Whether the result set was truncated |
+| `statementId` | string | SQL statement ID of the query |
+| `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
+
+### Databricks Genie Execute Query
+
+Re-run the SQL query Genie generated for a message. Use this when the message's query result has expired (status QUERY_RESULT_EXPIRED). If the returned status is PENDING or RUNNING, fetch the rows afterwards with Get Genie Query Result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation |
+| `messageId` | string | Yes | The ID of the Genie message |
+| `attachmentId` | string | Yes | The query attachment ID \(queryAttachmentId from Ask Genie or Get Genie Message\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | array | Column schema of the query result |
+|   ↳ `name` | string | Column name |
+|   ↳ `position` | number | Column position \(0-based\) |
+|   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
+| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
+| `totalRows` | number | Total number of rows in the result |
+| `truncated` | boolean | Whether the result set was truncated |
+| `statementId` | string | SQL statement ID of the query |
+| `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
+
+### Databricks Genie Download Visualization
+
+Download a chart Genie generated as a PNG image, for example to post it to Slack. The message must be COMPLETED and asked with visualization enabled. Not supported on Private Link workspaces.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation |
+| `messageId` | string | Yes | The ID of the Genie message |
+| `attachmentId` | string | Yes | The visualization attachment ID \(visualizations\[\].attachmentId\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Rendered chart image \(PNG\) stored in execution files |
+
+### Databricks Genie Send Feedback
+
+Rate a Genie answer as positive or negative, with an optional comment. Space authors use this feedback to improve the space's instructions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation |
+| `messageId` | string | Yes | The ID of the Genie message |
+| `rating` | string | Yes | Feedback rating: POSITIVE, NEGATIVE, or NONE \(clears a previous rating\) |
+| `comment` | string | No | Optional feedback comment \(max 5000 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the feedback was recorded |
+
+### Databricks Genie Delete Message
+
+Delete a message from a Genie conversation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation |
+| `messageId` | string | Yes | The ID of the Genie message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the message was deleted |
+
+### Databricks Genie List Conversations
+
+List conversations in a Genie space, including whether each is a chat-mode or agent-mode conversation. By default only your own conversations are returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `includeAll` | boolean | No | Include every user's conversations in the space \(requires CAN MANAGE on the space\) |
+| `pageSize` | number | No | Maximum number of conversations to return per page \(default 20, max 100\) |
+| `pageToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | array | Conversations in the Genie space |
+|   ↳ `conversationId` | string | Conversation ID |
+|   ↳ `title` | string | Conversation title |
+|   ↳ `createdTimestamp` | number | When the conversation was created |
+|   ↳ `agentType` | string | Conversation mode \(GENIE_CONVERSATION_TYPE_CHAT or GENIE_CONVERSATION_TYPE_AGENT\) |
+| `nextPageToken` | string | Token for the next page of results |
+
+### Databricks Genie Delete Conversation
+
+Delete a Genie conversation you no longer need.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `conversationId` | string | Yes | The ID of the Genie conversation to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the conversation was deleted |
+
+### Databricks Genie List Spaces
+
+List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `pageSize` | number | No | Maximum number of spaces to return per page \(default 20, max 100\) |
+| `pageToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spaces` | array | Genie spaces |
+|   ↳ `spaceId` | string | Genie space ID |
+|   ↳ `title` | string | Space title |
+|   ↳ `description` | string | Space description |
+|   ↳ `warehouseId` | string | SQL warehouse the space runs queries on |
+|   ↳ `parentPath` | string | Workspace folder containing the space |
+|   ↳ `createTime` | string | When the space was created \(ISO 8601\) |
+|   ↳ `updateTime` | string | When the space was last modified \(ISO 8601\) |
+| `nextPageToken` | string | Token for the next page of results |
+
+### Databricks Genie Get Space
+
+Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space |
+| `includeSerializedSpace` | boolean | No | Include the space's serialized configuration export \(requires CAN EDIT on the space\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spaceId` | string | Genie space ID |
+| `title` | string | Space title |
+| `description` | string | Space description |
+| `warehouseId` | string | SQL warehouse the space runs queries on |
+| `parentPath` | string | Workspace folder containing the space |
+| `createTime` | string | When the space was created \(ISO 8601\) |
+| `updateTime` | string | When the space was last modified \(ISO 8601\) |
+| `serializedSpace` | string | Serialized space configuration as a JSON string \(data sources, instructions, sample questions\) |
+
+### Databricks Genie Agent Ask
+
+Ask a Genie agent a question in agent mode, where Genie plans multi-step research, runs several SQL queries, and writes a report with citations. Waits for the final report. Starts a new agent-mode conversation, or continues one when a conversation ID is given. Agent mode is in preview and must be enabled on the workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space \(the Genie agent ID\) |
+| `content` | string | Yes | The question to ask the Genie agent |
+| `conversationId` | string | No | Continue this agent-mode conversation. Omit to start a new conversation. |
+| `enableVisualization` | boolean | No | Ask the agent to also generate charts where they fit |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `responseId` | string | Agent response ID |
+| `conversationId` | string | Agent-mode conversation ID; pass it back to ask a follow-up |
+| `status` | string | Response status \(completed\) |
+| `report` | string | The agent's final report, with citation links |
+| `queries` | array | SQL queries the agent ran |
+|   ↳ `callId` | string | Function call ID |
+|   ↳ `title` | string | Query title |
+|   ↳ `sql` | string | SQL the agent ran |
+| `items` | array | Every output item: reasoning, SQL calls, query results, and messages |
+|   ↳ `type` | string | Item type \(message, reasoning, function_call, function_call_output\) |
+|   ↳ `id` | string | Item ID |
+|   ↳ `status` | string | Item status |
+|   ↳ `role` | string | Message role \(user, assistant, or system\) for message items |
+|   ↳ `text` | string | Text of a message or reasoning item |
+|   ↳ `callId` | string | Pairs a function_call with its function_call_output |
+|   ↳ `name` | string | Function name \(execute_sql\) |
+|   ↳ `arguments` | string | Function call arguments as a JSON string \(title and sql\) |
+|   ↳ `output` | string | Query result: the query title followed by a Markdown table |
+| `createdAt` | number | When the response was created \(Unix epoch seconds\) |
+| `error` | string | System error message the agent reported alongside its report |
+
+### Databricks Genie Agent List Items
+
+List an agent-mode conversation's full history in order: questions, reasoning, SQL calls, query results, and reports. Agent mode is in preview and must be enabled on the workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `spaceId` | string | Yes | The ID of the Genie space \(the Genie agent ID\) |
+| `conversationId` | string | Yes | The ID of the agent-mode conversation |
+| `limit` | number | No | Maximum number of items to return \(1-100, default 100\) |
+| `after` | string | No | Pagination cursor: the lastId from a previous response |
+| `order` | string | No | Sort order: asc \(oldest first, default\) or desc \(newest first\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Conversation items in order; user questions are message items whose ID ends in _input |
+|   ↳ `type` | string | Item type \(message, reasoning, function_call, function_call_output\) |
+|   ↳ `id` | string | Item ID |
+|   ↳ `status` | string | Item status |
+|   ↳ `role` | string | Message role \(user, assistant, or system\) for message items |
+|   ↳ `text` | string | Text of a message or reasoning item |
+|   ↳ `callId` | string | Pairs a function_call with its function_call_output |
+|   ↳ `name` | string | Function name \(execute_sql\) |
+|   ↳ `arguments` | string | Function call arguments as a JSON string \(title and sql\) |
+|   ↳ `output` | string | Query result: the query title followed by a Markdown table |
+| `firstId` | string | ID of the first item in the page |
+| `lastId` | string | ID of the last item in the page; pass it as After for the next page |
+| `hasMore` | boolean | Whether more items follow this page |
+| `status` | string | Status of the latest response in the conversation |
 
 

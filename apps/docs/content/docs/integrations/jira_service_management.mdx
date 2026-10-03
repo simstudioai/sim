@@ -11,20 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Jira Service Management](https://www.atlassian.com/software/jira/service-management) is Atlassian’s modern IT service management (ITSM) solution designed to help teams efficiently manage service requests, incidents, problems, assets, and changes across your organization. Built on the Jira platform, Jira Service Management empowers IT, DevOps, HR, facilities, and other business teams to deliver exceptional, collaborative service.
-
-Jira Service Management (JSM) goes beyond traditional issue tracking by providing features purpose-built for service teams, such as integrated SLAs, customizable request types, automation, robust queues, and seamless customer portals. Through the JSM API and Sim integration, you can automate, monitor, and interact with all aspects of your service management workflows.
-
-Key features of Jira Service Management include:
-
-- **Service Request Management**: Streamline intake, triage, and resolution of IT or business requests via customizable forms, queues, and automated routing.
-- **Incident and Problem Management**: Log, track, escalate, and resolve incidents with tools for root cause analysis, post-incident reviews, and real-time collaboration.
-- **SLA Tracking and Reporting**: Define, monitor, and report on service level agreements to ensure timely service delivery and accountability.
-- **Asset and Configuration Management**: Maintain an up-to-date inventory of assets, configuration items, and their relationships to improve visibility and impact analysis.
-- **Queue Management**: Manage workload and priorities using powerful queues for service agents, including filtering, sorting, and bulk actions.
-- **Customer and Organization Management**: Group customers into organizations, manage user permissions, and improve communication through tailored customer portals.
-
-With Sim’s Jira Service Management integration, you can create, monitor, and update service requests, fetch and manage customer organizations, track active queues, and automate ITSM operations programmatically. Build intelligent service desk agents, automate workflows triggered by service events, and ensure both end-users and service teams benefit from proactive, AI-powered support.
+Use [Jira Service Management](https://www.atlassian.com/software/jira/service-management) in Sim to manage service requests, customers, organizations, SLAs, and queues. The actions below document the supported service-desk operations and their required fields.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -1211,8 +1198,6 @@ Delete an Assets (Insight/CMDB) object by ID
 | `objectId` | string | The deleted object ID |
 | `deleted` | boolean | Whether the object was deleted |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1559,4 +1544,59 @@ Trigger workflow on any Jira Service Management webhook event
 |     ↳ `emailAddress` | string | Comment author email address |
 |   ↳ `created` | string | Comment creation date \(ISO format\) |
 |   ↳ `updated` | string | Comment last updated date \(ISO format\) |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Jira account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/jira` |
+| Environment variables | `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read:jira-user` | View Jira user profiles, including email addresses |
+| `read:jira-work` | View Jira projects and issues, and search issues |
+| `write:jira-work` | Create, edit, and delete Jira issues, comments, and worklogs |
+| `read:me` | Read profile information |
+| `offline_access` | Access account when not using the application |
+| `read:issue.vote:jira` | Read Jira issue votes |
+| `read:user:jira` | View Jira users |
+| `delete:issue:jira` | Delete Jira issues |
+| `delete:comment:jira` | Delete comments from Jira issues |
+| `delete:attachment:jira` | Delete attachments from Jira issues |
+| `delete:issue-worklog:jira` | Delete worklog entries from Jira issues |
+| `delete:issue-link:jira` | Delete links between Jira issues |
+| `read:servicedesk-request` | View service desk requests |
+| `write:servicedesk-request` | Create and update service desk requests |
+| `manage:servicedesk-customer` | Manage service desk customers and organizations |
+| `read:servicedesk:jira-service-management` | View service desks and their settings |
+| `read:requesttype:jira-service-management` | View request types available in service desks |
+| `read:request:jira-service-management` | View customer requests in service desks |
+| `write:request:jira-service-management` | Create customer requests in service desks |
+| `read:request.comment:jira-service-management` | View comments on customer requests |
+| `write:request.comment:jira-service-management` | Add comments to customer requests |
+| `read:servicedesk.customer:jira-service-management` | View customers linked to service desks |
+| `write:servicedesk.customer:jira-service-management` | Add and remove customers from service desks |
+| `read:organization:jira-service-management` | View organizations |
+| `write:organization:jira-service-management` | Create and manage organizations |
+| `read:servicedesk.organization:jira-service-management` | View organizations linked to service desks |
+| `write:servicedesk.organization:jira-service-management` | Add and remove organizations from service desks |
+| `read:queue:jira-service-management` | View service desk queues and their issues |
+| `read:request.sla:jira-service-management` | View SLA information for customer requests |
+| `read:request.status:jira-service-management` | View status of customer requests |
+| `write:request.status:jira-service-management` | Transition customer request status |
+| `read:request.participant:jira-service-management` | View participants on customer requests |
+| `write:request.participant:jira-service-management` | Add and remove participants from customer requests |
+| `read:request.approval:jira-service-management` | View approvals on customer requests |
+| `write:request.approval:jira-service-management` | Approve or decline customer requests |
+| `read:cmdb-object:jira` | View Assets objects and run AQL searches |
+| `write:cmdb-object:jira` | Create and update Assets objects |
+| `delete:cmdb-object:jira` | Delete Assets objects |
+| `read:cmdb-schema:jira` | View Assets object schemas |
+| `read:cmdb-type:jira` | View Assets object types |
+| `read:cmdb-attribute:jira` | View Assets object type attributes |
+
 

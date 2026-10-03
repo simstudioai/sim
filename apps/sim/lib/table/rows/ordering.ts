@@ -10,13 +10,17 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, gt, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
 import type { MutationProof } from '@/lib/table/mutation-locks'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
-import { mutateTableRowsWithSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import {
+  mutateTableRowsWithSecretProvenance,
+  type TableRowProvenanceReader,
+} from '@/lib/table/rows/secret-provenance'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 
@@ -153,9 +157,7 @@ export async function nextImportStartOrderKey(tableId: string): Promise<string |
  * restores per-table serialization. Released at COMMIT/ROLLBACK.
  */
 export async function acquireRowOrderLock(trx: DbTransaction, tableId: string) {
-  await trx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_rows_pos:${tableId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(trx, 'user_table_rows_pos', `user_table_rows_pos:${tableId}`)
 }
 
 /** Next append position for a table (max(position) + 1, or 0 if empty). */
@@ -167,6 +169,32 @@ export async function nextRowPosition(trx: DbTransaction, tableId: string): Prom
     .from(userTableRows)
     .where(eq(userTableRows.tableId, tableId))
   return maxPos + 1
+}
+
+/**
+ * The append anchors — `max(order_key)` and the next free `position` — in ONE round trip.
+ *
+ * An append needs both, and asking separately is two serial round trips inside the row-order
+ * advisory lock, which every other inserting request is waiting on. Postgres plans each `max()`
+ * as its own InitPlan, so the combined statement still serves each aggregate from its own index
+ * (`(table_id, order_key, id)` and `(table_id, position)`) with an index-only backward scan —
+ * exactly the two plans the separate queries produced, in one statement rather than two.
+ *
+ * Only for the append case. A positional or neighbor-anchored insert resolves its key by walking
+ * to a slot, which is a different query that cannot fold in.
+ */
+export async function appendAnchors(
+  trx: DbTransaction,
+  tableId: string
+): Promise<{ maxOrderKey: string | null; nextPosition: number }> {
+  const [row] = await trx
+    .select({
+      maxKey: sql<string | null>`max(${userTableRows.orderKey})`,
+      maxPos: sql<number>`coalesce(max(${userTableRows.position}), -1)`.mapWith(Number),
+    })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+  return { maxOrderKey: row.maxKey ?? null, nextPosition: row.maxPos + 1 }
 }
 
 /** Largest `order_key` for a table, or `null` when empty — the append anchor for new keys. */
@@ -291,6 +319,7 @@ export async function resolveBatchInsertOrderKeys(
  * by the `increment_user_table_row_count` trigger.
  */
 export async function insertOrderedRow(params: {
+  readProvenance?: TableRowProvenanceReader
   tableId: string
   workspaceId: string
   data: RowData
@@ -303,6 +332,13 @@ export async function insertOrderedRow(params: {
   secretProvenance?: TableRowSecretProvenanceWrite
   /** Proof the caller asserted the insert lock (see `mutation-locks.ts`). */
   proof: MutationProof<'insert'>
+  /**
+   * Opens the transaction in place of the default timeouts, before the row-order lock: the
+   * caller's schema guard (see `live-schema.ts`), which applies the timeouts, then its unique-value
+   * locks and unique check (see `unique-locks.ts`), so the check sees any concurrent insert of the
+   * same value.
+   */
+  validate?: (trx: DbTransaction) => Promise<void>
 }): Promise<{
   id: string
   data: RowData
@@ -324,20 +360,33 @@ export async function insertOrderedRow(params: {
     secretProvenance,
   } = params
   const [row] = await db.transaction(async (trx) => {
-    await setTableTxTimeouts(trx)
+    if (params.validate) await params.validate(trx)
+    else await setTableTxTimeouts(trx)
     await acquireRowOrderLock(trx, tableId)
 
-    // Resolve the authoritative order key from neighbor ids when given, else from
-    // the requested position.
-    const orderKey =
-      afterRowId || beforeRowId
-        ? await resolveInsertByNeighbor(trx, tableId, afterRowId, beforeRowId)
-        : await resolveInsertOrderKey(trx, tableId, position)
+    // Resolve the authoritative order key from neighbor ids when given, else from the requested
+    // position. `order_key` is authoritative — `position` is a best-effort, no-shift companion.
+    //
+    // A plain append needs only the two table maxima, so it reads them together
+    // ({@link appendAnchors}) rather than paying a second round trip under the order lock. The
+    // anchored and positional forms resolve their key by walking to a slot, so they still ask
+    // for the next position separately.
+    const appending = !afterRowId && !beforeRowId && position === undefined
+    let orderKey: string
+    let targetPosition: number
+    if (appending) {
+      const anchors = await appendAnchors(trx, tableId)
+      orderKey = keyBetween(anchors.maxOrderKey, null)
+      targetPosition = anchors.nextPosition
+    } else {
+      orderKey =
+        afterRowId || beforeRowId
+          ? await resolveInsertByNeighbor(trx, tableId, afterRowId, beforeRowId)
+          : await resolveInsertOrderKey(trx, tableId, position)
+      targetPosition = await nextRowPosition(trx, tableId)
+    }
 
-    // order_key is authoritative — keep a best-effort, no-shift position.
-    const targetPosition = await nextRowPosition(trx, tableId)
-
-    return mutateTableRowsWithSecretProvenance(trx, {
+    const rows = await mutateTableRowsWithSecretProvenance(trx, {
       rows: [{ rowId, provenance: secretProvenance }],
       rowState: 'new',
       mode: 'replace',
@@ -362,6 +411,8 @@ export async function insertOrderedRow(params: {
         }
       },
     })
+    await params.readProvenance?.capture(trx, rows)
+    return rows
   })
   return {
     id: row.id,
@@ -566,9 +617,7 @@ export async function guardBatch(
   revalidate: MutationRevalidator | undefined
 ): Promise<TableDefinition | undefined> {
   if (!revalidate) return undefined
-  await trx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
   return revalidate(trx)
 }
 
@@ -623,17 +672,29 @@ export async function deletePageByIds(
   return deleted
 }
 
+/** The patch one update batch writes, or `null` when it writes nothing. */
+export interface PagePatch {
+  patchJson: string
+  secretProvenance: TableRowSecretProvenanceWrite
+}
+
 /**
  * Applies a JSONB-merge patch (`data || patchJson`) to a page of row ids, committed in
  * UPDATE_BATCH_SIZE chunks (each its own transaction, 60s timeout) so a large background update
- * makes incremental, resumable progress. Returns the number of rows updated.
+ * makes incremental, resumable progress. Each batch takes its patch from `prepare`, called inside
+ * the batch's transaction with the definition `revalidate` read there and the batch's row ids, so a
+ * caller can derive it, and check the rows it merges into, against the live schema. Returns the
+ * number of rows updated.
  */
 export async function updatePageByIds(
   tableId: string,
   workspaceId: string,
   rowIds: string[],
-  patchJson: string,
-  secretProvenance: TableRowSecretProvenanceWrite,
+  prepare: (
+    trx: DbTransaction,
+    table: TableDefinition | undefined,
+    batch: string[]
+  ) => Promise<PagePatch | null>,
   /** Proof the caller asserted the update lock (see `mutation-locks.ts`). */
   _proof: MutationProof<'update'>,
   /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
@@ -645,15 +706,19 @@ export async function updatePageByIds(
     const batch = rowIds.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
     const rows = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
-      await guardBatch(trx, tableId, revalidate)
+      const patch = await prepare(trx, await guardBatch(trx, tableId, revalidate), batch)
+      if (!patch) return []
       return mutateTableRowsWithSecretProvenance(trx, {
-        rows: batch.map((rowId) => ({ rowId, provenance: secretProvenance })),
+        rows: batch.map((rowId) => ({ rowId, provenance: patch.secretProvenance })),
         rowState: 'existing',
         mode: 'merge',
         mutate: async () => {
           const rows = await trx
             .update(userTableRows)
-            .set({ data: sql`${userTableRows.data} || ${patchJson}::jsonb`, updatedAt: now })
+            .set({
+              data: sql`${userTableRows.data} || ${patch.patchJson}::jsonb`,
+              updatedAt: now,
+            })
             .where(
               and(
                 eq(userTableRows.tableId, tableId),

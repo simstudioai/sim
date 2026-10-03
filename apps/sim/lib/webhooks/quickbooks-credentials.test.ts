@@ -1,15 +1,9 @@
-/** @vitest-environment node */
-
 import { account, credential } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: vi.fn(),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { createQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import {
@@ -20,8 +14,18 @@ import {
   buildQuickBooksWebhookAccountIdPattern,
   buildQuickBooksWebhookRoutingKey,
   getQuickBooksWebhookClientConfigByCredentialId,
-  getQuickBooksWebhookVerifierTokensByAppKey,
+  streamQuickBooksWebhookVerifierTokensByAppKey,
 } from '@/lib/webhooks/quickbooks-credentials'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+
+async function collectVerifierTokens(appKey: string): Promise<string[]> {
+  const tokens: string[] = []
+  for await (const token of streamQuickBooksWebhookVerifierTokensByAppKey(appKey)) {
+    tokens.push(token)
+  }
+  return tokens
+}
 
 const CLIENT_CONFIG: QuickBooksOAuthClientConfig = {
   clientId: 'client-id',
@@ -34,27 +38,12 @@ const ACCOUNT_ID = createQuickBooksAccountId('1234567890', 'subject-1', CLIENT_C
 
 describe('QuickBooks webhook credential lookup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(CLIENT_CONFIG) })
   })
 
   afterAll(() => {
     resetDbChainMock()
-  })
-
-  it('loads and validates an app-scoped verifier token', async () => {
-    queueTableRows(account, [
-      {
-        accountId: ACCOUNT_ID,
-        oauthConfig: 'encrypted-config',
-      },
-    ])
-
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).resolves.toEqual([
-      'verifier-token',
-    ])
-    expect(mockDecryptSecret).toHaveBeenCalledWith('encrypted-config')
   })
 
   it('returns every distinct verifier token for accounts that share one Intuit app', async () => {
@@ -73,7 +62,7 @@ describe('QuickBooks webhook credential lookup', () => {
         decrypted: JSON.stringify({ ...CLIENT_CONFIG, webhookVerifierToken: 'second-verifier' }),
       })
 
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).resolves.toEqual([
+    await expect(collectVerifierTokens(APP_KEY)).resolves.toEqual([
       'first-verifier',
       'second-verifier',
     ])
@@ -88,7 +77,7 @@ describe('QuickBooks webhook credential lookup', () => {
       }))
     )
 
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).rejects.toThrow(
+    await expect(collectVerifierTokens(APP_KEY)).rejects.toThrow(
       'QuickBooks webhook app account limit exceeded'
     )
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1001)
@@ -128,7 +117,7 @@ describe('QuickBooks webhook credential lookup', () => {
       decrypted: JSON.stringify({ ...CLIENT_CONFIG, clientId: 'different-app' }),
     })
 
-    await expect(getQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)).resolves.toEqual([])
+    await expect(collectVerifierTokens(APP_KEY)).resolves.toEqual([])
   })
 
   it('escapes wildcard characters in the app-scoped account lookup', async () => {

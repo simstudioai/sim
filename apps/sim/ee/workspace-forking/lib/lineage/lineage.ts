@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock, acquireAdvisoryXactLocks } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 export interface ForkLineageNode {
   id: string
@@ -109,10 +110,54 @@ export async function setForkLockTimeout(tx: DbOrTx): Promise<void> {
  * between distinct keys astronomically unlikely; a collision would only cause
  * unnecessary serialization, never a correctness issue.
  */
-export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-edge:${childWorkspaceId}`}, 0))`
-  )
+export async function acquireForkEdgeLock(
+  tx: DbTransaction,
+  childWorkspaceId: string
+): Promise<void> {
+  await acquireAdvisoryXactLock(tx, 'fork_edge', `fork-edge:${childWorkspaceId}`)
+}
+
+/**
+ * Serialize writes that must see one consistent view of a whole fork lineage, keyed by
+ * the lineage ROOT so every member contends on the same key.
+ *
+ * Exclusive for the writers that change what the lineage agrees on: setting the new-workflow
+ * fork-sync default (which fans out to every member) and unlink (which moves a subtree to a
+ * new root). Shared for fork creation, which only inherits the source's value: forks of one
+ * lineage do not conflict with each other, so they run concurrently, while a default change
+ * or unlink still waits for them and they for it. Without it a fork created while the
+ * default was being changed could inherit a stale value.
+ *
+ * ## Lock order for the whole fork module
+ *
+ * Every fork transaction acquires in ASCENDING rank and never reacquires a lower rank
+ * afterwards. Cite the rank at each acquisition site.
+ *
+ * | Rank | Lock | Where |
+ * | --- | --- | --- |
+ * | 1 | `lockWorkspaceOperationRequest` (per-request idempotency key) | `lib/workspaces/operations/receipts` |
+ * | 2 | {@link acquireForkLineageLock} (coarsest fork lock) | here |
+ * | 3 | {@link acquireForkTargetLock} | here |
+ * | 4 | {@link acquireForkEdgeLock} | here |
+ * | 5 | `lockForkRevision` (a `resource_folders:*` advisory lock per workspace, then `FOR UPDATE` on `workspace`, `workflow`, `workflow_blocks`, `workflow_edges`, `workflow_subflows` and `FOR SHARE` on the active `workflow_deployment_version` rows) | `application/revision.ts` |
+ * | 6 | remaining row locks, taken in sorted id order | various |
+ *
+ * Rank 5 is the easy one to get wrong: it takes `FOR UPDATE` on `workspace`, which
+ * `unlinkForkEdge` and `setForkSyncDefault` write while holding rank 2, so taking rank 5
+ * before rank 2 deadlocks.
+ *
+ * {@link setForkLockTimeout}'s 10s is not a whole-transaction bound: `lockForkRevision`
+ * reaches `acquireFolderMutationLock`, which re-sets `lock_timeout` to 5s, and the MCP
+ * server lock re-sets it to 3s.
+ */
+export async function acquireForkLineageLock(
+  tx: DbTransaction,
+  rootWorkspaceId: string,
+  { shared = false }: { shared?: boolean } = {}
+): Promise<void> {
+  await acquireAdvisoryXactLocks(tx, 'fork_lineage', [
+    { key: `fork-lineage:${rootWorkspaceId}`, shared },
+  ])
 }
 
 /**
@@ -122,8 +167,9 @@ export async function acquireForkEdgeLock(tx: DbOrTx, childWorkspaceId: string):
  * interleaving and keeping rollback's "newest sync" check race-free. Always acquire
  * this BEFORE {@link acquireForkEdgeLock} so the two are taken in a consistent order.
  */
-export async function acquireForkTargetLock(tx: DbOrTx, targetWorkspaceId: string): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`fork-target:${targetWorkspaceId}`}, 0))`
-  )
+export async function acquireForkTargetLock(
+  tx: DbTransaction,
+  targetWorkspaceId: string
+): Promise<void> {
+  await acquireAdvisoryXactLock(tx, 'fork_target', `fork-target:${targetWorkspaceId}`)
 }

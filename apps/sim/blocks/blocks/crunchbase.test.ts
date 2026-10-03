@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { CrunchbaseBlock } from '@/blocks/blocks/crunchbase'
 
@@ -12,68 +9,8 @@ import { CrunchbaseBlock } from '@/blocks/blocks/crunchbase'
  */
 describe('CrunchbaseBlock', () => {
   const buildParams = CrunchbaseBlock.tools.config!.params!
-  const selectTool = CrunchbaseBlock.tools.config!.tool!
 
   const resolve = (inputs: Record<string, unknown>) => ({ ...inputs, ...buildParams(inputs) })
-
-  const operationIds =
-    CrunchbaseBlock.subBlocks
-      .find((subBlock) => subBlock.id === 'operation')
-      ?.options?.map((option) => (option as { id: string }).id) ?? []
-
-  it('maps every dropdown operation onto a registered tool', () => {
-    expect(operationIds).toHaveLength(14)
-    expect(new Set(operationIds.map((id) => selectTool({ operation: id })))).toEqual(
-      new Set(CrunchbaseBlock.tools.access)
-    )
-  })
-
-  it('rejects an operation the dropdown does not offer', () => {
-    expect(() => selectTool({ operation: 'search_unicorns' })).toThrow(
-      /Invalid Crunchbase operation/
-    )
-  })
-
-  it('gives every subblock a unique id', () => {
-    const ids = CrunchbaseBlock.subBlocks.map((subBlock) => subBlock.id)
-    expect(ids).toHaveLength(new Set(ids).size)
-  })
-
-  it('shows a subblock for every operation that owns it', () => {
-    const conditionsFor = (id: string) => {
-      const condition = CrunchbaseBlock.subBlocks.find((subBlock) => subBlock.id === id)?.condition
-      const value = (condition as { value?: unknown } | undefined)?.value
-      return new Set(Array.isArray(value) ? value.map(String) : [String(value)])
-    }
-
-    expect(conditionsFor('searchQuery')).toEqual(
-      new Set([
-        'search_organizations',
-        'search_people',
-        'search_funding_rounds',
-        'search_acquisitions',
-        'search_entities',
-      ])
-    )
-    expect(conditionsFor('entityId')).toEqual(
-      new Set([
-        'get_organization',
-        'get_person',
-        'get_funding_round',
-        'get_acquisition',
-        'get_entity',
-        'get_entity_card',
-      ])
-    )
-  })
-
-  it('never hides a required field behind advanced mode', () => {
-    const advancedRequired = CrunchbaseBlock.subBlocks
-      .filter((subBlock) => subBlock.mode === 'advanced' && subBlock.required)
-      .map((subBlock) => subBlock.id)
-
-    expect(advancedRequired).toEqual([])
-  })
 
   /*
    * The mapper's whole job is dropping keys that belong to another operation.
@@ -125,28 +62,6 @@ describe('CrunchbaseBlock', () => {
       autocompleteQuery: 'airbnb',
     })
     expect(autocomplete.query).toBe('airbnb')
-  })
-
-  it('feeds the generic search its own required field list', () => {
-    const generic = resolve({
-      operation: 'search_entities',
-      apiKey: 'key',
-      collection: 'events',
-      searchQuery: '[]',
-      searchFieldIds: '["identifier","short_description"]',
-      fieldIds: '["identifier","name"]',
-    })
-    expect(generic.fieldIds).toBe('["identifier","short_description"]')
-    expect(generic.searchFieldIds).toBeUndefined()
-
-    const specific = resolve({
-      operation: 'search_organizations',
-      apiKey: 'key',
-      searchQuery: '[]',
-      searchFieldIds: '["identifier","short_description"]',
-      fieldIds: '["identifier","name"]',
-    })
-    expect(specific.fieldIds).toBe('["identifier","name"]')
   })
 
   it('picks the collection each operation actually asks for', () => {

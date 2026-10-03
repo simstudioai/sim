@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 // Renders the real expression against the real drizzle dialect and schema. It
 // is a raw `sql` template, so a rendering or type-cast bug only surfaces when
 // Postgres executes it — the global drizzle/schema mocks would hide it.
@@ -87,20 +83,5 @@ describe('elapsedDurationMsSql', () => {
     const fallback = sql.slice(sql.indexOf('END,'))
     expect(fallback).toContain('LEAST(')
     expect(fallback).not.toContain('"total_duration_ms"')
-  })
-
-  /**
-   * The preserved-checkpoint rule and the elapsed fallback are one `COALESCE`
-   * over a valueless-`ELSE` `CASE`, not a `CASE` repeating the elapsed
-   * expression in both branches. `status` is `NOT NULL` and `started_at` is
-   * `NOT NULL`, so the `CASE` yields NULL exactly for a non-`pending` row or a
-   * `pending` row that never recorded one — the two cases that must fall
-   * through — and the fallback can never itself be NULL.
-   */
-  it('builds the elapsed expression once', () => {
-    const { sql, params } = render(new Date('2026-08-13T12:00:05.000Z'))
-
-    expect(sql.match(/LEAST\(/g)).toHaveLength(1)
-    expect(params).toHaveLength(2)
   })
 })

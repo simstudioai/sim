@@ -47,16 +47,16 @@ Read these files completely before editing:
 - `apps/sim/lib/api/server/routes/internal-json-route.ts`
 - `apps/sim/lib/api/server/routes/v2-json-route.ts`
 - `apps/sim/lib/auth/internal-delegation.ts`
-- `apps/sim/lib/copilot/application/application-adapter.ts`
-- `apps/sim/lib/copilot/auth/application-delegation.ts`
+- `apps/sim/lib/mothership/application/application-adapter.ts`
+- `apps/sim/lib/mothership/auth/application-delegation.ts`
 
 Use the file domain only as a representative golden slice:
 
 - `apps/sim/lib/workspace-files/application/operations.ts`
 - `apps/sim/lib/workspace-files/application/authorized-workspace-file-use-case.ts`
 - `apps/sim/lib/workspace-files/application/rename-workspace-file.ts`
-- `apps/sim/lib/copilot/application/execute-file-use-case.ts`
-- `apps/sim/lib/copilot/auth/file-delegation.ts`
+- `apps/sim/lib/mothership/application/execute-file-use-case.ts`
+- `apps/sim/lib/mothership/auth/file-delegation.ts`
 
 Then read the target domain's operation registry, application code, repositories, contracts, adapters, aliases, resume paths, and focused tests. Fail immediately if the shared foundation is absent. Do not recreate it inside the domain.
 
@@ -80,7 +80,7 @@ Preserve behavior unless the task explicitly changes it. Stop and report a decis
 
 ## Freeze observable behavior before editing
 
-Treat the legacy route or tool as an ordered program, not merely a bag of business logic. Before moving code, write a compact baseline for every in-scope entry point and add focused characterization tests for behavior not already pinned down.
+Treat the legacy route or tool as an ordered program, not merely a bag of business logic. Before moving code, write a compact baseline for every in-scope entry point. Pin behavior no existing test covers with a characterization test only where it passes the `test-audit` gate; otherwise record it in the baseline and verify it by hand after the move.
 
 Capture all of these when they apply:
 
@@ -166,7 +166,7 @@ Do not create internal-, public-, or Copilot-specific versions of the same seman
 
 Choose principal kinds from actual behavior. Do not accept every principal merely because the use case is shared. Workspace API keys have a write ceiling and cannot satisfy admin operations. The operation definition must fail fast when its role, workspace-key policy, and principal kinds disagree.
 
-`capability` is required — name the permission-group capability that governs the operation, or `'none'` with a `// permission-group-exempt: <reason>` comment directly above it. `defineWorkspaceOperation` throws at definition time when it is absent. See `add-permission-group-item`.
+`capability` is required: a static, operation-declarable capability (not parameterized, not principal-wide), or `'none'` with a `// permission-group-exempt: <reason>` comment directly above it. If `principalKinds` includes `oauth_access_token`, `oauthScope` (`api:read` | `api:write` | `search:read`) is required. `defineWorkspaceOperation` throws at definition time on any violation. See `add-permission-group-item`.
 
 Route declarations, tool adapters, and use cases must use the same literal operation. Runtime operation selection is permitted only from a trusted, code-defined registry. Never accept an operation ID or permission tag from an HTTP body, model argument, or other untrusted input.
 
@@ -250,7 +250,7 @@ Keep v1 middleware and routes unchanged unless explicitly included.
 
 ## Adapt Copilot
 
-Copilot is a surface adapter, not a separate application layer. If an HTTP or other surface already uses an application use case, Copilot must call that exact use case rather than reimplementing protected business behavior under `lib/copilot`.
+Copilot is a surface adapter, not a separate application layer. If an HTTP or other surface already uses an application use case, Copilot must call that exact use case rather than reimplementing protected business behavior under `lib/mothership`.
 
 Create one domain-level Copilot application adapter with `createCopilotApplicationAdapter` instead of constructing delegated principals in every tool:
 
@@ -315,18 +315,16 @@ Do not force these through an ordinary JSON migration:
 
 Stop and report a missing design rather than weakening identity, authorization, limits, or errors.
 
-## Test the complete matrix
+## Test each risk at one boundary
 
-Add focused tests for every migrated surface and principal kind allowed by the operation:
+Run the `test-audit` authoring gate before writing any test. Prefer one E2E/integration run over the real boundary; where a use-case unit test is justified, list its failure modes before writing code (CLAUDE.md → Testing). Own each risk at exactly one boundary:
 
-- Application: allowed and disallowed roles, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, and infrastructure propagation.
-- Operation registry: role/workspace-key/principal-kind/delegated-service consistency and fail-fast rejection of invalid definitions.
-- Repository: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
-- Internal API: authentication before parsing, exact contract, typed errors, and surface analytics only after success.
-- Public API: personal and workspace keys, rate behavior, concealment, exact external envelope, and rate headers.
-- Copilot or tools: trusted context, exact registered operation membership, rejected forged scope, aliases and resume paths, permission re-check, safe errors, and unchanged tool result shapes.
-- Side effects: audit derives from authoritative results; shared notifications follow audit; neither occurs for rejection or no-op.
-- Compatibility characterization: legacy normalization, exact response/redirect/cookie behavior, concealment, error subclass precedence, and branch-specific output.
+- Application use-case tests own authorization, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, audit derived from authoritative results, and infrastructure failures (storage, rate-limit, provider, or database errors raised by delegated services) propagating as 5xx-mapped errors — never converted to not-found or forbidden.
+- One `*.integration.ts` owns repository semantics: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
+- Add a surface test only for a surface-specific risk (for example, a v2 envelope or rate header, a Copilot forged-scope rejection, or a legacy redirect/cookie behavior the characterization baseline pinned). Do not restate the operation registry or the shared builders' auth-before-parse behavior per surface.
+
+Risks that usually earn a test when the change introduces them:
+
 - Failure sequencing: inject a failure after each independently committing step and assert persisted state plus audit, analytics, and notification effects.
 - Concurrency: overlap stateful browser or provider flows and prove each callback consumes only its own state and return destination.
 - Rendering boundaries: exercise hostile values for every newly connected input that reaches HTML, inline JavaScript, URLs, logs, or provider requests.
@@ -334,10 +332,10 @@ Add focused tests for every migrated surface and principal kind allowed by the o
 Run at minimum:
 
 ```bash
-bunx vitest run <focused test files>
+bun run --cwd apps/sim test <focused test files>
 bunx biome check <changed source and test files>
 bunx turbo run type-check --filter=@sim/app --filter=@sim/auth
-bun run check:api-validation:strict
+bun run check:audits
 git diff --check
 ```
 

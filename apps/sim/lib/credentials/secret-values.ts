@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { credential, environment, workspaceEnvironment } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
-import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
   createWorkspaceEnvCredentials,
@@ -15,44 +15,6 @@ import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
 export interface SecretMutationResult {
   created: boolean
   updatedAt: Date
-}
-
-/**
- * Decrypts the stored values for the requested workspace secret names.
- *
- * Exists for exactly one read path: rows a workspace marked visible (unredacted),
- * whose values already print into every run log the caller can open. Every other
- * secret read stays metadata-only — callers gate on the flag BEFORE asking. A
- * name that is absent or fails to decrypt is omitted rather than failing the
- * batch, since the value is optional on the wire.
- */
-export async function readWorkspaceSecretValues(params: {
-  workspaceId: string
-  names: readonly string[]
-}): Promise<Record<string, string>> {
-  if (params.names.length === 0) return {}
-
-  const [row] = await db
-    .select({ variables: workspaceEnvironment.variables })
-    .from(workspaceEnvironment)
-    .where(eq(workspaceEnvironment.workspaceId, params.workspaceId))
-    .limit(1)
-  const variables = (row?.variables as Record<string, string> | null) ?? {}
-
-  const values: Record<string, string> = {}
-  await Promise.all(
-    params.names.map(async (name) => {
-      const encrypted = Object.hasOwn(variables, name) ? variables[name] : undefined
-      if (!encrypted) return
-      try {
-        const { decrypted } = await decryptSecret(encrypted)
-        values[name] = decrypted
-      } catch {
-        // Omitted from the result; the caller's wire shape treats the value as optional.
-      }
-    })
-  )
-  return values
 }
 
 /** Stores one workspace secret without decrypting any existing value. */

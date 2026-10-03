@@ -1,8 +1,10 @@
-/**
- * @vitest-environment node
- */
+import {
+  searchReplaceIndexerMock,
+  searchReplaceIndexerMockFns,
+} from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  collectStrippedWorkspaceBindings,
   EXPORT_PRESERVED_RESOURCE_TYPES,
   sanitizeWorkflowForSharing,
 } from '@/lib/workflows/credentials/credential-extractor'
@@ -10,24 +12,22 @@ import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-
 import { getBlock } from '@/blocks/registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: ({
-    tool,
-  }: {
-    tool: { type: string; params?: Record<string, unknown> }
-  }) =>
-    Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
-      paramId,
-      authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
-      value,
-      config: {
-        id: paramId,
-        type: 'short-input',
-        password: paramId === 'apiKey' || paramId === 'token',
-        canonicalParamId: paramId === 'manualCredential' ? 'oauthCredential' : undefined,
-      },
-    })),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
+
+searchReplaceIndexerMockFns.mockGetToolInputParamConfigs.mockImplementation((options) => {
+  const { tool } = options as { tool: { type: string; params?: Record<string, unknown> } }
+  return Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
+    paramId,
+    authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
+    value,
+    config: {
+      id: paramId,
+      type: 'short-input',
+      password: paramId === 'apiKey' || paramId === 'token',
+      canonicalParamId: paramId === 'manualCredential' ? 'oauthCredential' : undefined,
+    },
+  }))
+})
 
 function stateWithSubBlock(type: string, value: unknown): Partial<WorkflowState> {
   return {
@@ -68,10 +68,6 @@ function sanitizedValue(type: string, value: unknown): unknown {
 }
 
 describe('export sanitizer resource coverage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   /**
    * The drift guard. Adding a selector to the resource registry without deciding how export
    * should treat it fails here rather than silently shipping a workspace-scoped id to another
@@ -102,8 +98,41 @@ describe('export sanitizer resource coverage', () => {
     expect(sanitizedValue('oauth-input', 'cred-123')).toBeNull()
   })
 
-  it('leaves an ordinary field untouched', () => {
-    expect(sanitizedValue('short-input', 'plain text')).toBe('plain text')
+  it('keeps fallback models and only whole env-var-referenced row keys', () => {
+    expect(
+      sanitizedValue('model-fallback-list', [
+        { id: 'a', model: 'gpt-5' },
+        { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+        { id: 'c', model: 'openrouter/y', apiKey: 'sk-raw-secret' },
+        { id: 'd', model: 'openrouter/z', apiKey: '{{A}} sk-raw {{B}}' },
+        'not-a-row',
+      ])
+    ).toEqual([
+      { id: 'a', model: 'gpt-5' },
+      { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+      { id: 'c', model: 'openrouter/y' },
+      { id: 'd', model: 'openrouter/z' },
+      'not-a-row',
+    ])
+    expect(sanitizedValue('model-fallback-list', 'opaque')).toBe('opaque')
+  })
+
+  it('drops even referenced fallback row keys when env vars are not preserved', () => {
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'model-fallback-list' }],
+      outputs: {},
+    } as never)
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('model-fallback-list', [
+        { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+      ]),
+      { preserveEnvVars: false, redactOpaqueCredentialInputs: true }
+    )
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      { id: 'b', model: 'openrouter/x' },
+    ])
   })
 
   it('clears tableId by key on a block with no registry config', () => {
@@ -249,5 +278,150 @@ describe('export sanitizer resource coverage', () => {
     expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
       { type: 'custom-tool', params: null },
     ])
+  })
+})
+
+describe('preserveWorkspaceBindings', () => {
+  const SAME_WORKSPACE_OPTIONS = { ...EXPORT_OPTIONS, preserveWorkspaceBindings: true } as const
+
+  function sanitizedWith(type: string, value: unknown, id = 'field'): unknown {
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id, title: 'Field', type }],
+      outputs: {},
+    } as never)
+    const state = stateWithSubBlock(type, value)
+    const block = state.blocks?.b1
+    if (block && id !== 'field') {
+      block.subBlocks = { [id]: { id, type, value } } as never
+    }
+    const sanitized = sanitizeWorkflowForSharing(state, SAME_WORKSPACE_OPTIONS)
+    return sanitized.blocks?.b1?.subBlocks?.[id]?.value
+  }
+
+  it('keeps resource selectors for a same-workspace round trip', () => {
+    expect(sanitizedWith('table-selector', 'tbl_239e870374c14d4a89923175a7b10648')).toBe(
+      'tbl_239e870374c14d4a89923175a7b10648'
+    )
+    expect(sanitizedWith('knowledge-base-selector', 'kb_123')).toBe('kb_123')
+    expect(sanitizedWith('short-input', 'kb_123', 'knowledgeBaseId')).toBe('kb_123')
+  })
+
+  it('still clears credentials, passwords, and credential-keyed fields', () => {
+    expect(sanitizedWith('oauth-input', 'cred-123')).toBeNull()
+    expect(sanitizedWith('short-input', 'cred-123', 'oauthCredential')).toBeNull()
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'short-input', password: true }],
+      outputs: {},
+    } as never)
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('short-input', 'sk-secret'),
+      SAME_WORKSPACE_OPTIONS
+    )
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toBeNull()
+  })
+
+  it('keeps a workspace-keyed field on a block with no registry config', () => {
+    vi.mocked(getBlock).mockReturnValue(undefined as never)
+    const sanitized = sanitizeWorkflowForSharing(
+      {
+        blocks: {
+          b1: {
+            id: 'b1',
+            type: 'unknown-block',
+            name: 'Test',
+            position: { x: 0, y: 0 },
+            subBlocks: { tableId: { id: 'tableId', type: 'short-input', value: 'tbl_abc' } },
+            outputs: {},
+            enabled: true,
+          },
+        },
+      } as unknown as Partial<WorkflowState>,
+      SAME_WORKSPACE_OPTIONS
+    )
+    expect(sanitized.blocks?.b1?.subBlocks?.tableId?.value).toBe('tbl_abc')
+  })
+})
+
+describe('collectStrippedWorkspaceBindings', () => {
+  const KNOWLEDGE_BLOCK = {
+    name: 'Knowledge',
+    description: '',
+    subBlocks: [
+      { id: 'operation', title: 'Operation', type: 'dropdown' },
+      {
+        id: 'knowledgeBaseSelector',
+        title: 'Knowledge Base',
+        type: 'knowledge-base-selector',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'basic',
+        required: true,
+      },
+      {
+        id: 'manualKnowledgeBaseId',
+        title: 'Knowledge Base ID',
+        type: 'short-input',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'advanced',
+        required: true,
+      },
+      {
+        id: 'documentSelector',
+        title: 'Document',
+        type: 'document-selector',
+        canonicalParamId: 'documentId',
+        mode: 'basic',
+        required: true,
+        condition: { field: 'operation', value: 'get_document' },
+      },
+      {
+        id: 'tagFilters',
+        title: 'Tag Filters',
+        type: 'knowledge-tag-filters',
+        condition: { field: 'operation', value: 'search' },
+      },
+      { id: 'credential', title: 'Credential', type: 'oauth-input', required: true },
+    ],
+    outputs: {},
+  }
+
+  function knowledgeState(values: Record<string, unknown>, enabled = true): Partial<WorkflowState> {
+    return {
+      blocks: {
+        kb: {
+          id: 'kb',
+          type: 'knowledge',
+          name: 'Lookup',
+          position: { x: 0, y: 0 },
+          subBlocks: Object.fromEntries(
+            Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
+          ),
+          outputs: {},
+          enabled,
+        },
+      },
+    } as unknown as Partial<WorkflowState>
+  }
+
+  beforeEach(() => {
+    vi.mocked(getBlock).mockReturnValue(KNOWLEDGE_BLOCK as never)
+  })
+
+  it('reports a required binding whose canonical pair arrived empty, once, by its canonical id', () => {
+    const findings = collectStrippedWorkspaceBindings(
+      knowledgeState({
+        operation: 'search',
+        knowledgeBaseSelector: null,
+        manualKnowledgeBaseId: null,
+        documentSelector: null,
+        tagFilters: null,
+        credential: null,
+      })
+    )
+
+    expect(findings).toEqual([{ blockId: 'kb', blockName: 'Lookup', field: 'knowledgeBaseId' }])
   })
 })

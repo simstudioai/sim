@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { tableQueryRowsV2Tool } from '@/tools/table/query_rows_v2'
 
@@ -91,6 +88,7 @@ describe('tableQueryRowsV2Tool response', () => {
     )
 
     expect(result.output).toEqual({
+      success: true,
       rows: responseBody.data.rows,
       rowCount: responseBody.data.rowCount,
       totalCount: responseBody.data.totalCount,

@@ -31,6 +31,7 @@ function toolGuard(label: string, detect: () => { ok: boolean; hint: string }): 
     }
     if (!warned) {
       warned = true
+      // biome-ignore lint/suspicious/noConsole: a skipped suite must tell the test runner's console why
       console.warn(`[@sim/testing] Skipping tests that require ${label}. ${result.hint}`)
     }
     return false

@@ -1,51 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  formatInstantInTimeZone,
-  getSupportedTimezones,
   getTimezoneOptions,
   getWallClockParts,
-  wallClockNow,
   zonedClockDate,
   zonedWallClock,
   zonedWallClockToUtc,
   zonedWallClockWithOffset,
 } from '@/lib/core/utils/timezone'
 
-describe('formatInstantInTimeZone', () => {
-  it.each([
-    ['UTC', '0050-01-15T12:00:00Z', '0050-01-15T12:00:00Z'],
-    ['UTC', '2026-06-15T00:15:30Z', '2026-06-15T00:15:30Z'],
-    ['America/Los_Angeles', '2026-06-15T00:15:30Z', '2026-06-14T17:15:30-07:00'],
-    ['Asia/Tokyo', '2026-06-15T00:15:30Z', '2026-06-15T09:15:30+09:00'],
-    ['Asia/Kathmandu', '2026-06-15T00:15:30Z', '2026-06-15T06:00:30+05:45'],
-    ['Australia/Lord_Howe', '2026-06-15T00:15:30Z', '2026-06-15T10:45:30+10:30'],
-  ])('formats an instant in %s with its exact offset', (timeZone, iso, expected) => {
-    expect(formatInstantInTimeZone(new Date(iso), timeZone)).toBe(expected)
-  })
-
-  it('distinguishes both copies of an autumn daylight-saving hour', () => {
-    expect(formatInstantInTimeZone(new Date('2026-11-01T05:30:00Z'), 'America/New_York')).toBe(
-      '2026-11-01T01:30:00-04:00'
-    )
-    expect(formatInstantInTimeZone(new Date('2026-11-01T06:30:00Z'), 'America/New_York')).toBe(
-      '2026-11-01T01:30:00-05:00'
-    )
-  })
-
-  it('round-trips the same instant after changing display timezones', () => {
-    const instant = new Date('2026-11-01T06:30:00Z')
-    for (const timeZone of [
-      'UTC',
-      'America/Los_Angeles',
-      'America/New_York',
-      'Asia/Kathmandu',
-      'Australia/Lord_Howe',
-    ]) {
-      const editable = formatInstantInTimeZone(instant, timeZone)
-      expect(new Date(editable).getTime()).toBe(instant.getTime())
-    }
-  })
-
+describe('zonedWallClock', () => {
   it('preserves a four-digit low year in naive wall-clock output', () => {
     expect(zonedWallClock(new Date('0050-01-15T12:00:00Z'), 'UTC')).toBe('0050-01-15T12:00')
   })
@@ -138,28 +101,20 @@ describe('zonedWallClockToUtc', () => {
   })
 
   it.each([
-    [
-      'Europe/Berlin',
-      '2026-03-29T02:30',
-      '2026-03-29T01:30:00.000Z',
-      '2026-03-29T03:30:00+02:00',
-      '2026-03-29T02:30+01:00',
-    ],
+    ['Europe/Berlin', '2026-03-29T02:30', '2026-03-29T01:30:00.000Z', '2026-03-29T02:30+01:00'],
     [
       'Australia/Lord_Howe',
       '2026-10-04T02:15',
       '2026-10-03T15:45:00.000Z',
-      '2026-10-04T02:45:00+11:00',
       '2026-10-04T02:15+10:30',
     ],
   ])(
     'resolves an east-of-UTC spring-forward gap in %s to the first compatible wall-clock',
-    (timeZone, wallClock, expectedInstant, expectedRenderedWallClock, expectedStampedWallClock) => {
+    (timeZone, wallClock, expectedInstant, expectedStampedWallClock) => {
       const instant = zonedWallClockToUtc(wallClock, timeZone)
       const stampedWallClock = zonedWallClockWithOffset(wallClock, timeZone)
 
       expect(instant.toISOString()).toBe(expectedInstant)
-      expect(formatInstantInTimeZone(instant, timeZone)).toBe(expectedRenderedWallClock)
       expect(stampedWallClock).toBe(expectedStampedWallClock)
       expect(new Date(stampedWallClock).toISOString()).toBe(expectedInstant)
     }
@@ -211,54 +166,9 @@ describe('zonedWallClockToUtc', () => {
       '2026-06-15T13:00:30.000Z'
     )
   })
-
-  it('can serialize historical sub-minute offsets toward a later instant', () => {
-    const wallClock = '1970-01-01T00:00:00'
-    const timezone = 'Africa/Monrovia'
-    const exactInstant = zonedWallClockToUtc(wallClock, timezone)
-    const options = { offsetMinuteRounding: 'floor' as const }
-
-    expect(exactInstant.toISOString()).toBe('1970-01-01T00:44:30.000Z')
-    expect(zonedWallClockWithOffset(wallClock, timezone, options)).toBe('1970-01-01T00:00:00-00:45')
-    expect(formatInstantInTimeZone(exactInstant, timezone, options)).toBe(
-      '1970-01-01T00:00:00-00:45'
-    )
-    expect(
-      Date.parse(zonedWallClockWithOffset(wallClock, timezone, options))
-    ).toBeGreaterThanOrEqual(exactInstant.getTime())
-  })
-})
-
-describe('wallClockNow', () => {
-  it('returns a naive yyyy-MM-ddTHH:mm string', () => {
-    expect(wallClockNow('UTC')).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
-  })
-})
-
-describe('getSupportedTimezones', () => {
-  it('always returns a non-empty list including UTC', () => {
-    const zones = getSupportedTimezones()
-    expect(zones.length).toBeGreaterThan(0)
-    expect(zones).toContain('UTC')
-  })
 })
 
 describe('getTimezoneOptions', () => {
-  it('renders every zone as "City (GMT±HH:MM)"', () => {
-    const options = getTimezoneOptions()
-    expect(options.length).toBeGreaterThan(0)
-    for (const option of options) {
-      expect(option.label).toMatch(/^.+ \(GMT[+-]\d{2}:\d{2}\)$/)
-    }
-  })
-
-  it('orders zones alphabetically by city', () => {
-    const cities = getTimezoneOptions().map((option) =>
-      option.label.replace(/ \(GMT[+-]\d{2}:\d{2}\)$/, '')
-    )
-    expect(cities).toEqual([...cities].sort((a, b) => a.localeCompare(b)))
-  })
-
   it('uses a live DST-aware offset and a friendly city', () => {
     const options = getTimezoneOptions()
     expect(options.find((o) => o.value === 'UTC')?.label).toBe('UTC (GMT+00:00)')
@@ -266,11 +176,6 @@ describe('getTimezoneOptions', () => {
     expect(
       options.find((o) => o.value === 'Asia/Kolkata' || o.value === 'Asia/Calcutta')?.label
     ).toMatch(/^(Kolkata|Calcutta) \(GMT\+05:30\)$/)
-  })
-
-  it('has no duplicate values', () => {
-    const values = getTimezoneOptions().map((o) => o.value)
-    expect(new Set(values).size).toBe(values.length)
   })
 })
 

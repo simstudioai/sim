@@ -1,24 +1,19 @@
-import { Skeleton } from '@sim/emcn'
+import {
+  AuthLoadingAlternateActions,
+  AuthLoadingField,
+  AuthLoadingFrame,
+  AuthLoadingSkeleton,
+} from '@/app/(auth)/components/auth-loading-skeleton'
 
 export default function LoginLoading() {
   return (
-    <div className='flex flex-col items-center'>
-      <Skeleton className='h-[38px] w-[80px] rounded-[4px]' />
-      <div className='mt-8 w-full space-y-2'>
-        <Skeleton className='h-[14px] w-[40px] rounded-[4px]' />
-        <Skeleton className='h-[44px] w-full rounded-[10px]' />
-      </div>
-      <div className='mt-4 w-full space-y-2'>
-        <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
-        <Skeleton className='h-[44px] w-full rounded-[10px]' />
-      </div>
-      <Skeleton className='mt-6 h-[44px] w-full rounded-[10px]' />
-      <Skeleton className='mt-6 h-[1px] w-full rounded-[1px]' />
-      <div className='mt-6 flex w-full gap-3'>
-        <Skeleton className='h-[44px] flex-1 rounded-[10px]' />
-        <Skeleton className='h-[44px] flex-1 rounded-[10px]' />
-      </div>
-      <Skeleton className='mt-6 h-[14px] w-[200px] rounded-[4px]' />
-    </div>
+    <AuthLoadingFrame>
+      <AuthLoadingSkeleton shape='title' className='w-[80px]' />
+      <AuthLoadingField labelWidthClassName='w-[40px]' className='mt-8' />
+      <AuthLoadingField labelWidthClassName='w-[64px]' className='mt-4' />
+      <AuthLoadingSkeleton shape='control' className='mt-6 w-full' />
+      <AuthLoadingAlternateActions />
+      <AuthLoadingSkeleton shape='label' className='mt-6 w-[200px]' />
+    </AuthLoadingFrame>
   )
 }

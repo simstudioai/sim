@@ -6,6 +6,19 @@ const DYNAMIC_SSO_CALLBACK_PATHS = new Set([
 
 const CONCRETE_SSO_CALLBACK_PATH = /^\/sso\/(?:callback|saml2\/callback|saml2\/sp\/acs)\/([^/]+)$/
 
+/**
+ * Whether the endpoint is one the SSO plugin mints sessions from. Better Auth
+ * dispatches with the declared path (`/sso/callback/:providerId`), while other
+ * callers see the concrete one, so both forms are recognized.
+ */
+export function isSsoCallbackPath(path: string): boolean {
+  return (
+    DYNAMIC_SSO_CALLBACK_PATHS.has(path) ||
+    path === '/sso/callback' ||
+    CONCRETE_SSO_CALLBACK_PATH.test(path)
+  )
+}
+
 export interface SsoCallbackProviderContext {
   path: string
   routeProviderId?: string

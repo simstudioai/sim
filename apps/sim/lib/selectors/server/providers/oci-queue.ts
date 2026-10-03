@@ -32,6 +32,7 @@ async function prepare(args: ExecuteServerSelectorArgs): Promise<PreparedQueueSe
   args.signal?.throwIfAborted()
   const access = args.credential?.access
   if (
+    !args.workspaceId ||
     !access?.ok ||
     !access.resolvedCredentialId ||
     access.credentialType !== 'service_account' ||

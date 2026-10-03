@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecutePostgresQuery } = vi.hoisted(() => ({
@@ -15,7 +12,6 @@ import type { PostgresClient } from '@/lib/internal/postgresql/client'
 import {
   deletePostgresRows,
   insertPostgresRows,
-  introspectPostgresSchema,
   sanitizePostgresIdentifier,
   updatePostgresRows,
   validatePostgresQuery,
@@ -28,7 +24,6 @@ const mockClient = {
 
 describe('PostgreSQL queries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecutePostgresQuery.mockResolvedValue([{ id: 1 }])
   })
 
@@ -81,67 +76,5 @@ describe('PostgreSQL queries', () => {
       error:
         'Only SELECT, INSERT, UPDATE, DELETE, WITH, EXPLAIN, ANALYZE, and SHOW statements are allowed',
     })
-  })
-
-  it('preserves introspection shaping and cancellation for every database query', async () => {
-    const controller = new AbortController()
-    const pendingQueries = Array.from({ length: 6 }, (_, index) => ({
-      cancel: vi.fn(),
-      index,
-    }))
-    const taggedClient = vi.fn(() => pendingQueries.shift()) as unknown as PostgresClient
-    mockExecutePostgresQuery
-      .mockResolvedValueOnce([{ schema_name: 'public' }])
-      .mockResolvedValueOnce([{ table_name: 'users', table_schema: 'public' }])
-      .mockResolvedValueOnce([
-        {
-          column_name: 'role',
-          data_type: 'USER-DEFINED',
-          is_nullable: 'NO',
-          column_default: null,
-          udt_name: 'user_role',
-        },
-      ])
-      .mockResolvedValueOnce([{ column_name: 'role' }])
-      .mockResolvedValueOnce([
-        {
-          column_name: 'role',
-          foreign_table_name: 'roles',
-          foreign_column_name: 'name',
-        },
-      ])
-      .mockResolvedValueOnce([
-        { index_name: 'users_role_idx', column_name: 'role', is_unique: false },
-      ])
-
-    await expect(
-      introspectPostgresSchema(taggedClient, 'public', controller.signal)
-    ).resolves.toEqual({
-      schemas: ['public'],
-      tables: [
-        {
-          name: 'users',
-          schema: 'public',
-          columns: [
-            {
-              name: 'role',
-              type: 'user_role',
-              nullable: false,
-              default: null,
-              isPrimaryKey: true,
-              isForeignKey: true,
-              references: { table: 'roles', column: 'name' },
-            },
-          ],
-          primaryKey: ['role'],
-          foreignKeys: [{ column: 'role', referencesTable: 'roles', referencesColumn: 'name' }],
-          indexes: [{ name: 'users_role_idx', columns: ['role'], unique: false }],
-        },
-      ],
-    })
-    expect(mockExecutePostgresQuery).toHaveBeenCalledTimes(6)
-    for (const call of mockExecutePostgresQuery.mock.calls) {
-      expect(call[1]).toBe(controller.signal)
-    }
   })
 })

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Every raw MCP management route declares the permission-group capability its
  * `/api/v2` twin declares in `mcpServerOperations`.
  *

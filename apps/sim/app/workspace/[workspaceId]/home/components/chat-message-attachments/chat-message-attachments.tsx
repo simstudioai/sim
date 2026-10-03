@@ -1,14 +1,13 @@
-import { cn } from '@sim/emcn'
+import { ChipTag, cn, Lightbox, OverflowText } from '@sim/emcn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 
 function FileAttachmentPill(props: { mediaType: string; filename: string }) {
   const Icon = getDocumentIcon(props.mediaType, props.filename)
   return (
-    <div className='flex max-w-[140px] items-center gap-[5px] rounded-lg bg-[var(--surface-5)] px-[6px] py-[3px]'>
-      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate text-[var(--text-body)] text-xs'>{props.filename}</span>
-    </div>
+    <ChipTag variant='mono' leftIcon={Icon} className='max-w-[140px]'>
+      <OverflowText label={props.filename} />
+    </ChipTag>
   )
 }
 
@@ -57,9 +56,15 @@ export function ChatMessageAttachments(props: {
           )
         }
         return (
-          <div key={att.id} className='size-[56px] overflow-hidden rounded-lg'>
-            <img src={att.previewUrl} alt={att.filename} className='size-full object-cover' />
-          </div>
+          <Lightbox key={att.id} src={att.previewUrl} alt={att.filename}>
+            <button
+              type='button'
+              aria-label={`Preview ${att.filename}`}
+              className='size-[56px] cursor-pointer overflow-hidden rounded-lg'
+            >
+              <img src={att.previewUrl} alt={att.filename} className='size-full object-cover' />
+            </button>
+          </Lightbox>
         )
       })}
     </div>

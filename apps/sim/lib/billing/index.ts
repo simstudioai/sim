@@ -13,6 +13,7 @@ export {
   hasSSOAccess,
   isEnterpriseOrgAdminOrOwner,
   isEnterprisePlan as hasEnterprisePlan,
+  isOrganizationGovernanceActive,
   isOrganizationOnEnterprisePlan,
   isProPlan as hasProPlan,
   isTeamPlan as hasTeamPlan,

@@ -2,9 +2,17 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
 import type { Editor } from '@tiptap/react'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components'
-import { ACTIVE_MATCH_CLASS, getFindTally, setFindQuery, stepFindMatch } from './find-extension'
+import {
+  ACTIVE_MATCH_CLASS,
+  getFindTally,
+  replaceActiveFindMatch,
+  replaceAllFindMatches,
+  setFindQuery,
+  stepFindMatch,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/find-extension'
 
 /** What the surface hands `FindBar`, plus the open state the shortcut drives. */
 export interface MarkdownFindController {
@@ -14,9 +22,13 @@ export interface MarkdownFindController {
   currentIndex: number
   truncated: boolean
   inputRef: React.RefObject<HTMLInputElement | null>
+  replacement: string
   setQuery: (query: string) => void
+  setReplacement: (replacement: string) => void
   next: () => void
   prev: () => void
+  replaceCurrent: () => void
+  replaceAll: () => void
   close: () => void
 }
 
@@ -28,6 +40,12 @@ interface FindTally {
 }
 
 const EMPTY_TALLY: FindTally = { count: 0, currentIndex: 0, truncated: false }
+
+function warnReplacementLimit(): void {
+  toast.warning('Replacement is too large', {
+    description: 'Use the source editor for changes that exceed the rich-text editing limit.',
+  })
+}
 
 interface UseMarkdownFindOptions {
   editor: Editor | null
@@ -55,6 +73,7 @@ export function useMarkdownFind({
 }: UseMarkdownFindOptions): MarkdownFindController {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQueryState] = useState('')
+  const [replacement, setReplacement] = useState('')
   const [tally, setTally] = useState<FindTally>(EMPTY_TALLY)
   const inputRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef(editor)
@@ -141,13 +160,29 @@ export function useMarkdownFind({
   const next = useCallback(() => step(1), [step])
   const prev = useCallback(() => step(-1), [step])
 
+  const replaceCurrent = useCallback(() => {
+    const current = editorRef.current
+    if (!current || !replaceActiveFindMatch(current, replacement, warnReplacementLimit)) return
+    revealActiveMatch()
+  }, [replacement, revealActiveMatch])
+
+  const replaceAll = useCallback(() => {
+    const current = editorRef.current
+    if (!current) return
+    replaceAllFindMatches(current, replacement, warnReplacementLimit)
+  }, [replacement])
+
   /** Closing ends the search: term, highlights and active match all go. */
   const close = useCallback(() => {
     setIsOpen(false)
     setQueryState('')
+    setReplacement('')
     setTally(EMPTY_TALLY)
     const current = editorRef.current
     if (current) setFindQuery(current, '')
+    requestAnimationFrame(() => {
+      if (current && !current.isDestroyed) current.commands.focus()
+    })
   }, [])
 
   const open = useCallback(() => setIsOpen(true), [])
@@ -156,13 +191,17 @@ export function useMarkdownFind({
   return {
     isOpen,
     query,
+    replacement,
     count: tally.count,
     currentIndex: tally.currentIndex,
     truncated: tally.truncated,
     inputRef,
     setQuery,
+    setReplacement,
     next,
     prev,
+    replaceCurrent,
+    replaceAll,
     close,
   }
 }

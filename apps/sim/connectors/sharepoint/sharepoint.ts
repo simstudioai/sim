@@ -1,11 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import {
-  fetchWithRetry,
-  readBoundedHttpErrorBody,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { readBoundedHttpErrorBody, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { sharepointConnectorMeta } from '@/connectors/sharepoint/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {

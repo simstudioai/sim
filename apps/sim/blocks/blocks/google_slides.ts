@@ -1,10 +1,10 @@
+import { omit } from '@sim/utils/object'
 import { GoogleSlidesIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
 const PRESENTATION_FIELD = ['presentationId', 'manualPresentationId'] as const
 const SOURCE_PRESENTATION_FIELD = [
@@ -14,7 +14,7 @@ const SOURCE_PRESENTATION_FIELD = [
 const NEW_PRESENTATION_FOLDER_FIELD = ['folderSelector', 'folderId'] as const
 const COPY_FOLDER_FIELD = ['copyFolderSelector', 'manualCopyFolderId'] as const
 
-export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
+export const GoogleSlidesBlock: BlockConfig = {
   type: 'google_slides',
   name: 'Google Slides (Legacy)',
   description: 'Read, write, and create presentations',
@@ -259,7 +259,6 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
     },
   },
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -323,7 +322,6 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       ],
       value: () => 'read',
     },
-    // Google Slides Credentials
     {
       id: 'credential',
       title: 'Google Account',
@@ -345,7 +343,6 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       required: true,
     },
     ...SERVICE_ACCOUNT_SUBBLOCKS,
-    // Presentation selector (basic mode) - for operations that need an existing presentation
     {
       id: 'presentationId',
       title: 'Select Presentation',
@@ -414,7 +411,6 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
         ],
       },
     },
-    // Manual presentation ID input (advanced mode)
     {
       id: 'manualPresentationId',
       title: 'Presentation ID',
@@ -531,7 +527,6 @@ Return ONLY the title - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe your presentation topic...',
       },
     },
-    // Folder selector (basic mode)
     {
       id: 'folderSelector',
       title: 'Select Parent Folder',
@@ -546,7 +541,6 @@ Return ONLY the title - no explanations, no quotes, no extra text.`,
       mode: 'basic',
       condition: { field: 'operation', value: 'create' },
     },
-    // Manual folder ID input (advanced mode)
     {
       id: 'folderId',
       title: 'Parent Folder ID',
@@ -557,7 +551,6 @@ Return ONLY the title - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'create' },
     },
-    // Content Field for create operation
     {
       id: 'createContent',
       title: 'Initial Content',
@@ -1311,7 +1304,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // update_text_style specific
     {
       id: 'textBold',
       title: 'Bold',
@@ -1410,7 +1402,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // update_paragraph_style specific
     {
       id: 'paragraphAlignment',
       title: 'Alignment',
@@ -1504,7 +1495,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // create_paragraph_bullets specific
     {
       id: 'bulletPreset',
       title: 'Bullet Preset',
@@ -2722,7 +2712,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           oauthCredential,
         }
 
-        // Handle operation-specific params
         if (params.operation === 'write' && slideIndex) {
           result.slideIndex = Number.parseInt(slideIndex as string, 10)
         }
@@ -2757,17 +2746,14 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           result.pageObjectId = thumbnailPageId
         }
 
-        // Get Page operation
         if (params.operation === 'get_page') {
           result.pageObjectId = params.getPageObjectId
         }
 
-        // Delete Object operation
         if (params.operation === 'delete_object') {
           result.objectId = params.deleteObjectId
         }
 
-        // Duplicate Object operation
         if (params.operation === 'duplicate_object') {
           result.objectId = params.duplicateObjectId
           if (params.duplicateObjectIds) {
@@ -2775,7 +2761,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           }
         }
 
-        // Reorder Slides operation
         if (params.operation === 'reorder_slides') {
           result.slideObjectIds = params.reorderSlideIds
           if (params.reorderInsertionIndex) {
@@ -2783,7 +2768,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           }
         }
 
-        // Create Table operation
         if (params.operation === 'create_table') {
           result.pageObjectId = params.tablePageObjectId
           if (params.tableRows) {
@@ -2806,7 +2790,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           }
         }
 
-        // Create Shape operation
         if (params.operation === 'create_shape') {
           result.pageObjectId = params.shapePageObjectId
           result.shapeType = params.shapeType
@@ -2824,7 +2807,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           }
         }
 
-        // Insert Text operation
         if (params.operation === 'insert_text') {
           result.objectId = params.insertTextObjectId
           result.text = params.insertTextContent
@@ -3217,14 +3199,11 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Google Slides access token' },
     presentationId: { type: 'string', description: 'Presentation identifier (canonical param)' },
-    // Write operation
     slideIndex: { type: 'number', description: 'Slide index to write to' },
     content: { type: 'string', description: 'Slide content' },
-    // Create operation
     title: { type: 'string', description: 'Presentation title' },
     folderId: { type: 'string', description: 'Parent folder identifier (canonical param)' },
     createContent: { type: 'string', description: 'Initial slide content' },
-    // Replace all text operation
     findText: { type: 'string', description: 'Text to find' },
     replaceText: { type: 'string', description: 'Text to replace with' },
     matchCase: { type: 'boolean', description: 'Whether to match case' },
@@ -3232,32 +3211,24 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       type: 'string',
       description: 'Comma-separated slide IDs to limit replacements',
     },
-    // Add slide operation
     layout: { type: 'string', description: 'Slide layout' },
     insertionIndex: { type: 'number', description: 'Position to insert slide' },
     placeholderIdMappings: { type: 'string', description: 'JSON array of placeholder ID mappings' },
-    // Add image operation
     pageObjectId: { type: 'string', description: 'Slide object ID for image' },
     imageSource: { type: 'json', description: 'Image source (file or URL)' },
     imageWidth: { type: 'number', description: 'Image width in points' },
     imageHeight: { type: 'number', description: 'Image height in points' },
     positionX: { type: 'number', description: 'X position in points' },
     positionY: { type: 'number', description: 'Y position in points' },
-    // Get thumbnail operation
     thumbnailPageId: { type: 'string', description: 'Slide object ID for thumbnail' },
     thumbnailSize: { type: 'string', description: 'Thumbnail size' },
     mimeType: { type: 'string', description: 'Image format (PNG)' },
-    // Get page operation
     getPageObjectId: { type: 'string', description: 'Page/slide object ID to retrieve' },
-    // Delete object operation
     deleteObjectId: { type: 'string', description: 'Object ID to delete' },
-    // Duplicate object operation
     duplicateObjectId: { type: 'string', description: 'Object ID to duplicate' },
     duplicateObjectIds: { type: 'string', description: 'JSON object ID mappings' },
-    // Reorder slides operation
     reorderSlideIds: { type: 'string', description: 'Comma-separated slide IDs to move' },
     reorderInsertionIndex: { type: 'number', description: 'New position for slides' },
-    // Create table operation
     tablePageObjectId: { type: 'string', description: 'Slide ID for table' },
     tableRows: { type: 'number', description: 'Number of rows' },
     tableColumns: { type: 'number', description: 'Number of columns' },
@@ -3265,43 +3236,35 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     tableHeight: { type: 'number', description: 'Table height in points' },
     tablePositionX: { type: 'number', description: 'Table X position in points' },
     tablePositionY: { type: 'number', description: 'Table Y position in points' },
-    // Create shape operation
     shapePageObjectId: { type: 'string', description: 'Slide ID for shape' },
     shapeType: { type: 'string', description: 'Shape type' },
     shapeWidth: { type: 'number', description: 'Shape width in points' },
     shapeHeight: { type: 'number', description: 'Shape height in points' },
     shapePositionX: { type: 'number', description: 'Shape X position in points' },
     shapePositionY: { type: 'number', description: 'Shape Y position in points' },
-    // Insert text operation
     insertTextObjectId: { type: 'string', description: 'Object ID for text insertion' },
     insertTextContent: { type: 'string', description: 'Text to insert' },
     insertTextIndex: { type: 'number', description: 'Insertion index' },
 
-    // Copy presentation operation
     sourcePresentationId: { type: 'string', description: 'Source/template presentation ID' },
     copyTitle: { type: 'string', description: 'Title for the copy' },
     copyFolderId: { type: 'string', description: 'Destination folder ID for the copy' },
 
-    // Export presentation operation
     exportFormat: { type: 'string', description: 'Export format (PDF, PPTX, ODP, etc.)' },
 
-    // Batch update (raw)
     requestsJson: { type: 'string', description: 'JSON array of raw Slides API Request objects' },
     writeControlJson: { type: 'string', description: 'WriteControl JSON object' },
 
-    // Replace all shapes with image
     replaceShapesImageUrl: { type: 'string', description: 'Image URL to insert' },
     replaceShapesFindText: { type: 'string', description: 'Text token of shapes to replace' },
     replaceShapesMatchCase: { type: 'boolean', description: 'Match case' },
     replaceShapesImageMethod: { type: 'string', description: 'Image fit method' },
     replaceShapesPageObjectIds: { type: 'string', description: 'Slide IDs to limit to' },
 
-    // Replace image
     replaceImageObjectId: { type: 'string', description: 'Image object ID to replace' },
     replaceImageUrl: { type: 'string', description: 'New image URL' },
     replaceImageMethod: { type: 'string', description: 'Image fit method' },
 
-    // Update image properties
     imagePropsObjectId: { type: 'string', description: 'Image object ID' },
     imageBrightness: { type: 'number', description: 'Brightness -1.0 to 1.0' },
     imageContrast: { type: 'number', description: 'Contrast -1.0 to 1.0' },
@@ -3313,7 +3276,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     imagePropertiesJson: { type: 'string', description: 'Raw ImageProperties JSON' },
     imagePropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Shared text range targeting
     textObjectId: { type: 'string', description: 'Object ID for text styling target' },
     textRowIndex: { type: 'number', description: 'Table cell row index' },
     textColumnIndex: { type: 'number', description: 'Table cell column index' },
@@ -3321,7 +3283,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     textStartIndex: { type: 'number', description: 'Range start index' },
     textEndIndex: { type: 'number', description: 'Range end index' },
 
-    // Update text style
     textBold: { type: 'boolean', description: 'Bold' },
     textItalic: { type: 'boolean', description: 'Italic' },
     textUnderline: { type: 'boolean', description: 'Underline' },
@@ -3336,7 +3297,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     textStyleJson: { type: 'string', description: 'Raw TextStyle JSON' },
     textStyleFields: { type: 'string', description: 'FieldMask' },
 
-    // Update paragraph style
     paragraphAlignment: { type: 'string', description: 'Paragraph alignment' },
     paragraphLineSpacing: { type: 'number', description: 'Line spacing percent' },
     paragraphIndentStart: { type: 'number', description: 'Indent start (pt)' },
@@ -3349,10 +3309,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     paragraphStyleJson: { type: 'string', description: 'Raw ParagraphStyle JSON' },
     paragraphStyleFields: { type: 'string', description: 'FieldMask' },
 
-    // Bullets
     bulletPreset: { type: 'string', description: 'Bullet preset' },
 
-    // Update shape properties
     shapePropsObjectId: { type: 'string', description: 'Shape object ID' },
     shapeFillColor: { type: 'string', description: 'Shape fill color (hex)' },
     shapeFillAlpha: { type: 'number', description: 'Shape fill opacity' },
@@ -3367,7 +3325,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     shapePropertiesJson: { type: 'string', description: 'Raw ShapeProperties JSON' },
     shapePropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Update page properties
     pagePropsObjectId: { type: 'string', description: 'Slide object ID' },
     pageBackgroundColor: { type: 'string', description: 'Slide background color (hex)' },
     pageBackgroundAlpha: { type: 'number', description: 'Slide background opacity' },
@@ -3376,18 +3333,15 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     pagePropertiesJson: { type: 'string', description: 'Raw PageProperties JSON' },
     pagePropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Update slide properties
     slidePropsObjectId: { type: 'string', description: 'Slide object ID' },
     slideIsSkipped: { type: 'boolean', description: 'Whether the slide is skipped' },
     slidePropertiesJson: { type: 'string', description: 'Raw SlideProperties JSON' },
     slidePropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Alt text
     altTextObjectId: { type: 'string', description: 'Element object ID' },
     altTextTitle: { type: 'string', description: 'Accessibility title' },
     altTextDescription: { type: 'string', description: 'Accessibility description' },
 
-    // Transform
     transformObjectId: { type: 'string', description: 'Element object ID' },
     transformScaleX: { type: 'number', description: 'Scale X' },
     transformScaleY: { type: 'number', description: 'Scale Y' },
@@ -3397,16 +3351,13 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     transformTranslateY: { type: 'number', description: 'Y position (pt)' },
     transformApplyMode: { type: 'string', description: 'Apply mode' },
 
-    // Z-order
     zOrderObjectIds: { type: 'string', description: 'Comma-separated element IDs' },
     zOrderOperation: { type: 'string', description: 'Z-order operation' },
 
-    // Group / ungroup
     groupChildrenObjectIds: { type: 'string', description: 'Children object IDs' },
     groupObjectIdInput: { type: 'string', description: 'Group object ID' },
     ungroupObjectIds: { type: 'string', description: 'Group object IDs to ungroup' },
 
-    // Create line
     linePageObjectId: { type: 'string', description: 'Slide object ID' },
     lineCategory: { type: 'string', description: 'Line category' },
     lineWidth: { type: 'number', description: 'Line width (pt)' },
@@ -3414,7 +3365,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     linePositionX: { type: 'number', description: 'Line X position (pt)' },
     linePositionY: { type: 'number', description: 'Line Y position (pt)' },
 
-    // Update line properties
     linePropsObjectId: { type: 'string', description: 'Line object ID' },
     lineColor: { type: 'string', description: 'Line color (hex)' },
     lineWeight: { type: 'number', description: 'Line weight (pt)' },
@@ -3425,14 +3375,11 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     linePropertiesJson: { type: 'string', description: 'Raw LineProperties JSON' },
     linePropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Update line category
     lineCategoryObjectId: { type: 'string', description: 'Line object ID' },
     newLineCategory: { type: 'string', description: 'New line category' },
 
-    // Reroute line
     rerouteLineObjectId: { type: 'string', description: 'Line object ID' },
 
-    // Table cell-reference ops
     tableTargetObjectId: { type: 'string', description: 'Table object ID' },
     tableCellRowIndex: { type: 'number', description: 'Cell row index' },
     tableCellColumnIndex: { type: 'number', description: 'Cell column index' },
@@ -3440,21 +3387,18 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     tableInsertBelow: { type: 'boolean', description: 'Insert below reference cell' },
     tableInsertRight: { type: 'boolean', description: 'Insert to the right of reference cell' },
 
-    // Table range ops
     tableRangeObjectId: { type: 'string', description: 'Table object ID' },
     tableRangeRowIndex: { type: 'number', description: 'Range start row' },
     tableRangeColumnIndex: { type: 'number', description: 'Range start column' },
     tableRangeRowSpan: { type: 'number', description: 'Row span' },
     tableRangeColumnSpan: { type: 'number', description: 'Column span' },
 
-    // Update table cell properties
     tableCellBackgroundColor: { type: 'string', description: 'Cell background color (hex)' },
     tableCellBackgroundAlpha: { type: 'number', description: 'Cell background opacity' },
     tableCellContentAlignment: { type: 'string', description: 'Cell content alignment' },
     tableCellPropertiesJson: { type: 'string', description: 'Raw TableCellProperties JSON' },
     tableCellPropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Update table border properties
     tableBorderPosition: { type: 'string', description: 'Border position' },
     tableBorderColor: { type: 'string', description: 'Border color (hex)' },
     tableBorderWeight: { type: 'number', description: 'Border weight (pt)' },
@@ -3462,21 +3406,18 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     tableBorderPropertiesJson: { type: 'string', description: 'Raw TableBorderProperties JSON' },
     tableBorderPropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Update table column properties
     tableColumnPropsObjectId: { type: 'string', description: 'Table object ID' },
     tableColumnIndices: { type: 'string', description: 'Comma-separated column indices' },
     tableColumnWidth: { type: 'number', description: 'Column width (pt)' },
     tableColumnPropertiesJson: { type: 'string', description: 'Raw TableColumnProperties JSON' },
     tableColumnPropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Update table row properties
     tableRowPropsObjectId: { type: 'string', description: 'Table object ID' },
     tableRowIndices: { type: 'string', description: 'Comma-separated row indices' },
     tableMinRowHeight: { type: 'number', description: 'Minimum row height (pt)' },
     tableRowPropertiesJson: { type: 'string', description: 'Raw TableRowProperties JSON' },
     tableRowPropertiesFields: { type: 'string', description: 'FieldMask' },
 
-    // Sheets chart
     chartPageObjectId: { type: 'string', description: 'Slide object ID' },
     chartSpreadsheetId: { type: 'string', description: 'Spreadsheet ID' },
     chartId: { type: 'number', description: 'Chart ID' },
@@ -3486,15 +3427,12 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     chartPositionX: { type: 'number', description: 'Chart X position (pt)' },
     chartPositionY: { type: 'number', description: 'Chart Y position (pt)' },
 
-    // Refresh sheets chart
     refreshChartObjectId: { type: 'string', description: 'Chart object ID' },
 
-    // Replace all shapes with sheets chart
     replaceShapesChartFindText: { type: 'string', description: 'Text token to replace' },
     replaceShapesChartMatchCase: { type: 'boolean', description: 'Match case' },
     replaceShapesChartPageObjectIds: { type: 'string', description: 'Slide IDs to limit to' },
 
-    // Create video
     videoPageObjectId: { type: 'string', description: 'Slide object ID' },
     videoSource: { type: 'string', description: 'Video source (YOUTUBE or DRIVE)' },
     videoId: { type: 'string', description: 'Video ID' },
@@ -3503,7 +3441,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     videoPositionX: { type: 'number', description: 'Video X position (pt)' },
     videoPositionY: { type: 'number', description: 'Video Y position (pt)' },
 
-    // Update video properties
     videoPropsObjectId: { type: 'string', description: 'Video object ID' },
     videoAutoPlay: { type: 'boolean', description: 'Auto play' },
     videoMute: { type: 'boolean', description: 'Mute' },
@@ -3516,97 +3453,71 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     videoPropertiesFields: { type: 'string', description: 'FieldMask' },
   },
   outputs: {
-    // Read operation
     slides: { type: 'json', description: 'Presentation slides' },
     metadata: { type: 'json', description: 'Presentation metadata' },
-    // Write operation
     updatedContent: { type: 'boolean', description: 'Content update status' },
-    // Replace all text operation
     occurrencesChanged: { type: 'number', description: 'Number of text occurrences replaced' },
-    // Add slide operation
     slideId: { type: 'string', description: 'Object ID of newly created slide' },
-    // Add image operation
     imageId: { type: 'string', description: 'Object ID of newly created image' },
-    // Get thumbnail operation
     contentUrl: { type: 'string', description: 'URL to the thumbnail image' },
     width: { type: 'number', description: 'Thumbnail width in pixels' },
     height: { type: 'number', description: 'Thumbnail height in pixels' },
-    // Get page operation
     objectId: { type: 'string', description: 'Page object ID' },
     pageType: { type: 'string', description: 'Page type (SLIDE, MASTER, etc.)' },
     pageElements: { type: 'json', description: 'Page elements array' },
     slideProperties: { type: 'json', description: 'Slide-specific properties' },
-    // Delete object operation
     deleted: { type: 'boolean', description: 'Whether object was deleted' },
-    // Duplicate object operation
     duplicatedObjectId: { type: 'string', description: 'Object ID of the duplicate' },
-    // Reorder slides operation
     moved: { type: 'boolean', description: 'Whether slides were moved' },
     slideObjectIds: { type: 'json', description: 'Slide IDs that were moved' },
-    // Create table operation
     tableId: { type: 'string', description: 'Object ID of newly created table' },
     rows: { type: 'number', description: 'Number of rows created' },
     columns: { type: 'number', description: 'Number of columns created' },
-    // Create shape operation
     shapeId: { type: 'string', description: 'Object ID of newly created shape' },
-    // Insert text operation
     inserted: { type: 'boolean', description: 'Whether text was inserted' },
     text: { type: 'string', description: 'Text that was inserted' },
 
-    // Generic update outputs (text style, paragraph style, shape/page/slide props, image/line/video props, table props)
     updated: { type: 'boolean', description: 'Whether the operation updated the target' },
     fields: { type: 'string', description: 'FieldMask that was applied' },
 
-    // Copy presentation
     presentationId: { type: 'string', description: 'New presentation ID (copy)' },
     title: { type: 'string', description: 'Presentation title' },
 
-    // Export presentation
     file: { type: 'file', description: 'Stored exported presentation file' },
     contentBase64: { type: 'string', description: 'Base64-encoded exported content' },
     mimeType: { type: 'string', description: 'MIME type of the exported content' },
     sizeBytes: { type: 'number', description: 'Size of the exported content in bytes' },
 
-    // Batch update (raw)
     replies: { type: 'json', description: 'Array of reply objects from batchUpdate' },
     writeControl: { type: 'json', description: 'WriteControl from batchUpdate response' },
 
-    // Image / line / video object IDs
     imageObjectId: { type: 'string', description: 'Image object ID' },
     lineId: { type: 'string', description: 'Line object ID' },
     videoObjectId: { type: 'string', description: 'Video object ID' },
     chartObjectId: { type: 'string', description: 'Sheets chart object ID' },
 
-    // Replace image
     replaced: { type: 'boolean', description: 'Whether the image was replaced' },
 
-    // Group / ungroup
     grouped: { type: 'boolean', description: 'Whether objects were grouped' },
     ungrouped: { type: 'boolean', description: 'Whether objects were ungrouped' },
     groupObjectId: { type: 'string', description: 'Object ID of the resulting group' },
     childrenObjectIds: { type: 'json', description: 'Children IDs of the group' },
 
-    // Z-order
     reordered: { type: 'boolean', description: 'Whether the z-order was changed' },
     objectIds: { type: 'json', description: 'Object IDs affected by the operation' },
     operation: { type: 'string', description: 'Z-order operation applied' },
 
-    // Table extension
     tableObjectId: { type: 'string', description: 'Table object ID affected' },
     number: { type: 'number', description: 'Number of rows/columns inserted' },
     merged: { type: 'boolean', description: 'Whether cells were merged' },
     unmerged: { type: 'boolean', description: 'Whether cells were unmerged' },
 
-    // Sheets chart
     refreshed: { type: 'boolean', description: 'Whether the chart was refreshed' },
 
-    // Line reroute
     rerouted: { type: 'boolean', description: 'Whether the line was rerouted' },
 
-    // Paragraph bullets
     created: { type: 'boolean', description: 'Whether bullets were created' },
 
-    // Bullets / shape / line categories returned
     lineCategory: { type: 'string', description: 'Line category created or updated' },
     shapeType: { type: 'string', description: 'Shape type created' },
   },
@@ -3642,14 +3553,12 @@ const googleSlidesV2SubBlocks = (GoogleSlidesBlock.subBlocks || []).flatMap((sub
 
 const googleSlidesV2Inputs = GoogleSlidesBlock.inputs
   ? {
-      ...Object.fromEntries(
-        Object.entries(GoogleSlidesBlock.inputs).filter(([key]) => key !== 'imageSource')
-      ),
+      ...omit(GoogleSlidesBlock.inputs, ['imageSource']),
       imageFile: { type: 'json', description: 'Image source (file or URL)' },
     }
   : {}
 
-export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
+export const GoogleSlidesV2Block: BlockConfig = {
   ...GoogleSlidesBlock,
   sunset: undefined,
   type: 'google_slides_v2',

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { instagramGetPublishingLimitTool } from '@/tools/instagram/get_publishing_limit'
 

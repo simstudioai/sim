@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
@@ -22,7 +19,7 @@ const CRAWLER_SAFE_FORMATS = ['jpeg', 'png', 'webp', 'gif']
 
 function collectOgImages(): { slug: string; ogImage: string }[] {
   const entries: { slug: string; ogImage: string }[] = []
-  for (const dir of ['content/blog', 'content/library']) {
+  for (const dir of ['content/blog', 'content/library', 'content/customers']) {
     if (!fs.existsSync(dir)) continue
     for (const slug of fs.readdirSync(dir)) {
       const mdxPath = path.join(dir, slug, 'index.mdx')

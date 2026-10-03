@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useEffect, useState } from 'react'
+import { type ComponentType, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -13,15 +13,20 @@ import {
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
+import {
   getTokenServiceAccountErrorMessage,
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import {
-  useCreateWorkspaceCredential,
-  useUpdateWorkspaceCredential,
-} from '@/hooks/queries/credentials'
+  useCreateScopedCredential,
+  useUpdateScopedCredential,
+} from '@/hooks/queries/scoped-credentials'
 
 const logger = createLogger('TokenServiceAccountModal')
 
@@ -39,7 +44,8 @@ function openDocs(url: string): void {
 interface TokenServiceAccountModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   descriptor: TokenServiceAccountDescriptor
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
@@ -58,10 +64,21 @@ interface TokenServiceAccountModalProps {
  * same create/update credential mutations as the other service-account modals.
  * Server-side verification failures are mapped from the route's `error.code`.
  */
-export function TokenServiceAccountModal({
+export function TokenServiceAccountModal(props: TokenServiceAccountModalProps) {
+  if (!props.open) return null
+  return (
+    <TokenServiceAccountModalForm
+      key={`${resourceScopeKey(resourceScopeFromOwner(props))}:${props.descriptor.providerId}:${props.credentialId ?? 'new'}`}
+      {...props}
+    />
+  )
+}
+
+function TokenServiceAccountModalForm({
   open,
   onOpenChange,
   workspaceId,
+  organizationId,
   descriptor,
   serviceName,
   serviceIcon: ServiceIcon,
@@ -76,17 +93,8 @@ export function TokenServiceAccountModal({
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
 
-  const createCredential = useCreateWorkspaceCredential()
-  const updateCredential = useUpdateWorkspaceCredential()
-
-  useEffect(() => {
-    if (open) return
-    setApiToken('')
-    setDomain('')
-    setDisplayName(initialDisplayName ?? '')
-    setDescription(initialDescription ?? '')
-    setError(null)
-  }, [open, initialDisplayName, initialDescription])
+  const createCredential = useCreateScopedCredential()
+  const updateCredential = useUpdateScopedCredential()
 
   const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
   const domainField = descriptor.fields.find((field) => field.id === 'domain')
@@ -111,6 +119,7 @@ export function TokenServiceAccountModal({
       }
       if (credentialId) {
         await updateCredential.mutateAsync({
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           credentialId,
           ...secretFields,
           displayName: displayName.trim() || undefined,
@@ -119,7 +128,7 @@ export function TokenServiceAccountModal({
         onCreated?.(credentialId)
       } else {
         const created = await createCredential.mutateAsync({
-          workspaceId,
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           type: 'service_account',
           providerId: descriptor.providerId,
           ...secretFields,

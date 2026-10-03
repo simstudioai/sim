@@ -1,12 +1,11 @@
 import type { ComponentType } from 'react'
-import integrationsJson from '@sim/deployment-config/integrations.json'
+import {
+  INTEGRATION_METADATA,
+  type IntegrationMetadata,
+} from '@sim/deployment-config/integration-metadata'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
-import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-
-const INTEGRATIONS_DATA: readonly Integration[] =
-  integrationsJson.integrations as readonly Integration[]
 
 /**
  * Shape returned from resolving an integration to its OAuth service entry in
@@ -35,7 +34,7 @@ export interface OAuthServiceMatch {
  * `OAUTH_PROVIDERS`.
  */
 export function resolveOAuthServiceForIntegration(
-  integration: Integration
+  integration: IntegrationMetadata
 ): OAuthServiceMatch | null {
   if (integration.authType !== 'oauth' || !integration.oauthServiceId) return null
   const service = getServiceConfigByServiceId(integration.oauthServiceId)
@@ -55,7 +54,7 @@ export function resolveOAuthServiceForIntegration(
  * integration is not an OAuth integration.
  */
 export function resolveOAuthServiceForSlug(slug: string): OAuthServiceMatch | null {
-  const integration = INTEGRATIONS_DATA.find((entry) => entry.slug === slug)
+  const integration = INTEGRATION_METADATA.find((entry) => entry.slug === slug)
   if (!integration) return null
   return resolveOAuthServiceForIntegration(integration)
 }
@@ -97,7 +96,7 @@ export const CANONICAL_SERVICE_ACCOUNT_SLUGS: Readonly<Record<string, string>> =
  * entry, which is wasted work to repeat on each lookup.
  */
 const SERVICE_ACCOUNT_INTEGRATIONS: readonly ServiceAccountIntegrationMatch[] =
-  INTEGRATIONS_DATA.flatMap((integration) => {
+  INTEGRATION_METADATA.flatMap((integration) => {
     const match = resolveOAuthServiceForIntegration(integration)
     if (!match?.serviceAccountProviderId) return []
     return [

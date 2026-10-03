@@ -1,6 +1,53 @@
 import type { ParallelSearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
+/**
+ * Search modes that existed only on the retired `/v1beta/search` endpoint,
+ * mapped onto their V1 equivalents per Parallel's migration guide.
+ *
+ * Source: https://docs.parallel.ai/search/search-migration-guide
+ */
+const LEGACY_MODE_MAP: Record<string, string> = {
+  'one-shot': 'basic',
+  agentic: 'advanced',
+}
+
+/**
+ * Base price of one V1 search request per mode. Each request includes up to
+ * ten results; results beyond that cost `ADDITIONAL_RESULT_COST_USD` apiece.
+ *
+ * Source: https://docs.parallel.ai/getting-started/pricing
+ */
+const MODE_BASE_COST_USD: Record<string, number> = {
+  turbo: 0.001,
+  fast: 0.001,
+  basic: 0.005,
+  advanced: 0.005,
+}
+
+const DEFAULT_MODE = 'advanced'
+const INCLUDED_RESULTS = 10
+const ADDITIONAL_RESULT_COST_USD = 0.001
+
+/**
+ * Maps a caller-supplied mode onto a V1 mode, translating retired beta names.
+ * Returns undefined when nothing was supplied so the API default applies.
+ */
+export function resolveSearchMode(mode: string | undefined): string | undefined {
+  if (!mode) return undefined
+  return LEGACY_MODE_MAP[mode] ?? mode
+}
+
+/**
+ * Splits a comma-separated string (or passes through an array) into a list of
+ * trimmed, non-empty entries.
+ */
+export function toList(value: string[] | string | undefined): string[] {
+  if (!value) return []
+  const entries = Array.isArray(value) ? value : value.split(',')
+  return entries.map((entry) => String(entry).trim()).filter((entry) => entry.length > 0)
+}
+
 export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
   id: 'parallel_search',
   name: 'Parallel AI Search',
@@ -14,16 +61,16 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     byokProviderId: 'parallel_ai',
     pricing: {
       type: 'custom',
-      getCost: (_params, output) => {
+      getCost: (params, output) => {
         if (!Array.isArray(output.results)) {
           throw new Error('Parallel search response missing results array')
         }
-        // Parallel Search: $0.005 base (includes ≤10 results), +$0.001 per result beyond 10
-        // https://docs.parallel.ai/resources/pricing
+        const mode = resolveSearchMode(params.mode) ?? DEFAULT_MODE
+        const baseCost = MODE_BASE_COST_USD[mode] ?? MODE_BASE_COST_USD[DEFAULT_MODE]
         const resultCount = output.results.length
-        const additionalResults = Math.max(0, resultCount - 10)
-        const cost = 0.005 + additionalResults * 0.001
-        return { cost, metadata: { resultCount, additionalResults } }
+        const additionalResults = Math.max(0, resultCount - INCLUDED_RESULTS)
+        const cost = baseCost + additionalResults * ADDITIONAL_RESULT_COST_USD
+        return { cost, metadata: { mode, resultCount, additionalResults } }
       },
     },
     rateLimit: {
@@ -33,35 +80,37 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
   },
 
   params: {
-    objective: {
+    search_queries: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The search objective or question to answer',
+      description:
+        'Comma-separated list of concise keyword search queries (3-6 words each). At least one is required',
     },
-    search_queries: {
+    objective: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of search queries to execute',
+      description:
+        'Natural-language description of the search intent used to rank and excerpt results',
     },
     mode: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Search mode: one-shot, agentic, or fast (default: one-shot)',
+      description: `Search mode: turbo, fast, basic, or advanced (default: ${DEFAULT_MODE})`,
     },
     max_results: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Maximum number of results to return (default: 10)',
+      description: 'Maximum number of results to return (default: 10, max: 20)',
     },
     max_chars_per_result: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Maximum characters per result excerpt (minimum: 1000)',
+      description: 'Maximum characters of excerpts per result',
     },
     include_domains: {
       type: 'string',
@@ -84,52 +133,38 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
   },
 
   request: {
-    url: 'https://api.parallel.ai/v1beta/search',
+    url: 'https://api.parallel.ai/v1/search',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
-      'parallel-beta': 'search-extract-2025-10-10',
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        objective: params.objective,
+        search_queries: toList(params.search_queries),
       }
 
-      if (params.search_queries) {
-        if (Array.isArray(params.search_queries)) {
-          body.search_queries = params.search_queries
-        } else if (typeof params.search_queries === 'string') {
-          const queries = params.search_queries
-            .split(',')
-            .map((q: string) => q.trim())
-            .filter((q: string) => q.length > 0)
-          if (queries.length > 0) body.search_queries = queries
+      if (params.objective) body.objective = params.objective
+
+      const mode = resolveSearchMode(params.mode)
+      if (mode) body.mode = mode
+
+      const advancedSettings: Record<string, unknown> = {}
+      if (params.max_results) advancedSettings.max_results = Number(params.max_results)
+      if (params.max_chars_per_result) {
+        advancedSettings.excerpt_settings = {
+          max_chars_per_result: Number(params.max_chars_per_result),
         }
       }
 
-      if (params.mode) body.mode = params.mode
-      if (params.max_results) body.max_results = Number(params.max_results)
-      if (params.max_chars_per_result) {
-        body.excerpts = { max_chars_per_result: Number(params.max_chars_per_result) }
-      }
-
       const sourcePolicy: Record<string, string[]> = {}
-      if (params.include_domains) {
-        sourcePolicy.include_domains = params.include_domains
-          .split(',')
-          .map((d: string) => d.trim())
-          .filter((d: string) => d.length > 0)
-      }
-      if (params.exclude_domains) {
-        sourcePolicy.exclude_domains = params.exclude_domains
-          .split(',')
-          .map((d: string) => d.trim())
-          .filter((d: string) => d.length > 0)
-      }
-      if (Object.keys(sourcePolicy).length > 0) {
-        body.source_policy = sourcePolicy
-      }
+      const includeDomains = toList(params.include_domains)
+      const excludeDomains = toList(params.exclude_domains)
+      if (includeDomains.length > 0) sourcePolicy.include_domains = includeDomains
+      if (excludeDomains.length > 0) sourcePolicy.exclude_domains = excludeDomains
+      if (Object.keys(sourcePolicy).length > 0) advancedSettings.source_policy = sourcePolicy
+
+      if (Object.keys(advancedSettings).length > 0) body.advanced_settings = advancedSettings
 
       return body
     },
@@ -143,7 +178,7 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
 
     const data = await response.json()
 
-    if (!data.results) {
+    if (!Array.isArray(data.results)) {
       return {
         success: false,
         error: 'No results returned from search',
@@ -180,7 +215,7 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
         type: 'object',
         properties: {
           url: { type: 'string', description: 'The URL of the search result' },
-          title: { type: 'string', description: 'The title of the search result' },
+          title: { type: 'string', description: 'The title of the search result', optional: true },
           publish_date: {
             type: 'string',
             description: 'Publication date of the page (YYYY-MM-DD)',
