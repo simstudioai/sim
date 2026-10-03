@@ -1,7 +1,6 @@
 import { TemporalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { TemporalResponse } from '@/tools/temporal/types'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
 function toFiniteNumber(value: unknown): number | undefined {
@@ -63,7 +62,7 @@ Examples:
 
 Return ONLY valid JSON - no explanations, no extra text.`
 
-export const TemporalBlock: BlockConfig<TemporalResponse> = {
+export const TemporalBlock: BlockConfig = {
   type: 'temporal',
   name: 'Temporal',
   description: 'Start, signal, query, and manage Temporal workflow executions',
@@ -173,7 +172,6 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
   },
 
   subBlocks: [
-    // ── Operation selector ─────────────────────────────────────────────────────
     {
       id: 'operation',
       title: 'Operation',
@@ -203,7 +201,6 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
       value: () => 'start_workflow',
     },
 
-    // ── Workflow ID (all operations except list) ───────────────────────────────
     {
       id: 'workflowId',
       title: 'Workflow ID',
@@ -213,7 +210,6 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
       required: { field: 'operation', value: WORKFLOW_ID_OPERATIONS },
     },
 
-    // ── Start Workflow / Signal With Start / Create Schedule ───────────────────
     {
       id: 'workflowType',
       title: 'Workflow Type',
@@ -244,7 +240,6 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
       },
     },
 
-    // ── Signal Workflow / Signal With Start ────────────────────────────────────
     {
       id: 'signalName',
       title: 'Signal Name',
@@ -267,7 +262,6 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
       },
     },
 
-    // ── Query Workflow ─────────────────────────────────────────────────────────
     {
       id: 'queryType',
       title: 'Query Type',
@@ -290,7 +284,6 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
       },
     },
 
-    // ── Update Workflow ────────────────────────────────────────────────────────
     {
       id: 'updateName',
       title: 'Update Name',
@@ -313,7 +306,6 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
       },
     },
 
-    // ── List / Count Workflows ─────────────────────────────────────────────────
     {
       id: 'listQuery',
       title: 'Query Filter',
@@ -352,7 +344,6 @@ Return ONLY the filter expression - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // ── Get Workflow History ───────────────────────────────────────────────────
     {
       id: 'historyEventFilterType',
       title: 'Event Filter',
@@ -382,7 +373,6 @@ Return ONLY the filter expression - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // ── Reset Workflow ─────────────────────────────────────────────────────────
     {
       id: 'workflowTaskFinishEventId',
       title: 'Reset Event ID',
@@ -392,7 +382,6 @@ Return ONLY the filter expression - no explanations, no extra text.`,
       required: { field: 'operation', value: 'reset_workflow' },
     },
 
-    // ── Schedule operations ────────────────────────────────────────────────────
     {
       id: 'scheduleId',
       title: 'Schedule ID',
@@ -497,7 +486,6 @@ Return ONLY the cron expression(s) - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // ── Describe Task Queue ────────────────────────────────────────────────────
     {
       id: 'taskQueueType',
       title: 'Task Queue Type',
@@ -511,7 +499,6 @@ Return ONLY the cron expression(s) - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // ── Reason (cancel / terminate / reset / pause / unpause) ──────────────────
     {
       id: 'reason',
       title: 'Reason',
@@ -529,7 +516,6 @@ Return ONLY the cron expression(s) - no explanations, no extra text.`,
       },
     },
 
-    // ── Shared advanced options ────────────────────────────────────────────────
     {
       id: 'runId',
       title: 'Run ID',
@@ -631,7 +617,6 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       },
     },
 
-    // ── Connection (common to all operations) ──────────────────────────────────
     {
       id: 'serverUrl',
       title: 'Server URL',
@@ -683,7 +668,6 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       params: (params) => {
         const result: Record<string, unknown> = {}
 
-        // start_workflow / signal_with_start: coerce timeouts, drop empty policies
         if (params.operation === 'start_workflow' || params.operation === 'signal_with_start') {
           result.executionTimeoutSeconds = toFiniteNumber(params.executionTimeoutSeconds)
           result.runTimeoutSeconds = toFiniteNumber(params.runTimeoutSeconds)
@@ -691,29 +675,24 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
           if (!params.workflowIdConflictPolicy) result.workflowIdConflictPolicy = undefined
         }
 
-        // list_workflows / count_workflows: remap listQuery → query
         if (params.operation === 'list_workflows' || params.operation === 'count_workflows') {
           result.query = params.listQuery || undefined
         }
 
-        // list_workflows: coerce page size
         if (params.operation === 'list_workflows') {
           result.pageSize = toFiniteNumber(params.pageSize)
         }
 
-        // get_workflow_history: remap history-prefixed fields, drop empty filter
         if (params.operation === 'get_workflow_history') {
           result.maximumPageSize = toFiniteNumber(params.historyPageSize)
           result.nextPageToken = params.historyNextPageToken || undefined
           if (!params.historyEventFilterType) result.historyEventFilterType = undefined
         }
 
-        // reset_workflow: coerce the reset point event ID
         if (params.operation === 'reset_workflow') {
           result.workflowTaskFinishEventId = toFiniteNumber(params.workflowTaskFinishEventId)
         }
 
-        // create_schedule: remap schedule-prefixed fields, coerce interval and paused state
         if (params.operation === 'create_schedule') {
           result.cronExpressions = params.scheduleCronExpressions || undefined
           result.intervalSeconds = toFiniteNumber(params.scheduleIntervalSeconds)
@@ -722,14 +701,12 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
           result.paused = params.schedulePaused === 'true' ? true : undefined
         }
 
-        // list_schedules: remap schedule-prefixed fields
         if (params.operation === 'list_schedules') {
           result.query = params.scheduleQuery || undefined
           result.maximumPageSize = toFiniteNumber(params.schedulePageSize)
           result.nextPageToken = params.scheduleNextPageToken || undefined
         }
 
-        // trigger_schedule / create_schedule: drop empty overlap policy
         if (
           (params.operation === 'trigger_schedule' || params.operation === 'create_schedule') &&
           !params.overlapPolicy
@@ -737,7 +714,6 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
           result.overlapPolicy = undefined
         }
 
-        // describe_task_queue: drop empty task queue type
         if (params.operation === 'describe_task_queue' && !params.taskQueueType) {
           result.taskQueueType = undefined
         }
@@ -757,7 +733,6 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
     },
     workflowId: { type: 'string', description: 'Workflow ID of the execution' },
     runId: { type: 'string', description: 'Run ID targeting a specific run' },
-    // Start Workflow / Signal With Start
     workflowType: { type: 'string', description: 'Workflow type name to run' },
     taskQueue: { type: 'string', description: 'Task queue the workflow worker polls' },
     input: { type: 'string', description: 'Workflow input as JSON' },
@@ -777,32 +752,25 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
     runTimeoutSeconds: { type: 'number', description: 'Single-run timeout in seconds' },
     memo: { type: 'string', description: 'JSON object of memo fields' },
     searchAttributes: { type: 'string', description: 'JSON object of search attribute values' },
-    // Signal
     signalName: { type: 'string', description: 'Name of the signal handler to invoke' },
     signalInput: { type: 'string', description: 'Signal input as JSON' },
-    // Query
     queryType: { type: 'string', description: 'Name of the query handler to invoke' },
     queryArgs: { type: 'string', description: 'Query arguments as JSON' },
-    // Update
     updateName: { type: 'string', description: 'Name of the update handler to invoke' },
     updateArgs: { type: 'string', description: 'Update arguments as JSON' },
-    // List / Count Workflows
     listQuery: { type: 'string', description: 'Visibility filter expression' },
     pageSize: { type: 'number', description: 'Maximum executions to return per page' },
     nextPageToken: { type: 'string', description: 'Page token for list pagination' },
-    // Get Workflow History
     historyEventFilterType: {
       type: 'string',
       description: 'History event filter (all events or close event only)',
     },
     historyPageSize: { type: 'number', description: 'Maximum history events to return per page' },
     historyNextPageToken: { type: 'string', description: 'Page token for history pagination' },
-    // Reset
     workflowTaskFinishEventId: {
       type: 'number',
       description: 'WORKFLOW_TASK_COMPLETED event ID to reset to',
     },
-    // Schedules
     scheduleId: { type: 'string', description: 'Schedule ID' },
     scheduleCronExpressions: {
       type: 'string',
@@ -825,12 +793,10 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       type: 'string',
       description: 'Overlap policy for triggered or scheduled actions',
     },
-    // Task queues
     taskQueueType: {
       type: 'string',
       description: 'Type of pollers to list (workflow or activity)',
     },
-    // Cancel / Terminate / Reset / Pause / Unpause
     reason: {
       type: 'string',
       description: 'Reason recorded in the workflow history or schedule notes',
@@ -838,17 +804,13 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
   },
 
   outputs: {
-    // Start / Signal With Start
     workflowId: { type: 'string', description: 'Workflow ID of the execution' },
     runId: { type: 'string', description: 'Run ID of the execution' },
     started: { type: 'boolean', description: 'Whether a new execution was started' },
-    // Signal
     signalName: { type: 'string', description: 'Name of the signal that was sent' },
-    // Query / Update
     queryType: { type: 'string', description: 'Name of the query that was run' },
     updateName: { type: 'string', description: 'Name of the update that was invoked' },
     result: { type: 'json', description: 'Decoded query or update result' },
-    // Describe / List
     workflowType: { type: 'string', description: 'Workflow type name' },
     status: {
       type: 'string',
@@ -872,13 +834,11 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       description:
         'Workflow executions matching the list filter (workflowId, runId, workflowType, status, startTime, closeTime, executionTime, historyLength, taskQueue)',
     },
-    // Count Workflows
     count: { type: 'number', description: 'Number of workflow executions matching the query' },
     groups: {
       type: 'json',
       description: 'Per-group counts when the count query uses GROUP BY',
     },
-    // Get Workflow History
     events: {
       type: 'json',
       description: 'History events (eventId, eventTime, eventType, attributes)',
@@ -887,7 +847,6 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       type: 'string',
       description: 'Token for the next page of results (list and history operations)',
     },
-    // Schedules
     scheduleId: { type: 'string', description: 'Schedule ID' },
     schedules: {
       type: 'json',
@@ -904,7 +863,6 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       description: 'Recent schedule actions (scheduleTime, actualTime, workflowId, runId)',
     },
     futureActionTimes: { type: 'json', description: 'Upcoming schedule action times (RFC 3339)' },
-    // Describe Task Queue
     pollers: {
       type: 'json',
       description: 'Workers polling the task queue (identity, lastAccessTime, ratePerSecond)',

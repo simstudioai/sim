@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { execFile } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises'
@@ -6,6 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { promisify } from 'node:util'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,9 +20,7 @@ const { find, run, read, readStream, remove, lease } = vi.hoisted(() => ({
   remove: vi.fn(),
   lease: { failAfterAction: false },
 }))
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({ id: 'e2b', findSessionSandbox: find }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   withSandboxSessionLock: async <T>(
     _key: string,
@@ -42,6 +43,10 @@ let directory: string
 beforeEach(async () => {
   vi.resetAllMocks()
   lease.failAfterAction = false
+  remoteSandboxProviderMockFns.mockResolveProvider.mockReturnValue({
+    id: 'e2b',
+    findSessionSandbox: find,
+  })
   directory = await mkdtemp(join(tmpdir(), 'mship-upload-'))
   const exec = promisify(execFile)
   read.mockImplementation(async (path, options) => {
@@ -74,7 +79,6 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  vi.unstubAllGlobals()
   await rm(directory, { recursive: true, force: true })
 })
 

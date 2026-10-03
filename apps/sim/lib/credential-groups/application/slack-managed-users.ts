@@ -169,6 +169,8 @@ export const completeSlackCredentialGroupConfiguration: OperationUseCase<
       attempt.expectedAppId !== pending.expectedAppId ||
       attempt.expectedTeamId !== pending.expectedTeamId ||
       attempt.appRevision !== pending.appRevision ||
+      attempt.searchApproval?.approved !== pending.searchApproval?.approved ||
+      attempt.searchApproval?.updatedAt !== pending.searchApproval?.updatedAt ||
       attempt.clientId !== pending.clientId ||
       attempt.redirectUri !== pending.redirectUri ||
       credentialGroupScopePolicyVersion(attempt.requiredScopes) !==

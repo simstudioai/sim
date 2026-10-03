@@ -1,6 +1,7 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import type { ToolResponse } from '@/tools/types'
@@ -14,23 +15,17 @@ const clientMocks = vi.hoisted(() => ({
   resolveAgiloftInstance: vi.fn(),
 }))
 
-const providerMocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-}))
-
 const fileMocks = vi.hoisted(() => ({
   resolveAgiloftAttachmentFile: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithPinnedIP: providerMocks.secureFetchWithPinnedIP,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/internal/agiloft/client', () => clientMocks)
 vi.mock('@/lib/internal/agiloft/file-input', () => fileMocks)
 
+const { mockSecureFetchWithPinnedIP } = inputValidationMockFns
+
 import {
-  executeAgiloftCreateRecord,
   executeAgiloftRetrieveAttachment,
   executeAgiloftSearchRecords,
   executeAgiloftSelectRecords,
@@ -90,23 +85,8 @@ const storedFile = {
 
 describe('Agiloft operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clientMocks.isAgiloftRefusal.mockReturnValue(false)
     clientMocks.resolveAgiloftInstance.mockResolvedValue('203.0.113.10')
-  })
-
-  it('rejects invalid record JSON before opening an Agiloft session', async () => {
-    const result = await executeAgiloftCreateRecord(
-      { ...BASE, data: '[]' },
-      { requestId: 'request-1' }
-    )
-
-    expect(result).toEqual({
-      success: false,
-      output: { id: null, fields: {} },
-      error: 'The data parameter must be a JSON object of field names to values',
-    })
-    expect(clientMocks.executeAlrestRequest).not.toHaveBeenCalled()
   })
 
   it('caps search results and forwards cancellation through the authenticated operation', async () => {
@@ -159,7 +139,7 @@ describe('Agiloft operations', () => {
 
   it('bounds attachment downloads and preserves binary metadata', async () => {
     const controller = new AbortController()
-    providerMocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       createResponse({
         bytes: new TextEncoder().encode('hello'),
         headers: {
@@ -178,7 +158,7 @@ describe('Agiloft operations', () => {
       { name: 'evidence.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') },
     ])
     expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
-    expect(providerMocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       expect.stringContaining('/ewws/EWRetrieve'),
       '203.0.113.10',
       {

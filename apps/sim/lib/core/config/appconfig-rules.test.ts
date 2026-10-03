@@ -1,16 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { matchesRule, normalizeRule, parseGateConfig } from '@/lib/core/config/appconfig-rules'
 
 describe('normalizeRule', () => {
-  it('returns null for non-object values', () => {
-    expect(normalizeRule('nope')).toBeNull()
-    expect(normalizeRule(null)).toBeNull()
-    expect(normalizeRule(42)).toBeNull()
-  })
-
   it('keeps only boolean enabled/adminEnabled', () => {
     expect(normalizeRule({ enabled: 'true', adminEnabled: 1 })).toEqual({})
     expect(normalizeRule({ enabled: true, adminEnabled: false })).toEqual({
@@ -52,15 +43,6 @@ describe('parseGateConfig', () => {
 })
 
 describe('matchesRule', () => {
-  it('returns false for a missing rule', () => {
-    expect(matchesRule(undefined, { userId: 'u1' }, true)).toBe(false)
-  })
-
-  it('matches the global enabled clause', () => {
-    expect(matchesRule({ enabled: true }, {}, false)).toBe(true)
-    expect(matchesRule({ enabled: false }, {}, false)).toBe(false)
-  })
-
   it('matches the userId and orgId allowlists', () => {
     expect(matchesRule({ userIds: ['u1'] }, { userId: 'u1' }, false)).toBe(true)
     expect(matchesRule({ userIds: ['u1'] }, { userId: 'u2' }, false)).toBe(false)

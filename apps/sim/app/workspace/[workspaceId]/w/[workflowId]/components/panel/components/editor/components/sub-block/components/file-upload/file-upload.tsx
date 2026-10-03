@@ -128,13 +128,11 @@ interface SingleFileSelectorProps {
   file: UploadedFile
   options: Array<{ label: string; value: string; disabled?: boolean }>
   selectedValue: string
-  inputValue: string
   onInputChange: (value: string) => void
   onClear: (e: React.MouseEvent) => void
   onOpenChange: (open: boolean) => void
   disabled: boolean
   isLoading: boolean
-  formatFileSize: (bytes: number) => string
   truncateMiddle: (text: string, start?: number, end?: number) => string
   isDeleting: boolean
   workflowSearchHighlight?: ReturnType<typeof getWorkflowSearchLabelHighlight>
@@ -149,13 +147,11 @@ function SingleFileSelector({
   file,
   options,
   selectedValue,
-  inputValue,
   onInputChange,
   onClear,
   onOpenChange,
   disabled,
   isLoading,
-  formatFileSize,
   truncateMiddle,
   isDeleting,
   workflowSearchHighlight,
@@ -968,7 +964,6 @@ export function FileUpload({
           file={filesArray[0]}
           options={singleFileOptions}
           selectedValue={selectedFileId}
-          inputValue={inputValue}
           onInputChange={handleComboboxChange}
           onClear={(e) => handleRemoveFile(filesArray[0], e)}
           onOpenChange={(open) => {
@@ -976,7 +971,6 @@ export function FileUpload({
           }}
           disabled={disabled || isPreview}
           isLoading={loadingWorkspaceFiles}
-          formatFileSize={formatFileSize}
           truncateMiddle={truncateMiddle}
           isDeleting={deletingFiles[filesArray[0]?.path || '']}
           workflowSearchHighlight={getWorkflowSearchLabelHighlight({

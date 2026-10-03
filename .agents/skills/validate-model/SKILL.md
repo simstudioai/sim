@@ -68,8 +68,8 @@ For each model, evaluate every row. Statuses: ✓ matches docs, ✗ disagrees, �
 - [ ] `temperature` — provider accepts it for this model (reasoning-always-on models often reject)
 - [ ] `reasoningEffort.values` — list matches docs; **omitted** for always-reasoning models that reject the parameter (e.g., grok-4.3, where xAI docs explicitly state `reasoning_effort` is not supported). Verify per model — some always-reasoning models (e.g., OpenAI's o-series) DO accept `reasoning_effort` and should keep the flag.
 - [ ] `verbosity.values` — only on OpenAI gpt-5.x family; values match docs
-- [ ] `thinking.levels` + `thinking.default` — only on Anthropic/Gemini; values match docs
-- [ ] `thinking.streamed` — REQUIRED on Anthropic-family thinking models (`'full'` for generations returning full thinking deltas, `'summary'` for omitted-display generations like Opus 4.7+/Sonnet 5/Fable 5 where Sim requests `display: 'summarized'`); verify against the provider's thinking-display docs. After any change, run `bun run agent-stream-docs:generate` so the Agent block docs table stays in sync (CI diffs it)
+- [ ] `thinking.levels` + `thinking.default` — only on providers whose code reads `thinking`/`thinkingLevel` (see the add-model Consumption Matrix); values match docs
+- [ ] `thinking.streamed` — REQUIRED on Anthropic-family thinking models. Current Claude thinking models use `'summary'` (Sim requests `display: 'summarized'`); use `'full'` only if official API docs explicitly guarantee raw thinking deltas. Verify against the provider's thinking-display docs. After any change, run `bun run agent-stream-docs:generate` so the Agent block docs table stays in sync (CI diffs it)
 - [ ] `nativeStructuredOutputs` — only on providers whose code consumes it (see the Consumption Matrix); provider must document Structured Outputs / JSON-mode for this model
 - [ ] `toolUsageControl` — provider supports `tool_choice` semantics
 - [ ] `computerUse` — provider implements computer-use loop AND model is a computer-use SKU

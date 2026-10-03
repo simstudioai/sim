@@ -1,6 +1,6 @@
 {
   "name": "sim",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "Sim CLI - talk to the Sim API from your terminal",
   "type": "module",
   "imports": {
@@ -53,6 +53,7 @@
     "chalk": "5.6.2",
     "commander": "^11.1.0",
     "js-yaml": "4.3.2",
+    "minisearch": "7.2.0",
     "proper-lockfile": "4.1.2"
   },
   "devDependencies": {
@@ -62,7 +63,7 @@
     "@types/node": "24.2.1",
     "@types/proper-lockfile": "4.1.4",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   },
   "exports": {
     "./embed": {

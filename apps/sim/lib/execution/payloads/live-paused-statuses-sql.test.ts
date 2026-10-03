@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 // Renders the real predicate against the real drizzle dialect and schema: the
 // bug this guards against is a SQL *rendering* bug, so the global drizzle-orm
 // and schema mocks would hide it entirely.

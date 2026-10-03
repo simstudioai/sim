@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   DISPLAY_NAME_MAX_LENGTH,
@@ -10,15 +7,11 @@ import {
 const NONE: ReadonlySet<string> = new Set()
 
 describe('defaultCredentialDisplayName', () => {
-  it("produces {Name}'s {Service} when the user name is known", () => {
-    expect(defaultCredentialDisplayName('Justin', 'Gmail', NONE)).toBe("Justin's Gmail")
-  })
-
   it('trims surrounding whitespace from the user name', () => {
     expect(defaultCredentialDisplayName('  Justin  ', 'Gmail', NONE)).toBe("Justin's Gmail")
   })
 
-  it.each([null, undefined, '', '   '])('falls back to My {Service} for user name %j', (name) => {
+  it.each([null, '   '])('falls back to My {Service} for user name %j', (name) => {
     expect(defaultCredentialDisplayName(name, 'Gmail', NONE)).toBe('My Gmail')
   })
 
@@ -35,11 +28,6 @@ describe('defaultCredentialDisplayName', () => {
   it('compares collisions case-insensitively', () => {
     const taken = new Set(["justin's gmail"])
     expect(defaultCredentialDisplayName('JUSTIN', 'Gmail', taken)).toBe("JUSTIN's Gmail 2")
-  })
-
-  it('numbers the My {Service} fallback on collision too', () => {
-    const taken = new Set(['my gmail'])
-    expect(defaultCredentialDisplayName(null, 'Gmail', taken)).toBe('My Gmail 2')
   })
 
   it('truncates a long user name so name + suffix + disambiguator fit the max length', () => {

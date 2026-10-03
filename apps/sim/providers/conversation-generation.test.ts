@@ -1,4 +1,12 @@
-/** @vitest-environment node */
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { tokenizationAccurateMock } from '@sim/testing/mocks/tokenization-accurate.mock'
 import { isRecordLike } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
@@ -18,27 +26,24 @@ import type { ProviderRequest } from '@/providers/types'
 
 const state = vi.hoisted(() => ({ enabled: true, historyTokens: 0 }))
 
-vi.mock('@/providers/conversation-history', () => ({
-  bindConversationRequestContext: vi.fn(),
-  getConversationRequestContext: () =>
-    state.enabled
-      ? { agentConversation: {}, agentMemoryContext: { historyTokens: state.historyTokens } }
-      : undefined,
-}))
-vi.mock('@/providers/models', () => ({
-  PROVIDER_DEFINITIONS: {
-    test: {
-      models: [
-        { id: 'large', contextWindow: 4000 },
-        { id: 'small', contextWindow: 1000 },
-      ],
-    },
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
+vi.mock('@/providers/models', () => providersModelsMock)
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
+
+providersModelsMockFns.mockGetMaxOutputTokensForModel.mockReturnValue(100)
+Object.assign(providersModelsMock.PROVIDER_DEFINITIONS, {
+  test: {
+    models: [
+      { id: 'large', contextWindow: 4000 },
+      { id: 'small', contextWindow: 1000 },
+    ],
   },
-  getMaxOutputTokensForModel: () => 100,
-}))
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: (text: string) => text.length,
-}))
+})
+providersConversationHistoryMockFns.mockGetConversationRequestContext.mockImplementation(() =>
+  state.enabled
+    ? { agentConversation: {}, agentMemoryContext: { historyTokens: state.historyTokens } }
+    : undefined
+)
 
 interface Fixture {
   protocol: ConversationProtocol

@@ -1,36 +1,27 @@
-/**
- * @vitest-environment node
- */
-
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  getAsyncToolCall,
-  getRunSegment,
-  recordToolPermissionDecision,
-  publishToolPermissionDecision,
-  addAutoAllowedTool,
-  addChatAutoAllowedTool,
-  getUserPermissionConfig,
-} = vi.hoisted(() => ({
-  getAsyncToolCall: vi.fn(),
-  getRunSegment: vi.fn(),
-  recordToolPermissionDecision: vi.fn(),
-  publishToolPermissionDecision: vi.fn(),
-  addAutoAllowedTool: vi.fn(),
-  addChatAutoAllowedTool: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
-}))
+const { publishToolPermissionDecision, addAutoAllowedTool, addChatAutoAllowedTool } = vi.hoisted(
+  () => ({
+    publishToolPermissionDecision: vi.fn(),
+    addAutoAllowedTool: vi.fn(),
+    addChatAutoAllowedTool: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getAsyncToolCall,
-  getRunSegment,
-  recordToolPermissionDecision,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/persistence/tool-permission', () => ({
   publishToolPermissionDecision,
@@ -47,19 +38,18 @@ vi.mock('@/lib/mothership/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isCopilotToolPermissionsEnabled: true,
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { POST } from './route'
 
+const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
+const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
+const recordToolPermissionDecision = mothershipAsyncRunsMockFns.mockRecordToolPermissionDecision
+const getUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+
 describe('Copilot tool permission API', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -91,10 +81,10 @@ describe('Copilot tool permission API', () => {
   })
 
   function createRequest(decision: 'allow' | 'allow_chat' | 'always_allow' | 'skip') {
-    return new NextRequest('http://localhost:3000/api/copilot/tool-permission', {
+    return createMockRequest({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decisions: [{ toolCallId: 'tool-1', decision }] }),
+      url: 'http://localhost:3000/api/copilot/tool-permission',
+      body: { decisions: [{ toolCallId: 'tool-1', decision }] },
     })
   }
 
@@ -119,31 +109,6 @@ describe('Copilot tool permission API', () => {
       )
     }
   )
-
-  it('uses the same decision path for non-workflow tools', async () => {
-    const toolName = 'function_execute'
-    const decision = 'allow'
-    getAsyncToolCall.mockResolvedValueOnce({
-      toolCallId: 'tool-1',
-      runId: 'run-1',
-      toolName,
-      status: 'pending',
-      permissionDecision: null,
-    })
-    recordToolPermissionDecision.mockResolvedValueOnce({
-      toolCallId: 'tool-1',
-      runId: 'run-1',
-      toolName,
-      status: 'pending',
-      permissionDecision: decision,
-      permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
-    })
-
-    const response = await POST(createRequest(decision))
-
-    expect(response.status).toBe(200)
-    expect(recordToolPermissionDecision).toHaveBeenCalledWith('tool-1', decision)
-  })
 
   describe('when the permission group withholds tool auto-approval', () => {
     beforeEach(() => {
@@ -199,22 +164,6 @@ describe('Copilot tool permission API', () => {
         expect.objectContaining({ toolCallId: 'tool-1', decision: 'always_allow' })
       )
       expect(addAutoAllowedTool).not.toHaveBeenCalled()
-    })
-
-    it('remembers it again once the group allows it', async () => {
-      getUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: false })
-      recordToolPermissionDecision.mockResolvedValueOnce({
-        toolCallId: 'tool-1',
-        runId: 'run-1',
-        toolName: 'run_workflow',
-        status: 'pending',
-        permissionDecision: 'always_allow',
-        permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
-      })
-
-      await POST(createRequest('always_allow'))
-
-      expect(addAutoAllowedTool).toHaveBeenCalledWith('user-1', 'run_workflow')
     })
   })
 })

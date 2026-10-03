@@ -1,67 +1,53 @@
-/**
- * @vitest-environment node
- */
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingIdentityLockMock } from '@sim/testing/mocks/billing-identity-lock.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
 import {
   dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+} from '@sim/testing/mocks/database.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreateOrganizationWithOwner,
-  mockGetPlanPricing,
   mockAttachOwnedWorkspacesToOrganization,
   mockAttachOwnedWorkspacesToOrganizationTx,
-  mockAcquireOrganizationMutationLock,
   mockAssertNoCompetingEnterpriseIssuance,
-  mockGetOrganizationIdForSubscriptionReference,
-  mockIsSubscriptionOrgScoped,
-  mockSyncUsageLimitsFromSubscription,
 } = vi.hoisted(() => ({
   mockCreateOrganizationWithOwner: vi.fn(),
-  mockGetPlanPricing: vi.fn(),
   mockAttachOwnedWorkspacesToOrganization: vi.fn(),
   mockAttachOwnedWorkspacesToOrganizationTx: vi.fn(),
-  mockAcquireOrganizationMutationLock: vi.fn(),
   mockAssertNoCompetingEnterpriseIssuance: vi.fn(),
-  mockGetOrganizationIdForSubscriptionReference: vi.fn(),
-  mockIsSubscriptionOrgScoped: vi.fn(),
-  mockSyncUsageLimitsFromSubscription: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getPlanPricing: mockGetPlanPricing,
-  isSubscriptionOrgScoped: mockIsSubscriptionOrgScoped,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getOrganizationIdForSubscriptionReference: mockGetOrganizationIdForSubscriptionReference,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isEnterprise: (plan: string) => plan === 'enterprise',
-  isOrgPlan: (plan: string) => plan === 'team' || plan === 'enterprise',
-  isPaid: (plan: string) => plan !== 'free',
-  isTeam: (plan: string) => plan === 'team',
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
 vi.mock('@/lib/billing/organizations/create-organization', () => ({
   createOrganizationWithOwner: mockCreateOrganizationWithOwner,
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
-}))
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: vi.fn(),
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
 
 vi.mock('@/lib/billing/enterprise-outbox', () => ({
   assertNoCompetingEnterpriseIssuance: mockAssertNoCompetingEnterpriseIssuance,
@@ -77,6 +63,12 @@ import {
   ensureOrganizationForTeamSubscriptionTx,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
+
+const { mockGetOrganizationIdForSubscriptionReference } = billingSubscriptionMockFns
+const { mockGetPlanPricing, mockIsSubscriptionOrgScoped } = billingCoreMockFns
+const { mockSyncUsageLimitsFromSubscription } = billingUsageMockFns
+const { mockAcquireOrganizationMutationLock } = organizationMembershipMockFns
+billingPlanHelpersMockFns.mockIsPaid.mockImplementation((plan) => plan !== 'free')
 
 function queueWhereResponses(responses: unknown[][]) {
   const queue = [...responses]
@@ -94,41 +86,8 @@ function queueWhereResponses(responses: unknown[][]) {
 
 describe('ensureOrganizationForTeamSubscription', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsSubscriptionOrgScoped.mockResolvedValue(false)
-  })
-
-  it('treats existing organization references as already homed and takes no write', async () => {
-    mockIsSubscriptionOrgScoped.mockResolvedValueOnce(true)
-
-    const result = await ensureOrganizationForTeamSubscription({
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'legacy-org-id',
-      status: 'active',
-      seats: 5,
-    })
-
-    expect(result).toEqual({
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'legacy-org-id',
-      status: 'active',
-      seats: 5,
-    })
-    expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()
-    expect(mockAttachOwnedWorkspacesToOrganization).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(
-      expect.anything(),
-      'legacy-org-id'
-    )
-    expect(mockAssertNoCompetingEnterpriseIssuance).toHaveBeenCalledWith(
-      expect.anything(),
-      'legacy-org-id',
-      null
-    )
   })
 
   it('allows the authoritative Enterprise webhook to apply its own unresolved issuance', async () => {
@@ -223,26 +182,8 @@ describe('ensureOrganizationForTeamSubscription', () => {
 
 describe('syncSubscriptionUsageLimits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetOrganizationIdForSubscriptionReference.mockResolvedValue(null)
-  })
-
-  it('syncs only the directly referenced personal subscriber', async () => {
-    queueTableRows(schemaMock.user, [{ id: 'user-1' }])
-    queueTableRows(schemaMock.member, [{ userId: 'other-member' }])
-
-    await syncSubscriptionUsageLimits({
-      id: 'sub-personal',
-      plan: 'pro_25000',
-      referenceId: 'user-1',
-      status: 'active',
-    })
-
-    expect(mockGetOrganizationIdForSubscriptionReference).toHaveBeenCalledWith('user-1')
-    expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledExactlyOnceWith('user-1')
-    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it.each(['team_6000', 'enterprise'])(

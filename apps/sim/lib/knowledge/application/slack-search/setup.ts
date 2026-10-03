@@ -3,7 +3,7 @@ import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { credential, slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -13,7 +13,9 @@ import {
   loadOrganizationSlackMemberApps,
 } from '@/lib/credential-groups/organization-slack-app'
 import { configureSharedSlackMemberApp } from '@/lib/credential-groups/shared-slack-app'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
+import { buildSlackAppCreationUrl } from '@/lib/integrations/slack-manifest'
 import {
   exchangeSlackBotAuthorization,
   revokeSlackBotAuthorization,
@@ -98,7 +100,7 @@ export const prepareSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       sharedAppId: sharedApp?.id ?? null,
       manifest: JSON.stringify(manifest, null, 2),
       existingApp: member.app,
-      createAppUrl: `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(JSON.stringify(manifest))}`,
+      createAppUrl: buildSlackAppCreationUrl(JSON.stringify(manifest)),
     }
   },
 })
@@ -231,12 +233,8 @@ async function revokeUninstalledSharedGrant(
 ) {
   try {
     await db.transaction(async (tx) => {
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-search:${grant.team.id}`}, 0))`
-      )
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-app:${grant.app_id}`}, 0))`
-      )
+      await acquireAdvisoryXactLock(tx, 'slack_search', `slack-search:${grant.team.id}`)
+      await acquireAdvisoryXactLock(tx, 'slack_app', `slack-app:${grant.app_id}`)
       const [installation] = await tx
         .select({ id: slackSearchInstallation.id })
         .from(slackSearchInstallation)
@@ -297,12 +295,8 @@ async function saveInstallation(
   )
   await db.transaction(async (tx) => {
     /** Serialize app/workspace installs before checking ownership or inserting missing rows. */
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-search:${identity.teamId}`}, 0))`
-    )
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-app:${identity.appId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(tx, 'slack_search', `slack-search:${identity.teamId}`)
+    await acquireAdvisoryXactLock(tx, 'slack_app', `slack-app:${identity.appId}`)
     const [existingApp] = await tx
       .select()
       .from(slackApp)

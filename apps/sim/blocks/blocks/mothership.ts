@@ -1,22 +1,8 @@
 import { Blimp } from '@sim/emcn/icons'
 import { MOTHERSHIP_EFFORT_OPTIONS, MOTHERSHIP_MODEL_OPTIONS } from '@/lib/mothership/model-options'
 import type { BlockConfig } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 
-interface MothershipResponse extends ToolResponse {
-  output: {
-    content: string
-    model: string
-    conversationId?: string
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
-    }
-  }
-}
-
-export const MothershipBlock: BlockConfig<MothershipResponse> = {
+export const MothershipBlock: BlockConfig = {
   type: 'mothership',
   name: 'Sim Chat',
   description: 'Reason, use tools, and stream a conversational response',

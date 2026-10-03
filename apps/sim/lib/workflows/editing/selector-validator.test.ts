@@ -1,31 +1,15 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckWorkspaceAccess } = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  eq: vi.fn((...args: unknown[]) => ({ type: 'eq', args })),
-  inArray: vi.fn((...args: unknown[]) => ({ type: 'inArray', args })),
-  isNotNull: vi.fn((field: unknown) => ({ type: 'isNotNull', field })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-  or: vi.fn((...args: unknown[]) => ({ type: 'or', args })),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+
 describe('validateSelectorIds', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockCheckWorkspaceAccess.mockResolvedValue({ canAdmin: false })
   })
@@ -126,11 +110,11 @@ describe('validateSelectorIds', () => {
 
 /**
  * The second argument of the outer `and(...)` the query is filtered by. The
- * mocked drizzle helpers record their arguments verbatim, so the membership
- * clause is either an `isNotNull` node or `undefined`.
+ * global drizzle mock records `and` arguments verbatim as `conditions`, so the
+ * membership clause is either an `isNotNull` node or `undefined`.
  */
 function membershipClauseOf(predicate: unknown): unknown {
-  const node = predicate as { type?: string; args?: unknown[] }
+  const node = predicate as { type?: string; conditions?: unknown[] }
   expect(node.type).toBe('and')
-  return node.args?.[1]
+  return node.conditions?.[1]
 }

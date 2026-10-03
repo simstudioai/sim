@@ -21,7 +21,7 @@ import {
   resolveAdminGitLabAccount,
 } from '@/lib/sim-search/live/gitlab-admin'
 import { createNativeClient, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
-import { listCodaMcpSearchAccounts } from '@/lib/sim-search/live/mcp-accounts'
+import { listManagedMcpSearchAccounts } from '@/lib/sim-search/live/mcp-accounts'
 import {
   liveSearchProviderForCredential,
   supportsLiveSearchMode,
@@ -123,7 +123,7 @@ export async function listLiveAccounts(
   })
   const [visible, mcp, admin] = await Promise.all([
     workspaceContext ? filterWorkspaceAccountCredentials(workspaceContext, candidates) : candidates,
-    denied.has('coda') ? [] : listCodaMcpSearchAccounts(owner, userId),
+    listManagedMcpSearchAccounts(owner, userId, denied),
     denied.has('gitlab') ? [] : listAdminGitLabAccounts(owner),
   ])
   if (visible.length === 0) return [...mcp, ...admin]
@@ -148,7 +148,7 @@ export async function listLiveAccounts(
     ...mcp,
     ...admin,
     ...visible
-      .filter((candidate) => candidate.provider !== 'coda' || mcp.length === 0)
+      .filter((candidate) => !mcp.some((managed) => managed.provider === candidate.provider))
       .flatMap((candidate) => {
         const row = byId.get(candidate.id)
         return row && !row.revokedAt

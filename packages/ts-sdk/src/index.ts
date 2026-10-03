@@ -8,7 +8,7 @@ export interface SimStudioConfig {
  * rather than read at runtime, so the SDK stays usable where there is no file
  * system to read it from.
  */
-export const SDK_VERSION = '0.2.0'
+export const SDK_VERSION = '0.2.1'
 
 /**
  * Identifies this SDK to the API on every request, the way every official Sim
@@ -216,7 +216,7 @@ export class SimStudioClient {
 
   constructor(config: SimStudioConfig) {
     this.apiKey = config.apiKey
-    this.baseUrl = normalizeBaseUrl(config.baseUrl || 'https://sim.ai')
+    this.baseUrl = normalizeBaseUrl(config.baseUrl || 'https://www.sim.ai')
   }
 
   /** The headers every request carries: the credential and the client's identity. */

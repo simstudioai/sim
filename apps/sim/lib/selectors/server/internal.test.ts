@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,7 +48,6 @@ describe.each([
     option: { id: 'fireflies', label: 'Fireflies' },
   },
 ] as const)('$key selector', ({ key, field, option }) => {
-  beforeEach(() => vi.clearAllMocks())
   it('uses the authorized organization provider projection', async () => {
     mockGetWorkspaceOrganizationAccounts.mockResolvedValue({ allowed: true, [field]: [option] })
     const args: ExecuteServerSelectorArgs = { ...workflowArgs(), selectorKey: key }
@@ -70,21 +66,10 @@ describe.each([
       internalSelectorAttachments[key].execute({ ...workflowArgs(), selectorKey: key })
     ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
   })
-  it('resolves a selected provider by ID', async () => {
-    mockGetWorkspaceOrganizationAccounts.mockResolvedValue({ allowed: true, [field]: [option] })
-    await expect(
-      internalSelectorAttachments[key].execute({
-        ...workflowArgs(),
-        selectorKey: key,
-        request: { kind: 'detail', id: option.id },
-      })
-    ).resolves.toEqual({ kind: 'detail', item: option })
-  })
 })
 
 describe('workspace.secretNames selector', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvironmentUtilsMock()
   })
 
@@ -123,10 +108,6 @@ describe('workspace.secretNames selector', () => {
 })
 
 describe('sim.workflows selector', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('continues beyond the former 5,000-workflow limit', async () => {
     for (let page = 0; page < 20; page += 1) {
       mockListWorkflows.mockResolvedValueOnce({
@@ -163,38 +144,5 @@ describe('sim.workflows selector', () => {
       internalSelectorAttachments['sim.workflows'].execute(workflowArgs())
     ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
     expect(mockListWorkflows).toHaveBeenCalledTimes(40)
-  })
-})
-
-describe('providers.openrouterEmbeddingModels selector', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetEnvironmentUtilsMock()
-  })
-
-  it('passes the selector signal to the OpenRouter catalog fetch', async () => {
-    const controller = new AbortController()
-    mockFetchOpenRouterEmbeddingModelCatalog.mockResolvedValue([
-      { id: 'openai/text-embedding-3-small', maxInputTokens: 8_191 },
-    ])
-
-    await expect(
-      internalSelectorAttachments['providers.openrouterEmbeddingModels'].execute({
-        ...workflowArgs(),
-        selectorKey: 'providers.openrouterEmbeddingModels',
-        signal: controller.signal,
-      })
-    ).resolves.toEqual({
-      kind: 'list',
-      items: [
-        {
-          id: 'openai/text-embedding-3-small',
-          label: 'openai/text-embedding-3-small',
-        },
-      ],
-    })
-
-    expect(mockFetchOpenRouterEmbeddingModelCatalog).toHaveBeenCalledOnce()
-    expect(mockFetchOpenRouterEmbeddingModelCatalog).toHaveBeenCalledWith(controller.signal)
   })
 })

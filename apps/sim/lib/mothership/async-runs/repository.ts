@@ -27,6 +27,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import {
@@ -41,6 +42,7 @@ import {
   type AsyncTerminalStatus,
   DESKTOP_TOOL_CLAIM_OWNER,
   EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+  SIM_TOOL_EXECUTION_VERSION,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
@@ -54,7 +56,6 @@ import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-ke
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
-const SIM_TOOL_EXECUTION_VERSION = 2
 const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
 // Resolve the tracer lazily per-call to avoid capturing the NoOp tracer
 // before NodeSDK installs the global TracerProvider (Next.js 16/Turbopack
@@ -132,7 +133,7 @@ export async function withRunAdmissionLock<T>(
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
     const key = JSON.stringify(['copilot-run-admission', userId, streamId])
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
+    await acquireAdvisoryXactLock(tx, 'copilot_run_admission', key)
     return action(tx)
   })
 }
@@ -1212,6 +1213,21 @@ export async function claimWorkflowToolExecution(
           .returning()
         return row ?? null
       })
+  )
+}
+
+/**
+ * Finalizes a client-bound workflow tool from its own settled execution. It
+ * applies only while the call is still running under that execution's claim, so
+ * a browser report or a background detach that landed first always wins.
+ */
+export async function completeClientWorkflowToolCall(
+  input: CompleteAsyncToolCallInput,
+  executionId: string
+) {
+  return await completeClaimedAsyncToolCall(
+    input,
+    `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
   )
 }
 

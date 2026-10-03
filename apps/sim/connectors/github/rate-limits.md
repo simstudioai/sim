@@ -8,7 +8,7 @@ Both header-signalled and JSON-message-only 403 throttles, and all 429 responses
 
 Coordination is scoped to a SHA-256 fingerprint of the token, never the token itself. Distinct or newly rotated tokens for the same GitHub actor and calls made outside this connector transport can share an upstream quota without sharing a local lease. Their consumption is reflected in GitHub response headers, so occasional upstream throttles remain possible and follow the same recovery path. No additional `/rate_limit` polling is required.
 
-The request transport has unit coverage for retries, streamed response ownership, cancellation, successful exhaustion, body-only throttles, and unavailable capacity storage. `bun scripts/test-knowledge-acls.ts` exercises real PostgreSQL and Redis quota transitions plus a local HTTP provider fixture that verifies a second worker sends no request during a shared cooldown.
+The request transport has unit coverage for retries, streamed response ownership, cancellation, successful exhaustion, body-only throttles, and unavailable capacity storage. `bun run test:integration` exercises real PostgreSQL and Redis quota transitions plus a local HTTP provider fixture that verifies a second worker sends no request during a shared cooldown.
 
 The behavior follows GitHub's [rate-limit guidance](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) and [REST API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api).
 

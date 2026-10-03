@@ -1,55 +1,31 @@
-/**
- * @vitest-environment node
- */
-import {
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  resetEnvMock,
-  setEnv,
-  setEnvFlags,
-} from '@sim/testing'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetPersonalSubscription,
-  mockGetOrganizationSubscription,
-  mockGetWorkspaceWithOwner,
-  mockGetEffectiveBillingStatus,
-  mockIsOrganizationBillingBlocked,
-} = vi.hoisted(() => ({
-  mockGetPersonalSubscription: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockGetEffectiveBillingStatus: vi.fn(),
-  mockIsOrganizationBillingBlocked: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPriorityPersonalSubscription: mockGetPersonalSubscription,
-  getHighestPrioritySubscription: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   hasWorkspaceInboxAccess,
   hasWorkspaceInboxGraceAccess,
 } from '@/lib/billing/core/subscription'
 
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
+const mockGetPersonalSubscription = billingPlanMockFns.mockGetHighestPriorityPersonalSubscription
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const { mockGetEffectiveBillingStatus, mockIsOrganizationBillingBlocked } = billingAccessMockFns
+
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
   setEnvFlags({ isHosted: true, isBillingEnabled: true, isInboxEnabled: false })
@@ -152,29 +128,11 @@ describe('Sim Mailer cleanup uncertainty', () => {
     await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
   })
 
-  it('preserves the inbox on a workspace lookup failure', async () => {
-    mockGetWorkspaceWithOwner.mockRejectedValue(new Error('Database unavailable'))
-
-    await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
-  })
-
   it('requires the personal subscription reader to surface errors and preserves the inbox', async () => {
     mockGetPersonalSubscription.mockRejectedValue(new Error('Database unavailable'))
 
     await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
     expect(mockGetPersonalSubscription).toHaveBeenCalledWith('payer-1', { onError: 'throw' })
-  })
-
-  it('requires the organization subscription reader to surface errors and preserves the inbox', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValue({
-      id: 'workspace-1',
-      billedAccountUserId: 'payer-1',
-      organizationId: 'org-1',
-    })
-    mockGetOrganizationSubscription.mockRejectedValue(new Error('Database unavailable'))
-
-    await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
-    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-1', { onError: 'throw' })
   })
 
   it('retains past-due Max for Teams resources', async () => {

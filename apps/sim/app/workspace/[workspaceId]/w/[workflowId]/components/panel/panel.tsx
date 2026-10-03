@@ -67,7 +67,7 @@ import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hook
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
@@ -169,7 +169,6 @@ export const Panel = memo(function Panel() {
   const posthogRef = useRef(posthog)
 
   const panelRef = useRef<HTMLElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const {
     activeTab: storedActiveTab,
     setActiveTab,
@@ -209,7 +208,6 @@ export const Panel = memo(function Panel() {
   const isCopilotTabAvailable = chatEnabled && !permissionConfig.hideCopilot
   const activeTab: PanelTab =
     storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
-  const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
@@ -361,7 +359,8 @@ export const Panel = memo(function Panel() {
   // Auto-select most recent on first list arrival per workflow, and drop a
   // selection that no longer matches anything in the current list (e.g. the
   // chat was deleted in another tab).
-  const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
+  const autoSelectAttemptedForRef = useRef<Set<string> | null>(null)
+  const autoSelectAttemptedFor = (autoSelectAttemptedForRef.current ??= new Set())
   useEffect(() => {
     // The list query is skipped when the tab is unavailable, so an empty list
     // there means "not fetched", not "deleted elsewhere" — clearing on it would
@@ -374,9 +373,9 @@ export const Panel = memo(function Panel() {
     }
 
     if (copilotChatId) return
-    if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
+    if (autoSelectAttemptedFor.has(activeWorkflowId)) return
     if (copilotChatList.length === 0) return
-    autoSelectAttemptedForRef.current.add(activeWorkflowId)
+    autoSelectAttemptedFor.add(activeWorkflowId)
     setCopilotChatId(copilotChatList[0].id)
   }, [copilotChatList, copilotChatId, activeWorkflowId, isCopilotTabAvailable, setCopilotChatId])
 

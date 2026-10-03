@@ -1,6 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
-  type Principal,
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
   toPrincipalActor,
@@ -16,10 +15,9 @@ import {
 } from '@/lib/chat-deployments/queries'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
-import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { performChatDeploy } from '@/lib/workflows/orchestration'
 import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
@@ -55,11 +53,6 @@ export interface DeployWorkflowChatInput {
   idempotencyKey?: string
 }
 
-export interface UndeployWorkflowChatInput {
-  workflowId: string
-  assertedWorkspaceId?: string
-}
-
 function parseChatOutputConfigs(value: unknown[] | undefined): ChatOutputConfig[] | undefined {
   if (value === undefined) return undefined
   if (
@@ -89,22 +82,9 @@ function parseChatOutputConfigs(value: unknown[] | undefined): ChatOutputConfig[
   return value
 }
 
-function resolveWorkflowContext<I extends { workflowId: string; assertedWorkspaceId?: string }>({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: I
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
-}
-
 export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.deployChat,
-  resolveContext: resolveWorkflowContext<DeployWorkflowChatInput>,
+  resolveContext: resolvePrincipalWorkflowContext<DeployWorkflowChatInput>,
   async execute({ principal, input, context }) {
     const existingDeployment = await getLiveChatDeploymentForWorkflow(context.workflowId)
 
@@ -253,46 +233,6 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
       isUpdate: result.isUpdate,
       hasOutputConfigs: result.outputConfigs.length > 0,
       hasCustomizations: Object.keys(result.customizations).length > 0,
-    },
-  }),
-})
-
-export const undeployWorkflowChat = defineAuthorizedWorkflowUseCase({
-  operation: workflowOperations.undeployChat,
-  resolveContext: resolveWorkflowContext<UndeployWorkflowChatInput>,
-  async execute({ principal, context }) {
-    const deployment = await getLiveChatDeploymentForWorkflow(context.workflowId)
-    if (!deployment) {
-      throw new OrchestrationError('not_found', 'No active chat deployment found for this workflow')
-    }
-
-    const attribution = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    })
-    const result = await performChatUndeploy({
-      chatId: deployment.id,
-      userId: attribution.attributedUserId,
-      workspaceId: context.workspaceId,
-      projectLegacyAudit: false,
-    })
-    if (!result.success) {
-      /** Only a genuinely absent deployment is concealed; anything else propagates. */
-      const message = result.error ?? 'Failed to undeploy chat'
-      if (result.errorCode !== 'not_found') throw new Error(message)
-      throw new OrchestrationError('not_found', message)
-    }
-    return { workflowId: context.workflowId, deployment: toChatDeploymentView(deployment) }
-  },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.CHAT_DELETED,
-    resourceType: AuditResourceType.CHAT,
-    resourceId: result.deployment.id,
-    resourceName: result.deployment.title || result.deployment.id,
-    description: `Deleted chat deployment "${result.deployment.title || result.deployment.id}"`,
-    metadata: {
-      workflowId: result.workflowId,
-      identifier: result.deployment.identifier || undefined,
-      authType: result.deployment.authType || undefined,
     },
   }),
 })

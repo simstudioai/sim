@@ -107,20 +107,20 @@ export function parseTableNode(frameNode: SafeXmlNode): TableNodeData {
   const base = parseBaseProps(frameNode)
   const tbl = findTable(frameNode)
 
-  // --- Column widths ---
+  // Column widths
   const tblGrid = tbl.child('tblGrid')
   const columns: number[] = []
   for (const gridCol of tblGrid.children('gridCol')) {
     columns.push(emuToPx(gridCol.numAttr('w') ?? 0))
   }
 
-  // --- Rows ---
+  // Rows
   const rows: TableRow[] = []
   for (const trNode of tbl.children('tr')) {
     rows.push(parseRow(trNode))
   }
 
-  // --- Table properties ---
+  // Table properties
   const tblPr = tbl.child('tblPr')
   const tableStyleId = extractTableStyleId(tblPr)
 

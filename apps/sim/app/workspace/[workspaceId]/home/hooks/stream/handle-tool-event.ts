@@ -1,5 +1,6 @@
 import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
+import { isDesktopApp } from '@/lib/desktop'
 import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
@@ -14,8 +15,11 @@ import {
   extractResourcesFromToolResult,
   isResourceToolName,
 } from '@/lib/mothership/resources/extraction'
-import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
+import {
+  isClientExecutedToolCall,
+  isDesktopExecutedToolCall,
+  isWorkflowToolName,
+} from '@/lib/mothership/tools/client-executed-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
@@ -188,56 +192,26 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   const name = payload.toolName
   const isPartial =
     payload.partial === true || payload.status === MothershipStreamV1ToolStatus.generating
-  if (isWorkflowToolName(name) && !isPartial) {
-    const shouldStartWorkflowTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartWorkflowTool) {
-      const args = payload.arguments as Record<string, unknown> | undefined
+  const args = payload.arguments as Record<string, unknown> | undefined
+  // Every client tailing the chat sees the call. A client without the desktop app leaves desktop
+  // tools to it: its answer could only be an error, and that error would beat the real result.
+  const shouldStartClientTool =
+    isClientExecutedToolCall(name, args) &&
+    (isDesktopApp() || !isDesktopExecutedToolCall(name, args)) &&
+    !isPartial &&
+    !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
+    node?.kind === 'tool' &&
+    node.status === 'running' &&
+    !node.result
+  if (shouldStartClientTool) {
+    if (isWorkflowToolName(name)) {
       deps.startClientWorkflowTool(rawId, name, args ?? {})
-    }
-  }
-  const localFilesystemArgs = payload.arguments as Record<string, unknown> | undefined
-  if ((isNativeFileTool(name) || isUserLocalVfsToolCall(name, localFilesystemArgs)) && !isPartial) {
-    const shouldStartLocalFilesystemTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartLocalFilesystemTool) {
-      deps.startClientLocalFilesystemTool(rawId, name, localFilesystemArgs ?? {})
-    }
-  }
-  if (isCurrentBrowserToolName(name) && !isPartial) {
-    const shouldStartBrowserTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartBrowserTool) {
-      deps.startClientBrowserTool(
-        rawId,
-        name,
-        (payload.arguments as Record<string, unknown> | undefined) ?? {},
-        parsed.ts
-      )
-    }
-  }
-  if (isTerminalToolName(name) && !isPartial) {
-    const shouldStartTerminalTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartTerminalTool) {
-      deps.startClientTerminalTool(
-        rawId,
-        name,
-        (payload.arguments as Record<string, unknown> | undefined) ?? {},
-        parsed.ts
-      )
+    } else if (isCurrentBrowserToolName(name)) {
+      deps.startClientBrowserTool(rawId, name, args ?? {}, parsed.ts)
+    } else if (isTerminalToolName(name)) {
+      deps.startClientTerminalTool(rawId, name, args ?? {}, parsed.ts)
+    } else {
+      deps.startClientLocalFilesystemTool(rawId, name, args ?? {})
     }
   }
   ops.flush()

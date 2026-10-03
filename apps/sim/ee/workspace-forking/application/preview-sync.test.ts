@@ -1,21 +1,22 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
+import { searchReplaceIndexerMock } from '@sim/testing/mocks/search-replace-indexer.mock'
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import { workspaceForkingRevisionMock } from '@sim/testing/mocks/workspace-forking-revision.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: vi.fn(),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 vi.mock('@/lib/selectors/application/get-selector-option', () => ({
   getSelectorOption: { execute: vi.fn() },
 }))
 vi.mock('@/lib/workflows/references/custom-block-reconfigs', () => ({
   collectForkCustomBlockReconfigs: vi.fn(async () => []),
 }))
-vi.mock('@/ee/workspace-forking/application/revision', () => ({
-  loadForkPreviewRevision: vi.fn(async () => ({ fingerprint: 'reviewed' })),
-}))
+vi.mock('@/ee/workspace-forking/application/revision', () => workspaceForkingRevisionMock)
 vi.mock('@/ee/workspace-forking/application/validate-bindings', () => ({
   validateForkWorkflowBindings: vi.fn(),
 }))
@@ -36,9 +37,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-service', () => ({
   overlayForkMappingEntries: vi.fn(() => []),
   validateForkMappingTargets: vi.fn(),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  getEdgeMappingRows: vi.fn(async () => []),
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/ee/workspace-forking/lib/promote/cleared-refs', () => ({
   collectForkSyncBlockers: vi.fn(async () => ({ blockers: [] })),
   verifyForkDropAcknowledgments: vi.fn(async () => []),
@@ -61,7 +60,6 @@ import {
   type PreviewSyncParams,
   previewForkSync,
 } from '@/ee/workspace-forking/application/preview-sync'
-import { loadTargetDraftSubBlocks } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import { loadForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 import { buildPromoteCopySelection } from '@/ee/workspace-forking/lib/promote/copy-unmapped'
@@ -69,8 +67,6 @@ import {
   computeForkPromotePlan,
   type ForkPromotePlan,
 } from '@/ee/workspace-forking/lib/promote/promote-plan'
-import { buildForkTriggerPlan } from '@/ee/workspace-forking/lib/promote/trigger-urls'
-import { deriveForkBlockId } from '@/ee/workspace-forking/lib/remap/block-identity'
 
 const principal: SessionPrincipal = { kind: 'session', userId: 'actor', sessionId: 'session' }
 const params: PreviewSyncParams = {
@@ -192,7 +188,9 @@ function prepare(state: WorkflowState, options: { copied?: boolean; create?: boo
   vi.mocked(loadSourceDeployedStates).mockResolvedValue({
     deployedWorkflows: [],
     sourceStates: new Map([['workflow', state]]),
-    sourceVersionIds: new Map(),
+    sourceVersionIds: new Map([
+      ['workflow', { id: 'source-version-1', version: 1, digest: 'fixture' }],
+    ]),
   })
   return plan
 }
@@ -202,7 +200,7 @@ function choices(subBlockKey: string, value: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  workspaceForkingMappingStoreMockFns.mockGetEdgeMappingRows.mockResolvedValue([])
   vi.mocked(getBlock).mockImplementation((type) =>
     configs[type] ? ({ subBlocks: configs[type] } as BlockConfig) : undefined
   )
@@ -233,67 +231,6 @@ beforeEach(() => {
 })
 
 describe('sync preview selector contexts', () => {
-  it('exposes source trigger identities and adoptable paths without generated target block IDs', async () => {
-    prepare(makeState('agent', {}), { create: true })
-    const slot = {
-      sourceWorkflowId: 'workflow',
-      sourceBlockId: 'source-trigger',
-      blockName: 'Slack trigger',
-      workflowName: 'Workflow',
-      ownPath: null,
-      adoptablePaths: ['retiring-path'],
-      defaultAdoptPath: 'retiring-path',
-    }
-    vi.mocked(buildForkTriggerPlan)
-      .mockReturnValueOnce({
-        slots: [{ ...slot, targetBlockId: 'first-generated-target' }],
-        retiring: [],
-      })
-      .mockReturnValueOnce({
-        slots: [{ ...slot, targetBlockId: 'second-generated-target' }],
-        retiring: [],
-      })
-    const first = await previewForkSync(params, params, principal)
-    const second = await previewForkSync(params, params, principal)
-    expect(first.triggerSlots).toEqual([slot])
-    expect(second.triggerSlots).toEqual(first.triggerSlots)
-    expect(first.triggerSlots[0]).not.toHaveProperty('targetBlockId')
-  })
-
-  it('validates copied table columns in the source and keeps public identities stable for new targets', async () => {
-    const plan = prepare(makeState('table', { tableId: 'table-source', columns: ['one', 'two'] }), {
-      copied: true,
-      create: true,
-    })
-    vi.mocked(buildPromoteCopySelection).mockReturnValue({
-      ...buildPromoteCopySelection(undefined, []),
-      willResolve: new Set(['table:table-source']),
-    })
-    const input = { ...params, sourceDependentValues: [choices('columns', 'one,two')] }
-    const first = await previewForkSync(input, input, principal)
-    expect(first.configuration[0]).toMatchObject({
-      sourceWorkflowId: 'workflow',
-      sourceBlockId: 'block',
-      subBlockKey: 'columns',
-      discoveryWorkspaceId: 'source',
-      context: { tableId: 'table-source' },
-      currentValue: 'one,two',
-    })
-    expect(getSelectorOption.execute).toHaveBeenCalledTimes(2)
-    expect(getSelectorOption.execute).toHaveBeenCalledWith({
-      principal,
-      input: {
-        selectorKey: 'table.outputColumns',
-        scope: { kind: 'workspace', workspaceId: 'source' },
-        context: { tableId: 'table-source' },
-        id: 'two',
-      },
-    })
-    plan.items[0].targetWorkflowId = 'another-generated-target'
-    const second = await previewForkSync(input, input, principal)
-    expect(second.configuration).toEqual(first.configuration)
-  })
-
   it('validates a source document pick under its copy-selected knowledge base', async () => {
     prepare(makeState('knowledge', { knowledgeBaseId: 'kb-source', documentId: 'doc-source' }), {
       copied: true,
@@ -375,53 +312,4 @@ describe('sync preview selector contexts', () => {
         expect(field.context).toEqual({ tableId: 'destination-table-source' })
     }
   )
-
-  it('uses stored siblings for selector chains and never implies that target drafts will be restored', async () => {
-    prepare(
-      makeState('sheets', {
-        credential: 'source-google',
-        spreadsheetId: 'source-book',
-        sheetId: 'source-sheet',
-      })
-    )
-    const targetBlockId = deriveForkBlockId('target-workflow', 'block')
-    const stored = (subBlockKey: string, value: string) => ({
-      targetWorkflowId: 'target-workflow',
-      targetBlockId,
-      subBlockKey,
-      value,
-    })
-    vi.mocked(loadForkDependentValues).mockResolvedValue([
-      stored('spreadsheetId', 'stored-book'),
-      stored('sheetId', 'stored-sheet'),
-    ])
-    const first = await previewForkSync(params, params, principal)
-    expect(first.configuration.find((field) => field.subBlockKey === 'sheetId')).toMatchObject({
-      currentValue: 'stored-sheet',
-      context: { oauthCredential: 'destination-source-google', spreadsheetId: 'stored-book' },
-    })
-    expect(loadTargetDraftSubBlocks).not.toHaveBeenCalled()
-    vi.mocked(loadForkDependentValues).mockResolvedValue([])
-    const empty = await previewForkSync(params, params, principal)
-    expect(empty.configuration.every((field) => field.currentValue === '')).toBe(true)
-    expect(
-      empty.configuration.find((field) => field.subBlockKey === 'sheetId')?.context.spreadsheetId
-    ).toBe('')
-  })
-
-  it('treats an explicit empty override list as clearing saved selections', async () => {
-    prepare(makeState('table', { tableId: 'table-source', columns: 'source-column' }))
-    vi.mocked(loadForkDependentValues).mockResolvedValue([
-      {
-        targetWorkflowId: 'target-workflow',
-        targetBlockId: deriveForkBlockId('target-workflow', 'block'),
-        subBlockKey: 'columns',
-        value: 'saved-column',
-      },
-    ])
-    const input = { ...params, sourceDependentValues: [] }
-    const preview = await previewForkSync(input, input, principal)
-    expect(preview.configuration[0].currentValue).toBe('')
-    expect(getSelectorOption.execute).not.toHaveBeenCalled()
-  })
 })

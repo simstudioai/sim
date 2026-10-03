@@ -12,6 +12,7 @@ import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
@@ -129,27 +130,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     // Create new workflow record
     const newWorkflowId = generateId()
-    const now = new Date()
     const dedupedName = await deduplicateWorkflowName(
       `[Debug Import] ${sourceWorkflow.name}`,
       targetWorkspaceId,
       null
     )
 
-    await db.insert(workflow).values({
-      id: newWorkflowId,
-      userId: session.user.id,
-      workspaceId: targetWorkspaceId,
-      folderId: null,
-      name: dedupedName,
-      description: sourceWorkflow.description,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false, // Never copy deployment status
-      runCount: 0,
-      variables: sourceWorkflow.variables || {},
-    })
+    await db.insert(workflow).values(
+      await buildNewWorkflowRow(db, {
+        id: newWorkflowId,
+        userId: session.user.id,
+        workspaceId: targetWorkspaceId,
+        folderId: null,
+        name: dedupedName,
+        description: sourceWorkflow.description,
+        variables: sourceWorkflow.variables || {},
+      })
+    )
 
     // Save using existing persistence logic
     const saveResult = await saveWorkflowToNormalizedTables(newWorkflowId, importedData, {

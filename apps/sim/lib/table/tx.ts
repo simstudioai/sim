@@ -5,7 +5,7 @@
  * directly from `@/lib/table/tx`.
  */
 
-import { sql } from 'drizzle-orm'
+import { type SQL, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/table/planner'
 
 const TIMEOUT_CAP_MS = 10 * 60_000
@@ -28,19 +28,29 @@ const TIMEOUT_CAP_MS = 10 * 60_000
  * Safe under pgBouncer transaction pooling — the settings are transaction-scoped and cleared at
  * COMMIT/ROLLBACK before the session returns to the pool.
  */
-export async function setTableTxTimeouts(
-  trx: DbTransaction,
-  opts?: { statementMs?: number; lockMs?: number; idleMs?: number }
-) {
+export async function setTableTxTimeouts(trx: DbTransaction, opts?: TableTxTimeouts) {
+  await trx.execute(sql`select ${tableTxTimeoutSettings(opts)}`)
+}
+
+/** Per-transaction timeouts, in milliseconds. See {@link setTableTxTimeouts}. */
+export interface TableTxTimeouts {
+  statementMs?: number
+  lockMs?: number
+  idleMs?: number
+}
+
+/**
+ * The `set_config` calls {@link setTableTxTimeouts} runs, for a statement that applies them
+ * alongside its own work.
+ */
+export function tableTxTimeoutSettings(opts?: TableTxTimeouts): SQL {
   const s = opts?.statementMs ?? 10_000
   const l = opts?.lockMs ?? 3_000
   const i = opts?.idleMs ?? 5_000
-  await trx.execute(sql`
-    select
+  return sql`
       set_config('statement_timeout', ${`${s}ms`}, true),
       set_config('lock_timeout', ${`${l}ms`}, true),
-      set_config('idle_in_transaction_session_timeout', ${`${i}ms`}, true)
-  `)
+      set_config('idle_in_transaction_session_timeout', ${`${i}ms`}, true)`
 }
 
 /**

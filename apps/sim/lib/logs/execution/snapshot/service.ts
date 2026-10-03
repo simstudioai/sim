@@ -4,97 +4,102 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, lt, notExists, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { consumeRowBudget, type RowBudget } from '@/lib/cleanup/batch-delete'
-import type {
-  SnapshotService as ISnapshotService,
-  SnapshotCreationResult,
-  WorkflowExecutionSnapshot,
-  WorkflowExecutionSnapshotInsert,
-  WorkflowState,
-} from '@/lib/logs/types'
+import type { WorkflowState } from '@/lib/logs/types'
 import { normalizedStringify, normalizeWorkflowState } from '@/lib/workflows/comparison'
 
 const logger = createLogger('SnapshotService')
 
-export class SnapshotService implements ISnapshotService {
-  async createSnapshot(
-    workflowId: string,
-    state: WorkflowState
-  ): Promise<WorkflowExecutionSnapshot> {
-    const result = await this.createSnapshotWithDeduplication(workflowId, state)
-    return result.snapshot
-  }
+const SNAPSHOT_ID_CACHE_MAX_ENTRIES = 1000
+const SNAPSHOT_ID_CACHE_TTL_MS = 5 * 60 * 1000
 
-  async createSnapshotWithDeduplication(
+/**
+ * Remembers which row holds a workflow's snapshot for a state hash, so repeat runs
+ * of an unchanged workflow neither look it up nor ship its (often hundreds of KB)
+ * state to the database. Only ids a log row was just inserted against are
+ * remembered: orphan cleanup deletes only unreferenced snapshots, so a referenced id
+ * stays valid for the entry's lifetime. A caller that still hits a missing row
+ * resolves again with `{ fresh: true }`.
+ */
+const snapshotIdCache = new LRUCache<string, string>({
+  max: SNAPSHOT_ID_CACHE_MAX_ENTRIES,
+  ttl: SNAPSHOT_ID_CACHE_TTL_MS,
+})
+
+/** The snapshot row holding one workflow's state, identified by the state's hash. */
+export interface ResolvedSnapshot {
+  id: string
+  workflowId: string
+  stateHash: string
+}
+
+const snapshotCacheKey = ({ workflowId, stateHash }: Omit<ResolvedSnapshot, 'id'>) =>
+  `${workflowId}:${stateHash}`
+
+export class SnapshotService {
+  /**
+   * Resolves the snapshot row holding `state` for `workflowId`, creating the row
+   * only when no identical state (same normalized hash) is stored yet.
+   */
+  async resolveSnapshot(
     workflowId: string,
-    state: WorkflowState
-  ): Promise<SnapshotCreationResult> {
+    state: WorkflowState,
+    options: { fresh?: boolean } = {}
+  ): Promise<ResolvedSnapshot> {
     const stateHash = this.computeStateHash(state)
-
-    const snapshotData: WorkflowExecutionSnapshotInsert = {
-      id: generateId(),
-      workflowId,
-      stateHash,
-      stateData: state,
+    if (!options.fresh) {
+      const cachedId = snapshotIdCache.get(snapshotCacheKey({ workflowId, stateHash }))
+      if (cachedId) return { id: cachedId, workflowId, stateHash }
     }
 
-    /**
-     * Insert the snapshot, or — when an identical (workflowId, stateHash) row
-     * already exists — return it without rewriting the large stateData jsonb.
-     *
-     * The hash is a sha256 of the normalized state, so an existing row's stateData
-     * is byte-identical; there is nothing to update. The previous implementation
-     * SET state_data on conflict, which rewrote the full (tens-of-KB) jsonb every
-     * run. We keep a single atomic upsert — so RETURNING always yields the row and
-     * there is no race with snapshot cleanup (unlike DO NOTHING + a follow-up
-     * select) — but SET only the small state_hash column to itself. Under Postgres
-     * MVCC the unchanged, TOASTed stateData is not rewritten: its existing
-     * out-of-line storage is reused, so the per-execution write drops from the
-     * full blob to a tiny heap tuple.
-     */
-    const [upsertedSnapshot] = await dbFor('exec')
-      .insert(workflowExecutionSnapshots)
-      .values(snapshotData)
-      .onConflictDoUpdate({
-        target: [workflowExecutionSnapshots.workflowId, workflowExecutionSnapshots.stateHash],
-        set: {
-          stateHash: sql`excluded.state_hash`,
-        },
-      })
-      .returning()
-
-    const isNew = upsertedSnapshot.id === snapshotData.id
-
-    logger.info(
-      isNew
-        ? `Created new snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}..., blocks: ${Object.keys(state.blocks || {}).length})`
-        : `Reusing existing snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}...)`
-    )
-
-    return {
-      snapshot: {
-        ...upsertedSnapshot,
-        stateData: upsertedSnapshot.stateData as WorkflowState,
-        createdAt: upsertedSnapshot.createdAt.toISOString(),
-      },
-      isNew,
-    }
-  }
-
-  async getSnapshot(id: string): Promise<WorkflowExecutionSnapshot | null> {
-    const [snapshot] = await dbFor('exec')
-      .select()
+    const [existing] = await dbFor('exec')
+      .select({ id: workflowExecutionSnapshots.id })
       .from(workflowExecutionSnapshots)
-      .where(eq(workflowExecutionSnapshots.id, id))
+      .where(
+        and(
+          eq(workflowExecutionSnapshots.workflowId, workflowId),
+          eq(workflowExecutionSnapshots.stateHash, stateHash)
+        )
+      )
       .limit(1)
 
-    if (!snapshot) return null
+    const id = existing?.id ?? (await this.insertSnapshot(workflowId, stateHash, state))
+    return { id, workflowId, stateHash }
+  }
 
-    return {
-      ...snapshot,
-      stateData: snapshot.stateData as WorkflowState,
-      createdAt: snapshot.createdAt.toISOString(),
-    }
+  /** Remembers a snapshot once a log row referencing it has been inserted. */
+  rememberReferencedSnapshot(snapshot: ResolvedSnapshot): void {
+    snapshotIdCache.set(snapshotCacheKey(snapshot), snapshot.id)
+  }
+
+  /**
+   * Inserts the snapshot, or — when a concurrent run stored the identical
+   * (workflowId, stateHash) row first — returns that row's id without rewriting it.
+   *
+   * The hash is a sha256 of the normalized state, so an existing row's stateData is
+   * byte-identical; there is nothing to update. SET touches only the small
+   * state_hash column so the upsert still RETURNs the row's id, while the unchanged,
+   * TOASTed stateData keeps its existing out-of-line storage.
+   */
+  private async insertSnapshot(
+    workflowId: string,
+    stateHash: string,
+    state: WorkflowState
+  ): Promise<string> {
+    const [row] = await dbFor('exec')
+      .insert(workflowExecutionSnapshots)
+      .values({ id: generateId(), workflowId, stateHash, stateData: state })
+      .onConflictDoUpdate({
+        target: [workflowExecutionSnapshots.workflowId, workflowExecutionSnapshots.stateHash],
+        set: { stateHash: sql`excluded.state_hash` },
+      })
+      .returning({ id: workflowExecutionSnapshots.id })
+
+    logger.info(
+      `Stored snapshot for workflow ${workflowId} (hash: ${stateHash.slice(0, 12)}..., blocks: ${Object.keys(state.blocks || {}).length})`
+    )
+    return row.id
   }
 
   computeStateHash(state: WorkflowState): string {

@@ -299,7 +299,6 @@ export function KnowledgeTagFilters({
     )
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       cellKey,
-      fieldValue,
       (newValue) => handleTagDropdownSelection(filter.id, field, newValue)
     )
 

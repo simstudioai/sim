@@ -237,13 +237,11 @@ export class SlackSearchAssistantStream {
       if (!existing || existing.chunk.status !== 'in_progress') return
       if (existing.toolName !== payload.toolName)
         throw new Error('Slack tool progress identity changed')
-      chunk = {
-        ...existing.chunk,
-        status:
-          payload.success && (!payload.status || payload.status === 'success')
-            ? 'complete'
-            : 'error',
-      }
+      /**
+       * The agent recovers from individual tool failures, and Slack collapses a timeline with any
+       * errored task under "Something went wrong"; only an interrupted answer reports an error.
+       */
+      chunk = { ...existing.chunk, status: 'complete' }
     }
     this.toolProgress.set(payload.toolCallId, { toolName: payload.toolName, chunk })
     /** Existing task updates can be delivered without waiting for preceding answer text. */

@@ -277,7 +277,7 @@ export async function executeWorkflowJob(
           timeoutController.isTimedOut() &&
           timeoutController.timeoutMs
         ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           logger.info(`[${requestId}] Workflow execution timed out`, {
             timeoutMs: timeoutController.timeoutMs,
           })

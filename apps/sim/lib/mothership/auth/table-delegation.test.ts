@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { createCopilotChatTablePrincipal } from '@/lib/mothership/auth/table-delegation'
 import { tableDelegationPolicy } from '@/lib/table/application/authorization'

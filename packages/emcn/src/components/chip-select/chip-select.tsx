@@ -89,8 +89,8 @@ interface ChipSelectBaseProps {
   className?: string
   /** Forwarded to the menu content. */
   contentClassName?: string
-  /** A filled form/filter control, a primary action, or a bare round toolbar picker. */
-  variant?: 'filled' | 'primary' | 'ghost'
+  /** A filled or outlined form/filter control, a primary action, or a bare round toolbar picker. */
+  variant?: 'filled' | 'outline' | 'primary' | 'ghost'
   /** Reports menu visibility, for example to hide a tooltip while its menu is open. */
   onOpenChange?: (open: boolean) => void
   /** Optional leading trigger icon. */

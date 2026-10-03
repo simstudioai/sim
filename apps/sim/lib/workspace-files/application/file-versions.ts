@@ -15,6 +15,11 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import {
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+  workspaceFileSecretProvenanceFromSnapshot,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
   getWorkspaceFileVersionProvenance,
@@ -29,6 +34,10 @@ import {
   type DownloadWorkspaceFileStreamResult,
   streamWorkspaceFileRecord,
 } from '@/lib/workspace-files/application/download-workspace-file'
+import {
+  hasWorkspaceFileDeliveryObserver,
+  reportWorkspaceFileDelivery,
+} from '@/lib/workspace-files/application/file-delivery-observer'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -110,6 +119,23 @@ async function loadVersion(
   return record
 }
 
+async function readVersionSecretProvenance(
+  file: WorkspaceFileRecord,
+  version: WorkspaceFileVersionRecord
+): Promise<WorkspaceFileSecretProvenance | undefined> {
+  if (!hasWorkspaceFileDeliveryObserver()) return undefined
+  if (version.isCurrent) {
+    return getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
+      fileId: file.id,
+      key: file.key,
+      context: file.storageContext ?? 'workspace',
+      contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+    })
+  }
+  const snapshot = await getWorkspaceFileVersionProvenance(file.id, version.version, version.key)
+  return snapshot ? workspaceFileSecretProvenanceFromSnapshot(snapshot) : { status: 'unknown' }
+}
+
 /**
  * Runs a read of a version's stored object, answering 404 when the object is gone — retention or a
  * delete can remove a superseded version between loading its row and reading its bytes.
@@ -182,8 +208,15 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
     const fileAtVersion = recordAtVersion(file, version)
+    const secretProvenance = await readVersionSecretProvenance(file, version)
     const result = await readVersionObject(version.version, () =>
-      extractWorkspaceFileRecordText(fileAtVersion, input, principal, request?.signal)
+      extractWorkspaceFileRecordText(
+        fileAtVersion,
+        input,
+        principal,
+        request?.signal,
+        secretProvenance
+      )
     )
     return { ...result, file: fileAtVersion, version }
   },
@@ -196,6 +229,7 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
   async execute({ input, context, principal }): Promise<DownloadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
+    await reportWorkspaceFileDelivery(await readVersionSecretProvenance(file, version))
     const result = await readVersionObject(version.version, () =>
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )

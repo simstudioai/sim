@@ -62,6 +62,7 @@ import {
   migratePanelScope,
   panelUpdateAllowed,
   panelWindow,
+  setAgentView,
 } from '@/main/browser-agent/panel'
 import {
   agentAppOrigin,
@@ -71,6 +72,10 @@ import {
   registerAgentWebContents,
 } from '@/main/browser-agent/registry'
 import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
+import {
+  keepSessionCookiesAcrossRestarts,
+  withSessionCookieLifetime,
+} from '@/main/browser-agent/session-cookies'
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
@@ -114,6 +119,8 @@ export interface AgentTab {
   lastRealUserGestureAt?: number
   /** The tab whose page opened this one; agent work returns there when this tab closes. */
   openerTabId?: string
+  /** A user action asked for this page to take focus once it is on screen. */
+  pendingUserFocus?: boolean
 }
 
 interface PendingMediaPermission {
@@ -206,7 +213,13 @@ const FOREGROUND_TAB_RESTORE_TIMEOUT_MS = 20_000
 const MEDIA_PERMISSION_GESTURE_WINDOW_MS = 10_000
 const MEDIA_PERMISSION_PROMPT_TIMEOUT_MS = 30_000
 
-export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab' | 'find'
+export type BrowserShortcut =
+  | 'focus-omnibox'
+  | 'new-tab'
+  | 'close-tab'
+  | 'find'
+  | 'reload'
+  | 'hard-reload'
 
 type BrowserShortcutInput = Pick<
   Input,
@@ -215,25 +228,32 @@ type BrowserShortcutInput = Pick<
 
 /**
  * Resolves browser-level shortcuts using Command on macOS and Control
- * elsewhere. Modified/composing/repeated keystrokes stay with the page.
+ * elsewhere. Alt, composing, and repeated keystrokes stay with the page.
+ *
+ * Reload resolves here, from the page's own keystroke, rather than through the
+ * application menu: the menu can only guess which surface owns focus, and a
+ * wrong guess reloads all of Sim instead of the page.
  */
 export function browserShortcutForInput(
   input: BrowserShortcutInput,
   platform: NodeJS.Platform = process.platform
 ): BrowserShortcut | null {
-  if (
-    input.type !== 'keyDown' ||
-    input.isAutoRepeat ||
-    input.isComposing ||
-    input.shift ||
-    input.alt
-  ) {
+  if (input.type !== 'keyDown' || input.isAutoRepeat || input.isComposing || input.alt) {
     return null
   }
   const primaryModifier = platform === 'darwin' ? input.meta : input.control
-  if (!primaryModifier) return null
+  const otherModifier = platform === 'darwin' ? input.control : input.meta
 
-  switch (input.key.toLowerCase()) {
+  if (input.key === 'F5' && !otherModifier) {
+    if (input.shift || input.control) return 'hard-reload'
+    return input.meta ? null : 'reload'
+  }
+  if (!primaryModifier || otherModifier) return null
+
+  const key = input.key.toLowerCase()
+  if (key === 'r') return input.shift ? 'hard-reload' : 'reload'
+  if (input.shift) return null
+  switch (key) {
     case 'l':
       return 'focus-omnibox'
     case 't':
@@ -261,6 +281,12 @@ interface BrowserScopeState {
   lastPersistedSnapshot: string | null
   focusedBrowserTabId: string | null
   focusedBrowserClearTimer: ReturnType<typeof setTimeout> | null
+  /**
+   * Renderer-drawn browser chrome (omnibox, toolbar, a New Tab or error page)
+   * owns the user's interaction. Those surfaces hide the native page, so this
+   * is the only evidence the Browser is the shortcut target while they show.
+   */
+  browserChromeFocused: boolean
   automationActive: boolean
   automationNeedsAttention: boolean
   /**
@@ -288,6 +314,7 @@ function createBrowserScopeState(): BrowserScopeState {
     lastPersistedSnapshot: null,
     focusedBrowserTabId: null,
     focusedBrowserClearTimer: null,
+    browserChromeFocused: false,
     automationActive: false,
     automationNeedsAttention: false,
     findingTabId: null,
@@ -1034,6 +1061,10 @@ export function initSession(
       if (!scopeId) return
       withBrowserScope(scopeId, restoreBrowserSession)
     },
+    onViewShown: (view) => {
+      const scopeId = browserScopeIdForView(view)
+      if (scopeId) withBrowserScope(scopeId, () => applyPendingUserFocus(view))
+    },
     onViewDetached: (view) => {
       if (!view) return
       const scopeId = browserScopeIdForView(view)
@@ -1326,17 +1357,19 @@ export async function listAgentCookieSignals(): Promise<BrowserCookieSignal[]> {
  * here and is counted rather than being quietly relaxed.
  *
  * Failures are per-cookie: one rejected cookie must not cost the user the
- * rest. Nothing about a cookie is logged.
+ * rest. Nothing about a cookie is logged. Session cookies get the bounded
+ * lifetime from {@link withSessionCookieLifetime} so they survive a restart.
  */
 export async function importAgentCookies(
   cookies: CookiesSetDetails[]
 ): Promise<{ imported: number; failed: number }> {
   const jar = electronSession.fromPartition(AGENT_PARTITION).cookies
+  const nowSeconds = Date.now() / 1000
   let imported = 0
   let failed = 0
   for (const cookie of cookies) {
     try {
-      await jar.set(cookie)
+      await jar.set(withSessionCookieLifetime(cookie, nowSeconds))
       imported += 1
     } catch {
       failed += 1
@@ -1593,6 +1626,7 @@ const browserPermissions: BrowserPermissionHandlers = {
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
+  keepSessionCookiesAcrossRestarts(ses)
   ses.setPermissionRequestHandler(browserPermissions.request)
   ses.setPermissionCheckHandler(browserPermissions.check)
   ses.webRequest.onBeforeRequest((details, callback) => {
@@ -1807,6 +1841,29 @@ function configureBrowserDownloads(ses: Session): void {
   })
 }
 
+/**
+ * Hands keyboard focus to a page the user just navigated or opened, the way
+ * Chrome focuses the content after an omnibox Enter. Tab views never focus
+ * themselves on navigation, so this is the only path that moves focus into a
+ * page. A view that is not on screen yet takes focus when it is first shown.
+ */
+export function focusPageForUser(contents: WebContents): void {
+  const tab = tabForContents(contents)
+  if (!tab) return
+  tab.pendingUserFocus = true
+  applyPendingUserFocus(tab.view)
+}
+
+function applyPendingUserFocus(view: WebContentsView): void {
+  const tab = activeTab()
+  if (!tab?.pendingUserFocus || tab.view !== view || view.webContents.isDestroyed()) return
+  // A renderer modal can hide the view while the panel keeps its bounds.
+  if (!view.getVisible() || !isPanelVisible()) return
+  if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
+  tab.pendingUserFocus = false
+  view.webContents.focus()
+}
+
 function focusRendererOmnibox(mode: BrowserOmniboxFocusMode): void {
   if (getBrowserScopeId() !== getActiveBrowserScopeId()) return
   const win = panelWindow()
@@ -1822,7 +1879,18 @@ function tabForContents(contents: WebContents): AgentTab | null {
 function publishPageIssue(tab: AgentTab, focusRecovery = false): void {
   events?.onTabsChanged()
   if (tab.id !== currentScope.activeTabId) return
-  if (focusRecovery && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
+  // Recovery moves focus to the renderer's issue page only when the failed page
+  // held it; the user typing in chat keeps their caret.
+  const pageHadFocus =
+    !currentScope.browserChromeFocused &&
+    (currentScope.focusedBrowserTabId === tab.id ||
+      (!tab.view.webContents.isDestroyed() && tab.view.webContents.isFocused()))
+  if (
+    focusRecovery &&
+    pageHadFocus &&
+    getBrowserScopeId() === getActiveBrowserScopeId() &&
+    isPanelVisible()
+  ) {
     const win = panelWindow()
     if (win && !win.isDestroyed()) win.webContents.focus()
   }
@@ -1942,6 +2010,22 @@ export function reloadPage(contents: WebContents): void {
     return
   }
   contents.reload()
+}
+
+/**
+ * Reloads past the HTTP cache, the browser's Shift-reload. A failed or hung
+ * page takes the plain reload's recovery instead: a load error retries the
+ * URL that failed, which need not be the committed page, and a hung renderer
+ * must be restarted, since reloading it in place waits on the hung page.
+ */
+function hardReloadPage(contents: WebContents): void {
+  const issue = tabForContents(contents)?.pageIssue
+  if (issue?.kind === 'load-error' || issue?.kind === 'unresponsive') {
+    reloadPage(contents)
+    return
+  }
+  prepareExplicitNavigation(contents)
+  contents.reloadIgnoringCache()
 }
 
 /** Hands one page selection to the exact app window and chat hosting its tab. */
@@ -2079,10 +2163,10 @@ function adoptPopupTab(
   opener: WebContents,
   url: string,
   popup: PopupWindowOptions,
-  agentOwned: boolean
+  { agentOwned, background }: { agentOwned: boolean; background: boolean }
 ): WebContents {
   const openerTabId = tabForContents(opener)?.id
-  const tab = agentOwned ? addAutomationTab(url, popup) : addTab(url, popup)
+  const tab = openLinkTab(url, { agentOwned, background }, popup)
   tab.openerTabId = openerTabId
   const contents = tab.view.webContents
   // A background-tab disposition defers creation, so Chromium supplies no contents to adopt.
@@ -2091,15 +2175,37 @@ function adoptPopupTab(
 }
 
 /**
+ * Creates the tab a link opens. The user's Cmd/middle-click keeps their page
+ * in front, as in Chrome; a foreground tab the user opened takes focus.
+ */
+function openLinkTab(
+  url: string,
+  { agentOwned, background }: { agentOwned: boolean; background: boolean },
+  popup?: PopupWindowOptions
+): AgentTab {
+  if (agentOwned) return addAutomationTab(url, popup)
+  if (background) {
+    restoreBrowserSession()
+    return addTabInternal({ activate: false, url, popup })
+  }
+  const tab = addTab(url, popup)
+  focusPageForUser(tab.view.webContents)
+  return tab
+}
+
+/**
  * Opens a link from a page in another tab of this browser. Shared by the
  * window.open interception and the page's right-click menu — both have to stay
  * inside the browser resource rather than spawn a native window, and both are
  * reached from an untrusted page, so the scheme is checked here once.
  */
-function openTabWithUrl(url: string, { agentOwned }: { agentOwned: boolean }): void {
+function openTabWithUrl(
+  url: string,
+  { agentOwned, background = false }: { agentOwned: boolean; background?: boolean }
+): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const tab = agentOwned ? addAutomationTab(url) : addTab(url)
+    const tab = openLinkTab(url, { agentOwned, background })
     void tab.view.webContents.loadURL(url).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
@@ -2155,8 +2261,12 @@ function createFreshTabView(appSession: BrowserAppSession | undefined): WebConte
       preload: join(__dirname, 'browser-preload.cjs'),
       // Throttled by default: a hidden tab should idle. The one exception is
       // the active tab while a tool waits on it, applied explicitly by
-      // applyActiveTabThrottling — never blanket across every tab.
+      // applyAutomationTabPolicy — never blanket across every tab.
       backgroundThrottling: true,
+      // Electron focuses a page on every main-frame commit, even a hidden
+      // agent tab, which steals the caret from chat. Focus follows explicit
+      // user actions instead (see focusPageForUser).
+      focusOnNavigation: false,
       spellcheck: false,
       // The default every origin this tab visits starts at; a per-origin zoom
       // the user sets from the page menu still wins and still persists.
@@ -2201,7 +2311,8 @@ function initializeTabView(
   registerAgentNavigation(contents, routeNavigation)
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false })),
+    openTab: (url) =>
+      withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false, background: true })),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
 
@@ -2213,7 +2324,38 @@ function initializeTabView(
         currentScope.focusedBrowserClearTimer = null
       }
       const tab = tabs.find((entry) => entry.view.webContents === contents)
-      currentScope.focusedBrowserTabId = tab?.id ?? currentScope.activeTabId
+      // A tab the user cannot see never keeps keyboard focus. Chromium focuses
+      // a page opened without an opener (a target=_blank link) while creating
+      // it, before the tab is even listed. Hand focus back to the visible page
+      // the user was in, or else to Sim, once that focus call has returned, or
+      // Chromium finishes it over the top.
+      if (!tab || tab.id !== currentScope.activeTabId) {
+        const active = activeTab()
+        const returnTo =
+          active &&
+          !currentScope.browserChromeFocused &&
+          currentScope.focusedBrowserTabId === active.id
+            ? active
+            : null
+        setImmediate(
+          bindToBrowserScope(scopeId, () => {
+            const current = tabs.find((entry) => entry.view.webContents === contents)
+            const win = panelWindow()
+            if (current?.id === currentScope.activeTabId || !win || win.isDestroyed()) return
+            if (contents.isDestroyed() || !contents.isFocused()) return
+            if (
+              returnTo?.id === currentScope.activeTabId &&
+              !returnTo.view.webContents.isDestroyed()
+            ) {
+              returnTo.view.webContents.focus()
+            } else {
+              win.webContents.focus()
+            }
+          })
+        )
+        return
+      }
+      currentScope.focusedBrowserTabId = tab.id
     })
   )
   contents.on(
@@ -2262,16 +2404,20 @@ function initializeTabView(
   contents.setWindowOpenHandler((details) =>
     withBrowserScope(scopeId, () => {
       const agentOwned = agentOwnsPopupFrom(contents)
+      const background = details.disposition === 'background-tab'
       if (!canAdoptPopup(contents, details.url)) {
-        openTabWithUrl(details.url, { agentOwned })
+        openTabWithUrl(details.url, { agentOwned, background })
         return { action: 'deny' }
       }
       return {
         action: 'allow',
         outlivesOpener: true,
+        // A popup's contents are created by Chromium from these preferences, not
+        // from createFreshTabView, so they must opt out of navigation focus here.
+        overrideBrowserWindowOptions: { webPreferences: { focusOnNavigation: false } },
         createWindow: (options) =>
           withBrowserScope(scopeId, () =>
-            adoptPopupTab(contents, details.url, options, agentOwned)
+            adoptPopupTab(contents, details.url, options, { agentOwned, background })
           ),
       }
     })
@@ -2357,6 +2503,14 @@ function initializeTabView(
       if (shortcut === 'new-tab') {
         addTab()
         focusRendererOmnibox('clear')
+        return
+      }
+      if (shortcut === 'reload') {
+        reloadPage(contents)
+        return
+      }
+      if (shortcut === 'hard-reload') {
+        hardReloadPage(contents)
         return
       }
 
@@ -2476,7 +2630,7 @@ export function hasSession(): boolean {
 export function setAutomationActive(active: boolean): void {
   if (currentScope.automationActive === active) return
   currentScope.automationActive = active
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   events?.onTabsChanged()
 }
 
@@ -2487,25 +2641,26 @@ export function setAutomationNeedsAttention(needsAttention: boolean): void {
 }
 
 /**
- * Unthrottles the active tab while automation is active, and throttles every
- * other tab. Call after anything that changes which tab is active, so the
- * exemption follows the active tab rather than being stranded on the old one.
- */
-/**
  * Re-applies the tab throttling policy after a caller temporarily suspended it
  * (the panel's reveal pulse). Exempts the automation-active tab exactly as the
  * internal policy does.
  */
 export function reassertTabThrottling(): void {
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
 }
 
-function applyActiveTabThrottling(): void {
+/**
+ * Unthrottles the automation tab while automation is active, throttles every other tab, and
+ * keeps the automation tab composited while no panel shows it. Call after anything that changes
+ * which tab the agent drives, so neither follows a stale tab.
+ */
+function applyAutomationTabPolicy(): void {
   for (const tab of tabs) {
     if (tab.view.webContents.isDestroyed()) continue
     const exempt = currentScope.automationActive && tab.id === currentScope.automationTabId
     tab.view.webContents.setBackgroundThrottling(!exempt)
   }
+  setAgentView(getBrowserScopeId(), automationTab()?.view ?? null)
 }
 
 /** A closed target must not transfer its activity marker to a replacement tab. */
@@ -2643,7 +2798,7 @@ function addTabInternal({
       revokeTabMediaPermissions(previousActiveTab, false)
     }
     currentScope.activeTabId = tab.id
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     if (!currentScope.restoring) layout()
     if (transferBrowserFocus) currentScope.focusedBrowserTabId = tab.id
     if (notify && !currentScope.restoring) events?.onActiveTabChanged(tab.view.webContents)
@@ -2923,7 +3078,7 @@ export function tabForNavigation(
     detachIfAttached(tab.view)
     tab.view = view
     contents.close()
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     layout()
     events?.onActiveTabChanged(view.webContents)
     return view.webContents
@@ -3058,13 +3213,13 @@ export function restoreBrowserSession(): void {
     state.lastPersistedSnapshot = previousState.lastPersistedSnapshot
     if (previousDownloads) browserDownloadsByScope.set(scopeId, previousDownloads)
     else browserDownloadsByScope.delete(scopeId)
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     throw error
   } finally {
     state.restoring = false
   }
 
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   const restoredActive = restoredLoads.find(({ tab }) => tab.id === state.activeTabId)
   if (restoredActive) {
     pendingForegroundTabRestores.push(
@@ -3099,7 +3254,7 @@ export function addAutomationTab(url?: string, popup?: PopupWindowOptions): Agen
   restoreBrowserSession()
   const tab = addTabInternal({ activate: false, notify: false, url, popup })
   currentScope.automationTabId = tab.id
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   persistBrowserSession()
   events?.onTabsChanged()
   return tab
@@ -3113,7 +3268,7 @@ export function ensureAutomationTab(): AgentTab {
   tab = activeTab()
   if (tab) {
     currentScope.automationTabId = tab.id
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
     events?.onTabsChanged()
     return tab
   }
@@ -3168,13 +3323,14 @@ export function switchTab(tabId: string, { claim = true }: { claim?: boolean } =
   const previousActiveTab = activeTab()
   if (previousActiveTab && previousActiveTab.id !== tab.id) {
     revokeTabMediaPermissions(previousActiveTab, false)
+    previousActiveTab.pendingUserFocus = false
   }
   currentScope.activeTabId = tab.id
   if (claim) currentScope.visibleTabUserSelected = true
   promotePendingTabRestore(tab)
   // Visible selection does not move the automation exemption; the user may
   // inspect another page while a tool continues in its background tab.
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   layout()
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = tab.id
   persistBrowserSession()
@@ -3189,7 +3345,7 @@ export function switchAutomationTab(tabId: string): AgentTab {
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   currentScope.automationTabId = tab.id
-  applyActiveTabThrottling()
+  applyAutomationTabPolicy()
   events?.onTabsChanged()
   return tab
 }
@@ -3271,7 +3427,7 @@ function removeTab(
     const opener = tabs.find((entry) => entry.id === tab.openerTabId)
     currentScope.automationTabId =
       opener?.id ?? (adoptNeighborForAgent ? ((tabs[index] ?? tabs[index - 1])?.id ?? null) : null)
-    applyActiveTabThrottling()
+    applyAutomationTabPolicy()
   }
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
   persistBrowserSession()
@@ -3293,9 +3449,9 @@ export function closeAutomationTab(tabId: string): void {
 
 /** The live page whose browser surface owns a menu accelerator. */
 function focusedTabForShortcut(ownerWindow?: BrowserWindow | null): AgentTab | null {
-  if (!isPanelVisible() || !panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) {
-    return null
-  }
+  if (!panelUpdateAllowed(ownerWindow ?? undefined, getBrowserScopeId())) return null
+  if (currentScope.browserChromeFocused) return activeTab()
+  if (!isPanelVisible()) return null
   return (
     tabs.find(
       (tab) =>
@@ -3371,8 +3527,13 @@ export function handleFocusedShortcut(
       reloadPage(shortcutTab.view.webContents)
       return true
     case 'hard-reload':
-      prepareExplicitNavigation(shortcutTab.view.webContents)
-      shortcutTab.view.webContents.reloadIgnoringCache()
+      hardReloadPage(shortcutTab.view.webContents)
+      return true
+    case 'back':
+      goBack(shortcutTab.view.webContents)
+      return true
+    case 'forward':
+      goForward(shortcutTab.view.webContents)
       return true
   }
 
@@ -3395,9 +3556,22 @@ export function setPanelFocused(
   withBrowserScope(scopeId, () => {
     if (!panelUpdateAllowed(ownerWindow, getBrowserScopeId())) return
     if (!focused) {
+      currentScope.browserChromeFocused = false
+      for (const tab of tabs) tab.pendingUserFocus = false
+      // The renderer reports losing focus when the user clicks into the native
+      // page too; that page's own focus claim must survive the report.
+      const claimed = tabs.find((tab) => tab.id === currentScope.focusedBrowserTabId)
+      if (
+        claimed &&
+        !claimed.view.webContents.isDestroyed() &&
+        claimed.view.webContents.isFocused()
+      ) {
+        return
+      }
       clearFocusedBrowserTab()
       return
     }
+    currentScope.browserChromeFocused = true
     if (currentScope.focusedBrowserClearTimer !== null) {
       clearTimeout(currentScope.focusedBrowserClearTimer)
       currentScope.focusedBrowserClearTimer = null

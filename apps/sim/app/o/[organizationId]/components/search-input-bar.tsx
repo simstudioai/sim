@@ -121,7 +121,7 @@ export function SearchInputBar({
           />
         }
       />
-      <div aria-hidden className='pointer-events-none absolute h-0 w-0 overflow-hidden'>
+      <div aria-hidden className='pointer-events-none absolute size-0 overflow-hidden'>
         <span ref={textMeasureRef} className={cn(PROMPT_TEXT_CLASSES, 'whitespace-pre')}>
           {value}
         </span>

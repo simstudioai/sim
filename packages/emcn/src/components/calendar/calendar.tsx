@@ -211,6 +211,12 @@ export function buildRangeBounds(
 interface CalendarBaseProps {
   /** Forwarded to the root grid container. */
   className?: string
+  /**
+   * Today's calendar day (`YYYY-MM-DD`) in the caller's effective timezone;
+   * drives the Today button and today ring. Defaults to the runtime's local
+   * day — pass this when the effective zone can differ from the browser's.
+   */
+  today?: string
 }
 
 interface CalendarSingleProps extends CalendarBaseProps {
@@ -231,12 +237,6 @@ interface CalendarSingleProps extends CalendarBaseProps {
   showTime?: boolean
   /** Label beside the time picker when `showTime` is enabled. Defaults to `Time`. */
   timeLabel?: string
-  /**
-   * Today's calendar day (`YYYY-MM-DD`) in the caller's effective timezone;
-   * drives the Today button and today ring. Defaults to the runtime's local
-   * day — pass this when the effective zone can differ from the browser's.
-   */
-  today?: string
 }
 
 interface CalendarRangeProps extends CalendarBaseProps {
@@ -463,10 +463,21 @@ function RangeCalendarView({
   onRangeChange,
   onCancel,
   onClear,
+  today: todayValue,
   className,
 }: CalendarRangeProps) {
   const seededStart = useMemo(() => parseDateValue(startDate), [startDate])
-  const { today, view, goToPrevMonth, goToNextMonth, cells } = useCalendarView(seededStart)
+  const {
+    today: runtimeToday,
+    view,
+    goToPrevMonth,
+    goToNextMonth,
+    cells,
+  } = useCalendarView(seededStart)
+  const today = useMemo(
+    () => (todayValue ? (parseDateValue(todayValue) ?? runtimeToday) : runtimeToday),
+    [todayValue, runtimeToday]
+  )
 
   const [rangeStart, setRangeStart] = useState<Date | null>(seededStart)
   const [rangeEnd, setRangeEnd] = useState<Date | null>(() => parseDateValue(endDate))
@@ -561,12 +572,12 @@ function RangeCalendarView({
         </div>
       )}
 
-      <div className='mt-1 flex items-center justify-between gap-2'>
+      <div className='mt-3 flex items-center justify-between gap-2'>
         <Chip onClick={clear} disabled={!rangeStart && !rangeEnd}>
           Clear
         </Chip>
         <div className='flex items-center gap-2'>
-          <Chip variant='border' onClick={() => onCancel?.()}>
+          <Chip variant='outline' onClick={() => onCancel?.()}>
             Cancel
           </Chip>
           <Chip variant='primary' onClick={apply} disabled={!rangeStart}>

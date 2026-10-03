@@ -3,7 +3,10 @@ import { createLogger } from '@sim/logger'
 import { omit, toRecord } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import {
+  durableSecretProvenanceFromEnvelope,
+  mergeDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
@@ -50,10 +53,7 @@ import {
   parseChatUploadReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import {
-  createWorkspaceFileSecretProvenanceFromRegistry,
-  importWorkspaceFileSnapshotProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { importWorkspaceFileSnapshotProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -104,6 +104,7 @@ async function pushWorkspaceFileMount(
     const imported = await importWorkspaceFileSnapshotProvenance({
       workspaceId,
       provenance: result.secretProvenance,
+      resourceId: record.id,
       registry,
     })
     if (!imported) registry.markIncomplete('mounted-file-provenance-unavailable')
@@ -270,23 +271,6 @@ export async function resolveInputFiles(
       byteCount += file.buffer.length
       if (byteCount > MAX_INLINE_MOUNT_TOTAL_BYTES)
         throw new Error('Chat attachment mounts exceed the buffered mount limit')
-      if (!resolvedSecretTraceRegistry) throw new Error('Chat attachment provenance is unavailable')
-      const classification = await createWorkspaceFileSecretProvenanceFromRegistry(
-        context.resolvedSecretTraceRegistry,
-        { text: file.buffer.toString('utf8'), base64: file.buffer.toString('base64') },
-        { userId: context.userId, ...(workspaceId ? { workspaceId } : {}) }
-      )
-      if (!classification.safe || classification.provenance.status === 'unknown')
-        throw new Error('Chat attachment provenance is unavailable')
-      if (classification.provenance.status === 'exact') {
-        if (
-          !(await importDurableSecretProvenance(
-            resolvedSecretTraceRegistry,
-            classification.provenance
-          ))
-        )
-          throw new Error('Chat attachment provenance could not be imported')
-      } else resolvedSecretTraceRegistry.markIncomplete('mounted-file-provenance-unavailable')
       attachments.push({
         path:
           refField(fileRef, 'sandboxPath') ??
@@ -471,6 +455,19 @@ async function importMountedProvenance(
   crossingValue: unknown
 ): Promise<void> {
   if (!target) return
+  /**
+   * The run's code could read every mounted byte, so a mount the source refused is taint in the
+   * output, not an absence. A serialized envelope drops the reason, and the bare
+   * `source-provenance-incomplete` it leaves behind is in the absence set: a writer would then
+   * record the output as `unrecorded`, and a refusal would name no guard.
+   */
+  if (source.isPermanentlyIncomplete()) {
+    target.markIncomplete('inherited-incomplete-source', {
+      source,
+      origin: 'copilotFunctionExecute.crossing',
+    })
+    return
+  }
 
   try {
     const provenance = source.exportProvenanceForValue(crossingValue)
@@ -495,10 +492,13 @@ export async function executeFunctionExecute(
 ): Promise<ToolExecutionResult> {
   const enrichedParams = omit(params, [
     'secrets',
+    'unredactedSecretNames',
     'sandboxProfile',
     'internalSandboxProfile',
     // Server-derived below — a model-supplied value must never select a session.
     'sandboxSessionKey',
+    // Server-derived from resolved inputs; a model-supplied mount would skip their provenance.
+    '_sandboxFiles',
     PRIVATE_SECRET_PROVENANCE_FIELD,
   ])
   // One persistent session sandbox per chat: files and installed packages
@@ -574,6 +574,12 @@ export async function executeFunctionExecute(
       ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
     })
 
+    /** Receipt records every value placed in the runtime, including silent resolutions. */
+    for (const [name, plaintext] of Object.entries(mounted.envVars)) {
+      if (plaintext.length > 0 && !mountedRegistry.recordResolved(name, plaintext)) {
+        throw new CopilotCodeSecretAccessError('Mounted secret provenance is unavailable')
+      }
+    }
     enrichedParams.envVars = mounted.envVars
     enrichedParams.secretScope = 'selected'
     enrichedParams.mountedSecrets = requestedNames
@@ -650,15 +656,15 @@ export async function executeFunctionExecute(
        */
       const result = await observeSandboxSessionInputs(
         () => {
-          const mounted = mountedRegistry?.exportProvenance()
+          const mounted = mountedRegistry?.exportCheckpointProvenance()
           const code =
             context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(params)
-          return (
-            mounted?.complete === true &&
-            mounted.entries.length === 0 &&
-            code?.complete === true &&
-            code.entries.length === 0
-          )
+          return mounted && code
+            ? mergeDurableSecretProvenance(
+                durableSecretProvenanceFromEnvelope(mounted),
+                durableSecretProvenanceFromEnvelope(code)
+              )
+            : { status: 'unknown' as const }
         },
         () =>
           executeAppTool('function_execute', enrichedParams, {

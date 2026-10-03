@@ -226,6 +226,7 @@ export function PromptEditor({
             organizationId={editor.organizationId}
             warm={hasFocused}
             onResourceSelect={editor.insertResource}
+            onWorkspaceSelect={editor.insertWorkspace}
             onClose={editor.handlePlusMenuClose}
             textareaRef={editor.textareaRef}
             pendingCursorRef={editor.pendingCursorRef}

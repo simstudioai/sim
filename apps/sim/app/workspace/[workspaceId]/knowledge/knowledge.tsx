@@ -217,7 +217,10 @@ function KnowledgeContent() {
     }
   }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
 
-  const { knowledgeBases, isLoading, isPlaceholderData, error } = useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, isLoading, isPlaceholderData, error } = useKnowledgeBasesList(
+    workspaceId,
+    { includeCounts: true }
+  )
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   /**
    * Indexed once: `ownerCell` resolves a member per row, so passing the raw array makes the

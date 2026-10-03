@@ -1,16 +1,11 @@
-/**
- * @vitest-environment node
- */
 import type { DesktopPreferences } from '@sim/desktop-bridge'
-import { afterEach, expect, it, vi } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import {
   isBrowserAgentEnabled,
   isTerminalEnabled,
   setDesktopPreferencesSnapshot,
   subscribeDesktopPreferences,
 } from '@/lib/desktop'
-
-afterEach(() => vi.unstubAllGlobals())
 
 it('publishes asynchronous startup preferences and later settings changes to subscribers', async () => {
   const preferences: DesktopPreferences = {

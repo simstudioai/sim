@@ -3,21 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { StartGitHubSearchSetupBody } from '@/lib/api/contracts/knowledge/github-setup'
 import {
   credentialGroupOAuthCompletionChannel,
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
+import { isDesktopApp } from '@/lib/desktop'
+import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { resolveGitHubSetupUrl } from '@/lib/knowledge/github-setup-navigation'
-import { githubSearchInstallationKeys } from '@/hooks/queries/github-search-installations'
 import {
   isGitHubSetupTerminalError,
   useCancelGitHubSearchSetup,
   useGitHubSearchSetup,
   useStartGitHubSearchSetup,
 } from '@/hooks/queries/github-search-setup'
-import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { fetchOAuthCredentials, oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 
 interface GitHubInstallationSetupProps {
@@ -31,6 +32,38 @@ export function useGitHubInstallationSetup({
   onConnected,
 }: GitHubInstallationSetupProps) {
   const active = useRef<{ setupId: string; tab: Window } | null>(null)
+  const nativeAbort = useRef<AbortController | null>(null)
+  const client = useQueryClient()
+  const nativeConnection = useMutation({
+    mutationFn: async ({
+      body,
+      signal,
+    }: {
+      body: StartGitHubSearchSetupBody
+      signal: AbortSignal
+    }) => {
+      const result = await connectDesktopSource({ kind: 'github-setup', body }, signal)
+      const credentials = await fetchOAuthCredentials(
+        { providerId: 'github-repositories', organizationId: body.organizationId },
+        signal
+      )
+      signal.throwIfAborted()
+      if (
+        !result.credentialId ||
+        !credentials.some((credential) => credential.id === result.credentialId)
+      )
+        throw new Error('GitHub is not available for this source. Try connecting again.')
+      await Promise.all([
+        client.invalidateQueries({ queryKey: oauthCredentialKeys.lists() }),
+        client.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(body.organizationId),
+        }),
+      ])
+      signal.throwIfAborted()
+      return result.credentialId
+    },
+  })
+  const { mutateAsync: startNative, isPending: nativePending } = nativeConnection
   const checking = useRef<string | null>(null)
   const callback = useRef(onConnected)
   const [setupId, setSetupId] = useState<string>()
@@ -41,7 +74,6 @@ export function useGitHubInstallationSetup({
     setSetupId(undefined)
     setError(null)
   }
-  const client = useQueryClient()
   const { mutateAsync: start, isPending: isStarting } = useStartGitHubSearchSetup()
   const { mutateAsync: cancelSetup } = useCancelGitHubSearchSetup()
   const scope = organizationId && setupId ? { organizationId, setupId } : undefined
@@ -54,6 +86,7 @@ export function useGitHubInstallationSetup({
 
   useEffect(() => {
     return () => {
+      nativeAbort.current?.abort()
       const attempt = active.current
       active.current = null
       attempt?.tab.close()
@@ -105,7 +138,6 @@ export function useGitHubInstallationSetup({
           ),
         })
       }
-      void client.invalidateQueries({ queryKey: githubSearchInstallationKeys.list(organizationId) })
       void client.invalidateQueries({ queryKey: organizationAccountsKeys.detail(organizationId) })
       callback.current(result.credential.id)
     } else if (
@@ -177,6 +209,25 @@ export function useGitHubInstallationSetup({
   const connect = useCallback(
     async (intent?: StartGitHubSearchSetupBody['intent']) => {
       if (!organizationId) return
+      if (isDesktopApp()) {
+        if (nativeAbort.current) return
+        const controller = new AbortController()
+        nativeAbort.current = controller
+        setError(null)
+        try {
+          const credentialId = await startNative({
+            body: { organizationId, setupId: generateId(), ...(intent ? { intent } : {}) },
+            signal: controller.signal,
+          })
+          callback.current(credentialId)
+        } catch (failure) {
+          if (!controller.signal.aborted)
+            setError(getErrorMessage(failure, 'Could not connect GitHub'))
+        } finally {
+          if (nativeAbort.current === controller) nativeAbort.current = null
+        }
+        return
+      }
       if (active.current) {
         active.current.tab.focus()
         return
@@ -205,10 +256,12 @@ export function useGitHubInstallationSetup({
         void cancelSetup({ organizationId, setupId: id }).catch(() => undefined)
       }
     },
-    [organizationId, start, cancelSetup]
+    [organizationId, start, cancelSetup, startNative]
   )
 
   const cancel = useCallback(() => {
+    nativeAbort.current?.abort()
+    nativeAbort.current = null
     const attempt = active.current
     if (!attempt || !organizationId) return
     active.current = null
@@ -223,7 +276,7 @@ export function useGitHubInstallationSetup({
     cancel,
     checkConnection,
     isChecking: isStarting,
-    pending: isStarting || Boolean(setupId),
+    pending: nativePending || isStarting || Boolean(setupId),
     error,
   }
 }

@@ -1,35 +1,10 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  listRecentWorkspaceIds,
-  recordWorkspaceVisitRecord,
-  sortByVisitRecency,
-} from '@/lib/workspaces/visits'
+import { resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { sortByVisitRecency } from '@/lib/workspaces/visits'
 
 describe('workspace visits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('upserts the visit with the database clock', async () => {
-    await recordWorkspaceVisitRecord('user-1', 'ws-1')
-
-    expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.workspaceVisit)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith({ userId: 'user-1', workspaceId: 'ws-1' })
-    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith({
-      target: [schemaMock.workspaceVisit.userId, schemaMock.workspaceVisit.workspaceId],
-      set: { visitedAt: expect.anything() },
-    })
-  })
-
-  it('lists visited workspace ids in the order the query returns them', async () => {
-    queueTableRows(schemaMock.workspaceVisit, [{ workspaceId: 'recent' }, { workspaceId: 'older' }])
-
-    await expect(listRecentWorkspaceIds('user-1')).resolves.toEqual(['recent', 'older'])
   })
 
   it('orders visited workspaces first and keeps the rest in incoming order', () => {

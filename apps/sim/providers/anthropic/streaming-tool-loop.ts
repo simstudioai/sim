@@ -480,16 +480,7 @@ export function createAnthropicStreamingToolLoopStream(
             const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = []
 
             for (const value of orderedResults) {
-              const {
-                toolUse,
-                toolName,
-                toolArgs,
-                toolParams,
-                result,
-                startTime,
-                endTime,
-                duration,
-              } = value
+              const { toolUse, toolName, toolParams, result, startTime, endTime, duration } = value
               const modelResult = 'modelResult' in value ? value.modelResult : result
 
               timeSegments.push({

@@ -1918,7 +1918,7 @@ export class AgentBlockHandler implements BlockHandler {
     } else {
       try {
         content = JSON.stringify(systemPrompt, null, 2)
-      } catch (error) {
+      } catch {
         content = String(systemPrompt)
       }
     }
@@ -3269,7 +3269,7 @@ export class AgentBlockHandler implements BlockHandler {
         ...extractedJson,
         ...this.createResponseMetadata(result),
       }
-    } catch (error) {
+    } catch {
       logger.error(
         'LLM did not adhere to structured response format',
         projectAgentDiagnosticMetadata(

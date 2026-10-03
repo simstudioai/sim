@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import {
   COPILOT_WORKFLOW_TOOL_BINDING_ERRORS,

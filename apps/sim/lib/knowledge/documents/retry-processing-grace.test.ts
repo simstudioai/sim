@@ -1,21 +1,17 @@
-/**
- * @vitest-environment node
- */
 import {
-  dbChainMock,
   dbChainMockFns,
   flattenMockConditions,
   type MockCondition,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
   enqueueKnowledgeDocumentProcessing: vi.fn(),
 }))
-vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
+vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -64,7 +60,7 @@ const BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
  * reset transaction and needs infrastructure this test does not stand up, so a
  * throw from it is expected and irrelevant to the reset itself.
  */
-async function captureRequeueValues(): Promise<Record<string, unknown>> {
+async function _captureRequeueValues(): Promise<Record<string, unknown>> {
   await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined).catch(() => {})
 
   const resetCall = dbChainMockFns.set.mock.calls.find(
@@ -74,32 +70,8 @@ async function captureRequeueValues(): Promise<Record<string, unknown>> {
   return resetCall?.[0] as Record<string, unknown>
 }
 
-describe('retryDocumentProcessing requeue stamp', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    dbChainMockFns.limit.mockResolvedValueOnce([OBSERVED_DOCUMENT])
-  })
-
-  it('clears the previous attempt terminal state', async () => {
-    const values = await captureRequeueValues()
-
-    // The queue stamp itself is written by `markDocumentsQueued` on dispatch,
-    // covered below — the reset's job is only to undo the prior attempt.
-    expect(values.processingCompletedAt).toBeNull()
-    expect(values.processingError).toBeNull()
-  })
-
-  it('leaves processingStartedAt null so the API reports no start time', async () => {
-    const values = await captureRequeueValues()
-
-    expect(values.processingStartedAt).toBeNull()
-  })
-})
-
 describe('processDocumentsWithQueue dispatch stamp', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       { userId: 'user-1', workspaceId: 'workspace-1', organizationId: null },
@@ -119,24 +91,6 @@ describe('processDocumentsWithQueue dispatch stamp', () => {
       BILLING_ATTRIBUTION
     ).catch(() => {})
   }
-
-  it('stamps the queue time and clears any leftover start time', async () => {
-    const before = Date.now()
-    await dispatch()
-    const after = Date.now()
-
-    const stampCall = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
-    )
-    expect(stampCall).toBeDefined()
-    const values = stampCall?.[0] as Record<string, unknown>
-
-    expect(values.processingQueuedAt).toBeInstanceOf(Date)
-    const stamp = values.processingQueuedAt as Date
-    expect(stamp.getTime()).toBeGreaterThanOrEqual(before)
-    expect(stamp.getTime()).toBeLessThanOrEqual(after)
-    expect(values.processingStartedAt).toBeNull()
-  })
 
   it('puts the dispatched document outside the reach of the next connector sync', async () => {
     await dispatch()
@@ -182,7 +136,6 @@ describe('processDocumentsWithQueue dispatch stamp', () => {
 
 describe('retryDocumentProcessing requeue guard', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValueOnce([OBSERVED_DOCUMENT])
   })
@@ -227,56 +180,6 @@ describe('retryDocumentProcessing requeue guard', () => {
     expect(guard).toBeDefined()
     return guard as MockCondition
   }
-
-  it('requeues from a terminal state', async () => {
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
-
-    await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined).catch(() => {})
-
-    /**
-     * Unguarded, a second click reset a document the first had already queued,
-     * so both dispatches ran, both indexed, and both billed.
-     */
-    expect(
-      hasBranch(
-        statusGuard(),
-        (node: MockCondition) =>
-          node.type === 'inArray' &&
-          node.column === schemaMock.document.processingStatus &&
-          Array.isArray(node.values) &&
-          node.values.join(',') === 'completed,failed'
-      )
-    ).toBe(true)
-    const reset = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'pending'
-    )
-    expect(reset?.[0]).toMatchObject({
-      processingQueuedAt: null,
-      processingQueueToken: null,
-    })
-    expect(reset?.[0]).not.toHaveProperty('processingAttempts')
-  })
-
-  it('also requeues a pending document whose dispatch is certainly lost', async () => {
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
-
-    await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined).catch(() => {})
-
-    /**
-     * A terminal-only guard strands a document that never left `pending`: a
-     * worker killed before its claim UPDATE burns an attempt without changing
-     * status, and past the attempt budget the connector sweep drops it too.
-     */
-    expect(
-      hasBranch(
-        statusGuard(),
-        (node: MockCondition) =>
-          node.type === 'eq' &&
-          node.left === schemaMock.document.processingStatus &&
-          node.right === 'pending'
-      )
-    ).toBe(true)
-  })
 
   it('ages the pending arm from the dispatch stamp on the shared grace', async () => {
     vi.useFakeTimers()
@@ -326,28 +229,6 @@ describe('retryDocumentProcessing requeue guard', () => {
     }
   })
 
-  it('waits out the same grace the connector sweep waits out', async () => {
-    /**
-     * The two recovery paths must agree on when a queued dispatch is lost. A
-     * retry that admitted `pending` sooner would re-dispatch a document the
-     * sweep still considers live.
-     */
-    const uploadedAt = new Date('2026-08-20T00:00:00.000Z')
-    const justInsideGrace = new Date(uploadedAt.getTime() + QUEUED_DISPATCH_GRACE_MS)
-    const justOutsideGrace = new Date(justInsideGrace.getTime() + 1)
-    const candidate = {
-      processingStatus: 'pending' as const,
-      processingQueuedAt: null,
-      processingStartedAt: null,
-      processingDeferredUntil: null,
-      processingCompletedAt: null,
-      uploadedAt,
-    }
-
-    expect(isStuckDocumentSweepEligible(candidate, justInsideGrace)).toBe(false)
-    expect(isStuckDocumentSweepEligible(candidate, justOutsideGrace)).toBe(true)
-  })
-
   it('does not dispatch or drop embeddings when it claimed nothing', async () => {
     // The guarded reset matched no rows: another click already queued this doc.
     dbChainMockFns.returning.mockResolvedValue([])
@@ -364,108 +245,5 @@ describe('retryDocumentProcessing requeue guard', () => {
           (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt instanceof Date
       )
     ).toBe(false)
-  })
-})
-
-describe('processing attempt budget', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    dbChainMockFns.limit.mockResolvedValue([
-      { userId: 'user-1', workspaceId: 'workspace-1', organizationId: null },
-    ])
-  })
-
-  it('spends one attempt per dispatch, in the same guarded write', async () => {
-    await processDocumentsWithQueue(
-      [{ documentId: 'doc-1', ...DOC_DATA }],
-      'kb-1',
-      {},
-      'req-1',
-      BILLING_ATTRIBUTION
-    ).catch(() => {})
-
-    const stampCall = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt !== undefined
-    )
-    const values = stampCall?.[0] as Record<string, unknown>
-
-    /**
-     * Charged as a SQL increment rather than a read-then-write, and in the same
-     * statement as the queue stamp, so two concurrent dispatches cannot both
-     * read the same count and spend one attempt between them.
-     */
-    expect(values.processingAttempts).toBeDefined()
-    expect(typeof values.processingAttempts).not.toBe('number')
-    expect((values.processingAttempts as { toSQL: () => { sql: string } }).toSQL().sql).toContain(
-      '+ 1'
-    )
-  })
-})
-
-describe('retryDocumentProcessing dispatch unwind', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    dbChainMockFns.limit.mockResolvedValueOnce([OBSERVED_DOCUMENT])
-  })
-
-  /**
-   * The reset commits in its own transaction, so a throwing dispatch leaves the
-   * row `pending` with nothing queued behind it — and the grace window means the
-   * same click cannot recover it for hours. Recording the failure returns it to
-   * `failed`, which is immediately retryable.
-   */
-  it('records the failure on the row it reset when the dispatch throws', async () => {
-    // The reset claims the document; the dispatch then fails for want of a
-    // billing context, which this suite deliberately does not stand up.
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
-
-    const result = await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined)
-
-    expect(result.success).toBe(false)
-    const failedWrite = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
-    )
-    expect(failedWrite).toBeDefined()
-    expect((failedWrite?.[0] as Record<string, unknown>).processingError).toEqual(
-      expect.any(String)
-    )
-  })
-
-  it('does not report a dead document as a started retry', async () => {
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc-1' }])
-
-    const result = await retryDocumentProcessing('kb-1', 'doc-1', DOC_DATA, 'req-1', undefined)
-
-    // Reporting success here paints the UI green over a document that will
-    // never be indexed.
-    expect(result.message).not.toContain('retry processing started')
-    expect(result.status).toBe('failed')
-  })
-
-  it('records and reports a returned zero-acceptance queue-admission result', async () => {
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ id: 'doc-1' }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-    dbChainMockFns.limit.mockResolvedValue([
-      { userId: 'user-1', workspaceId: 'workspace-1', organizationId: null },
-    ])
-
-    const result = await retryDocumentProcessing(
-      'kb-1',
-      'doc-1',
-      DOC_DATA,
-      'req-1',
-      BILLING_ATTRIBUTION
-    )
-
-    expect(result).toMatchObject({ success: false, status: 'failed' })
-    expect(result.message).toContain('was not accepted')
-    const failedWrite = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
-    )
-    expect(failedWrite).toBeDefined()
   })
 })

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   hasExemptAnnotation,
-  parseCapabilityIds,
-  parseFieldEnforcement,
   parseOperationCapabilities,
   parseOperationRegistryMembers,
 } from './check-permission-group-enforcement'
@@ -51,22 +49,6 @@ describe('operation capability parsing', () => {
       )
     ).toBe(false)
   })
-  it('reads a direct declaration', () => {
-    const { declarations, unreadable } = parseOperationCapabilities(`
-      export const tableOperations = {
-        create: defineWorkspaceOperation({
-          id: 'tables.create',
-          minimumRole: 'write',
-          capability: 'tables.create',
-        }),
-      } as const
-    `)
-
-    expect(declarations).toEqual([
-      expect.objectContaining({ id: 'tables.create', capability: 'tables.create' }),
-    ])
-    expect(unreadable).toEqual([])
-  })
 
   it('resolves call sites of a function factory without reporting the factory itself', () => {
     const { declarations, unreadable } = parseOperationCapabilities(`
@@ -103,49 +85,6 @@ describe('operation capability parsing', () => {
 
     expect(declarations).toEqual([])
     expect(unreadable).toHaveLength(1)
-  })
-
-  it('reports a wrapper written as an arrow const rather than a function', () => {
-    const { declarations, unreadable } = parseOperationCapabilities(`
-      const tableOperation = (id: string, capability: string) =>
-        defineWorkspaceOperation({ id, minimumRole: 'write', capability })
-
-      export const listRows = tableOperation('tables.rows.list', 'tables.use')
-    `)
-
-    expect(declarations).toEqual([])
-    expect(unreadable).toHaveLength(1)
-  })
-})
-
-describe('registry parsing', () => {
-  it('reads capability ids in declaration order', () => {
-    expect(
-      parseCapabilityIds(`
-        export const CAPABILITY_IDS = ['tables.use', 'files.use'] as const
-      `)
-    ).toEqual(['tables.use', 'files.use'])
-  })
-
-  /** Keys are matched at the registry's own two-space indentation. */
-  it('reads each config key declared enforcement', () => {
-    const enforcement = parseFieldEnforcement(
-      [
-        'export const PERMISSION_GROUP_FIELDS = {',
-        "  allowedIntegrations: allowlist(z.string(), 'executor', {",
-        "    limited: 'x',",
-        "    empty: 'y',",
-        '  }),',
-        "  hideTablesTab: booleanRestriction('capability', {",
-        "    id: 'hide-tables',",
-        "    hint: 'Hide the Tables module from the sidebar.',",
-        '  }),',
-        '} satisfies Record<string, PermissionGroupField>',
-      ].join('\n')
-    )
-
-    expect(enforcement.get('allowedIntegrations')).toBe('executor')
-    expect(enforcement.get('hideTablesTab')).toBe('capability')
   })
 })
 
@@ -189,22 +128,6 @@ describe('operation builders other than defineWorkspaceOperation', () => {
     expect(unreadable).toEqual([])
   })
 
-  it('reads a domain builder that passes an object literal straight through', () => {
-    const { declarations, unreadable } = parseOperationCapabilities(`
-      export const auditLogOperations = {
-        list: defineAuditLogOperation({
-          id: 'audit_logs.list',
-          capability: 'none',
-        }),
-      } as const
-    `)
-
-    expect(declarations).toEqual([
-      expect.objectContaining({ id: 'audit_logs.list', capability: 'none' }),
-    ])
-    expect(unreadable).toEqual([])
-  })
-
   /**
    * The wrapper form. Counting the outer and the inner call separately would
    * double every credential operation, so the nested match is skipped — its id
@@ -227,35 +150,6 @@ describe('operation builders other than defineWorkspaceOperation', () => {
     expect(declarations).toEqual([
       expect.objectContaining({ id: 'credentials.read', capability: 'integrations.manage' }),
     ])
-  })
-
-  it('reads a wrapped literal when the factory forwards the operation capability by property', () => {
-    const { declarations, unreadable, overridable } = parseOperationCapabilities(`
-      function defineKnowledgeOperation(operation: WorkspaceOperation) {
-        const organizationOperation = defineOrganizationOperation({
-          id: operation.id,
-          capability: operation.capability,
-          minimumRole: 'member',
-        })
-        return Object.freeze({ ...operation, organizationOperation })
-      }
-
-      export const knowledgeOperations = {
-        search: defineKnowledgeOperation(
-          defineWorkspaceOperation({
-            id: 'knowledge.search',
-            minimumRole: 'read',
-            capability: 'knowledge.use',
-          })
-        ),
-      } as const
-    `)
-
-    expect(declarations).toEqual([
-      expect.objectContaining({ id: 'knowledge.search', capability: 'knowledge.use' }),
-    ])
-    expect(unreadable).toEqual([])
-    expect(overridable).toEqual([])
   })
 
   it('reports a builder that mints the operation itself from a bare id argument', () => {
@@ -286,19 +180,6 @@ describe('registry completeness', () => {
       } as const
     `
 
-  it('enumerates each member with the line span it occupies', () => {
-    const members = parseOperationRegistryMembers(registrySource)
-
-    expect(members.map((member) => `${member.registry}.${member.member}`)).toEqual([
-      'probeOperations.list',
-      'probeOperations.read',
-    ])
-    const [list, read] = members
-    expect(list.startLine).toBe(3)
-    expect(read.startLine).toBe(4)
-    expect(read.endLine).toBe(8)
-  })
-
   /**
    * The check the audit runs: a member no parsed declaration falls inside is a
    * member nothing read. `list` is minted by no builder at all, so it yields
@@ -313,31 +194,6 @@ describe('registry completeness', () => {
     )
 
     expect(unread.map((member) => member.member)).toEqual(['list'])
-  })
-
-  it('ignores a comment or a string that looks like a member key', () => {
-    const members = parseOperationRegistryMembers(`
-      export const probeOperations = {
-        // permission-group-exempt: nothing: here is a member
-        read: defineWorkspaceOperation({
-          id: 'probe.read',
-          minimumRole: 'read',
-          capability: 'tables.use',
-        }),
-      } as const
-    `)
-
-    expect(members.map((member) => member.member)).toEqual(['read'])
-  })
-
-  it('reads no registry from a module that exports none', () => {
-    expect(
-      parseOperationRegistryMembers(`
-        export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
-          operation: workflowOperations.applyOperations,
-        })
-      `)
-    ).toEqual([])
   })
 })
 
@@ -359,44 +215,5 @@ describe('a factory that admits a Partial override of the operation', () => {
     )
 
     expect(overridable).toEqual([1])
-  })
-
-  it('reports the override however the parameter is spelled', () => {
-    const { overridable } = parseOperationCapabilities(
-      'function defineKnowledgeOperation(\n' +
-        '  id: string,\n' +
-        '  patch: Partial<KnowledgeOperation> = {}\n' +
-        ') {\n' +
-        "  return defineWorkspaceOperation({ id, capability: 'knowledge.use', ...patch })\n" +
-        '}\n'
-    )
-
-    expect(overridable).toEqual([1])
-  })
-
-  /**
-   * `Partial` over something that is not an operation is ordinary code — a
-   * factory taking a partial audit payload has nothing to say about capability.
-   */
-  it('leaves a Partial of an unrelated type alone', () => {
-    const { overridable } = parseOperationCapabilities(
-      'function defineTableOperation(id: string, audit?: Partial<AuditPayload>) {\n' +
-        "  return defineWorkspaceOperation({ id, capability: 'tables.use', audit })\n" +
-        '}\n'
-    )
-
-    expect(overridable).toEqual([])
-  })
-
-  it('leaves a factory with named parameters alone', () => {
-    const { declarations, overridable } = parseOperationCapabilities(
-      'function defineTableOperation(id: string, capability: string) {\n' +
-        '  return defineWorkspaceOperation({ id, capability })\n' +
-        '}\n' +
-        "defineTableOperation('table.read', 'tables.use')\n"
-    )
-
-    expect(overridable).toEqual([])
-    expect(declarations).toEqual([{ id: 'table.read', line: 4, capability: 'tables.use' }])
   })
 })

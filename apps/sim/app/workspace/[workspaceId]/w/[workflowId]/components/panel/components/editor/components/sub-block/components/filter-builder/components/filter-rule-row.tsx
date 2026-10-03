@@ -74,7 +74,6 @@ export function FilterRuleRow({
   )
   const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
     cellKey,
-    rule.value,
     (newValue) => onUpdate(rule.id, 'value', newValue)
   )
   const workflowSearchHighlight = getActiveWorkflowSearchHighlight({

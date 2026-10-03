@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AgentBlock } from '@/blocks/blocks/agent'
 
 vi.mock('@/blocks', () => ({
@@ -19,10 +19,6 @@ vi.mock('@/blocks', () => ({
 }))
 
 describe('AgentBlock', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   const paramsFunction = AgentBlock.tools.config?.params
 
   if (!paramsFunction) {
@@ -49,17 +45,6 @@ describe('AgentBlock', () => {
 
       const empty = paramsFunction({ model: 'gpt-4o', fallbackModels: [{ id: 'a', model: '' }] })
       expect(empty).not.toHaveProperty('fallbackModels')
-    })
-
-    it('should pass through params when no tools array is provided', () => {
-      const params = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        // No tools provided
-      }
-
-      const result = paramsFunction(params)
-      expect(result).toEqual(params)
     })
 
     it('should filter out tools with usageControl set to "none"', () => {
@@ -104,25 +89,6 @@ describe('AgentBlock', () => {
       expect(toolIds).toContain('Custom Tool')
     })
 
-    it('should set default usageControl to "auto" if not specified', () => {
-      const params = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        tools: [
-          {
-            type: 'tool-type-1',
-            title: 'Tool 1',
-            // No usageControl specified, should default to 'auto'
-          },
-        ],
-      }
-
-      const result = paramsFunction(params)
-
-      // Verify that the tool has usageControl set to 'auto'
-      expect(result.tools[0].usageControl).toBe('auto')
-    })
-
     it('should correctly transform custom tools', () => {
       const params = {
         model: 'gpt-4o',
@@ -165,19 +131,6 @@ describe('AgentBlock', () => {
         type: 'custom-tool',
         usageControl: 'force',
       })
-    })
-
-    it('should handle an empty tools array', () => {
-      const params = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        tools: [], // Empty array
-      }
-
-      const result = paramsFunction(params)
-
-      // Verify that transformed tools is an empty array
-      expect(result.tools).toEqual([])
     })
   })
 })

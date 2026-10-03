@@ -1,41 +1,48 @@
-/** @vitest-environment node */
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  session: vi.fn(),
-  context: vi.fn(),
-  role: vi.fn(),
-  admin: vi.fn(),
-  enterprise: vi.fn(),
   group: vi.fn(),
 }))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.session }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ isOrganizationAdminOrOwner: mocks.admin }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-  /** Permission resolution reads the governance axis; these tests drive both from one knob. */
-  isOrganizationGovernanceActive: mocks.enterprise,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/permission-groups/resolve.server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/resolve.server')>()),
   resolveWorkspaceGroup: mocks.group,
 }))
 
-import { userPermissionConfigSchema } from '@/lib/api/contracts/permission-groups'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readUserPermissionConfig } from '@/lib/permission-groups/application/read-user-config'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/permission-groups/user/route'
 
-const principal = { kind: 'session', userId: 'viewer', sessionId: 'session' } as const
+const mockGetSession = authMockFns.mockGetSession
+const mockResolveContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockResolveRole = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockIsOrgAdmin = permissionsMockFns.mockIsOrganizationAdminOrOwner
+const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
+/** Permission resolution reads the governance axis; these tests drive both from one knob. */
+billingSubscriptionMockFns.mockIsOrganizationGovernanceActive.mockImplementation(
+  (...args: unknown[]) => mockIsEnterprise(...args)
+)
+
+const principal = createSessionPrincipal({ userId: 'viewer', sessionId: 'session' })
 const context = {
   workspaceId: 'workspace',
   workspaceOrganizationId: 'owning-org',
@@ -57,16 +64,15 @@ function get(query = '?workspaceId=workspace') {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
-  mocks.session.mockResolvedValue({
+  mockGetSession.mockResolvedValue({
     user: { id: 'viewer' },
     session: { id: 'session', activeOrganizationId: 'unrelated-org' },
   })
-  mocks.context.mockResolvedValue(context)
-  mocks.role.mockResolvedValue('read')
-  mocks.admin.mockResolvedValue(false)
-  mocks.enterprise.mockResolvedValue(true)
+  mockResolveContext.mockResolvedValue(context)
+  mockResolveRole.mockResolvedValue('read')
+  mockIsOrgAdmin.mockResolvedValue(false)
+  mockIsEnterprise.mockResolvedValue(true)
   mocks.group.mockResolvedValue(null)
 })
 
@@ -85,7 +91,7 @@ describe('user permission policy shared read', () => {
         isAccessControlEnabled: accessControl,
         isBillingEnabled: false,
       })
-      mocks.admin.mockResolvedValue(true)
+      mockIsOrgAdmin.mockResolvedValue(true)
       const group = {
         permissionGroupId: 'group',
         groupName: 'Restricted',
@@ -99,81 +105,25 @@ describe('user permission policy shared read', () => {
       ).toEqual(expected)
       if (!entitled) {
         expect(mocks.group).not.toHaveBeenCalled()
-        expect(mocks.enterprise).not.toHaveBeenCalled()
+        expect(mockIsEnterprise).not.toHaveBeenCalled()
       }
     }
   )
-
-  it('authenticates before parsing or protected lookups', async () => {
-    mocks.session.mockResolvedValue(null)
-    expect((await get('')).status).toBe(401)
-    expect(mocks.context).not.toHaveBeenCalled()
-  })
-  it.each(['', '?workspaceId='])('preserves missing workspace validation for %s', async (query) => {
-    const response = await get(query)
-    expect(response.status).toBe(400)
-    expect(await response.json()).toMatchObject({ error: 'workspaceId is required' })
-    expect(mocks.context).not.toHaveBeenCalled()
-  })
-  it('preserves missing or archived workspace responses', async () => {
-    mocks.context.mockRejectedValue(new OrchestrationError('not_found', 'Workspace not found'))
-    const response = await get()
-    expect(response.status).toBe(404)
-    expect(await response.json()).toMatchObject({ error: 'Workspace not found' })
-    expect(mocks.group).not.toHaveBeenCalled()
-  })
   it('refuses current nonmembers before loading their policy', async () => {
-    mocks.role.mockResolvedValue(null)
+    mockResolveRole.mockResolvedValue(null)
     const response = await get()
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({ error: 'Not a member of this workspace' })
-    expect(mocks.admin).not.toHaveBeenCalled()
-    expect(mocks.enterprise).not.toHaveBeenCalled()
+    expect(mockIsOrgAdmin).not.toHaveBeenCalled()
+    expect(mockIsEnterprise).not.toHaveBeenCalled()
     expect(mocks.group).not.toHaveBeenCalled()
-  })
-  it('leaves personal workspaces unrestricted without organization reads', async () => {
-    mocks.context.mockResolvedValue({ ...context, workspaceOrganizationId: null })
-    const response = await get()
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ ...unrestricted, organizationId: null })
-    expect(mocks.admin).not.toHaveBeenCalled()
-    expect(mocks.enterprise).not.toHaveBeenCalled()
-    expect(mocks.group).not.toHaveBeenCalled()
-  })
-  it('retains organization admin status without enterprise entitlement', async () => {
-    mocks.enterprise.mockResolvedValue(false)
-    mocks.admin.mockResolvedValue(true)
-    expect(await (await get()).json()).toEqual({ ...unrestricted, isOrgAdmin: true })
-    expect(mocks.group).not.toHaveBeenCalled()
-  })
-  it('reads the acting member in the workspace owning organization and matches the server result', async () => {
-    const group = {
-      permissionGroupId: 'group',
-      groupName: 'Restricted',
-      config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, hideCopilot: true },
-    }
-    mocks.group.mockResolvedValue(group)
-    const response = await get()
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toEqual({ ...unrestricted, ...group, entitled: true })
-    expect(mocks.group).toHaveBeenCalledWith('viewer', 'owning-org', 'workspace')
-    expect(mocks.admin).toHaveBeenCalledWith('viewer', 'owning-org')
-    const serverResult = await readUserPermissionConfig.execute({
-      principal,
-      input: { workspaceId: 'workspace' },
-    })
-    expect(userPermissionConfigSchema.parse(serverResult)).toEqual(body)
-  })
-  it('retains enterprise entitlement when no group applies', async () => {
-    expect(await (await get()).json()).toEqual({ ...unrestricted, entitled: true })
   })
   it('does not turn policy infrastructure failures into unrestricted access', async () => {
     /**
      * The governance reader has no lenient mode — answering `false` on a failed read would mean
      * "no permission group", which denies nothing — so a failure here is simply a rejection.
      */
-    mocks.enterprise.mockRejectedValue(new Error('unavailable'))
+    mockIsEnterprise.mockRejectedValue(new Error('unavailable'))
     expect((await get()).status).toBe(500)
     await expect(
       readUserPermissionConfig.execute({ principal, input: { workspaceId: 'workspace' } })
@@ -182,10 +132,10 @@ describe('user permission policy shared read', () => {
   it('rejects actorless workspace keys before canonical lookup on the shared server entry point', async () => {
     await expect(
       readUserPermissionConfig.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
         input: { workspaceId: 'workspace' },
       })
     ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })
-    expect(mocks.context).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
   })
 })

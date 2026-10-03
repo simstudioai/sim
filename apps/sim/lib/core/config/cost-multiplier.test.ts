@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { resolveCostMultiplier } from '@/lib/core/config/cost-multiplier'
 

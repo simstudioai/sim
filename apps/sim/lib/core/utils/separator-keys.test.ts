@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { KeyboardEvent } from 'react'
 import { describe, expect, it } from 'vitest'
 import { readSeparatorKey } from '@/lib/core/utils/separator-keys'

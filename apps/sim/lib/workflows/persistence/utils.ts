@@ -99,13 +99,19 @@ export interface DeployedWorkflowData extends NormalizedWorkflowData {
   variables?: Record<string, unknown>
 }
 
+/**
+ * Whether the active deployment of `workflowId` contains `blockId`. Answered by
+ * the database so the (often hundreds of KB) deployed state never leaves it.
+ */
 export async function blockExistsInDeployment(
   workflowId: string,
   blockId: string
 ): Promise<boolean> {
   try {
     const [result] = await db
-      .select({ state: workflowDeploymentVersion.state })
+      .select({
+        exists: sql<boolean>`json_typeof(${workflowDeploymentVersion.state} -> 'blocks' -> ${blockId}) = 'object'`,
+      })
       .from(workflowDeploymentVersion)
       .where(
         and(
@@ -115,12 +121,7 @@ export async function blockExistsInDeployment(
       )
       .limit(1)
 
-    if (!result?.state) {
-      return false
-    }
-
-    const state = result.state as WorkflowState
-    return !!state.blocks?.[blockId]
+    return result?.exists === true
   } catch (error) {
     logger.error(`Error checking block ${blockId} in deployment for workflow ${workflowId}:`, error)
     return false
@@ -136,10 +137,21 @@ const DEPLOYED_STATE_CACHE_TTL_MS = 5 * 60 * 1000
  * absolute on purpose — it bounds the one non-immutable part, the live credential
  * remap in `applyBlockMigrations` — so credential changes still propagate.
  */
-const deployedStateCache = new LRUCache<string, DeployedWorkflowData>({
+const deployedStateCache = new LRUCache<
+  string,
+  { workflowId: string; state: DeployedWorkflowData }
+>({
   max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
   ttl: DEPLOYED_STATE_CACHE_TTL_MS,
 })
+
+function getCachedDeploymentState(
+  workflowId: string,
+  deploymentVersionId: string
+): DeployedWorkflowData | undefined {
+  const cached = deployedStateCache.get(deploymentVersionId)
+  return cached?.workflowId === workflowId ? structuredClone(cached.state) : undefined
+}
 
 /** Evicts one deployed-state entry, or clears the cache when no id is given. */
 export function invalidateDeployedStateCache(deploymentVersionId?: string): void {
@@ -196,10 +208,9 @@ export async function materializeDeploymentState(
   executor?: DbOrTx,
   options: { cache?: boolean } = {}
 ): Promise<DeployedWorkflowData> {
-  const cached = options.cache === false ? undefined : deployedStateCache.get(version.id)
-  if (cached) {
-    return structuredClone(cached)
-  }
+  const cached =
+    options.cache === false ? undefined : getCachedDeploymentState(workflowId, version.id)
+  if (cached) return cached
 
   const state = version.state as WorkflowState & { variables?: Record<string, unknown> }
 
@@ -247,7 +258,9 @@ export async function materializeDeploymentState(
     deploymentVersionId: version.id,
   }
 
-  if (options.cache !== false) deployedStateCache.set(version.id, deployedState)
+  if (options.cache !== false) {
+    deployedStateCache.set(version.id, { workflowId, state: deployedState })
+  }
   return structuredClone(deployedState)
 }
 
@@ -282,19 +295,27 @@ export async function loadDeployedWorkflowState(
       await resolveWorkspaceId(workflowId, providedWorkspaceId)
     )
   } catch (error) {
-    logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
+    // An undeployed workflow is an outcome each caller handles, not a load failure.
+    if (!(error instanceof NoActiveDeploymentError)) {
+      logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
+    }
     throw error
   }
 }
 
 /**
  * Loads an immutable deployment snapshot by ID for work admitted before a later cutover.
+ * A cached materialization of this workflow's version (the same entry
+ * {@link materializeDeploymentState} serves) is returned without reading the row again.
  */
 export async function loadWorkflowDeploymentVersionState(
   workflowId: string,
   deploymentVersionId: string,
   providedWorkspaceId?: string
 ): Promise<DeployedWorkflowData> {
+  const cached = getCachedDeploymentState(workflowId, deploymentVersionId)
+  if (cached) return cached
+
   const [version] = await db
     .select({
       id: workflowDeploymentVersion.id,

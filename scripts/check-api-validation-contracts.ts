@@ -148,49 +148,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/v1/copilot/chat/route.ts',
 ])
 
-/**
- * Routes baseline-allowed to use `await request.json()` / `await req.json()`
- * directly (without an inline `// boundary-raw-json:` annotation).
- *
- * These are legitimately partial: tolerant body parses (`.catch(() => ({}))`),
- * JSON-RPC envelopes that need their own dispatch, multi-stage MCP routes that
- * read pre-parsed bodies, and routes whose Zod-backed migration is queued
- * behind a separate contract / schema authoring step. New routes must NOT
- * introduce raw `await request.json()` reads — annotate the call with
- * `// boundary-raw-json: <reason>` instead.
- */
-const RAW_JSON_BASELINE_ROUTES = new Set([
-  'apps/sim/app/api/billing/portal/route.ts',
-  'apps/sim/app/api/copilot/api-keys/generate/route.ts',
-  'apps/sim/app/api/copilot/api-keys/validate/route.ts',
-  'apps/sim/app/api/copilot/chat/abort/route.ts',
-  'apps/sim/app/api/folders/[id]/restore/route.ts',
-  'apps/sim/app/api/invitations/[id]/accept/route.ts',
-  'apps/sim/app/api/invitations/[id]/reject/route.ts',
-  'apps/sim/app/api/invitations/[id]/route.ts',
-  'apps/sim/app/api/knowledge/[id]/documents/route.ts',
-  'apps/sim/app/api/knowledge/[id]/documents/[documentId]/chunks/route.ts',
-  'apps/sim/app/api/mcp/serve/[serverId]/route.ts',
-  'apps/sim/app/api/mcp/servers/route.ts',
-  'apps/sim/app/api/mcp/servers/[id]/route.ts',
-  'apps/sim/app/api/mcp/servers/test-connection/route.ts',
-  'apps/sim/app/api/mcp/tools/discover/route.ts',
-  'apps/sim/app/api/mcp/tools/execute/route.ts',
-  'apps/sim/app/api/mcp/workflow-servers/route.ts',
-  'apps/sim/app/api/mcp/workflow-servers/[id]/route.ts',
-  'apps/sim/app/api/mcp/workflow-servers/[id]/tools/route.ts',
-  'apps/sim/app/api/mcp/workflow-servers/[id]/tools/[toolId]/route.ts',
-  'apps/sim/app/api/organizations/route.ts',
-  'apps/sim/app/api/organizations/[id]/transfer-ownership/route.ts',
-  'apps/sim/app/api/resume/[workflowId]/[executionId]/[contextId]/route.ts',
-  'apps/sim/app/api/speech/token/route.ts',
-  'apps/sim/app/api/table/[tableId]/rows/route.ts',
-  'apps/sim/app/api/tools/file/manage/route.ts',
-  'apps/sim/app/api/workspaces/invitations/batch/route.ts',
-  'apps/sim/app/api/workspaces/[id]/route.ts',
-  'apps/sim/app/api/workspaces/[id]/files/[fileId]/content/route.ts',
-])
-
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
 const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
   /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]|\bimport\s*\{[^}]*\bdefineScimRoute\b[^}]*\}\s*from\s*['"]@\/ee\/scim\/lib\/route['"]/
@@ -198,7 +155,7 @@ const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
   /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute|defineScimRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
-const CONTRACT_SERVER_HELPER_PATTERN = /\b(?:parseToolRequest|validateShimEnvelope)\(/
+const CONTRACT_SERVER_HELPER_PATTERN = /\bvalidateShimEnvelope\(/
 const CANONICAL_HELPER_USAGE_PATTERN =
   /\b(?:isZodError|validationErrorResponse|validationErrorResponseFromError|getValidationErrorMessage)\s*\(/
 const CONTRACT_MAP_PARSE_PATTERN =
@@ -585,13 +542,9 @@ function findDoubleCastFindings(
 /**
  * Inspect a route file for `await request.json()` / `await req.json()` reads.
  *
- * Returns one finding per unannotated read. Routes in
- * `RAW_JSON_BASELINE_ROUTES` are baseline-allowed: their reads still appear
- * in `findings` so the `rawJsonReads` ratcheted metric counts them, but they
- * are NOT required to carry per-line `// boundary-raw-json: <reason>`
- * annotations. The ratchet's enforcement is by file count
- * (see `buildBoundaryPolicyMetrics`): adding a raw read in a route outside
- * the baseline pushes the unique-file count above `BOUNDARY_POLICY_BASELINE.rawJsonReads`.
+ * Returns one finding per unannotated read. The ratchet's enforcement is by
+ * file count (see `buildBoundaryPolicyMetrics`): a raw read in a new route
+ * pushes the unique-file count above `BOUNDARY_POLICY_BASELINE.rawJsonReads`.
  *
  * Annotated reads (`// boundary-raw-json: <reason>` on one of the three
  * preceding non-empty lines) are treated as exemptions and excluded from

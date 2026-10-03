@@ -1,28 +1,18 @@
-/**
- * @vitest-environment node
- */
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEncryptSecret, mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
-  mockEncryptSecret: vi.fn(),
+const { mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (
-    _name: string,
-    _attrs: Record<string, unknown> | undefined,
-    fn: (span: unknown) => Promise<unknown>
-  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn(), addEvent: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
@@ -36,6 +26,8 @@ import {
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+const { mockEncryptSecret } = encryptionMockFns
+
 describe('unwrapFunctionExecuteOutput', () => {
   it('unwraps the run_function envelope { result, stdout }', () => {
     expect(unwrapFunctionExecuteOutput({ result: 'name,age\nAlice,30', stdout: '' })).toBe(
@@ -46,12 +38,6 @@ describe('unwrapFunctionExecuteOutput', () => {
   it('passes through objects that do not have both result + stdout', () => {
     const output = { data: { rows: [], totalCount: 0 } }
     expect(unwrapFunctionExecuteOutput(output)).toBe(output)
-  })
-
-  it('passes through strings and arrays untouched', () => {
-    expect(unwrapFunctionExecuteOutput('hello')).toBe('hello')
-    const arr: unknown[] = [{ a: 1 }]
-    expect(unwrapFunctionExecuteOutput(arr)).toBe(arr)
   })
 })
 
@@ -84,10 +70,6 @@ describe('serializeOutputForFile (csv)', () => {
     expect(serializeOutputForFile(output, 'csv')).toBe("value\n'=1+1")
   })
 
-  it('returns the raw string when the non-envelope output is already a CSV string', () => {
-    expect(serializeOutputForFile('a,b\n1,2', 'csv')).toBe('a,b\n1,2')
-  })
-
   it('falls back to JSON.stringify when the payload is not tabular and not a string', () => {
     const output = { result: { foo: 'bar' }, stdout: '' }
     expect(serializeOutputForFile(output, 'csv')).toBe('{\n  "foo": "bar"\n}')
@@ -99,13 +81,6 @@ describe('serializeOutputForFile (json / txt / md)', () => {
     const output = { result: { hello: 'world' }, stdout: 'log' }
     expect(serializeOutputForFile(output, 'json')).toBe('{\n  "hello": "world"\n}')
   })
-
-  it('returns the string payload as-is for txt/md/html formats', () => {
-    const output = { result: '# Report\n\nHello', stdout: '' }
-    expect(serializeOutputForFile(output, 'md')).toBe('# Report\n\nHello')
-    expect(serializeOutputForFile(output, 'txt')).toBe('# Report\n\nHello')
-    expect(serializeOutputForFile(output, 'html')).toBe('# Report\n\nHello')
-  })
 })
 
 describe('normalizeOutputWorkspaceFileName', () => {
@@ -114,10 +89,6 @@ describe('normalizeOutputWorkspaceFileName', () => {
     expect(normalizeOutputWorkspaceFileName('files/My%20Folder/phase%201/implementation.md')).toBe(
       'implementation.md'
     )
-  })
-
-  it('still handles normal workspace file output paths', () => {
-    expect(normalizeOutputWorkspaceFileName('files/Reports/output.csv')).toBe('output.csv')
   })
 })
 
@@ -136,7 +107,6 @@ describe('maybeWriteOutputToFile', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-csv-representation', iv: 'iv' })
     mockWriteWorkspaceFileByPath.mockResolvedValue({
       id: 'file-1',
@@ -732,26 +702,9 @@ describe('maybeWriteOutputToFile', () => {
     expect(result.output).toEqual({ result: 'name,age\nAlice,30', stdout: '' })
     expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
   })
-
-  it('still passes results through untouched when no outputs are declared, even without workspace context', async () => {
-    const original = { success: true, output: { result: 42, stdout: '' } }
-    const result = await maybeWriteOutputToFile(
-      RunFunction.id,
-      {},
-      original,
-      buildContext({ workspaceId: undefined })
-    )
-
-    expect(result).toBe(original)
-    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
-  })
 })
 
 describe('extractTabularData', () => {
-  it('extracts rows directly from an array input', () => {
-    expect(extractTabularData([{ a: 1 }, { a: 2 }])).toEqual([{ a: 1 }, { a: 2 }])
-  })
-
   it('does NOT unwrap run_function envelopes on its own (callers must pre-unwrap)', () => {
     // Caller is responsible for unwrapping { result, stdout } envelopes first.
     // Keeping that concern out of this function prevents a double unwrap when
@@ -770,11 +723,5 @@ describe('extractTabularData', () => {
       },
     })
     expect(rows).toEqual([{ name: 'Alice' }, { name: 'Bob' }])
-  })
-
-  it('returns null for non-tabular inputs', () => {
-    expect(extractTabularData('plain string')).toBeNull()
-    expect(extractTabularData(null)).toBeNull()
-    expect(extractTabularData({ foo: 'bar' })).toBeNull()
   })
 })

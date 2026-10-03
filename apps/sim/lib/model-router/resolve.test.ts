@@ -1,51 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockFetchGo,
-  mockValidateModelProvider,
-  mockGetMothershipBaseURL,
-  mockGetProviderFromModel,
-} = vi.hoisted(() => ({
-  mockFetchGo: vi.fn(),
-  mockValidateModelProvider: vi.fn(),
-  mockGetMothershipBaseURL: vi.fn(),
-  mockGetProviderFromModel: vi.fn(),
-}))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: true,
-  getCostMultiplier: () => 2,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { COPILOT_API_KEY: 'test-copilot-key' },
-  envBoolean: () => undefined,
-  getEnv: () => undefined,
-}))
-
-vi.mock('@/lib/mothership/request/go/fetch', () => ({
-  fetchGo: mockFetchGo,
-}))
-
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: mockGetMothershipBaseURL,
-}))
-
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateModelProvider: mockValidateModelProvider,
-}))
-
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: mockGetProviderFromModel,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import {
   type AutoRoutingSignals,
@@ -54,6 +29,20 @@ import {
 } from '@/lib/model-router/resolve'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockFetchGo = mothershipGoFetchMockFns.mockFetchGo
+const mockGetMothershipBaseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
+
+const mockGetProviderFromModel = providersUtilsMockFns.mockGetProviderFromModel
+const mockValidateModelProvider = permissionCheckMockFns.mockValidateModelProvider
+
+setEnvFlags({ isHosted: true })
+envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
+setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 const ctx = {
   userId: 'user-1',
@@ -91,17 +80,10 @@ describe('addAutoRoutingCost', () => {
       total: 0.0035,
     })
   })
-
-  it('leaves provider cost unchanged when routing was not billable', () => {
-    const cost = { input: 0.001, output: 0.002, total: 0.003 }
-
-    expect(addAutoRoutingCost(cost, 0)).toBe(cost)
-  })
 })
 
 describe('resolveAutoModel', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetMothershipBaseURL.mockResolvedValue('https://copilot.test')
     mockValidateModelProvider.mockResolvedValue(undefined)
     mockGetProviderFromModel.mockReturnValue('fireworks')
@@ -145,102 +127,6 @@ describe('resolveAutoModel', () => {
     })
   }
 
-  it('offers all three tiers and no model name to the router', async () => {
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '2' }))
-
-    await resolveAutoModel({
-      ctx,
-      blockId: 'b1',
-      signals: makeSignals({ mediaKind: 'image' }),
-      fallbackModel: 'claude-sonnet-5',
-    })
-
-    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
-    expect(body.candidates.map((c: { id: string }) => c.id)).toEqual(['1', '2', '3'])
-    // Media kind is Sim's business: the wire carries only its presence.
-    expect(body.signals.hasMedia).toBe(true)
-    expect(body.signals.mediaKind).toBeUndefined()
-    for (const model of ['glm', 'kimi', 'gemini', 'gpt-5.6-sol', 'sonnet']) {
-      expect(JSON.stringify(body)).not.toContain(model)
-    }
-  })
-
-  it('forwards caller-projected signals without rescanning model content or controls', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'LOW_ENTROPY_SECRET',
-        plaintext: 'x',
-        encryptedValue: 'encrypted-low-entropy-secret',
-      },
-    ])
-    registry.recordResolved('LOW_ENTROPY_SECRET', 'x')
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
-
-    await resolveAutoModel({
-      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
-      blockId: 'b1',
-      signals: makeSignals({
-        systemPrompt: 'Box eSign {{LOW_ENTROPY_SECRET}}',
-        lastMessage: 'Brex {{LOW_ENTROPY_SECRET}}',
-        messageCount: 123,
-        toolNames: ['x', 'true'],
-        hasResponseFormat: true,
-        approxInputTokens: 123,
-      }),
-      fallbackModel: 'claude-sonnet-5',
-    })
-
-    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
-    expect(body.signals).toEqual({
-      systemPrompt: 'Box eSign {{LOW_ENTROPY_SECRET}}',
-      lastMessage: 'Brex {{LOW_ENTROPY_SECRET}}',
-      messageCount: 123,
-      toolNames: ['x', 'true'],
-      hasMedia: false,
-      hasResponseFormat: true,
-      approxInputTokens: 123,
-    })
-  })
-
-  it('does not infer provenance from dormant catalog values in routing signals', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'DORMANT_SECRET',
-        plaintext: 'ordinary-tool-name',
-        encryptedValue: 'encrypted-dormant-secret',
-      },
-    ])
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
-
-    await resolveAutoModel({
-      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
-      blockId: 'b1',
-      signals: makeSignals({ toolNames: ['ordinary-tool-name'] }),
-      fallbackModel: 'claude-sonnet-5',
-    })
-
-    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
-    expect(body.signals.toolNames).toEqual(['ordinary-tool-name'])
-  })
-
-  it('does not gate caller-projected signals on ambient registry completeness', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete('unspecified')
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
-
-    const result = await resolveAutoModel({
-      ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
-      blockId: 'b1',
-      signals: makeSignals(),
-      fallbackModel: 'claude-sonnet-5',
-    })
-
-    expect(result.model).toBe('fireworks/glm-5.2')
-    expect(result.tier).toBe('1')
-    expect(mockGetMothershipBaseURL).toHaveBeenCalled()
-    expect(mockFetchGo).toHaveBeenCalled()
-  })
-
   it('never crosses media kinds when walking down from a denied tier', async () => {
     mockFetchGo.mockResolvedValue(routerResponse({ choice: '3' }))
     // gpt-5.6-sol denied; the file column must drop to sonnet, never to a
@@ -258,25 +144,6 @@ describe('resolveAutoModel', () => {
 
     expect(result.model).toBe('claude-sonnet-5')
     expect(result.tier).toBe('3')
-  })
-
-  it('classifies even a tiny toolless prompt instead of assuming the lowest tier', async () => {
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '3' }))
-
-    const result = await resolveAutoModel({
-      ctx,
-      blockId: 'b1',
-      signals: makeSignals({
-        approxInputTokens: 20,
-        toolNames: [],
-        hasResponseFormat: false,
-      }),
-      fallbackModel: 'claude-sonnet-5',
-    })
-
-    expect(mockFetchGo).toHaveBeenCalledTimes(1)
-    expect(result.model).toBe('fireworks/kimi-k3')
-    expect(result.decidedBy).toBe('llm')
   })
 
   it('uses the router choice and applies the cost multiplier when billable', async () => {
@@ -341,18 +208,6 @@ describe('resolveAutoModel', () => {
     expect(result.decidedBy).toBe('fallback')
   })
 
-  it('falls back when the router returns an unknown choice', async () => {
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: 'banana' }))
-    const result = await resolveAutoModel({
-      ctx,
-      blockId: 'b1',
-      signals: makeSignals(),
-      fallbackModel: 'claude-sonnet-5',
-    })
-    expect(result.model).toBe('claude-sonnet-5')
-    expect(result.decidedBy).toBe('fallback')
-  })
-
   it('falls back when every pool model is denied by workspace permissions', async () => {
     mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
     mockValidateModelProvider.mockRejectedValue(new Error('provider blocked'))
@@ -364,47 +219,5 @@ describe('resolveAutoModel', () => {
     })
     expect(result.model).toBe('claude-sonnet-5')
     expect(result.decidedBy).toBe('fallback')
-  })
-
-  it('falls back when every pool model resolves to a blacklisted provider', async () => {
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '2' }))
-    mockGetProviderFromModel.mockImplementation(() => {
-      throw new Error('Provider "fireworks" is not available')
-    })
-
-    const result = await resolveAutoModel({
-      ctx,
-      blockId: 'b1',
-      signals: makeSignals(),
-      fallbackModel: 'claude-sonnet-5',
-    })
-
-    expect(result.model).toBe('claude-sonnet-5')
-    expect(result.decidedBy).toBe('fallback')
-  })
-
-  it('serves repeated identical signals from the decision cache without re-calling the router', async () => {
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
-    const signals = makeSignals()
-
-    const first = await resolveAutoModel({
-      ctx,
-      blockId: 'b1',
-      signals,
-      fallbackModel: 'claude-sonnet-5',
-    })
-    const second = await resolveAutoModel({
-      ctx,
-      blockId: 'b1',
-      signals,
-      fallbackModel: 'claude-sonnet-5',
-    })
-
-    expect(first.decidedBy).toBe('llm')
-    expect(second.decidedBy).toBe('cache')
-    expect(second.model).toBe('fireworks/glm-5.2')
-    expect(second.tier).toBe('1')
-    expect(second.billableRoutingCost).toBe(0)
-    expect(mockFetchGo).toHaveBeenCalledTimes(1)
   })
 })

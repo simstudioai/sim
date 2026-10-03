@@ -275,7 +275,11 @@ async function handleWebhookDelivery(
   }
   const dispatchTargetCount = directWebhooksForPath.length + legacySlackDispatchResults.length
 
-  for (const { webhook: foundWebhook, workflow: foundWorkflow } of directWebhooksForPath) {
+  for (const {
+    webhook: foundWebhook,
+    workflow: foundWorkflow,
+    triggerBlockDeployed,
+  } of directWebhooksForPath) {
     const provider = foundWebhook.provider
     if (!provider) {
       const missingProviderResponse = NextResponse.json(
@@ -321,6 +325,7 @@ async function handleWebhookDelivery(
         path,
         receivedAt,
         triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
+        triggerBlockDeployed,
       }
     )
 

@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { credential, credentialGroupEnrollment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import {
   type ResourceOwner,
@@ -22,6 +22,7 @@ import {
 } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const logger = createLogger('ManagedOAuthCredential')
@@ -414,9 +415,7 @@ export async function resolveManagedOAuthToken(
   }
 
   const refreshOutcome = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`managed-oauth:${params.credentialId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(tx, 'managed_oauth', `managed-oauth:${params.credentialId}`)
     const current = await getManagedCredential(tx, params.credentialId, params)
     if (!current) {
       return {

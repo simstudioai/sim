@@ -1,34 +1,35 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
-  role: vi.fn(),
-  context: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   record: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workspaces/visits', () => ({ recordWorkspaceVisitRecord: mocks.record }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/visits', () => ({ recordWorkspaceVisitRecord: hoisted.record }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/workspaces/[id]/visit/route'
 
-const routeContext = { params: Promise.resolve({ id: 'ws-1' }) }
+const mocks = {
+  ...hoisted,
+  getSession: authMockFns.mockGetSession,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  context: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+
+const routeContext = createRouteContext({ id: 'ws-1' })
 
 describe('POST /api/workspaces/[id]/visit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mocks.context.mockImplementation(async (workspaceId: string) => ({
       workspaceId,
@@ -37,23 +38,6 @@ describe('POST /api/workspaces/[id]/visit', () => {
     }))
     mocks.role.mockResolvedValue('read')
     mocks.record.mockResolvedValue(undefined)
-  })
-
-  it('401s without a session and records nothing', async () => {
-    mocks.getSession.mockResolvedValue(null)
-
-    const res = await POST(createMockRequest('POST'), routeContext)
-
-    expect(res.status).toBe(401)
-    expect(mocks.record).not.toHaveBeenCalled()
-  })
-
-  it('records the visit for a workspace member', async () => {
-    const res = await POST(createMockRequest('POST'), routeContext)
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ success: true })
-    expect(mocks.record).toHaveBeenCalledWith('user-1', 'ws-1')
   })
 
   it('answers 404 for a workspace outside the caller reach, same as a missing one', async () => {

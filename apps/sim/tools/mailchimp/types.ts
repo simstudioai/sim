@@ -3,30 +3,6 @@ import { createLogger } from '@sim/logger'
 const logger = createLogger('Mailchimp')
 
 // Base params
-interface MailchimpBaseParams {
-  apiKey: string // API key with server prefix (e.g., "key-us19")
-}
-
-interface MailchimpPaginationParams {
-  count?: string
-  offset?: string
-}
-
-interface MailchimpPagingInfo {
-  total_items: number
-}
-
-interface MailchimpResponse<T> {
-  success: boolean
-  output: {
-    data?: T
-    paging?: MailchimpPagingInfo
-    metadata?: {
-      [key: string]: unknown
-    }
-    success: boolean
-  }
-}
 
 // Member/Subscriber
 export interface MailchimpMember {
@@ -381,17 +357,6 @@ export interface MailchimpTag {
 }
 
 // Error Response
-interface MailchimpErrorResponse {
-  type?: string
-  title?: string
-  status?: number
-  detail?: string
-  instance?: string
-  errors?: Array<{
-    field?: string
-    message?: string
-  }>
-}
 
 // Helper function to extract server prefix from API key
 export function extractServerPrefix(apiKey: string): string {

@@ -1,23 +1,21 @@
-/** @vitest-environment node */
 import {
   MockV2ApiKeyUnauthenticatedError,
   v2ApiKeyAuthModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { networkConfigMock } from '@sim/testing/mocks/network-config.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-const policy = vi.hoisted(() => ({ permission: vi.fn(), execute: vi.fn() }))
+const { execute } = vi.hoisted(() => ({ execute: vi.fn() }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@sim/platform-authz/workspace', () => ({
-  resolveEffectiveWorkspacePermission: policy.permission,
-  permissionSatisfies: (actual: string | null) =>
-    actual === 'read' || actual === 'write' || actual === 'admin',
-}))
-vi.mock('@/lib/core/network/config.server', () => ({ isOutboundRoutingEnabled: () => false }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 import { defineRouteContract } from '@/lib/api/contracts'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
@@ -30,6 +28,11 @@ import {
 } from '@/lib/api/server/routes/v2-json-route'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+
+const policy = {
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  execute,
+}
 
 const operation = defineWorkspaceOperation({
   id: 'widgets.read',
@@ -69,7 +72,8 @@ const handler = defineV2JsonRoute({
   present: (result) => result,
 })
 function request(workspaceId = 'target', privateCall = true) {
-  const req = new NextRequest(`http://localhost/api/v2/widgets?workspaceId=${workspaceId}`, {
+  const req = createMockRequest({
+    url: `http://localhost/api/v2/widgets?workspaceId=${workspaceId}`,
     headers: { 'x-api-key': 'opaque', 'x-mothership-workspace-id': 'target' },
   })
   if (privateCall)
@@ -77,10 +81,9 @@ function request(workspaceId = 'target', privateCall = true) {
   return req
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   policy.permission.mockResolvedValue('write')
   v2RouteMocks.authenticate.mockResolvedValue({
-    principal: { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
+    principal: createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' }),
     keyType: 'personal',
     keyExpiresAt: null,
     rateLimitSubjectIds: ['key'],

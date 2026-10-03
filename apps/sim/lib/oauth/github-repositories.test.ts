@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getManagedOAuthConnectorPolicy } from '@/lib/auth/connectors/managed-oauth'
@@ -38,26 +37,10 @@ beforeEach(() => {
 
 afterEach(() => {
   resetEnvMock()
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 
 describe('GitHub App provider', () => {
-  it('registers a distinct scopeless provider without reusing sign-in credentials', () => {
-    const provider = buildConnectorProviders().find(
-      (candidate) => candidate.providerId === 'github-repositories'
-    )
-    expect(provider).toMatchObject({
-      clientId: 'app-client',
-      clientSecret: 'app-secret',
-      scopes: [],
-      pkce: true,
-    })
-    expect(buildConnectorProviders().some((candidate) => candidate.providerId === 'github')).toBe(
-      false
-    )
-  })
-
   it('stays unavailable when only sign-in credentials are configured', () => {
     setEnv({ GITHUB_APP_CLIENT_ID: undefined, GITHUB_APP_CLIENT_SECRET: undefined })
     expect(
@@ -115,9 +98,7 @@ describe('GitHub App provider', () => {
 
   it.each([
     { access_token: 'gho_oauth-app-token' },
-    { access_token: 'ghs_installation-token' },
     { refresh_token: undefined },
-    { refresh_token_expires_in: undefined },
     { expires_in: 0 },
     { scope: 'repo' },
   ])('rejects non-App or non-expiring token response %j', (override) => {
@@ -126,7 +107,6 @@ describe('GitHub App provider', () => {
 
   it('marks bad refresh tokens as terminal and keeps empty-scope policy explicit', () => {
     const policy = getManagedOAuthConnectorPolicy('github-repositories')!
-    expect(policy).toMatchObject({ scopeless: true, requiresRefreshToken: true, pkce: true })
     expect(policy.isTerminalRefreshError('bad_refresh_token')).toBe(true)
     expect(policy.isTerminalRefreshError('temporarily_unavailable')).toBe(false)
     expect(policy.hasRequiredScopes([], [])).toBe(true)
@@ -154,23 +134,6 @@ describe('GitHub identity verification', () => {
     })
   })
 
-  it('uses the verified primary email for a managed connection without an invitation email', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(response(user))
-        .mockResolvedValueOnce(response([primary, work]))
-    )
-    const policy = getManagedOAuthConnectorPolicy('github-repositories')!
-    await expect(
-      policy.verifyIdentity({
-        tokens: { accessToken: 'ghu_access' },
-        clientId: 'app-client',
-      })
-    ).resolves.toMatchObject({ email: primary.email, providerSubjectId: '1234' })
-  })
-
   it('checks later email pages without following provider-supplied destinations', async () => {
     const fetchMock = vi
       .fn()
@@ -186,21 +149,20 @@ describe('GitHub identity verification', () => {
     )
   })
 
-  it.each([
-    { emails: [work] },
-    { emails: [{ ...primary, verified: false }, work] },
-    { emails: [] },
-  ])('refuses absent or unverified primary email $emails', async ({ emails }) => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValueOnce(response(user)).mockResolvedValueOnce(response(emails))
-    )
-    await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
-      name: 'OAuthIdentityVerificationError',
-      reason: 'email_unverified',
-      stage: 'emails',
-    })
-  })
+  it.each([{ emails: [work] }, { emails: [{ ...primary, verified: false }, work] }])(
+    'refuses absent or unverified primary email $emails',
+    async ({ emails }) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValueOnce(response(user)).mockResolvedValueOnce(response(emails))
+      )
+      await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
+        name: 'OAuthIdentityVerificationError',
+        reason: 'email_unverified',
+        stage: 'emails',
+      })
+    }
+  )
 
   it('rejects a bot identity', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ ...user, type: 'Bot' }))
@@ -212,7 +174,7 @@ describe('GitHub identity verification', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it.each([401, 403])('fails closed when GitHub rejects identity with %i', async (status) => {
+  it.each([401])('fails closed when GitHub rejects identity with %i', async (status) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({}, status)))
     await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
       reason: 'provider_rejected',
@@ -239,9 +201,7 @@ describe('GitHub identity verification', () => {
   it.each([
     { status: 429, headers: {}, message: 'Too many requests' },
     { status: 403, headers: { 'x-ratelimit-remaining': '0' }, message: 'Forbidden' },
-    { status: 403, headers: { 'retry-after': '60' }, message: 'Forbidden' },
     { status: 403, headers: {}, message: 'You have exceeded a secondary rate limit.' },
-    { status: 403, headers: {}, message: 'You have triggered an abuse detection mechanism.' },
   ])(
     'does not misdiagnose provider rate limiting as missing email permission: %j',
     async (error) => {

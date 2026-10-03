@@ -1,35 +1,6 @@
 import { AthenaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type {
-  AthenaBatchGetNamedQueryResponse,
-  AthenaBatchGetPreparedStatementResponse,
-  AthenaBatchGetQueryExecutionResponse,
-  AthenaCreateNamedQueryResponse,
-  AthenaCreatePreparedStatementResponse,
-  AthenaDeleteNamedQueryResponse,
-  AthenaDeletePreparedStatementResponse,
-  AthenaGetDatabaseResponse,
-  AthenaGetDataCatalogResponse,
-  AthenaGetNamedQueryResponse,
-  AthenaGetPreparedStatementResponse,
-  AthenaGetQueryExecutionResponse,
-  AthenaGetQueryResultsResponse,
-  AthenaGetQueryRuntimeStatisticsResponse,
-  AthenaGetTableMetadataResponse,
-  AthenaGetWorkGroupResponse,
-  AthenaListDatabasesResponse,
-  AthenaListDataCatalogsResponse,
-  AthenaListNamedQueriesResponse,
-  AthenaListPreparedStatementsResponse,
-  AthenaListQueryExecutionsResponse,
-  AthenaListTableMetadataResponse,
-  AthenaListWorkGroupsResponse,
-  AthenaStartQueryResponse,
-  AthenaStopQueryResponse,
-  AthenaUpdateNamedQueryResponse,
-  AthenaUpdatePreparedStatementResponse,
-} from '@/tools/athena/types'
 
 /**
  * Normalizes a switch value that may arrive as a boolean or as the strings 'true' / 'false'.
@@ -41,35 +12,7 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
-export const AthenaBlock: BlockConfig<
-  | AthenaStartQueryResponse
-  | AthenaGetQueryExecutionResponse
-  | AthenaGetQueryResultsResponse
-  | AthenaGetQueryRuntimeStatisticsResponse
-  | AthenaStopQueryResponse
-  | AthenaListQueryExecutionsResponse
-  | AthenaBatchGetQueryExecutionResponse
-  | AthenaCreateNamedQueryResponse
-  | AthenaGetNamedQueryResponse
-  | AthenaBatchGetNamedQueryResponse
-  | AthenaUpdateNamedQueryResponse
-  | AthenaListNamedQueriesResponse
-  | AthenaDeleteNamedQueryResponse
-  | AthenaCreatePreparedStatementResponse
-  | AthenaGetPreparedStatementResponse
-  | AthenaBatchGetPreparedStatementResponse
-  | AthenaUpdatePreparedStatementResponse
-  | AthenaListPreparedStatementsResponse
-  | AthenaDeletePreparedStatementResponse
-  | AthenaListDataCatalogsResponse
-  | AthenaGetDataCatalogResponse
-  | AthenaListDatabasesResponse
-  | AthenaGetDatabaseResponse
-  | AthenaListTableMetadataResponse
-  | AthenaGetTableMetadataResponse
-  | AthenaListWorkGroupsResponse
-  | AthenaGetWorkGroupResponse
-> = {
+export const AthenaBlock: BlockConfig = {
   type: 'athena',
   name: 'Athena',
   description: 'Run SQL queries on data in Amazon S3 using AWS Athena',

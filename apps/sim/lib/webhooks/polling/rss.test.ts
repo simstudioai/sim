@@ -1,21 +1,22 @@
-/**
- * @vitest-environment node
- */
 import { createLogger } from '@sim/logger'
 import { createWorkflowRecord } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockValidateUrl, mockProcessEvent, mockUpdateConfig } = vi.hoisted(() => ({
-  mockFetch: vi.fn(),
-  mockValidateUrl: vi.fn(),
-  mockProcessEvent: vi.fn(),
+const { mockUpdateConfig } = vi.hoisted(() => ({
   mockUpdateConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mockFetch,
-  validateUrlWithDNS: mockValidateUrl,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+const mockFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrl = inputValidationMockFns.mockValidateUrlWithDNS
 
 vi.mock('@/lib/core/idempotency/service', () => ({
   pollingIdempotency: {
@@ -25,9 +26,7 @@ vi.mock('@/lib/core/idempotency/service', () => ({
   },
 }))
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  processPolledWebhookEvent: mockProcessEvent,
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 vi.mock('@/lib/webhooks/polling/utils', () => ({
   markWebhookSuccess: vi.fn(),
@@ -37,6 +36,8 @@ vi.mock('@/lib/webhooks/polling/utils', () => ({
 
 import { rssPollingHandler } from '@/lib/webhooks/polling/rss'
 import type { PollWebhookContext, WebhookRecord } from '@/lib/webhooks/polling/types'
+
+const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
 
 const SUBSCRIBED_AT = new Date('2026-08-27T18:36:16.000Z')
 const LAST_CHECKED_AT = '2026-09-11T23:26:27.000Z'
@@ -89,7 +90,6 @@ function feed(pubDate: string) {
 
 describe('RSS delivery across delayed feed updates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateUrl.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
     mockProcessEvent.mockResolvedValue({ success: true })
     mockUpdateConfig.mockResolvedValue(undefined)

@@ -1,25 +1,28 @@
-/** @vitest-environment node */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
 
-const mocks = vi.hoisted(() => ({
-  transaction: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   create: vi.fn(),
   decrypt: vi.fn(),
-  warn: vi.fn(),
 }))
-vi.mock('@sim/logger', () => ({ createLogger: () => ({ warn: mocks.warn }) }))
-vi.mock('@sim/db', () => ({ db: { transaction: mocks.transaction } }))
-vi.mock('@/lib/api-key/auth', () => ({ createApiKey: mocks.create }))
+vi.mock('@/lib/api-key/auth', () => ({ createApiKey: hoisted.create }))
 vi.mock('@/lib/api-key/crypto', () => ({
-  decryptApiKey: mocks.decrypt,
+  decryptApiKey: hoisted.decrypt,
   hashApiKey: (key: string) => `hash:${key}`,
 }))
 
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
+
+const mocks = {
+  ...hoisted,
+  transaction: dbChainMockFns.transaction,
+  warn: getMockLogger('MothershipDelegation').warn,
+}
 
 interface KeyRow {
   id: string

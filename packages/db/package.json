@@ -5,7 +5,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -36,6 +36,7 @@
     "db:migrate": "bun --env-file=.env run ./scripts/migrate.ts",
     "db:reconcile-fork-kb-file-ownership": "bun --env-file=.env run ./scripts/reconcile-fork-kb-file-ownership.ts",
     "db:reconcile-workspace-storage": "bun --env-file=.env run ./scripts/reconcile-workspace-storage.ts",
+    "db:retire-indexed-search": "bun --no-env-file ./scripts/retire-indexed-search.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
@@ -56,6 +57,6 @@
     "@types/node": "24.2.1",
     "drizzle-kit": "0.31.10",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

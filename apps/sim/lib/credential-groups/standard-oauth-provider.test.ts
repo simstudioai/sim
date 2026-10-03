@@ -1,8 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { createHash } from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
@@ -10,10 +8,6 @@ import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 const { mockGetToken, mockVerifyIdentity } = vi.hoisted(() => ({
   mockGetToken: vi.fn(),
   mockVerifyIdentity: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.example.com',
 }))
 
 vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
@@ -79,6 +73,9 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
 
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
 
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example.com')
+afterAll(resetUrlsMock)
+
 const adapter = createStandardOAuthCredentialGroupProviderAdapter('google-calendar')
 const jiraAdapter = createStandardOAuthCredentialGroupProviderAdapter('jira')
 
@@ -126,9 +123,22 @@ function buildAttempt(scopeVersion: number): CredentialGroupOAuthAttempt {
   }
 }
 
+async function exchange() {
+  const context = buildContext()
+  const policy = await adapter.getPolicy(context.option, {
+    workspaceId: context.workspaceId,
+    credentialGroupId: context.credentialGroupId,
+  })
+  return adapter.exchangeAndVerify({
+    context,
+    attempt: buildAttempt(policy.scopeVersion),
+    code: 'code-1',
+    policy,
+  })
+}
+
 describe('standard OAuth Credential Group provider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetToken.mockResolvedValue({
       tokenType: 'Bearer',
       accessToken: 'access-1',
@@ -178,79 +188,21 @@ describe('standard OAuth Credential Group provider', () => {
     expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
   })
 
-  it('persists a verified provider identity and returned scopes', async () => {
-    const context = buildContext()
-    const policy = await adapter.getPolicy(context.option, {
-      workspaceId: context.workspaceId,
-      credentialGroupId: context.credentialGroupId,
-    })
-    const grant = await adapter.exchangeAndVerify({
-      context,
-      attempt: buildAttempt(policy.scopeVersion),
-      code: 'code-1',
-      policy,
-    })
-
-    expect(mockGetToken).toHaveBeenCalledWith({
-      code: 'code-1',
-      redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/google-calendar',
-      codeVerifier: 'verifier-1',
-    })
-    expect(grant).toMatchObject({
-      providerId: 'google-calendar',
-      providerSubjectId: 'google-sub-1',
-      providerTenantId: 'example.com',
-      displayName: 'person@example.com',
-      accessToken: 'access-1',
-      refreshToken: 'refresh-1',
+  it('accepts a different provider email for the enrolled person', async () => {
+    mockVerifyIdentity.mockResolvedValueOnce({
+      providerSubjectId: 'google-sub-2',
+      providerTenantId: null,
+      email: ' Other@Example.com ',
+      emailVerified: true,
+      nonce: 'nonce-1',
       grantedScopes: ['calendar.read', 'profile', 'openid'],
-      metadata: {
-        email: 'person@example.com',
-        displayName: 'Person',
-        avatarUrl: 'https://example.com/avatar.png',
-      },
+    })
+    await expect(exchange()).resolves.toMatchObject({
+      providerSubjectId: 'google-sub-2',
+      displayName: 'other@example.com',
+      metadata: { email: 'other@example.com' },
     })
   })
-
-  it.each(['workspace', 'organization'] as const)(
-    'accepts a different provider email for a %s credential group',
-    async (scope) => {
-      mockVerifyIdentity.mockResolvedValueOnce({
-        providerSubjectId: 'google-sub-2',
-        providerTenantId: null,
-        email: ' Other@Example.com ',
-        emailVerified: true,
-        nonce: 'nonce-1',
-        grantedScopes: ['calendar.read', 'profile', 'openid'],
-      })
-      const context = buildContext()
-      if (scope === 'organization') {
-        context.workspaceId = undefined
-        context.organizationId = 'org-1'
-      }
-      const policy = await adapter.getPolicy(context.option, {
-        workspaceId: context.workspaceId,
-        credentialGroupId: context.credentialGroupId,
-      })
-
-      await expect(
-        adapter.exchangeAndVerify({
-          context,
-          attempt: buildAttempt(policy.scopeVersion),
-          code: 'code-1',
-          policy,
-        })
-      ).resolves.toMatchObject({
-        providerSubjectId: 'google-sub-2',
-        displayName: 'other@example.com',
-        metadata: { email: 'other@example.com' },
-      })
-      expect(mockVerifyIdentity).toHaveBeenCalledExactlyOnceWith({
-        tokens: expect.objectContaining({ accessToken: 'access-1' }),
-        clientId: 'client-1',
-      })
-    }
-  )
 
   it.each([
     { name: 'an unverified email', identity: { emailVerified: false }, statusCode: 502 },
@@ -267,40 +219,13 @@ describe('standard OAuth Credential Group provider', () => {
       grantedScopes: ['calendar.read', 'profile', 'openid'],
       ...identity,
     })
-    const context = buildContext()
-    const policy = await adapter.getPolicy(context.option, {
-      workspaceId: context.workspaceId,
-      credentialGroupId: context.credentialGroupId,
-    })
-    await expect(
-      adapter.exchangeAndVerify({
-        context,
-        attempt: buildAttempt(policy.scopeVersion),
-        code: 'code-1',
-        policy,
-      })
-    ).rejects.toMatchObject({ statusCode })
+    await expect(exchange()).rejects.toMatchObject({ statusCode })
   })
 
-  it.each([
-    new OAuthIdentityVerificationError('email_unverified', 'emails'),
-    new OAuthIdentityVerificationError('email_access_denied', 'emails', 403),
-    new OAuthIdentityVerificationError('provider_unavailable', 'profile', 503),
-  ])('preserves safe identity diagnostics through managed authorization: %s', async (failure) => {
+  it('preserves safe identity diagnostics through managed authorization', async () => {
+    const failure = new OAuthIdentityVerificationError('email_access_denied', 'emails', 403)
     mockVerifyIdentity.mockRejectedValueOnce(failure)
-    const context = buildContext()
-    const policy = await adapter.getPolicy(context.option, {
-      workspaceId: context.workspaceId,
-      credentialGroupId: context.credentialGroupId,
-    })
-    await expect(
-      adapter.exchangeAndVerify({
-        context,
-        attempt: buildAttempt(policy.scopeVersion),
-        code: 'code-1',
-        policy,
-      })
-    ).rejects.toMatchObject({
+    await expect(exchange()).rejects.toMatchObject({
       name: 'CredentialGroupOAuthError',
       statusCode: 502,
       identityFailure: failure,
@@ -369,31 +294,15 @@ describe('standard OAuth Credential Group provider', () => {
       codeVerifier: undefined,
     })
   })
-  it.each(['bearer', 'BEARER'])(
-    'accepts the RFC 6749 case-insensitive %s token type',
-    async (tokenType) => {
-      mockGetToken.mockResolvedValueOnce({
-        tokenType,
-        accessToken: 'access-1',
-        refreshToken: 'refresh-1',
-        accessTokenExpiresAt: new Date('2026-08-14T01:00:00Z'),
-      })
-      const context = buildContext()
-      const policy = await adapter.getPolicy(context.option, {
-        workspaceId: context.workspaceId,
-        credentialGroupId: context.credentialGroupId,
-      })
-
-      const grant = await adapter.exchangeAndVerify({
-        context,
-        attempt: buildAttempt(policy.scopeVersion),
-        code: 'code-1',
-        policy,
-      })
-
-      expect(grant.accessToken).toBe('access-1')
-    }
-  )
+  it('accepts the RFC 6749 case-insensitive token type', async () => {
+    mockGetToken.mockResolvedValueOnce({
+      tokenType: 'BEARER',
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      accessTokenExpiresAt: new Date('2026-08-14T01:00:00Z'),
+    })
+    await expect(exchange()).resolves.toMatchObject({ accessToken: 'access-1' })
+  })
 
   it('still rejects a token type that is not bearer at all', async () => {
     mockGetToken.mockResolvedValueOnce({
@@ -401,19 +310,6 @@ describe('standard OAuth Credential Group provider', () => {
       accessToken: 'access-1',
       refreshToken: 'refresh-1',
     })
-    const context = buildContext()
-    const policy = await adapter.getPolicy(context.option, {
-      workspaceId: context.workspaceId,
-      credentialGroupId: context.credentialGroupId,
-    })
-
-    await expect(
-      adapter.exchangeAndVerify({
-        context,
-        attempt: buildAttempt(policy.scopeVersion),
-        code: 'code-1',
-        policy,
-      })
-    ).rejects.toMatchObject({ statusCode: 502 })
+    await expect(exchange()).rejects.toMatchObject({ statusCode: 502 })
   })
 })

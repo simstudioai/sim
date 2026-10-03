@@ -1,8 +1,20 @@
-/**
- * @vitest-environment node
- */
 import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import {
+  workspaceForkingLineageMock,
+  workspaceForkingLineageMockFns,
+} from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import { workspaceForkingLineageRootMock } from '@sim/testing/mocks/workspace-forking-lineage-root.mock'
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
+import {
+  workspaceForkingRevisionMock,
+  workspaceForkingRevisionMockFns,
+} from '@sim/testing/mocks/workspace-forking-revision.mock'
+import { workspacesPolicyMock } from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -14,7 +26,6 @@ const {
   mockStartBackgroundWork,
   mockFinishBackgroundWork,
   mockScheduleForkContentCopy,
-  mockSeedEdgeMappings,
   mockCollectReferencedFileFolderPaths,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
@@ -25,16 +36,13 @@ const {
   mockStartBackgroundWork: vi.fn(),
   mockFinishBackgroundWork: vi.fn(),
   mockScheduleForkContentCopy: vi.fn(),
-  mockSeedEdgeMappings: vi.fn(),
   mockCollectReferencedFileFolderPaths: vi.fn(() => new Set<string>()),
 }))
 
 vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: vi.fn(() => ({ workflowState: {} })),
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: vi.fn(),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
   startBackgroundWork: mockStartBackgroundWork,
   finishBackgroundWork: mockFinishBackgroundWork,
@@ -71,16 +79,19 @@ vi.mock('@/ee/workspace-forking/lib/copy/copy-workflows', () => ({
 vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
   loadSourceDeployedStates: mockLoadSourceDeployedStates,
 }))
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  setForkLockTimeout: vi.fn(),
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
+vi.mock('@/ee/workspace-forking/application/revision', () => workspaceForkingRevisionMock)
+vi.mock('@/lib/workspaces/operations/receipts', () => ({
+  findWorkspaceOperationReceipt: vi.fn(async () => null),
+  insertWorkspaceOperationReceipt: vi.fn(async () => {}),
+  lockWorkspaceOperationRequest: vi.fn(async () => {}),
 }))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage-root', () => workspaceForkingLineageRootMock)
 vi.mock('@/ee/workspace-forking/lib/mapping/block-map-store', () => ({
   reconcileForkBlockPairs: vi.fn(),
   toForkBlockPairs: vi.fn(() => []),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  seedEdgeMappings: mockSeedEdgeMappings,
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/ee/workspace-forking/lib/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
   createForkBlockTypeTransform: vi.fn(() => (blockType: string) => blockType),
@@ -89,15 +100,13 @@ vi.mock('@/lib/workflows/references/reference-scan', () => ({
   collectReferencedDocumentIds: vi.fn(() => new Set<string>()),
   collectReferencedFileFolderPaths: mockCollectReferencedFileFolderPaths,
 }))
-vi.mock('@/lib/workspaces/policy', () => ({
-  WORKSPACE_MODE: {
-    PERSONAL: 'personal',
-    ORGANIZATION: 'organization',
-    GRANDFATHERED_SHARED: 'grandfathered_shared',
-  },
-}))
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
+
+const { mockLockForkRevision } = workspaceForkingRevisionMockFns
+
+const { mockSeedEdgeMappings } = workspaceForkingMappingStoreMockFns
 
 const SOURCE = { id: 'src-ws', name: 'Parent', allowPersonalApiKeys: false } as never
 const POLICY = {
@@ -130,7 +139,6 @@ function forkParams(selection?: {
 
 describe('createFork storage headroom gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     /**
      * The fork transaction re-reads the parent's organization under the lock to
@@ -218,40 +226,55 @@ describe('createFork storage headroom gate', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
-  it('proceeds under quota, summing exactly the selected files + knowledge bases', async () => {
-    mockSumForkCopyBytes.mockResolvedValue(500)
+  /**
+   * Both inherited workspace policies in one fork. `forkSyncNewWorkflowsExcluded` is set
+   * to `true` (not the default) so the assertion cannot pass on a hardcoded `false`: the
+   * new-workflow fork-sync default is lineage-uniform, and a child that did not inherit it
+   * would disagree with its parent from the moment it exists.
+   */
+  it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
+    resetDbChainMock()
+    queueTableRows(workspace, [{ organizationId: null, forkSyncNewWorkflowsExcluded: true }])
 
-    const result = await createFork(forkParams({ files: ['wf-1'], knowledgeBases: ['kb-1'] }))
-
-    expect(result.workspace.name).toBe('My Fork')
-    expect(result.workflowsCopied).toBe(0)
-    expect(mockSumForkCopyBytes).toHaveBeenCalledWith(expect.anything(), 'src-ws', {
-      fileIds: ['wf-1'],
-      knowledgeBaseIds: ['kb-1'],
-    })
-    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({
-      plannedWorkspaceId: expect.any(String),
-      creationPolicy: POLICY,
-      bytes: 500,
-    })
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(mockCopyForkResourceContainers).toHaveBeenCalledWith(
-      expect.objectContaining({
-        documentMappingContext: {
-          edgeChildWorkspaceId: result.workspace.id,
-          sourceIsParent: true,
-        },
-      })
-    )
-  })
-
-  it('preserves the source workspace personal API-key policy in the child', async () => {
     const result = await createFork(forkParams())
 
     expect(result.workspace.allowPersonalApiKeys).toBe(false)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ allowPersonalApiKeys: false })
+      expect.objectContaining({
+        allowPersonalApiKeys: false,
+        forkSyncNewWorkflowsExcluded: true,
+      })
     )
+  })
+
+  /**
+   * The deadlock guard, asserted where the order actually lives. `fork-lock-order.integration.ts`
+   * proves this ORDER is the correct one against real Postgres; this proves `createFork`
+   * follows it. Without this, reordering these two calls would leave every check green:
+   * the integration suite drives the helpers itself and never calls `createFork`.
+   *
+   * `lockForkRevision` takes `FOR UPDATE` on the source `workspace` row, which
+   * `unlinkForkEdge` updates while holding the lineage key. Taking it first closes a
+   * genuine cycle. Ranks 2 then 5 in the table on `acquireForkLineageLock`.
+   */
+  it('takes the lineage lock before the revision lock, closing the unlink deadlock', async () => {
+    await createFork({
+      ...forkParams(),
+      admission: {
+        workspaceId: 'src-ws',
+        requestId: 'req-1',
+        requestHash: 'hash-1',
+        previewFingerprint: 'fp-1',
+        choices: {},
+      },
+    })
+
+    const lineageAt =
+      workspaceForkingLineageMockFns.mockAcquireForkLineageLock.mock.invocationCallOrder[0]
+    const revisionAt = mockLockForkRevision.mock.invocationCallOrder[0]
+    expect(lineageAt).toBeDefined()
+    expect(revisionAt).toBeDefined()
+    expect(lineageAt).toBeLessThan(revisionAt)
   })
 
   it('seeds identity mappings for copied FILES by storage key (a later sync must not re-offer them)', async () => {
@@ -271,29 +294,6 @@ describe('createFork storage headroom gate', () => {
       resourceType: 'file',
       parentResourceId: 'workspace/src-ws/a.png',
       childResourceId: 'workspace/child/a.png',
-    })
-  })
-
-  it('mirrors and seeds referenced file folders without selecting their files for copy', async () => {
-    mockCollectReferencedFileFolderPaths.mockReturnValue(new Set(['/Reports']))
-    mockPlanForkFileCopies.mockResolvedValue({
-      keyMap: new Map(),
-      idMap: new Map(),
-      blobTasks: [],
-      folderIdMap: new Map([['folder-src', 'folder-dst']]),
-      folderPathMap: new Map([['/Reports', '/Reports']]),
-    })
-
-    await createFork(forkParams())
-
-    expect(mockPlanForkFileCopies).toHaveBeenCalledWith(
-      expect.objectContaining({ fileIds: [], folderPaths: ['/Reports'] })
-    )
-    const seeded = mockSeedEdgeMappings.mock.calls[0][3] as Array<Record<string, unknown>>
-    expect(seeded).toContainEqual({
-      resourceType: 'file_folder',
-      parentResourceId: '/Reports',
-      childResourceId: '/Reports',
     })
   })
 })

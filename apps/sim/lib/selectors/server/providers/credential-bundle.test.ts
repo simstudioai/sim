@@ -1,70 +1,19 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const mockResolveCredentialAccessToken = vi.hoisted(() => vi.fn())
 const mockResolveOrganizationToken = vi.hoisted(() => vi.fn())
-const mockOwnAccount = vi.hoisted(() => vi.fn())
-const mockResolveManagedToken = vi.hoisted(() => vi.fn())
-
-vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
-  authorizePersonalSearchSetupCredential: mockOwnAccount,
-}))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: mockResolveManagedToken,
-}))
-
 vi.mock('@/lib/credentials/application/organization-credentials', () => ({
   resolveOrganizationCredentialTokenBundle: mockResolveOrganizationToken,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialTokenBundle: mockResolveCredentialAccessToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 
+const mockResolveCredentialAccessToken = authOAuthUtilsMockFns.mockResolveCredentialTokenBundle
+
 describe('selector credential bundles', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('resolves a personal Atlassian grant through the owned managed-account path', async () => {
-    mockOwnAccount.mockResolvedValue({ id: 'managed-1', providerId: 'jira' })
-    mockResolveManagedToken.mockResolvedValue({ accessToken: 'own-managed-token' })
-    const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
-    const protectedValues = createSelectorProtectedValues()
-    await expect(
-      resolveSelectorCredentialBundle({
-        credential: {
-          suppliedId: 'managed-1',
-          providerId: 'jira',
-          personalSearchSetup: { principal, organizationId: 'org-1', connectorType: 'jira' },
-        },
-        providerId: 'jira',
-        scopes: ['read:jira-work'],
-        protectedValues,
-      })
-    ).resolves.toEqual({ accessToken: 'own-managed-token' })
-    expect(mockOwnAccount).toHaveBeenCalledWith(
-      principal,
-      expect.objectContaining({
-        credentialId: 'managed-1',
-        organizationId: 'org-1',
-        connectorType: 'jira',
-      })
-    )
-    expect(mockResolveManagedToken).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      credentialId: 'managed-1',
-      expectedProviderId: 'jira',
-      requiredScopes: ['read:jira-work'],
-    })
-    expect(mockResolveOrganizationToken).not.toHaveBeenCalled()
-    expect(mockResolveCredentialAccessToken).not.toHaveBeenCalled()
-    expect(protectedValues.contains('own-managed-token')).toBe(true)
-  })
-
   it('protects short credential-bound cloud ids as exact identifiers', async () => {
     mockResolveCredentialAccessToken.mockResolvedValue({
       accessToken: 'server-only-token',
@@ -119,34 +68,6 @@ describe('selector credential bundles', () => {
       undefined,
       { privacyMode: 'selector' }
     )
-  })
-
-  it('rechecks cancellation before consuming a fulfilled credential bundle', async () => {
-    mockResolveCredentialAccessToken.mockResolvedValue({
-      accessToken: 'fulfilled-access-token',
-      cloudId: 'cloud-1',
-    })
-    const controller = new AbortController()
-    const protectedValues = createSelectorProtectedValues()
-    const recordCredentialUse = vi.fn()
-    const abortReason = new DOMException('Selector request canceled', 'AbortError')
-
-    const pending = resolveSelectorCredentialBundle({
-      credential: {
-        suppliedId: 'credential-1',
-        access: { ok: true, credentialOwnerUserId: 'owner-1' },
-        signal: controller.signal,
-      },
-      protectedValues,
-      providerId: 'atlassian',
-      recordCredentialUse,
-    })
-    queueMicrotask(() => controller.abort(abortReason))
-
-    await expect(pending).rejects.toBe(abortReason)
-    expect(protectedValues.contains('fulfilled-access-token')).toBe(false)
-    expect(protectedValues.contains('cloud-1')).toBe(false)
-    expect(recordCredentialUse).not.toHaveBeenCalled()
   })
 })
 

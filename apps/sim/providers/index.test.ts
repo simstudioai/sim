@@ -1,28 +1,20 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAttachLargeFileRemoteUrls,
-  mockGetApiKeyWithBYOK,
-  mockExecuteRequest,
-  mockFilterModelSafeWorkspaceFileAttachments,
-  mockExecuteTool,
-  mockUploadLargeFilesToProvider,
-} = vi.hoisted(() => ({
-  mockAttachLargeFileRemoteUrls: vi.fn(),
-  mockGetApiKeyWithBYOK: vi.fn(),
-  mockExecuteRequest: vi.fn(),
-  mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
-  mockExecuteTool: vi.fn(async (..._args: unknown[]) => ({ success: true, output: {} })),
-  mockUploadLargeFilesToProvider: vi.fn(),
-}))
+const { mockAttachLargeFileRemoteUrls, mockExecuteRequest, mockUploadLargeFilesToProvider } =
+  vi.hoisted(() => ({
+    mockAttachLargeFileRemoteUrls: vi.fn(),
+    mockExecuteRequest: vi.fn(),
+    mockUploadLargeFilesToProvider: vi.fn(),
+  }))
 
-vi.mock('@/lib/api-key/byok', () => ({
-  getApiKeyWithBYOK: (...args: unknown[]) => mockGetApiKeyWithBYOK(...args),
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
 vi.mock('@/providers/registry', () => ({
   getProviderExecutor: vi.fn().mockResolvedValue({
@@ -36,14 +28,12 @@ vi.mock('@/providers/file-attachments.server', () => ({
   uploadLargeFilesToProvider: (...args: unknown[]) => mockUploadLargeFilesToProvider(...args),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
-    mockFilterModelSafeWorkspaceFileAttachments(...args),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/tools', () => ({
-  executeTool: (...args: unknown[]) => mockExecuteTool(...args),
-}))
+vi.mock('@/tools', () => toolsMock)
 
 import type { AgentTurnState } from '@/lib/memory/conversation-types'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
@@ -60,6 +50,14 @@ import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
 import { prepareToolExecution } from '@/providers/utils'
+
+const mockGetApiKeyWithBYOK = apiKeyByokMockFns.mockGetApiKeyWithBYOK
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+mockExecuteTool.mockImplementation(async () => ({ success: true, output: {} }))
+const mockFilterModelSafeWorkspaceFileAttachments =
+  workspaceFileSecretProvenanceMockFns.mockFilterModelSafeWorkspaceFileAttachments
+mockFilterModelSafeWorkspaceFileAttachments.mockImplementation(async (attachments) => attachments)
 
 const HOSTED_RATE_INPUT_COST = 0.340285
 const HOSTED_RATE_OUTPUT_COST = 0.0387
@@ -145,7 +143,6 @@ describe('executeProviderRequest — durable Agent continuation', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteRequest.mockReset().mockImplementation(async () => response())
     mockExecuteTool.mockReset().mockResolvedValue({ success: true, output: { value: 'saved' } })
   })
@@ -483,10 +480,6 @@ describe('executeProviderRequest — durable Agent continuation', () => {
 })
 
 describe('executeProviderRequest — tool identities', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('passes trusted execution context to both attachment authorization stages without serializing it', async () => {
     const executionContext = {
       workflowId: 'workflow-1',
@@ -591,10 +584,6 @@ describe('executeProviderRequest — tool identities', () => {
 })
 
 describe('executeProviderRequest — BYOK regression', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('zeroes block-level model cost for BYOK callers (existing behavior)', async () => {
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-byok', isBYOK: true })
     mockExecuteRequest.mockResolvedValue(makeAnthropicResponse())
@@ -878,7 +867,6 @@ describe('executeProviderRequest — BYOK regression', () => {
  */
 describe('executeProviderRequest — streaming cost policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
   })
 
@@ -969,7 +957,6 @@ describe('executeProviderRequest — streaming cost policy', () => {
 
 describe('executeProviderRequest — caller-prepared model input', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteRequest.mockResolvedValue({
       content: 'ok',
       model: 'test-model',
@@ -1900,7 +1887,6 @@ describe('executeProviderRequest — caller-prepared model input', () => {
  */
 describe('executeProviderRequest — model level normalization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
     mockExecuteRequest.mockResolvedValue({
       content: 'hi',
@@ -2081,7 +2067,6 @@ describe('executeProviderRequest — model level normalization', () => {
 
 describe('native evaluation provider boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
     mockExecuteRequest.mockResolvedValue({
       content: '{"passed":true}',

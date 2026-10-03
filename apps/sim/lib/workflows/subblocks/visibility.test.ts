@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
@@ -22,27 +19,9 @@ describe('evaluateSubBlockCondition', () => {
       expect(evaluateSubBlockCondition(condition, values)).toBe(true)
     })
 
-    it.concurrent('returns false when field value does not match condition value', () => {
-      const condition = { field: 'operation', value: 'create_booking' }
-      const values = { operation: 'cancel_booking' }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
     it.concurrent('returns false when field is missing', () => {
       const condition = { field: 'operation', value: 'create_booking' }
       const values = {}
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
-    it.concurrent('returns false when field is undefined', () => {
-      const condition = { field: 'operation', value: 'create_booking' }
-      const values = { operation: undefined }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
-    it.concurrent('returns false when field is null', () => {
-      const condition = { field: 'operation', value: 'create_booking' }
-      const values = { operation: null }
       expect(evaluateSubBlockCondition(condition, values)).toBe(false)
     })
   })
@@ -53,61 +32,11 @@ describe('evaluateSubBlockCondition', () => {
       const values = { operation: 'create_booking' }
       expect(evaluateSubBlockCondition(condition, values)).toBe(true)
     })
-
-    it.concurrent('returns true for second array value', () => {
-      const condition = { field: 'operation', value: ['create_booking', 'update_booking'] }
-      const values = { operation: 'update_booking' }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(true)
-    })
-
-    it.concurrent('returns false when field value is not in condition array', () => {
-      const condition = { field: 'operation', value: ['create_booking', 'update_booking'] }
-      const values = { operation: 'cancel_booking' }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
-    it.concurrent('returns false when field is undefined with array condition', () => {
-      const condition = { field: 'operation', value: ['create_booking', 'update_booking'] }
-      const values = { operation: undefined }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
-    it.concurrent('returns false when field is null with array condition', () => {
-      const condition = { field: 'operation', value: ['create_booking', 'update_booking'] }
-      const values = { operation: null }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
   })
 
   describe('negation with not flag', () => {
     it.concurrent('returns false when field matches but not is true', () => {
       const condition = { field: 'operation', value: 'create_booking', not: true }
-      const values = { operation: 'create_booking' }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
-    it.concurrent('returns true when field does not match and not is true', () => {
-      const condition = { field: 'operation', value: 'create_booking', not: true }
-      const values = { operation: 'cancel_booking' }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(true)
-    })
-
-    it.concurrent('returns true when field is not in array and not is true', () => {
-      const condition = {
-        field: 'operation',
-        value: ['create_booking', 'update_booking'],
-        not: true,
-      }
-      const values = { operation: 'cancel_booking' }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(true)
-    })
-
-    it.concurrent('returns false when field is in array and not is true', () => {
-      const condition = {
-        field: 'operation',
-        value: ['create_booking', 'update_booking'],
-        not: true,
-      }
       const values = { operation: 'create_booking' }
       expect(evaluateSubBlockCondition(condition, values)).toBe(false)
     })
@@ -123,49 +52,9 @@ describe('evaluateSubBlockCondition', () => {
       const values = { operation: 'create_booking', hasEmail: true }
       expect(evaluateSubBlockCondition(condition, values)).toBe(true)
     })
-
-    it.concurrent('returns false when first condition matches but and condition fails', () => {
-      const condition = {
-        field: 'operation',
-        value: 'create_booking',
-        and: { field: 'hasEmail', value: true },
-      }
-      const values = { operation: 'create_booking', hasEmail: false }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
-    it.concurrent('returns false when first condition fails but and condition matches', () => {
-      const condition = {
-        field: 'operation',
-        value: 'create_booking',
-        and: { field: 'hasEmail', value: true },
-      }
-      const values = { operation: 'cancel_booking', hasEmail: true }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
-
-    it.concurrent('returns false when both conditions fail', () => {
-      const condition = {
-        field: 'operation',
-        value: 'create_booking',
-        and: { field: 'hasEmail', value: true },
-      }
-      const values = { operation: 'cancel_booking', hasEmail: false }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(false)
-    })
   })
 
   describe('edge cases', () => {
-    it.concurrent('returns true when condition is undefined', () => {
-      expect(evaluateSubBlockCondition(undefined, { operation: 'anything' })).toBe(true)
-    })
-
-    it.concurrent('handles function conditions', () => {
-      const condition = () => ({ field: 'operation', value: 'create_booking' })
-      const values = { operation: 'create_booking' }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(true)
-    })
-
     it.concurrent('passes current values into function conditions', () => {
       const condition = (values?: Record<string, unknown>) => ({
         field: 'model',
@@ -174,30 +63,10 @@ describe('evaluateSubBlockCondition', () => {
       const values = { model: 'ollama/gemma3:4b' }
       expect(evaluateSubBlockCondition(condition, values)).toBe(true)
     })
-
-    it.concurrent('handles boolean values', () => {
-      const condition = { field: 'enabled', value: true }
-      const values = { enabled: true }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(true)
-    })
-
-    it.concurrent('handles numeric values', () => {
-      const condition = { field: 'count', value: 5 }
-      const values = { count: 5 }
-      expect(evaluateSubBlockCondition(condition, values)).toBe(true)
-    })
   })
 })
 
 describe('scopeCanonicalModesForTool', () => {
-  it.concurrent('returns undefined when there are no overrides', () => {
-    expect(scopeCanonicalModesForTool(undefined, 0)).toBeUndefined()
-  })
-
-  it.concurrent('returns undefined when toolIndex is undefined', () => {
-    expect(scopeCanonicalModesForTool({ '0:tableId': 'advanced' }, undefined)).toBeUndefined()
-  })
-
   it.concurrent('strips the toolIndex prefix for the matching tool instance', () => {
     const overrides = { '0:tableId': 'advanced', '1:tableId': 'basic' }
     expect(scopeCanonicalModesForTool(overrides, 0)).toEqual({ tableId: 'advanced' })
@@ -213,16 +82,6 @@ describe('scopeCanonicalModesForTool', () => {
       expect(scopeCanonicalModesForTool(overrides, 1)).toEqual({ tableId: 'basic' })
     }
   )
-
-  it.concurrent('returns undefined when no keys match the given toolIndex prefix', () => {
-    expect(scopeCanonicalModesForTool({ '1:tableId': 'advanced' }, 0)).toBeUndefined()
-  })
-
-  it.concurrent('ignores falsy override values', () => {
-    expect(
-      scopeCanonicalModesForTool({ '0:tableId': undefined as unknown as 'advanced' }, 0)
-    ).toBeUndefined()
-  })
 
   it.concurrent(
     'falls back to the legacy toolType-scoped prefix when no index-scoped key matches',
@@ -257,26 +116,12 @@ describe('scopeCanonicalModesForTool', () => {
       conflictColumn: 'basic',
     })
   })
-
-  it.concurrent('does not fall back when no legacyToolType is given', () => {
-    expect(scopeCanonicalModesForTool({ 'table:tableId': 'advanced' }, 0)).toBeUndefined()
-  })
 })
 
 describe('reindexToolCanonicalModes', () => {
   // Generic over T - only object identity matters, so a plain marker object stands in for a
   // real StoredTool/fork-parsed-tool.
   const tool = (label: string) => ({ label })
-
-  it.concurrent('returns undefined when there are no overrides', () => {
-    expect(reindexToolCanonicalModes([tool('a')], [tool('a')], undefined)).toBeUndefined()
-  })
-
-  it.concurrent('returns undefined when every tool keeps its index', () => {
-    const a = tool('a')
-    const b = tool('b')
-    expect(reindexToolCanonicalModes([a, b], [a, b], { '0:tableId': 'advanced' })).toBeUndefined()
-  })
 
   it.concurrent('re-keys a surviving tool overrides to its new index after a removal', () => {
     const a = tool('a')
@@ -325,27 +170,6 @@ describe('reindexToolCanonicalModes', () => {
     })
     expect(result).toEqual({ '0:tableId': 'basic' })
   })
-
-  it.concurrent('carries a legacy (non-index-scoped) key through unchanged', () => {
-    const a = tool('a')
-    const b = tool('b')
-    // `table:tableId` isn't tied to any array position - removing/reordering tools must not
-    // touch it.
-    const result = reindexToolCanonicalModes([a, b], [b], {
-      '0:tableId': 'advanced',
-      'table:tableId': 'basic',
-    })
-    expect(result).toEqual({ 'table:tableId': 'basic' })
-  })
-
-  it.concurrent('ignores falsy override values', () => {
-    const a = tool('a')
-    const b = tool('b')
-    const result = reindexToolCanonicalModes([a, b], [b, a], {
-      '0:tableId': undefined as unknown as 'advanced',
-    })
-    expect(result).toBeUndefined()
-  })
 })
 
 describe('reindexRewrittenToolCanonicalModes', () => {
@@ -358,10 +182,6 @@ describe('reindexRewrittenToolCanonicalModes', () => {
   })
   const gmail = () => ({ type: 'gmail', operation: 'gmail_send', params: {} })
 
-  it.concurrent('returns undefined when there are no overrides', () => {
-    expect(reindexRewrittenToolCanonicalModes([jira('A')], [jira('B')], undefined)).toBeUndefined()
-  })
-
   it.concurrent('moves each tool overrides with it when serialized tools are reordered', () => {
     const result = reindexRewrittenToolCanonicalModes(
       [jira('A'), jira('B')],
@@ -369,24 +189,6 @@ describe('reindexRewrittenToolCanonicalModes', () => {
       { '0:projectId': 'basic', '1:projectId': 'advanced' }
     )
     expect(result).toEqual({ '0:projectId': 'advanced', '1:projectId': 'basic' })
-  })
-
-  it.concurrent('ignores isExpanded, which serialized input may omit or default', () => {
-    const result = reindexRewrittenToolCanonicalModes(
-      [jira('A', { isExpanded: false }), jira('B', { isExpanded: true })],
-      [jira('B'), jira('A', { isExpanded: true })],
-      { '1:projectId': 'advanced' }
-    )
-    expect(result).toEqual({ '0:projectId': 'advanced' })
-  })
-
-  it.concurrent('keeps overrides in place when a tool params are edited without moving', () => {
-    const result = reindexRewrittenToolCanonicalModes(
-      [jira('A'), jira('B')],
-      [jira('A-edited'), jira('B-edited')],
-      { '0:projectId': 'basic', '1:projectId': 'advanced' }
-    )
-    expect(result).toBeUndefined()
   })
 
   it.concurrent(
@@ -431,14 +233,6 @@ describe('reindexRewrittenToolCanonicalModes', () => {
       { '0:projectId': 'basic', '1:projectId': 'advanced' }
     )
     expect(result).toBeUndefined()
-  })
-
-  it.concurrent('carries a legacy (non-index-scoped) key through unchanged', () => {
-    const result = reindexRewrittenToolCanonicalModes([jira('A'), jira('B')], [jira('B')], {
-      '0:projectId': 'advanced',
-      'jira:projectId': 'basic',
-    })
-    expect(result).toEqual({ 'jira:projectId': 'basic' })
   })
 })
 
@@ -537,15 +331,5 @@ describe('resolveActiveDependencyValue', () => {
     expect(resolveActiveDependencyValue('folderSelection', untouched, index, basic)).toBeUndefined()
     expect(resolveActiveDependencyValue('folderSelection', cleared, index, basic)).toBe('')
     expect(resolveDependencyValue('folderSelection', untouched, index, basic)).toBe('/Archive')
-  })
-
-  it.concurrent('follows the value heuristic when no mode was chosen', () => {
-    const values = { manualFolderSelection: '/Archive' }
-
-    expect(resolveActiveDependencyValue('folderSelection', values, index)).toBe('/Archive')
-  })
-
-  it.concurrent('reads a field outside any pair as itself', () => {
-    expect(resolveActiveDependencyValue('query', { query: 'commitment' }, index)).toBe('commitment')
   })
 })

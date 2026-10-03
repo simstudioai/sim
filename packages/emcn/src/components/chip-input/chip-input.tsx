@@ -116,9 +116,9 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
         disabled={disabled}
         className={cn(
           appearance === 'compactSearch'
-            ? 'h-full w-full touch-manipulation scroll-pr-1 bg-transparent font-sans text-[var(--text-primary)] text-caption outline-hidden [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
+            ? 'size-full touch-manipulation scroll-pr-1 bg-transparent font-sans text-[var(--text-primary)] text-caption outline-hidden [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
             : cn(
-                '-ml-1 h-full w-full bg-transparent indent-1 disabled:cursor-not-allowed',
+                '-ml-1 size-full bg-transparent indent-1 disabled:cursor-not-allowed',
                 chipFieldTextClass
               ),
           inputClassName

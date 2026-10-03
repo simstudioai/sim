@@ -6,6 +6,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { canonicalJson } from '@/lib/api/cursor-binding'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { CoerceResult, TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
@@ -26,7 +27,7 @@ import {
 } from '@/lib/table/constants'
 import { withSeqscanOff } from '@/lib/table/planner'
 import { resolveSelectOptionId, splitMultiSelectInput } from '@/lib/table/select-options'
-import { fieldPredicate } from '@/lib/table/sql'
+import { uniqueValuePredicate } from '@/lib/table/sql'
 import type {
   ColumnDefinition,
   JsonValue,
@@ -251,12 +252,20 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
   return { valid: errors.length === 0, errors }
 }
 
+/**
+ * The cell `row` holds for `columnId`, read as an own property: a legacy column keyed by its name
+ * can be called `constructor`, which a plain index would find on every row's prototype.
+ */
+export function cellOf(row: RowData, columnId: string): JsonValue | undefined {
+  return Object.hasOwn(row, columnId) ? row[columnId] : undefined
+}
+
 /** Validates row data matches schema column types and required fields. */
 export function validateRowAgainstSchema(data: RowData, schema: TableSchema): ValidationResult {
   const errors: string[] = []
 
   for (const column of schema.columns) {
-    const value = data[getColumnId(column)]
+    const value = cellOf(data, getColumnId(column))
 
     if (column.required && (value === undefined || value === null)) {
       errors.push(`Missing required field: ${column.name}`)
@@ -347,7 +356,7 @@ export function coerceRowValues(
   const policyFor = policyResolver(policy, patchedKeys)
   for (const column of schema.columns) {
     const key = getColumnId(column)
-    const value = data[key]
+    const value = cellOf(data, key)
     if (value === null || value === undefined) continue
 
     const coerced = coerceValueToColumnType(value, column)
@@ -406,41 +415,21 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
 
-/** Validates unique constraints against existing rows (in-memory version for batch validation within a batch). */
-export function validateUniqueConstraints(
-  data: RowData,
-  schema: TableSchema,
-  existingRows: { id: string; data: RowData; position?: number }[],
-  excludeRowId?: string
-): ValidationResult {
-  const errors: string[] = []
-  const uniqueColumns = getUniqueColumns(schema)
+/**
+ * The unique columns `patch` writes. A patch applied to more than one row cannot write any of them
+ * without storing a duplicate.
+ */
+export function uniqueColumnsInPatch(schema: TableSchema, patch: RowData): ColumnDefinition[] {
+  return getUniqueColumns(schema).filter((column) => Object.hasOwn(patch, getColumnId(column)))
+}
 
-  for (const column of uniqueColumns) {
-    const key = getColumnId(column)
-    const value = data[key]
-    if (value === null || value === undefined) continue
-
-    const duplicate = existingRows.find((row) => {
-      if (excludeRowId && row.id === excludeRowId) return false
-      // Case-sensitive, matching the DB unique-check leaf (`fieldPredicate` eq).
-      const existing = row.data[key]
-      return (
-        existing !== undefined &&
-        columnValueForEquality(value, column) === columnValueForEquality(existing, column)
-      )
-    })
-
-    if (duplicate) {
-      const rowLabel =
-        typeof duplicate.position === 'number' ? `row ${duplicate.position + 1}` : duplicate.id
-      errors.push(
-        `Column "${column.name}" must be unique. Value "${value}" already exists in ${rowLabel}`
-      )
-    }
-  }
-
-  return { valid: errors.length === 0, errors }
+/**
+ * The key two unique-column values share when the unique check treats them as equal. Object keys
+ * are sorted, since the check compares JSONB, where key order carries no meaning. In-batch
+ * duplicate detection and the unique-value locks both key on it.
+ */
+export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
+  return canonicalJson(columnValueForEquality(value, column))
 }
 
 /**
@@ -471,13 +460,14 @@ export async function checkUniqueConstraintsDb(
 
   for (const column of uniqueColumns) {
     const key = getColumnId(column)
-    const value = data[key]
+    const value = cellOf(data, key)
     if (value === null || value === undefined) continue
 
-    // Same leaf as the upsert conflict probe → case-sensitive JSONB containment
-    // (GIN-indexed). `eq` always yields a clause for a non-null value.
-    const clause = fieldPredicate(USER_TABLE_ROWS_SQL_NAME, key, 'eq', value, column)
-    if (clause) conditions.push({ column, value, sql: clause })
+    conditions.push({
+      column,
+      value,
+      sql: uniqueValuePredicate(USER_TABLE_ROWS_SQL_NAME, key, value, column),
+    })
   }
 
   if (conditions.length === 0) {
@@ -485,12 +475,13 @@ export async function checkUniqueConstraintsDb(
   }
 
   // Query for each unique column separately to provide specific error messages.
-  // The predicate is now case-sensitive JSONB containment (`data @> {...}`),
+  // The predicate leads with case-sensitive JSONB containment (`data @> {...}`),
   // which can use the GIN index. We still pin `enable_seqscan = off` (tenant-
   // bounded) defensively for the small-table / cold-stats case. With an external
-  // transaction the flag is set on it directly — opening our own transaction
-  // inside the caller's would be the nested pool checkout the migration-
-  // hardening work eliminated (self-deadlock under pool exhaustion).
+  // transaction the flag is set on it for the check only (see withSeqscanOffOn)
+  // — opening our own transaction inside the caller's would be the nested pool
+  // checkout the migration-hardening work eliminated (self-deadlock under pool
+  // exhaustion).
   const checkConditions = async (ex: UniqueCheckExecutor) => {
     for (const condition of conditions) {
       const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
@@ -516,11 +507,28 @@ export async function checkUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkConditions(trx))
   } else {
-    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
-    await checkConditions(executor)
+    await withSeqscanOffOn(executor, () => checkConditions(executor))
   }
 
   return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Runs `check` on the caller's open transaction with seq scans penalized, then puts back the
+ * transaction's previous setting. Unique checks now run inside write transactions ahead of the
+ * row-order lock, and leaving the flag off for the rest of the transaction slowed the locked
+ * position and INSERT statements that follow. Reading the previous value and setting the new one
+ * in one statement keeps it one round trip each way; a caller that set the flag itself keeps it.
+ */
+async function withSeqscanOffOn(
+  executor: UniqueCheckExecutor,
+  check: () => Promise<void>
+): Promise<void> {
+  const [{ previous }] = await executor.execute<{ previous: string }>(sql`
+    SELECT current_setting('enable_seqscan') AS previous, set_config('enable_seqscan', 'off', true)
+  `)
+  await check()
+  await executor.execute(sql`SELECT set_config('enable_seqscan', ${previous}, true)`)
 }
 
 /**
@@ -572,10 +580,10 @@ export async function checkBatchUniqueConstraintsDb(
 
     for (const column of uniqueColumns) {
       const key = getColumnId(column)
-      const value = rowData[key]
+      const value = cellOf(rowData, key)
       if (value === null || value === undefined) continue
 
-      const normalizedValue = JSON.stringify(columnValueForEquality(value, column))
+      const normalizedValue = uniqueValueKey(value, column)
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!
@@ -598,9 +606,8 @@ export async function checkBatchUniqueConstraintsDb(
   // Now check against database for all unique values at once. Tenant-bounded
   // for the same reason as checkUniqueConstraintsDb: the lower(data->>...)
   // predicates are unestimatable and otherwise trigger whole-relation seq
-  // scans. With an external transaction the flag is set on it directly (SET
-  // LOCAL dies at its commit; it only penalizes plan shape, and the statements
-  // that follow in those transactions are tenant-scoped writes).
+  // scans. With an external transaction the flag is set on it for the check
+  // only (see withSeqscanOffOn).
   const checkColumns = async (ex: UniqueCheckExecutor) => {
     for (const [columnId, { values, column }] of valuesByColumn) {
       if (values.size === 0) continue
@@ -618,18 +625,7 @@ export async function checkBatchUniqueConstraintsDb(
         // string — a unique `date` column normalized to a bare `2024-01-01`
         // and then threw `SyntaxError` trying to parse it back.
         const originalValue: JsonValue = JSON.parse(normalizedValue)
-        // Same case-sensitive containment leaf as every other matcher.
-        const clause = fieldPredicate(
-          USER_TABLE_ROWS_SQL_NAME,
-          columnId,
-          'eq',
-          originalValue,
-          column
-        )
-        if (!clause) {
-          throw new Error(`Failed to build unique-constraint predicate for column "${column.name}"`)
-        }
-        return clause
+        return uniqueValuePredicate(USER_TABLE_ROWS_SQL_NAME, columnId, originalValue, column)
       })
 
       const conflictingRows = await ex
@@ -645,22 +641,17 @@ export async function checkBatchUniqueConstraintsDb(
       // Map conflicts back to batch rows
       for (const conflict of conflictingRows) {
         const conflictData = conflict.data as RowData
-        const conflictValue = columnValueForEquality(conflictData[columnId], column)
-        const normalizedConflictValue =
-          typeof conflictValue === 'string' ? conflictValue : JSON.stringify(conflictValue)
+        const conflictValue = cellOf(conflictData, columnId)
+        if (conflictValue === null || conflictValue === undefined) continue
+        // Keyed like the batch, since stored jsonb comes back with its keys reordered.
+        const normalizedConflictValue = uniqueValueKey(conflictValue, column)
 
         // Find which batch rows have this conflicting value
         for (let i = 0; i < rows.length; i++) {
-          const rowValue = rows[i][columnId]
+          const rowValue = cellOf(rows[i], columnId)
           if (rowValue === null || rowValue === undefined) continue
 
-          const comparableRowValue = columnValueForEquality(rowValue, column)
-          const normalizedRowValue =
-            typeof comparableRowValue === 'string'
-              ? comparableRowValue
-              : JSON.stringify(comparableRowValue)
-
-          if (normalizedRowValue === normalizedConflictValue) {
+          if (uniqueValueKey(rowValue, column) === normalizedConflictValue) {
             // Check if this row already has errors for this column
             let rowError = rowErrors.find((e) => e.row === i)
             if (!rowError) {
@@ -681,8 +672,7 @@ export async function checkBatchUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkColumns(trx))
   } else {
-    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
-    await checkColumns(executor)
+    await withSeqscanOffOn(executor, () => checkColumns(executor))
   }
 
   // Sort errors by row index

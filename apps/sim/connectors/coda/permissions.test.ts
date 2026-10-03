@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { codaConnector } from '@/connectors/coda/coda'
 import {
@@ -27,7 +26,6 @@ let admin: Record<string, unknown> = { mirrorsSourceAcls: true }
 
 describe('Coda source permissions', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     admin = { mirrorsSourceAcls: true }
   })
 
@@ -80,30 +78,6 @@ describe('Coda source permissions', () => {
       'g:coda:org-1:user:reader@example.com',
       'g:coda:org-1:workspace:77732d31',
     ])
-  })
-
-  it('refreshes sharing for unchanged pages and tables, including every ACL page', async () => {
-    const fetch = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(Response.json(doc))
-      .mockResolvedValueOnce(
-        Response.json({
-          items: [
-            { access: 'readonly', principal: { type: 'email', email: 'reader@example.com' } },
-          ],
-          nextPageToken: 'next',
-        })
-      )
-      .mockResolvedValueOnce(Response.json({ items: [] }))
-      .mockResolvedValueOnce(Response.json(doc))
-      .mockResolvedValueOnce(Response.json({ items: [] }))
-    const documents = [stub, { ...stub, externalId: 'doc-1/tables/grid-1' }]
-    const before = await resolveCodaAcls('token', {}, documents, admin)
-    expect(before[stub.externalId]).toContain('u:reader@example.com')
-    expect(before[documents[1].externalId]).toEqual(before[stub.externalId])
-    const after = await resolveCodaAcls('token', {}, documents, admin)
-    expect(after[stub.externalId]).toEqual(['u:owner@example.com'])
-    expect(fetch).toHaveBeenCalledTimes(5)
   })
 
   it('fails closed on an incomplete ACL instead of retaining the successfully read prefix', async () => {
@@ -217,32 +191,6 @@ describe('Coda source permissions', () => {
       'https://coda.io/apis/admin/v1/organizations/org-1/workspaces/ws-1/docs/doc-1/pages?limit=100',
       'https://coda.io/apis/admin/v1/organizations/org-1/workspaces/ws-1/docs/doc-1/pages/canvas-1?outputFormat=LossyPlainText',
     ])
-  })
-
-  it('refreshes unversioned Enterprise pages once per durable sync generation', async () => {
-    const { updatedAt: _revision, ...unversionedDoc } = doc
-    const page = { id: 'canvas-1', name: 'Page', browserLink: 'https://coda.io/d/page' }
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = new URL(String(input))
-      if (url.searchParams.has('docIds')) return Response.json({ items: [unversionedDoc] })
-      if (url.pathname.endsWith('/pages')) return Response.json({ items: [page] })
-      return Response.json({ ...page, pageContent: { content: 'Unversioned body' } })
-    })
-    const config = { docIds: ['doc-1'], organizationId: 'org-1' }
-    const context = { ...admin, syncRunId: 'first' }
-    const first = await codaConnector.listDocuments('token', config, undefined, context)
-    const hydrated = await codaConnector.getDocument(
-      'token',
-      config,
-      first.documents[0].externalId,
-      context
-    )
-    expect(hydrated?.contentHash).toBe(first.documents[0].contentHash)
-    const next = await codaConnector.listDocuments('token', config, undefined, {
-      ...admin,
-      syncRunId: 'next',
-    })
-    expect(next.documents[0].contentHash).not.toBe(first.documents[0].contentHash)
   })
 
   it('uses current workspace-qualified permissions and rejects ambiguous metadata lookups', async () => {

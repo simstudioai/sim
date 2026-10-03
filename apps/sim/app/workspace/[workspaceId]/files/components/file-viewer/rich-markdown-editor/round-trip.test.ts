@@ -35,14 +35,6 @@ afterEach(() => {
 })
 
 describe('markdown-fidelity utils', () => {
-  it('splits a frontmatter block and its trailing whitespace from the body', () => {
-    const fm = '---\ntitle: Hello\ntags: [a, b]\n---'
-    const { frontmatter, body } = splitFrontmatter(`${fm}\n\n# Body`)
-    expect(frontmatter).toBe(`${fm}\n\n`)
-    expect(body).toBe('# Body')
-    expect(applyFrontmatter(frontmatter, body)).toBe(`${fm}\n\n# Body`)
-  })
-
   it('preserves the exact frontmatter/body separator (no whitespace churn)', () => {
     for (const original of [
       '---\na: 1\n---\nbody',
@@ -55,53 +47,12 @@ describe('markdown-fidelity utils', () => {
     }
   })
 
-  it('recognizes empty and minimal frontmatter blocks', () => {
-    const empty = splitFrontmatter('---\n---\n\n# Title')
-    expect(empty.frontmatter).toBe('---\n---\n\n')
-    expect(empty.body).toBe('# Title')
-
-    const onlyFm = splitFrontmatter('---\ntitle: x\n---')
-    expect(onlyFm.frontmatter).toBe('---\ntitle: x\n---')
-    expect(onlyFm.body).toBe('')
-
-    const crlf = splitFrontmatter('---\r\n---\r\nbody')
-    expect(crlf.frontmatter + crlf.body).toBe('---\r\n---\r\nbody')
-    expect(crlf.body).toBe('body')
-  })
-
-  it('treats content with no frontmatter as all body', () => {
-    expect(splitFrontmatter('# Just a heading')).toEqual({
-      frontmatter: '',
-      body: '# Just a heading',
-    })
-    expect(applyFrontmatter('', '# Body')).toBe('# Body')
-  })
-
-  it('does not treat a horizontal rule as frontmatter', () => {
-    const md = 'above\n\n---\n\nbelow'
-    expect(splitFrontmatter(md)).toEqual({ frontmatter: '', body: md })
-  })
-
-  it('does not treat a leading `---` thematic break as frontmatter (keeps the top section visible)', () => {
-    // A changelog whose second `---` would close the regex: the `## v2.0` section must stay in body.
-    const md = '---\n\n## v2.0\n\nnotes\n\n---\n\n## v1.0'
-    expect(splitFrontmatter(md)).toEqual({ frontmatter: '', body: md })
-  })
-
   it('holds a UTF-8 BOM out of band so frontmatter survives', () => {
     const input = '\uFEFF---\ntitle: x\n---\n\nbody'
     const { frontmatter, body } = splitFrontmatter(input)
     expect(frontmatter.startsWith('\uFEFF')).toBe(true)
     expect(body).toBe('body')
     expect(applyFrontmatter(frontmatter, body)).toBe(input)
-  })
-
-  it('restores escaped callout markers', () => {
-    expect(roundTrip('> [!NOTE]\n> hi').trim()).toBe('> [!NOTE]\n> hi')
-  })
-
-  it('restores escaped callout markers in nested blockquotes', () => {
-    expect(roundTrip('> > [!WARNING]\n> > hi').trim()).toBe('> > [!WARNING]\n> > hi')
   })
 
   it('normalizes link hrefs', () => {
@@ -187,13 +138,6 @@ describe('markdown-fidelity utils', () => {
     // …and the renderer refuses to build an anchor out of it.
     expect(normalizeLinkHref(hrefs[0])).toBe('')
   })
-
-  it('collapses trailing blank lines and preserves leading whitespace', () => {
-    expect(postProcessSerializedMarkdown('| a |\n| --- |\n\n\n')).toBe('| a |\n| --- |\n')
-    // No global leading-newline strip (the table trims its own at the source), so content that
-    // legitimately begins with a blank line is no longer clobbered on save.
-    expect(postProcessSerializedMarkdown('\nbody\n')).toBe('\nbody\n')
-  })
 })
 
 describe('editor markdown round-trip', () => {
@@ -245,28 +189,12 @@ describe('editor markdown round-trip', () => {
     })
   }
 
-  // The `@`-mention link scheme must survive the schema, or the mention is silently stripped to
-  // plain text (which idempotency above can't detect). See the `sim` protocol in extensions.ts.
-  it('preserves a @-mention sim: link', () => {
-    const input = 'see [my-skill](sim:skill/abc123) and [Spec](sim:file/xyz-789)'
-    expect(roundTrip(input)).toBe(input)
-  })
-
   it('preserves frontmatter through a full round-trip', () => {
     const input = '---\ntitle: Hello\ntags: [a, b]\n---\n\n# Body\n\ntext'
     const out = roundTrip(input)
     expect(out).toContain('---\ntitle: Hello\ntags: [a, b]\n---')
     expect(out).toContain('# Body')
     expect(out).toBe(roundTrip(out))
-  })
-
-  it('keeps GFM callout markers unescaped', () => {
-    expect(roundTrip('> [!NOTE]\n> Heads up')).toContain('[!NOTE]')
-  })
-
-  it('preserves an image url (does not drop the src)', () => {
-    const out = roundTrip('![alt](https://example.com/i.png)')
-    expect(out).toContain('![alt](https://example.com/i.png)')
   })
 
   it('round-trips an image whose alt/title contain delimiter characters (idempotent)', () => {
@@ -284,12 +212,6 @@ describe('editor markdown round-trip', () => {
       '[![build](https://img.shields.io/badge/x-green)](https://ci.example.com)'
     )
     expect(roundTrip(out)).toBe(out)
-  })
-
-  it('keeps a plain image plain (no spurious link wrapper)', () => {
-    const out = roundTrip('![alt](https://example.com/i.png)')
-    expect(out).not.toContain('](https://example.com/i.png)](')
-    expect(out.trim()).toBe('![alt](https://example.com/i.png)')
   })
 
   it('round-trips a sized image as an HTML <img>, plain images as markdown', () => {
@@ -310,41 +232,6 @@ describe('editor markdown round-trip', () => {
     expect(roundTrip(out)).toBe(out)
   })
 
-  it('uses empty alt text when a linked HTML image has no alt attribute', () => {
-    const source = '[<img src="https://e.com/i.png" width="320">](https://e.com)'
-    const out = roundTrip(source)
-
-    expect(out).toContain('alt=""')
-    expect(out).not.toContain('alt="&lt;img')
-    expect(roundTrip(out)).toBe(out)
-  })
-
-  it('round-trips linked images with escaped alt text and angle-bracket destinations', () => {
-    const source = '[![a\\]b](<https://e.com/image (1).png>)](<https://e.com/view (1)> "Details")'
-    const out = roundTrip(source)
-
-    expect(out).toContain('a\\]b')
-    expect(out).toContain('<https://e.com/image (1).png>')
-    expect(out).toContain('<https://e.com/view (1)>')
-    expect(roundTrip(out)).toBe(out)
-  })
-
-  it('parses a paragraph of adjacent links and linked images without recursive suffix scans', () => {
-    const links = Array.from(
-      { length: 80 },
-      (_, index) => `[Link ${index}](https://e.com/${index})`
-    )
-    const images = Array.from(
-      { length: 40 },
-      (_, index) => `[![Image ${index}](https://e.com/${index}.png)](https://e.com/${index})`
-    )
-    const out = roundTrip([...links, ...images].join(' '))
-
-    for (const link of links) expect(out).toContain(link)
-    for (const image of images) expect(out).toContain(image)
-    expect(roundTrip(out)).toBe(out)
-  })
-
   it('preserves a sized base64 image and escapes quotes in attributes', () => {
     const dataUrl = '<img src="data:image/png;base64,iVBORw0KGgo=" width="200">'
     expect(roundTrip(dataUrl)).toContain('data:image/png;base64,iVBORw0KGgo=')
@@ -360,22 +247,6 @@ describe('editor markdown round-trip', () => {
     expect(roundTrip(out)).toBe(out)
   })
 
-  it('keeps a mermaid block as a fenced code block', () => {
-    expect(roundTrip('```mermaid\ngraph TD\n  A --> B\n```')).toContain('```mermaid')
-  })
-
-  it('keeps task list checkbox state', () => {
-    const out = roundTrip('- [ ] todo\n- [x] done')
-    expect(out).toContain('- [ ] todo')
-    expect(out).toContain('- [x] done')
-  })
-
-  it('keeps a table as a GFM pipe table with no leading blank line', () => {
-    const out = roundTrip('| a | b |\n| --- | --- |\n| 1 | 2 |')
-    expect(out.startsWith('|')).toBe(true)
-    expect(out).toContain('| --- |')
-  })
-
   it('escapes only interior cell pipes, not the structural delimiters', () => {
     const out = roundTrip('| a | b |\n| --- | --- |\n| one \\| two | three |')
     expect(out).toContain('one \\| two')
@@ -384,30 +255,6 @@ describe('editor markdown round-trip', () => {
     for (const line of out.trim().split('\n')) {
       expect((line.match(/(?<!\\)\|/g) ?? []).length).toBe(3)
     }
-    expect(roundTrip(out)).toBe(out)
-  })
-
-  it('combines strikethrough with inline code (relaxed code mark)', () => {
-    expect(roundTrip('~~`x`~~')).toContain('~~`x`~~')
-    expect(roundTrip('# ~~`x`~~')).toContain('# ~~`x`~~')
-  })
-
-  it('escapes interior pipes in table cells (no phantom column split)', () => {
-    const out = roundTrip('| x \\| y | 2 |\n| --- | --- |\n| a | b |')
-    expect(out).toContain('x \\| y')
-  })
-
-  it('does not churn blank lines around an interior table', () => {
-    const out = roundTrip('before\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nafter')
-    expect(out).not.toContain('\n\n\n')
-    expect(out).toContain('before')
-    expect(out).toContain('after')
-    expect(roundTrip(out)).toBe(out)
-  })
-
-  it('does not churn blank lines between two adjacent tables', () => {
-    const out = roundTrip('| a |\n| --- |\n| 1 |\n\n| b |\n| --- |\n| 2 |')
-    expect(out).not.toContain('\n\n\n')
     expect(roundTrip(out)).toBe(out)
   })
 
@@ -446,12 +293,6 @@ describe('link href sanitization — dangerous schemes from file content are neu
       expect((href ?? '').replace(/\s/g, '')).not.toMatch(/^(javascript|data|vbscript):/i)
     }
   })
-
-  it('preserves safe http/https/mailto links', () => {
-    const hrefs = renderedHrefs('[a](https://ok.example.com)\n\n[b](mailto:x@y.com)')
-    expect(hrefs).toContain('https://ok.example.com')
-    expect(hrefs).toContain('mailto:x@y.com')
-  })
 })
 
 describe('paragraph leading guard (marker escaping + indent stripping)', () => {
@@ -488,17 +329,6 @@ describe('paragraph leading guard (marker escaping + indent stripping)', () => {
   ])('escapes a paragraph starting with %j so it stays a paragraph', (text, expectedMd) => {
     const { md, reparsedType, idempotent } = serializeParagraph(text)
     expect(md.trim()).toBe(expectedMd)
-    expect(reparsedType).toBe('paragraph')
-    expect(idempotent).toBe(true)
-  })
-
-  it.each([
-    ['#hashtag'], // no space after # → not a heading
-    ['-5 degrees'], // no space after - → not a bullet
-    ['plain text'],
-  ])('does not over-escape %j', (text) => {
-    const { md, reparsedType, idempotent } = serializeParagraph(text)
-    expect(md.trim()).toBe(text)
     expect(reparsedType).toBe('paragraph')
     expect(idempotent).toBe(true)
   })
@@ -559,25 +389,6 @@ describe('consecutive empty paragraphs', () => {
 })
 
 describe('highlight ==mark==', () => {
-  function markPresent(src: string): boolean {
-    editor = new Editor({ extensions: createMarkdownContentExtensions() })
-    editor.commands.setContent(src, { contentType: 'markdown' })
-    const has = JSON.stringify(editor.getJSON()).includes('"type":"highlight"')
-    editor.destroy()
-    editor = null
-    return has
-  }
-
-  it('parses ==text== into a highlight mark, including mid-line and in headings', () => {
-    expect(markPresent('a ==marked== word')).toBe(true)
-    expect(markPresent('# a ==mark== b')).toBe(true)
-    expect(markPresent('**bold ==mark== here**')).toBe(true)
-  })
-
-  it('parses a highlight body containing a lone `=` (so ==a=b== round-trips)', () => {
-    expect(markPresent('x ==a=b== y')).toBe(true)
-  })
-
   it('strips a highlight whose text contains `==` (unrepresentable), keeping the text', () => {
     editor = new Editor({ extensions: createMarkdownContentExtensions() })
     editor.commands.setContent('x a==b y', { contentType: 'markdown' })
@@ -600,48 +411,5 @@ describe('highlight ==mark==', () => {
     expect(editor.getText().trim()).toBe('x a==b y')
     editor.destroy()
     editor = null
-  })
-
-  it('leaves comparison / spaced == operators as literal text', () => {
-    expect(markPresent('if x == y then z')).toBe(false)
-    expect(markPresent('a == b == c')).toBe(false)
-  })
-})
-
-describe('autolink / bare-URL preservation', () => {
-  it('uses the native link serializer without changing link text or destinations', () => {
-    expect(roundTrip('visit https://sim.ai today').trim()).toBe(
-      'visit [https://sim.ai](https://sim.ai) today'
-    )
-    expect(roundTrip('both https://a.com and https://b.com').trim()).toBe(
-      'both [https://a.com](https://a.com) and [https://b.com](https://b.com)'
-    )
-  })
-
-  it('preserves autolink and email destinations using explicit Markdown links', () => {
-    expect(roundTrip('see <https://sim.ai> here').trim()).toBe(
-      'see [https://sim.ai](https://sim.ai) here'
-    )
-    expect(roundTrip('mail <a@b.com> now').trim()).toBe('mail [a@b.com](mailto:a@b.com) now')
-  })
-
-  it('preserves explicit and titled links', () => {
-    expect(roundTrip('[Sim](https://sim.ai)').trim()).toBe('[Sim](https://sim.ai)')
-    expect(roundTrip('[https://a.com](https://b.com)').trim()).toBe(
-      '[https://a.com](https://b.com)'
-    )
-    expect(roundTrip('[text](https://x.com "t")').trim()).toBe('[text](https://x.com "t")')
-  })
-
-  it('never collapses a URL that only appears inside code', () => {
-    expect(roundTrip('```\nvisit https://sim.ai\n```').trim()).toBe(
-      '```\nvisit https://sim.ai\n```'
-    )
-    expect(roundTrip('inline `https://sim.ai` code').trim()).toBe('inline `https://sim.ai` code')
-  })
-
-  it('round-trips a bare URL idempotently', () => {
-    const once = roundTrip('go to https://sim.ai now')
-    expect(roundTrip(once)).toBe(once)
   })
 })

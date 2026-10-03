@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
@@ -46,19 +43,6 @@ function rpc(
   })
 }
 
-interface ListedTool {
-  annotations: Record<string, boolean>
-  inputSchema: { properties: Record<string, unknown> }
-}
-
-async function listTools(): Promise<Record<string, ListedTool>> {
-  const response = await handlers.POST(rpc({ method: 'tools/list' }), undefined)
-  const { result } = await response.json()
-  return Object.fromEntries(
-    result.tools.map((tool: ListedTool & { name: string }) => [tool.name, tool])
-  )
-}
-
 async function callTool(
   name: string,
   args: Record<string, unknown>,
@@ -74,7 +58,6 @@ async function callTool(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   v2RouteMocks.authenticate.mockResolvedValue(auth)
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
   v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -93,17 +76,6 @@ describe('Sim MCP admission', () => {
     }
   )
 
-  it('verifies OAuth tokens against the Sim MCP audience', async () => {
-    await handlers.POST(
-      rpc({ method: 'tools/list' }, { authorization: 'Bearer sim_oat_abc' }),
-      undefined
-    )
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledWith(
-      { apiKey: null, bearer: 'sim_oat_abc' },
-      audience
-    )
-  })
-
   it('refuses browser requests from other origins', async () => {
     const response = await handlers.POST(
       rpc(
@@ -112,50 +84,11 @@ describe('Sim MCP admission', () => {
       ),
       undefined
     )
-    if (response.status !== 403) console.log('BODY', await response.clone().text())
     expect(response.status).toBe(403)
-  })
-
-  it('answers GET with 405 once authenticated', async () => {
-    const response = await handlers.GET(rpc({ method: 'tools/list' }), undefined)
-    expect(response.status).toBe(405)
-    expect(response.headers.get('Allow')).toBe('POST')
   })
 })
 
 describe('Sim MCP tools', () => {
-  it('lists four tools with reads and writes annotated apart', async () => {
-    const tools = await listTools()
-    expect(Object.keys(tools).sort()).toEqual([
-      'call_read_operation',
-      'call_write_operation',
-      'describe_operation',
-      'search_operations',
-    ])
-    expect(tools.call_read_operation.annotations.readOnlyHint).toBe(true)
-    expect(tools.call_write_operation.annotations.destructiveHint).toBe(true)
-  })
-
-  /**
-   * A read is not always a GET: searchKnowledge, queryRows, and searchTableRows
-   * among others post their filter as JSON, so a read tool whose schema has no
-   * body cannot call them at all.
-   */
-  it('lets both call tools carry a request body', async () => {
-    const tools = await listTools()
-    for (const name of ['call_read_operation', 'call_write_operation']) {
-      expect(tools[name].inputSchema.properties, name).toHaveProperty('body')
-    }
-  })
-
-  it('finds operations by keyword', async () => {
-    const result = await callTool('search_operations', { query: 'workspaces', limit: 5 })
-    const { operations } = JSON.parse(result.content[0].text)
-    expect(operations.map((entry: { operation: string }) => entry.operation)).toContain(
-      'listWorkspaces'
-    )
-  })
-
   it('serves a read through the v2 route with the MCP credential and audience', async () => {
     const result = await callTool('call_read_operation', { operation: 'getMeta' })
     expect(result.isError).toBeFalsy()

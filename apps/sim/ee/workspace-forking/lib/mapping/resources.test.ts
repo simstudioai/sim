@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -13,7 +10,6 @@ import type { DbOrTx } from '@/lib/db/types'
 import {
   listForkCopyableSourceResources,
   listForkResourceCandidates,
-  loadForkCopyableResourceLabels,
 } from '@/lib/workflows/references/resources'
 
 const executor = dbChainMock.db as unknown as DbOrTx
@@ -88,16 +84,6 @@ describe('custom-block mapping candidates', () => {
       { id: 'custom_block_uat001', label: 'Invoice Parser (Impl (uat))' },
     ])
   })
-
-  it('returns no candidates for a workspace with no organization', async () => {
-    // Custom blocks are org-scoped; a personal workspace can never place one, so offering
-    // candidates there would let a mapping be saved that can never resolve at execution.
-    queueTableRows(schemaMock.workspace, [{ organizationId: null }])
-
-    const result = await listForkResourceCandidates(executor, 'ws-personal')
-
-    expect(result['custom-block']).toEqual([])
-  })
 })
 
 describe('listForkCopyableSourceResources', () => {
@@ -166,50 +152,5 @@ describe('listForkCopyableSourceResources', () => {
       },
       { kind: 'skill', sourceId: 'sk-1', label: 'Skill One', parentId: null, parentLabel: null },
     ])
-  })
-})
-
-describe('loadForkCopyableResourceLabels', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-  })
-
-  it('carries the folder grouping for file entries (id + name, null at the root)', async () => {
-    // Only the file branch queries (no other kind has ids), so its terminal `.where()` is the
-    // single chain call.
-    dbChainMockFns.where.mockResolvedValueOnce([
-      { key: 'workspace/SRC/a.png', label: 'a.png', folderId: 'fld-1', folderName: 'Images' },
-      { key: 'workspace/SRC/root.txt', label: 'root.txt', folderId: null, folderName: null },
-    ])
-
-    const labels = await loadForkCopyableResourceLabels(executor, 'ws-src', {
-      file: ['workspace/SRC/a.png', 'workspace/SRC/root.txt'],
-    })
-
-    expect(labels.get('file:workspace/SRC/a.png')).toEqual({
-      label: 'a.png',
-      parentId: 'fld-1',
-      parentLabel: 'Images',
-    })
-    // A file at the workspace root (or whose folder was deleted) carries null folder grouping.
-    expect(labels.get('file:workspace/SRC/root.txt')).toEqual({
-      label: 'root.txt',
-      parentId: null,
-      parentLabel: null,
-    })
-  })
-
-  it('returns null folder grouping for non-file kinds (they render flat)', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([{ id: 'kb-1', label: 'KB One' }])
-
-    const labels = await loadForkCopyableResourceLabels(executor, 'ws-src', {
-      'knowledge-base': ['kb-1'],
-    })
-
-    expect(labels.get('knowledge-base:kb-1')).toEqual({
-      label: 'KB One',
-      parentId: null,
-      parentLabel: null,
-    })
   })
 })

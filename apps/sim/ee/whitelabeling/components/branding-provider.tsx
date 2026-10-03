@@ -38,9 +38,10 @@ export function BrandingProvider({
   viewerIsHostOrganizationMember,
   initialOrgSettings,
 }: BrandingProviderProps) {
-  const { data: orgSettings } = useWhitelabelSettings(
+  const { data: orgWhitelabel } = useWhitelabelSettings(
     viewerIsHostOrganizationMember ? (hostOrganizationId ?? undefined) : undefined
   )
+  const orgSettings = orgWhitelabel?.settings
 
   const effectiveOrgSettings =
     orgSettings !== undefined ? orgSettings : (initialOrgSettings ?? null)

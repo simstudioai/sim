@@ -438,7 +438,6 @@ export function KnowledgeBase({
   const {
     isOpen: isContextMenuOpen,
     position: contextMenuPosition,
-    menuRef,
     handleContextMenu: baseHandleContextMenu,
     closeMenu: closeContextMenu,
   } = useContextMenu()
@@ -1468,7 +1467,6 @@ export function KnowledgeBase({
         open={showAddDocumentsModal}
         onOpenChange={setShowAddDocumentsModal}
         knowledgeBaseId={id}
-        chunkingConfig={knowledgeBase?.chunkingConfig}
       />
 
       {showAddConnectorModal && knowledgeBase && (

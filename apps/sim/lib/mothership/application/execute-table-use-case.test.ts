@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it, vi } from 'vitest'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
 import { tableOperations } from '@/lib/table/application/operations'

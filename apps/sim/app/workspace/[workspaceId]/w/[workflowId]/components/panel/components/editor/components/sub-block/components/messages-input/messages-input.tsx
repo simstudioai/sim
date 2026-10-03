@@ -566,7 +566,6 @@ export function MessagesInput({
 
             const handleEnvSelect = subBlockInput.fieldHelpers.createEnvVarSelectHandler(
               fieldId,
-              message.content,
               (newValue: string) => {
                 updateMessageContent(index, newValue)
               }
@@ -574,7 +573,6 @@ export function MessagesInput({
 
             const handleTagSelect = subBlockInput.fieldHelpers.createTagSelectHandler(
               fieldId,
-              message.content,
               (newValue: string) => {
                 updateMessageContent(index, newValue)
               }

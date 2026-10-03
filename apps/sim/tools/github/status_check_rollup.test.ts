@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { statusCheckRollupTool } from '@/tools/github/status_check_rollup'
 import type { StatusCheckRollupParams } from '@/tools/github/types'

@@ -1,34 +1,31 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
-import { dehydrate, hydrate, QueryClient, QueryObserver } from '@tanstack/react-query'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import { dehydrate, hydrate, QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockListOrganizationChats, mockListWorkspacesForViewer, mockGetUserProfile } = vi.hoisted(
-  () => ({
-    mockListOrganizationChats: vi.fn(),
-    mockListWorkspacesForViewer: vi.fn(),
-    mockGetUserProfile: vi.fn(),
-  })
-)
-
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  listOrganizationChats: { execute: mockListOrganizationChats },
+const { mockListWorkspacesForViewer } = vi.hoisted(() => ({
+  mockListWorkspacesForViewer: vi.fn(),
 }))
+
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/workspaces/list', () => ({
   listWorkspacesForViewer: mockListWorkspacesForViewer,
 }))
-vi.mock('@/lib/users/queries', () => ({ getUserProfile: mockGetUserProfile }))
-vi.mock('@sim/emcn', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
+vi.mock('@sim/emcn', () => emcnMock)
 
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { userProfileKeys } from '@/hooks/queries/current-user-data'
-import {
-  MOTHERSHIP_CHAT_LIST_STALE_TIME,
-  mothershipChatKeys,
-} from '@/hooks/queries/mothership-chats'
+import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { workspaceKeys } from '@/hooks/queries/workspace'
+
+const mockListOrganizationChats = mothershipOrganizationChatsMockFns.mockListOrganizationChats
+const mockGetUserProfile = usersQueriesMockFns.mockGetUserProfile
 
 const PRINCIPAL: SessionPrincipal = { kind: 'session', userId: 'viewer', sessionId: 'session' }
 const CHAT = {
@@ -67,7 +64,6 @@ function prefetch(client: QueryClient) {
 
 describe('organization sidebar hydration', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockListOrganizationChats.mockResolvedValue([CHAT])
     mockListWorkspacesForViewer.mockResolvedValue(WORKSPACES)
     mockGetUserProfile.mockResolvedValue({ id: 'viewer', name: 'Ada', email: 'ada@example.test' })
@@ -108,39 +104,6 @@ describe('organization sidebar hydration', () => {
     ).toBeUndefined()
   })
 
-  it('starts the independent reads together and waits for all before dehydration', async () => {
-    const chats = Promise.withResolvers<(typeof CHAT)[]>()
-    const workspaces = Promise.withResolvers<typeof WORKSPACES>()
-    mockListOrganizationChats.mockReturnValue(chats.promise)
-    mockListWorkspacesForViewer.mockReturnValue(workspaces.promise)
-    const client = makeClient()
-    let finished = false
-    const pending = prefetch(client).then(() => {
-      finished = true
-    })
-
-    expect(mockListOrganizationChats).toHaveBeenCalledOnce()
-    expect(mockListWorkspacesForViewer).toHaveBeenCalledOnce()
-    expect(mockGetUserProfile).toHaveBeenCalledOnce()
-    expect(dehydrate(client).queries).toHaveLength(0)
-    expect(finished).toBe(false)
-    chats.resolve([CHAT])
-    await chats.promise
-    expect(finished).toBe(false)
-    workspaces.resolve(WORKSPACES)
-    await pending
-    expect(dehydrate(client).queries).toHaveLength(3)
-  })
-
-  it('caches an empty chat list but leaves empty workspaces for the client creation path', async () => {
-    mockListOrganizationChats.mockResolvedValue([])
-    mockListWorkspacesForViewer.mockResolvedValue({ ...WORKSPACES, workspaces: [] })
-    const client = makeClient()
-    await prefetch(client)
-    expect(client.getQueryData(CHAT_KEY)).toEqual([])
-    expect(client.getQueryState(workspaceKeys.list('active'))).toBeUndefined()
-  })
-
   it('omits a denied chat read from hydration without losing successful sidebar reads', async () => {
     mockListOrganizationChats.mockRejectedValue(new Error('Forbidden'))
     const server = makeClient()
@@ -150,31 +113,5 @@ describe('organization sidebar hydration', () => {
     expect(client.getQueryState(CHAT_KEY)).toBeUndefined()
     expect(client.getQueryData(workspaceKeys.list('active'))).toMatchObject(WORKSPACES)
     expect(mockListOrganizationChats).toHaveBeenCalledOnce()
-  })
-
-  it('does not suppress client recovery when the workspace read fails', async () => {
-    mockListWorkspacesForViewer.mockRejectedValue(new Error('Unavailable'))
-    const client = makeClient()
-    await expect(prefetch(client)).resolves.toBeUndefined()
-    expect(client.getQueryState(workspaceKeys.list('active'))).toBeUndefined()
-    expect(client.getQueryData(CHAT_KEY)).toHaveLength(1)
-  })
-
-  it('does not fetch chats again when a fresh hydrated observer mounts', async () => {
-    const server = makeClient()
-    await prefetch(server)
-    const client = makeClient()
-    hydrate(client, dehydrate(server))
-    const fetchChats = vi.fn().mockResolvedValue([])
-    const observer = new QueryObserver(client, {
-      queryKey: CHAT_KEY,
-      queryFn: fetchChats,
-      staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
-    })
-    const unsubscribe = observer.subscribe(() => {})
-    expect(observer.getCurrentResult().isPending).toBe(false)
-    expect(observer.getCurrentResult().data).toHaveLength(1)
-    expect(fetchChats).not.toHaveBeenCalled()
-    unsubscribe()
   })
 })

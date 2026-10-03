@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
 import { redactDatabaseQueryError } from '@/lib/core/errors/database-query-error'

@@ -208,9 +208,7 @@ export default function ResumeExecutionPage({
   const queuePosition = selectedDetail?.pausePoint.queuePosition
   const resumeInputsRef = useRef<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
-  const [formValuesByContext, setFormValuesByContext] = useState<
-    Record<string, Record<string, string>>
-  >({})
+  const formValuesByContextRef = useRef<Record<string, Record<string, string>>>({})
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [loadingAction, setLoadingAction] = useState(false)
@@ -308,17 +306,6 @@ export default function ResumeExecutionPage({
     [formatValueForInputField]
   )
 
-  const formatStructureValue = useCallback((value: any): string => {
-    if (value === null || value === undefined) return '—'
-    if (typeof value === 'string') return value
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-    try {
-      return JSON.stringify(value, null, 2)
-    } catch {
-      return String(value)
-    }
-  }, [])
-
   const parseFormValue = useCallback(
     (field: NormalizedInputField, rawValue: string): { value: any; error?: string } => {
       const value = rawValue ?? ''
@@ -358,11 +345,12 @@ export default function ResumeExecutionPage({
   const handleFormFieldChange = useCallback(
     (fieldName: string, newValue: string) => {
       if (!selectedContextId) return
-      setFormValues((prev) => {
-        const updated = { ...prev, [fieldName]: newValue }
-        setFormValuesByContext((map) => ({ ...map, [selectedContextId]: updated }))
-        return updated
-      })
+      const updated = {
+        ...formValuesByContextRef.current[selectedContextId],
+        [fieldName]: newValue,
+      }
+      formValuesByContextRef.current[selectedContextId] = updated
+      setFormValues(updated)
       setFormErrors((prev) => {
         if (!prev[fieldName]) return prev
         const { [fieldName]: _, ...rest } = prev
@@ -516,12 +504,9 @@ export default function ResumeExecutionPage({
           : undefined
       if (operation === 'human' && fetchedInputFields.length > 0) {
         const baseValues = buildInitialFormValues(fetchedInputFields, submission)
-        let mergedValues = baseValues
-        setFormValuesByContext((prev) => {
-          const existingValues = prev[detail.pausePoint.contextId]
-          if (existingValues) mergedValues = { ...baseValues, ...existingValues }
-          return { ...prev, [detail.pausePoint.contextId]: mergedValues }
-        })
+        const existingValues = formValuesByContextRef.current[detail.pausePoint.contextId]
+        const mergedValues = existingValues ? { ...baseValues, ...existingValues } : baseValues
+        formValuesByContextRef.current[detail.pausePoint.contextId] = mergedValues
         setFormValues(mergedValues)
         setFormErrors({})
         if (resumeInputsRef.current[detail.pausePoint.contextId] !== undefined) {

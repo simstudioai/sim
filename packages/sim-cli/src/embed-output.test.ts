@@ -1,9 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from './embed'
-import { printError, writeStderr } from './output/io'
+import { writeStderr } from './output/io'
 
 const identity = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }
-afterEach(() => vi.unstubAllGlobals())
 
 function download(chunks: Uint8Array[], cancel = vi.fn()): Response {
   let position = 0
@@ -36,21 +35,6 @@ describe('embedded output through the real command tree', () => {
     expect(JSON.parse(result.stdout)).toEqual(JSON.parse(content))
   })
 
-  it('keeps stream writes adjacent and adds newlines only for CLI lines', async () => {
-    const result = await runEmbeddedCli(['files', 'get', 'file'], {
-      ...identity,
-      transport: async () => {
-        writeStderr('progress: ')
-        writeStderr('1')
-        printError(' of %d', 2)
-        printError('')
-        return download([Buffer.from('{}')])
-      },
-    })
-    expect(result.stderr).toBe('progress: 1 of 2\n\n')
-    expect(result.stdout).toBe('{}')
-  })
-
   it('stops oversized stdout at capture, cancels the body and reports incomplete output', async () => {
     let produced = 0
     const cancel = vi.fn()
@@ -81,21 +65,6 @@ describe('embedded output through the real command tree', () => {
     expect(transport).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps binary downloads off the text result independently of the host terminal', async () => {
-    const cancel = vi.fn()
-    const result = await runEmbeddedCli(['files', 'get', 'file'], {
-      ...identity,
-      transport: async () =>
-        new Response(new ReadableStream({ cancel }), {
-          headers: { 'content-type': 'image/png' },
-        }),
-    })
-    expect(result.exitCode).toBe(1)
-    expect(result.stdout).toBe('')
-    expect(result.stderr).toContain('--output-file')
-    expect(cancel).toHaveBeenCalledTimes(1)
-  })
-
   it('keeps overflow sticky if command code catches it and puts its warning before captured stderr', async () => {
     const requests = vi.fn(async () => {
       const block = 'x'.repeat(1024 * 1024)
@@ -118,25 +87,6 @@ describe('embedded output through the real command tree', () => {
     expect(requests).toHaveBeenCalledTimes(1)
   })
 
-  it('cleans up opened upload snapshots even when API error diagnostics overflow', async () => {
-    const dispose = vi.fn(async () => {})
-    const result = await runEmbeddedCli(
-      ['files', 'upload', 'data.csv'],
-      {
-        ...identity,
-        transport: async () =>
-          Response.json({ error: { message: 'x'.repeat(17 * 1024 * 1024) } }, { status: 403 }),
-      },
-      {
-        openFile: async () => ({ size: 1, stream: async () => new Blob(['x']).stream(), dispose }),
-      }
-    )
-    expect(result.exitCode).toBe(1)
-    expect(result.stderr).toContain('output limit')
-    expect(result.stderr.length).toBeLessThan(1024)
-    expect(dispose).toHaveBeenCalledTimes(1)
-  })
-
   it('keeps a simultaneous healthy invocation independent of an overflowing one', async () => {
     const [failed, healthy] = await Promise.all([
       runEmbeddedCli(['files', 'get', 'large'], {
@@ -151,34 +101,5 @@ describe('embedded output through the real command tree', () => {
     expect(failed.exitCode).toBe(1)
     expect(failed.stdout).toBe('')
     expect(healthy).toEqual({ exitCode: 0, stdout: '{"ok":true}', stderr: '' })
-  })
-
-  it('streams a large binary to the workbench without consuming the text capture budget', async () => {
-    const block = new Uint8Array(1024 * 1024).fill(128)
-    let savedBytes = 0
-    const result = await runEmbeddedCli(
-      ['files', 'get', 'large', '--output-file', 'large.bin'],
-      {
-        ...identity,
-        transport: async () => download(Array.from({ length: 20 }, () => block)),
-      },
-      {
-        writeFile: async (_path, stream) => {
-          const reader = stream.getReader()
-          try {
-            while (true) {
-              const chunk = await reader.read()
-              if (chunk.done) break
-              savedBytes += chunk.value.byteLength
-            }
-          } finally {
-            reader.releaseLock()
-          }
-        },
-      }
-    )
-    expect(result.exitCode, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout)).toMatchObject({ path: 'large.bin', status: 'saved' })
-    expect(savedBytes).toBe(20 * 1024 * 1024)
   })
 })

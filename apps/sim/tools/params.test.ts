@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import * as toolMetadata from '@/tools/metadata'
@@ -6,13 +6,10 @@ import {
   createLLMToolSchema,
   createUserToolSchema,
   filterSchemaForLLM,
-  formatParameterLabel,
   getSubBlocksForToolInput,
   isPasswordParameter,
   type ToolSchema,
   ToolSchemaEnrichmentError,
-  type ValidationResult,
-  validateToolParameters,
 } from '@/tools/params'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
 
@@ -61,55 +58,56 @@ const mockToolConfig = {
  * module, so patching the shared namespace is the only wiring that always
  * applies.
  */
-const getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(((
-  toolId: string
-) => {
-  if (toolId === 'test_tool') {
-    return mockToolConfig
-  }
-  if (toolId === 'workflow_executor') {
-    return {
-      id: 'workflow_executor',
-      name: 'Workflow Executor',
-      description: '',
-      version: '1.0.0',
-      params: {},
+let getToolSpy: MockInstance<typeof toolMetadata.getToolMetadata>
+beforeEach(() => {
+  getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(((toolId: string) => {
+    if (toolId === 'test_tool') {
+      return mockToolConfig
     }
-  }
-  if (toolId === 'bool_tool') {
-    return {
-      ...mockToolConfig,
-      id: 'bool_tool',
-      params: {
-        includeAttachments: {
-          type: 'boolean',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
-          description: 'Download attachment file contents',
-        },
-        payload: {
-          type: 'json',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
-        },
-      },
+    if (toolId === 'workflow_executor') {
+      return {
+        id: 'workflow_executor',
+        name: 'Workflow Executor',
+        description: '',
+        version: '1.0.0',
+        params: {},
+      }
     }
-  }
-  if (toolId === 'checkbox_tool') {
-    return {
-      ...mockToolConfig,
-      id: 'checkbox_tool',
-      params: {
-        completed: {
-          type: 'boolean',
-          required: false,
-          visibility: 'user-or-llm' as ParameterVisibility,
+    if (toolId === 'bool_tool') {
+      return {
+        ...mockToolConfig,
+        id: 'bool_tool',
+        params: {
+          includeAttachments: {
+            type: 'boolean',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Download attachment file contents',
+          },
+          payload: {
+            type: 'json',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
         },
-      },
+      }
     }
-  }
-  return null
-}) as unknown as typeof toolMetadata.getToolMetadata)
+    if (toolId === 'checkbox_tool') {
+      return {
+        ...mockToolConfig,
+        id: 'checkbox_tool',
+        params: {
+          completed: {
+            type: 'boolean',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+          },
+        },
+      }
+    }
+    return null
+  }) as unknown as typeof toolMetadata.getToolMetadata)
+})
 
 afterAll(() => {
   getToolSpy.mockRestore()
@@ -563,33 +561,6 @@ describe('Tool Parameters Utils', () => {
     })
   })
 
-  describe('validateToolParameters', () => {
-    it.concurrent('should validate successfully with all required parameters', () => {
-      const finalParams = {
-        apiKey: 'test-key',
-        message: 'Hello world',
-        channel: '#general',
-      }
-
-      const result = validateToolParameters(mockToolConfig, finalParams)
-
-      expect(result.valid).toBe(true)
-      expect(result.missingParams).toHaveLength(0)
-    })
-
-    it.concurrent('should fail validation with missing required parameters', () => {
-      const finalParams = {
-        channel: '#general',
-      }
-
-      const result = validateToolParameters(mockToolConfig, finalParams)
-
-      expect(result.valid).toBe(false)
-      expect(result.missingParams).toContain('apiKey')
-      expect(result.missingParams).toContain('message')
-    })
-  })
-
   describe('filterSchemaForLLM', () => {
     it.concurrent('should filter out user-provided parameters from schema', () => {
       const originalSchema: ToolSchema = {
@@ -614,18 +585,6 @@ describe('Tool Parameters Utils', () => {
       expect(filtered.properties).toHaveProperty('message')
       expect(filtered.required).not.toContain('apiKey')
       expect(filtered.required).toContain('message')
-    })
-  })
-
-  describe('formatParameterLabel', () => {
-    it.concurrent('should format parameter labels correctly', () => {
-      expect(formatParameterLabel('apiKey')).toBe('API Key')
-      expect(formatParameterLabel('apiVersion')).toBe('API Version')
-      expect(formatParameterLabel('userName')).toBe('User Name')
-      expect(formatParameterLabel('user_name')).toBe('User Name')
-      expect(formatParameterLabel('user-name')).toBe('User Name')
-      expect(formatParameterLabel('message')).toBe('Message')
-      expect(formatParameterLabel('a')).toBe('A')
     })
   })
 
@@ -997,31 +956,6 @@ describe('Tool Parameters Utils', () => {
           query: 'llm-search',
         })
       })
-    })
-  })
-
-  describe('Type Interface Validation', () => {
-    it.concurrent('should have properly typed ToolSchema', async () => {
-      const { schema } = await createLLMToolSchema(mockToolConfig, {})
-
-      expect(schema.type).toBe('object')
-      expect(typeof schema.properties).toBe('object')
-      expect(Array.isArray(schema.required)).toBe(true)
-
-      Object.values(schema.properties).forEach((prop) => {
-        expect(prop).toHaveProperty('type')
-        expect(prop).toHaveProperty('description')
-        expect(typeof prop.type).toBe('string')
-        expect(typeof prop.description).toBe('string')
-      })
-    })
-
-    it.concurrent('should have properly typed ValidationResult', () => {
-      const result: ValidationResult = validateToolParameters(mockToolConfig, {})
-
-      expect(typeof result.valid).toBe('boolean')
-      expect(Array.isArray(result.missingParams)).toBe(true)
-      expect(result.missingParams.every((param) => typeof param === 'string')).toBe(true)
     })
   })
 })

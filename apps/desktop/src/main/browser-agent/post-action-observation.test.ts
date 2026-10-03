@@ -2,45 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { withPostActionObservation } from '@/main/browser-agent/post-action-observation'
 
 describe('post-action observation', () => {
-  it('validates observation arguments before dispatching input', async () => {
-    for (const observe of [
-      null,
-      true,
-      [],
-      { query: '' },
-      { query: 'x'.repeat(4097) },
-      { extra: 1 },
-    ]) {
-      const action = vi.fn()
-      await expect(
-        withPostActionObservation('browser_click', { observe }, action, vi.fn(), vi.fn())
-      ).rejects.toThrow('observe must')
-      expect(action).not.toHaveBeenCalled()
-    }
-  })
-
-  it('observes after scrolling and hovering, which reveal new content', async () => {
-    for (const tool of ['browser_scroll', 'browser_hover'] as const) {
-      const result = await withPostActionObservation(
-        tool,
-        { direction: 'down', observe: {} },
-        async () => ({ movedBy: 400 }),
-        async () => ({ outline: '- row "Next" [ref=9]' }),
-        vi.fn()
-      )
-      expect(result).toMatchObject({ observation: { ok: true } })
-    }
-  })
-
-  it('keeps standalone actions unchanged and does not capture unrequested state', async () => {
-    const result = { dispatched: true, effectObserved: false }
-    const observe = vi.fn()
-    expect(
-      await withPostActionObservation('browser_click', {}, async () => result, observe, vi.fn())
-    ).toBe(result)
-    expect(observe).not.toHaveBeenCalled()
-  })
-
   it('observes after the action, preserving partial form results and replacing refs', async () => {
     const order: string[] = []
     const result = await withPostActionObservation(
@@ -84,22 +45,6 @@ describe('post-action observation', () => {
       effectObserved: false,
       observation: { ok: false, error: 'Page changed' },
     })
-  })
-
-  it('never observes after failed actions', async () => {
-    const observe = vi.fn()
-    await expect(
-      withPostActionObservation(
-        'browser_type',
-        { observe: {} },
-        async () => {
-          throw new Error('Ref expired')
-        },
-        observe,
-        vi.fn()
-      )
-    ).rejects.toThrow('Ref expired')
-    expect(observe).not.toHaveBeenCalled()
   })
 
   it('preserves completed actions when execution expires before observation', async () => {

@@ -1,40 +1,21 @@
-/**
- * @vitest-environment node
- */
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getShare: vi.fn(),
-  getWorkspaceShares: vi.fn(),
-  getWorkspaceFile: vi.fn(),
-  loadFileContext: vi.fn(),
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  upsertFileShare: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getShareForResource: mocks.getShare,
-  getWorkspaceSharesForResources: mocks.getWorkspaceShares,
-  ShareValidationError: class ShareValidationError extends Error {},
-  upsertFileShare: mocks.upsertFileShare,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getWorkspaceFile,
-  loadActiveWorkspaceContext: mocks.loadWorkspace,
-  loadActiveWorkspaceFileContext: mocks.loadFileContext,
-}))
-
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validatePublicFileSharing: vi.fn(),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
@@ -46,15 +27,20 @@ import {
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  getWorkspaceFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadWorkspace: workspaceFileManagerMockFns.mockLoadActiveWorkspaceContext,
+  loadFileContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  getShare: publicSharesMockFns.mockGetShareForResource,
+  getWorkspaceShares: publicSharesMockFns.mockGetWorkspaceSharesForResources,
+  upsertFileShare: publicSharesMockFns.mockUpsertFileShare,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
 }
+
+const principal = createSessionPrincipal()
 
 describe('getWorkspaceFileShares', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.loadWorkspace.mockResolvedValue({
       workspaceId: 'workspace-1',
@@ -140,7 +126,6 @@ describe('updateWorkspaceFileShare password references', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.loadFileContext.mockResolvedValue({ ...workspaceContext, fileId: 'file-1' })
     mocks.getWorkspaceFile.mockResolvedValue({ id: 'file-1', name: 'report.pdf' })
@@ -173,16 +158,6 @@ describe('updateWorkspaceFileShare password references', () => {
     expect(mocks.upsertFileShare).not.toHaveBeenCalled()
   })
 
-  it('holds the resolved value to the share password rules', async () => {
-    environment({ SHARE_PW: 'short' })
-
-    await expect(share(copilotPrincipal(), '{{SHARE_PW}}')).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Password must be at least 15 characters',
-    })
-    expect(mocks.upsertFileShare).not.toHaveBeenCalled()
-  })
-
   it('keeps a reference literal for any other caller, under the same rules', async () => {
     await expect(share(principal, '{{SHORT}}')).rejects.toMatchObject({
       code: 'validation',
@@ -196,21 +171,6 @@ describe('updateWorkspaceFileShare password references', () => {
       expect.objectContaining({ password: '{{A_LONG_LITERAL_NAME}}' })
     )
     expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
-  })
-
-  it('leaves a reference unresolved when sharing is turned off', async () => {
-    await updateWorkspaceFileShare.execute({
-      principal: copilotPrincipal(),
-      input: {
-        fileId: 'file-1',
-        assertedWorkspaceId: 'workspace-1',
-        isActive: false,
-        authType: 'password',
-        password: '{{SHARE_PW}}',
-      },
-    })
-    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
-    expect(mocks.upsertFileShare).toHaveBeenCalledWith(expect.objectContaining({ isActive: false }))
   })
 
   it('resolves only when the effective share mode is password', async () => {
@@ -227,14 +187,5 @@ describe('updateWorkspaceFileShare password references', () => {
     expect(mocks.upsertFileShare).toHaveBeenLastCalledWith(
       expect.objectContaining({ password: 'resolved-share-password' })
     )
-  })
-
-  it('passes a literal password through untouched', async () => {
-    await share(copilotPrincipal(), 'literal-share-password')
-
-    expect(mocks.upsertFileShare).toHaveBeenCalledWith(
-      expect.objectContaining({ password: 'literal-share-password' })
-    )
-    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
   })
 })

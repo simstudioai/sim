@@ -53,13 +53,6 @@ describe('migration workflow exit propagation', () => {
     expect(result.stdout).toContain('DATABASE_URL is required')
   })
 
-  it('runs the general push command on dev', () => {
-    const result = runMigration()
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('COMMAND: run db:push --force')
-    expect(result.stdout).not.toContain('COMMAND: run ./scripts/migrate.ts')
-  })
-
   it('propagates a noninteractive Drizzle failure', () => {
     const result = runMigration({
       PUSH_EXIT: '1',

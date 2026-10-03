@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-persistence-queue'
 import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 
@@ -23,10 +20,6 @@ const TABLE_RESOURCE: MothershipResourceUpdate = {
 
 describe('ResourcePersistenceQueue', () => {
   const onError = vi.fn()
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
 
   it('retains an optimistic resource through an in-flight write, scoped to its chat', async () => {
     const write = deferred<unknown>()

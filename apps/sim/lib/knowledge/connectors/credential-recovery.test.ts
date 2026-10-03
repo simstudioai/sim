@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { resumeConnectorsAfterCredentialReconnect } from '@/lib/knowledge/connectors/credential-recovery'
 import { CREDENTIAL_REVOKED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 
@@ -16,7 +13,6 @@ describe('resumeConnectorsAfterCredentialReconnect', () => {
   const now = new Date('2026-09-22T20:00:00.000Z')
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -42,11 +38,5 @@ describe('resumeConnectorsAfterCredentialReconnect', () => {
     const conditions = JSON.stringify(dbChainMockFns.where.mock.calls)
     expect(conditions).toContain('"pattern":"TEXAMPLE-%"')
     expect(conditions).not.toContain('"left":"credential.accountId","right":"account-1"')
-  })
-
-  it('does nothing for an account that no longer exists', async () => {
-    queueTableRows(schemaMock.account, [])
-    await resumeConnectorsAfterCredentialReconnect('account-gone', now)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

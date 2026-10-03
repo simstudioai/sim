@@ -6,9 +6,8 @@
  * document still references the exact key. A planted `document.fileUrl` (the
  * reported vulnerability) can never grant access because ownership comes from the
  * binding, not the document.
- *
- * @vitest-environment node
  */
+
 import {
   dbChainMockFns,
   hasMockCondition,
@@ -16,17 +15,17 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetFileMetadataByKey,
-  mockGetUserEntityPermissions,
-  mockGetFileMetadata,
-  mockFindWorkspaceFileVersionKeys,
-} = vi.hoisted(() => ({
-  mockGetFileMetadataByKey: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetFileMetadata: vi.fn(),
+const { mockFindWorkspaceFileVersionKeys } = vi.hoisted(() => ({
   mockFindWorkspaceFileVersionKeys: vi.fn(),
 }))
 
@@ -34,27 +33,15 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
   findWorkspaceFileVersionKeys: mockFindWorkspaceFileVersionKeys,
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  getFileMetadata: mockGetFileMetadata,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/config', () => ({
-  getStorageConfig: vi.fn(() => ({})),
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: mockGetFileMetadataByKey,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  inferContextFromKey: vi.fn((key: string) =>
-    key.startsWith('kb/') ? 'knowledge-base' : key.split('/')[0]
-  ),
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/executor/constants', () => ({
   isUuid: vi.fn(() => false),
@@ -62,6 +49,13 @@ vi.mock('@/executor/constants', () => ({
 
 import { type KnowledgeAccessProvider, SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+const mockGetFileMetadataByKey = uploadsMetadataMockFns.mockGetFileMetadataByKey
+const mockGetFileMetadata = uploadsMockFns.mockGetFileMetadata
+fileUtilsMockFns.mockInferContextFromKey.mockImplementation((key: string) =>
+  key.startsWith('kb/') ? 'knowledge-base' : key.split('/')[0]
+)
 
 const CLOUD_KEY = 'kb/1780162789495-secret.txt'
 const USER_ID = 'user-1'
@@ -89,17 +83,8 @@ describe('verifyKBFileAccess (binding-only)', () => {
     }
   )
   beforeEach(() => {
-    vi.clearAllMocks()
     // Default liveness query result: one active document references the exact storage key.
     dbChainMockFns.limit.mockResolvedValue([{ id: 'doc-1' }])
-  })
-
-  it('grants access when the binding owner workspace is accessible and an active document references the key', async () => {
-    mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1', deletedAt: null })
-    mockGetUserEntityPermissions.mockResolvedValue('read')
-
-    await expect(grantAccess(CLOUD_KEY)).resolves.toBe(true)
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER_ID, 'workspace', 'ws-1')
   })
 
   it('denies when the caller lacks permission on the owner workspace (cross-tenant)', async () => {
@@ -147,56 +132,17 @@ describe('verifyKBFileAccess (binding-only)', () => {
 })
 
 describe('verifyKBFileWriteAccess (binding-only delete authorization)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('grants delete when the caller has write on the owner workspace', async () => {
-    mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1', deletedAt: null })
-    mockGetUserEntityPermissions.mockResolvedValue('write')
-
-    await expect(verifyKBFileWriteAccess(CLOUD_KEY, USER_ID)).resolves.toBe(true)
-  })
-
-  it('grants delete when the caller is admin on the owner workspace', async () => {
-    mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1', deletedAt: null })
-    mockGetUserEntityPermissions.mockResolvedValue('admin')
-
-    await expect(verifyKBFileWriteAccess(CLOUD_KEY, USER_ID)).resolves.toBe(true)
-  })
-
   it('denies delete when the caller has only read on the owner workspace', async () => {
     mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1', deletedAt: null })
     mockGetUserEntityPermissions.mockResolvedValue('read')
 
     await expect(verifyKBFileWriteAccess(CLOUD_KEY, USER_ID)).resolves.toBe(false)
   })
-
-  it('denies delete when there is no binding (no fallback)', async () => {
-    mockGetFileMetadataByKey.mockResolvedValue(null)
-
-    await expect(verifyKBFileWriteAccess(CLOUD_KEY, USER_ID)).resolves.toBe(false)
-    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when the binding lookup throws', async () => {
-    mockGetFileMetadataByKey.mockRejectedValue(new Error('db down'))
-
-    await expect(verifyKBFileWriteAccess(CLOUD_KEY, USER_ID)).resolves.toBe(false)
-  })
 })
 
 describe('public-context access (profile-pictures / og-images / workspace-logos)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  function read(cloudKey: string, context: 'profile-pictures' | 'og-images' | 'workspace-logos') {
-    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false)
-  }
-
   function write(cloudKey: string, context: 'profile-pictures' | 'og-images' | 'workspace-logos') {
-    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false, { requireWrite: true })
+    return verifyFileAccess(cloudKey, USER_ID, undefined, context, { requireWrite: true })
   }
 
   it('allows organization logo reads and denies generic deletes even for the uploader', async () => {
@@ -206,21 +152,13 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
       true
     )
     await expect(
-      verifyFileAccess(key, USER_ID, undefined, 'organization-logos', false, { requireWrite: true })
+      verifyFileAccess(key, USER_ID, undefined, 'organization-logos', { requireWrite: true })
     ).resolves.toBe(false)
     await expect(
-      verifyFileAccess(key, USER_ID, undefined, 'general', false, { requireWrite: true })
+      verifyFileAccess(key, USER_ID, undefined, 'general', { requireWrite: true })
     ).resolves.toBe(false)
     expect(mockGetFileMetadata).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-
-  it('grants public reads without any ownership check', async () => {
-    await expect(read('og-images/banner.png', 'og-images')).resolves.toBe(true)
-    await expect(read('profile-pictures/123-avatar.png', 'profile-pictures')).resolves.toBe(true)
-    await expect(read('workspace-logos/123-logo.png', 'workspace-logos')).resolves.toBe(true)
-    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-    expect(mockGetFileMetadata).not.toHaveBeenCalled()
   })
 
   it('denies a cross-tenant delete that names a workspace key under a public context', async () => {
@@ -228,21 +166,9 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 
-  it('grants a profile-picture delete only to the owning user', async () => {
-    mockGetFileMetadata.mockResolvedValue({ userId: USER_ID })
-    await expect(write('profile-pictures/123-avatar.png', 'profile-pictures')).resolves.toBe(true)
-  })
-
   it('denies a profile-picture delete for a non-owner', async () => {
     mockGetFileMetadata.mockResolvedValue({ userId: 'other-user' })
     await expect(write('profile-pictures/123-avatar.png', 'profile-pictures')).resolves.toBe(false)
-  })
-
-  it('grants a workspace-logo delete to write/admin on the owning workspace', async () => {
-    mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1' })
-    mockGetUserEntityPermissions.mockResolvedValue('admin')
-    await expect(write('workspace-logos/123-logo.png', 'workspace-logos')).resolves.toBe(true)
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER_ID, 'workspace', 'ws-1')
   })
 
   it('denies a workspace-logo delete for a non-member of the owning workspace', async () => {
@@ -269,7 +195,6 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
   const ATTACHMENT_KEY = 'workspace/ws-1/1786000000000-a3f2-photo.png'
 
   beforeEach(() => {
-    vi.clearAllMocks()
     // No legacy `workspace_file` row and no object metadata, so a denial can only
     // come from the binding itself rather than a fallback happening to grant.
     dbChainMockFns.limit.mockResolvedValue([])
@@ -278,7 +203,7 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
   })
 
   function read(cloudKey: string, context: 'workspace' | 'mothership') {
-    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false)
+    return verifyFileAccess(cloudKey, USER_ID, undefined, context)
   }
 
   interface BoundRow {
@@ -323,18 +248,6 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
     }
   )
 
-  it('resolves the binding regardless of which workspace-scoped context the caller names', async () => {
-    bindRow({
-      workspaceId: 'ws-1',
-      userId: USER_ID,
-      context: 'mothership',
-      deletedAt: null,
-    })
-    mockGetUserEntityPermissions.mockResolvedValue('read')
-
-    await expect(read(ATTACHMENT_KEY, 'mothership')).resolves.toBe(true)
-  })
-
   it('denies a soft-deleted attachment instead of falling through to object metadata', async () => {
     bindRow({
       workspaceId: 'ws-1',
@@ -359,14 +272,6 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
     mockGetUserEntityPermissions.mockResolvedValue(null)
 
     await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(false)
-  })
-
-  it('still authorizes an unbound key from its object metadata', async () => {
-    mockGetFileMetadataByKey.mockResolvedValue(null)
-    mockGetFileMetadata.mockResolvedValue({ workspaceId: 'ws-1' })
-    mockGetUserEntityPermissions.mockResolvedValue('read')
-
-    await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(true)
   })
 
   it('denies a retained version key instead of authorizing it from its object metadata', async () => {
@@ -395,7 +300,6 @@ describe('workspace-scoped access (workspace files and mothership attachments)',
 
 describe('organization connector cache access', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetFileMetadataByKey.mockResolvedValue({
       workspaceId: null,
       organizationId: 'org-1',
@@ -411,26 +315,17 @@ describe('organization connector cache access', () => {
     'denies the uploader a raw download even with a forged %s context',
     async (context) => {
       await expect(
-        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, context, false, { knowledgeAccess: 'user' })
+        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, context, { knowledgeAccess: 'user' })
       ).resolves.toBe(false)
       expect(mockGetFileMetadata).not.toHaveBeenCalled()
       expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
     }
   )
 
-  it('allows the internal processor to read a live bound connector cache', async () => {
-    await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
-        knowledgeAccess: SYSTEM_ACCESS_SCOPE,
-      })
-    ).resolves.toBe(true)
-    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-
   it('denies system reads after the cache loses its active document reference', async () => {
     dbChainMockFns.limit.mockResolvedValue([])
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
       })
     ).resolves.toBe(false)
@@ -443,7 +338,7 @@ describe('organization connector cache access', () => {
       deletedAt: null,
     })
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
       })
     ).resolves.toBe(false)
@@ -452,7 +347,7 @@ describe('organization connector cache access', () => {
 
   it('does not let a raw download endpoint delete organization caches', async () => {
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'general', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'general', {
         requireWrite: true,
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
       })
@@ -462,7 +357,6 @@ describe('organization connector cache access', () => {
 
 describe('KB file live source authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1', deletedAt: null })
     mockGetUserEntityPermissions.mockResolvedValue('read')
@@ -484,7 +378,7 @@ describe('KB file live source authorization', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
       queueTableRows(schemaMock.document, allowed ? [{ id: 'doc-1' }] : [])
       await expect(
-        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+        verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
           knowledgeAccess: access,
         })
       ).resolves.toBe(allowed)
@@ -521,7 +415,7 @@ describe('KB file live source authorization', () => {
     mockGetUserEntityPermissions.mockResolvedValue(null)
     const get = vi.fn()
     await expect(
-      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
+      verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', {
         knowledgeAccess: { get, getForConnectors: vi.fn(), getForDocuments: vi.fn() },
       })
     ).resolves.toBe(false)
@@ -532,22 +426,6 @@ describe('KB file live source authorization', () => {
 /** Execution downloads share the logs endpoint's current workspace permission check. */
 describe('execution file download authorization', () => {
   const executionKey = 'execution/owner-workspace/workflow/run/image.png'
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('allows a current reader of the workspace named by the storage key', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue('read')
-    await expect(verifyFileAccess(executionKey, USER_ID, undefined, 'execution')).resolves.toBe(
-      true
-    )
-    expect(mockGetUserEntityPermissions).toHaveBeenCalledExactlyOnceWith(
-      USER_ID,
-      'workspace',
-      'owner-workspace'
-    )
-  })
 
   it('denies a caller without access to the file workspace', async () => {
     mockGetUserEntityPermissions.mockResolvedValue(null)

@@ -14,6 +14,7 @@ import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
+  measureWithheldContent,
   projectToolErrorMessageForCopilot,
 } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
@@ -235,6 +236,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
             toolCallId,
             runtimeSucceeded: result.success,
             ...describeWithholdingCause(projection.cause),
+            ...measureWithheldContent(result),
           })
         }
         if (!projected.success) {

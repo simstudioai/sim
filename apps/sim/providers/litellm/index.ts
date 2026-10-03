@@ -15,10 +15,10 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
-import { createReadableStreamFromLiteLLMStream } from '@/providers/litellm/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -237,9 +237,10 @@ export const litellmProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) =>
-            createReadableStreamFromLiteLLMStream(
-              streamResponse,
-              (content, usage) => {
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'LiteLLM',
+              request,
+              onComplete: ({ content, usage }) => {
                 let cleanContent = content
                 if (cleanContent && request.responseFormat) {
                   cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
@@ -265,8 +266,7 @@ export const litellmProvider: ProviderConfig = {
 
                 finalizeTiming()
               },
-              request
-            ),
+            }),
         })
 
         return streamingResult

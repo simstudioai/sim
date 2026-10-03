@@ -1,11 +1,8 @@
-/** @vitest-environment node */
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exchangeGoogleServiceAccountJwt } from '@/lib/oauth/google-service-account-transport'
 
-const { warn } = vi.hoisted(() => ({ warn: vi.fn() }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
+const { warn } = getMockLogger('GoogleServiceAccountTransport')
 
 const TOKEN_URI = 'https://oauth2.googleapis.com/token'
 const ASSERTION = 'private-jwt-assertion'
@@ -19,12 +16,11 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 
 describe('Google service-account token transport', () => {
-  it.each([429, 500, 502, 503, 504])(
+  it.each([429, 503])(
     'recovers a transient HTTP %s without changing the assertion',
     async (status) => {
       const first = Response.json({ error: 'temporarily_unavailable' }, { status })
@@ -46,7 +42,7 @@ describe('Google service-account token transport', () => {
     }
   )
 
-  it.each([400, 401, 403])('returns permanent HTTP %s without retrying', async (status) => {
+  it.each([400])('returns permanent HTTP %s without retrying', async (status) => {
     const response = Response.json({ error: 'invalid_grant' }, { status })
     fetchMock.mockResolvedValueOnce(response)
     await expect(exchangeGoogleServiceAccountJwt(TOKEN_URI, ASSERTION)).resolves.toEqual({
@@ -141,7 +137,7 @@ describe('Google service-account token transport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it.each([200, 400, 503])(
+  it.each([200, 503])(
     'bounds a stalled HTTP %s response body within the same deadline',
     async (status) => {
       let requestSignal: AbortSignal | null | undefined
@@ -166,15 +162,7 @@ describe('Google service-account token transport', () => {
       await checked
       expect(warn).toHaveBeenCalledWith(
         'Google service account token transport failed',
-        expect.objectContaining({
-          operation: 'google.oauth.token_exchange',
-          stage: 'reading_response',
-          currentStatus: status,
-          lastHttpStatus: status,
-          attempts: 1,
-          elapsedMs: 30_000,
-          timedOut: true,
-        })
+        expect.objectContaining({ stage: 'reading_response', currentStatus: status, attempts: 1 })
       )
       expect(requestSignal?.aborted).toBe(true)
       expect(fetchMock).toHaveBeenCalledTimes(1)

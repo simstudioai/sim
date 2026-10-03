@@ -1503,11 +1503,13 @@ export const OAUTH_CLIENT_CAPABILITIES = {
   asana: ['ASANA_CLIENT_ID', 'ASANA_CLIENT_SECRET'],
   pipedrive: ['PIPEDRIVE_CLIENT_ID', 'PIPEDRIVE_CLIENT_SECRET'],
   hubspot: ['HUBSPOT_CLIENT_ID', 'HUBSPOT_CLIENT_SECRET'],
+  'hubspot-mcp': ['HUBSPOT_MCP_CLIENT_ID', 'HUBSPOT_MCP_CLIENT_SECRET'],
   linkedin: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
   instagram: ['INSTAGRAM_CLIENT_ID', 'INSTAGRAM_CLIENT_SECRET'],
   salesforce: ['SALESFORCE_CLIENT_ID', 'SALESFORCE_CLIENT_SECRET'],
   shopify: ['SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET'],
   zoom: ['ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET'],
+  'zoom-mcp': ['ZOOM_MCP_CLIENT_ID', 'ZOOM_MCP_CLIENT_SECRET'],
   wordpress: ['WORDPRESS_CLIENT_ID', 'WORDPRESS_CLIENT_SECRET'],
   spotify: ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'],
   monday: ['MONDAY_CLIENT_ID', 'MONDAY_CLIENT_SECRET'],
@@ -1615,6 +1617,7 @@ const MICROSOFT_OAUTH_SERVICES = new Set([
   'microsoft-excel',
   'microsoft-teams',
   'microsoft-planner',
+  'microsoft-powerbi',
   'microsoft-word',
 ])
 

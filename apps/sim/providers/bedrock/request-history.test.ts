@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { convertBedrockRequestHistory } from '@/providers/bedrock/request-history'
 import { setNativeConversationMessage } from '@/providers/conversation-metadata'

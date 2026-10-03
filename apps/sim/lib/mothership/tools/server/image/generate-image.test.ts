@@ -1,26 +1,25 @@
 /**
- * @vitest-environment node
- *
  * Reference images are declared inputs. A path that does not load must fail the
  * call rather than let the model render from whatever remained: the user who
  * attached a face and got a "v4" without it, and without an error, is the defect
  * these assertions pin.
  */
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGenerateContent,
-  mockIsOpaqueWorkspaceFileEgressSafe,
-  mockResolveWorkspaceFileReference,
-  mockReadWorkspaceFileContent,
-  mockWriteWorkspaceFileByPath,
-} = vi.hoisted(() => ({
-  mockGenerateContent: vi.fn(),
-  mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockReadWorkspaceFileContent: vi.fn(),
-  mockWriteWorkspaceFileByPath: vi.fn(),
-}))
+const { mockGenerateContent, mockReadWorkspaceFileContent, mockWriteWorkspaceFileByPath } =
+  vi.hoisted(() => ({
+    mockGenerateContent: vi.fn(),
+    mockReadWorkspaceFileContent: vi.fn(),
+    mockWriteWorkspaceFileByPath: vi.fn(),
+  }))
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class GoogleGenAI {
@@ -31,9 +30,10 @@ vi.mock('@/lib/core/config/api-keys', () => ({ getRotatingApiKey: vi.fn(() => 'a
 vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', async () => {
   /** The Copilot adapter admits a use case only by its registered operation object. */
   const { fileOperations } = await import('@/lib/workspace-files/application/operations')
@@ -44,21 +44,22 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', async (
     },
   }
 })
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  createWorkspaceFileSecretProvenanceFromRegistry: vi.fn(async () => ({
-    safe: true,
-    provenance: { status: 'exact', entries: [] },
-  })),
-  isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockIsOpaqueWorkspaceFileEgressSafe } = workspaceFileSecretProvenanceMockFns
+const { mockResolveWorkspaceFileReference } = workspaceFileReferenceMockFns
+workspaceFileSecretProvenanceMockFns.mockCreateWorkspaceFileSecretProvenanceFromRegistry.mockImplementation(
+  async () => ({ safe: true, provenance: { status: 'exact', entries: [] } })
+)
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -105,7 +106,6 @@ function generate(paths: string[]) {
 
 describe('generate_image reference images', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     mockResolveWorkspaceFileReference.mockResolvedValue(chatUpload)
     mockReadWorkspaceFileContent.mockResolvedValue({

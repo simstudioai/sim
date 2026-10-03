@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSlackSearchSender, verifySlackSearchBot } from '@/lib/internal/slack/search-client'
 import { SLACK_SEARCH_SCOPES } from '@/lib/slack-search/constants'

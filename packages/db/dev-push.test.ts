@@ -1,12 +1,10 @@
 import * as schema from '@sim/db/schema'
 import { generateDrizzleJson, generateMigration } from 'drizzle-kit/api'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 interface SnapshotTable {
   indexes: Record<string, { method: string; with?: Record<string, unknown> }>
 }
-
-afterEach(() => vi.unstubAllEnvs())
 
 describe('dev push index options', () => {
   it('matches introspected options without changing ordinary migration snapshots', async () => {

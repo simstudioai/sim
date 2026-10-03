@@ -8,8 +8,6 @@ export const personalSearchIntegrationSchema = z.object({
   name: z.string().max(200),
   providerId: z.string().min(1).max(100),
   connectorType: z.string().min(1).max(100),
-  connectorId: z.string().min(1).max(200).optional(),
-  knowledgeBaseId: z.string().min(1).max(200).optional(),
   description: z.string().max(240),
   accounts: z
     .array(
@@ -22,9 +20,6 @@ export const personalSearchIntegrationSchema = z.object({
     )
     .max(100),
   connectionStatus: z.enum(['connected', 'reconnect_needed', 'not_connected', 'unavailable']),
-  indexingStatus: z
-    .enum(['indexing', 'indexed', 'not_indexed', 'sync_failed', 'paused'])
-    .optional(),
   action: searchConnectionTargetSchema.nullable(),
 })
 
@@ -49,8 +44,6 @@ export const personalSearchIntegrationsQuerySchema = z.object({
   completionId: z.string().uuid().optional(),
   organizationId: organizationIdSchema,
   connectorType: z.string().trim().min(1).max(100).optional(),
-  connectorId: z.string().min(1).max(200).optional(),
-  cursor: z.string().min(1).max(1024).optional(),
 })
 export type PersonalSearchIntegrationsQuery = z.input<typeof personalSearchIntegrationsQuerySchema>
 
@@ -65,10 +58,6 @@ export const connectPersonalSearchIntegrationBodySchema = z.object({
   organizationId: organizationIdSchema,
   target: searchConnectionTargetSchema,
   oauthCompletionId: z.string().uuid(),
-  sourceConfig: z
-    .record(z.string().min(1).max(100), z.string().max(2000))
-    .refine((config) => Object.keys(config).length <= 30, 'Too many source configuration fields')
-    .optional(),
 })
 export type ConnectPersonalSearchIntegrationBody = z.input<
   typeof connectPersonalSearchIntegrationBodySchema
@@ -82,8 +71,6 @@ export const connectPersonalSearchIntegrationContract = defineRouteContract({
     schema: successResponseSchema(
       z.object({
         url: z.string().url(),
-        connectorId: z.string().min(1).max(200).optional(),
-        knowledgeBaseId: z.string().min(1).max(200).optional(),
       })
     ),
   },

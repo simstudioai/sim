@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 import {
   assertUserFileContentAccess,
@@ -277,7 +278,10 @@ export async function resolveUserFileMounts(args: {
   manifest: SandboxMountManifestEntry[]
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
   renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /** Mounts without producer provenance remain usable and report the recording gap. */
+  unprovenancedMountCount: number
 }> {
+  let unprovenancedMountCount = 0
   const sandboxFiles: SandboxFile[] = []
   const manifest: SandboxMountManifestEntry[] = []
   const budget = createSandboxMountBudget()
@@ -297,14 +301,16 @@ export async function resolveUserFileMounts(args: {
   for (const { userFile, mountPath } of args.planned) {
     const storageContext = resolveTrustedFileContext(userFile.key, userFile.context)
     await assertUserFileContentAccess(userFile, args.context)
-    if (args.context.principal && args.context.workspaceId) {
-      const source = await resolveStoredFileProvenanceSource(userFile, {
-        ...args.context,
-        principal: args.context.principal,
-        workspaceId: args.context.workspaceId,
-      })
-      if (source) addContributor(source.identity)
-    }
+    const source =
+      args.context.principal && args.context.workspaceId
+        ? await resolveStoredFileProvenanceSource(userFile, {
+            ...args.context,
+            principal: args.context.principal,
+            workspaceId: args.context.workspaceId,
+          })
+        : undefined
+    if (source) addContributor(source.identity)
+    else unprovenancedMountCount += 1
 
     await pushSandboxFileMount(
       sandboxFiles,
@@ -352,6 +358,14 @@ export async function resolveUserFileMounts(args: {
     })
   }
 
+  if (unprovenancedMountCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: args.context.workspaceId,
+      actorUserId: args.context.userId,
+      recordCount: unprovenancedMountCount,
+    })
+  }
   logger.info('Resolved sandbox file mounts', {
     mountCount: sandboxFiles.length,
     bufferedBytes: budget.buffered,
@@ -361,6 +375,7 @@ export async function resolveUserFileMounts(args: {
   return {
     sandboxFiles,
     manifest,
+    unprovenancedMountCount,
     ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
     ...(renderedContributingFiles.size > 0
       ? { renderedContributingFiles: [...renderedContributingFiles.values()] }

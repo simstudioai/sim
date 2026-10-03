@@ -1,12 +1,10 @@
 'use client'
 
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
 import { LiveMemberIntegrations } from '@/app/o/[organizationId]/integrations/live-member-integrations'
-import { MemberIntegrationsList } from '@/app/o/[organizationId]/integrations/member-integrations-list'
 import { SlackSearchActions } from '@/app/o/[organizationId]/integrations/slack-search-actions'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
@@ -25,16 +23,12 @@ export function OrganizationIntegrations({
   useOAuthReturnRouter()
   useDesktopOAuthConnectListener()
   const { organization } = useOrganizationContext()
-  const { features } = useDeploymentShape()
   const { search } = useOrganizationPageFilters()
   const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
 
   return (
     <OrganizationPage
       title='Integrations'
-      description={
-        features.liveEnterpriseSearch ? undefined : 'Connect your accounts for Sim Search'
-      }
       searchMode='expanded'
       searchPlaceholder='Search integrations'
       action={
@@ -50,11 +44,7 @@ export function OrganizationIntegrations({
           controlId='integrations-link'
         />
       )}
-      {features.liveEnterpriseSearch ? (
-        <LiveMemberIntegrations organizationId={organization.id} search={sourceSearch} />
-      ) : (
-        <MemberIntegrationsList search={sourceSearch} />
-      )}
+      <LiveMemberIntegrations organizationId={organization.id} search={sourceSearch} />
     </OrganizationPage>
   )
 }

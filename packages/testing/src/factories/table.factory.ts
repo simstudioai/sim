@@ -1,17 +1,6 @@
-import { generateShortId } from '@sim/utils/id'
+type TableColumnType = 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
 
-const COLUMN_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789_'
-
-export type TableColumnType =
-  | 'string'
-  | 'number'
-  | 'currency'
-  | 'boolean'
-  | 'date'
-  | 'json'
-  | 'select'
-
-export interface TableColumnFixture {
+interface TableColumnFixture {
   /** Stable storage key. Absent on legacy columns, where the name is the key. */
   id?: string
   name: string
@@ -20,60 +9,8 @@ export interface TableColumnFixture {
   unique?: boolean
 }
 
-export interface TableRowFixture {
-  id: string
-  data: Record<string, unknown>
-  position: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface TableColumnFactoryOptions {
-  id?: string
-  name?: string
-  type?: TableColumnType
-  required?: boolean
-  unique?: boolean
-}
-
-export interface TableRowFactoryOptions {
-  id?: string
-  data?: Record<string, unknown>
-  position?: number
-  createdAt?: string
-  updatedAt?: string
-}
-
-/**
- * Creates a table column fixture with sensible defaults.
- */
-export function createTableColumn(options: TableColumnFactoryOptions = {}): TableColumnFixture {
-  return {
-    id: options.id,
-    name: options.name ?? `column_${generateShortId(6, COLUMN_SUFFIX_ALPHABET)}`,
-    type: options.type ?? 'string',
-    required: options.required,
-    unique: options.unique,
-  }
-}
-
-/**
- * Creates a table row fixture with sensible defaults.
- */
-export function createTableRow(options: TableRowFactoryOptions = {}): TableRowFixture {
-  const timestamp = new Date().toISOString()
-
-  return {
-    id: options.id ?? `row_${generateShortId(8)}`,
-    data: options.data ?? {},
-    position: options.position ?? 0,
-    createdAt: options.createdAt ?? timestamp,
-    updatedAt: options.updatedAt ?? timestamp,
-  }
-}
-
 /** Per-table mutation locks. All false means fully unlocked. */
-export interface TableLocksFixture {
+interface TableLocksFixture {
   schemaLocked: boolean
   insertLocked: boolean
   updateLocked: boolean
@@ -85,7 +22,7 @@ export interface TableLocksFixture {
  * Declared here rather than imported because `@sim/testing` must not depend on
  * `apps/*` (enforced by `scripts/check-monorepo-boundaries.ts`).
  */
-export interface TableDefinitionFixture {
+interface TableDefinitionFixture {
   id: string
   name: string
   description: string | null

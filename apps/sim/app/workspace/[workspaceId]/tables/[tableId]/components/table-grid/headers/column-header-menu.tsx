@@ -284,7 +284,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         />
       )}
       {isRenaming ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
@@ -305,7 +305,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+        <div className='flex size-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
@@ -318,7 +318,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center'>
+        <div className='flex size-full min-w-0 items-center'>
           <button
             type='button'
             className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-hidden'

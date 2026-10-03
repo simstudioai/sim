@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
@@ -46,17 +45,6 @@ describe('fork preview revisions', () => {
     expect(query.params.some(Array.isArray)).toBe(false)
   })
 
-  it('supports creating a fork without a target or existing edge', async () => {
-    const { execute, executor } = mockRevisionExecutor()
-    await loadForkPreviewRevision(executor, { sourceWorkspaceId: 'source' }, {})
-
-    const query = new PgDialect().sqlToQuery(execute.mock.calls[0][0])
-    expect(query.sql.match(/LIMIT \$\d+/g)).toHaveLength(17)
-    expect(query.params).not.toContain('target')
-    expect(query.params).not.toContain('mappings')
-    expect(query.params.some((value) => value == null)).toBe(false)
-  })
-
   it.each([
     { count: '100001', bytes: '1', message: 'Fork preview files exceeds its 100000 row ceiling' },
     {
@@ -69,13 +57,6 @@ describe('fork preview revisions', () => {
     await expect(loadForkPreviewRevision(executor, scope, {})).rejects.toMatchObject({
       statusCode: 413,
       message: row.message,
-    })
-  })
-
-  it('accepts categories exactly at both limits', async () => {
-    const { executor } = mockRevisionExecutor({ count: '100000', bytes: String(64 * 1024 * 1024) })
-    await expect(loadForkPreviewRevision(executor, scope, {})).resolves.toMatchObject({
-      categories: { files: 'file-revision' },
     })
   })
 

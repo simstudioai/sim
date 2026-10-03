@@ -27,6 +27,7 @@ import {
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { SETTINGS_RETURN_URL_KEY } from '@/lib/navigation/settings-return'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { searchSetupAccessParam } from '@/lib/sim-search/search-params'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
@@ -36,7 +37,6 @@ import {
   workspaceCredentialKeys,
 } from '@/hooks/queries/utils/credential-keys'
 import { requireWorkspaceCredentialListResponse } from '@/hooks/queries/utils/fetch-workspace-credentials'
-import { SETTINGS_RETURN_URL_KEY } from '@/hooks/use-settings-navigation'
 
 const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
@@ -510,6 +510,7 @@ export function useDesktopOAuthConnectListener() {
     if (!bridge?.onOAuthConnectComplete) return
 
     return bridge.onOAuthConnectComplete((result) => {
+      if (result.sourceRequestId) return
       void queryClient.invalidateQueries({
         queryKey: oauthConnectionsKeys.connections(),
       })

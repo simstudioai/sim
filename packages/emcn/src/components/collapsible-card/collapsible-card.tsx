@@ -14,6 +14,8 @@ export interface CollapsibleCardProps
   /** Header actions, outside the collapse target and arranged with standard spacing. */
   actions?: React.ReactNode
   collapsed: boolean
+  /** Selection state when the header also toggles a selection. */
+  selected?: boolean
   onToggleCollapse: () => void
   /** Body content, shown when expanded. */
   children: React.ReactNode
@@ -35,6 +37,7 @@ export function CollapsibleCard({
   badge,
   actions,
   collapsed,
+  selected,
   onToggleCollapse,
   children,
   className,
@@ -54,6 +57,7 @@ export function CollapsibleCard({
           role='button'
           tabIndex={0}
           aria-expanded={!collapsed}
+          aria-pressed={selected}
           className={cn(
             'flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2.5 py-[5px]',
             actions && 'pr-2'

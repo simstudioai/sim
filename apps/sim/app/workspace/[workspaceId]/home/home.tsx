@@ -178,7 +178,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     dispatchingHeadId,
     getCurrentRequestId,
   } = chat
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, userId)
   const {
     isResourceCollapsed,
     skipResourceTransition,
@@ -314,6 +314,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         return context.fileId ? { type: 'file', id: context.fileId } : null
       case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'dashboard':
+        return { type: 'dashboard', id: context.dashboardId }
       default:
         return null
     }
@@ -467,6 +469,14 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           </div>
         ) : (
           <MothershipChat
+            onViewSources={(messageId, requestId) =>
+              addResourceFromUser({
+                type: 'sources',
+                id: 'cited-sources',
+                title: 'Sources',
+                sources: { messageId, ...(requestId ? { requestId } : {}) },
+              })
+            }
             workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}

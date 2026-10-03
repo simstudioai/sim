@@ -164,7 +164,12 @@ export function attachSecretCommands(program: Command): void {
   secrets
     .command('set')
     .argument('<name>', 'Secret name, as referenced in workflows')
-    .description(describeOperation(V2_OPERATIONS.setSecret, 'Create or replace a named secret'))
+    .description(
+      describeOperation(
+        V2_OPERATIONS.setSecret,
+        'Create or replace a named secret, such as an API key or environment variable'
+      )
+    )
     .addOption(
       new Option('--scope <scope>', 'Secret ownership scope (required)')
         .choices([...SECRET_SCOPES])

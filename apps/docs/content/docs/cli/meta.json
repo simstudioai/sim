@@ -15,6 +15,7 @@
     "commands",
     "profiles",
     "telemetry",
+    "cli",
     "audit-logs",
     "billing",
     "blocks",

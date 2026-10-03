@@ -177,10 +177,10 @@ export const ChatInput: React.FC<{
                         <img
                           src={file.dataUrl}
                           alt={file.name}
-                          className='h-full w-full object-cover'
+                          className='size-full object-cover'
                         />
                       ) : (
-                        <div className='flex h-full w-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
+                        <div className='flex size-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
                           <Paperclip className='size-[18px]' />
                           <span className='max-w-[48px] truncate px-[2px] text-micro'>
                             {file.name.split('.').pop()}

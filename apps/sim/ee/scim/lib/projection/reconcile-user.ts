@@ -16,7 +16,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import {
   addPermissionGroupMemberTx,
@@ -195,7 +195,7 @@ async function findForeignWorkspaces(
 
 /** Applies one grant. `skipped` means the grant describes nothing this server can apply. */
 async function applyGrant(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     organizationId: string
     userId: string
@@ -259,7 +259,7 @@ async function applyGrant(
  * is simply inert for that one person.
  */
 async function setOrganizationRole(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string,
   userId: string,
   role: 'admin' | 'member'
@@ -293,7 +293,7 @@ async function setOrganizationRole(
  * has made the directory the source of truth.
  */
 async function withdrawGrant(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     organizationId: string
     userId: string
@@ -398,7 +398,7 @@ async function withdrawGrant(
  * without a dry-run mode.
  */
 export async function reconcileUserProjection(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     connectionId: string
     organizationId: string
@@ -576,7 +576,7 @@ export async function reconcileUserProjection(
 
 /** Reconciles several users, in a stable order so concurrent syncs cannot deadlock. */
 export async function reconcileUsersProjection(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: {
     connectionId: string
     organizationId: string

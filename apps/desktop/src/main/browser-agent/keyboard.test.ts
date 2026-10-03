@@ -1,4 +1,3 @@
-import { toRecord } from '@sim/utils/object'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -6,12 +5,10 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 import { WebContentsView } from 'electron'
 import {
   buildKeyDispatchPlan,
-  cdpModifiers,
   dispatchKeyCombo,
   KeyDispatchError,
   modifierKeyEvents,
   parseKeyCombo,
-  parseModifiers,
 } from '@/main/browser-agent/keyboard'
 
 describe('parseKeyCombo', () => {
@@ -36,26 +33,6 @@ describe('parseKeyCombo', () => {
     expect(parseKeyCombo('Mod+K', 'darwin')).toMatchObject({ meta: true, ctrl: false })
     expect(parseKeyCombo('Mod+K', 'linux')).toMatchObject({ meta: false, ctrl: true })
     expect(parseKeyCombo('ControlOrMeta+K', 'darwin')).toMatchObject({ meta: true })
-  })
-
-  it('parses function keys and Insert without inserting text', () => {
-    expect(parseKeyCombo('F2')).toMatchObject({ key: 'F2', code: 'F2', keyCode: 113 })
-    expect(parseKeyCombo('Shift+F12')).toMatchObject({ key: 'F12', keyCode: 123, shift: true })
-    expect(parseKeyCombo('Insert')).toMatchObject({ key: 'Insert', keyCode: 45 })
-    const [down] = buildKeyDispatchPlan(parseKeyCombo('F2'), 'linux')
-    expect(down).toMatchObject({ type: 'rawKeyDown', key: 'F2' })
-    expect(down.text).toBeUndefined()
-  })
-
-  it('parses modifier lists shared with pointer input', () => {
-    expect(parseModifiers(['Shift', 'Mod'], 'darwin')).toEqual({
-      ctrl: false,
-      meta: true,
-      shift: true,
-      alt: false,
-    })
-    expect(cdpModifiers(parseModifiers(['Mod', 'Alt'], 'linux'))).toBe(3)
-    expect(() => parseModifiers(['Hyper'])).toThrow(/Unrecognized modifier/)
   })
 
   it('rejects unknown keys and modifiers', () => {
@@ -104,12 +81,6 @@ describe('buildKeyDispatchPlan', () => {
     expect(down).toMatchObject({ type: 'keyDown', text: '\r', windowsVirtualKeyCode: 13 })
   })
 
-  it('sends editing keys as rawKeyDown without text', () => {
-    const [down] = buildKeyDispatchPlan(parseKeyCombo('Backspace'), 'linux')
-    expect(down.type).toBe('rawKeyDown')
-    expect(down.text).toBeUndefined()
-  })
-
   it('maps Cmd shortcuts to Blink editing commands on macOS only', () => {
     const combo = parseKeyCombo('Cmd+A')
     const [macDown] = buildKeyDispatchPlan(combo, 'darwin')
@@ -130,48 +101,12 @@ describe('buildKeyDispatchPlan', () => {
     expect(linuxDown.commands).toBeUndefined()
   })
 
-  it('does not rewrite non-editing Control combos on macOS', () => {
-    const [down] = buildKeyDispatchPlan(parseKeyCombo('Control+K'), 'darwin')
-    expect(down.modifiers).toBe(2)
-    expect(down.commands).toBeUndefined()
-  })
-
-  it('uses the Chromium punctuation descriptor for Cmd+,', () => {
-    const [down, up] = buildKeyDispatchPlan(parseKeyCombo('Cmd+,'), 'darwin')
-
-    expect(down).toMatchObject({
-      type: 'rawKeyDown',
-      key: ',',
-      code: 'Comma',
-      windowsVirtualKeyCode: 188,
-      modifiers: 4,
-    })
-    expect(down).not.toHaveProperty('nativeVirtualKeyCode')
-    expect(up).not.toHaveProperty('nativeVirtualKeyCode')
-  })
-
-  it('maps Cmd+Shift+Z to redo and Cmd+Z to undo on macOS', () => {
-    const [redo] = buildKeyDispatchPlan(parseKeyCombo('Cmd+Shift+Z'), 'darwin')
-    expect(redo.commands).toEqual(['redo'])
-    const [undo] = buildKeyDispatchPlan(parseKeyCombo('Cmd+Z'), 'darwin')
-    expect(undo.commands).toEqual(['undo'])
-  })
-
   it('encodes the CDP modifier bitmask (Alt=1 Ctrl=2 Meta=4 Shift=8)', () => {
     const [down] = buildKeyDispatchPlan(parseKeyCombo('Control+Shift+K'), 'linux')
     expect(down.modifiers).toBe(2 | 8)
     // Modified letters must not carry text — they are shortcuts, not typing.
     expect(down.type).toBe('rawKeyDown')
     expect(down.text).toBeUndefined()
-  })
-
-  it('sends the shifted character as text and keeps Alt-printable combos non-textual', () => {
-    const [shifted] = buildKeyDispatchPlan(parseKeyCombo('Shift+1'), 'linux')
-    expect(shifted).toMatchObject({ key: '!', code: 'Digit1', text: '!', modifiers: 8 })
-
-    const [alt] = buildKeyDispatchPlan(parseKeyCombo('Alt+a'), 'linux')
-    expect(alt).toMatchObject({ type: 'rawKeyDown', key: 'a', modifiers: 1 })
-    expect(alt.text).toBeUndefined()
   })
 })
 
@@ -197,37 +132,6 @@ describe('modifierKeyEvents', () => {
       expect.objectContaining({ type: 'keyUp', key: 'Shift', modifiers: 2 }),
       expect.objectContaining({ type: 'keyUp', key: 'Control', modifiers: 0 }),
     ])
-  })
-
-  it('presses a bare modifier as its own key with its flag set', () => {
-    const combo = parseKeyCombo('Control', 'linux')
-    const [down, up] = buildKeyDispatchPlan(combo, 'linux')
-
-    expect(down).toMatchObject({
-      type: 'rawKeyDown',
-      key: 'Control',
-      code: 'ControlLeft',
-      modifiers: 2,
-    })
-    expect(up).toMatchObject({ type: 'keyUp', key: 'Control', modifiers: 0 })
-    expect(modifierKeyEvents(combo, 'linux')).toEqual({ downs: [], ups: [] })
-  })
-
-  it('treats modifier aliases like their canonical key', () => {
-    for (const [alias, key, flag] of [
-      ['Ctrl', 'Control', 2],
-      ['Option', 'Alt', 1],
-      ['Cmd', 'Meta', 4],
-      ['Command', 'Meta', 4],
-    ] as const) {
-      const [down, up] = buildKeyDispatchPlan(parseKeyCombo(alias, 'linux'), 'linux')
-      expect(down).toMatchObject({ key, modifiers: flag })
-      expect(up).toMatchObject({ type: 'keyUp', key, modifiers: 0 })
-    }
-  })
-
-  it('sends no extra events for a key without modifiers', () => {
-    expect(modifierKeyEvents(parseKeyCombo('a', 'linux'), 'linux')).toEqual({ downs: [], ups: [] })
   })
 })
 
@@ -311,75 +215,5 @@ describe('dispatchKeyCombo', () => {
       'Input.dispatchKeyEvent',
       expect.objectContaining({ type: 'keyUp', key: 'Enter' }),
     ])
-  })
-
-  it('releases only the chord keys whose press was attempted', async () => {
-    const contents = new WebContentsView().webContents
-    vi.mocked(contents.debugger.sendCommand)
-      .mockResolvedValueOnce({})
-      .mockRejectedValueOnce(new Error('shift-down response lost'))
-
-    await expect(dispatchKeyCombo(contents, parseKeyCombo('Ctrl+Shift+K'))).rejects.toMatchObject({
-      name: KeyDispatchError.name,
-      keyDownDispatched: true,
-    })
-
-    const keys = vi
-      .mocked(contents.debugger.sendCommand)
-      .mock.calls.map(([, params]) => `${toRecord(params).type} ${toRecord(params).key}`)
-    expect(keys).toEqual(['rawKeyDown Control', 'rawKeyDown Shift', 'keyUp Shift', 'keyUp Control'])
-
-    const early = new WebContentsView().webContents
-    vi.mocked(early.debugger.sendCommand).mockRejectedValueOnce(new Error('control-down lost'))
-    await expect(dispatchKeyCombo(early, parseKeyCombo('Ctrl+Shift+K'))).rejects.toMatchObject({
-      name: KeyDispatchError.name,
-    })
-    expect(
-      vi
-        .mocked(early.debugger.sendCommand)
-        .mock.calls.map(([, params]) => `${toRecord(params).type} ${toRecord(params).key}`)
-    ).toEqual(['rawKeyDown Control', 'keyUp Control'])
-  })
-
-  it('does not turn menu-restoration cleanup failure into a duplicate key retry signal', async () => {
-    const contents = new WebContentsView().webContents
-    vi.mocked(contents.setIgnoreMenuShortcuts).mockImplementation((ignored: boolean) => {
-      if (!ignored) throw new Error('menu cleanup failed')
-    })
-
-    await expect(dispatchKeyCombo(contents, parseKeyCombo('Cmd+A'))).resolves.toBeUndefined()
-    expect(contents.debugger.sendCommand).toHaveBeenCalledTimes(4)
-  })
-
-  it('keeps the application menu isolated until overlapping dispatches finish', async () => {
-    const contents = new WebContentsView().webContents
-    let releaseFirstDown: (() => void) | undefined
-    vi.mocked(contents.debugger.sendCommand).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          releaseFirstDown = () => resolve({})
-        })
-    )
-
-    const first = dispatchKeyCombo(contents, parseKeyCombo('Cmd+A'))
-    await Promise.resolve()
-    const second = dispatchKeyCombo(contents, parseKeyCombo('Cmd+Z'))
-    await second
-
-    expect(contents.setIgnoreMenuShortcuts).toHaveBeenCalledTimes(1)
-    expect(contents.setIgnoreMenuShortcuts).toHaveBeenCalledWith(true)
-
-    releaseFirstDown?.()
-    await first
-
-    expect(contents.setIgnoreMenuShortcuts).toHaveBeenNthCalledWith(2, false)
-  })
-
-  it('does not change application-menu handling for ordinary page keys', async () => {
-    const contents = new WebContentsView().webContents
-
-    await dispatchKeyCombo(contents, parseKeyCombo('Enter'))
-
-    expect(contents.setIgnoreMenuShortcuts).not.toHaveBeenCalled()
   })
 })

@@ -26,8 +26,6 @@ function isEmfFormat(path: string): boolean {
   return ext === 'emf'
 }
 
-// Image Rendering
-
 /**
  * Render a picture node into an absolutely-positioned HTML element.
  *
@@ -48,7 +46,6 @@ export function renderImage(node: PicNodeData, ctx: RenderContext): HTMLElement 
   wrapper.style.height = `${node.size.h}px`
   wrapper.style.overflow = 'hidden'
 
-  // Apply transforms
   const transforms: string[] = []
   if (node.rotation !== 0) {
     transforms.push(`rotate(${node.rotation}deg)`)
@@ -63,19 +60,16 @@ export function renderImage(node: PicNodeData, ctx: RenderContext): HTMLElement 
     wrapper.style.transform = transforms.join(' ')
   }
 
-  // ---- Handle video ----
   if (node.isVideo) {
     renderVideo(node, ctx, wrapper)
     return wrapper
   }
 
-  // ---- Handle audio ----
   if (node.isAudio) {
     renderAudio(node, ctx, wrapper)
     return wrapper
   }
 
-  // ---- Resolve image data ----
   const embedId = node.blipEmbed
   if (!embedId) {
     renderPlaceholder(wrapper, 'No image data')
@@ -102,17 +96,14 @@ export function renderImage(node: PicNodeData, ctx: RenderContext): HTMLElement 
     return wrapper
   }
 
-  // Handle EMF images — extract embedded PDF/bitmap content
   if (isEmfFormat(mediaPath)) {
     const emfData = data instanceof Uint8Array ? data : new Uint8Array(data)
     renderEmf(emfData, node, ctx, wrapper, mediaPath)
     return wrapper
   }
 
-  // Create blob URL (with caching)
   const url = getOrCreateBlobUrl(mediaPath, data, ctx.mediaUrlCache)
 
-  // Create image element
   const img = document.createElement('img')
   img.src = url
   img.style.width = '100%'
@@ -121,7 +112,6 @@ export function renderImage(node: PicNodeData, ctx: RenderContext): HTMLElement 
   img.style.display = 'block'
   img.draggable = false
 
-  // Apply crop if present.
   // OOXML srcRect defines what portion of the source image is cropped away.
   // The REMAINING visible region must stretch to fill the entire shape bounding box.
   // We achieve this by scaling the <img> larger than the wrapper and offsetting it,
@@ -148,7 +138,6 @@ export function renderImage(node: PicNodeData, ctx: RenderContext): HTMLElement 
     }
   }
 
-  // --- Blip effects ---
   const blip = node.source.child('blipFill').child('blip')
   const blipOpacity = resolveBlipOpacity(blip)
   if (blipOpacity < 1) {
@@ -161,13 +150,11 @@ export function renderImage(node: PicNodeData, ctx: RenderContext): HTMLElement 
     applyDuotoneFilter(duotone, ctx, img, wrapper)
   }
 
-  // Luminance: brightness/contrast adjustment
   const lum = blip.child('lum')
   if (lum.exists()) {
     applyLumEffect(lum, img)
   }
 
-  // BiLevel: threshold to black/white
   const biLevel = blip.child('biLevel')
   if (biLevel.exists()) {
     applyBiLevelEffect(biLevel, img)
@@ -210,10 +197,8 @@ function resolveBlipOpacity(blip: SafeXmlNode): number {
  * Render a video element inside the wrapper.
  */
 function renderVideo(node: PicNodeData, ctx: RenderContext, wrapper: HTMLElement): void {
-  // Try to get video URL from mediaRId
   const videoUrl = resolveMediaUrl(node.mediaRId, ctx)
 
-  // Also try to show poster image from blipEmbed
   let posterUrl: string | undefined
   if (node.blipEmbed) {
     const rel = ctx.slide.rels.get(node.blipEmbed)
@@ -270,7 +255,6 @@ function renderAudio(node: PicNodeData, ctx: RenderContext, wrapper: HTMLElement
   const audioUrl = resolveMediaUrl(node.mediaRId, ctx)
 
   if (audioUrl) {
-    // Show poster image if available
     if (node.blipEmbed) {
       const rel = ctx.slide.rels.get(node.blipEmbed)
       if (rel) {
@@ -310,12 +294,10 @@ function resolveMediaUrl(rId: string | undefined, ctx: RenderContext): string | 
   const rel = ctx.slide.rels.get(rId)
   if (!rel) return undefined
 
-  // Check if target is an external URL
   if (rel.target.startsWith('http://') || rel.target.startsWith('https://')) {
     return rel.target
   }
 
-  // Resolve from embedded media
   const mediaPath = resolveMediaPath(rel.target)
   const data = ctx.presentation.media.get(mediaPath)
   if (!data) return undefined
@@ -370,8 +352,6 @@ function renderUnsupportedPlaceholder(wrapper: HTMLElement, path: string): void 
   placeholder.appendChild(label)
   wrapper.appendChild(placeholder)
 }
-
-// EMF Rendering
 
 /**
  * Render EMF content by extracting embedded PDF or bitmap data.
@@ -476,8 +456,6 @@ function createFillImage(url: string): HTMLImageElement {
   return img
 }
 
-// Duotone Effect
-
 import type { SafeXmlNode } from '../parser/xml-parser'
 
 /**
@@ -542,8 +520,6 @@ function applyDuotoneFilter(
   }
 }
 
-// Luminance Effect
-
 /**
  * Apply a luminance (brightness/contrast) effect to an image.
  *
@@ -574,7 +550,6 @@ function applyLumEffect(lum: SafeXmlNode, img: HTMLImageElement): void {
 
     for (let i = 0; i < data.length; i += 4) {
       for (let ch = 0; ch < 3; ch++) {
-        // Normalize to 0–1
         let v = data[i + ch] / 255
         // Apply contrast (expand/compress around 0.5)
         if (contrast !== 0) {
@@ -597,8 +572,6 @@ function applyLumEffect(lum: SafeXmlNode, img: HTMLImageElement): void {
     img.addEventListener('load', apply, { once: true })
   }
 }
-
-// BiLevel Effect
 
 /**
  * Apply a bi-level (threshold) effect to an image.

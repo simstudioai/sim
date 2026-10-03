@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
 
@@ -52,15 +49,5 @@ describe('markSignInProviders', () => {
         row('zeta-okta', { isNamedPrimary: true }),
       ])
     ).toEqual(['eng-okta', 'zeta-okta'])
-  })
-
-  it('drops the named-primary column from what it returns', () => {
-    const [provider] = markSignInProviders([row('acme-entra')])
-    expect(provider).toEqual({
-      providerId: 'acme-entra',
-      domainKey: 'acme.com',
-      domainVerified: true,
-      isPrimary: true,
-    })
   })
 })

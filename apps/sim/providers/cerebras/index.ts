@@ -6,7 +6,6 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import type { CerebrasResponse } from '@/providers/cerebras/types'
-import { createReadableStreamFromCerebrasStream } from '@/providers/cerebras/utils'
 import {
   isConversationContextError,
   prepareConversationGeneration,
@@ -18,6 +17,8 @@ import {
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -99,14 +100,7 @@ export const cerebrasProvider: ProviderConfig = {
         payload.reasoning_effort = request.reasoningEffort
       }
       if (request.responseFormat) {
-        payload.response_format = {
-          type: 'json_schema',
-          json_schema: {
-            name: request.responseFormat.name || 'response_schema',
-            schema: request.responseFormat.schema || request.responseFormat,
-            strict: request.responseFormat.strict !== false,
-          },
-        }
+        payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
       }
 
       let originalToolChoice: any
@@ -154,9 +148,10 @@ export const cerebrasProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromCerebrasStream(
-              streamResponse,
-              (content, usage) => {
+            createOpenAICompatibleAgentEventStream(streamResponse, {
+              providerName: 'Cerebras',
+              request,
+              onComplete: ({ content, usage }) => {
                 output.content = content
                 output.tokens = {
                   input: usage.prompt_tokens,
@@ -175,8 +170,7 @@ export const cerebrasProvider: ProviderConfig = {
                   total: costResult.total,
                 }
               },
-              request
-            ),
+            }),
         })
 
         return streamingResult

@@ -13,7 +13,6 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
-  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -182,10 +181,6 @@ describe('Jira member indexing and authorization in PostgreSQL', () => {
       })
     })
     await seedKnowledgeAclFixture(ids)
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     const policy = await getCredentialGroupProviderAdapter('jira').getPolicy(undefined, {
       workspaceId: ids.workspaceId,
     })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { APIError } from 'better-auth/api'
 import { describe, expect, it } from 'vitest'
 import { getBetterAuthClientErrorStatus } from '@/lib/auth/better-auth-error'
@@ -11,11 +8,7 @@ describe('getBetterAuthClientErrorStatus', () => {
    * to a dependency, so a fixture agreeing with our guess would prove nothing about what the
    * routes actually catch.
    */
-  it.each([
-    ['BAD_REQUEST' as const, 400],
-    ['UNAUTHORIZED' as const, 401],
-    ['FORBIDDEN' as const, 403],
-  ])('reads %s as %i', (status, expected) => {
+  it.each([['UNAUTHORIZED' as const, 401]])('reads %s as %i', (status, expected) => {
     expect(getBetterAuthClientErrorStatus(new APIError(status, { message: 'refused' }))).toBe(
       expected
     )

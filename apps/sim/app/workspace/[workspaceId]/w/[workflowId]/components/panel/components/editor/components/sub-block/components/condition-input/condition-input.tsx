@@ -149,8 +149,10 @@ export function ConditionInput({
   )
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const inputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map())
-  const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const inputElementsRef = useRef<Map<string, HTMLTextAreaElement> | null>(null)
+  const inputRefs = (inputElementsRef.current ??= new Map())
+  const overlayElementsRef = useRef<Map<string, HTMLDivElement> | null>(null)
+  const overlayRefs = (overlayElementsRef.current ??= new Map())
 
   /**
    * Determines if a reference string should be highlighted in the editor.
@@ -593,42 +595,6 @@ export function ConditionInput({
     }
   }
 
-  // Handle tag selection - updated for individual blocks
-  const handleTagSelect = (blockId: string, newValue: string) => {
-    if (isPreview || disabled) return
-    shouldPersistRef.current = true
-    setConditionalBlocks((blocks) =>
-      blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              value: newValue,
-              showTags: false,
-              activeSourceBlockId: null,
-            }
-          : block
-      )
-    )
-  }
-
-  // Handle environment variable selection - updated for individual blocks
-  const handleEnvVarSelect = (blockId: string, newValue: string) => {
-    if (isPreview || disabled) return
-    shouldPersistRef.current = true
-    setConditionalBlocks((blocks) =>
-      blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              value: newValue,
-              showEnvVars: false,
-              searchTerm: '',
-            }
-          : block
-      )
-    )
-  }
-
   const handleTagSelectImmediate = (
     blockId: string,
     newValue: string,
@@ -854,7 +820,7 @@ export function ConditionInput({
           `[data-block-id="${block.id}"] textarea`
         ) as HTMLTextAreaElement | null
         if (textarea) {
-          inputRefs.current.set(block.id, textarea)
+          inputRefs.set(block.id, textarea)
         }
       })
     }
@@ -896,8 +862,8 @@ export function ConditionInput({
       const newHeight = Math.max(ROUTER_MIN_HEIGHT_PX, startHeight + deltaY)
 
       // Update the textarea height directly for smooth resizing
-      const textarea = inputRefs.current.get(blockId)
-      const overlay = overlayRefs.current.get(blockId)
+      const textarea = inputRefs.get(blockId)
+      const overlay = overlayRefs.get(blockId)
       if (textarea) {
         textarea.style.height = `${newHeight}px`
       }
@@ -1046,7 +1012,7 @@ export function ConditionInput({
               >
                 <Textarea
                   ref={(el) => {
-                    if (el) inputRefs.current.set(block.id, el)
+                    if (el) inputRefs.set(block.id, el)
                   }}
                   data-router-block-id={block.id}
                   value={block.value}
@@ -1094,7 +1060,7 @@ export function ConditionInput({
                     }, 150)
                   }}
                   onScroll={(e) => {
-                    const overlay = overlayRefs.current.get(block.id)
+                    const overlay = overlayRefs.get(block.id)
                     if (overlay) {
                       overlay.scrollTop = e.currentTarget.scrollTop
                       overlay.scrollLeft = e.currentTarget.scrollLeft
@@ -1109,9 +1075,9 @@ export function ConditionInput({
                 <div
                   ref={(el) => {
                     if (el) {
-                      overlayRefs.current.set(block.id, el)
+                      overlayRefs.set(block.id, el)
                     } else {
-                      overlayRefs.current.delete(block.id)
+                      overlayRefs.delete(block.id)
                     }
                   }}
                   data-preview-full-opacity={isPreview || undefined}
@@ -1198,7 +1164,7 @@ export function ConditionInput({
                     }}
                     inputRef={
                       {
-                        current: inputRefs.current.get(block.id) || null,
+                        current: inputRefs.get(block.id) || null,
                       } as React.RefObject<HTMLTextAreaElement>
                     }
                   />
@@ -1342,7 +1308,7 @@ export function ConditionInput({
                             }}
                             inputRef={
                               {
-                                current: inputRefs.current.get(block.id) || null,
+                                current: inputRefs.get(block.id) || null,
                               } as React.RefObject<HTMLTextAreaElement>
                             }
                           />

@@ -2,18 +2,11 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { electronMockFns } from '@/test/electron-mock'
 
-const { ipcOn, ipcSend } = vi.hoisted(() => ({
-  ipcOn: vi.fn(),
-  ipcSend: vi.fn(),
-}))
+vi.mock('electron', () => import('@/test/electron-mock'))
 
-vi.mock('electron', () => ({
-  ipcRenderer: {
-    on: ipcOn,
-    send: ipcSend,
-  },
-}))
+const { mockIpcRendererSend: ipcSend } = electronMockFns
 
 afterEach(() => {
   vi.useRealTimers()

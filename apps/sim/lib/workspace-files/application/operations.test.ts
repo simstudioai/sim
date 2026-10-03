@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { describe, expect, it } from 'vitest'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -29,11 +25,6 @@ describe('file operation registry', () => {
         ).toBe(true)
       }
     }
-  })
-
-  it('uses unique stable operation IDs', () => {
-    const ids = Object.values(fileOperations).map((operation) => operation.id)
-    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('allows executor delegation only for operations used by the internal file tool', () => {

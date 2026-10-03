@@ -900,7 +900,7 @@ export async function createStreamingResponse(
           timeoutController.timeoutMs &&
           !requestAborted
         ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           logger.info(`[${requestId}] Streaming execution timed out`, {
             timeoutMs: timeoutController.timeoutMs,
           })

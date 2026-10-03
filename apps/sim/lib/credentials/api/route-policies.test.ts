@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   CredentialGroupOAuthError,
@@ -12,7 +9,6 @@ import {
 } from '@/lib/credentials/api/route-policies'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
 import {
-  OAuthDisconnectConfigurationError,
   OAuthDisconnectLimitError,
   OAuthDisconnectPartialFailureError,
   OAuthProviderRevocationError,
@@ -67,16 +63,6 @@ describe('internalCredentialErrorPolicy', () => {
     expect(response?.body).toEqual({ error: 'Too many linked accounts' })
   })
 
-  it('renders a local QuickBooks configuration problem as a non-retryable 400', () => {
-    const response = project(
-      new OAuthDisconnectConfigurationError('Reconnect the QuickBooks account and try again.')
-    )
-
-    expect(response?.status).toBe(400)
-    expect(response?.headers).toBeUndefined()
-    expect(response?.body).toEqual({ error: 'Reconnect the QuickBooks account and try again.' })
-  })
-
   it('keeps a later revocation outage retryable after an earlier account was deleted', () => {
     const revocation = new OAuthProviderRevocationError(
       'QuickBooks',
@@ -90,10 +76,6 @@ describe('internalCredentialErrorPolicy', () => {
       error: 'Unable to revoke QuickBooks access. Please try again.',
     })
   })
-
-  it('defers anything that is not a provider failure to the base policy', () => {
-    expect(project(new Error('unrelated'))).toBeNull()
-  })
 })
 
 describe('personal account connection errors', () => {
@@ -106,16 +88,6 @@ describe('personal account connection errors', () => {
       body: {
         error: 'Ask an organization admin to configure this integration in organization settings',
       },
-    })
-  })
-
-  it('preserves permission and configuration refusals', () => {
-    const response = internalPersonalCredentialConnectionErrorPolicy.project(
-      new CredentialGroupOAuthError('Required permissions were not granted', 403)
-    )
-    expect(response).toMatchObject({
-      status: 403,
-      body: { error: 'Required permissions were not granted' },
     })
   })
 

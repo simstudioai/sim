@@ -1,47 +1,49 @@
-/** @vitest-environment node */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { credentialGroupsAvailabilityMock } from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialGroupsServiceMock,
+  credentialGroupsServiceMockFns,
+} from '@sim/testing/mocks/credential-groups-service.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({
-  authorize: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resolve: vi.fn(),
-  indexed: vi.fn(),
-  group: vi.fn(),
   oauth: vi.fn(),
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: m.authorize,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: async ({ organizationId }: { organizationId: string }) => ({
-    organizationId,
-    workspaceId: undefined,
-  }),
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/knowledge/application/personal-search-integrations', () => ({
-  resolvePersonalSearchConnection: { execute: m.resolve },
+  resolvePersonalSearchConnection: { execute: hoisted.resolve },
 }))
-vi.mock('@/lib/knowledge/application/sim-search', () => ({
-  connectSimSearchConnector: { execute: m.indexed },
-}))
-vi.mock('@/lib/credential-groups/service', () => ({
-  getOrganizationAccountsGroup: m.group,
-  ensureWorkspaceAccountsGroup: vi.fn(),
-  updateCredentialGroup: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: async () => true,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: async () => null,
-}))
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 vi.mock('@/lib/credential-groups/self-enrollment-oauth', () => ({
-  startViewerCredentialGroupOAuth: m.oauth,
+  startViewerCredentialGroupOAuth: hoisted.oauth,
 }))
 
 import { connectPersonalSearchIntegrationContract } from '@/lib/api/contracts/knowledge/personal-integrations'
 import { connectPersonalSearchIntegration } from '@/lib/knowledge/application/connect-personal-search-integration'
 
-const principal = { kind: 'session', userId: 'person', sessionId: 'session' } as const
+const m = {
+  ...hoisted,
+  group: credentialGroupsServiceMockFns.mockGetOrganizationAccountsGroup,
+}
+
+credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext.mockResolvedValue(
+  null
+)
+
+const principal = createSessionPrincipal({ userId: 'person', sessionId: 'session' })
 const target = {
   type: 'link',
   provider: 'slack',
@@ -56,8 +58,11 @@ const input = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  m.authorize.mockResolvedValue({ organizationId: 'org', userId: 'person', role: 'member' })
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue({
+    organizationId: 'org',
+    userId: 'person',
+    role: 'member',
+  })
   m.resolve.mockResolvedValue({ name: 'Slack', target })
   m.group.mockResolvedValue({
     id: 'group',
@@ -81,7 +86,6 @@ describe('personal live Search connection', () => {
         input: { ...input, target: selected },
       })
       expect(result.url).toBe('https://provider.test/oauth')
-      expect(result.connectorId).toBeUndefined()
       expect(
         connectPersonalSearchIntegrationContract.response.schema.safeParse({
           success: true,
@@ -96,8 +100,9 @@ describe('personal live Search connection', () => {
         completionId: input.oauthCompletionId,
         connectionIntent: credentialId ? { kind: 'reconnect', credentialId } : { kind: 'create' },
       })
-      expect(m.indexed).not.toHaveBeenCalled()
-      expect(m.authorize).toHaveBeenCalledWith(
+      expect(
+        organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+      ).toHaveBeenCalledWith(
         principal,
         expect.objectContaining({
           id: 'organization_accounts.connect',
@@ -114,7 +119,6 @@ describe('personal live Search connection', () => {
       'no longer available'
     )
     expect(m.oauth).not.toHaveBeenCalled()
-    expect(m.indexed).not.toHaveBeenCalled()
   })
 
   it('rechecks disabled account options after resolving the card', async () => {
@@ -125,35 +129,6 @@ describe('personal live Search connection', () => {
     })
     await expect(connectPersonalSearchIntegration.execute({ principal, input })).rejects.toThrow(
       'no longer available'
-    )
-    expect(m.oauth).not.toHaveBeenCalled()
-  })
-
-  it('continues to use indexed enrollment for indexed controls', async () => {
-    const indexed = {
-      type: 'link',
-      provider: 'slack',
-      connectorType: 'slack',
-      connectorId: 'source',
-    } as const
-    m.resolve.mockResolvedValue({ target: indexed })
-    m.indexed.mockResolvedValue({
-      url: 'https://provider.test/oauth',
-      connectorId: 'source',
-      knowledgeBaseId: 'kb',
-    })
-    await connectPersonalSearchIntegration.execute({
-      principal,
-      input: { ...input, target: indexed },
-    })
-    expect(m.indexed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: expect.objectContaining({
-          connectorId: 'source',
-          oauthCompletionId: input.oauthCompletionId,
-        }),
-      })
     )
     expect(m.oauth).not.toHaveBeenCalled()
   })

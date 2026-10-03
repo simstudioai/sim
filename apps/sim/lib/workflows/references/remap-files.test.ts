@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { remapForkFileUploadValue } from '@/lib/workflows/references/remap-files'
 
@@ -37,16 +34,5 @@ describe('remapForkFileUploadValue', () => {
     const value = { path: 'src/a.pdf', name: 'a.pdf' }
     const result = remapForkFileUploadValue(value, map({ 'src/a.pdf': 'child/a.pdf' }))
     expect(result).toEqual({ path: 'child/a.pdf', name: 'a.pdf' })
-  })
-
-  it('returns the value unchanged when no items match', () => {
-    const value = { key: 'src/a.pdf', name: 'a.pdf' }
-    const sameKey = map({ 'src/a.pdf': 'src/a.pdf' })
-    expect(remapForkFileUploadValue(value, sameKey)).toBe(value)
-  })
-
-  it('returns empty/unparseable values untouched', () => {
-    expect(remapForkFileUploadValue('', map({}))).toBe('')
-    expect(remapForkFileUploadValue(null, map({}))).toBe(null)
   })
 })

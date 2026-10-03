@@ -12,7 +12,6 @@ import {
   credentialGroup,
   credentialGroupEnrollment,
   document,
-  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -202,10 +201,6 @@ describe('Google Calendar member indexing and authorization in PostgreSQL', () =
       })
     })
     await seedKnowledgeAclFixture(ids)
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     const policy = await getCredentialGroupProviderAdapter('google-calendar').getPolicy(undefined, {
       workspaceId: ids.workspaceId,
     })

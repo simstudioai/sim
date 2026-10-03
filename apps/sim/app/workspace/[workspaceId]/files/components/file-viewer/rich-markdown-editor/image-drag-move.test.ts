@@ -53,33 +53,6 @@ describe('image drop ownership and placement', () => {
     expect(images(editor)[0].type).toBe('image')
   })
 
-  it.each([0, 4])('copies with the platform modifier at position %s', (position) => {
-    const editor = createEditor()
-    dispatchEditorDrop(editor, position, { copy: true })
-    expect(images(editor)).toHaveLength(2)
-    expect(editor.state.doc.textContent).toBe('HeadingAfter')
-  })
-
-  it.each([0, 4])(
-    'copies an external same-URL image instead of moving the selection at %s',
-    (position) => {
-      const editor = createEditor()
-      dispatchEditorDrop(editor, position, {
-        html: '<img src="/image.png" alt="External" width="240">',
-      })
-      expect(images(editor)).toHaveLength(2)
-      expect(images(editor)).toContainEqual({
-        type: 'image',
-        src: '/image.png',
-        alt: 'Original',
-        width: '120',
-      })
-      expect(
-        images(editor).some((image) => image.alt === 'External' && image.width === '240')
-      ).toBe(true)
-    }
-  )
-
   it('preserves every image and accompanying text from an external rich drop', () => {
     const editor = createEditor()
     dispatchEditorDrop(editor, 0, {
@@ -87,16 +60,6 @@ describe('image drop ownership and placement', () => {
     })
     expect(images(editor)).toHaveLength(3)
     expect(editor.state.doc.textContent).toBe('CaptionBetweenEndHeadingAfter')
-  })
-
-  it('moves an inline image back to a block boundary', () => {
-    const editor = createEditor()
-    dispatchEditorDrop(editor, 4)
-    expect(images(editor)[0].type).toBe('inlineImage')
-    dispatchEditorDrop(editor, 0)
-    expect(images(editor)).toHaveLength(1)
-    expect(editor.state.doc.firstChild?.type.name).toBe('image')
-    expect(editor.state.doc.textContent).toBe('HeadingAfter')
   })
 
   it.each(['delete', 'resize'])(

@@ -36,9 +36,11 @@ export async function handleResourceSideEffects(
   chatId: string,
   onEvent: ((event: StreamEvent) => void | Promise<void>) | undefined,
   isAborted: () => boolean,
-  workspaceId?: string,
+  owner?: { organizationId?: string; workspaceId?: string },
   actorUserId?: string
 ): Promise<void> {
+  // Only organization chats address a workspace; a workspace chat's resources leave it implicit.
+  const workspaceId = owner?.organizationId ? owner.workspaceId : undefined
   // Cheap early exit so we don't emit a span for tools that can never
   // produce resources (most of them). The span only shows up for tools
   // that might actually do resource work.
