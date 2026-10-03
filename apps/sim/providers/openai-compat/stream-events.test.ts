@@ -1,3 +1,4 @@
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import { describe, expect, it, vi } from 'vitest'
 import {
   openaiCompatReasoningAndTextChunks,
@@ -141,8 +142,12 @@ describe('createOpenAICompatibleAgentEventStream', () => {
       (async function* () {
         yield* openaiCompatTextOnlyChunks as any
         yield {
-          choices: [{ delta: {}, finish_reason: 'length' }],
-        } as any
+          id: 'chatcmpl-token-limit',
+          object: 'chat.completion.chunk',
+          created: 0,
+          model: 'deepseek-chat',
+          choices: [{ index: 0, delta: {}, finish_reason: 'length' }],
+        } satisfies ChatCompletionChunk
       })(),
       { providerName: 'DeepSeek', onComplete }
     )
