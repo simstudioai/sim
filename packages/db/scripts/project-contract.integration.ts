@@ -135,6 +135,84 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     }
   })
 
+  it('fails trigger installation promptly on a busy table and releases partially acquired locks', async () => {
+    await database(async (sql) => {
+      const held = createDeferred<void>()
+      const release = createDeferred<void>()
+      const reader = sql.begin(async (tx) => {
+        await tx`SELECT * FROM workflow`
+        held.resolve()
+        await release.promise
+      })
+      await held.promise
+      try {
+        const started = performance.now()
+        await expect(enforce(sql)).rejects.toSatisfy(
+          (error: unknown) => getPostgresErrorCode(error) === '55P03'
+        )
+        expect(performance.now() - started).toBeLessThan(2000)
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL statement_timeout = '500ms'`
+          await tx`INSERT INTO workspace (id, name, owner_id) VALUES ('live', 'Live', 'owner')`
+          await tx`SELECT * FROM project`
+        })
+      } finally {
+        release.resolve()
+        await reader
+      }
+      await enforce(sql)
+      expect(await sql`SELECT * FROM project_workspace WHERE workspace_id = 'live'`).toHaveLength(1)
+    })
+  })
+
+  it('releases installation table locks when the migration client stalls between statements', async () => {
+    await database(async (sql, url) => {
+      const result = await promisify(execFile)(
+        'bun',
+        [
+          '--no-env-file',
+          '-e',
+          `
+        import { readFile } from 'node:fs/promises';
+        import { sleep } from '@sim/utils/helpers';
+        import postgres from 'postgres';
+        const sql = postgres(process.env.TEST_DATABASE_URL, { max: 1, onnotice: () => undefined });
+        const observer = postgres(process.env.TEST_DATABASE_URL, { max: 1 });
+        const [{ pid }] = await sql.unsafe('SELECT pg_backend_pid() AS pid');
+        const locks = async () => (await observer.unsafe(
+          "SELECT count(*)::int AS count FROM pg_locks WHERE pid = $1 AND mode = 'AccessExclusiveLock' AND granted",
+          [pid]
+        ))[0].count;
+        const migration = await readFile('migrations/0395_project_membership_enforcement.sql', 'utf8');
+        for (const statement of migration.split('--> statement-breakpoint')) {
+          await sql.unsafe(statement);
+          if (statement.includes('LOCK TABLE workspace,')) {
+            const before = await locks();
+            await sleep(6500);
+            process.stdout.write(JSON.stringify({ before, after: await locks() }));
+            process.exit(0);
+          }
+        }
+        process.exit(1);
+      `,
+        ],
+        {
+          cwd: new URL('..', import.meta.url),
+          env: { ...process.env, TEST_DATABASE_URL: url },
+          timeout: 12000,
+        }
+      )
+      expect(JSON.parse(result.stdout)).toEqual({ before: 4, after: 0 })
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL statement_timeout = '500ms'`
+        await tx`INSERT INTO workspace (id, name, owner_id) VALUES ('live', 'Live', 'owner')`
+        await tx`SELECT * FROM project`
+      })
+      await enforce(sql)
+      expect(await sql`SELECT * FROM project_workspace WHERE workspace_id = 'live'`).toHaveLength(1)
+    })
+  }, 15000)
+
   it('backfills legacy environments before installing mandatory membership', async () => {
     await database(async (sql) => {
       await sql`INSERT INTO workspace (id, name, owner_id) VALUES ('legacy', 'Legacy', 'owner')`

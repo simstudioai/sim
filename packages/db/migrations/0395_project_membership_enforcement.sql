@@ -323,6 +323,9 @@ $$;
 --> statement-breakpoint
 BEGIN;
 --> statement-breakpoint
+-- Bound the whole table-lock window, including time between client statements.
+SET LOCAL transaction_timeout = '5s';
+--> statement-breakpoint
 SET LOCAL lock_timeout = '1s';
 --> statement-breakpoint
 SET LOCAL statement_timeout = '5s';
