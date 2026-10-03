@@ -98,6 +98,7 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'oracle_epm_tax_reporting'
   | 'github-repositories'
   | 'google'
   | 'google-email'
