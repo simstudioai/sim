@@ -10,6 +10,7 @@ import {
   type ToolConfig,
   type ToolDefinition,
 } from '@/tools/types'
+import { assertNoDotPathSegments } from '@/tools/url-path'
 
 const MODEL_INPUT_PROJECTION_ERROR_MESSAGE = 'Model input could not be safely projected'
 const PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE =
@@ -232,6 +233,7 @@ function assertExternalRequestUrl(url: string): void {
   if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
     throw new Error(EXTERNAL_REQUEST_URL_ERROR_MESSAGE)
   }
+  assertNoDotPathSegments(url)
 }
 
 /** Materializes one external HTTP request after enforcing the model-input boundary. */

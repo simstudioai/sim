@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it, vi } from 'vitest'
 import { isInternalToolOperationRegistered } from '@/lib/internal/tool-operations/registry.server'
 import { requestTool } from '@/tools/http/request'
@@ -32,6 +33,7 @@ const PROBE_FILE = {
   mimeType: 'text/plain',
   data: 'data:text/plain;base64,cHJvYmU=',
 } as const
+const DOT_SEGMENT_ERROR = 'Tool request URL cannot contain "." or ".." path segments'
 const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 function createSchemaProbeParams(
@@ -130,6 +132,37 @@ describe('external request transport', () => {
   })
 
   it.each([
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/..',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/../../../v0/inboxes/other',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/.',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/%2e%2E',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/.%2e?force=true',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/.\t.',
+    'https://api.example.com/v0/inboxes/inbox_1\\drafts\\..',
+  ])('rejects a URL whose path resolves a dot segment: %s', (url) => {
+    expect(() =>
+      prepareToolRequest(
+        createRequestTool(() => url),
+        {}
+      )
+    ).toThrow(DOT_SEGMENT_ERROR)
+  })
+
+  it.each([
+    'https://my-app.vercel.app/v1/domains/example.com',
+    'https://api.example.com/v1/files/..foo/foo../.env',
+    'https://api.example.com/v1/search?path=../x#..',
+    'https://api.example.com/',
+  ])('allows dots that are not whole path segments: %s', (url) => {
+    expect(
+      prepareToolRequest(
+        createRequestTool(() => url),
+        {}
+      ).url
+    ).toBe(url)
+  })
+
+  it.each([
     ['http_request', requestTool, { url: '/api/auth/oauth/token', method: 'GET' }],
     ['webhook_request', webhookRequestTool, { url: '/api/auth/oauth/token', body: {} }],
   ])('rejects a relative URL from %s', (_toolId, tool, params) => {
@@ -169,12 +202,12 @@ describe('dynamic external request registry invariant', () => {
       if (typeof urlBuilder !== 'function') throw new Error(`${toolId} must have a dynamic URL`)
       const observations: string[] = []
       const scenarios = [
-        createSchemaProbeParams(tool, false),
-        createSchemaProbeParams(tool, true),
-        createSchemaProbeParams(tool, true, true),
+        { params: createSchemaProbeParams(tool, false), adversarial: false },
+        { params: createSchemaProbeParams(tool, true), adversarial: false },
+        { params: createSchemaProbeParams(tool, true, true), adversarial: true },
       ]
 
-      for (const params of scenarios) {
+      for (const { params, adversarial } of scenarios) {
         let url: string
         try {
           url = urlBuilder(params as never)
@@ -188,12 +221,20 @@ describe('dynamic external request registry invariant', () => {
           isAbsoluteHttpUrl(url),
           `${toolId} resolved ${url} outside the external HTTP transport`
         ).toBe(true)
-        expect(() =>
+        const prepare = () =>
           prepareToolRequest(
             createRequestTool(() => url),
             {}
           )
-        ).not.toThrow()
+        if (!adversarial) {
+          expect(prepare, `${toolId} rejected ${url}`).not.toThrow()
+          continue
+        }
+        try {
+          prepare()
+        } catch (error) {
+          expect(getErrorMessage(error), `${toolId} rejected ${url}`).toBe(DOT_SEGMENT_ERROR)
+        }
       }
 
       if (observations.length === 0) continue
