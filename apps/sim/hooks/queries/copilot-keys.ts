@@ -8,7 +8,7 @@ import {
   generateCopilotApiKeyContract,
   listCopilotApiKeysContract,
 } from '@/lib/api/contracts'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 
 const logger = createLogger('CopilotKeysQuery')
 
@@ -39,10 +39,11 @@ async function fetchCopilotKeys(signal?: AbortSignal): Promise<CopilotKey[]> {
  * Hook to fetch Copilot API keys
  */
 export function useCopilotKeys() {
+  const { hosted } = useDeploymentShape()
   return useQuery({
     queryKey: copilotKeysKeys.keys(),
     queryFn: ({ signal }) => fetchCopilotKeys(signal),
-    enabled: isHosted,
+    enabled: hosted,
     staleTime: COPILOT_KEY_LIST_STALE_TIME,
   })
 }

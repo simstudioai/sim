@@ -136,7 +136,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     },
   },
 
-  transformResponse: async (response: Response, requestParams?: RedditCommentsParams) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     const postData = data[0]?.data?.children?.[0]?.data || {}

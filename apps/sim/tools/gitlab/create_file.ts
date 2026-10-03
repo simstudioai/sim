@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCreateFileTool: ToolConfig<GitLabCreateFileParams, GitLabCreateFileResponse> = {
   id: 'gitlab_create_file',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Create File',
   description: 'Create a new file in a GitLab project repository',
   version: '1.0.0',

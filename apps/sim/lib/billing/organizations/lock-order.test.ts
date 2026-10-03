@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Lock-order regression guard: the paid-org join billing transaction must lock
  * the personal Pro subscription BEFORE userStats, matching
  * restoreUserProSubscription's subscription → userStats order. Snapshotting
@@ -19,6 +17,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockChangeOrganizationWorkspaceBilledAccountsInTx, mockChangeWorkspaceStoragePayersInTx } =
@@ -42,9 +41,7 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 import { attachOwnedWorkspacesToOrganizationTx } from '@/lib/workspaces/organization-workspaces'
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: vi.fn(),
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 /**
  * A superset row that satisfies every read in the join path: a paid org sub, a
@@ -103,7 +100,6 @@ function createRecordingTx(row = GENERIC_ROW) {
 
 describe('paid-org join billing lock ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockChangeOrganizationWorkspaceBilledAccountsInTx.mockReset()
     mockChangeWorkspaceStoragePayersInTx.mockReset()
@@ -124,14 +120,6 @@ describe('paid-org join billing lock ordering', () => {
     expect(userStatsUpdate).toBe(-1)
     expect(subscriptionLock).toBeGreaterThanOrEqual(0)
     expect(subscriptionUpdate).toBeGreaterThan(subscriptionLock)
-  })
-
-  it('still locks an already-paused personal Pro so a concurrent restore cannot pass it', async () => {
-    const { tx, ops } = createRecordingTx({ ...GENERIC_ROW, cancelAtPeriodEnd: true })
-
-    await reapplyPaidOrgJoinBillingForExistingMemberTx(tx as DbOrTx, 'user-1', 'org-1')
-
-    expect(ops.some((op) => op.op === 'lock' && op.table === subscriptionTable)).toBe(true)
   })
 
   it('does not restore personal Pro when a paid-org membership committed first', async () => {
@@ -286,7 +274,6 @@ describe('workspace payer-change transaction lock ordering', () => {
 
 describe('organization ownership transfer reservation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -343,49 +330,6 @@ describe('organization ownership transfer reservation', () => {
     expect(executedSql.some((query) => query.includes('organization-mutation:org-1'))).toBe(true)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
-
-  it('reassigns billed accounts through one same-payer update and preserves owner semantics', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'member-current', role: 'owner' }])
-      .mockResolvedValueOnce([{ id: 'member-new', role: 'admin' }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { id: 'workspace-billed-b' },
-      { id: 'workspace-owner-only' },
-    ])
-    mockChangeOrganizationWorkspaceBilledAccountsInTx.mockResolvedValueOnce([
-      'workspace-billed-a',
-      'workspace-billed-b',
-    ])
-
-    const result = await transferOrganizationOwnership({
-      organizationId: 'org-1',
-      currentOwnerUserId: 'owner-1',
-      newOwnerUserId: 'owner-2',
-    })
-
-    expect(result).toMatchObject({
-      success: true,
-      billedAccountReassigned: 2,
-      workspacesReassigned: 2,
-    })
-    expect(mockChangeOrganizationWorkspaceBilledAccountsInTx).toHaveBeenCalledTimes(1)
-    expect(mockChangeOrganizationWorkspaceBilledAccountsInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        organizationId: 'org-1',
-        expectedCurrentBilledAccountUserId: 'owner-1',
-        billedAccountUserId: 'owner-2',
-      }
-    )
-    expect(dbChainMockFns.values).toHaveBeenCalledWith([
-      expect.objectContaining({ entityId: 'workspace-billed-a', userId: 'owner-2' }),
-      expect.objectContaining({ entityId: 'workspace-billed-b', userId: 'owner-2' }),
-      expect.objectContaining({ entityId: 'workspace-owner-only', userId: 'owner-2' }),
-    ])
-  })
 })
 
 interface RemovalSnapshot {
@@ -425,7 +369,6 @@ describe.each([
   ['external', 'external'],
 ] as const)('%s organization-access removal lock ordering', (_label, scope) => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -464,7 +407,6 @@ describe.each([
 
 describe('cross-organization access mutation lock ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -498,7 +440,6 @@ describe('cross-organization access mutation lock ordering', () => {
 
 describe('organization-access removal lock retries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

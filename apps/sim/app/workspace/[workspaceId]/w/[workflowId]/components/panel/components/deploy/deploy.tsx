@@ -46,7 +46,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     enabled: !isRegistryLoading,
     deployReadiness,
   })
-  const { status: buttonStatus, isDeployed, deployedState } = deployment
+  const { status: buttonStatus, isDeployed } = deployment
   const isDeploymentSettling = deployment.isSettling
 
   const { isDeploying, handleDeployClick } = useDeployment({

@@ -69,7 +69,7 @@ export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEdito
                 type='button'
                 aria-label='Remove pattern'
                 onClick={() => removeRow(index)}
-                className='flex size-[30px] flex-shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-error)]'
+                className='flex size-[30px] shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-error)]'
               >
                 <Trash className='size-[14px]' />
               </button>

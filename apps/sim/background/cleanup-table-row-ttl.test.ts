@@ -1,48 +1,38 @@
-/**
- * @vitest-environment node
- */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
+import {
+  tableTtlAvailabilityMock,
+  tableTtlAvailabilityMockFns,
+} from '@sim/testing/mocks/table-ttl-availability.mock'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 
-const {
-  mockDeleteExecute,
-  mockListExecute,
-  mockIsTableRowTtlEnabled,
-  mockSignalTableRowsChanged,
-  mockTask,
-  mockWithLockedTable,
-  mockFireTableTrigger,
-} = vi.hoisted(() => ({
-  mockDeleteExecute: vi.fn(),
-  mockListExecute: vi.fn(),
-  mockIsTableRowTtlEnabled: vi.fn(),
-  mockSignalTableRowsChanged: vi.fn(),
-  mockTask: vi.fn((config: unknown) => config),
-  mockWithLockedTable: vi.fn(),
-  mockFireTableTrigger: vi.fn(),
-}))
+const mockDeleteExecute = vi.fn()
 
-vi.mock('@sim/db', () => ({
-  dbFor: vi.fn(() => ({ execute: mockListExecute })),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
-vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: mockSignalTableRowsChanged }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/constants', () => ({
   getDeleteSnapshotBatchSize: () => 500,
   TABLE_LIMITS: { DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024 },
 }))
-vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
-vi.mock('@/lib/table/ttl-availability', () => ({
-  isTableRowTtlEnabled: mockIsTableRowTtlEnabled,
-}))
-vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: mockFireTableTrigger }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
+vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 
-import { cleanupTableRowTtlTask, runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
+import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
+
+const mockListExecute = dbChainMockFns.execute as Mock
+const { info: mockLoggerInfo, error: mockLoggerError } = getMockLogger('CleanupTableRowTtl')
+const { mockSignalTableRowsChanged } = tableEventsMockFns
+const { mockWithLockedTable } = tableServiceMockFns
+const { mockIsTableRowTtlEnabled } = tableTtlAvailabilityMockFns
+const { mockFireTableTrigger } = tableTriggerMockFns
 
 const dialect = new PgDialect()
 
@@ -71,7 +61,6 @@ function returnedRows(count: number, start = 1, createdAt = '2026-01-01T00:00:00
 
 describe('table row TTL cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsTableRowTtlEnabled.mockResolvedValue(true)
     mockListExecute.mockResolvedValue([{ id: table.id, workspaceId: table.workspaceId }])
     mockWithLockedTable.mockImplementation(
@@ -123,9 +112,9 @@ describe('table row TTL cleanup', () => {
     )
   })
 
-  it('compares TTL values with whole Date.now epoch seconds', async () => {
+  it('compares TTL timestamps with the current UTC instant', async () => {
     const nowEpochMilliseconds = 1_700_000_000_999
-    const nowEpochSeconds = 1_700_000_000
+    const nowUtc = '2023-11-14T22:13:20.999Z'
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(nowEpochMilliseconds)
     mockDeleteExecute.mockResolvedValue([])
 
@@ -135,12 +124,8 @@ describe('table row TTL cleanup', () => {
       nowSpy.mockRestore()
     }
 
-    expect(dialect.sqlToQuery(mockListExecute.mock.calls[0][0] as SQL).params).toContain(
-      nowEpochSeconds
-    )
-    expect(dialect.sqlToQuery(mockDeleteExecute.mock.calls[0][0] as SQL).params).toContain(
-      nowEpochSeconds
-    )
+    expect(dialect.sqlToQuery(mockListExecute.mock.calls[0][0] as SQL).params).toContain(nowUtc)
+    expect(dialect.sqlToQuery(mockDeleteExecute.mock.calls[0][0] as SQL).params).toContain(nowUtc)
   })
 
   it('checks the oldest expired rows first without using creation time as an expiry rule', async () => {
@@ -153,7 +138,7 @@ describe('table row TTL cleanup', () => {
       .sql.replace(/\s+/g, ' ')
       .replace(/\$\d+/g, '?')
       .trim()
-    expect(query).toContain('AND (table_row.data->>?)::numeric <= ?')
+    expect(query).toContain('THEN (table_row.data->>?)::timestamptz END <= ?::timestamptz')
     expect(query).toContain('ORDER BY table_row.created_at, table_row.id')
     expect(query).toContain('octet_length(table_row.data::text) AS snapshot_bytes')
     expect(query).toContain('cumulative_snapshot_bytes <= ?')
@@ -165,36 +150,23 @@ describe('table row TTL cleanup', () => {
     expect(query).not.toContain('table_row.created_by')
   })
 
-  it('rejects a batch without a creation-time cursor', async () => {
+  it('skips a table whose batch has no creation-time cursor without signaling deletion', async () => {
     mockDeleteExecute.mockResolvedValue([{ id: 'row-1', data: { value: 1 } }])
 
-    await expect(runCleanupTableRowTtl()).rejects.toThrow(
-      'Table row TTL cleanup did not return a creation-time cursor'
-    )
-  })
-
-  it('does no work when already aborted', async () => {
-    const controller = new AbortController()
-    controller.abort()
-
-    await expect(runCleanupTableRowTtl(controller.signal)).resolves.toEqual({
-      batches: 0,
-      deleted: 0,
-      limitReached: false,
-    })
-    expect(mockListExecute).not.toHaveBeenCalled()
-  })
-
-  it('does no work when the feature is disabled', async () => {
-    mockIsTableRowTtlEnabled.mockResolvedValue(false)
-
     await expect(runCleanupTableRowTtl()).resolves.toEqual({
-      batches: 0,
+      batches: 1,
       deleted: 0,
       limitReached: false,
     })
-    expect(mockListExecute).not.toHaveBeenCalled()
-    expect(mockWithLockedTable).not.toHaveBeenCalled()
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Table row TTL cleanup failed; skipping table for this run',
+      expect.objectContaining({
+        tableId: table.id,
+        error: new Error('Table row TTL cleanup did not return a creation-time cursor'),
+      })
+    )
+    expect(mockFireTableTrigger).not.toHaveBeenCalled()
+    expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
   })
 
   it('honors a delete lock re-read inside the table advisory lock', async () => {
@@ -265,31 +237,122 @@ describe('table row TTL cleanup', () => {
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
   })
 
-  it('signals tables changed before a later table cleanup failure propagates', async () => {
-    const secondTable = {
-      ...table,
-      id: 'table-2',
-    }
+  it('skips a failed table, finishes healthy tables, and retries the failed table next run', async () => {
+    const secondTable = { ...table, id: 'table-2' }
     mockListExecute.mockResolvedValue([
       { id: table.id, workspaceId: table.workspaceId },
       { id: secondTable.id, workspaceId: secondTable.workspaceId },
     ])
+    mockDeleteExecute.mockResolvedValueOnce(returnedRows(1)).mockResolvedValue([])
     mockWithLockedTable.mockImplementation(async (tableId, mutate) => {
-      if (tableId === secondTable.id) throw new Error('second table cleanup failed')
-      return mutate(table, { execute: vi.fn().mockResolvedValue(returnedRows(1)) })
+      if (tableId === table.id) throw new Error('first table cleanup failed')
+      return mutate(secondTable, { execute: mockDeleteExecute })
     })
 
-    await expect(runCleanupTableRowTtl()).rejects.toThrow('second table cleanup failed')
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 3,
+      deleted: 1,
+      limitReached: false,
+    })
+    expect(mockWithLockedTable.mock.calls.map(([id]) => id)).toEqual([
+      table.id,
+      secondTable.id,
+      secondTable.id,
+    ])
     expect(mockSignalTableRowsChanged).toHaveBeenCalledTimes(1)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Table row TTL cleanup failed; skipping table for this run',
+      {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        deleted: 0,
+        error: new Error('first table cleanup failed'),
+      }
+    )
+    expect(mockLoggerInfo).toHaveBeenCalledWith('Table row TTL cleanup completed', {
+      batches: 3,
+      deleted: 1,
+      failedTables: 1,
+      limitReached: false,
+    })
+
+    mockListExecute.mockResolvedValue([{ id: table.id, workspaceId: table.workspaceId }])
+    mockWithLockedTable.mockImplementation(async (_tableId, mutate) =>
+      mutate(table, { execute: mockDeleteExecute })
+    )
+    mockDeleteExecute.mockClear().mockResolvedValueOnce(returnedRows(1))
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 2,
+      deleted: 1,
+      limitReached: false,
+    })
+    const retryQuery = dialect.sqlToQuery(mockDeleteExecute.mock.calls[0][0] as SQL)
+    expect(retryQuery.sql).not.toContain('(table_row.created_at, table_row.id) >')
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
   })
 
-  it('registers one serialized Trigger.dev task', () => {
-    expect(cleanupTableRowTtlTask).toEqual(
-      expect.objectContaining({
-        id: 'cleanup-table-row-ttl',
-        queue: { concurrencyLimit: 1 },
-      })
+  it('keeps and signals prior commits when a later batch fails while other tables finish', async () => {
+    const secondTable = { ...table, id: 'table-2' }
+    const firstExecute = vi
+      .fn()
+      .mockResolvedValueOnce(returnedRows(1))
+      .mockRejectedValue(new Error('later batch failed'))
+    const secondExecute = vi.fn().mockResolvedValueOnce(returnedRows(1)).mockResolvedValue([])
+    mockListExecute.mockResolvedValue([
+      { id: table.id, workspaceId: table.workspaceId },
+      { id: secondTable.id, workspaceId: secondTable.workspaceId },
+    ])
+    mockWithLockedTable.mockImplementation(async (tableId, mutate) =>
+      tableId === table.id
+        ? mutate(table, { execute: firstExecute })
+        : mutate(secondTable, { execute: secondExecute })
     )
+
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 4,
+      deleted: 2,
+      limitReached: false,
+    })
+    expect(mockWithLockedTable.mock.calls.map(([id]) => id)).toEqual([
+      table.id,
+      secondTable.id,
+      table.id,
+      secondTable.id,
+    ])
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledTimes(2)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
+    expect(mockFireTableTrigger).toHaveBeenCalledTimes(2)
+  })
+
+  it('counts a failed attempt toward the run limit without repeatedly retrying that table', async () => {
+    const secondTable = { ...table, id: 'table-2' }
+    mockListExecute.mockResolvedValue([
+      { id: table.id, workspaceId: table.workspaceId },
+      { id: secondTable.id, workspaceId: secondTable.workspaceId },
+    ])
+    mockDeleteExecute.mockResolvedValue(returnedRows(500))
+    mockWithLockedTable.mockImplementation(async (tableId, mutate) => {
+      if (tableId === table.id) throw new Error('persistent table failure')
+      return mutate(secondTable, { execute: mockDeleteExecute })
+    })
+
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 100,
+      deleted: 49_500,
+      limitReached: true,
+    })
+    expect(mockWithLockedTable).toHaveBeenCalledTimes(100)
+    expect(mockWithLockedTable.mock.calls.filter(([id]) => id === table.id)).toHaveLength(1)
+    expect(mockDeleteExecute).toHaveBeenCalledTimes(99)
+  })
+
+  it('still rejects when table discovery fails before any table can be processed', async () => {
+    mockListExecute.mockRejectedValue(new Error('database unavailable'))
+
+    await expect(runCleanupTableRowTtl()).rejects.toThrow('database unavailable')
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
+    expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
   })
 })

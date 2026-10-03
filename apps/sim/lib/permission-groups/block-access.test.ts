@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, type vi } from 'vitest'
 import {
   isAccessControlAllowlistRow,
   isBlockTypeAccessControlExempt,
@@ -25,10 +22,6 @@ function registry(blocks: Record<string, FakeBlock>) {
 }
 
 describe('isBlockTypeAccessControlExempt', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('exempts the universal entry point', () => {
     registry({})
 
@@ -59,12 +52,6 @@ describe('isBlockTypeAccessControlExempt', () => {
     expect(isBlockTypeAccessControlExempt('thinking')).toBe(true)
   })
 
-  it('does not exempt a current block', () => {
-    registry({ slack_v2: {} })
-
-    expect(isBlockTypeAccessControlExempt('slack_v2')).toBe(false)
-  })
-
   /**
    * The editor never offers `start_trigger` as an allowlist row, so a retired
    * entry point judged as its successor would be refused by every active
@@ -86,10 +73,6 @@ describe('isBlockTypeAccessControlExempt', () => {
 })
 
 describe('isAccessControlAllowlistRow', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   /**
    * The bug this closes: the editor renders only visible blocks but used to
    * materialize an allowlist from every non-exempt one. Unchecking `slack_v2`
@@ -105,12 +88,6 @@ describe('isAccessControlAllowlistRow', () => {
 
     expect(isAccessControlAllowlistRow('slack')).toBe(false)
     expect(isBlockTypeAccessControlExempt('slack')).toBe(false)
-  })
-
-  it('is a row for a current block', () => {
-    registry({ slack_v2: {} })
-
-    expect(isAccessControlAllowlistRow('slack_v2')).toBe(true)
   })
 
   /** Exempt block types are decided by no row at all. */

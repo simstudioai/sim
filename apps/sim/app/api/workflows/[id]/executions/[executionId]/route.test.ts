@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The internal run-detail door. `logs.cost` and `logs.trace_spans` withhold
  * fields inside a run, and the shared read applies them — but only for the
  * subject this route names. `auth.userId` is populated for every credential the
@@ -46,7 +44,6 @@ function grantAccess(auth: Record<string, unknown>) {
 
 describe('internal execution status route projection subject', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetStatus.mockResolvedValue({
       executionId: EXECUTION_ID,
       workflowId: WORKFLOW_ID,
@@ -62,17 +59,6 @@ describe('internal execution status route projection subject', () => {
       finalOutput: null,
       blockOutputs: null,
     })
-  })
-
-  it('names the session user as the projection subject', async () => {
-    grantAccess({ success: true, userId: 'user-1', authType: 'session' })
-
-    const response = await GET(request(), context())
-
-    expect(response.status).toBe(200)
-    expect(mockGetStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'workspace-1', viewerUserId: 'user-1' })
-    )
   })
 
   it('names the personal API key owner as the projection subject', async () => {

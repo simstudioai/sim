@@ -1,15 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { EventEmitter } from 'node:events'
 import {
+  getMockLogger,
   inputValidationMock,
   inputValidationMockFns,
-  loggerMock,
   redisConfigMockFns,
+  setEnv,
 } from '@sim/testing'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
   connected: boolean
@@ -143,6 +142,7 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
       setImmediate(() => {
         proc.emit('message', {
           type: 'fetch',
+          executionId: currentExecutionId,
           fetchId: 1,
           requestId: msg.request?.requestId ?? 'fetch-test',
           url: fetchMessage.url,
@@ -171,37 +171,18 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
-const { mockSpawn, mockExecSync, mockEnv } = vi.hoisted(() => ({
+const { mockSpawn, mockExecSync } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
   mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
-  mockEnv: {
-    IVM_POOL_SIZE: '1',
-    IVM_MAX_CONCURRENT: '100',
-    IVM_MAX_PER_WORKER: '100',
-    IVM_WORKER_IDLE_TIMEOUT_MS: '60000',
-    IVM_MAX_QUEUE_SIZE: '10',
-    IVM_MAX_ACTIVE_PER_OWNER: '100',
-    IVM_MAX_QUEUED_PER_OWNER: '10',
-    IVM_MAX_OWNER_WEIGHT: '5',
-    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
-    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
-    IVM_LEASE_REDIS_DEADLINE_MS: '1000',
-    IVM_QUEUE_TIMEOUT_MS: '1000',
-    IVM_MAX_FETCH_RESPONSE_BYTES: '',
-    IVM_MAX_FETCH_RESPONSE_CHARS: '',
-    IVM_MAX_FETCH_URL_LENGTH: '',
-    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
-    REDIS_URL: '',
-  } as Record<string, string>,
 }))
 
 const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithValidation
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockResolveOutboundRoute = networkConfigMockFns.mockResolveOutboundRoute
+networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: mockSpawn,
@@ -236,7 +217,7 @@ async function loadExecutionModule(options: {
     }))
   }
 
-  Object.assign(mockEnv, {
+  setEnv({
     IVM_POOL_SIZE: '1',
     IVM_MAX_CONCURRENT: '100',
     IVM_MAX_PER_WORKER: '100',
@@ -273,14 +254,6 @@ async function loadExecutionModule(options: {
 }
 
 describe('isolated-vm scheduler', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('recovers from an initial spawn failure and drains queued work', async () => {
     const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
       spawns: [createStartupFailureProc, () => createReadyProc('ok')],
@@ -830,6 +803,77 @@ describe('isolated-vm scheduler', () => {
     expect(completionOrder).toEqual(['a-1', 'a-2', 'a-3', 'b-1', 'b-2'])
   })
 
+  it('restores each execution owner when a reused worker emits outside its scope', async () => {
+    const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+      spawns: [
+        () => {
+          const proc = createReadyFetchProxyProc({ url: 'https://example.com' })
+          const emit = proc.emit.bind(proc)
+          proc.emit = (event, ...args: unknown[]) => {
+            const message = args[0] as { type?: string } | undefined
+            return event === 'message' && message?.type === 'fetch'
+              ? context.runWithOutboundOrganization('wrong-ambient', () => emit(event, ...args))
+              : emit(event, ...args)
+          }
+          return proc
+        },
+      ],
+      secureFetchImpl: async () => {
+        await context.resolveCurrentOutboundRoute()
+        return new Response('ok')
+      },
+    })
+    const context = await import('@/lib/core/network/context.server')
+
+    for (const organizationId of ['org_a', 'org_b']) {
+      const result = await context.runWithOutboundOrganization(organizationId, () =>
+        executeInIsolatedVM({
+          code: 'return "fetch"',
+          params: {},
+          envVars: {},
+          contextVariables: {},
+          timeoutMs: 1000,
+          requestId: organizationId,
+        })
+      )
+      expect(result.error).toBeUndefined()
+    }
+    expect(spawnMock).toHaveBeenCalledOnce()
+    expect(mockResolveOutboundRoute.mock.calls).toEqual([['org_a'], ['org_b']])
+  })
+
+  it.each([undefined, -1])(
+    'rejects fetch IPC with missing or inactive execution ID %s',
+    async (executionId) => {
+      const { executeInIsolatedVM, secureFetchMock } = await loadExecutionModule({
+        spawns: [
+          () => {
+            const proc = createReadyFetchProxyProc({ url: 'https://example.com' })
+            const emit = proc.emit.bind(proc)
+            proc.emit = (event, ...args: unknown[]) => {
+              const message = args[0] as { type?: string } | undefined
+              if (event === 'message' && message?.type === 'fetch') {
+                return emit(event, { ...message, executionId })
+              }
+              return emit(event, ...args)
+            }
+            return proc
+          },
+        ],
+      })
+      const result = await executeInIsolatedVM({
+        code: 'return "fetch"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 1000,
+        requestId: 'inactive-fetch',
+      })
+      expect(JSON.parse(String(result.result))).toEqual({ error: 'Execution no longer active' })
+      expect(secureFetchMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects oversized fetch options payloads before outbound call', async () => {
     const { executeInIsolatedVM, secureFetchMock } = await loadExecutionModule({
       envOverrides: {
@@ -894,11 +938,7 @@ describe('isolated-vm scheduler', () => {
         throw new Error(`Request failed for ${requestUrl}`)
       },
     })
-    const mockLogger = vi.mocked(loggerMock.createLogger).mock.results[
-      vi
-        .mocked(loggerMock.createLogger)
-        .mock.calls.findLastIndex(([name]) => name === 'IsolatedVMExecution')
-    ].value
+    const mockLogger = getMockLogger('IsolatedVMExecution')
 
     const result = await executeInIsolatedVM({
       code: 'return "fetch-secret"',

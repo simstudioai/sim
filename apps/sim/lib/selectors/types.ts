@@ -4,6 +4,11 @@ export const selectorContextKeys = [
   'oauthCredential',
   'supplierId',
   'poHeaderId',
+  'serviceTokenId',
+  'serviceToken',
+  'organization',
+  'branch',
+  'mcpServerId',
   'domain',
   'teamId',
   'projectId',
@@ -17,7 +22,9 @@ export const selectorContextKeys = [
   'driveId',
   'excludeWorkflowId',
   'baseId',
+  'docId',
   'datasetId',
+  'groupId',
   'serviceDeskId',
   'impersonateUserEmail',
   'boardId',
@@ -38,7 +45,6 @@ export const selectorContextKeys = [
   'customObjectTypeId',
   'pipelineId',
   'environmentType',
-  'credentialGroupId',
   'language',
   'host',
   'port',
@@ -51,7 +57,7 @@ export type SelectorContextKey = (typeof selectorContextKeys)[number]
 export type SelectorContext = Partial<Record<SelectorContextKey, string>>
 
 export type SelectorClassification = 'local' | 'internal-server' | 'provider-server'
-export type SelectorScopeKind = 'workflow' | 'workspace'
+export type SelectorScopeKind = 'workflow' | 'workspace' | 'organization'
 export type SelectorListMode = 'flat' | 'paginated'
 
 export interface SelectorReadiness {
@@ -95,6 +101,7 @@ export interface SelectorPage {
 }
 
 export type SelectorScope =
+  | { kind: 'organization'; organizationId: string }
   | {
       kind: 'workflow'
       workflowId: string

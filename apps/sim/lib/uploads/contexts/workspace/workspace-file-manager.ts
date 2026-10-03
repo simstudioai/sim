@@ -5,14 +5,9 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import {
-  uploadSession,
-  type WorkspaceFileRow,
-  workspace,
-  workspaceFileColumns,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { uploadSession, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import {
   describeError,
   getErrorMessage,
@@ -21,10 +16,9 @@ import {
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
-import { and, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
-import type { ListSortOrder } from '@/lib/api/list-query'
 import {
   type CursorKey,
   encodeKeyset,
@@ -32,6 +26,7 @@ import {
   type KeysetKey,
   keysetAfter,
   keysetColumns,
+  type ListSortOrder,
   listOrderBy,
   numberKey,
   searchFilter,
@@ -44,8 +39,11 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
-import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import {
+  CollabDocStateConflictError,
+  type PreparedCollabDocState,
+  saveCollabDocStateInTx,
+} from '@/lib/collab-doc/collab-state'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
@@ -53,22 +51,44 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
-import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
-import type { FolderIdScope } from '@/lib/folders/scope'
-import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
-import { getServePathPrefix } from '@/lib/uploads'
 import {
+  loadActiveFolderPathIndex,
+  resolveFolderPathFromIndex,
+  resolveRestoredFolderId,
+} from '@/lib/folders/queries'
+import type { FolderIdScope } from '@/lib/folders/scope'
+import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
+import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
+import { getServePathPrefix } from '@/lib/uploads'
+import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  enqueueWorkspaceFileLiveDocReconciliation,
+  processWorkspaceFileLiveDocReconciliationNow,
+} from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
+import {
+  applyWorkspaceFileSecretProvenancePolicyInTx,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   initializeWorkspaceFileSecretProvenanceInTx,
-  preserveWorkspaceFileSecretProvenanceInTx,
   replaceWorkspaceFileSecretProvenanceInTx,
+  snapshotWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenancePolicy,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
-  enqueueWorkspaceFileStorageCleanup,
-  processWorkspaceFileStorageCleanupNow,
+  enqueueWorkspaceFileStorageCleanups,
+  processWorkspaceFileStorageCleanupsNow,
 } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import {
+  currentWorkspaceFileVersionNumberSql,
+  deleteWorkspaceFileVersionInTx,
+  isVersionHeadCurrent,
+  listWorkspaceFileVersionKeysInTx,
+  loadWorkspaceFileVersionHead,
+  recordWorkspaceFileVersionInTx,
+  type WorkspaceFileVersionDeletion,
+  type WorkspaceFileVersionWrite,
+} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   deleteFile,
@@ -79,6 +99,8 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
+import { displaySegmentPattern } from '@/lib/vfs/path'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
@@ -87,7 +109,6 @@ import {
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
-import type { WorkspaceFileFolderRecord } from './workspace-file-folder-manager'
 import {
   assertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
@@ -97,6 +118,7 @@ import {
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
   resolveWorkspaceFileFolderTarget,
+  workspaceFileNameFolderCondition,
 } from './workspace-file-folder-manager'
 
 const logger = createLogger('WorkspaceFileStorage')
@@ -142,8 +164,18 @@ export interface WorkspaceFileRecord {
   contentUpdatedAt?: Date | null
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
+  /**
+   * Set on chat uploads (`context = 'mothership'`), which the VFS addresses as
+   * `uploads/<name>` rather than `files/…`; `name` then carries the upload's display name.
+   */
+  vfsNamespace?: 'uploads'
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
+}
+
+/** A file record paired with the version number of the content it describes. */
+export interface VersionedWorkspaceFileRecord extends WorkspaceFileRecord {
+  currentVersion: number
 }
 
 export interface UploadedWorkspaceFileRecord extends WorkspaceFileRecord {
@@ -232,7 +264,12 @@ export function generateWorkspaceFileKey(workspaceId: string, fileName: string):
   return `workspace/${workspaceId}/${buildStorageKeySegment(`${timestamp}-${random}-`, fileName)}`
 }
 
-const MAX_COPY_SUFFIX = 1000
+/**
+ * Numbered ` (n)` candidates probed before falling back to a random suffix. Keeps
+ * the familiar `a (1).pdf` naming for the common case while bounding every
+ * allocation to a fixed number of point lookups however many copies exist.
+ */
+const MAX_NUMBERED_COPY_SUFFIX = 20
 const MAX_UPLOAD_UNIQUE_RETRIES = 8
 
 interface WorkspaceFileMetadataInsert {
@@ -269,7 +306,7 @@ async function insertWorkspaceFileMetadataInTx(
       contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
-    .returning(workspaceFileColumns)
+    .returning()
   return inserted
 }
 
@@ -287,7 +324,7 @@ async function findWorkspaceFileByRegistrationKey(
   key: string
 ): Promise<WorkspaceFileRow | undefined> {
   const files = await executor
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(eq(workspaceFiles.key, key))
     .orderBy(sql`${workspaceFiles.deletedAt} IS NULL DESC`)
@@ -304,7 +341,7 @@ async function findWorkspaceFileForLifecycle(
   fileId: string
 ): Promise<WorkspaceFileRow | undefined> {
   const [file] = await executor
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -357,7 +394,7 @@ async function cleanupWorkspaceStorageObject(key: string, reason: string): Promi
 /**
  * Inserts ` (n)` before the last extension (e.g. `a.pdf` → `a (1).pdf`), or appends for names without.
  */
-function withCopySuffix(fileName: string, n: number): string {
+function withCopySuffix(fileName: string, n: number | string): string {
   const lastDot = fileName.lastIndexOf('.')
   const hasExtension = lastDot > 0 && lastDot < fileName.length - 1
   if (hasExtension) {
@@ -368,6 +405,9 @@ function withCopySuffix(fileName: string, n: number): string {
 
 /**
  * Picks a display name that does not collide with an active workspace file (`original_name`).
+ *
+ * Tries the base name, then `name (1)` … `name (20)`, then a random short-id suffix. The
+ * result is a hint: the unique index stays the authority, and callers retry on 23505.
  */
 export async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
@@ -377,13 +417,13 @@ export async function allocateUniqueWorkspaceFileName(
   if (!(await fileExistsInWorkspace(workspaceId, baseName, folderId))) {
     return baseName
   }
-  for (let n = 1; n <= MAX_COPY_SUFFIX; n++) {
+  for (let n = 1; n <= MAX_NUMBERED_COPY_SUFFIX; n++) {
     const candidate = withCopySuffix(baseName, n)
     if (!(await fileExistsInWorkspace(workspaceId, candidate, folderId))) {
       return candidate
     }
   }
-  throw new FileConflictError(baseName)
+  return withCopySuffix(baseName, generateShortId(8))
 }
 
 /**
@@ -636,8 +676,11 @@ export async function registerUploadedWorkspaceFile(params: {
   contentType: string
   folderId?: string | null
   uploadSessionId?: string
+  /** Private runtime classification committed with the uploaded file's first content version. */
+  secretProvenance?: WorkspaceFileSecretProvenance
 }): Promise<RegisterUploadedWorkspaceFileResult> {
   const { workspaceId, userId, key, originalName, contentType } = params
+  const secretProvenance = params.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   const normalizedOriginalName = normalizeWorkspaceFileItemName(originalName, 'File')
 
   if (parseWorkspaceFileKey(key) !== workspaceId) {
@@ -710,7 +753,7 @@ export async function registerUploadedWorkspaceFile(params: {
         tx,
         found.id,
         found.contentUpdatedAt,
-        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+        secretProvenance
       )
     }
     await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, found.id)
@@ -766,7 +809,7 @@ export async function registerUploadedWorkspaceFile(params: {
             tx,
             raceWinner.id,
             raceWinner.contentUpdatedAt,
-            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+            secretProvenance
           )
         }
         await markUploadSessionFileRegistered(
@@ -787,7 +830,7 @@ export async function registerUploadedWorkspaceFile(params: {
         tx,
         inserted.id,
         inserted.contentUpdatedAt,
-        EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+        secretProvenance
       )
       await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, inserted.id)
       return { kind: 'created', file: inserted, updatedUsage } as const
@@ -1150,10 +1193,30 @@ function mapUploadedWorkspaceFileRecord(
   }
 }
 
+/**
+ * A chat upload keeps the collision-suffixed display name its upload notice told the
+ * model as `name`, sits under `uploads/` rather than in a folder, and reads through the
+ * `mothership` storage context its row is bound to.
+ */
+function mapChatUploadRecord(file: WorkspaceFileRow, workspaceId: string): WorkspaceFileRecord {
+  return {
+    ...mapWorkspaceFileRecord(file, workspaceId, new Map()),
+    name: file.displayName ?? file.originalName,
+    path: `${getServePathPrefix()}${encodeURIComponent(file.key)}?context=mothership`,
+    folderId: null,
+    folderPath: null,
+    storageContext: 'mothership',
+    vfsNamespace: 'uploads',
+  }
+}
+
 async function mapSingleWorkspaceFileRecord(
   file: WorkspaceFileRow,
   workspaceId: string
 ): Promise<WorkspaceFileRecord> {
+  if (file.context === 'mothership') {
+    return mapChatUploadRecord(file, workspaceId)
+  }
   if (!file.folderId) {
     return mapWorkspaceFileRecord(file, workspaceId, new Map())
   }
@@ -1210,16 +1273,15 @@ export async function getWorkspaceFileByName(
   fileName: string,
   options?: { folderId?: string | null }
 ): Promise<WorkspaceFileRecord | null> {
-  const folderId = options?.folderId ?? null
   const files = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.originalName, fileName),
         eq(workspaceFiles.context, 'workspace'),
-        folderId ? eq(workspaceFiles.folderId, folderId) : isNull(workspaceFiles.folderId),
+        workspaceFileNameFolderCondition(options?.folderId),
         isNull(workspaceFiles.deletedAt)
       )
     )
@@ -1230,11 +1292,33 @@ export async function getWorkspaceFileByName(
   return mapSingleWorkspaceFileRecord(files[0], workspaceId)
 }
 
+/**
+ * Chat uploads (`context = 'mothership'`) are hidden from every listing and closed to
+ * writes. A read may opt in to one by explicit reference only — its `uploads/<name>`
+ * VFS path or its own id — which is what this option grants.
+ */
+export interface WorkspaceFileLookupOptions {
+  includeChatUploads?: boolean
+  /** Internal Mothership scope for uploads/<name>; ordinary API lookup remains workspace-wide. */
+  chatId?: string
+}
+
+/** Row context a single-file lookup admits: workspace files, plus chat uploads on opt-in. */
+function workspaceFileContextCondition(includeChatUploads?: boolean) {
+  return includeChatUploads
+    ? inArray(workspaceFiles.context, ['workspace', 'mothership'])
+    : eq(workspaceFiles.context, 'workspace')
+}
+
 /** Workspace-file rows for one scope: live, Recently Deleted, or both. */
-function workspaceFileScopeCondition(workspaceId: string, scope: WorkspaceFileScope) {
+function workspaceFileScopeCondition(
+  workspaceId: string,
+  scope: WorkspaceFileScope,
+  includeChatUploads?: boolean
+) {
   const base = [
     eq(workspaceFiles.workspaceId, workspaceId),
-    eq(workspaceFiles.context, 'workspace'),
+    workspaceFileContextCondition(includeChatUploads),
   ]
   if (scope === 'all') return and(...base)
   return scope === 'archived'
@@ -1436,15 +1520,6 @@ export async function queryWorkspaceFiles(
   return { files, nextKeys: hasMore && last ? encodeKeyset(keys, last) : null }
 }
 
-/**
- * Normalize a workspace file reference to either a display name or canonical file ID.
- * Supports raw IDs, `files/{name}`, `files/{name}/content`, and `files/{name}/meta.json`.
- * Files are addressed by their sanitized canonical path; id-based VFS paths are not supported.
- */
-export function normalizeWorkspaceFileReference(fileReference: string): string {
-  return normalizeWorkspaceFileReferenceSegments(fileReference).join('/')
-}
-
 function normalizeWorkspaceFileReferenceSegments(fileReference: string): string[] {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
   const withoutDeletedPrefix = trimmed.startsWith('recently-deleted/')
@@ -1466,12 +1541,72 @@ function normalizeWorkspaceFileReferenceSegments(fileReference: string): string[
 }
 
 /**
+ * Canonical VFS path of a stored record: `uploads/<name>` for a chat upload, else the
+ * `files/…` path of its folder and name.
+ */
+export function workspaceFileVfsPath(
+  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name' | 'vfsNamespace'>
+): string {
+  return canonicalWorkspaceFilePath({
+    folderPath: file.folderPath,
+    name: file.name,
+    prefix: file.vfsNamespace,
+  })
+}
+
+/**
  * Canonical sandbox mount path for an existing workspace file.
  */
 export function getSandboxWorkspaceFilePath(
-  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name'>
+  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name' | 'vfsNamespace'>
 ): string {
-  return `/home/user/${canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name })}`
+  return `/home/user/${workspaceFileVfsPath(file)}`
+}
+
+/**
+ * Display name addressed by an `uploads/<name>` reference (percent-encoded per the VFS
+ * convention), or null for any other shape. Only the two-segment form names a chat
+ * upload: `files/uploads/…` is an ordinary folder path and keeps its meaning.
+ */
+export function parseChatUploadReference(fileReference: string): string | null {
+  const trimmed = fileReference.trim().replace(/^\/+/, '')
+  if (!trimmed.startsWith('uploads/')) return null
+  const segments = decodeVfsPathSegments(trimmed)
+  return segments.length === 2 ? segments[1] : null
+}
+
+/**
+ * Display names are unique per chat. Mothership supplies that namespace; callers
+ * without a chat scope retain the workspace-wide newest-name lookup.
+ *
+ * `name` is decoded from the path the upload notice prints, which VFS encoding normalizes
+ * (NFC, control characters removed, whitespace runs collapsed and trimmed), while the stored
+ * name keeps the uploaded spelling: a macOS screenshot carries U+202F before AM/PM. The stored
+ * name is composed and stripped of control characters in SQL, and
+ * {@link displaySegmentPattern} matches its whitespace the way the encoding collapses it.
+ */
+async function getChatUploadByName(
+  workspaceId: string,
+  name: string,
+  chatId?: string
+): Promise<WorkspaceFileRecord | null> {
+  const storedName = sql`coalesce(${workspaceFiles.displayName}, ${workspaceFiles.originalName})`
+  const [file] = await db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'mothership'),
+        chatId === undefined ? undefined : eq(workspaceFiles.chatId, chatId),
+        sql`regexp_replace(normalize(${storedName}, NFC), '[\\x01-\\x1f\\x7f]', '', 'g') ~ ${displaySegmentPattern(name)}`,
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .orderBy(desc(workspaceFiles.uploadedAt))
+    .limit(1)
+
+  return file ? mapChatUploadRecord(file, workspaceId) : null
 }
 
 /**
@@ -1521,15 +1656,33 @@ async function getWorkspaceFileByExactReference(
 
 /**
  * Resolve a workspace file record from either its id or a VFS/name reference.
+ *
+ * A reference that is already a file id resolves through the versioned read, so the record
+ * carries the version of the very bytes it describes. The name and listing fallbacks return
+ * records without one rather than pairing a row with a version a second query read later.
+ * With `includeChatUploads`, an `uploads/<name>` path (or a chat upload's own id) reaches
+ * the chat upload it names; chat uploads are never found through the listing fallback.
  */
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
-  fileReference: string
+  fileReference: string,
+  options?: WorkspaceFileLookupOptions
 ): Promise<WorkspaceFileRecord | null> {
+  const includeChatUploads = options?.includeChatUploads === true
+  if (includeChatUploads) {
+    const uploadName = parseChatUploadReference(fileReference)
+    if (uploadName !== null) {
+      const upload = await getChatUploadByName(workspaceId, uploadName, options?.chatId)
+      if (upload || options?.chatId !== undefined) return upload
+    }
+  }
+
   const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
   const normalizedReference = referenceSegments.join('/')
-  if (normalizedReference.startsWith('wf_')) {
-    const file = await getWorkspaceFile(workspaceId, normalizedReference, { throwOnError: true })
+  if (normalizedReference.startsWith('wf_') || isUuid(normalizedReference)) {
+    const file = await getWorkspaceFileWithCurrentVersion(workspaceId, normalizedReference, {
+      includeChatUploads,
+    })
     if (file) return file
   }
 
@@ -1543,10 +1696,11 @@ export async function resolveWorkspaceFileReference(
 /**
  * Load the canonical authorization context for an active workspace file by resource ID.
  * Database failures propagate so callers never confuse unavailable state with a missing file.
+ * Chat uploads are admitted only on explicit opt-in (see {@link WorkspaceFileLookupOptions}).
  */
 export async function loadActiveWorkspaceFileContext(
   fileId: string,
-  options?: { includeDeleted?: boolean }
+  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean }
 ): Promise<ActiveWorkspaceFileContext | null> {
   const [context] = await db
     .select({
@@ -1561,7 +1715,7 @@ export async function loadActiveWorkspaceFileContext(
     .where(
       and(
         eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.context, 'workspace'),
+        workspaceFileContextCondition(options?.includeChatUploads),
         ...(options?.includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)]),
         isNull(workspace.archivedAt)
       )
@@ -1627,30 +1781,26 @@ export async function loadActiveWorkspaceContext(
  * distinguish a genuinely-absent file (`null`) from a transient read failure (throws): the
  * collaborative-doc seed builder relies on this so a DB blip never looks like an empty file and gets
  * seeded as blank content over the real document.
+ *
+ * Chat uploads are admitted only on explicit opt-in (see {@link WorkspaceFileLookupOptions}).
  */
 export async function getWorkspaceFile(
   workspaceId: string,
   fileId: string,
-  options?: { includeDeleted?: boolean; throwOnError?: boolean }
+  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean; throwOnError?: boolean }
 ): Promise<WorkspaceFileRecord | null> {
   try {
     const { includeDeleted = false } = options ?? {}
     const files = await db
-      .select(workspaceFileColumns)
+      .select()
       .from(workspaceFiles)
       .where(
-        includeDeleted
-          ? and(
-              eq(workspaceFiles.id, fileId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace')
-            )
-          : and(
-              eq(workspaceFiles.id, fileId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
-              isNull(workspaceFiles.deletedAt)
-            )
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          workspaceFileContextCondition(options?.includeChatUploads),
+          ...(includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)])
+        )
       )
       .limit(1)
 
@@ -1662,6 +1812,64 @@ export async function getWorkspaceFile(
     if (options?.throwOnError) throw error
     return null
   }
+}
+
+/**
+ * {@link getWorkspaceFile} plus the number of the version its record describes, read in one
+ * statement so a concurrent write can never pair this record with another write's version.
+ */
+export async function getWorkspaceFileWithCurrentVersion(
+  workspaceId: string,
+  fileId: string,
+  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean }
+): Promise<VersionedWorkspaceFileRecord | null> {
+  const [row] = await db
+    .select({
+      file: workspaceFiles,
+      currentVersion: currentWorkspaceFileVersionNumberSql(),
+    })
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        workspaceFileScopeCondition(
+          workspaceId,
+          options?.includeDeleted ? 'all' : 'active',
+          options?.includeChatUploads
+        )
+      )
+    )
+    .limit(1)
+  if (!row) return null
+  return {
+    ...(await mapSingleWorkspaceFileRecord(row.file, workspaceId)),
+    currentVersion: row.currentVersion,
+  }
+}
+
+/**
+ * Current version numbers for files already loaded elsewhere, keyed by id, read in one statement.
+ *
+ * Each entry carries the storage key the number describes, so a caller pairs it with its own row
+ * only when the two still name the same bytes; a file rewritten since that row was read is left
+ * without a version rather than given one for content it no longer holds.
+ */
+export async function getWorkspaceFileVersionsByKey(
+  workspaceId: string,
+  fileIds: readonly string[]
+): Promise<Map<string, { key: string; currentVersion: number }>> {
+  if (fileIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      id: workspaceFiles.id,
+      key: workspaceFiles.key,
+      currentVersion: currentWorkspaceFileVersionNumberSql(),
+    })
+    .from(workspaceFiles)
+    .where(
+      and(inArray(workspaceFiles.id, [...fileIds]), workspaceFileScopeCondition(workspaceId, 'all'))
+    )
+  return new Map(rows.map((row) => [row.id, { key: row.key, currentVersion: row.currentVersion }]))
 }
 
 /**
@@ -1679,7 +1887,7 @@ export async function getWorkspaceFile(
 export async function fetchServableWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
   options: { maxBytes: number; signal?: AbortSignal; requestId?: string }
-): Promise<{ buffer: Buffer; contentType: string }> {
+): Promise<ServableFile> {
   const { downloadServableFileFromStorage } = await import('@/lib/uploads/utils/file-utils.server')
 
   return downloadServableFileFromStorage(
@@ -1728,7 +1936,9 @@ export async function fetchWorkspaceFileBuffer(
     // transport failure to answer with their own placeholder, and re-wrapping it in a
     // plain Error would erase the only thing that tells the two apart.
     if (isPayloadSizeLimitError(error)) throw error
-    throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`)
+    throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`, {
+      cause: error,
+    })
   }
 }
 
@@ -1753,8 +1963,10 @@ export async function updateWorkspaceFileContent(
   fileId: string,
   userId: string,
   content: Buffer,
-  contentType?: string,
-  options?: {
+  contentType: string | undefined,
+  options: {
+    /** How this write is recorded in the file's version history. */
+    version: WorkspaceFileVersionWrite
     /**
      * Whether to stream this write into any open collaborative editor as a live CRDT merge. Defaults
      * to `true`, so EVERY external write path (copilot tools, the file tool, the content route) reaches
@@ -1766,19 +1978,24 @@ export async function updateWorkspaceFileContent(
     syncLiveDoc?: boolean
     /**
      * Optimistic-concurrency guard (RFC 7232 `If-Match` semantics). When set, the write commits only
-     * if the file's `updatedAt` still equals this value — nothing else wrote in between; otherwise it
+     * if the file's `contentUpdatedAt` still equals this value — no content write intervened; otherwise it
      * throws {@link ContentVersionConflictError} without clobbering. Checked against the
      * `SELECT … FOR UPDATE`-locked row, so it is atomic with the write. Used by the collab persist so
      * projecting the live doc back to markdown can never silently overwrite an out-of-band edit.
      */
     expectedUpdatedAt?: Date
+    /** Commit with the markdown projection; requires the expected content version. */
+    collabDocState?: PreparedCollabDocState
     /**
      * Derived edits must explicitly preserve; trusted whole replacements must explicitly replace.
      * An omitted policy is classified as unknown rather than inheriting provenance across new bytes.
      */
     secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
   }
-): Promise<WorkspaceFileRecord> {
+): Promise<VersionedWorkspaceFileRecord> {
+  if (options.collabDocState && !options.expectedUpdatedAt) {
+    throw new Error('Collaborative state updates require an expected content version')
+  }
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
@@ -1789,6 +2006,7 @@ export async function updateWorkspaceFileContent(
   const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
   const nextStorageKey = generateWorkspaceFileKey(workspaceId, fileRecord.name)
+  const contentHash = sha256Hex(content)
 
   try {
     const metadata: Record<string, string> = {
@@ -1813,14 +2031,16 @@ export async function updateWorkspaceFileContent(
 
     let finalized: {
       file: WorkspaceFileRow
-      oldKey: string
       sizeDiff: number
       updatedUsage: number | undefined
+      liveDocEventId: string | undefined
+      storageCleanupEventIds: string[]
+      currentVersion: number
     }
     try {
       finalized = await db.transaction(async (tx) => {
         const [currentFile] = await tx
-          .select(workspaceFileColumns)
+          .select()
           .from(workspaceFiles)
           .where(
             and(
@@ -1844,11 +2064,25 @@ export async function updateWorkspaceFileContent(
         // reconcile stale durable content and clobber in-flight edits. Coalesce to `updatedAt` for rows
         // predating the column. A mismatch means the CONTENT changed out-of-band; abort rather than clobber.
         if (
-          options?.expectedUpdatedAt &&
+          options.expectedUpdatedAt &&
           currentFile.contentUpdatedAt.getTime() !== options.expectedUpdatedAt.getTime()
         ) {
           throw new ContentVersionConflictError(fileId)
         }
+
+        if (options.collabDocState) {
+          await saveCollabDocStateInTx(tx, fileId, options.collabDocState)
+        }
+
+        const versionHead = await loadWorkspaceFileVersionHead(fileId, tx)
+        const previousProvenance = isVersionHeadCurrent(versionHead, currentFile)
+          ? undefined
+          : await snapshotWorkspaceFileSecretProvenanceInTx(
+              tx,
+              fileId,
+              currentFile.contentUpdatedAt,
+              currentFile.secretProvenanceVersion
+            )
 
         const sizeDiff = content.length - getWorkspaceFileSize(currentFile)
         const now = new Date()
@@ -1885,31 +2119,33 @@ export async function updateWorkspaceFileContent(
               isNull(workspaceFiles.deletedAt)
             )
           )
-          .returning(workspaceFileColumns)
+          .returning()
         if (!updatedFile) {
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
 
-        if (options?.secretProvenancePolicy?.mode === 'replace') {
-          await replaceWorkspaceFileSecretProvenanceInTx(
-            tx,
-            fileId,
-            updatedFile.contentUpdatedAt,
-            options.secretProvenancePolicy.provenance
-          )
-        } else if (options?.secretProvenancePolicy?.mode === 'preserve') {
-          await preserveWorkspaceFileSecretProvenanceInTx(
-            tx,
-            fileId,
-            currentFile.contentUpdatedAt,
-            currentFile.secretProvenanceVersion,
-            updatedFile.contentUpdatedAt
-          )
-        } else {
-          await replaceWorkspaceFileSecretProvenanceInTx(tx, fileId, updatedFile.contentUpdatedAt, {
-            status: 'unknown',
-          })
-        }
+        const nextProvenance = await applyWorkspaceFileSecretProvenancePolicyInTx(
+          tx,
+          fileId,
+          currentFile,
+          updatedFile.contentUpdatedAt,
+          options.secretProvenancePolicy
+        )
+        const recorded = await recordWorkspaceFileVersionInTx(tx, {
+          workspaceId,
+          head: versionHead,
+          previous: currentFile,
+          previousProvenance,
+          next: updatedFile,
+          nextProvenance,
+          contentHash,
+          write: options.version,
+          now,
+        })
+        const storageCleanupEventIds = await enqueueWorkspaceFileStorageCleanups(
+          tx,
+          recorded.releasedKeys
+        )
 
         let updatedUsage: number | undefined
         if (sizeDiff > 0) {
@@ -1926,11 +2162,24 @@ export async function updateWorkspaceFileContent(
           )
         }
 
+        const liveDocEventId =
+          options.syncLiveDoc !== false &&
+          (isMarkdownFile({ type: currentFile.contentType, name: currentFile.originalName }) ||
+            isMarkdownFile({ type: updatedFile.contentType, name: updatedFile.originalName }))
+            ? await enqueueWorkspaceFileLiveDocReconciliation(tx, {
+                workspaceId,
+                fileId,
+                version: updatedFile.contentUpdatedAt.getTime(),
+              })
+            : undefined
+
         return {
           file: updatedFile,
-          oldKey: currentFile.key,
           sizeDiff,
           updatedUsage,
+          liveDocEventId,
+          storageCleanupEventIds,
+          currentVersion: recorded.version,
         }
       })
     } catch (finalizationError) {
@@ -1945,26 +2194,31 @@ export async function updateWorkspaceFileContent(
         finalized.sizeDiff < 0
       )
     }
-    if (finalized.oldKey !== uploadResult.key) {
-      await cleanupWorkspaceStorageObject(finalized.oldKey, 'version replacement')
-    }
+    await processWorkspaceFileStorageCleanupsNow(finalized.storageCleanupEventIds, {
+      workspaceId,
+      fileId,
+      reason: 'released version',
+    })
 
-    // Stream this write into any open collaborative editor as a CRDT merge, so a copilot/tool edit
-    // shows up live instead of the file silently changing underneath the reader. Gated to markdown (the
-    // only format the collaborative editor renders) and best-effort (a no-op when nobody has the file
-    // open; never throws). This is the single chokepoint every external writer shares — the relay's own
-    // persist and empty-shell creates pass `syncLiveDoc: false` to stay out of it.
-    if (
-      options?.syncLiveDoc !== false &&
-      isMarkdownFile({ type: nextContentType, name: finalized.file.originalName })
-    ) {
-      // Pass the new CONTENT version this write produced, so the relay records that its live doc now
-      // incorporates this durable version — the collab persist's optimistic-concurrency guard then won't
-      // treat this (already-merged) write as an out-of-band conflict. Must be the SAME field the CAS
-      // guards on (`contentUpdatedAt`), not `updatedAt`, or the relay's token wouldn't match the CAS.
-      await mergeEditIntoLiveFileDoc(fileId, content.toString('utf-8'), {
-        version: finalized.file.contentUpdatedAt.getTime(),
-      })
+    if (finalized.liveDocEventId) {
+      try {
+        const result = await processWorkspaceFileLiveDocReconciliationNow(finalized.liveDocEventId)
+        if (result !== 'completed') {
+          logger.warn('Live document reconciliation deferred to outbox retry', {
+            workspaceId,
+            fileId,
+            eventId: finalized.liveDocEventId,
+            result,
+          })
+        }
+      } catch (error) {
+        logger.warn('Live document reconciliation deferred after inline processing error', {
+          workspaceId,
+          fileId,
+          eventId: finalized.liveDocEventId,
+          error: getErrorMessage(error),
+        })
+      }
     }
 
     const pathPrefix = getServePathPrefix()
@@ -1988,12 +2242,18 @@ export async function updateWorkspaceFileContent(
       uploadedAt: finalized.file.uploadedAt,
       updatedAt: finalized.file.updatedAt,
       contentUpdatedAt: finalized.file.contentUpdatedAt,
+      currentVersion: finalized.currentVersion,
     }
   } catch (error) {
     // Preserve the typed conflict so callers can catch it and reconcile — it's an expected outcome of
     // the optimistic-concurrency guard, not a failure to wrap. The orphan upload was already cleaned up
     // by the inner finalization catch before it propagated here.
-    if (error instanceof ContentVersionConflictError) throw error
+    if (
+      error instanceof ContentVersionConflictError ||
+      error instanceof CollabDocStateConflictError
+    ) {
+      throw error
+    }
     // Same reasoning for an already-classified failure: a missing file and a blown storage quota are
     // caller-fixable outcomes that every surface maps to 404/413 by class. Re-wrapping them in a bare
     // Error stripped that classification and turned both into a 500.
@@ -2004,6 +2264,40 @@ export async function updateWorkspaceFileContent(
       cause: error,
     })
   }
+}
+
+/**
+ * Deletes one superseded version of an active workspace file and releases its stored object. The
+ * file row is locked so the delete serializes with content writes that supersede or prune history.
+ */
+export async function deleteWorkspaceFileVersion(
+  workspaceId: string,
+  fileId: string,
+  version: number
+): Promise<WorkspaceFileVersionDeletion['status']> {
+  const deletion = await db.transaction(async (tx) => {
+    const [file] = await tx
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(and(eq(workspaceFiles.id, fileId), workspaceFileScopeCondition(workspaceId, 'active')))
+      .for('update')
+      .limit(1)
+    if (!file) throw new OrchestrationError('not_found', 'File not found')
+    const result = await deleteWorkspaceFileVersionInTx(tx, fileId, version)
+    return result.status === 'deleted'
+      ? {
+          status: result.status,
+          cleanupEventIds: await enqueueWorkspaceFileStorageCleanups(tx, [result.key]),
+        }
+      : { status: result.status, cleanupEventIds: [] }
+  })
+
+  await processWorkspaceFileStorageCleanupsNow(deletion.cleanupEventIds, {
+    workspaceId,
+    fileId,
+    reason: 'deleted version',
+  })
+  return deletion.status
 }
 
 /**
@@ -2068,77 +2362,6 @@ export async function renameWorkspaceFile(
 }
 
 /**
- * Move and/or rename a workspace file in one atomic row update. Either side
- * may be a no-op (same folder = pure rename, same name = pure move); when
- * both are unchanged the record is returned untouched. Conflicts at the
- * destination throw {@link FileConflictError}. The `renamed`/`moved` flags
- * report what actually changed, computed from the same read the update uses.
- */
-export async function moveRenameWorkspaceFile(params: {
-  workspaceId: string
-  fileId: string
-  targetFolderId: string | null
-  newName: string
-}): Promise<{ file: WorkspaceFileRecord; renamed: boolean; moved: boolean }> {
-  const normalizedName = normalizeWorkspaceFileItemName(params.newName.trim(), 'File')
-
-  const fileRecord = await getWorkspaceFile(params.workspaceId, params.fileId)
-  if (!fileRecord) {
-    throw new OrchestrationError('not_found', 'File not found')
-  }
-
-  const targetFolderId = await assertWorkspaceFileFolderTarget(
-    params.workspaceId,
-    params.targetFolderId
-  )
-  const currentFolderId = fileRecord.folderId ?? null
-  const renamed = fileRecord.name !== normalizedName
-  const moved = currentFolderId !== targetFolderId
-  if (!renamed && !moved) {
-    return { file: fileRecord, renamed, moved }
-  }
-
-  const exists = await fileExistsInWorkspace(params.workspaceId, normalizedName, targetFolderId)
-  if (exists) {
-    throw new FileConflictError(normalizedName)
-  }
-
-  let updated: { id: string }[]
-  try {
-    updated = await db
-      .update(workspaceFiles)
-      .set({ originalName: normalizedName, folderId: targetFolderId, updatedAt: new Date() })
-      .where(
-        and(
-          eq(workspaceFiles.id, params.fileId),
-          eq(workspaceFiles.workspaceId, params.workspaceId),
-          eq(workspaceFiles.context, 'workspace')
-        )
-      )
-      .returning({ id: workspaceFiles.id })
-  } catch (error: unknown) {
-    if (getPostgresErrorCode(error) === '23505') {
-      throw new FileConflictError(normalizedName)
-    }
-    throw error
-  }
-
-  if (updated.length === 0) {
-    throw new OrchestrationError('not_found', 'File not found or could not be moved')
-  }
-
-  return {
-    file: {
-      ...fileRecord,
-      name: normalizedName,
-      folderId: targetFolderId,
-    },
-    renamed,
-    moved,
-  }
-}
-
-/**
  * Soft delete a workspace file.
  */
 export async function deleteWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
@@ -2162,7 +2385,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
           isNull(workspaceFiles.deletedAt)
         )
       )
-      .returning(workspaceFileColumns)
+      .returning()
     if (!archived) return
 
     logger.info(`Successfully archived workspace file: ${archived.originalName}`)
@@ -2203,7 +2426,7 @@ export async function purgeCreatedWorkspaceFile(params: {
     eq(workspaceFiles.context, 'workspace'),
     isNull(workspaceFiles.deletedAt)
   )
-  const cleanupEventId = await db.transaction(async (tx) => {
+  const cleanupEventIds = await db.transaction(async (tx) => {
     const [lockedFile] = await tx
       .select({
         id: workspaceFiles.id,
@@ -2216,6 +2439,8 @@ export async function purgeCreatedWorkspaceFile(params: {
       .limit(1)
     if (!lockedFile) return null
 
+    const versionKeys = await listWorkspaceFileVersionKeysInTx(tx, lockedFile.id)
+
     const [deleted] = await tx
       .delete(workspaceFiles)
       .where(matchesCreatedFile)
@@ -2227,28 +2452,16 @@ export async function purgeCreatedWorkspaceFile(params: {
       storageBillingContext,
       getWorkspaceFileSize(lockedFile)
     )
-    return enqueueWorkspaceFileStorageCleanup(tx, { key: lockedFile.key })
+    const keys = new Set([lockedFile.key, ...versionKeys])
+    return enqueueWorkspaceFileStorageCleanups(tx, [...keys])
   })
-  if (!cleanupEventId) return false
+  if (!cleanupEventIds) return false
 
-  try {
-    const result = await processWorkspaceFileStorageCleanupNow(cleanupEventId)
-    if (result !== 'completed') {
-      logger.warn('Archive rollback storage cleanup deferred to outbox retry', {
-        workspaceId: params.workspaceId,
-        fileId: params.fileId,
-        cleanupEventId,
-        result,
-      })
-    }
-  } catch (error) {
-    logger.warn('Archive rollback storage cleanup deferred after inline processing error', {
-      workspaceId: params.workspaceId,
-      fileId: params.fileId,
-      cleanupEventId,
-      error: getErrorMessage(error),
-    })
-  }
+  await processWorkspaceFileStorageCleanupsNow(cleanupEventIds, {
+    workspaceId: params.workspaceId,
+    fileId: params.fileId,
+    reason: 'archive rollback',
+  })
   return true
 }
 
@@ -2284,6 +2497,13 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
   }
 
   /**
+   * The file goes back where it was deleted from while that folder is still active. A folder
+   * archived since would file the row under one the Files page never renders, so re-root it
+   * instead — the same treatment tables and knowledge bases get on restore.
+   */
+  const restoredFolderId = await resolveRestoredFolderId(fileRecord.folderId, workspaceId, 'file')
+
+  /**
    * A concurrent upload/rename can claim the chosen name after `generateRestoreName`'s check (MVCC).
    * Retries pick a new random suffix; 23505 maps to {@link FileConflictError} after exhaustion.
    */
@@ -2295,14 +2515,19 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     try {
       const newName = await generateRestoreName(
         fileRecord.originalName,
-        (candidate) => fileExistsInWorkspace(workspaceId, candidate, null),
+        (candidate) => fileExistsInWorkspace(workspaceId, candidate, restoredFolderId),
         { hasExtension: true }
       )
       attemptedRestoreName = newName
 
       const [restored] = await db
         .update(workspaceFiles)
-        .set({ deletedAt: null, folderId: null, originalName: newName, updatedAt: new Date() })
+        .set({
+          deletedAt: null,
+          folderId: restoredFolderId,
+          originalName: newName,
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(workspaceFiles.id, fileId),
@@ -2311,7 +2536,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
             isNotNull(workspaceFiles.deletedAt)
           )
         )
-        .returning(workspaceFileColumns)
+        .returning()
       if (!restored) return
 
       logger.info(`Successfully restored workspace file: ${newName}`)

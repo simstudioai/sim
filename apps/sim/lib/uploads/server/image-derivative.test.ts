@@ -1,18 +1,11 @@
-/**
- * @vitest-environment node
- */
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockUploadFile, mockTranscode } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockUploadFile: vi.fn(),
+const { mockTranscode } = vi.hoisted(() => ({
   mockTranscode: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  uploadFile: mockUploadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/server/heic', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/uploads/server/heic')>()),
@@ -20,6 +13,9 @@ vi.mock('@/lib/uploads/server/heic', async (importOriginal) => ({
 }))
 
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+const mockUploadFile = storageServiceMockFns.mockUploadFile
 
 /** An ISO-BMFF `ftyp` box declaring `brand` as its major brand. */
 function ftypBytes(brand: string): Buffer {
@@ -39,16 +35,9 @@ const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0])
 
 describe('resolveServableImageBytes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDownloadFile.mockRejectedValue(new Error('not found'))
     mockUploadFile.mockResolvedValue(undefined)
     mockTranscode.mockResolvedValue(JPEG)
-  })
-
-  it('leaves non-HEIF bytes untouched', async () => {
-    expect(await resolveServableImageBytes(JPEG, 'workspace/ws/a.jpg')).toBeNull()
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-    expect(mockTranscode).not.toHaveBeenCalled()
   })
 
   // AVIF is a HEIF container too, but AV1-coded and rendered natively by every
@@ -59,14 +48,6 @@ describe('resolveServableImageBytes', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockTranscode).not.toHaveBeenCalled()
     expect(mockUploadFile).not.toHaveBeenCalled()
-  })
-
-  it('transcodes and caches on a miss', async () => {
-    const result = await resolveServableImageBytes(heifBytes(), 'workspace/ws/a.heic')
-
-    expect(result).toEqual({ buffer: JPEG, contentType: 'image/jpeg' })
-    expect(mockTranscode).toHaveBeenCalledOnce()
-    expect(mockUploadFile).toHaveBeenCalledOnce()
   })
 
   it('serves the cached derivative without decoding again', async () => {

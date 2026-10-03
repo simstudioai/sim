@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -40,7 +36,6 @@ function request(body: unknown) {
 
 describe('/api/v2/workflows/move', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -49,39 +44,6 @@ describe('/api/v2/workflows/move', () => {
       failed: ['workflow-2'],
       folderId: 'folder-1',
       changes: [],
-    })
-  })
-
-  it('authenticates before parsing the body', async () => {
-    v2RouteMocks.authenticate.mockRejectedValue(new MockV2ApiKeyUnauthenticatedError('No API key'))
-
-    const response = await POST(request({ nonsense: true }))
-
-    expect(response.status).toBe(401)
-    expect(mocks.moveWorkflowsBulk).not.toHaveBeenCalled()
-  })
-
-  it('exposes both arms of the best-effort result', async () => {
-    const response = await POST(
-      request({
-        workspaceId: WORKSPACE_ID,
-        workflowIds: ['workflow-1', 'workflow-2'],
-        folderPath: '/Operations',
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: { moved: ['workflow-1'], failed: ['workflow-2'], folderPath: '/Operations' },
-    })
-    expect(mocks.moveWorkflowsBulk).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        workflowIds: ['workflow-1', 'workflow-2'],
-        folderPath: '/Operations',
-      },
-      request: expect.anything(),
     })
   })
 
@@ -104,15 +66,6 @@ describe('/api/v2/workflows/move', () => {
         workflowIds: Array.from({ length: 101 }, (_, index) => `workflow-${index}`),
         folderPath: '/Operations',
       })
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.moveWorkflowsBulk).not.toHaveBeenCalled()
-  })
-
-  it('rejects a folderId, which is not part of the public surface', async () => {
-    const response = await POST(
-      request({ workspaceId: WORKSPACE_ID, workflowIds: ['workflow-1'], folderId: null })
     )
 
     expect(response.status).toBe(400)

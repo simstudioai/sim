@@ -1,0 +1,22 @@
+# Artifact Hub repository metadata for the Sim chart.
+#
+# Lives outside `helm/sim/` on purpose: it describes the *repository* rather
+# than the chart, so it must not be packaged into the `.tgz`, and a change to it
+# must not trip the chart's mandatory Chart.yaml version bump.
+#
+# The publish job pushes this file to the OCI registry under the reserved
+# `artifacthub.io` tag, which is where Artifact Hub looks for it:
+#   ghcr.io/simstudioai/charts/sim:artifacthub.io
+#
+# `owners` is what backs an ownership claim — Artifact Hub matches the email of
+# the requesting account against this list, and processes claims immediately
+# rather than waiting for the next repository scan.
+owners:
+  - name: Sim Team
+    email: help@sim.ai
+
+# Set this to the repository's Artifact Hub ID once the repository has been
+# registered at https://artifacthub.io/control-panel/repositories. It is what
+# turns on the "Verified Publisher" badge; until then the listing still works,
+# just unverified.
+# repositoryID: ""

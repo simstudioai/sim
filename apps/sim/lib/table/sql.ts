@@ -6,7 +6,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
+import { escapeLikePattern, truncate } from '@sim/utils/string'
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -19,6 +19,7 @@ import {
   SINGLE_SELECT_OPERATORS,
   SINGLE_SELECT_OPS,
 } from '@/lib/table/column-types'
+import { columnTextForEquality } from '@/lib/table/column-types/comparison-sql'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { TableQueryValidationError } from '@/lib/table/errors'
@@ -364,7 +365,7 @@ function validateComparisonValue(
         `Range operator on column "${label}" (date) requires a date string, got ${typeof value}`
       )
     }
-    if (normalizeDateCellValue(value) === null) {
+    if (!columnTypeById(columnType).coerce(value, { name: label, type: columnType ?? 'date' }).ok) {
       throw new TableQueryValidationError(
         `Range operator on column "${label}" (date) requires a parseable date string, got "${truncate(value, 64)}"`
       )
@@ -531,16 +532,18 @@ function buildFieldCondition(
 /**
  * The single leaf primitive: compiles one `field op value` into SQL. Every
  * matcher routes through here — both filter compilers (`buildFilterClause` for
- * the legacy `$`-grammar, `buildPredicateClause` for the v2 grammar), the upsert
- * conflict probe, and the unique-constraint checks. Centralizing the leaf means
- * equality/case/null/cast semantics are defined exactly once, so "find the row"
- * and "is this value unique" can never disagree.
+ * the legacy `$`-grammar, `buildPredicateClause` for the v2 grammar), and, through
+ * {@link uniqueValuePredicate}, the upsert conflict probe and the unique-constraint
+ * checks. Centralizing the leaf means equality/case/null/cast semantics are
+ * defined exactly once, so "find the row" and "is this value unique" can never
+ * disagree.
  *
  * Returns `undefined` when the predicate is a no-op (empty `in`/`nin` array),
  * matching the legacy behavior of emitting no clause.
  *
  * Equality (`eq`/`ne`/`in`/`nin`) uses case-sensitive JSONB containment (GIN
- * indexed). Text matches (`contains`/`ncontains`/`startsWith`/`endsWith`) are
+ * indexed), except types with an equality projection, which use their database
+ * cast. Text matches (`contains`/`ncontains`/`startsWith`/`endsWith`) are
  * ILIKE (case-insensitive). Ranges cast per column type.
  */
 export function fieldPredicate(
@@ -560,6 +563,18 @@ export function fieldPredicate(
   }
 
   const columnType = column?.type
+  const validateFilterValue = column && columnTypeOf(column).validateFilterValue
+  if (
+    column &&
+    validateFilterValue &&
+    ['eq', 'ne', 'in', 'nin', 'gt', 'gte', 'lt', 'lte'].includes(op)
+  ) {
+    for (const operand of Array.isArray(value) ? value : [value]) {
+      if (operand === null) continue
+      const error = validateFilterValue(operand as JsonValue, column)
+      if (error) throw new TableQueryValidationError(error)
+    }
+  }
   // Messages must name what the CALLER sent. `field` is the storage key by the
   // time it reaches here (the boundaries translate name → id before building
   // SQL), so a raw `field` reports a `col_…` the caller never supplied.
@@ -614,12 +629,21 @@ export function fieldPredicate(
         : coerceContainmentOperand(column, value as JsonValue)
       : value
 
+  const equalityClause = (operand: JsonValue): SQL => {
+    const definition = column && columnTypeOf(column)
+    if (column && operand !== null && definition?.valueForEquality && definition.jsonbCast) {
+      const cell = columnTextForEquality(sql.raw(`${tableName}.data->>'${field}'`), column)
+      return sql`COALESCE(${cell} = ${operand}::${sql.raw(definition.jsonbCast)}, false)`
+    }
+    return buildContainmentClause(tableName, field, operand)
+  }
+
   switch (op) {
     case 'eq':
-      return buildContainmentClause(tableName, field, containmentValue as JsonValue)
+      return equalityClause(containmentValue as JsonValue)
 
     case 'ne':
-      return sql`NOT (${buildContainmentClause(tableName, field, containmentValue as JsonValue)})`
+      return sql`NOT (${equalityClause(containmentValue as JsonValue)})`
 
     case 'gt':
       return buildComparisonClause(tableName, field, column, '>', value as number | string)
@@ -633,17 +657,15 @@ export function fieldPredicate(
     case 'in': {
       const values = containmentValue
       if (!Array.isArray(values) || values.length === 0) return undefined
-      if (values.length === 1) return buildContainmentClause(tableName, field, values[0])
-      const inConditions = values.map((v) => buildContainmentClause(tableName, field, v))
+      if (values.length === 1) return equalityClause(values[0])
+      const inConditions = values.map(equalityClause)
       return sql`(${sql.join(inConditions, sql.raw(' OR '))})`
     }
 
     case 'nin': {
       const values = containmentValue
       if (!Array.isArray(values) || values.length === 0) return undefined
-      const ninConditions = values.map(
-        (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
-      )
+      const ninConditions = values.map((v) => sql`NOT (${equalityClause(v)})`)
       return sql`(${sql.join(ninConditions, sql.raw(' AND '))})`
     }
 
@@ -848,6 +870,29 @@ function buildSystemColumnClause(
   }
 }
 
+/**
+ * Whether a row holds `value` in a unique column: the upsert conflict probe and every unique check
+ * match with it. It is the `eq` leaf of {@link fieldPredicate}, made exact for an object or array.
+ * Containment is not equality there (`{"a":1,"b":2} @> {"a":1}`), so the leaf ANDs jsonb equality
+ * on the cell, keeping the containment half for the GIN index. jsonb equality ignores object key
+ * order and keeps array order, as `uniqueValueKey` does. A scalar leaf's containment is already
+ * equality.
+ */
+export function uniqueValuePredicate(
+  tableName: string,
+  field: string,
+  value: JsonValue,
+  column: ColumnDefinition
+): SQL {
+  const clause = fieldPredicate(tableName, field, 'eq', value, column)
+  if (!clause) {
+    throw new Error(`Failed to build unique-constraint predicate for column "${column.name}"`)
+  }
+  if (value === null || typeof value !== 'object') return clause
+  const cell = sql`${sql.raw(`${tableName}.data`)}->${field}::text`
+  return sql`(${clause} AND ${cell} = ${JSON.stringify(value)}::jsonb)`
+}
+
 /** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
 function buildContainmentClause(tableName: string, field: string, value: JsonValue): SQL {
   const jsonObj = JSON.stringify({ [field]: value })
@@ -914,11 +959,6 @@ function buildComparisonClause(
     : sql`${cell} ${sql.raw(operator)} ${value}`
 }
 
-/** Escapes LIKE/ILIKE wildcard characters so they match literally */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, '\\$&')
-}
-
 /**
  * General LIKE/ILIKE pattern match (the `like`/`ilike` ops). The caller's `*`
  * is the only wildcard — it maps to SQL `%`; any literal `%`/`_`/`\` in the
@@ -936,9 +976,7 @@ function buildPatternClause(
   options: { caseInsensitive: boolean; negate?: boolean }
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
-  const pattern = String(value)
-    .replace(/[\\%_]/g, '\\$&')
-    .replace(/\*/g, '%')
+  const pattern = escapeLikePattern(String(value)).replace(/\*/g, '%')
   const cell = sql.raw(`${tableName}.data->>'${escapedField}'`)
   const match = options.caseInsensitive
     ? sql`${cell} ILIKE ${pattern}`

@@ -17,6 +17,7 @@ export const slackEphemeralMessageTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['chat:write'],
   },
 
   params: {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import {

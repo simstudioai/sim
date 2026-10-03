@@ -178,8 +178,8 @@ export function useKnowledgeBaseDocuments(
  * Hook to fetch and manage knowledge bases list
  * Uses React Query as single source of truth
  */
-export function useKnowledgeBasesList(workspaceId?: string) {
-  const query = useKnowledgeBasesQuery(workspaceId)
+export function useKnowledgeBasesList(workspaceId?: string, options?: { includeCounts?: boolean }) {
+  const query = useKnowledgeBasesQuery(workspaceId, options)
 
   return {
     knowledgeBases: query.data ?? [],
