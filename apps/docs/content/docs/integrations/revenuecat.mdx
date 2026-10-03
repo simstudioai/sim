@@ -38,7 +38,7 @@ Retrieve subscriber information by app user ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The subscriber object with subscriptions and entitlements |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -120,7 +120,7 @@ Record a purchase (receipt) for a subscriber via the REST API
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | Customer object returned at the top level of POST /v1/receipts \(first_seen, last_seen, original_app_user_id, original_application_version, original_sdk_version, management_url, entitlements, original_purchase_date, request_date\). Null when the response uses the `value`-wrapped envelope. |
-| `subscriber` | object | The updated subscriber object after recording the purchase |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -171,7 +171,7 @@ Grant a promotional entitlement to a subscriber
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after granting the entitlement |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -219,7 +219,7 @@ Revoke all promotional entitlements for a specific entitlement identifier
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after revoking the entitlement |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -315,7 +315,7 @@ Defer a Google Play subscription by extending its billing date by a number of da
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after deferring the Google subscription |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -363,7 +363,7 @@ Refund a specific store transaction by its store transaction identifier and revo
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after refunding the Google subscription |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -411,7 +411,7 @@ Immediately revoke access to a Google Play subscription and issue a refund (Goog
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after revoking the Google subscription |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |

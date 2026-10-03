@@ -149,36 +149,46 @@ export function mapResearchSources(sources: unknown): YouComResearchSource[] {
   })
 }
 
-export const RESEARCH_SOURCES_OUTPUT = {
-  type: 'array',
-  description: 'Web sources used to generate the answer',
-  items: {
-    type: 'object',
-    properties: {
-      url: { type: 'string', description: 'URL of the source webpage' },
-      title: { type: 'string', description: 'Title of the source webpage', nullable: true },
-      snippets: {
-        type: 'array',
-        description: 'Excerpts from the source used to generate the answer',
-        items: { type: 'string' },
+/**
+ * Source and warning outputs every research endpoint returns. Spread into `outputs` at the top
+ * level so the docs generator, which reads tool source, can follow it.
+ */
+export const RESEARCH_SOURCE_OUTPUTS = {
+  sources: {
+    type: 'array',
+    description: 'Web sources used to generate the answer',
+    items: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL of the source webpage' },
+        title: { type: 'string', description: 'Title of the source webpage', nullable: true },
+        snippets: {
+          type: 'array',
+          description: 'Excerpts from the source used to generate the answer',
+          items: { type: 'string' },
+        },
       },
     },
   },
-} as const satisfies OutputProperty
+  warnings: {
+    type: 'array',
+    description: 'Warnings raised during research, such as source access issues or partial results',
+    items: { type: 'string' },
+  },
+} as const satisfies Record<string, OutputProperty>
 
-export const RESEARCH_CONTENT_OUTPUT = {
-  type: 'json',
-  description:
-    'Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied',
-} as const satisfies OutputProperty
-
-export const RESEARCH_CONTENT_TYPE_OUTPUT = {
-  type: 'string',
-  description: 'Format of content: text (Markdown) or object (structured output)',
-} as const satisfies OutputProperty
-
-export const RESEARCH_WARNINGS_OUTPUT = {
-  type: 'array',
-  description: 'Warnings raised during research, such as source access issues or partial results',
-  items: { type: 'string' },
-} as const satisfies OutputProperty
+/** Answer outputs shared by Research and Get Research Task; null until an answer exists. */
+export const RESEARCH_ANSWER_OUTPUTS = {
+  content: {
+    type: 'json',
+    description:
+      'Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied',
+    nullable: true,
+  },
+  contentType: {
+    type: 'string',
+    description: 'Format of content: text (Markdown) or object (structured output)',
+    nullable: true,
+  },
+  ...RESEARCH_SOURCE_OUTPUTS,
+} as const satisfies Record<string, OutputProperty>
