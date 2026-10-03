@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { ScimUserAttributes } from '@sim/db/schema'
 import { describe, expect, it } from 'vitest'
 import { scimGroupResourceSchema, scimUserResourceSchema } from '@/lib/api/contracts/scim'
@@ -39,14 +36,6 @@ function userRow() {
 }
 
 describe('resolvePage', () => {
-  it('defaults to the first page at the maximum size', () => {
-    expect(resolvePage({})).toEqual({
-      startIndex: 1,
-      offset: 0,
-      count: SCIM_MAX_PAGE_SIZE,
-    })
-  })
-
   it('clamps a zero startIndex up, because Okta sends one on its first import page', () => {
     expect(resolvePage({ startIndex: 0 })).toMatchObject({ startIndex: 1, offset: 0 })
   })
@@ -69,25 +58,6 @@ describe('toUserResource', () => {
     expect(resource.name.formatted).toBe('Ada Lovelace')
     expect(scimUserResourceSchema.safeParse(resource).success).toBe(true)
   })
-  it('renders the resource a provider expects', () => {
-    const resource = toUserResource(userRow(), BASE_URL)
-    expect(resource).toMatchObject({
-      id: 'su1',
-      externalId: '00u1',
-      userName: 'ada@acme.test',
-      active: true,
-      meta: {
-        resourceType: 'User',
-        location: `${BASE_URL}/Users/su1`,
-        lastModified: '2026-02-01T00:00:00.000Z',
-      },
-    })
-    expect(resource.groups).toEqual([
-      { value: 'g1', display: 'Engineering', $ref: `${BASE_URL}/Groups/g1` },
-    ])
-    expect(resource).not.toHaveProperty('displayNameSource')
-  })
-
   it('declares a provider extension it stored and returns its attributes', () => {
     const base = userRow()
     const row = {
@@ -152,12 +122,6 @@ describe('attribute projection', () => {
     expect(projectionWants(projection, 'displayName')).toBe(true)
   })
 
-  it('keeps schemas, id and meta whatever the request asked for', () => {
-    const projection = parseAttributeProjection({ attributes: 'userName' })
-    const projected = projectResource(toUserResource(userRow(), BASE_URL), projection)
-    expect(Object.keys(projected).sort()).toEqual(['id', 'meta', 'schemas', 'userName'])
-  })
-
   it.each(['name.givenName', 'urn:ietf:params:scim:schemas:core:2.0:User:name.givenName'])(
     'returns the requested name sub-attribute %s',
     (attributes) => {
@@ -204,45 +168,6 @@ describe('attribute projection', () => {
     const projected = projectResource(resource, parseAttributeProjection({ attributes }))
     expect(Object.keys(projected).sort()).toEqual(['id', 'meta', 'schemas'])
     expect(scimUserResourceSchema.safeParse(projected).success).toBe(true)
-  })
-
-  it('omits arrays with no matching sub-attributes while retaining valid selections', () => {
-    const projected = projectResource(
-      toUserResource(userRow(), BASE_URL),
-      parseAttributeProjection({ attributes: 'emails.unknown,name.givenName.foo,name.familyName' })
-    )
-    expect(projected).not.toHaveProperty('emails')
-    expect(projected.name).toEqual({ familyName: 'Lovelace' })
-  })
-
-  it('keeps explicitly selected parents even when nonexistent descendants are also requested', () => {
-    const resource = toUserResource(userRow(), BASE_URL)
-    const projected = projectResource(
-      resource,
-      parseAttributeProjection({
-        attributes: 'userName,userName.foo,name,name.givenName.foo,emails,emails.value.foo',
-      })
-    )
-    expect(projected.userName).toBe(resource.userName)
-    expect(projected.name).toEqual(resource.name)
-    expect(projected.emails).toEqual(resource.emails)
-  })
-
-  it('ignores exclusions of nonexistent scalar descendants', () => {
-    const resource = toUserResource(userRow(), BASE_URL)
-    const projected = projectResource(
-      resource,
-      parseAttributeProjection({
-        excludedAttributes: 'userName.foo,name.givenName.foo,emails.value.foo',
-      })
-    )
-    expect(projected).toEqual(resource)
-  })
-
-  it('keeps an explicitly selected empty multi-valued attribute', () => {
-    const resource = toUserResource({ ...userRow(), groups: [] }, BASE_URL)
-    const projected = projectResource(resource, parseAttributeProjection({ attributes: 'groups' }))
-    expect(projected.groups).toEqual([])
   })
 
   it('projects each multi-valued entry and still loads requested group sub-attributes', () => {

@@ -15,6 +15,10 @@ import {
   credentialGroupWorkflowAccessPolicyCodec,
   evaluateCredentialGroupActorCredentialAccess,
 } from '@/lib/credential-groups/application/workflow-access-policy'
+import {
+  isOrganizationCredentialType,
+  type OrganizationCredentialType,
+} from '@/lib/credential-groups/credential-types'
 import type {
   CredentialGroupCredentialListContext,
   ManagedCredentialGroupBinding,
@@ -165,10 +169,19 @@ export async function requireCredentialGroupCredentialAccess(
   principal: Principal,
   context: CredentialGroupAuthorizationContext & {
     credentialId: string
+    credentialType: OrganizationCredentialType
     credentialGroupEnrollmentId: string
   },
   resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
 ): Promise<void> {
+  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
+    const subject = resolvePrincipalSubject(principal)
+    if (subject?.kind !== 'sim_user' || !subject.userId) {
+      throw new OrchestrationError('forbidden', 'Credential Group actor access required')
+    }
+  } else {
+    requireCredentialGroupWorkflowActor(principal)
+  }
   /**
    * A managed OAuth credential is usable only while its credential, enrollment,
    * option, and group are all live, whoever is using it: an admin disabling the
@@ -179,21 +192,23 @@ export async function requireCredentialGroupCredentialAccess(
   if (binding && !isManagedCredentialGroupBindingLive(binding)) {
     throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
   }
+  if (context.organizationId) {
+    if (!isOrganizationCredentialType(context.credentialType))
+      throw new Error('Organization credential access requires a canonical credential type')
+    await requireOrganizationAccountsWorkspaceAccess(
+      { ...context, organizationId: context.organizationId },
+      context.credentialType
+    )
+  }
   if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
     return requireCredentialGroupActorCredentialAccess(principal, context, binding, resourcePolicy)
   }
-  requireCredentialGroupWorkflowActor(principal)
-  requireCurrentWorkflow(principal)
   if (!context.organizationId) {
     throw new OrchestrationError(
       'forbidden',
       'Reconnect this account in organization settings and replace the legacy Connected Accounts block'
     )
   }
-  await requireOrganizationAccountsWorkspaceAccess({
-    ...context,
-    organizationId: context.organizationId,
-  })
 }
 
 export const credentialGroupDelegationPolicy = {

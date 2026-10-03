@@ -15,6 +15,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 
@@ -28,6 +29,7 @@ export function createKnowledgeAclFixtureIds() {
     organizationId: generateId(),
     knowledgeBaseId: generateId(),
     connectorId: generateId(),
+    credentialId: generateId(),
     lockId: generateId(),
     groups,
     groupIds: groups.map(() => generateId()),
@@ -35,17 +37,25 @@ export function createKnowledgeAclFixtureIds() {
 }
 
 /** Inserts only unique fixture rows, and refuses the developer's ordinary database. */
-export async function seedKnowledgeAclFixture(ids = createKnowledgeAclFixtureIds()) {
-  const target = new URL(process.env.DATABASE_URL ?? '')
-  if (
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    !target.pathname.startsWith('/sim_acl_test')
-  ) {
-    throw new Error('Knowledge fixture seeding requires a local sim_acl_test database')
-  }
-  const { aliceId, bobId, workspaceId, knowledgeBaseId, connectorId, lockId, groups, groupIds } =
-    ids
+export async function seedKnowledgeAclFixture(
+  ids = createKnowledgeAclFixtureIds(),
+  options: { connectorType?: 'confluence' | 'google_drive' } = {}
+) {
+  assertDisposableTestDatabaseUrl(process.env.DATABASE_URL ?? '')
+  const {
+    aliceId,
+    bobId,
+    workspaceId,
+    knowledgeBaseId,
+    connectorId,
+    credentialId,
+    lockId,
+    groups,
+    groupIds,
+  } = ids
   const now = new Date()
+  const connectorType = options.connectorType ?? 'confluence'
+  const providerId = connectorType === 'google_drive' ? 'google-drive' : 'confluence'
   await db.insert(user).values([
     {
       id: aliceId,
@@ -106,20 +116,30 @@ export async function seedKnowledgeAclFixture(ids = createKnowledgeAclFixtureIds
     displayName: 'Fixture',
     fieldType: 'text',
   })
+  /** A service-account row needs no OAuth account; the token resolver is mocked in these suites. */
+  await db.insert(credential).values({
+    id: credentialId,
+    workspaceId,
+    type: 'service_account',
+    displayName: 'Fixture connector credential',
+    createdBy: aliceId,
+    providerId,
+  })
   await db.insert(knowledgeConnector).values({
     id: connectorId,
     knowledgeBaseId,
-    connectorType: 'confluence',
+    connectorType,
     sourceConfig: {},
     accessMode: 'admin',
     status: 'syncing',
     syncLockToken: lockId,
+    credentialId,
   })
   await db.insert(knowledgeExternalGroup).values(
     groups.map((name, index) => ({
       id: groupIds[index],
       workspaceId,
-      providerId: 'confluence',
+      providerId,
       tenantId: 'fixture-tenant',
       externalGroupId: name,
       lastSyncedAt: now,

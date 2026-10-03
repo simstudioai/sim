@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+
 /**
  * Tolerances for what identity providers actually send, as distinct from what
  * RFC 7644 describes.
@@ -33,11 +35,6 @@ export function normalizeScimBoolean(value: unknown): unknown {
  */
 export function unwrapSingleElement(value: unknown): unknown {
   return Array.isArray(value) && value.length === 1 ? value[0] : value
-}
-
-/** True when the value is a plain object rather than an array or null. */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
@@ -94,7 +91,7 @@ export function canonicalizeAttributeNames(
   body: unknown,
   canonicalNames: readonly string[]
 ): unknown {
-  if (!isRecord(body)) return body
+  if (!isRecordLike(body)) return body
   const byLower = new Map(canonicalNames.map((name) => [name.toLowerCase(), name]))
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(body)) {

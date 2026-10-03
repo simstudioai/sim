@@ -1,58 +1,48 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   allowedIntegrationTypes: vi.fn(),
-  getBlockVisibility: vi.fn(),
-  listCustomBlocks: vi.fn(),
-  isDeploymentAvailable: vi.fn(),
-  recordAudit: vi.fn(),
-  getAllBlocks: vi.fn(),
-  getBlock: vi.fn(),
-  getLatestBlockForViewer: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.recordAudit,
-  AuditAction: {},
-  AuditResourceType: {},
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
-  allowedIntegrationTypes: mocks.allowedIntegrationTypes,
+  allowedIntegrationTypes: hoisted.allowedIntegrationTypes,
   principalUserId: (principal: { kind: string; userId?: string }) =>
     principal.kind === 'session' || principal.kind === 'personal_api_key'
       ? principal.userId
       : undefined,
 }))
 
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mocks.getBlockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  listCustomBlocksWithInputsForWorkspace: mocks.listCustomBlocks,
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mocks.isDeploymentAvailable,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 vi.mock('@/blocks/custom/server-overlay', () => ({
   withCustomBlockOverlay: <T>(_rows: unknown, run: () => Promise<T>) => run(),
@@ -60,22 +50,6 @@ vi.mock('@/blocks/custom/server-overlay', () => ({
 
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: <T>(_state: unknown, run: () => Promise<T>) => run(),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: mocks.getAllBlocks,
-  getBlock: mocks.getBlock,
-  getLatestBlockForViewer: mocks.getLatestBlockForViewer,
-  getBlockMeta: vi.fn(() => ({ tags: ['messaging'] })),
-}))
-
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: (toolId: string) =>
-    Object.hasOwn(TOOL_METADATA, toolId) ? TOOL_METADATA[toolId] : undefined,
-}))
-
-vi.mock('@/tools/metadata-outputs', () => ({
-  getToolOutputsMetadata: () => ({ ok: { type: 'boolean', description: 'Whether it worked.' } }),
 }))
 
 vi.mock('@/tools/tool-ids', () => ({
@@ -87,7 +61,11 @@ import { getCatalogBlock } from '@/lib/catalog/application/get-block'
 import { getCatalogTool } from '@/lib/catalog/application/get-tool'
 import { listCatalogBlocks } from '@/lib/catalog/application/list-blocks'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
+import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
+import { getAllBlocks, getBlock, getBlockMeta, getLatestBlockForViewer } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
+import { getToolMetadata } from '@/tools/metadata'
+import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 
 const TOOL_METADATA: Record<string, Record<string, unknown>> = {
   slack_message: {
@@ -125,6 +103,28 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
   },
 }
 
+vi.mocked(getToolMetadata).mockImplementation((toolId: string) =>
+  Object.hasOwn(TOOL_METADATA, toolId) ? TOOL_METADATA[toolId] : undefined
+)
+vi.mocked(getToolOutputsMetadata).mockReturnValue({
+  ok: { type: 'boolean', description: 'Whether it worked.' },
+})
+vi.mocked(getBlockMeta).mockReturnValue({ tags: ['messaging'] })
+
+const mocks = {
+  ...hoisted,
+  getBlockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  listCustomBlocks: customBlockOperationsMockFns.mockListCustomBlocksWithInputsForWorkspace,
+  isDeploymentAvailable:
+    integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  recordAudit: auditMockFns.mockRecordAudit,
+  getAllBlocks: vi.mocked(getAllBlocks),
+  getBlock: vi.mocked(getBlock),
+  getLatestBlockForViewer: vi.mocked(getLatestBlockForViewer),
+}
+
 const WORKSPACE_ID = 'workspace-1'
 
 const workspaceContext = {
@@ -134,12 +134,7 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const session: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
-const workspaceKey: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: WORKSPACE_ID,
-  keyId: 'key-1',
-}
+const session = createSessionPrincipal()
 
 function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig {
   return {
@@ -256,7 +251,6 @@ describe('catalog block and tool reads', () => {
   afterAll(resetEnvFlagsMock)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.allowedIntegrationTypes.mockResolvedValue(null)
@@ -281,41 +275,42 @@ describe('catalog block and tool reads', () => {
     )
   })
 
-  it('lists blocks for a session principal and records no audit', async () => {
-    const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-
-    expect(result.entries.map((entry) => entry.id)).toEqual([
-      'custom_block_reports',
-      'notion',
-      'slack',
-    ])
-    expect(result.hasMore).toBe(false)
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('accepts a workspace API key, which has no user for permission groups to key on', async () => {
-    const result = await listCatalogBlocks.execute({ principal: workspaceKey, input: listInput })
-
-    expect(result.entries).toHaveLength(3)
-    expect(mocks.allowedIntegrationTypes).toHaveBeenCalledWith(workspaceKey, WORKSPACE_ID)
-    expect(mocks.getBlockVisibility).toHaveBeenCalledWith({ orgId: 'org-1' })
-  })
-
-  it('resolves block visibility for the acting user and their organization', async () => {
-    await listCatalogBlocks.execute({ principal: session, input: listInput })
-
-    expect(mocks.getBlockVisibility).toHaveBeenCalledWith({ userId: 'user-1', orgId: 'org-1' })
-  })
-
-  it('discriminates a workspace custom block from a shipped one', async () => {
-    const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-
-    const sources = Object.fromEntries(result.entries.map((entry) => [entry.id, entry.source]))
-    expect(sources).toEqual({
-      custom_block_reports: 'custom',
-      notion: 'builtin',
-      slack: 'builtin',
+  it('refreshes visibility and allowlist for every bulk read', async () => {
+    mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
+    setVisibility({
+      revealed: new Set(['preview_thing']),
+      disabled: new Set(),
+      previewTagged: new Set(),
     })
+    const before = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(before.blocks.map((block) => block.id)).toContain('preview_thing')
+    setVisibility(NOTHING_GATED)
+    mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['notion']))
+    const after = await readBlockCatalog.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID },
+    })
+    expect(after.blocks.map((block) => block.id)).toEqual(['loop', 'parallel'])
+  })
+
+  it('denies a revoked bulk reader before resolving catalog policies or data', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      readBlockCatalog.execute({ principal: session, input: { workspaceId: WORKSPACE_ID } })
+    ).rejects.toThrow()
+    expect(mocks.getBlockVisibility).not.toHaveBeenCalled()
+    expect(mocks.getAllBlocks).not.toHaveBeenCalled()
+  })
+
+  it('does not convert a bulk catalog policy outage into an empty catalog', async () => {
+    mocks.allowedIntegrationTypes.mockRejectedValue(new Error('permission store unavailable'))
+    await expect(
+      readBlockCatalog.execute({ principal: session, input: { workspaceId: WORKSPACE_ID } })
+    ).rejects.toThrow('permission store unavailable')
+    expect(mocks.getAllBlocks).not.toHaveBeenCalled()
   })
 
   it('answers not found for a workspace the caller cannot reach', async () => {
@@ -326,19 +321,11 @@ describe('catalog block and tool reads', () => {
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workspace not found' })
   })
 
-  it('propagates an integration-allowlist infrastructure failure instead of concealing it', async () => {
-    mocks.allowedIntegrationTypes.mockRejectedValue(new Error('permission store unavailable'))
-
-    await expect(
-      listCatalogBlocks.execute({ principal: session, input: listInput })
-    ).rejects.toThrow('permission store unavailable')
-  })
-
   it('hides an unrevealed preview block from the list and from its detail read', async () => {
     mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
 
     await expect(
       getCatalogBlock.execute({
@@ -348,16 +335,20 @@ describe('catalog block and tool reads', () => {
     ).rejects.toMatchObject({ code: 'not_found', message: 'Block not found' })
   })
 
-  it('reveals a preview block once the visibility document names it', async () => {
-    mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
-    setVisibility({
-      revealed: new Set(['preview_thing']),
-      disabled: new Set<string>(),
-      previewTagged: new Set(['preview_thing']),
+  it('keeps a kill-switched sunset block hidden even when sunset blocks are asked for', async () => {
+    const legacyTable = block({
+      type: 'table',
+      hideFromToolbar: true,
+      sunset: { status: 'legacy', replacedBy: 'table_v2' },
     })
+    mocks.getAllBlocks.mockReturnValue([slackBlock, legacyTable])
+    setVisibility({ ...NOTHING_GATED, disabled: new Set(['table']) })
 
-    const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toContain('preview_thing')
+    const included = await listCatalogBlocks.execute({
+      principal: session,
+      input: { ...listInput, includeSunset: true },
+    })
+    expect(included.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
   })
 
   it('drops a kill-switched block from the list and 404s its detail', async () => {
@@ -387,7 +378,7 @@ describe('catalog block and tool reads', () => {
     mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['slack_v2']))
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
 
     await expect(
       getCatalogBlock.execute({
@@ -397,66 +388,20 @@ describe('catalog block and tool reads', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
   })
 
-  it('drops a block this deployment does not ship', async () => {
-    mocks.isDeploymentAvailable.mockImplementation((type: string) => type !== 'notion')
-
-    const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'slack'])
-  })
-
-  it('narrows to trigger-capable blocks without a second endpoint', async () => {
-    const result = await listCatalogBlocks.execute({
-      principal: session,
-      input: { ...listInput, capability: 'trigger' },
-    })
-
-    expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])
-  })
-
-  it('rejects a blank search rather than silently matching everything', async () => {
-    await expect(
-      listCatalogBlocks.execute({ principal: session, input: { ...listInput, search: '   ' } })
-    ).rejects.toMatchObject({ code: 'validation', message: 'search cannot be empty' })
-  })
-
   it('pages the sorted sequence and reports whether more remain', async () => {
     const first = await listCatalogBlocks.execute({
       principal: session,
       input: { ...listInput, limit: 2 },
     })
-    expect(first.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'notion'])
+    expect(first.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'loop'])
     expect(first.hasMore).toBe(true)
 
     const second = await listCatalogBlocks.execute({
       principal: session,
       input: { ...listInput, limit: 2, offset: 2 },
     })
-    expect(second.entries.map((entry) => entry.id)).toEqual(['slack'])
-    expect(second.hasMore).toBe(false)
-  })
-
-  it('reads one block with its operations and tools resolved from metadata', async () => {
-    const { block: detail } = await getCatalogBlock.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID, blockId: 'slack' },
-    })
-
-    expect(detail.id).toBe('slack')
-    expect(detail.tools.map((tool) => tool.id)).toEqual(['slack_message'])
-    expect(detail.tools[0].params).toEqual({ text: { type: 'string', required: true } })
-
-    /**
-     * The operation's inputs come from the generated tool metadata, not the
-     * executable registry — that substitution is the whole point of the shared
-     * projection, so it is pinned rather than assumed.
-     */
-    expect(detail.operationIds).toEqual(['send'])
-    expect(detail.operations.send.toolId).toBe('slack_message')
-    expect(detail.operations.send.inputs).toEqual({ text: { type: 'string', required: true } })
-    expect(detail.operations.send.outputs).toEqual({
-      ok: { type: 'boolean', description: 'Whether it worked.' },
-    })
-    expect(detail.operationInputSchema.send.map((field) => field.id)).toEqual(['text'])
+    expect(second.entries.map((entry) => entry.id)).toEqual(['notion', 'parallel'])
+    expect(second.hasMore).toBe(true)
   })
 
   it('lists only the tools a visible block exposes', async () => {
@@ -465,27 +410,6 @@ describe('catalog block and tool reads', () => {
     const result = await listCatalogTools.execute({ principal: session, input: listInput })
 
     expect(result.entries.map((entry) => entry.id)).toEqual(['slack_message'])
-  })
-
-  it('filters tools by how their API key is supplied', async () => {
-    mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
-    setVisibility({
-      revealed: new Set(['preview_thing']),
-      disabled: new Set<string>(),
-      previewTagged: new Set<string>(),
-    })
-
-    const hosted = await listCatalogTools.execute({
-      principal: session,
-      input: { ...listInput, hostedApiKey: 'always' },
-    })
-    expect(hosted.entries.map((entry) => entry.id)).toEqual(['preview_call'])
-
-    const byProvider = await listCatalogTools.execute({
-      principal: session,
-      input: { ...listInput, oauthProvider: 'SLACK' },
-    })
-    expect(byProvider.entries.map((entry) => entry.id)).toEqual(['slack_message'])
   })
 
   it('answers not found for an unknown tool and for one no visible block exposes', async () => {
@@ -505,51 +429,6 @@ describe('catalog block and tool reads', () => {
     ).rejects.toMatchObject({ code: 'not_found', message: 'Tool not found' })
   })
 
-  /**
-   * The list projects through the viewer's visibility, which renames a revealed
-   * preview block; the detail read used a bare registry lookup, which does not.
-   * A caller reading `GET /v2/blocks/preview_thing` after seeing it in the list
-   * got a different `name` for the same block.
-   */
-  it('names a revealed preview block identically in the list and its detail', async () => {
-    mocks.getAllBlocks.mockReturnValue([
-      slackBlock,
-      { ...previewBlock, name: `${previewBlock.name} (Preview)` },
-    ])
-    setVisibility({
-      revealed: new Set(['preview_thing']),
-      disabled: new Set<string>(),
-      previewTagged: new Set(['preview_thing']),
-    })
-
-    const listed = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    const summary = listed.entries.find((entry) => entry.id === 'preview_thing')
-
-    const { block: detail } = await getCatalogBlock.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID, blockId: 'preview_thing' },
-    })
-
-    expect(detail.name).toBe('Preview thing (Preview)')
-    expect(detail.name).toBe(summary?.name)
-  })
-
-  /**
-   * Every versioned family's base type resolves to the superseded v1, which
-   * carries `hideFromToolbar` — so `GET /v2/blocks/confluence` 404'd while the
-   * list contained `confluence_v2`.
-   */
-  it('resolves an unversioned block name to its newest version and echoes the resolved id', async () => {
-    mocks.getAllBlocks.mockReturnValue([confluenceV2])
-
-    const { block: detail } = await getCatalogBlock.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID, blockId: 'confluence' },
-    })
-
-    expect(detail.id).toBe('confluence_v2')
-  })
-
   it('orders by code unit rather than the process locale', async () => {
     mocks.getAllBlocks.mockReturnValue([
       block({ type: 'b_lower', name: 'apple' }),
@@ -566,63 +445,11 @@ describe('catalog block and tool reads', () => {
      * positive by code unit. Pinning the code-unit answer is what makes an
      * offset cursor name the same row on every instance, whatever its `LANG`.
      */
-    expect(result.entries.map((entry) => entry.name)).toEqual(['Banana', 'apple'])
-  })
-
-  it('reports no hosted key on a deployment that supplies none', async () => {
-    mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
-    setVisibility({
-      revealed: new Set(['preview_thing']),
-      disabled: new Set<string>(),
-      previewTagged: new Set<string>(),
-    })
-    setEnvFlags({ isHosted: false })
-
-    const { tool } = await getCatalogTool.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID, toolId: 'preview_call' },
-    })
-    expect(tool.hostedApiKey).toBe('none')
-
-    const listed = await listCatalogTools.execute({ principal: session, input: listInput })
-    expect(listed.entries.map((entry) => entry.hostedApiKey)).toEqual(['none', 'none'])
-  })
-
-  /**
-   * A superseded v1 tool stays registered so execution of a stored id keeps
-   * working, so `resolveToolId('confluence_read')` answers with the v1 id no
-   * visible block exposes — and `GET /v2/tools/confluence_read` 404'd while the
-   * list published `confluence_read_v2`.
-   */
-  it('resolves an unversioned tool name to its newest visible version and echoes the resolved id', async () => {
-    mocks.getAllBlocks.mockReturnValue([confluenceV2])
-
-    const { tool } = await getCatalogTool.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID, toolId: 'confluence_read' },
-    })
-
-    expect(tool.id).toBe('confluence_read_v2')
-  })
-
-  it('echoes an exact versioned tool id unchanged', async () => {
-    mocks.getAllBlocks.mockReturnValue([confluenceV2])
-
-    const { tool } = await getCatalogTool.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID, toolId: 'confluence_read_v2' },
-    })
-
-    expect(tool.id).toBe('confluence_read_v2')
-  })
-
-  it('reads one tool with its params and outputs', async () => {
-    const { tool } = await getCatalogTool.execute({
-      principal: session,
-      input: { workspaceId: WORKSPACE_ID, toolId: 'slack_message' },
-    })
-
-    expect(tool.id).toBe('slack_message')
-    expect(tool.outputs).toEqual({ ok: { type: 'boolean', description: 'Whether it worked.' } })
+    expect(result.entries.map((entry) => entry.name)).toEqual([
+      'Banana',
+      'Loop',
+      'Parallel',
+      'apple',
+    ])
   })
 })

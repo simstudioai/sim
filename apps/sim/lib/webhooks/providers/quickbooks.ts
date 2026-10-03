@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
+import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -92,11 +93,6 @@ export async function verifyQuickBooksSignatureAgainstVerifierTokenStream(
   return unauthorized(requestId, 'QuickBooks webhook signature verification failed')
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  return value as Record<string, unknown>
-}
-
 export const quickBooksHandler: WebhookProviderHandler = {
   ingressMode: 'provider',
   executionMode: 'queue',
@@ -145,7 +141,7 @@ export const quickBooksHandler: WebhookProviderHandler = {
   },
 
   async matchEvent({ body, providerConfig }: EventMatchContext) {
-    const event = asRecord(body)
+    const event = toRecordOrNull(body)
     const triggerId = typeof providerConfig.triggerId === 'string' ? providerConfig.triggerId : ''
     const eventType = typeof event?.type === 'string' ? event.type : ''
     const { isQuickBooksEventMatch, quickBooksEventTypesSubBlockId } = await import(
@@ -159,7 +155,7 @@ export const quickBooksHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const event = asRecord(body) ?? {}
+    const event = toRecordOrNull(body) ?? {}
     const eventType = typeof event.type === 'string' ? event.type : ''
     const { getQuickBooksTriggerDefinitionByEntity, parseQuickBooksWebhookType } = await import(
       '@/triggers/quickbooks/quickbooks'
@@ -185,7 +181,7 @@ export const quickBooksHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown) {
-    const event = asRecord(body)
+    const event = toRecordOrNull(body)
     return typeof event?.id === 'string' ? event.id : null
   },
 }

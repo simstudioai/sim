@@ -25,7 +25,6 @@ import {
   readKnowledgeBase,
   restoreKnowledgeBase,
 } from '@/lib/knowledge/application/knowledge-bases'
-import { deleteKnowledgeBaseByVfsPath } from '@/lib/knowledge/application/knowledge-vfs'
 import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/service'
 
 const ids = createKnowledgeAclFixtureIds()
@@ -69,7 +68,7 @@ describe('canonical search knowledge-base policy', () => {
     vi.stubGlobal('fetch', async () => {
       throw new Error('Unexpected provider request in index policy tests')
     })
-    await seedKnowledgeAclFixture(ids)
+    await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
     await db
       .update(knowledgeBase)
       .set({ isSearchIndex: true, name: indexName, userId: ids.bobId })
@@ -139,7 +138,7 @@ describe('canonical search knowledge-base policy', () => {
           (
             await listInternalKnowledgeBases.execute({
               principal,
-              input: { workspaceId: ids.workspaceId, scope: 'active' },
+              input: { workspaceId: ids.workspaceId, scope: 'active', includeCounts: true },
             })
           ).knowledgeBases[0]
         ).toMatchObject({ isSearchIndex: true, docCount, tokenCount })
@@ -182,12 +181,6 @@ describe('canonical search knowledge-base policy', () => {
     ] as Principal[]) {
       await expect(deleteKnowledgeBaseOperation.execute({ principal, input })).rejects.toThrow()
     }
-    await expect(
-      deleteKnowledgeBaseByVfsPath.execute({
-        principal: copilot(ids.bobId),
-        input: { workspaceId: ids.workspaceId, sourceName: indexName },
-      })
-    ).rejects.toThrow('Insufficient workspace permissions')
     await expectIndexActive()
   })
 

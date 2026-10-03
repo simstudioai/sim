@@ -1,4 +1,5 @@
 import path from 'path'
+import { BLOG_SECTION } from '@/lib/blog/seo'
 import { createContentRegistry } from '@/lib/content/registry-factory'
 
 const BLOG_DIR = path.join(process.cwd(), 'content', 'blog')
@@ -14,6 +15,7 @@ const BLOG_COMPONENT_LOADERS = {
 const blogRegistry = createContentRegistry({
   contentDir: BLOG_DIR,
   authorsDir: AUTHORS_DIR,
+  basePath: BLOG_SECTION.basePath,
   componentLoaders: BLOG_COMPONENT_LOADERS,
 })
 

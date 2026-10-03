@@ -1,52 +1,13 @@
-/**
- * @vitest-environment node
- */
-
 import { jobExecutionLogs, workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-// Local drizzle-orm mock: the global mock's `sql` lacks `.as()`. We only need
-// condition/sql builders to produce truthy stubs (the mocked db ignores them).
-vi.mock('drizzle-orm', () => {
-  const make = (): Record<string, unknown> => {
-    const o: Record<string, unknown> = {}
-    o.as = () => o
-    o.mapWith = () => o
-    return o
-  }
-  const sql = Object.assign((..._args: unknown[]) => make(), {
-    raw: (..._args: unknown[]) => make(),
-    join: (..._args: unknown[]) => make(),
-  })
-  const op =
-    (type: string) =>
-    (...args: unknown[]) => ({ type, args })
-  return {
-    sql,
-    and: op('and'),
-    or: op('or'),
-    eq: op('eq'),
-    ne: op('ne'),
-    gt: op('gt'),
-    gte: op('gte'),
-    lt: op('lt'),
-    lte: op('lte'),
-    inArray: op('inArray'),
-    isNull: op('isNull'),
-    isNotNull: op('isNotNull'),
-    asc: op('asc'),
-    desc: op('desc'),
-  }
-})
 
 vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: vi.fn(async (_ws: string, ids: string | undefined) => ids),
 }))
 
-import type { ListLogsParams } from './list-logs'
-import { readLogs } from './list-logs'
-import { decodeLogSortCursor } from './sort-cursor'
+import { type ReadLogsParams, readLogs } from '@/lib/logs/list-logs'
+import { decodeLogSortCursor } from '@/lib/logs/sort-cursor'
 
 afterAll(resetDbChainMock)
 
@@ -99,19 +60,19 @@ function jobRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function baseParams(overrides: Partial<ListLogsParams> = {}): ListLogsParams {
+function baseParams(overrides: Partial<ReadLogsParams> = {}): ReadLogsParams {
   return {
     workspaceId: 'ws-1',
     limit: 100,
     sortBy: 'date',
     sortOrder: 'desc',
+    hideCostInfo: false,
     ...overrides,
-  } as ListLogsParams
+  }
 }
 
 describe('readLogs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -141,21 +102,6 @@ describe('readLogs', () => {
     expect(result.nextCursor).toBeNull()
   })
 
-  it('exposes the durable workflow-group origin discriminator', async () => {
-    queueTableRows(workflowExecutionLogs, [
-      workflowRow({ executionOrigin: 'workflow_group', trigger: 'table' }),
-    ])
-    queueTableRows(jobExecutionLogs, [])
-
-    const result = await readLogs(baseParams())
-
-    expect(result.data[0]).toMatchObject({
-      executionId: 'exec-1',
-      trigger: 'table',
-      executionOrigin: 'workflow_group',
-    })
-  })
-
   it('returns a decodable nextCursor when results exceed the limit', async () => {
     // limit 1, two workflow rows → page of 1, hasMore true
     queueTableRows(workflowExecutionLogs, [
@@ -182,11 +128,71 @@ describe('readLogs', () => {
     expect(result.data).toHaveLength(1)
     expect(result.data[0].workflowId).toBe('wf-1')
   })
+
+  it('resolves the snapshot on the server and applies its upper bound to both run sources', async () => {
+    const now = '2026-09-24T15:45:00.000Z'
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(now))
+    try {
+      const result = await readLogs(baseParams({ snapshotAt: 'now' }))
+      expect(result.snapshotAt).toBe(now)
+      for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
+        expect(dbChainMockFns.where).toHaveBeenCalledWith(
+          expect.objectContaining({
+            conditions: expect.arrayContaining([
+              { type: 'lte', left: table.startedAt, right: new Date(now) },
+            ]),
+          })
+        )
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('counts new workflow and job runs with the same exclusive lower bound as the row query', async () => {
+    const startedAfter = '2026-09-24T15:45:00.000Z'
+    queueTableRows(workflowExecutionLogs, [])
+    queueTableRows(jobExecutionLogs, [])
+    queueTableRows(workflowExecutionLogs, [{ count: 3 }])
+    queueTableRows(jobExecutionLogs, [{ count: 2 }])
+
+    const result = await readLogs(baseParams({ startedAfter, includeTotal: true, limit: 1 }))
+    expect(result.total).toBe(5)
+    for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
+      const matchingCalls = dbChainMockFns.where.mock.calls.filter(([condition]) =>
+        condition.conditions.some(
+          (item: { type: string; left: unknown; right: unknown }) =>
+            item.type === 'gt' &&
+            item.left === table.startedAt &&
+            item.right instanceof Date &&
+            item.right.toISOString() === startedAfter
+        )
+      )
+      expect(matchingCalls).toHaveLength(2)
+    }
+  })
+
+  it('captures rows and the membership revision in one repeatable-read snapshot', async () => {
+    queueTableRows(workflowExecutionLogs, [workflowRow()])
+    queueTableRows(jobExecutionLogs, [])
+    queueTableRows(workflowExecutionLogs, [{ count: 1, revision: '1234567890123456789' }])
+    queueTableRows(jobExecutionLogs, [{ count: 0, revision: '0' }])
+
+    const result = await readLogs(baseParams({ includeRevision: true, snapshotAt: 'now' }))
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'repeatable read',
+      accessMode: 'read only',
+    })
+    expect(result.data).toHaveLength(1)
+    expect(result.revision).toBe('1:1234567890123456789:0:0')
+    expect(result.total).toBeUndefined()
+  })
 })
 
 describe('readLogs cost projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

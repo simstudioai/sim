@@ -1,255 +1,50 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { member, permissions, workspace } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import { removeWorkspaceMemberContract } from '@/lib/api/contracts/invitations'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
-import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import {
-  hasWorkspaceAdminAccess,
-  isOrganizationAdminOrOwner,
-} from '@/lib/workspaces/permissions/utils'
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application/workspace-authorization'
+import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  removeWorkspaceMember,
+  removeWorkspaceMemberOperation,
+} from '@/lib/workspaces/application/remove-member'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 
-const logger = createLogger('WorkspaceMemberAPI')
-
-// DELETE /api/workspaces/members/[id] - Remove a member from a workspace
-export const DELETE = withRouteHandler(
-  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    try {
-      const parsed = await parseRequest(removeWorkspaceMemberContract, req, context)
-      if (!parsed.success) return parsed.response
-      const { id: userId } = parsed.data.params
-      const { workspaceId } = parsed.data.body
-
-      const workspaceRow = await db
-        .select({
-          ownerId: workspace.ownerId,
-          billedAccountUserId: workspace.billedAccountUserId,
-          organizationId: workspace.organizationId,
-        })
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .limit(1)
-
-      if (!workspaceRow.length) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
-
-      const organizationId = workspaceRow[0].organizationId
-
-      /**
-       * Authority is settled before anything is answered about the target, so
-       * the standing-specific replies below only ever describe someone the
-       * caller can already see in the members list.
-       */
-      const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      const isSelf = userId === session.user.id
-
-      if (!hasAdminAccess && !isSelf) {
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      if (workspaceRow[0].billedAccountUserId === userId) {
-        return NextResponse.json(
-          { error: 'Cannot remove the workspace billing account. Please reassign billing first.' },
-          { status: 400 }
-        )
-      }
-
-      /**
-       * Organization admins hold workspace admin across the whole organization
-       * through `member.role`, not through a `permissions` row, so removal has
-       * nothing to revoke. Left to fall through, the two shapes failed in two
-       * different ways: with no row it answered "user not found in workspace"
-       * about someone listed as an Admin on the very screen the caller clicked
-       * from, and with a row it deleted a grant the derived one immediately
-       * replaced — while the seat reconciliation below counts rows only, so
-       * that no-op could still drop the admin's organization membership.
-       *
-       * Mirrored by `workspaceMemberRemovalLockReason` on the client, and by the
-       * same guard on `PATCH /api/workspaces/[id]/permissions`, which refuses to
-       * re-role an organization admin for the same reason.
-       */
-      if (organizationId && (await isOrganizationAdminOrOwner(userId, organizationId))) {
-        return NextResponse.json(
-          {
-            error: isSelf
-              ? 'Organization admins are automatically workspace admins. Change your organization role to leave this workspace.'
-              : 'Organization admins are automatically workspace admins. Change their organization role to remove them from this workspace.',
-          },
-          { status: 400 }
-        )
-      }
-
-      // Check if the user to be removed actually has permissions for this workspace
-      const userPermission = await db
-        .select()
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.userId, userId),
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workspaceId)
-          )
-        )
-        .then((rows) => rows[0])
-
-      const isRemovingWorkspaceOwner = workspaceRow[0].ownerId === userId
-      const isOwnerOnlyRemoval = isRemovingWorkspaceOwner && !userPermission
-
-      if (!userPermission && !isOwnerOnlyRemoval) {
-        return NextResponse.json({ error: 'User not found in workspace' }, { status: 404 })
-      }
-
-      // Removing the workspace owner is allowed for any admin: ownership transfers
-      // to the billing account in the transaction below. The billing account itself
-      // stays protected by the guard above (and personal workspaces, where owner ==
-      // billing account, are blocked there).
-
-      // Prevent removing yourself if you're the last admin
-      if (isSelf && userPermission?.permissionType === 'admin' && !isRemovingWorkspaceOwner) {
-        const otherAdmins = await db
-          .select()
-          .from(permissions)
-          .where(
-            and(
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.entityId, workspaceId),
-              eq(permissions.permissionType, 'admin')
-            )
-          )
-          .then((rows) => rows.filter((row) => row.userId !== session.user.id))
-
-        if (otherAdmins.length === 0) {
-          return NextResponse.json(
-            { error: 'Cannot remove the last admin from a workspace' },
-            { status: 400 }
-          )
-        }
-      }
-
-      const revocation = await db.transaction((tx) =>
-        revokeWorkspaceAccessTx(tx, { workspaceId, userId })
+export const DELETE = defineInternalJsonRoute({
+  contract: removeWorkspaceMemberContract,
+  auth: internalSessionAuth,
+  operation: removeWorkspaceMemberOperation,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing workspace member removal policy.',
+  }),
+  errorPolicy: {
+    project(error) {
+      if (error instanceof WorkspaceBillingAccountRemovalError)
+        return internalErrorResponse(400, { error: error.message })
+      if (
+        error instanceof InsufficientWorkspacePermissionsError ||
+        error instanceof NoWorkspaceAccessError
       )
-      if (!revocation.revoked) throw new WorkspaceBillingAccountRemovalError()
-      const { ownershipTransferred } = revocation
-
-      /**
-       * Seats are tied to organization membership (one per member), so a
-       * single-workspace removal only drops a seat when it leaves the member
-       * with no access to any of the org's workspaces — at which point their
-       * org membership is removed too. Members still in other org workspaces
-       * keep their membership and seat.
-       */
-      let organizationRemoval = false
-      let seatReduction: Awaited<ReturnType<typeof reconcileOrganizationSeats>> | null = null
-
-      if (organizationId && userId !== workspaceRow[0].billedAccountUserId) {
-        const [orgMembership] = await db
-          .select({ id: member.id })
-          .from(member)
-          .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
-          .limit(1)
-
-        if (orgMembership) {
-          /**
-           * Remove the org membership + seat only when this is the member's last
-           * access to any org workspace. The remaining-access check and the
-           * deletion happen atomically under a `(user, org)` advisory lock inside
-           * `removeUserFromOrganization` (`requireNoOrgWorkspaceAccess`), so a
-           * concurrent invite acceptance can't be raced into a "workspace access
-           * but no org membership" state.
-           */
-          const removal = await removeUserFromOrganization({
-            userId,
-            organizationId,
-            memberId: orgMembership.id,
-            requireNoOrgWorkspaceAccess: true,
-            /** Leaving a workspace must not sign the leaver out of Sim. */
-            spareSessionToken: session.session.token,
-          })
-
-          if (removal.success && removal.removed) {
-            organizationRemoval = true
-            try {
-              seatReduction = await reconcileOrganizationSeats({
-                organizationId,
-                reason: 'member-removed',
-                actorId: session.user.id,
-              })
-            } catch (seatError) {
-              logger.error('Failed to reduce seats after workspace member removal', {
-                organizationId,
-                workspaceId,
-                removedUserId: userId,
-                error: seatError,
-              })
-            }
-          } else if (!removal.success) {
-            logger.error('Failed to remove org membership after last workspace removal', {
-              organizationId,
-              workspaceId,
-              removedUserId: userId,
-              error: removal.error,
-            })
-          }
-        }
-      }
-
-      captureServerEvent(
-        session.user.id,
-        'workspace_member_removed',
-        { workspace_id: workspaceId, is_self_removal: isSelf },
-        { groups: { workspace: workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.MEMBER_REMOVED,
-        resourceType: AuditResourceType.WORKSPACE,
-        resourceId: workspaceId,
-        description: isSelf
-          ? organizationRemoval
-            ? 'Left the organization'
-            : 'Left the workspace'
-          : organizationRemoval
-            ? `Removed member ${userId} from the organization`
-            : `Removed member ${userId} from the workspace`,
-        metadata: {
-          removedUserId: userId,
-          removedUserRole: userPermission?.permissionType ?? 'owner',
-          selfRemoval: isSelf,
-          ownershipTransferred,
-          organizationRemoval,
-          seatReduction,
-        },
-        request: req,
-      })
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      if (error instanceof WorkspaceBillingAccountRemovalError) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-      logger.error('Error removing workspace member:', error)
-      return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
-    }
-  }
-)
+        return internalErrorResponse(403, { error: 'Insufficient permissions' })
+      return null
+    },
+    unhandled: () => internalErrorResponse(500, { error: 'Failed to remove workspace member' }),
+  },
+  mapInput: ({ params, body }) => ({ workspaceId: body.workspaceId, userId: params.id }),
+  useCase: removeWorkspaceMember,
+  present: () => ({ success: true }),
+  onSuccess: ({ principal, input, result }) => {
+    captureServerEvent(
+      principal.userId,
+      'workspace_member_removed',
+      { workspace_id: input.workspaceId, is_self_removal: result.selfRemoval },
+      { groups: { workspace: input.workspaceId } }
+    )
+  },
+})

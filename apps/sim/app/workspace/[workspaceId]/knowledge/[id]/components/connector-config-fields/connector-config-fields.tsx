@@ -4,7 +4,9 @@ import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/e
 import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import type { Credential } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
@@ -20,8 +22,10 @@ export interface ConnectorConfigFieldsProps {
   connectorConfig: ConnectorMeta
   /** Current values keyed by field ID. */
   sourceConfig: ConfigFieldMap
+  selectionLabels?: SourceSelectionLabels
   /** OAuth credential backing selector fields, when available. */
   credentialId: string | null
+  credentialType?: Credential['type']
   /** Canonical-pair groups keyed by `canonicalParamId`. */
   canonicalGroups: Map<string, ConnectorConfigField[]>
   /** Active mode per canonical pair. */
@@ -29,7 +33,11 @@ export interface ConnectorConfigFieldsProps {
   /** Visibility predicate honoring `condition` / canonical mode. */
   isFieldVisible: (field: ConnectorConfigField) => boolean
   /** Field value change handler. */
-  onFieldChange: (fieldId: string, value: ConfigFieldValue) => void
+  onFieldChange: (
+    fieldId: string,
+    value: ConfigFieldValue,
+    selectedOptions?: SourceSelectionLabel[]
+  ) => void
   /** Swaps a canonical pair between selector and manual input. */
   onToggleCanonicalMode: (canonicalId: string) => void
   /** Disables configuration fields during submission. */
@@ -47,7 +55,9 @@ export function ConnectorConfigFields({
   accessMode = 'workspace',
   connectorConfig,
   sourceConfig,
+  selectionLabels,
   credentialId,
+  credentialType,
   canonicalGroups,
   canonicalModes,
   isFieldVisible,
@@ -60,6 +70,11 @@ export function ConnectorConfigFields({
       {connectorConfig.configFields.map((field) => {
         if (!isFieldVisible(field)) return null
 
+        const title = accessMode === 'admin' ? (field.titleInAdminMode ?? field.title) : field.title
+        const description =
+          accessMode === 'admin'
+            ? (field.descriptionInAdminMode ?? field.description)
+            : field.description
         const canonicalId = field.canonicalParamId
         const hasCanonicalPair =
           canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
@@ -81,24 +96,24 @@ export function ConnectorConfigFields({
               >
                 <span className='flex items-center gap-1'>
                   <span>
-                    {field.title}
+                    {title}
                     {isConnectorFieldRequired(field, connectorConfig, accessMode) && (
                       <span className='ml-0.5'>*</span>
                     )}
                   </span>
-                  {field.description && (
+                  {description && (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
                         <Button
                           type='button'
                           variant='ghost'
                           size='icon'
-                          aria-label={`About ${field.title}`}
+                          aria-label={`About ${title}`}
                         >
                           <CircleInfo className='size-[14px]' />
                         </Button>
                       </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
+                      <Tooltip.Content side='top'>{description}</Tooltip.Content>
                     </Tooltip.Root>
                   )}
                 </span>
@@ -110,7 +125,7 @@ export function ConnectorConfigFields({
                         variant='quiet'
                         size='icon'
                         disabled={disabled}
-                        aria-label={`Switch ${field.title} to ${field.mode === 'basic' ? 'manual input' : 'selector'}`}
+                        aria-label={`Switch ${title} to ${field.mode === 'basic' ? 'manual input' : 'selector'}`}
                         onClick={() => onToggleCanonicalMode(canonicalId)}
                       >
                         <ArrowLeftRight className='size-[14px]' />
@@ -129,8 +144,16 @@ export function ConnectorConfigFields({
                 scope={scope}
                 field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
                 value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
-                onChange={(value: ConfigFieldValue) => onFieldChange(field.id, value)}
+                onChange={(value, selectedOptions) =>
+                  onFieldChange(field.id, value, selectedOptions)
+                }
+                selectedLabels={selectionLabels?.[field.canonicalParamId ?? field.id]}
                 credentialId={credentialId}
+                serviceAccountSubjectFieldId={
+                  credentialType === 'service_account' && connectorConfig.auth.mode === 'oauth'
+                    ? connectorConfig.auth.serviceAccountSubjectFieldId
+                    : undefined
+                }
                 sourceConfig={sourceConfig}
                 configFields={connectorConfig.configFields}
                 canonicalModes={canonicalModes}
@@ -149,7 +172,7 @@ export function ConnectorConfigFields({
                     : undefined
                 }
                 onChange={(value) => onFieldChange(field.id, value)}
-                placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
+                placeholder={field.placeholder || `Select ${title.toLowerCase()}`}
               />
             ) : (
               <ChipInput

@@ -3,15 +3,24 @@ import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import type { ExternalDocument } from '@/connectors/types'
 
 export interface MirroredAcls {
-  /** Every listed document's ACL, keyed by external id; readable by nobody where neither source answered. */
+  /** Each listed document's ACL; unresolved entries are distinguished before persistence. */
   acls: Map<string, MirroredDocumentAcl>
   /** Listed documents neither the listing nor the fetch could speak for. */
+  unresolvedExternalIds: ReadonlySet<string>
   unattributed: number
 }
 
 /** The listed documents whose ACL the listing left unset. */
 export function unansweredByListing(externalDocs: readonly ExternalDocument[]): ExternalDocument[] {
-  return externalDocs.filter((doc) => !doc.acl)
+  const answered = new Set(
+    externalDocs.filter((doc) => doc.acl !== undefined).map((doc) => doc.externalId)
+  )
+  const requested = new Set<string>()
+  return externalDocs.filter((doc) => {
+    if (answered.has(doc.externalId) || requested.has(doc.externalId)) return false
+    requested.add(doc.externalId)
+    return true
+  })
 }
 
 /**
@@ -21,23 +30,26 @@ export function unansweredByListing(externalDocs: readonly ExternalDocument[]): 
  *
  * The listing's answer wins where it exists, because it is the cheaper one and
  * was taken from the same page the document came from. A document neither
- * answered for is readable by nobody rather than skipped — leaving its previous
- * ACL in place would keep serving it under permissions this run failed to
- * verify — and is counted, because a connector that declares it mirrors ACLs is
- * promising an answer for everything it lists.
+ * answered for is marked unresolved. Persistence can retain another verified
+ * observation from the same crawl, but must hide older, unverified grants.
+ * Explicit answers, including empty or malformed ACLs, replace earlier answers.
  */
 export function mergeMirroredAcls(
   externalDocs: readonly ExternalDocument[],
   fetched: Readonly<Record<string, MirroredDocumentAcl>>
 ): MirroredAcls {
   const acls = new Map<string, MirroredDocumentAcl>()
-  let unattributed = 0
+  const unresolvedExternalIds = new Set<string>()
   for (const doc of externalDocs) {
-    const acl = doc.acl ?? fetched[doc.externalId]
-    if (!acl) unattributed += 1
-    acls.set(doc.externalId, acl ?? EMPTY_ACL)
+    if (doc.acl !== undefined) acls.set(doc.externalId, doc.acl)
   }
-  return { acls, unattributed }
+  for (const doc of externalDocs) {
+    if (acls.has(doc.externalId)) continue
+    const acl = fetched[doc.externalId]
+    acls.set(doc.externalId, acl ?? EMPTY_ACL)
+    if (acl === undefined) unresolvedExternalIds.add(doc.externalId)
+  }
+  return { acls, unresolvedExternalIds, unattributed: unresolvedExternalIds.size }
 }
 
 /**

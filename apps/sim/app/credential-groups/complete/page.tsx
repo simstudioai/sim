@@ -1,37 +1,61 @@
+import { ChipLink } from '@sim/emcn'
+import { isValidUuid } from '@sim/utils/id'
 import type { Metadata } from 'next'
+import {
+  CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES,
+  isCredentialGroupOAuthFailure,
+} from '@/lib/credential-groups/oauth-completion'
+import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
 import { AuthHeader, AuthShell } from '@/app/(auth)/components'
+import { CredentialGroupCompletionHandoff } from '@/app/credential-groups/complete/completion-handoff'
 
 export const metadata: Metadata = {
   title: 'Accounts connected',
   robots: { index: false, follow: false },
 }
 
-const OAUTH_FAILURE_MESSAGES = {
-  denied: 'Authorization was canceled. Return to the chat to try again.',
-  account_mismatch: 'Choose the account matching your Sim email address.',
-  permissions_required: 'All requested permissions are required to connect this account.',
-  configuration_changed: 'The connection settings changed. Return to the chat to try again.',
-  rate_limited: 'Too many authorization attempts. Wait a few minutes and try again.',
-  unavailable: 'This connection is unavailable. Return to the chat to try again.',
-  failed: 'Account authorization did not complete. Return to the chat to try again.',
-} as const
-
 export default async function CredentialGroupCompletePage({
   searchParams,
 }: {
-  searchParams: Promise<{ oauth?: string | string[] }>
+  searchParams: Promise<{
+    oauth?: string | string[]
+    completionId?: string | string[]
+    organizationId?: string | string[]
+  }>
 }) {
-  const { oauth } = await searchParams
-  const error =
-    typeof oauth === 'string' && Object.hasOwn(OAUTH_FAILURE_MESSAGES, oauth)
-      ? OAUTH_FAILURE_MESSAGES[oauth as keyof typeof OAUTH_FAILURE_MESSAGES]
+  const { oauth, completionId, organizationId } = await searchParams
+  const failure =
+    oauth === undefined ? undefined : isCredentialGroupOAuthFailure(oauth) ? oauth : 'failed'
+  const returnHref =
+    typeof organizationId === 'string' && organizationId.length > 0 && organizationId.length <= 128
+      ? organizationRoutes(encodeURIComponent(organizationId)).integrations
       : undefined
+  const error = failure ? CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES[failure] : undefined
   return (
     <AuthShell>
+      {typeof completionId === 'string' && isValidUuid(completionId) && (
+        <CredentialGroupCompletionHandoff
+          completionId={completionId}
+          failure={failure}
+          returnHref={returnHref}
+        />
+      )}
       <AuthHeader
         title={error ? 'Account not connected' : 'Accounts connected'}
-        description={error ?? 'Your accounts are ready to use — you can close this tab.'}
+        description={
+          error ??
+          (returnHref
+            ? 'Returning to Integrations.'
+            : 'Your accounts are ready to use — you can close this tab.')
+        }
       />
+      {(error || returnHref) && (
+        <div className='mt-6 flex justify-center'>
+          <ChipLink href={returnHref ?? APP_ENTRY_PATH}>
+            {returnHref ? 'Return to Integrations' : 'Open Sim'}
+          </ChipLink>
+        </div>
+      )}
     </AuthShell>
   )
 }

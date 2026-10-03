@@ -1,8 +1,7 @@
-import { ChipTag, cn } from '@sim/emcn'
+import { ChipTag, cn, SimWordmark } from '@sim/emcn'
 import Link from 'next/link'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import type { NavMenuItemData } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
-import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 
 /**
  * One destination inside the mega-menu's editorial link columns.

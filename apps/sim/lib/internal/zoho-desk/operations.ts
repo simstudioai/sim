@@ -1,5 +1,11 @@
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { ZohoDeskOperationError } from '@/lib/internal/zoho-desk/errors'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import type { ZohoDeskGetAttachmentParams } from '@/tools/zoho_desk/types'
 import {
@@ -9,8 +15,6 @@ import {
   resolveZohoAttachmentUrl,
 } from '@/tools/zoho_desk/utils'
 
-export const MAX_ZOHO_DESK_ATTACHMENT_BYTES = 7 * 1024 * 1024
-
 export interface ZohoDeskOperationContext {
   signal?: AbortSignal
 }
@@ -18,10 +22,7 @@ export interface ZohoDeskOperationContext {
 export async function getZohoDeskAttachment(
   input: ZohoDeskGetAttachmentParams,
   context: ZohoDeskOperationContext
-): Promise<{
-  success: true
-  output: { file: { data: string; mimeType: string; name: string } }
-}> {
+): Promise<InternalToolFileResult> {
   context.signal?.throwIfAborted()
   let downloadUrl: URL
   try {
@@ -41,7 +42,7 @@ export async function getZohoDeskAttachment(
     method: 'GET',
     headers: buildZohoDeskHeaders({ accessToken: input.accessToken, orgId: input.orgId }),
     timeout: 30_000,
-    maxResponseBytes: MAX_ZOHO_DESK_ATTACHMENT_BYTES,
+    maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
     stripAuthOnRedirect: true,
     signal: context.signal,
   })
@@ -57,20 +58,22 @@ export async function getZohoDeskAttachment(
       502
     )
   }
-  const buffer = Buffer.from(await response.arrayBuffer())
+  const buffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+    label: 'Zoho Desk attachment',
+    signal: context.signal,
+  })
   context.signal?.throwIfAborted()
-  return {
-    success: true,
-    output: {
-      file: {
-        data: buffer.toString('base64'),
-        mimeType: response.headers.get('content-type') || 'application/octet-stream',
-        name: deriveAttachmentName(
-          input.fileName,
-          response.headers.get('content-disposition'),
-          downloadUrl.pathname
-        ),
-      },
+  return createInternalToolFileResult(
+    {
+      buffer,
+      mimeType: response.headers.get('content-type') || 'application/octet-stream',
+      name: deriveAttachmentName(
+        input.fileName,
+        response.headers.get('content-disposition'),
+        downloadUrl.pathname
+      ),
     },
-  }
+    (file) => ({ success: true, output: { file } })
+  )
 }

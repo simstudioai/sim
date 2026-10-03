@@ -191,12 +191,16 @@ export async function closeElapsedPeriodBeforeDeletion(subscriptionId: string): 
  * Claim the terminal period for a subscription that is being deleted, BEFORE
  * the deletion handler computes and charges final overage. Reads the
  * subscription row fresh (webhook payloads can be stale across a rollover)
- * and advances the close marker to its current `periodStart` in one
- * transaction, serializing with the sweep on the subscription row: an
- * in-flight sweep close then fails its guarded marker claim and rolls back —
- * including its outbox invoice — so deletion and sweep can never both bill
- * the same period. Call `closeElapsedPeriodBeforeDeletion` first so a lagging
- * elapsed period is settled rather than jumped. Returns the fresh period
+ * and, in one transaction, advances the close marker to the terminal period's end:
+ * the period is settled from here on, so a cost callback that commits after
+ * this claim is refused rather than topping up a period the final invoice has
+ * already summed (`recordCumulativeUsage` reads the marker under a share lock
+ * on the same row, so every charge either commits before this claim or sees
+ * the marker). This also serializes with the sweep on the subscription row:
+ * an in-flight sweep close then fails its guarded marker claim and rolls
+ * back — including its outbox invoice — so deletion and sweep can never both
+ * bill the same period. Call `closeElapsedPeriodBeforeDeletion` first so a
+ * lagging elapsed period is settled rather than jumped. Returns the period
  * bounds for the deletion flow to settle against, plus `markerWasCurrent`:
  * whether the close marker had already caught up to the terminal period.
  * The `billedOverageThisPeriod` tracker only ever holds collections for the
@@ -241,7 +245,10 @@ export async function claimTerminalPeriod(
     const markerWasCurrent =
       !!row.lastClosedPeriodStart &&
       row.lastClosedPeriodStart.getTime() >= row.periodStart.getTime()
-    if (!markerWasCurrent && options.sealLagging) {
+    if (!markerWasCurrent && !options.sealLagging) {
+      return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
+    }
+    if (!markerWasCurrent) {
       logger.error(
         'Sealing an unclosed elapsed period at terminal claim; residual overage forgiven',
         {
@@ -250,8 +257,8 @@ export async function claimTerminalPeriod(
           periodStart: row.periodStart.toISOString(),
         }
       )
-      await claimCloseMarker(tx, subscriptionId, row.periodStart)
     }
+    await claimCloseMarker(tx, subscriptionId, row.periodEnd ?? row.periodStart)
     return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
   })
 }

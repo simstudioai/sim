@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
-import { sleep } from '../helpers'
+import { sleep } from '@sim/utils/helpers'
+import { writeStderr } from '#sim-cli/output/io'
 import { buildUrl, REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
-import { USER_AGENT } from '../version'
+import { identityHeaders } from '../telemetry/client-info'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -192,7 +193,7 @@ export async function pollForKey(
         headers: {
           'content-type': 'application/json',
           accept: 'application/json',
-          'user-agent': USER_AGENT,
+          ...identityHeaders(),
         },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
         signal,
@@ -206,7 +207,7 @@ export async function pollForKey(
         consecutiveTransportFailures >= TRANSPORT_FAILURES_BEFORE_WARNING
       ) {
         warnedAboutTransport = true
-        process.stderr.write(
+        writeStderr(
           `Still waiting: ${endpoint} is not answering the login poll (${(cause as Error).message}). Check the endpoint; retrying until you approve or the login times out.\n`
         )
       }

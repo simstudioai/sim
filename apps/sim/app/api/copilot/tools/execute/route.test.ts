@@ -1,28 +1,27 @@
-/**
- * @vitest-environment node
- */
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockCheckInternalApiKey, mockPrepareEnvironmentContext, mockHandler } = vi.hoisted(() => ({
-  mockCheckInternalApiKey: vi.fn(),
-  mockPrepareEnvironmentContext: vi.fn(),
+const { mockHandler, mockToolRequiresApprovalLane } = vi.hoisted(() => ({
   mockHandler: vi.fn(),
+  mockToolRequiresApprovalLane: vi.fn().mockReturnValue(false),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
-  checkInternalApiKey: mockCheckInternalApiKey,
-}))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/copilot/environment-context', () => ({
-  prepareCopilotEnvironmentContext: mockPrepareEnvironmentContext,
-}))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 
-vi.mock('@/lib/copilot/tool-executor', () => ({
+vi.mock('@/lib/mothership/tool-executor', () => ({
   ensureHandlersRegistered: vi.fn(),
+  toolRequiresApprovalLane: mockToolRequiresApprovalLane,
 }))
 
-vi.mock('@/lib/copilot/tool-executor/executor', () => ({
+vi.mock('@/lib/mothership/tool-executor/executor', () => ({
   executeTool: (
     _toolName: string,
     params: Record<string, unknown>,
@@ -30,20 +29,18 @@ vi.mock('@/lib/copilot/tool-executor/executor', () => ({
   ) => mockHandler(params, context),
 }))
 
-vi.mock('@/lib/copilot/request/tools/resources', () => ({
+vi.mock('@/lib/mothership/request/tools/resources', () => ({
   handleResourceSideEffects: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/copilot/request/otel', () => ({
-  withIncomingGoSpan: (
-    _headers: Headers,
-    _span: string,
-    _attrs: undefined,
-    fn: (span: { setAttributes: () => void }) => Promise<Response>
-  ) => fn({ setAttributes: () => {} }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import { POST } from '@/app/api/copilot/tools/execute/route'
+
+const { mockCheckInternalApiKey } = copilotHttpMockFns
+
+const mockPrepareEnvironmentContext =
+  mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext
 
 function makeRequest(body: Record<string, unknown>): Request {
   return new Request('http://localhost/api/copilot/tools/execute', {
@@ -65,34 +62,14 @@ const BASE_BODY = {
 
 describe('POST /api/copilot/tools/execute (in-band)', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckInternalApiKey.mockReturnValue({ success: true })
+    mockToolRequiresApprovalLane.mockReturnValue(false)
     // A fresh, complete registry per test: the module-level turn cache is keyed
     // by messageId, so each test uses a distinct messageId to avoid cross-test
     // cache hits.
     mockPrepareEnvironmentContext.mockImplementation(async () => ({
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
     }))
-  })
-
-  it('threads a per-call registry fork into the handler and returns the projected result', async () => {
-    mockHandler.mockResolvedValue({ success: true, output: { content: 'hello' } })
-    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-fork' }) as never)
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ success: true, output: { content: 'hello' } })
-
-    const [, handlerContext] = mockHandler.mock.calls[0]
-    expect(handlerContext.resolvedSecretTraceRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
-    expect(handlerContext.userId).toBe('user-1')
-    expect(handlerContext.copilotToolExecution).toBe(true)
-  })
-
-  it('keeps a clean tool failure message intact when the registry is available', async () => {
-    mockHandler.mockResolvedValue({ success: false, error: 'File not found: files/a.md' })
-    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-clean-error' }) as never)
-    const body = await res.json()
-    expect(body.success).toBe(false)
-    expect(body.error).toBe('File not found: files/a.md')
   })
 
   /**
@@ -117,12 +94,63 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     expect(body.error).toContain('could not be resolved')
   })
 
-  it('reuses one turn registry across calls that share a messageId', async () => {
-    mockHandler.mockResolvedValue({ success: true, output: {} })
-    await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-shared' }) as never)
-    await POST(
-      makeRequest({ ...BASE_BODY, toolCallId: 'call-2', messageId: 'msg-shared' }) as never
+  /**
+   * The generated key is a browser-only artifact. This lane's response is what Go feeds the
+   * model, so it must carry the same projection the resume lane produces — the status message
+   * alone. A `key` field here would put the plaintext credential in model context.
+   */
+  it('returns only the status message for generate_api_key, never the key', async () => {
+    const message = 'API key "demo" created. You did NOT receive the key value'
+    mockHandler.mockResolvedValue({
+      success: true,
+      output: { id: 'key-1', name: 'demo', key: 'sk_live_plaintext', workspaceId: 'ws-1', message },
+    })
+
+    const res = await POST(
+      makeRequest({
+        ...BASE_BODY,
+        toolName: 'generate_api_key',
+        params: { name: 'demo' },
+        messageId: 'msg-api-key',
+      }) as never
     )
-    expect(mockPrepareEnvironmentContext).toHaveBeenCalledTimes(1)
+    const body = await res.json()
+
+    expect(body).toEqual({ success: true, output: message })
+    expect(JSON.stringify(body)).not.toContain('sk_live_plaintext')
+  })
+
+  /**
+   * Whether a tool needs an approval-capable lane is decided by
+   * `toolRequiresApprovalLane` (covered against the real flag and catalog in
+   * the tool-executor router tests). What matters here is what the route does
+   * with that answer.
+   */
+  describe('approval-gated tools', () => {
+    /**
+     * This lane cannot hold an approval prompt: the dispatch handler owns the gate and
+     * declines to dispatch in-band calls, so a gated tool arriving here has no waiter behind
+     * it. Refuse before running anything rather than execute on consent nobody gave.
+     */
+    it('refuses a tool that needs an approval-capable lane, without executing it', async () => {
+      mockToolRequiresApprovalLane.mockReturnValue(true)
+      mockHandler.mockResolvedValue({ success: true, output: { ran: true } })
+
+      const res = await POST(
+        makeRequest({
+          ...BASE_BODY,
+          toolName: 'run_function',
+          params: { code: 'return 1' },
+          messageId: 'msg-gated',
+        }) as never
+      )
+      const body = await res.json()
+
+      expect(mockHandler).not.toHaveBeenCalled()
+      expect(body.success).toBe(false)
+      expect(body.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+      expect(body.error).toContain('requires user approval')
+      expect(body.error).toContain('checkpoint lane')
+    })
   })
 })

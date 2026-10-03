@@ -1,12 +1,10 @@
 import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
-import { BrandIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
+import { ComparisonLinkRow } from '@/app/(landing)/comparisons/components/comparison-link-row'
 import { ALL_COMPETITORS, ensurePeriod, lowercaseFirst } from '@/app/(landing)/comparisons/utils'
-import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
@@ -141,37 +139,12 @@ export default function ComparisonHubPage() {
                 All comparisons
               </h2>
               <div>
-                {ALL_COMPETITORS.map((competitor) => {
-                  const Icon = competitor.brand?.icon
-                  return (
-                    <div key={competitor.id}>
-                      <Link
-                        href={`/comparisons/${competitor.id}`}
-                        className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover-hover:bg-[var(--surface-hover)]'
-                        aria-label={`Sim vs ${competitor.name} comparison`}
-                      >
-                        {Icon ? (
-                          <BrandIconTile
-                            icon={Icon}
-                            selfFramed={competitor.brand?.selfFramed}
-                            className='size-8 shrink-0'
-                            iconClassName='size-4'
-                          />
-                        ) : null}
-                        <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                          <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
-                            Sim vs {competitor.name}
-                          </h3>
-                          <p className='hidden text-[var(--text-muted)] text-caption leading-[150%] sm:line-clamp-1'>
-                            {competitor.oneLiner}
-                          </p>
-                        </div>
-                        <ChevronArrow />
-                      </Link>
-                      <div className='h-px w-full bg-[var(--border)]' />
-                    </div>
-                  )
-                })}
+                {ALL_COMPETITORS.map((competitor) => (
+                  <div key={competitor.id}>
+                    <ComparisonLinkRow competitor={competitor} />
+                    <div className='h-px w-full bg-[var(--border)]' />
+                  </div>
+                ))}
               </div>
             </section>
 

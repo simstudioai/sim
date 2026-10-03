@@ -1,12 +1,13 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { credential } from '@sim/db/schema'
-import { and, desc, eq, or } from 'drizzle-orm'
+import { account, credential } from '@sim/db/schema'
+import { and, desc, eq, getTableColumns, or } from 'drizzle-orm'
 import type {
   CreateOrganizationCredentialBody,
   CreateOrganizationCredentialDraftBody,
   OrganizationCredentialsQuery,
+  OrganizationOAuthCredentialsQuery,
   UpdateOrganizationCredentialBody,
 } from '@/lib/api/contracts/organization-credentials'
 import type { OperationUseCase } from '@/lib/core/application/operation'
@@ -15,6 +16,8 @@ import {
   requireOrganizationMembership,
 } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { throwCredentialMutationFailure } from '@/lib/credentials/application/credential-crud'
@@ -24,11 +27,17 @@ import {
   requireAvailableServiceAccountCredentialProvider,
 } from '@/lib/credentials/application/provider-catalog'
 import { createConnectDraft, getActiveConnectDraft } from '@/lib/credentials/connect-draft'
+import { resolveManagedOAuthToken } from '@/lib/credentials/managed-oauth'
 import { updateCredentialRecord } from '@/lib/credentials/orchestration'
 import { createCredentialRecord } from '@/lib/credentials/orchestration/credential-create'
 import { getOrganizationCredential } from '@/lib/credentials/organization'
+import { getOwnOrganizationManagedOAuthCredentials } from '@/lib/credentials/organization-managed'
 import type { CredentialRow } from '@/lib/credentials/queries'
-import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
+import {
+  resolveCredentialTokenBundle,
+  type ServiceAccountTokenResult,
+} from '@/lib/oauth/credential-service'
+import type { Credential, OAuthProvider } from '@/lib/oauth/types'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 
 export const organizationCredentialOperations = {
@@ -79,7 +88,7 @@ export const organizationCredentialOperations = {
 export const listOrganizationCredentials: OperationUseCase<
   typeof organizationCredentialOperations.list,
   OrganizationCredentialsQuery,
-  { credentials: CredentialRow[] }
+  { credentials: (CredentialRow & { scopes: string[] })[] }
 > = {
   operation: organizationCredentialOperations.list,
   async execute({ principal, input }) {
@@ -90,8 +99,9 @@ export const listOrganizationCredentials: OperationUseCase<
     )
     const catalog = await listCredentialProviderCatalog(principal, input)
     const rows = await db
-      .select()
+      .select({ ...getTableColumns(credential), accountScope: account.scope })
       .from(credential)
+      .leftJoin(account, eq(credential.accountId, account.id))
       .where(
         and(
           resourceScopeCondition(credential, {
@@ -109,17 +119,77 @@ export const listOrganizationCredentials: OperationUseCase<
       .orderBy(desc(credential.createdAt))
       .limit(1000)
     return {
-      credentials: rows.filter((row) => {
-        if (!row.providerId) return false
-        return catalog.some(
+      credentials: rows
+        .filter((row) => {
+          if (!row.providerId) return false
+          return catalog.some(
+            (entry) =>
+              entry.available &&
+              (entry.type === 'service_account'
+                ? entry.providerId === row.providerId
+                : entry.authorizationOptions.some((option) => option.providerId === row.providerId))
+          )
+        })
+        .map(({ accountScope, ...row }) => ({
+          ...row,
+          scopes: row.type === 'oauth' ? (accountScope?.split(/[\s,]+/).filter(Boolean) ?? []) : [],
+        })),
+    }
+  },
+}
+
+/** Browsing adds only the acting person's live enrollments; ordinary indexing choices remain separate. */
+export const listOrganizationOAuthCredentials: OperationUseCase<
+  typeof organizationCredentialOperations.list,
+  OrganizationOAuthCredentialsQuery,
+  { credentials: Credential[] }
+> = {
+  operation: organizationCredentialOperations.list,
+  async execute({ principal, input }) {
+    const userId = resolvePrincipalSubjectUserId(principal)
+    if (userId === undefined) {
+      throw new PrincipalKindAuthorizationError(
+        principal.kind,
+        organizationCredentialOperations.list.id
+      )
+    }
+    const { credentials } = await listOrganizationCredentials.execute({
+      principal,
+      input: { organizationId: input.organizationId, providerId: input.providerId, type: 'oauth' },
+    })
+    const choices: Credential[] = credentials.map((row) => ({
+      id: row.id,
+      name: row.displayName,
+      provider: row.providerId as OAuthProvider,
+      type: 'oauth',
+      scopes: row.scopes,
+    }))
+    if (input.purpose !== 'browsing') return { credentials: choices }
+    const catalog = await listCredentialProviderCatalog(principal, input, 'managed_oauth')
+    const managed = await getOwnOrganizationManagedOAuthCredentials({
+      organizationId: input.organizationId,
+      userId,
+      providerId: input.providerId,
+    })
+    for (const row of managed) {
+      if (
+        !catalog.some(
           (entry) =>
             entry.available &&
-            (entry.type === 'service_account'
-              ? entry.providerId === row.providerId
-              : entry.authorizationOptions.some((option) => option.providerId === row.providerId))
+            entry.type === 'oauth' &&
+            entry.authorizationOptions.some((option) => option.providerId === row.providerId)
         )
-      }),
+      )
+        continue
+      choices.push({
+        id: row.id,
+        name: row.displayName,
+        provider: row.providerId as OAuthProvider,
+        type: 'managed_oauth',
+        scopes: row.scopes,
+      })
     }
+    return { credentials: choices }
   },
 }
 
@@ -147,9 +217,8 @@ export const createOrganizationCredential: OperationUseCase<
       )
       requireAvailableOAuthCredentialProvider(catalog, input.providerId ?? '')
     }
-    const result = await createCredentialRecord(
-      { ...input, userId: context.userId },
-      { authorizeWorkspace: false }
+    const result = await withResourceOutboundScope(context, () =>
+      createCredentialRecord({ ...input, userId: context.userId }, { authorizeWorkspace: false })
     )
     if (!result.success) throwCredentialMutationFailure(result)
     if (!result.credential) throw new Error('Credential creation returned no credential')
@@ -248,6 +317,7 @@ export async function authorizeOrganizationCredentialUse(input: {
   requiredScopes?: string[]
   expectedProviderId?: string
   impersonateEmail?: string
+  purpose?: 'browsing'
 }) {
   const context = await authorizeOrganizationOperation(
     input.principal,
@@ -257,13 +327,30 @@ export async function authorizeOrganizationCredentialUse(input: {
   const row = await getOrganizationCredential(input.organizationId, input.credentialId)
   if (
     !row ||
-    (row.type !== 'oauth' && row.type !== 'service_account') ||
+    row.revokedAt ||
+    (row.type !== 'oauth' &&
+      row.type !== 'service_account' &&
+      !(row.type === 'managed_oauth' && input.purpose === 'browsing')) ||
     !row.providerId ||
     (row.type === 'oauth' && row.createdBy !== context.userId)
   ) {
     throw new OrchestrationError('not_found', 'Credential not found')
   }
-  const catalog = await listCredentialProviderCatalog(input.principal, input)
+  if (row.type === 'managed_oauth') {
+    const owned = await getOwnOrganizationManagedOAuthCredentials({
+      organizationId: input.organizationId,
+      userId: context.userId,
+      credentialId: row.id,
+    })
+    if (!owned.some((item) => item.id === row.id) || input.impersonateEmail) {
+      throw new OrchestrationError('not_found', 'Credential not found')
+    }
+  }
+  const catalog = await listCredentialProviderCatalog(
+    input.principal,
+    input,
+    row.type === 'managed_oauth' ? 'managed_oauth' : 'oauth'
+  )
   if (row.type === 'service_account')
     requireAvailableServiceAccountCredentialProvider(catalog, row.providerId)
   else requireAvailableOAuthCredentialProvider(catalog, row.providerId)
@@ -283,8 +370,16 @@ export async function authorizeOrganizationCredentialUse(input: {
 
 export async function resolveOrganizationCredentialTokenBundle(
   input: Parameters<typeof authorizeOrganizationCredentialUse>[0]
-) {
+): Promise<ServiceAccountTokenResult | null> {
   const { credential: row, userId } = await authorizeOrganizationCredentialUse(input)
+  if (row.type === 'managed_oauth') {
+    return resolveManagedOAuthToken({
+      organizationId: input.organizationId,
+      credentialId: row.id,
+      expectedProviderId: row.providerId!,
+      requiredScopes: input.requiredScopes ?? [],
+    })
+  }
   return resolveCredentialTokenBundle(
     row.id,
     userId,
@@ -314,7 +409,9 @@ export const updateOrganizationCredential: OperationUseCase<
       (row.type === 'oauth' && row.createdBy !== context.userId)
     )
       throw new OrchestrationError('not_found', 'Credential not found')
-    const result = await updateCredentialRecord({ ...input, credential: row })
+    const result = await withResourceOutboundScope(row, () =>
+      updateCredentialRecord({ ...input, credential: row })
+    )
     if (!result.success) throwCredentialMutationFailure(result)
     const updated = await getOrganizationCredential(input.organizationId, input.credentialId)
     if (!updated) throw new OrchestrationError('not_found', 'Credential not found')

@@ -1,4 +1,5 @@
 import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
+import { isRecordLike } from '@sim/utils/object'
 
 type JsonSchemaNode = Record<string, unknown>
 
@@ -71,7 +72,7 @@ interface PreservedConstraint {
 }
 
 function isSchemaNode(value: unknown): value is JsonSchemaNode {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return isRecordLike(value)
 }
 
 /**

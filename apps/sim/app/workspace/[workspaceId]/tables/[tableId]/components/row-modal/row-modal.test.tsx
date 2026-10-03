@@ -1,28 +1,38 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, createElement, type ReactNode } from 'react'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableInfo, TableRow } from '@/lib/table'
 import { RowModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/row-modal/row-modal'
 
-const { mockToastError, mockUseTimezoneState, mockUpdateRow, mockDeleteRow, mockDeleteRows } =
-  vi.hoisted(() => ({
-    mockToastError: vi.fn(),
-    mockUseTimezoneState: vi.fn(),
-    mockUpdateRow: vi.fn(),
-    mockDeleteRow: vi.fn(),
-    mockDeleteRows: vi.fn(),
-  }))
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
+const {
+  mockToastError,
+  mockUseTimezoneState,
+  mockCreateRow,
+  mockUpdateRow,
+  mockDeleteRow,
+  mockDeleteRows,
+} = vi.hoisted(() => ({
+  mockToastError: vi.fn(),
+  mockUseTimezoneState: vi.fn(),
+  mockCreateRow: vi.fn(),
+  mockUpdateRow: vi.fn(),
+  mockDeleteRow: vi.fn(),
+  mockDeleteRows: vi.fn(),
 }))
+
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/hooks/queries/general-settings', () => ({
   useTimezoneState: mockUseTimezoneState,
 }))
 vi.mock('@/hooks/queries/tables', () => ({
+  useCreateTableRow: () => ({ mutateAsync: mockCreateRow, isPending: false }),
   useUpdateTableRow: () => ({ mutateAsync: mockUpdateRow, isPending: false }),
   useDeleteTableRow: () => ({ mutateAsync: mockDeleteRow, isPending: false }),
   useDeleteTableRows: () => ({ mutateAsync: mockDeleteRows, isPending: false }),
@@ -35,11 +45,12 @@ vi.mock('@sim/emcn', () => {
       createElement('button', { type: 'button', ...props }, children),
     ChipConfirmModal: passthrough,
     ChipDatePicker: ({ value, onChange }: { value?: string; onChange: (value: string) => void }) =>
-      createElement(
-        'button',
-        { type: 'button', 'data-testid': 'date', onClick: () => onChange(value ?? '2026-11-01') },
-        value
-      ),
+      createElement('input', {
+        'data-testid': 'date',
+        value: value ?? '',
+        onChange: (event: { currentTarget: { value: string } }) =>
+          onChange(event.currentTarget.value),
+      }),
     ChipModal: passthrough,
     ChipModalBody: passthrough,
     ChipModalError: passthrough,
@@ -80,13 +91,6 @@ vi.mock('@sim/emcn', () => {
         'Update Row'
       ),
     ChipModalHeader: passthrough,
-    ChipTimePicker: ({ value, onChange }: { value?: string; onChange: (value: string) => void }) =>
-      createElement('input', {
-        'data-testid': 'time',
-        value: value ?? '',
-        onChange: (event: { currentTarget: { value: string } }) =>
-          onChange(event.currentTarget.value),
-      }),
     Label: passthrough,
     toast: { error: mockToastError },
   }
@@ -100,7 +104,7 @@ const table: TableInfo = {
 
 const row: TableRow = {
   id: 'row-1',
-  data: { expires_at: Date.parse('2026-11-01T08:00:00Z') / 1000 },
+  data: { expires_at: '2026-11-01T01:00:00-07:00' },
   executions: {},
   position: 0,
   createdAt: '2026-01-01T00:00:00Z',
@@ -113,13 +117,52 @@ function changeInput(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+describe('RowModal add mode', () => {
+  beforeEach(() => {
+    mockCreateRow.mockResolvedValue(undefined)
+    mockUseTimezoneState.mockReturnValue({ timezone: 'America/Los_Angeles', status: 'ready' })
+  })
+
+  it('inserts the complete row under column ids in one request without updating', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const props = {
+      mode: 'add' as const,
+      isOpen: true,
+      onClose: vi.fn(),
+      table: {
+        id: 'table-3',
+        name: 'People',
+        schema: { columns: [{ id: 'col_name', name: 'Name', type: 'string' as const }] },
+      },
+      onSuccess: vi.fn(),
+    }
+
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    act(() => root.render(createElement(RowModal, props)))
+
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="modal-input"]')
+    expect(nameInput?.value).toBe('')
+    act(() => changeInput(nameInput as HTMLInputElement, 'Ada'))
+    const submit = container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
+    await act(async () => submit?.click())
+
+    expect(mockCreateRow).toHaveBeenCalledWith({ data: { col_name: 'Ada' } })
+    expect(mockUpdateRow).not.toHaveBeenCalled()
+    expect(props.onSuccess).toHaveBeenCalledTimes(1)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+})
+
 describe('RowModal expiration editing', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockUpdateRow.mockResolvedValue(undefined)
   })
 
-  it('waits for the saved timezone, freezes it, and chooses the later repeated hour', async () => {
+  it('preserves expiration offsets while timezone settings load or change', async () => {
     mockUseTimezoneState.mockReturnValue({ timezone: 'Asia/Tokyo', status: 'loading' })
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -136,12 +179,11 @@ describe('RowModal expiration editing', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     act(() => root.render(createElement(RowModal, props)))
 
-    expect(container.querySelector('[aria-label="Edit expires_at"]')?.textContent).toBe(
-      'Loading timezone…'
+    expect(container.querySelector<HTMLInputElement>('[data-testid="date"]')?.value).toBe(
+      '2026-11-01T01:00:00'
     )
-    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).toBeNull()
     expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
-      true
+      false
     )
 
     mockUseTimezoneState.mockReturnValue({
@@ -156,16 +198,16 @@ describe('RowModal expiration editing', () => {
     })
     act(() => root.render(createElement(RowModal, props)))
 
-    const timeInput = container.querySelector<HTMLInputElement>('[data-testid="time"]')
-    expect(timeInput?.value).toBe('01:00')
-    act(() => changeInput(timeInput as HTMLInputElement, '01:30'))
+    const dateInput = container.querySelector<HTMLInputElement>('[data-testid="date"]')
+    expect(dateInput?.value).toBe('2026-11-01T01:00:00')
+    act(() => changeInput(dateInput as HTMLInputElement, '2026-11-01T01:30'))
 
     const submit = container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
     await act(async () => submit?.click())
 
     expect(mockUpdateRow).toHaveBeenCalledWith({
       rowId: 'row-1',
-      data: { expires_at: Date.parse('2026-11-01T09:30:00Z') / 1000 },
+      data: { expires_at: '2026-11-01T01:30:00-07:00' },
     })
     expect(props.onSuccess).toHaveBeenCalledTimes(1)
 
@@ -173,79 +215,7 @@ describe('RowModal expiration editing', () => {
     container.remove()
   })
 
-  it('also waits for timezone settings on an ordinary Date column', () => {
-    mockUseTimezoneState.mockReturnValue({ timezone: 'Asia/Tokyo', status: 'loading' })
-    const container = document.createElement('div')
-    document.body.appendChild(container)
-    const root = createRoot(container)
-    const props = {
-      mode: 'edit' as const,
-      isOpen: true,
-      onClose: vi.fn(),
-      table: {
-        id: 'table-2',
-        name: 'Dates',
-        schema: { columns: [{ name: 'starts_at', type: 'date' as const }] },
-      },
-      row: { ...row, data: { starts_at: '2026-06-15T09:00:00+09:00' } },
-      onSuccess: vi.fn(),
-    }
-
-    act(() => root.render(createElement(RowModal, props)))
-
-    expect(container.querySelector('[aria-label="Edit starts_at"]')?.textContent).toBe(
-      'Loading timezone…'
-    )
-    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).toBeNull()
-
-    mockUseTimezoneState.mockReturnValue({
-      timezone: 'America/Los_Angeles',
-      status: 'ready',
-    })
-    act(() => root.render(createElement(RowModal, props)))
-
-    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).not.toBeNull()
-    act(() => root.unmount())
-    container.remove()
-  })
-
-  it('blocks an invalid saved timezone with the plain-text guidance', () => {
-    mockUseTimezoneState.mockReturnValue({
-      timezone: 'America/Los_Angeles',
-      savedTimezone: 'Mars/Olympus',
-      status: 'invalid',
-    })
-    const container = document.createElement('div')
-    document.body.appendChild(container)
-    const root = createRoot(container)
-    const props = {
-      mode: 'edit' as const,
-      isOpen: true,
-      onClose: vi.fn(),
-      table,
-      row,
-      onSuccess: vi.fn(),
-    }
-
-    act(() => root.render(createElement(RowModal, props)))
-
-    const blockedField = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Edit expires_at"]'
-    )
-    expect(blockedField?.textContent).toBe(String(row.data.expires_at))
-    expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
-      true
-    )
-    expect(mockToastError).not.toHaveBeenCalled()
-    act(() => blockedField?.click())
-    expect(mockToastError).toHaveBeenCalledWith(
-      'Your saved timezone “Mars/Olympus” is invalid. Update it in Settings → General before editing Date or Expiration cells.'
-    )
-    act(() => root.unmount())
-    container.remove()
-  })
-
-  it('keeps unrelated fields editable and omits blocked date values from the update', async () => {
+  it('sends only the edited field and omits blocked date values from the update', async () => {
     mockUseTimezoneState.mockReturnValue({
       timezone: 'America/Los_Angeles',
       savedTimezone: 'Mars/Olympus',
@@ -259,11 +229,19 @@ describe('RowModal expiration editing', () => {
       schema: {
         columns: [
           { name: 'name', type: 'string' },
+          { name: 'starts_at', type: 'date' },
           { name: 'expires_at', type: 'ttl' },
         ],
       },
     }
-    const mixedRow = { ...row, data: { name: 'Ada', expires_at: row.data.expires_at } }
+    const mixedRow = {
+      ...row,
+      data: {
+        name: 'Ada',
+        expires_at: row.data.expires_at,
+        starts_at: '2026-09-07T12:00:00-07:00',
+      },
+    }
     const props = {
       mode: 'edit' as const,
       isOpen: true,
@@ -276,21 +254,19 @@ describe('RowModal expiration editing', () => {
     act(() => root.render(createElement(RowModal, props)))
 
     const nameInput = container.querySelector<HTMLInputElement>('[data-testid="modal-input"]')
-    const blockedField = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Edit expires_at"]'
-    )
+    const blockedField = container.querySelector<HTMLButtonElement>('[aria-label="Edit starts_at"]')
     const submit = container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
     expect(nameInput?.value).toBe('Ada')
-    expect(blockedField?.textContent).toBe(String(row.data.expires_at))
+    expect(blockedField?.textContent).toBe(mixedRow.data.starts_at)
     expect(submit?.disabled).toBe(false)
 
     act(() => changeInput(nameInput as HTMLInputElement, 'Grace'))
     await act(async () => submit?.click())
 
-    expect(mockUpdateRow).toHaveBeenCalledWith({
-      rowId: 'row-1',
-      data: { name: 'Grace' },
-    })
+    // Only the edited field is sent: the untouched TTL would otherwise be
+    // rewritten with the same value (and re-stamped through the picker), and the
+    // timezone-blocked date is dropped entirely.
+    expect(mockUpdateRow).toHaveBeenCalledWith({ rowId: 'row-1', data: { name: 'Grace' } })
     expect(props.onSuccess).toHaveBeenCalledTimes(1)
     expect(mockToastError).not.toHaveBeenCalled()
 

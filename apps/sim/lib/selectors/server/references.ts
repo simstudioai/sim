@@ -1,3 +1,4 @@
+import { EXACT_ENVIRONMENT_REFERENCE } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { getSelectorManifestEntry, type ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorContextUnavailableError } from '@/lib/selectors/server/errors'
@@ -6,8 +7,6 @@ import type {
   SelectorProtectedValues,
 } from '@/lib/selectors/server/types'
 import type { SelectorContext, SelectorRequest } from '@/lib/selectors/types'
-
-const EXACT_ENVIRONMENT_REFERENCE = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/
 
 export interface ResolvedSelectorInputs {
   context: SelectorContext

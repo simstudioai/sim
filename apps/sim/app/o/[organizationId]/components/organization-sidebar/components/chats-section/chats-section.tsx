@@ -1,38 +1,52 @@
 'use client'
 
-import { chipVariants, cn, DropdownMenuItem, Loader, OverflowText, Skeleton } from '@sim/emcn'
-import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
-import Link from 'next/link'
-import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import {
+  chipVariants,
+  cn,
+  DropdownMenuItem,
+  OverflowText,
+  RowActions,
+  rowActionsGroupClass,
+} from '@sim/emcn'
+import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
+import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
+import { useOrganizationChatActions } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-chat-actions'
+import {
+  ChatNavigationLink,
+  CollapsedChatFlyoutItem,
   CollapsedSidebarMenu,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
+import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
+import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
+import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-
-/** Stands in for a chip row while the list loads, so it carries no margin either. */
-function ChatRowSkeleton() {
-  return (
-    <div className='sidebar-collapse-hide flex h-[30px] items-center gap-2 rounded-lg px-2'>
-      <Skeleton className='size-[16px] shrink-0 rounded-sm' />
-    </div>
-  )
-}
 
 interface ChatRowProps {
   chat: OrganizationChat
   isCurrentRoute: boolean
+  isSelected: boolean
   isMenuOpen: boolean
-  onContextMenu: (e: React.MouseEvent, href: string) => void
-  onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, href: string) => void
+  onSelectChat: (chatId: string, shiftKey: boolean) => void
+  onContextMenu: (e: React.MouseEvent, chatId: string) => void
+  onMorePointerDown: () => void
+  onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, chatId: string) => void
 }
 
-function ChatRow({ chat, isCurrentRoute, isMenuOpen, onContextMenu, onMoreClick }: ChatRowProps) {
+function ChatRow({
+  chat,
+  isCurrentRoute,
+  isSelected,
+  isMenuOpen,
+  onSelectChat,
+  onContextMenu,
+  onMorePointerDown,
+  onMoreClick,
+}: ChatRowProps) {
   /**
    * The trailing slot fits one glyph, and the dot wins over the pin: it reports
    * transient state (a run in progress, or an unread reply elsewhere), while pinning
@@ -41,143 +55,181 @@ function ChatRow({ chat, isCurrentRoute, isMenuOpen, onContextMenu, onMoreClick 
   const showStatusDot = Boolean(chat.isActive) || (!isCurrentRoute && Boolean(chat.isUnread))
 
   return (
-    <Link
+    <ChatNavigationLink
       href={chat.href}
-      className={chipVariants({ active: isCurrentRoute || isMenuOpen, fullWidth: true })}
-      onContextMenu={(e) => onContextMenu(e, chat.href)}
+      chatId={chat.id}
+      isCurrentRoute={isCurrentRoute}
+      className={cn(
+        chipVariants({ active: isCurrentRoute || isSelected || isMenuOpen, fullWidth: true }),
+        rowActionsGroupClass
+      )}
+      onContextMenu={(e) => onContextMenu(e, chat.id)}
+      onSelectChat={onSelectChat}
     >
       <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
-      <div className='relative flex size-[18px] shrink-0 items-center justify-center'>
-        {showStatusDot && (
-          <span
-            aria-hidden='true'
-            className={cn(
-              'size-[6px] rounded-full transition-opacity',
-              isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
-            )}
-            style={{ backgroundColor: chat.isActive ? '#EAB308' : 'var(--brand-accent)' }}
-          />
-        )}
-        {!showStatusDot && chat.isPinned && (
-          <Pin
-            aria-hidden='true'
-            className={cn(
-              'absolute size-[12px] text-[var(--text-icon)] transition-opacity',
-              isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
-            )}
-          />
-        )}
-        <button
-          type='button'
+      <RowActions
+        open={isMenuOpen}
+        indicator={
+          showStatusDot ? (
+            <span
+              aria-hidden='true'
+              className='size-[6px] rounded-full'
+              style={{ backgroundColor: chat.isActive ? '#EAB308' : 'var(--brand-accent)' }}
+            />
+          ) : chat.isPinned ? (
+            <Pin aria-hidden='true' className='size-[12px] text-[var(--text-icon)]' />
+          ) : undefined
+        }
+      >
+        <SidebarRowAction
           aria-label='Chat options'
+          onPointerDown={onMorePointerDown}
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            onMoreClick(e, chat.href)
+            onMoreClick(e, chat.id)
           }}
-          className={cn(
-            'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
-            isMenuOpen && 'opacity-100'
-          )}
         >
           <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
-        </button>
-      </div>
-    </Link>
+        </SidebarRowAction>
+      </RowActions>
+    </ChatNavigationLink>
   )
 }
 
 interface ChatsSectionProps {
+  organizationId: string
   chats: OrganizationChat[]
   isLoading: boolean
   isCollapsed: boolean
   pathname: string | null
-  /** Href of the row whose options menu is open, so it stays highlighted meanwhile. */
-  menuOpenHref: string | null
-  onContextMenu: (e: React.MouseEvent, href: string) => void
-  onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, href: string) => void
 }
 
-/**
- * The organization's chats, the section beneath Workspaces, spaced from it by the
- * section gap exactly as the workspace sidebar spaces its own sections. Expanded, a
- * collapsible list of every chat — no paging, the scroll region carries the length;
- * collapsed, a hover flyout off the rail glyph.
- */
 export function ChatsSection({
+  organizationId,
   chats,
   isLoading,
   isCollapsed,
   pathname,
-  menuOpenHref,
-  onContextMenu,
-  onMoreClick,
 }: ChatsSectionProps) {
-  const hover = useHoverMenu()
+  const actions = useOrganizationChatActions({ organizationId, chats })
+  const { menu, hover, rename, selectedChat, selectedChats, menuOpenChatId } = actions
+  const saveRename = () => {
+    void rename.saveRename()
+  }
 
   return (
-    <SidebarSection
-      title='Chats'
-      railCollapsed={isCollapsed}
-      className={cn(SIDEBAR_SECTION_GAP_CLASS, 'chats-section shrink-0')}
-    >
-      {isCollapsed ? (
-        <div className='px-2'>
-          <CollapsedSidebarMenu
-            icon={<Task className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
-            hover={hover}
-            ariaLabel='Chats'
-          >
-            {isLoading ? (
-              <DropdownMenuItem disabled>
-                <Loader className='size-[14px]' animate />
-                Loading...
-              </DropdownMenuItem>
-            ) : chats.length === 0 ? (
-              <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
-            ) : (
-              chats.map((chat) => {
-                const isCurrentRoute = pathname === chat.href
-                return (
-                  <DropdownMenuItem key={chat.id} asChild active={isCurrentRoute}>
-                    <Link href={chat.href} onContextMenu={(e) => onContextMenu(e, chat.href)}>
-                      <ConversationListItem
-                        title={chat.name}
-                        isActive={Boolean(chat.isActive)}
-                        isUnread={Boolean(chat.isUnread) && !isCurrentRoute}
-                      />
-                    </Link>
-                  </DropdownMenuItem>
-                )
-              })
-            )}
-          </CollapsedSidebarMenu>
-        </div>
-      ) : (
-        <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-          {isLoading ? (
-            <ChatRowSkeleton />
-          ) : (
-            <>
-              {chats.length === 0 && (
-                <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
-                  No chats yet
-                </div>
+    <>
+      <SidebarSection
+        title='Chats'
+        railCollapsed={isCollapsed}
+        className={cn(SIDEBAR_SECTION_GAP_CLASS, 'chats-section shrink-0')}
+      >
+        {isCollapsed ? (
+          <div className='px-2'>
+            <CollapsedSidebarMenu
+              icon={<Task className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+              hover={hover}
+              ariaLabel='Chats'
+              isEditing={rename.editingId !== null}
+            >
+              {isLoading ? null : chats.length === 0 ? (
+                <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
+              ) : (
+                chats.map((chat) => (
+                  <CollapsedChatFlyoutItem
+                    key={chat.id}
+                    chat={chat}
+                    isCurrentRoute={pathname === chat.href}
+                    isSelected={selectedChats.size > 1 && selectedChats.has(chat.id)}
+                    onSelectChat={actions.handleChatClick}
+                    isMenuOpen={menuOpenChatId === chat.id}
+                    isEditing={rename.editingId === chat.id}
+                    editValue={rename.value}
+                    inputRef={rename.inputRef}
+                    isRenaming={rename.isSaving}
+                    onEditValueChange={rename.setValue}
+                    onEditKeyDown={rename.handleKeyDown}
+                    onEditBlur={saveRename}
+                    onContextMenu={actions.onContextMenu}
+                    onMorePointerDown={actions.onMorePointerDown}
+                    onMoreClick={actions.onMoreClick}
+                  />
+                ))
               )}
-              {chats.map((chat) => (
-                <ChatRow
-                  key={chat.id}
-                  chat={chat}
-                  isCurrentRoute={pathname === chat.href}
-                  isMenuOpen={menuOpenHref === chat.href}
-                  onContextMenu={onContextMenu}
-                  onMoreClick={onMoreClick}
-                />
-              ))}
-            </>
-          )}
-        </div>
-      )}
-    </SidebarSection>
+            </CollapsedSidebarMenu>
+          </div>
+        ) : (
+          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+            {!isLoading && (
+              <>
+                {chats.length === 0 && (
+                  <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
+                    No chats yet
+                  </div>
+                )}
+                {chats.map((chat) =>
+                  rename.editingId === chat.id ? (
+                    <SidebarRenameRow
+                      key={chat.id}
+                      ref={rename.inputRef}
+                      aria-label={`Rename chat ${chat.name}`}
+                      value={rename.value}
+                      onChange={(event) => rename.setValue(event.target.value)}
+                      onKeyDown={rename.handleKeyDown}
+                      onBlur={saveRename}
+                      disabled={rename.isSaving}
+                    />
+                  ) : (
+                    <ChatRow
+                      key={chat.id}
+                      chat={chat}
+                      isCurrentRoute={pathname === chat.href}
+                      isSelected={selectedChats.size > 1 && selectedChats.has(chat.id)}
+                      isMenuOpen={menuOpenChatId === chat.id}
+                      onSelectChat={actions.handleChatClick}
+                      onContextMenu={actions.onContextMenu}
+                      onMorePointerDown={actions.onMorePointerDown}
+                      onMoreClick={actions.onMoreClick}
+                    />
+                  )
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </SidebarSection>
+      <ContextMenu
+        isOpen={menu.isOpen}
+        position={menu.position}
+        menuRef={menu.menuRef}
+        onClose={menu.closeMenu}
+        onOpenInNewTab={actions.openInNewTab}
+        onCopyLink={selectedChat ? actions.copyLink : undefined}
+        onRename={actions.startRename}
+        renameInputRef={rename.inputRef}
+        onTogglePin={actions.togglePin}
+        onMarkAsRead={actions.markRead}
+        onMarkAsUnread={actions.markUnread}
+        showOpenInNewTab={Boolean(selectedChat)}
+        showRename={Boolean(selectedChat)}
+        showPin={Boolean(selectedChat)}
+        isPinned={Boolean(selectedChat?.isPinned)}
+        showMarkAsRead={Boolean(selectedChat?.isUnread)}
+        showMarkAsUnread={Boolean(selectedChat) && !selectedChat?.isUnread}
+        onDelete={actions.startDelete}
+        showDelete={actions.selectedCount > 0}
+        selectedCount={actions.selectedCount}
+        showDuplicate={false}
+      />
+      <DeleteModal
+        isOpen={actions.chatsToDelete.length > 0}
+        onClose={actions.cancelDelete}
+        onConfirm={actions.confirmDelete}
+        isDeleting={actions.isDeleting}
+        itemType='task'
+        itemName={actions.chatsToDelete.map((chat) => chat.name)}
+      />
+    </>
   )
 }

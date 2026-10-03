@@ -6,11 +6,9 @@ import {
   userTableRows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
-import {
-  isDurableSecretProvenanceEnforced,
-  reportUnrecordedDurableProvenance,
-} from '@/lib/execution/durable-secret-provenance-enforcement'
 import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
   PROVENANCE_MAX_ENTRIES,
@@ -20,6 +18,7 @@ import type { DbExecutor, DbTransaction } from '@/lib/table/planner'
 import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 import {
   isResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceEntryV1,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
@@ -124,18 +123,12 @@ function reportUnvouchedTableRowWrite(
   })
 }
 
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
-}
-
 function serializedBytes(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), 'utf8')
 }
 
 function isStoredEntry(value: unknown): value is StoredTableRowSecretProvenanceEntry {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (!isRecordLike(value)) return false
   const record = value as Record<string, unknown>
   if (
     Reflect.ownKeys(record).some((key) => typeof key !== 'string' || !STORED_ENTRY_KEYS.has(key))
@@ -832,16 +825,7 @@ export async function getTableSnapshotModelMountSafety(options: {
   }
 
   if (!counts || Number(counts.unsafeCount) > 0) return 'unsafe-provenance'
-  const unrecordedCount = Number(counts.unrecordedCount)
-  if (unrecordedCount > 0) {
-    if (isDurableSecretProvenanceEnforced('table-row')) return 'unsafe-provenance'
-    reportUnrecordedDurableProvenance({
-      surface: 'table-row',
-      cause: 'row-sidecar-not-exact',
-      affectedCount: unrecordedCount,
-      workspaceId: options.workspaceId,
-    })
-  }
+  if (Number(counts.unrecordedCount) > 0) return 'unsafe-provenance'
   return 'safe'
 }
 
@@ -896,17 +880,29 @@ function createStoredEntryAggregator(scope: ResolvedSecretTraceScopeV1) {
  */
 export async function loadTableRowSecretProvenance(
   rows: TableRowCrossing[],
-  scope: ResolvedSecretTraceScopeV1
+  scope: ResolvedSecretTraceScopeV1,
+  executor: DbExecutor = db
 ): Promise<ResolvedSecretTraceProvenanceV1> {
   if (rows.length === 0) {
     return { version: 1, complete: true, entries: [], scope }
+  }
+
+  const incomplete = (cause: string): ResolvedSecretTraceProvenanceV1 => {
+    logger.error('Table row read could not establish secret provenance', {
+      surface: 'table-row',
+      cause,
+      rowCount: rows.length,
+      workspaceId: scope.workspaceId,
+      actorUserId: scope.userId,
+    })
+    return { version: 1, complete: false, entries: [], scope }
   }
 
   const crossingById = new Map<string, TableRowCrossing & { selectedColumnIds?: Set<string> }>()
   for (const row of rows) {
     const existing = crossingById.get(row.id)
     if (existing && !sameTimestamp(existing.updatedAt, row.updatedAt)) {
-      return { version: 1, complete: false, entries: [], scope }
+      return incomplete('duplicate-row-revision')
     }
     const selectedColumnIds = row.selectedValues
       ? new Set(Object.keys(row.selectedValues))
@@ -922,16 +918,16 @@ export async function loadTableRowSecretProvenance(
     for (const columnId of selectedColumnIds) existing.selectedColumnIds.add(columnId)
   }
   const rowIds = [...crossingById.keys()]
-  const currentRows = await selectRowsWithSidecars(db, rowIds)
+  const currentRows = await selectRowsWithSidecars(executor, rowIds)
   const currentById = new Map(currentRows.map((row) => [row.id, row]))
   const aggregator = createStoredEntryAggregator(scope)
 
-  let unrecordedRowCount = 0
   for (const rowId of rowIds) {
     const current = currentById.get(rowId)
     const crossing = crossingById.get(rowId)
-    if (!current || !crossing || !sameTimestamp(current.updatedAt, crossing.updatedAt)) {
-      return { version: 1, complete: false, entries: [], scope }
+    if (!current || !crossing) return incomplete('row-missing')
+    if (!sameTimestamp(current.updatedAt, crossing.updatedAt)) {
+      return incomplete('row-revision-mismatch')
     }
     if (current.secretProvenanceVersion === null) continue
     if (
@@ -939,37 +935,18 @@ export async function loadTableRowSecretProvenance(
       current.sidecarStatus !== 'exact' ||
       !current.sidecarIsCurrent
     ) {
-      /**
-       * One such row would otherwise void the whole page, and a page is what a `query_rows` block
-       * hands downstream — so a single row nobody recorded provenance for latched every run that
-       * read the table. Unenforced, the row contributes nothing, exactly like the legacy row above.
-       */
-      if (isDurableSecretProvenanceEnforced('table-row')) {
-        return { version: 1, complete: false, entries: [], scope }
-      }
-      unrecordedRowCount += 1
-      continue
+      return incomplete('row-sidecar-not-exact')
     }
     const parsed = normalizeStoredEntries(current.sidecarEntries)
-    if (!parsed) return { version: 1, complete: false, entries: [], scope }
+    if (!parsed) return incomplete('row-sidecar-malformed')
     for (const entry of parsed) {
       if (crossing.selectedColumnIds && !crossing.selectedColumnIds.has(entry.columnId)) continue
-      if (!aggregator.add(entry)) return { version: 1, complete: false, entries: [], scope }
+      if (!aggregator.add(entry)) return incomplete('row-provenance-budget-exceeded')
     }
-  }
-
-  if (unrecordedRowCount > 0) {
-    reportUnrecordedDurableProvenance({
-      surface: 'table-row',
-      cause: 'row-sidecar-not-exact',
-      affectedCount: unrecordedRowCount,
-      ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
-      actorUserId: scope.userId,
-    })
   }
 
   const entries = aggregator.build()
-  if (!entries) return { version: 1, complete: false, entries: [], scope }
+  if (!entries) return incomplete('row-provenance-budget-exceeded')
   const provenance: ResolvedSecretTraceProvenanceV1 = {
     version: 1,
     complete: true,
@@ -978,5 +955,50 @@ export async function loadTableRowSecretProvenance(
   }
   return isResolvedSecretTraceProvenanceV1(provenance)
     ? provenance
-    : { version: 1, complete: false, entries: [], scope }
+    : incomplete('row-provenance-budget-exceeded')
+}
+
+/**
+ * Collects only returned row values while their database snapshot is still valid.
+ * A read captures inside one repeatable-read transaction spanning every batch of
+ * its page, so a row and the sidecar captured for it always come from the same
+ * snapshot; writers capture after stamping and before releasing row locks.
+ * Nothing is reloaded after commit.
+ */
+export class TableRowProvenanceReader {
+  private readonly accumulator: ResolvedSecretTraceProvenanceAccumulator
+
+  constructor(
+    private readonly scope: ResolvedSecretTraceScopeV1,
+    private readonly selectedColumnIds?: ReadonlySet<string>
+  ) {
+    this.accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+  }
+
+  async capture(
+    executor: DbExecutor,
+    rows: { id: string; updatedAt: Date | string; data: unknown }[]
+  ): Promise<void> {
+    this.accumulator.record(
+      await loadTableRowSecretProvenance(
+        rows.map((row) => {
+          const data = row.data as RowData
+          let selectedValues = data
+          if (this.selectedColumnIds) {
+            selectedValues = {}
+            for (const columnId of this.selectedColumnIds) {
+              if (Object.hasOwn(data, columnId)) selectedValues[columnId] = data[columnId]
+            }
+          }
+          return { id: row.id, updatedAt: row.updatedAt, selectedValues }
+        }),
+        this.scope,
+        executor
+      )
+    )
+  }
+
+  exportProvenance(): ResolvedSecretTraceProvenanceV1 {
+    return this.accumulator.exportProvenance()
+  }
 }

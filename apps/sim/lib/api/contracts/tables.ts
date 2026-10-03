@@ -480,9 +480,7 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
   { message: 'Filter must not be empty' }
 )
 
-const filterSchema = domainObjectSchema<Filter>()
-
-/* --------------------------- v2 predicate grammar --------------------------- */
+// v2 predicate grammar
 
 /**
  * Body cap for the row-query routes. A query body is a predicate tree plus a
@@ -664,7 +662,7 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  * to claim it was: its `ncontains` is `NOT (data @> '{"tags":["opt"]}')`, and
  * `data` is never NULL, so an absent or null cell makes the containment test
  * false and the negation true — the same include-nulls behaviour as every other
- * negation. Pinned by `__tests__/sql.test.ts`.
+ * negation. Pinned by `sql.test.ts`.
  */
 const PREDICATE_LIMITS_DESCRIPTION = `Limits: ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels, and ${MAX_PREDICATE_NODES} nodes.`
 const PREDICATE_NEGATION_DESCRIPTION =
@@ -1635,7 +1633,7 @@ export const addWorkflowGroupBodySchema = z.object({
         .array(workflowGroupInputMappingSchema)
         .optional()
         .describe('Workflow inputs mapped from table columns.'),
-      /** Which workflow state per-cell runs execute against. Defaults to `'live'`. */
+      /** Which workflow state per-cell runs execute against. Defaults to `'deployed'`. */
       deploymentMode: workflowGroupDeploymentModeSchema
         .optional()
         .describe('Workflow state used for cell runs.'),

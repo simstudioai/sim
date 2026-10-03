@@ -1,5 +1,5 @@
 import { ChipLink } from '@sim/emcn'
-import { truncate } from '@sim/utils/string'
+import { escapeRegExp } from '@sim/utils/string'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -25,7 +25,6 @@ import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 import { getTemplatesForBlock } from '@/blocks/registry'
 
 const allIntegrations = INTEGRATIONS
-const INTEGRATION_COUNT = allIntegrations.length
 const baseUrl = SITE_URL
 
 /**
@@ -48,19 +47,21 @@ const MAX_TEMPLATES_SHOWN = 12
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
 
-/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
-export const dynamicParams = true
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
+export const dynamicParams = false
 
 /**
- * Returns up to `limit` related integration slugs.
+ * Returns up to `limit` related integration slugs from the same category, so
+ * the section links within the topical cluster (both CRMs, both devops tools).
  *
  * Scoring (additive):
  *   +3 per shared operation name  - strongest signal (same capability)
  *   +2 per shared operation word  - weaker signal (e.g. both have "create" ops)
- *   +2  same integration category - topical relevance (both CRMs, both devops)
  *   +1  same auth type            - comparable setup experience
  *
- * Every integration gets a score, so the sidebar always has suggestions.
  * Ties are broken by alphabetical slug order for determinism.
  */
 function getRelatedSlugs(
@@ -68,7 +69,7 @@ function getRelatedSlugs(
   operations: Integration['operations'],
   authType: AuthType,
   integrationType: Integration['integrationType'],
-  limit = 6
+  limit = 4
 ): string[] {
   const currentOpNames = new Set(operations.map((o) => o.name.toLowerCase()))
   const currentOpWords = new Set(
@@ -82,7 +83,7 @@ function getRelatedSlugs(
 
   return allIntegrations
     .reduce<Array<{ slug: string; score: number }>>((scored, i) => {
-      if (i.slug === slug) return scored
+      if (i.slug === slug || i.integrationType !== integrationType) return scored
       const sharedNames = i.operations.filter((o) =>
         currentOpNames.has(o.name.toLowerCase())
       ).length
@@ -92,12 +93,8 @@ function getRelatedSlugs(
           .split(/\s+/)
           .some((w) => w.length > 3 && currentOpWords.has(w))
       ).length
-      const sameCategory = i.integrationType === integrationType ? 2 : 0
       const sameAuth = i.authType === authType ? 1 : 0
-      scored.push({
-        slug: i.slug,
-        score: sharedNames * 3 + sharedWords * 2 + sameCategory + sameAuth,
-      })
+      scored.push({ slug: i.slug, score: sharedNames * 3 + sharedWords * 2 + sameAuth })
       return scored
     }, [])
     .sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug))
@@ -108,9 +105,13 @@ function getRelatedSlugs(
 const AUTH_STEP: Record<AuthType, (name: string) => string> = {
   oauth: (name) =>
     `Connect your ${name} account with one-click OAuth, with no credentials to copy.`,
-  'api-key': (name) =>
-    `Paste your ${name} API key to authenticate. You can find it in your ${name} account settings.`,
+  'api-key': (name) => `Paste your ${name} API key to authenticate.`,
   none: () => 'No authentication is needed, so the block works as soon as you drop it in.',
+}
+
+/** Default H1 and page name, e.g. "Slack integration for AI agents". */
+function integrationTitle(name: string): string {
+  return `${name} integration for AI agents`
 }
 
 /** Human-readable catalog refresh date for the visible last-updated line. */
@@ -125,10 +126,6 @@ const UPDATED_AT_DISPLAY = new Date(`${INTEGRATIONS_UPDATED_AT}T00:00:00Z`).toLo
 function sentenceWithTerminalPunctuation(value: string): string {
   const trimmedValue = value.trim()
   return /[.!?]$/.test(trimmedValue) ? trimmedValue : `${trimmedValue}.`
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
@@ -152,15 +149,23 @@ function mentionifyPromptForNames(prompt: string, names: readonly string[]): str
   )
   if (unique.length === 0) return prompt
   const regex = new RegExp(
-    `(?<![A-Za-z0-9_@])(${unique.map(escapeRegex).join('|')})(?![A-Za-z0-9_])`,
+    `(?<![A-Za-z0-9_@])(${unique.map(escapeRegExp).join('|')})(?![A-Za-z0-9_])`,
     'gi'
   )
   return prompt.replace(regex, (match) => `@${match}`)
 }
 
-/** Lowercases only the first character so acronyms in tool names survive. */
-function lowercaseFirst(value: string): string {
-  return value.charAt(0).toLowerCase() + value.slice(1)
+/**
+ * Turns a Title Case tool name into a mid-sentence phrase (`Get Markets` →
+ * `get markets`). Only plain capitalized words are lowercased, so acronyms
+ * (`PR`), mixed-case brands (`GitHub`), and the integration's own name survive.
+ */
+function toPhrase(toolName: string, integrationName: string): string {
+  const keep = new Set(integrationName.split(/\s+/))
+  return toolName
+    .split(' ')
+    .map((word) => (!keep.has(word) && /^[A-Z][a-z]+$/.test(word) ? word.toLowerCase() : word))
+    .join(' ')
 }
 
 /**
@@ -212,101 +217,122 @@ function toProseList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
 }
 
+/** Human-readable authentication method, as stated in the at-a-glance facts. */
+const AUTH_LABEL: Record<AuthType, string> = {
+  oauth: 'OAuth',
+  'api-key': 'API key',
+  none: 'None required',
+}
+
+function pluralize(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
+/** Tool and trigger counts as one phrase, e.g. `"19 tools and 1 trigger"`; `''` when both are zero. */
+function capabilityPhrase(integration: Integration): string {
+  return [
+    integration.operations.length > 0 ? pluralize(integration.operations.length, 'tool') : null,
+    integration.triggers.length > 0 ? pluralize(integration.triggers.length, 'trigger') : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' and ')
+}
+
+const META_DESCRIPTION_MAX = 160
+
+/**
+ * Meta description built from registry facts: the block description, then a
+ * sample of the integration's actual tools, then its trigger count. Whole
+ * sentences are kept while they fit, so the description never cuts mid-word.
+ */
+function buildMetaDescription(integration: Integration): string {
+  const { name, description, operations, triggers } = integration
+  const sentences = [sentenceWithTerminalPunctuation(description)]
+  if (operations.length > 0) {
+    const sample = operations.slice(0, 3).map((o) => toPhrase(o.name, name))
+    const remaining = operations.length - sample.length
+    sentences.push(
+      `Sim AI agents can ${toProseList(remaining > 0 ? [...sample, pluralize(remaining, `more ${name} action`)] : sample)}.`
+    )
+  }
+  if (triggers.length > 0) {
+    sentences.push(
+      `${name} events can start agents through ${pluralize(triggers.length, 'trigger')}.`
+    )
+  }
+  return sentences.reduce((text, sentence) => {
+    const next = `${text} ${sentence}`
+    return next.length <= META_DESCRIPTION_MAX ? next : text
+  })
+}
+
 /** "a" vs "an" for a service name; U-names read as "you", so they take "a". */
 function articleFor(name: string): string {
   return /^[aeio]/i.test(name) ? 'an' : 'a'
 }
 
 /**
- * Generates the per-integration FAQ. Answers lead with a direct answer and
- * carry integration-specific facts; catalog-generic questions live once on
- * the /integrations index FAQ instead of repeating across every page.
+ * Generates the per-integration FAQ from catalog facts only: the block
+ * description, its tool and trigger names and descriptions, and its auth
+ * method. Catalog-generic questions live once on the /integrations index FAQ
+ * instead of repeating across every page.
  */
-function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] {
+function buildFAQs(integration: Integration): FAQItem[] {
   const { name, description, operations, triggers, authType } = integration
-  const faqDescription = sentenceWithTerminalPunctuation(description)
   const opCount = operations.length
   const triggerCount = triggers.length
   const topOpNames = operations.slice(0, 5).map((o) => o.name)
   const firstOp = operations[0]
-  const firstTrigger = triggers[0]
-  const pairings = relatedNames.slice(0, 2)
-  const toolsPhrase = `${opCount} ${name} tool${opCount === 1 ? '' : 's'}`
-  const triggersPhrase = `${triggerCount} real-time trigger${triggerCount === 1 ? '' : 's'}`
-  const capabilityPhrase = [
-    opCount > 0 ? toolsPhrase : null,
-    triggerCount > 0 ? triggersPhrase : null,
-  ]
-    .filter((part): part is string => part !== null)
-    .join(' and ')
+  const capability = capabilityPhrase(integration)
   const triggerNames = triggers.map((t) => t.name)
   const triggerListPhrase =
     triggerCount > 6
       ? `${triggerNames.slice(0, 6).join(', ')}, and ${triggerCount - 6} more`
       : toProseList(triggerNames)
-  const firstTriggerWhen = firstTrigger?.description.match(/^trigger workflow (when .+)$/i)?.[1]
   const connectFinalStep = firstOp
-    ? `Pick a tool such as "${firstOp.name}", wire up its inputs, and click Run, and your agent is live.`
+    ? `Pick a tool such as "${firstOp.name}", wire up its inputs, and click Run.`
     : triggerCount > 0
-      ? `Choose the ${name} event you want to listen for, and your agent runs automatically from then on.`
-      : `Configure the block's inputs and click Run, and your agent is live.`
+      ? `Choose the ${name} event you want to listen for, and your agent runs whenever it occurs.`
+      : `Configure the block's inputs and click Run.`
 
-  const faqs: FAQItem[] = [
+  return [
     {
       question: `What is Sim's ${name} integration?`,
-      answer: `Sim's ${name} integration ${capabilityPhrase ? `adds ${capabilityPhrase} to` : `connects ${name} to`} the AI agents you build in Sim's visual workflow builder — you build it all visually. ${faqDescription}${
-        pairings.length === 2
-          ? ` Teams often pair ${name} with ${pairings[0]} and ${pairings[1]} in the same agent.`
-          : ''
-      }`,
+      answer: `Sim's ${name} integration ${capability ? `adds ${capability} to` : `connects ${name} to`} the AI agents you build in Sim's visual workflow builder. ${sentenceWithTerminalPunctuation(description)}`,
     },
     ...(opCount > 0
       ? [
           {
             question: `What can I automate with ${name} in Sim?`,
-            answer: `You can ${toProseList(topOpNames.map(lowercaseFirst))} with ${name} in Sim${
+            answer: `You can ${toProseList(topOpNames.map((n) => toPhrase(n, name)))} with ${name} in Sim${
               opCount > 5 ? `, plus ${opCount - 5} more ${name} tools listed on this page` : ''
-            }. ${opCount === 1 ? 'It runs' : 'Each runs'} as a tool inside an AI agent block, so an agent can chain ${name} with ${
-              pairings.length === 2
-                ? `services like ${pairings[0]} and ${pairings[1]}`
-                : 'any other connected service'
-            } and apply LLM reasoning between steps.`,
+            }. ${opCount === 1 ? 'It runs' : 'Each runs'} as a tool inside an AI agent, so the agent can combine ${name} with any other connected service and apply LLM reasoning between steps.`,
           },
         ]
       : []),
     {
       question: `How do I connect ${name} to Sim?`,
-      answer: `Connecting ${name} takes about five minutes: (1) Create a free account at sim.ai. (2) Create an agent in your workspace. (3) Drag ${articleFor(name)} ${name} block onto the workflow builder. (4) ${AUTH_STEP[authType](name)} (5) ${connectFinalStep}`,
+      answer: `(1) Create a free account at sim.ai. (2) Create an agent in your workspace. (3) Drag ${articleFor(name)} ${name} block onto the workflow builder. (4) ${AUTH_STEP[authType](name)} (5) ${connectFinalStep}`,
     },
     ...(firstOp && opCount >= 2
       ? [
           {
-            question: `How do I ${lowercaseFirst(firstOp.name)} with ${name} in Sim?`,
+            question: `How do I ${toPhrase(firstOp.name, name)} with ${name} in Sim?`,
             answer: `Add ${articleFor(name)} ${name} block to your agent and select "${firstOp.name}" as the tool.${
               firstOp.description ? ` ${sentenceWithTerminalPunctuation(firstOp.description)}` : ''
-            } Fill in the required fields. Inputs can reference outputs from earlier steps, such as text generated by an AI block or data fetched from another integration, and you build it all visually.`,
+            } Fill in the required fields. Inputs can reference outputs from earlier steps, such as text generated by an AI block or data fetched from another integration.`,
           },
         ]
       : []),
     ...(triggerCount > 0
       ? [
           {
-            question: `How do I trigger a Sim agent from ${name} automatically?`,
-            answer: `Add ${articleFor(name)} ${name} trigger block to your agent and copy its generated webhook URL into ${name}'s webhook settings. Sim supports ${triggersPhrase} for ${name}: ${triggerListPhrase}. Once configured, every matching ${name} event starts your agent instantly, no polling, no delay.`,
-          },
-          {
-            question: `What data does Sim receive when a ${name} event triggers an agent?`,
-            answer: `Sim receives the full event payload ${name} sends, typically the record or object that changed, plus metadata like the event type and timestamp.${
-              firstTriggerWhen
-                ? ` For example, the "${firstTrigger.name}" trigger fires ${sentenceWithTerminalPunctuation(firstTriggerWhen)}`
-                : ''
-            } Every field in the payload is available as a variable you can pass to AI blocks, conditions, or other integrations.`,
+            question: `Can ${name} events start a Sim agent automatically?`,
+            answer: `Yes. Sim supports ${pluralize(triggerCount, 'trigger')} for ${name}: ${triggerListPhrase}. Add ${articleFor(name)} ${name} trigger to your agent, and every matching ${name} event starts a run with the event data available to the rest of the workflow.`,
           },
         ]
       : []),
   ]
-
-  return faqs
 }
 
 export async function generateStaticParams() {
@@ -322,21 +348,21 @@ export async function generateMetadata({
   const integration = bySlug.get(slug)
   if (!integration) return {}
 
-  const { name, description, operations } = integration
+  const { name, operations } = integration
   const opSample = operations
     .slice(0, 3)
     .map((o) => o.name)
     .join(', ')
   const categoryLabel = formatIntegrationType(integration.integrationType)
   const seo = INTEGRATION_SEO[slug]
-  const metaDesc =
-    seo?.description ??
-    `Automate ${name} with AI agents in Sim. ${sentenceWithTerminalPunctuation(truncate(description, 100))} Free to start.`
+  const metaDesc = seo?.description ?? buildMetaDescription(integration)
+  const defaultTitle = integrationTitle(name)
+  const pageUrl = `${baseUrl}/integrations/${slug}`
 
   return {
     // A hand-authored SEO title is rendered verbatim (it carries its own brand
-    // suffix); otherwise the bare name flows through the root `%s | Sim` template.
-    title: seo?.title ? { absolute: seo.title } : `${name} Integration`,
+    // suffix); otherwise the default flows through the root `%s | Sim` template.
+    title: seo?.title ? { absolute: seo.title } : defaultTitle,
     description: metaDesc,
     keywords: seo?.keywords ?? [
       `${name} automation`,
@@ -356,21 +382,17 @@ export async function generateMetadata({
     // og:image/twitter:image come from the sibling opengraph-image.tsx -
     // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
-      title: seo?.title ?? `${name} Integration | Sim AI Workspace`,
-      description:
-        seo?.description ??
-        `Connect ${name} to ${INTEGRATION_COUNT - 1}+ tools using AI agents. ${sentenceWithTerminalPunctuation(truncate(description, 100))}`,
-      url: `${baseUrl}/integrations/${slug}`,
+      title: seo?.title ?? `${defaultTitle} | Sim`,
+      description: metaDesc,
+      url: pageUrl,
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: seo?.title ?? `${name} Integration | Sim`,
-      description:
-        seo?.description ??
-        `Automate ${name} with AI agents in Sim. Connect to ${INTEGRATION_COUNT - 1}+ tools. Free to start.`,
+      title: seo?.title ?? `${defaultTitle} | Sim`,
+      description: metaDesc,
     },
-    alternates: { canonical: `${baseUrl}/integrations/${slug}` },
+    alternates: { canonical: pageUrl },
   }
 }
 
@@ -392,12 +414,9 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   const relatedIntegrations = relatedSlugs
     .map((s) => bySlug.get(s))
     .filter((i): i is Integration => i !== undefined)
-  const faqs =
-    seo?.faqs ??
-    buildFAQs(
-      integration,
-      relatedIntegrations.map((i) => i.name)
-    )
+  const faqs = seo?.faqs ?? buildFAQs(integration)
+  const capability = capabilityPhrase(integration)
+  const pageUrl = `${baseUrl}/integrations/${slug}`
   const matchingTemplates = getTemplatesForBlock(integration.type)
     .sort(
       (a, b) =>
@@ -417,25 +436,40 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         name: 'Integrations',
         item: `${baseUrl}/integrations`,
       },
-      { '@type': 'ListItem', position: 3, name, item: `${baseUrl}/integrations/${slug}` },
+      { '@type': 'ListItem', position: 3, name, item: pageUrl },
     ],
   }
 
-  const softwareAppJsonLd = {
+  const webPageJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: `${name} Integration`,
+    '@type': 'WebPage',
+    '@id': pageUrl,
+    url: pageUrl,
+    name: integrationTitle(name),
     description,
-    url: `${baseUrl}/integrations/${slug}`,
-    applicationCategory: 'BusinessApplication',
-    applicationSubCategory: categoryLabel,
-    operatingSystem: 'Web',
-    featureList: operations.map((o) => o.name),
+    isPartOf: { '@id': `${baseUrl}#website` },
+    publisher: { '@id': `${baseUrl}#organization` },
+    about: { '@type': 'Thing', name },
+    inLanguage: 'en-US',
+    dateModified: INTEGRATIONS_UPDATED_AT,
     ...(integration.tags?.length
       ? { keywords: integration.tags.map((tag) => tag.replace(/-/g, ' ')).join(', ') }
       : {}),
-    dateModified: INTEGRATIONS_UPDATED_AT,
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    ...(operations.length + triggers.length > 0
+      ? {
+          mainEntity: {
+            '@type': 'ItemList',
+            name: `${name} tools and triggers in Sim`,
+            numberOfItems: operations.length + triggers.length,
+            itemListElement: [...operations, ...triggers].map((item, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              name: item.name,
+              description: item.description,
+            })),
+          },
+        }
+      : {}),
   }
 
   const faqJsonLd = {
@@ -451,7 +485,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   return (
     <section className='bg-[var(--bg)]'>
       <JsonLd data={breadcrumbJsonLd} />
-      <JsonLd data={softwareAppJsonLd} />
+      <JsonLd data={webPageJsonLd} />
       <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
@@ -476,7 +510,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               id='integration-heading'
               className='text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
             >
-              {seo?.h1 ?? name}
+              {seo?.h1 ?? integrationTitle(name)}
             </h1>
           </div>
         </div>
@@ -486,19 +520,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         </p>
 
         <p className='sr-only'>
-          {name} is a {categoryLabel} integration for Sim, the AI workspace where teams build and
-          deploy AI agents. Sim&apos;s {name} integration provides{' '}
-          {[
-            operations.length > 0
-              ? `${operations.length} ${name} tool${operations.length === 1 ? '' : 's'}`
-              : null,
-            triggers.length > 0
-              ? `${triggers.length} real-time trigger${triggers.length === 1 ? '' : 's'}`
-              : null,
-          ]
-            .filter((part): part is string => part !== null)
-            .join(' and ') || `a ${name} connection`}{' '}
-          that AI agents can use inside Sim&apos;s visual workflow builder.{' '}
+          {name} is a Sim integration in the {categoryLabel} category. Sim is the AI workspace where
+          teams build and deploy AI agents. Sim&apos;s {name} integration provides{' '}
+          {capability || `a ${name} connection`} that AI agents can use inside Sim&apos;s visual
+          workflow builder.{' '}
           {authType === 'oauth'
             ? `${name} connects with one-click OAuth.`
             : authType === 'api-key'
@@ -520,7 +545,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           >
             View docs
           </ChipLink>
-          <ShareButton url={`${baseUrl}/integrations/${slug}`} title={`${name} Integration`} />
+          <ShareButton url={pageUrl} title={`${name} Integration`} />
         </div>
 
         <p className='mt-5 text-[var(--text-muted)] text-xs'>
@@ -533,23 +558,47 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
       {/* Border-railed content */}
       <div className='mx-10 max-w-[1648px] border-[var(--border)] border-x max-md:mx-7 max-lg:mx-8 max-xl:mx-9 min-[1728px]:mx-auto'>
-        {/* Overview */}
-        {overviewBody && (
-          <>
-            <section aria-labelledby='overview-heading' className='px-6 py-10'>
-              <h2
-                id='overview-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
-              >
-                Overview
-              </h2>
-              <p className='text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
-                {overviewBody}
-              </p>
-            </section>
-            <div className='h-px w-full bg-[var(--border)]' />
-          </>
-        )}
+        {/* Overview + at-a-glance facts */}
+        <section aria-labelledby='overview-heading' className='px-6 py-10'>
+          <h2
+            id='overview-heading'
+            className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
+          >
+            What Sim agents can do with {name}
+          </h2>
+          {overviewBody && (
+            <p className='text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
+              {overviewBody}
+            </p>
+          )}
+          <dl className='mt-6 grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3 lg:grid-cols-5'>
+            {[
+              { term: 'Category', detail: categoryLabel },
+              { term: 'Authentication', detail: AUTH_LABEL[authType] },
+              { term: 'Tools', detail: String(operations.length) },
+              { term: 'Triggers', detail: String(triggers.length) },
+            ].map(({ term, detail }) => (
+              <div key={term} className='flex flex-col gap-1'>
+                <dt className='text-[var(--text-muted)] text-xs'>{term}</dt>
+                <dd className='text-[var(--text-primary)]'>{detail}</dd>
+              </div>
+            ))}
+            <div className='flex flex-col gap-1'>
+              <dt className='text-[var(--text-muted)] text-xs'>Documentation</dt>
+              <dd>
+                <a
+                  href={docsUrl}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-[var(--text-primary)] underline underline-offset-2'
+                >
+                  {name} docs
+                </a>
+              </dd>
+            </div>
+          </dl>
+        </section>
+        <div className='h-px w-full bg-[var(--border)]' />
 
         {/* Install / Add to workspace (integration-specific) */}
         {landingContent?.install && (
@@ -557,11 +606,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='install-heading' className='px-6 py-10'>
               <h2
                 id='install-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 {landingContent.install.heading}
               </h2>
-              <p className='mb-6 max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='mb-6 max-w-[700px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
                 {landingContent.install.intro}
               </p>
               <ol className='space-y-4' aria-label={`Steps to add ${name}`}>
@@ -577,7 +626,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                       <h3 className='mb-1 text-[15px] text-[var(--text-primary)] tracking-[-0.02em]'>
                         {item.title}
                       </h3>
-                      <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+                      <p className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'>
                         {item.body}
                       </p>
                     </div>
@@ -598,11 +647,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='privacy-heading' className='px-6 py-10'>
               <h2
                 id='privacy-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 Privacy & data
               </h2>
-              <p className='max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='max-w-[700px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
                 {landingContent.privacy.body}{' '}
                 <Link
                   href={landingContent.privacy.href}
@@ -623,11 +672,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <section aria-labelledby='ai-disclaimer-heading' className='px-6 py-10'>
               <h2
                 id='ai-disclaimer-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 AI-generated content
               </h2>
-              <p className='max-w-[700px] text-[15px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='max-w-[700px] text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em]'>
                 {landingContent.aiDisclaimer}
               </p>
             </section>
@@ -639,7 +688,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         <section aria-labelledby='how-it-works-heading' className='px-6 py-10'>
           <h2
             id='how-it-works-heading'
-            className='mb-6 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+            className='mb-6 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
           >
             How to automate {name} with Sim
           </h2>
@@ -677,7 +726,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   <h3 className='mb-1 text-[15px] text-[var(--text-primary)] tracking-[-0.02em]'>
                     {title}
                   </h3>
-                  <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+                  <p className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'>
                     {body}
                   </p>
                 </div>
@@ -701,21 +750,21 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <div className='mb-2 flex items-center gap-2.5'>
                 <span className='relative flex size-2' aria-hidden='true'>
-                  <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75' />
+                  <span className='absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75' />
                   <span className='relative inline-flex size-2 rounded-full bg-emerald-500' />
                 </span>
                 <h2
                   id='triggers-heading'
-                  className='text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                  className='text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
                 >
-                  Real-time triggers
+                  {name} triggers
                 </h2>
               </div>
-              <p className='text-[14px] text-[var(--text-body)] leading-[150%] tracking-[0.02em]'>
+              <p className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'>
                 {seo?.triggersIntro ?? (
                   <>
-                    Connect {articleFor(name)} {name} webhook to Sim and your agent runs the instant
-                    an event happens, no polling, no delay.
+                    Add {articleFor(name)} {name} trigger to a Sim agent and it starts a run
+                    whenever one of these {name} events occurs.
                   </>
                 )}
               </p>
@@ -725,11 +774,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               <div key={trigger.id}>
                 <div className='flex items-start gap-4 px-6 py-4'>
                   <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                    <p className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                    <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                       {trigger.name}
-                    </p>
+                    </h3>
                     {trigger.description && (
-                      <p className='text-[12px] text-[var(--text-muted)] leading-[150%]'>
+                      <p className='text-[var(--text-muted)] text-caption leading-[150%]'>
                         {trigger.description}
                       </p>
                     )}
@@ -747,7 +796,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <h2
                 id='templates-heading'
-                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-2 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
                 Agent templates
               </h2>
@@ -814,7 +863,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                                 <TemplateIconRow allTypes={resolveTypes(template)} />
                               </div>
                               <div className='flex flex-col gap-2'>
-                                <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                                <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                                   {template.title}
                                 </h3>
                                 <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>
@@ -840,10 +889,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                           <TemplateIconRow allTypes={resolveTypes(lastTemplate)} />
                         </div>
                         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                          <h3 className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                          <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                             {lastTemplate.title}
                           </h3>
-                          <p className='line-clamp-1 text-[12px] text-[var(--text-muted)] leading-[150%]'>
+                          <p className='line-clamp-1 text-[var(--text-muted)] text-caption leading-[150%]'>
                             {lastTemplate.prompt}
                           </p>
                         </div>
@@ -863,13 +912,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <h2
                 id='tools-heading'
-                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+                className='mb-2 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
               >
-                Supported tools
+                {name} tools
               </h2>
               <p className='text-[14px] text-[var(--text-body)] tracking-[0.02em]'>
-                {operations.length} {name} tool{operations.length === 1 ? '' : 's'} available in Sim
-                {seo?.toolsSubtitleSuffix ?? ''}
+                {pluralize(operations.length, `${name} tool`)} available to Sim agents
+                {seo?.toolsSubtitleSuffix ?? ''}.
               </p>
             </div>
             <div className='h-px w-full bg-[var(--border)]' />
@@ -877,11 +926,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               <div key={op.name}>
                 <div className='flex items-start gap-4 px-6 py-4'>
                   <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                    <p className='text-[14px] text-[var(--text-primary)] leading-snug tracking-[-0.02em]'>
+                    <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
                       {op.name}
-                    </p>
+                    </h3>
                     {op.description && (
-                      <p className='text-[12px] text-[var(--text-muted)] leading-[150%]'>
+                      <p className='text-[var(--text-muted)] text-caption leading-[150%]'>
                         {op.description}
                       </p>
                     )}
@@ -925,7 +974,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         <section aria-labelledby='faq-heading' className='px-6 py-10'>
           <h2
             id='faq-heading'
-            className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+            className='mb-8 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
           >
             Frequently asked questions
           </h2>
@@ -936,9 +985,18 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
         {/* Related integrations - horizontal cards with vertical dividers (blog featured pattern) */}
         {relatedIntegrations.length > 0 && (
-          <>
+          <section aria-labelledby='related-heading'>
+            <div className='px-6 pt-10 pb-4'>
+              <h2
+                id='related-heading'
+                className='text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
+              >
+                Related {categoryLabel} integrations
+              </h2>
+            </div>
+            <div className='h-px w-full bg-[var(--border)]' />
             <nav aria-label='Related integrations' className='flex flex-col sm:flex-row'>
-              {relatedIntegrations.slice(0, 4).map((rel) => (
+              {relatedIntegrations.map((rel) => (
                 <Link
                   key={rel.slug}
                   href={`/integrations/${rel.slug}`}
@@ -964,7 +1022,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               ))}
             </nav>
             <div className='h-px w-full bg-[var(--border)]' />
-          </>
+          </section>
         )}
       </div>
 

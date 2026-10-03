@@ -1,9 +1,10 @@
 /**
- * @vitest-environment node
- *
  * Anthropic streaming tool loop — live tool_call_start/end, live `pending`
  * text classified by turn_end, abort → cancelled, per-turn usage accumulation.
  */
+import { collectStream } from '@sim/testing/helpers/async'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
@@ -17,39 +18,13 @@ import type { AgentStreamEvent } from '@/providers/stream-events'
 import { registerPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { TimeSegment } from '@/providers/types'
 
-const { mockExecuteTool, mockPrepareToolExecution } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(),
-  mockPrepareToolExecution: vi.fn(),
-}))
+const mockPrepareToolExecution = providersUtilsMockFns.mockPrepareToolExecution
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockCalculateCost.mockReturnValue({ input: 0.01, output: 0.02, total: 0.03 })
 
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-}))
+vi.mock('@/tools', () => toolsMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  prepareToolExecution: mockPrepareToolExecution,
-  calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
-  sumToolCosts: () => 0,
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-}))
-
-async function collectEvents(
-  stream: ReadableStream<AgentStreamEvent>
-): Promise<AgentStreamEvent[]> {
-  const events: AgentStreamEvent[] = []
-  const reader = stream.getReader()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    events.push(value)
-  }
-  return events
-}
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 function makeFinalMessage(overrides: {
   content: unknown[]
@@ -88,7 +63,6 @@ describe('createAnthropicStreamingToolLoopStream', () => {
   } as any
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockPrepareToolExecution.mockReturnValue({
       toolParams: { city: 'San Francisco' },
       executionParams: { city: 'San Francisco' },
@@ -206,7 +180,7 @@ describe('createAnthropicStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
 
     expect(events.filter((e) => e.type === 'thinking_delta').length).toBeGreaterThan(0)
     expect(events).toContainEqual({
@@ -341,7 +315,7 @@ describe('createAnthropicStreamingToolLoopStream', () => {
     const events = await runWithProviderRuntimeContext(
       { resolvedSecretTraceRegistry: registry },
       () =>
-        collectEvents(
+        collectStream(
           createAnthropicStreamingToolLoopStream({
             anthropic,
             payload: {
@@ -576,7 +550,7 @@ describe('createAnthropicStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(collectStream(stream)).rejects.toMatchObject({ name: 'AbortError' })
     expect(onComplete).toHaveBeenLastCalledWith(
       expect.objectContaining({
         tokens: expect.objectContaining({ input: 5, output: 3, total: 8 }),
@@ -622,7 +596,7 @@ describe('createAnthropicStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).resolves.toEqual([
+    await expect(collectStream(stream)).resolves.toEqual([
       { type: 'text_delta', text: 'Partial answer', turn: 'pending' },
       { type: 'turn_end', turn: 'final' },
     ])

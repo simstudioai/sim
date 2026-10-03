@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
@@ -22,7 +23,7 @@ interface WorkspaceFileLiveDocPayload {
 }
 
 function parsePayload(payload: unknown): WorkspaceFileLiveDocPayload {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     throw new Error('Workspace file live-document outbox payload must be an object')
   }
   const candidate = payload as Partial<WorkspaceFileLiveDocPayload>

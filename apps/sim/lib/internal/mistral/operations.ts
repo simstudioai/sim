@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import { isFileParserError } from '@/lib/file-parsers/errors'
 import { submitMistralOcr } from '@/lib/internal/mistral/client'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import type { MistralParseInput } from '@/lib/internal/mistral/input'
+import { countMistralPdfPages } from '@/lib/internal/mistral/page-count'
 import { MISTRAL_OCR_REQUEST_POLICY } from '@/lib/knowledge/documents/ocr-request-policy'
 import {
   isModelSafeWorkspaceFileKey,
@@ -17,6 +20,7 @@ import {
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import {
+  downloadFileFromUrl,
   downloadServableFileFromStorage,
   resolveInternalFileUrl,
   type ServableFile,
@@ -26,9 +30,16 @@ import { assertToolFileAccess } from '@/app/api/files/authorization'
 const logger = createLogger('MistralOperations')
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'] as const
 
+interface PreparedDocument {
+  document: Record<string, string>
+  expectedPages?: number
+}
+
 export interface MistralOperationContext {
   /** Absolute ingestion deadline shared by admission, retries, and transport. */
   deadlineAt?: number
+  /** Exact page count already measured by the trusted knowledge PDF splitter. */
+  expectedPages?: number
   headers: Headers
   maxResponseBytes?: number
   requestId: string
@@ -56,8 +67,9 @@ function inferMimeType(type: string | undefined, name: string | undefined): stri
 
 async function buildInlineDocument(
   file: Exclude<MistralParseInput['file'], string | undefined>,
-  context: MistralOperationContext
-): Promise<Record<string, string>> {
+  context: MistralOperationContext,
+  measurePages: boolean
+): Promise<PreparedDocument> {
   if (!context.userId && context.trustedCaller !== 'knowledge-ingestion') {
     throw new MistralOperationError(401, { success: false, error: 'Unauthorized' })
   }
@@ -73,6 +85,7 @@ async function buildInlineDocument(
 
   let mimeType = inferMimeType(userFile.type, userFile.name)
   let base64 = userFile.base64
+  let sourceBuffer: Buffer | undefined
   if (!base64) {
     const denied = await assertToolFileAccess(
       userFile.key,
@@ -95,14 +108,15 @@ async function buildInlineDocument(
     try {
       servableFile = await downloadServableFileFromStorage(userFile, context.requestId, logger, {
         maxBytes: MISTRAL_OCR_REQUEST_POLICY.maxBytes,
+        signal: context.signal,
       })
     } catch (error) {
-      const { isPayloadSizeLimitError } = await import('@/lib/core/utils/stream-limits')
       if (isPayloadSizeLimitError(error)) throw fileSizeError()
       throw error
     }
     context.signal?.throwIfAborted()
     base64 = servableFile.buffer.toString('base64')
+    sourceBuffer = servableFile.buffer
     if (servableFile.contentType && servableFile.contentType !== 'application/octet-stream') {
       mimeType = servableFile.contentType
     }
@@ -110,9 +124,12 @@ async function buildInlineDocument(
 
   let inlineBytes: number
   try {
-    inlineBytes = base64.startsWith('data:')
-      ? decodeDataUriWithinLimit(base64, MISTRAL_OCR_REQUEST_POLICY.maxBytes).buffer.length
-      : Buffer.byteLength(base64, 'base64')
+    if (base64.startsWith('data:')) {
+      sourceBuffer = decodeDataUriWithinLimit(base64, MISTRAL_OCR_REQUEST_POLICY.maxBytes).buffer
+      inlineBytes = sourceBuffer.length
+    } else {
+      inlineBytes = Buffer.byteLength(base64, 'base64')
+    }
   } catch (error) {
     if (isFileParserError(error) && error.code === 'complexity_limit') throw fileSizeError()
     throw new MistralOperationError(400, {
@@ -123,15 +140,20 @@ async function buildInlineDocument(
   if (inlineBytes > MISTRAL_OCR_REQUEST_POLICY.maxBytes) throw fileSizeError()
 
   const payload = base64.startsWith('data:') ? base64 : `data:${mimeType};base64,${base64}`
-  return mimeType.startsWith('image/')
-    ? { type: 'image_url', image_url: payload }
-    : { type: 'document_url', document_url: payload }
+  if (mimeType.startsWith('image/')) {
+    return { document: { type: 'image_url', image_url: payload } }
+  }
+  const expectedPages = measurePages
+    ? await countMistralPdfPages(sourceBuffer ?? Buffer.from(base64, 'base64'), context.signal)
+    : undefined
+  return { document: { type: 'document_url', document_url: payload }, expectedPages }
 }
 
 async function buildUrlDocument(
   filePath: string,
-  context: MistralOperationContext
-): Promise<Record<string, string>> {
+  context: MistralOperationContext,
+  measurePages: boolean
+): Promise<PreparedDocument> {
   let fileUrl = filePath
   if (isInternalFileUrl(filePath)) {
     if (!context.userId) {
@@ -172,12 +194,71 @@ async function buildUrlDocument(
   }
 
   const pathname = new URL(fileUrl).pathname.toLowerCase()
-  return IMAGE_EXTENSIONS.some((extension) => pathname.endsWith(extension))
-    ? { type: 'image_url', image_url: fileUrl }
-    : { type: 'document_url', document_url: fileUrl }
+  if (IMAGE_EXTENSIONS.some((extension) => pathname.endsWith(extension))) {
+    return { document: { type: 'image_url', image_url: fileUrl } }
+  }
+  if (measurePages) {
+    let buffer: Buffer
+    try {
+      buffer = await downloadFileFromUrl(fileUrl, {
+        maxBytes: MISTRAL_OCR_REQUEST_POLICY.maxBytes,
+        signal: context.signal,
+        timeoutMs: Math.max(1, context.deadlineAt! - Date.now()),
+        userId: context.userId,
+      })
+    } catch (error) {
+      if (isPayloadSizeLimitError(error)) throw fileSizeError()
+      throw error
+    }
+    context.signal?.throwIfAborted()
+    const expectedPages = await countMistralPdfPages(buffer, context.signal)
+    if (expectedPages !== undefined || buffer.subarray(0, 1024).includes(Buffer.from('%PDF-'))) {
+      return {
+        document: {
+          type: 'document_url',
+          document_url: `data:application/pdf;base64,${buffer.toString('base64')}`,
+        },
+        expectedPages,
+      }
+    }
+  }
+  return { document: { type: 'document_url', document_url: fileUrl } }
 }
 
 export async function executeMistralParse(
+  input: MistralParseInput,
+  context: MistralOperationContext
+): Promise<{ success: true; output: unknown }> {
+  context.signal?.throwIfAborted()
+  const deadlineAt = context.deadlineAt ?? Date.now() + 120_000
+  const controller = new AbortController()
+  const signal = context.signal
+    ? AbortSignal.any([context.signal, controller.signal])
+    : controller.signal
+  const timeoutError = new ProviderCapacityDeferredError('provider_timeout', {
+    providerId: 'mistral',
+    retryAfterMs: 60_000,
+  })
+  if (Date.now() >= deadlineAt) throw timeoutError
+  const timeout = setTimeout(() => controller.abort(timeoutError), deadlineAt - Date.now())
+  let removeAbortListener = () => {}
+  const aborted = new Promise<never>((_, reject) => {
+    const onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    removeAbortListener = () => signal.removeEventListener('abort', onAbort)
+  })
+  try {
+    return await Promise.race([
+      executeMistralParseWithinDeadline(input, { ...context, deadlineAt, signal }),
+      aborted,
+    ])
+  } finally {
+    clearTimeout(timeout)
+    removeAbortListener()
+  }
+}
+
+async function executeMistralParseWithinDeadline(
   input: MistralParseInput,
   context: MistralOperationContext
 ): Promise<{ success: true; output: unknown }> {
@@ -204,11 +285,17 @@ export async function executeMistralParse(
   }
 
   const body: Record<string, unknown> = { model: 'mistral-ocr-latest' }
+  const trustedPages =
+    context.trustedCaller === 'knowledge-ingestion' ? context.expectedPages : undefined
+  const measurePages = trustedPages === undefined && !input.pages?.length
+  let prepared: PreparedDocument | undefined
   if (fileData && typeof fileData === 'object') {
-    body.document = await buildInlineDocument(fileData, context)
+    prepared = await buildInlineDocument(fileData, context, measurePages)
   } else if (filePath) {
-    body.document = await buildUrlDocument(filePath, context)
+    prepared = await buildUrlDocument(filePath, context, measurePages)
   }
+  body.document = prepared?.document
+  context.signal?.throwIfAborted()
   if (input.pages) body.pages = input.pages
   if (input.includeImageBase64 !== undefined) {
     body.include_image_base64 = input.includeImageBase64
@@ -221,7 +308,11 @@ export async function executeMistralParse(
     body,
     context.signal,
     context.maxResponseBytes,
-    context.deadlineAt
+    context.deadlineAt,
+    {
+      expectedPages: trustedPages ?? prepared?.expectedPages,
+      maxAdmissionWaitMs: context.trustedCaller === 'knowledge-ingestion' ? 5000 : undefined,
+    }
   )
   context.signal?.throwIfAborted()
   return { success: true, output }

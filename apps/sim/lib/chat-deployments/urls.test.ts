@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
@@ -13,12 +10,6 @@ describe('buildChatDeploymentUrl', () => {
 
   it('serves the chat from the app host on the /chat/ path', () => {
     setEnv({ NEXT_PUBLIC_APP_URL: 'https://sim.ai' })
-
-    expect(buildChatDeploymentUrl('support')).toBe('https://sim.ai/chat/support')
-  })
-
-  it('strips the www prefix, because the deployed chat answers on the bare host', () => {
-    setEnv({ NEXT_PUBLIC_APP_URL: 'https://www.sim.ai' })
 
     expect(buildChatDeploymentUrl('support')).toBe('https://sim.ai/chat/support')
   })

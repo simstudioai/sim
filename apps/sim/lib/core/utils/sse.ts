@@ -65,6 +65,8 @@ export interface ReadSSELinesOptions {
   onData: (rawData: string) => SSEStopSignal
   /** Aborts the read; checked before each chunk and between events. */
   signal?: AbortSignal
+  /** Reconnect-capable consumers can bound a silent read; comments also keep it alive. */
+  idleTimeoutMs?: number
 }
 
 /**
@@ -133,16 +135,35 @@ function stripCarriageReturn(line: string): string {
  * @param options - The `onData` callback plus an optional `signal`.
  */
 export async function readSSELines(source: SSESource, options: ReadSSELinesOptions): Promise<void> {
-  const { onData, signal } = options
+  const { onData, signal, idleTimeoutMs } = options
   const { reader, ownsLock } = toReader(source)
   const decoder = new TextDecoder()
   let buffer = ''
+
+  const readChunk = async () => {
+    if (idleTimeoutMs === undefined) return reader.read()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(`SSE connection was silent for ${idleTimeoutMs}ms`)
+          error.name = 'SSEIdleTimeoutError'
+          reject(error)
+          /** Release the transport without waiting for an unresponsive underlying source. */
+          void reader.cancel(error).catch(() => {})
+        }, idleTimeoutMs)
+        reader.read().then(resolve, reject)
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
   try {
     while (true) {
       if (signal?.aborted) break
 
-      const { done, value } = await reader.read()
+      const { done, value } = await readChunk()
 
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')

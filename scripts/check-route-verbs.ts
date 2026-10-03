@@ -47,8 +47,10 @@
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { parse } from '@babel/parser'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const APP = path.join(ROOT, 'apps/sim')
 const API_DIR = path.join(APP, 'app/api')
 
@@ -85,6 +87,58 @@ const CONTRACT_KEY_RE = /\n\s{2}contract:\s*([A-Za-z0-9_$]+)\s*,/
 
 /** How far past the builder's `({` to look for the `contract:` key. */
 const OPTIONS_SCAN_CHARS = 4000
+
+/** Resolves exported handler references and tracing callbacks without importing server code. */
+export function wrappedRouteSites(source: string): Array<{ verb: string; optionsStart: number }> {
+  const statements = parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body
+  const handlers = new Map<string, number>()
+  for (const statement of statements) {
+    if (statement.type !== 'VariableDeclaration' || statement.kind !== 'const') continue
+    for (const declaration of statement.declarations) {
+      const call = declaration.init
+      if (declaration.id.type !== 'Identifier' || call?.type !== 'CallExpression') continue
+      if (call.callee.type !== 'Identifier' || !BUILDERS.some((name) => name === call.callee.name))
+        continue
+      const options = call.arguments[0]
+      if (options?.type === 'ObjectExpression' && typeof options.start === 'number') {
+        handlers.set(declaration.id.name, options.start + 1)
+      }
+    }
+  }
+  const sites: Array<{ verb: string; optionsStart: number }> = []
+  for (const statement of statements) {
+    if (
+      statement.type !== 'ExportNamedDeclaration' ||
+      statement.declaration?.type !== 'VariableDeclaration'
+    )
+      continue
+    for (const declaration of statement.declaration.declarations) {
+      if (
+        declaration.id.type !== 'Identifier' ||
+        !VERBS.some((verb) => verb === declaration.id.name)
+      )
+        continue
+      const verb = declaration.id.name
+      const found = new Set<number>()
+      const visit = (value: unknown): void => {
+        if (!value || typeof value !== 'object') return
+        if (Array.isArray(value)) {
+          value.forEach(visit)
+          return
+        }
+        const node = value as Record<string, unknown>
+        if (node.type === 'Identifier' && typeof node.name === 'string') {
+          const start = handlers.get(node.name)
+          if (start !== undefined) found.add(start)
+        }
+        Object.values(node).forEach(visit)
+      }
+      visit(declaration.init)
+      for (const optionsStart of found) sites.push({ verb, optionsStart })
+    }
+  }
+  return sites
+}
 
 interface RouteContract {
   method?: unknown
@@ -170,10 +224,16 @@ async function main() {
     const expectedPath = derivedPath(file)
     let sitesInFile = 0
 
-    for (const match of source.matchAll(EXPORT_RE)) {
+    const directSites = [...source.matchAll(EXPORT_RE)].map((match) => ({
+      verb: match[1],
+      optionsStart: (match.index ?? 0) + match[0].length,
+    }))
+    const sites =
+      directSites.length === builderCalls
+        ? directSites
+        : [...directSites, ...wrappedRouteSites(source)]
+    for (const { verb, optionsStart } of sites) {
       sitesInFile += 1
-      const verb = match[1]
-      const optionsStart = (match.index ?? 0) + match[0].length
       const options = source.slice(optionsStart, optionsStart + OPTIONS_SCAN_CHARS)
 
       const contractKey = options.match(CONTRACT_KEY_RE)
@@ -264,4 +324,4 @@ async function main() {
   )
 }
 
-await main()
+if (import.meta.main) await main()

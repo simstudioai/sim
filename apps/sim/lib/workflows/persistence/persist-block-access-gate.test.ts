@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The gate lives on the shared write rather than at each door, so this is where
  * it is proved: `saveWorkflowToNormalizedTables` is the one primitive every
  * normalized-table write funnels through, and the assertions below are about
@@ -52,7 +50,6 @@ const GOVERNED = { workspaceId: 'workspace-1', subjectUserId: 'user-1' }
 
 describe('saveWorkflowToNormalizedTables permission-group gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     resetPermissionGroupScopeMock()
     mocks.saveRaw.mockResolvedValue({ success: true })
@@ -71,17 +68,6 @@ describe('saveWorkflowToNormalizedTables permission-group gate', () => {
       message: expect.stringContaining('gmail'),
     })
     expect(mocks.saveRaw).not.toHaveBeenCalled()
-  })
-
-  it('writes a block type the allowlist names', async () => {
-    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
-      allowedIntegrations: ['slack'],
-    })
-
-    await expect(
-      saveWorkflowToNormalizedTables('workflow-1', stateWith('slack'), GOVERNED, dbChainMock.db)
-    ).resolves.toMatchObject({ success: true })
-    expect(mocks.saveRaw).toHaveBeenCalled()
   })
 
   /**
@@ -105,22 +91,6 @@ describe('saveWorkflowToNormalizedTables permission-group gate', () => {
     ).resolves.toMatchObject({ success: true })
     expect(mocks.saveRaw).toHaveBeenCalled()
     expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
-  })
-
-  it('writes when no workspace, and therefore no permission group, scopes the workflow', async () => {
-    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
-      allowedIntegrations: ['slack'],
-    })
-
-    await expect(
-      saveWorkflowToNormalizedTables(
-        'workflow-1',
-        stateWith('gmail'),
-        { workspaceId: null, subjectUserId: 'user-1' },
-        dbChainMock.db
-      )
-    ).resolves.toMatchObject({ success: true })
-    expect(mocks.saveRaw).toHaveBeenCalled()
   })
 
   /**

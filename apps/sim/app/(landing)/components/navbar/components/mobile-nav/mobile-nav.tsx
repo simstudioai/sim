@@ -61,7 +61,12 @@ export function MobileNav({ stars }: MobileNavProps) {
   }, [open, updateOpen])
 
   return (
-    <div className='ml-auto flex items-center gap-2 xl:hidden'>
+    <div
+      className='ml-auto flex items-center gap-2 xl:hidden'
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) updateOpen(false)
+      }}
+    >
       <NavbarAuthPill className='max-sm:hidden' onNavigate={() => updateOpen(false)} />
       <LandingCtaLink
         href={DEMO_HREF}

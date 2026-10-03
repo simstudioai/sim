@@ -1,3 +1,4 @@
+import type { InsertTableRowBodyInput } from '@/lib/api/contracts/tables'
 import type { SortSpec, TablePredicate, TableRow } from '@/lib/table'
 
 /**
@@ -36,3 +37,9 @@ export interface EditingCell {
   columnName: string
   columnKey?: string
 }
+
+/** Where a new row goes; an empty target appends it to the end of the table. */
+export type RowInsertTarget = Pick<
+  InsertTableRowBodyInput,
+  'position' | 'afterRowId' | 'beforeRowId'
+>

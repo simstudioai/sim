@@ -1,5 +1,7 @@
 /** Opt-in paid provider checks using only explicitly selected local OpenAI/Mistral keys and synthetic content. */
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { parseEnv } from 'node:util'
 import { db } from '@sim/db'
 import {
@@ -22,6 +24,14 @@ import { eq, inArray } from 'drizzle-orm'
 import { PDFDocument } from 'pdf-lib'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+const fixtureStorage = vi.hoisted(() => ({ root: '' }))
+vi.mock('@/lib/uploads/core/setup.server', () => ({
+  get UPLOAD_DIR_SERVER() {
+    return fixtureStorage.root
+  },
+}))
+
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -76,6 +86,7 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
   }
 
   beforeAll(async () => {
+    fixtureStorage.root = await mkdtemp(path.join(tmpdir(), 'sim-live-provider-storage-'))
     const selected = parseEnv(await readFile(credentialsFile!, 'utf8'))
     if (!selected.OPENAI_API_KEY) {
       throw new Error('Live embedding tests require an explicitly configured OpenAI key')
@@ -99,6 +110,7 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
       await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
+    if (fixtureStorage.root) await rm(fixtureStorage.root, { recursive: true, force: true })
     await db.$client.end()
   })
 

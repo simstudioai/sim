@@ -14,10 +14,12 @@ export type ProviderId =
   | 'cerebras'
   | 'groq'
   | 'sakana'
+  | 'typesafe'
   | 'nvidia'
   | 'meta'
   | 'zai'
   | 'kimi'
+  | 'kie'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'
@@ -47,17 +49,6 @@ export interface ModelPricing extends ModelTokenPricing {
 }
 
 export type ModelPricingMap = Record<string, ModelPricing>
-
-interface TokenInfo {
-  input?: number
-  output?: number
-  total?: number
-}
-
-interface TransformedResponse {
-  content: string
-  tokens?: TokenInfo
-}
 
 export interface ProviderConfig {
   id: string
@@ -93,6 +84,8 @@ export type TimeSegment = ProviderTimingSegment
 
 export interface ProviderResponse {
   content: string
+  /** Structured answers returned by a native evaluation model. */
+  answers?: Record<string, unknown>
   model: string
   tokens?: {
     /** Tokens billed at the base input rate, excluding cache reads and writes. */
@@ -191,7 +184,19 @@ export interface Message {
   tool_call_id?: string
 }
 
+/** Native evaluation values are validated against the selected provider's schema. */
+export interface EvaluationInput {
+  state: unknown
+  questions: unknown
+}
+
 export interface ProviderRequest {
+  evaluation?: EvaluationInput
+  /** Server-installed stable identity resolver; never accepted from an API payload. */
+  resolveToolInvocationId?: (
+    providerCallId: string | undefined,
+    toolId: string
+  ) => string | undefined
   model: string
   systemPrompt?: string
   context?: string

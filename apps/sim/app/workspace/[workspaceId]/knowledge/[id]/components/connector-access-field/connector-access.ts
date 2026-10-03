@@ -6,7 +6,7 @@ import {
 import { aclIsDerived } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
-/** Administrator crawls require the same impersonation subject enforced by the server. */
+/** Administrator crawls require their permission fields and any impersonation subject. */
 export function isConnectorFieldRequired(
   field: ConnectorConfigField,
   connectorConfig: ConnectorMeta,
@@ -15,8 +15,9 @@ export function isConnectorFieldRequired(
   return Boolean(
     field.required ||
       (accessMode === 'admin' &&
-        connectorConfig.auth.mode === 'oauth' &&
-        connectorConfig.auth.serviceAccountSubjectFieldId === field.id)
+        (field.requiredInAdminMode ||
+          (connectorConfig.auth.mode === 'oauth' &&
+            connectorConfig.auth.serviceAccountSubjectFieldId === field.id)))
   )
 }
 

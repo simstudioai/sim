@@ -50,6 +50,10 @@ export function WorkflowBuilderPreview() {
         </div>
       </div>
       <EdgeFade ground='canvas' edges={['left', 'right']} depth='preview' />
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-x-0 bottom-0 z-[5] @max-[760px]:block hidden h-[160px] bg-[var(--bg)] backdrop-blur-[8px] [mask-image:linear-gradient(to_top,black_65%,transparent)]'
+      />
       <div className='absolute inset-x-5 bottom-8 z-10 flex flex-col items-center gap-3'>
         <div
           role='group'

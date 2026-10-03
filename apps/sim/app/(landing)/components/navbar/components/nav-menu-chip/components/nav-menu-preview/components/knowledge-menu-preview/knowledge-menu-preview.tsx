@@ -1,6 +1,13 @@
 import { Badge, Chip } from '@sim/emcn'
-import { ArrowUpDown, ChevronRight, Database, ListFilter, Search } from '@sim/emcn/icons'
-import { DocxIcon, PdfIcon } from '@/components/icons/document-icons'
+import {
+  ArrowUpDown,
+  ChevronRight,
+  Database,
+  DocxIcon,
+  ListFilter,
+  PdfIcon,
+  Search,
+} from '@sim/emcn/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import {
   MenuPreviewHeader,

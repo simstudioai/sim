@@ -1,14 +1,20 @@
 'use client'
 
-import { useState } from 'react'
-import { cn, Expandable, ExpandableContent } from '@sim/emcn'
-import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
-import Link from 'next/link'
-import type { ResourceScope } from '@/lib/core/resource-scope'
+import { useEffect, useState } from 'react'
+import { cn } from '@sim/emcn'
+import { ArrowRight } from '@sim/emcn/icons'
+import { HomeSection } from '@/components/home/home-section'
+import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
+import { OAUTH_SEARCH_READ_SCOPE, oauthScopeSatisfies } from '@/lib/auth/oauth-provider'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import {
+  liveSearchProviderForCredential,
+  supportsLiveSearchMode,
+} from '@/lib/sim-search/live/provider-catalog'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { useApiKeys } from '@/hooks/queries/api-keys'
-import { useSearchSources } from '@/hooks/queries/kb/connectors'
+import { useAuthorizedApps } from '@/hooks/queries/oauth-provider'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
+import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 
 type StepId = 'connect-integration' | 'connect-sim-search'
 
@@ -65,15 +71,69 @@ function StepMark({ complete }: { complete: boolean }) {
  * The organization home's onboarding list under the composer. Same chrome as
  * the workspace home's suggested actions: a hover-revealed disclosure header
  * over hairline-separated rows. Each step leads to the page that completes it,
- * and reads as done from the organization's real state: a source the viewer can
- * search and a personal API key for the MCP server.
+ * and reads as done from the organization's real state: a configured integration and an OAuth app authorized to use Search.
  */
 export function GetStarted() {
-  const { organization, viewer } = useOrganizationContext()
+  const { organization, viewer, connectedAccountsAvailable } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
-  const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-  const { data: sources } = useSearchSources(scope)
-  const { data: apiKeys } = useApiKeys('', 'personal')
+  const canConnectIntegrations = viewer.canConnectSearchIntegrations && connectedAccountsAvailable
+  const { data: accounts } = useOrganizationAccounts(
+    canConnectIntegrations ? organization.id : undefined
+  )
+  const { data: integrations } = useSearchIntegrations(organization.id, {
+    enabled: canConnectIntegrations,
+  })
+  const {
+    data: authorizedApps,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isError,
+  } = useAuthorizedApps('', { enabled: viewer.canUseSearchMcp })
+  const hasSearchAuthorization =
+    authorizedApps?.pages.some((page) =>
+      page.apps.some((app) => oauthScopeSatisfies(app.scopes, OAUTH_SEARCH_READ_SCOPE))
+    ) ?? false
+  const approvedProviders = new Set(
+    integrations
+      ?.filter((integration) => integration.approved && integration.available !== false)
+      .map((integration) => integration.connectorType)
+  )
+  const readyOptions = new Set(
+    accounts?.credentialGroup?.options
+      .filter((option) => {
+        const provider = liveSearchProviderForCredential(option.provider)
+        return (
+          option.status === 'active' &&
+          option.configurationStatus === 'ready' &&
+          provider &&
+          supportsLiveSearchMode(provider, 'member') &&
+          approvedProviders.has(provider)
+        )
+      })
+      .map((option) => option.id)
+  )
+  const readyMcpServers = new Set(
+    accounts?.credentialGroup?.mcpServers
+      .filter((server) => {
+        const provider = liveSearchProviderForCredential(`mcp:${server.managedConnectorId}`)
+        return (
+          server.enabled &&
+          provider &&
+          approvedProviders.has(provider) &&
+          accounts.availableMcpConnectors.some((id) => id === server.managedConnectorId)
+        )
+      })
+      .map((server) => server.id)
+  )
+  const hasSearchConnection =
+    accounts?.credentialGroup?.status === 'active' &&
+    (accounts.viewerAccounts?.some(
+      (account) => account.status === 'active' && readyOptions.has(account.optionId)
+    ) ||
+      accounts.viewerMcpAccounts?.some(
+        (account) => account.status === 'active' && readyMcpServers.has(account.mcpServerId)
+      ))
 
   const hrefs: Record<StepId, string> = {
     'connect-integration': viewer.isAdmin
@@ -82,12 +142,20 @@ export function GetStarted() {
     'connect-sim-search': routes.settingsSection('search-mcp'),
   }
   const completed: Record<StepId, boolean> = {
-    'connect-integration':
-      sources?.some(
-        (source) => source.viewerMembership === 'connected' || !source.connectionRequired
-      ) ?? false,
-    'connect-sim-search': (apiKeys?.personalKeys.length ?? 0) > 0,
+    'connect-integration': Boolean(
+      hasSearchConnection ||
+        integrations?.some(
+          (integration) =>
+            integration.approved &&
+            integration.available !== false &&
+            integration.configuredServiceSource
+        )
+    ),
+    'connect-sim-search': hasSearchAuthorization,
   }
+  const steps = STEPS.filter((step) =>
+    step.id === 'connect-sim-search' ? viewer.canUseSearchMcp : canConnectIntegrations
+  )
 
   const [expanded, setExpanded] = useState(true)
   /**
@@ -98,70 +166,60 @@ export function GetStarted() {
    */
   const [animationsEnabled, setAnimationsEnabled] = useState(false)
 
+  useEffect(() => {
+    if (
+      viewer.canUseSearchMcp &&
+      !hasSearchAuthorization &&
+      hasNextPage &&
+      !isFetching &&
+      !isError
+    ) {
+      void fetchNextPage()
+    }
+  }, [
+    viewer.canUseSearchMcp,
+    hasSearchAuthorization,
+    hasNextPage,
+    isFetching,
+    isError,
+    fetchNextPage,
+  ])
+
   const handleToggleExpanded = () => {
     setAnimationsEnabled(true)
     setExpanded((prev) => !prev)
   }
 
+  if (steps.length === 0) return null
+
   return (
-    <div className='group/suggested mx-auto mt-7 w-full max-w-chat'>
-      {/* Full width so the whole line toggles, not just the label and chevron. */}
-      <button
-        type='button'
-        onClick={handleToggleExpanded}
-        aria-expanded={expanded}
-        className='group/toggle flex w-full cursor-pointer items-center gap-2'
-      >
-        <span className='text-[var(--text-muted)] text-caption'>Get started</span>
-        {/*
-         * Revealed by hovering anywhere in the section — the group sits on the
-         * section wrapper rather than this row, so the rows below arm it just as
-         * the header does. Focus is keyed off the toggle instead, the only element
-         * here that can hold it, and matters because globals clear focus outlines.
-         * One transition covers the fade and the rotation so the two cannot drift
-         * apart. Mirrors the sidebar's section headers.
-         */}
-        <ChevronDown
-          className={cn(
-            'size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] duration-150',
-            'group-hover/suggested:opacity-100 group-focus-visible/toggle:opacity-100',
-            !expanded && '-rotate-90'
-          )}
-        />
-      </button>
-      <Expandable expanded={expanded}>
-        <ExpandableContent className={cn(!animationsEnabled && 'animate-none!')}>
-          {/* 6px, matching a sidebar section header to its first item — both headers
-              are an 18px box around 12px text, so equal padding reads as equal
-              distance. Padding an inner wrapper rather than the animated element:
-              `collapsible-up`/`-down` interpolate height alone, so a margin here
-              would hold its full value through the close and then vanish on unmount,
-              snapping the content below up. */}
-          <div className='flex flex-col pt-1.5'>
-            {STEPS.map((step, i) => {
-              const complete = completed[step.id]
-              return (
-                <Link
-                  key={step.id}
-                  href={hrefs[step.id]}
-                  className={cn(ROW_CLASS, i > 0 && 'border-t')}
-                >
-                  <StepMark complete={complete} />
-                  <span
-                    className={cn(
-                      'flex-1 truncate text-sm',
-                      complete ? 'text-[var(--brand-blue)]' : 'text-[var(--text-body)]'
-                    )}
-                  >
-                    {step.label}
-                  </span>
-                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-                </Link>
-              )
-            })}
-          </div>
-        </ExpandableContent>
-      </Expandable>
-    </div>
+    <HomeSection
+      title='Get started'
+      expanded={expanded}
+      animationsEnabled={animationsEnabled}
+      onToggle={handleToggleExpanded}
+    >
+      {steps.map((step, i) => {
+        const complete = completed[step.id]
+        return (
+          <SettingsGuardedLink
+            key={step.id}
+            href={hrefs[step.id]}
+            className={cn(ROW_CLASS, i > 0 && 'border-t')}
+          >
+            <StepMark complete={complete} />
+            <span
+              className={cn(
+                'flex-1 truncate text-sm',
+                complete ? 'text-[var(--brand-blue)]' : 'text-[var(--text-body)]'
+              )}
+            >
+              {step.label}
+            </span>
+            <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+          </SettingsGuardedLink>
+        )
+      })}
+    </HomeSection>
   )
 }

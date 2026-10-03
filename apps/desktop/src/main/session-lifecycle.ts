@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import type { Session, WebContents } from 'electron'
-import { BrowserWindow, dialog } from 'electron'
+import { BrowserWindow } from 'electron'
 import {
   beginAccountDataTeardown,
   completeAccountDataTeardown,
@@ -9,6 +9,7 @@ import {
 } from '@/main/account-data-generation'
 import { APP_ENTRY_ROUTE } from '@/main/app-routes'
 import { isSafeInternalPath } from '@/main/config'
+import { showShellDialog } from '@/main/dialogs'
 import { isAuthSurfacePath, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
 
@@ -378,7 +379,7 @@ export function createSessionLifecycleCoordinator(
       })
       .catch((error) => {
         logger.error('Session teardown failed; refusing to report a clean sign-out', { error })
-        void dialog.showMessageBox({
+        void showShellDialog({
           type: 'error',
           message: 'Sim could not finish signing out',
           detail:
@@ -466,9 +467,7 @@ export async function handleConnectIntercept(
     detail:
       'This provider requires completing the connection in your web browser. Sim will open this page there — connect the account, then come back to the app and refresh.',
   }
-  const { response } = win
-    ? await dialog.showMessageBox(win, options)
-    : await dialog.showMessageBox(options)
+  const { response } = win ? await showShellDialog(win, options) : await showShellDialog(options)
   if (response === 0) {
     await openExternalSafe(pageUrl, allowHttpLocalhost)
   }

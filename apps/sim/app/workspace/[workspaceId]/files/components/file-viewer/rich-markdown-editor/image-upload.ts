@@ -156,10 +156,16 @@ export function removeImageUpload(editor: Editor, id: string): void {
 }
 
 /**
- * Commit one image at its surviving range. The first successful image replaces the captured content;
+ * Commit uploaded content at its surviving range. The first successful upload replaces the captured content;
  * its queued siblings become insertion anchors after it. Cancellation and failure never delete text.
  */
-export function finishImageUpload(editor: Editor, id: string, src: string, alt: string): boolean {
+export function finishImageUpload(
+  editor: Editor,
+  id: string,
+  src: string,
+  alt: string,
+  fragment?: Slice
+): boolean {
   if (editor.isDestroyed) return false
   const upload = uploadPlaceholderKey.getState(editor.state)?.uploads.get(id)
   if (!upload) return false
@@ -167,18 +173,25 @@ export function finishImageUpload(editor: Editor, id: string, src: string, alt: 
     removeImageUpload(editor, id)
     return false
   }
-  const inserted = editor
+  const ran = editor
     .chain()
-    .insertContentAt(
-      { from: upload.from, to: upload.to },
-      { type: imageTypeAt(editor.state.doc, upload.from), attrs: { src, alt } },
-      { updateSelection: false }
-    )
+    .command(({ tr, commands }) => {
+      if (fragment) {
+        tr.replaceRange(upload.from, upload.to, fragment).setMeta('uiEvent', 'paste')
+        return true
+      }
+      return commands.insertContentAt(
+        { from: upload.from, to: upload.to },
+        { type: imageTypeAt(editor.state.doc, upload.from), attrs: { src, alt } },
+        { updateSelection: false }
+      )
+    })
     .command(({ tr }) => {
       tr.setMeta(uploadPlaceholderKey, { complete: id } satisfies UploadPlaceholderAction)
       return true
     })
     .run()
+  const inserted = ran && findImageUpload(editor, id) === null
   if (!inserted) removeImageUpload(editor, id)
   return inserted
 }

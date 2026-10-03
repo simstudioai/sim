@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import {
   type ReadResponseWithLimitOptions,
   readResponseJsonWithLimit,
@@ -13,17 +14,9 @@ const RESPONSE_LIMIT: ReadResponseWithLimitOptions = {
 
 export type JsonObject = Record<string, unknown>
 
-export function asObject(value: unknown): JsonObject {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonObject) : {}
-}
-
-export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
-}
-
 export function nested(value: unknown, ...keys: string[]): unknown {
   let current = value
-  for (const key of keys) current = asObject(current)[key]
+  for (const key of keys) current = toRecord(current)[key]
   return current
 }
 
@@ -56,7 +49,7 @@ export class GmailClient {
         error: `Gmail API error: ${response.statusText}`,
       })
     }
-    return asObject(await readResponseJsonWithLimit(response, RESPONSE_LIMIT))
+    return toRecord(await readResponseJsonWithLimit(response, RESPONSE_LIMIT))
   }
 
   async threadingHeaders(
@@ -81,8 +74,8 @@ export class GmailClient {
         await response.body?.cancel().catch(() => {})
         return {}
       }
-      const data = asObject(await readResponseJsonWithLimit(response, RESPONSE_LIMIT))
-      const headers = asArray(nested(data, 'payload', 'headers')).map(asObject)
+      const data = toRecord(await readResponseJsonWithLimit(response, RESPONSE_LIMIT))
+      const headers = toArray(nested(data, 'payload', 'headers')).map(toRecord)
       const value = (name: string) => {
         const header = headers.find(
           (entry) => typeof entry.name === 'string' && entry.name.toLowerCase() === name

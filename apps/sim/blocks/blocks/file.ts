@@ -15,7 +15,6 @@ import {
   normalizeFileInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
 
@@ -296,7 +295,7 @@ function folderScopePaths(value: unknown): string[] | undefined {
   return paths.length > 0 ? paths : undefined
 }
 
-export const FileBlock: BlockConfig<FileParserOutput> = {
+export const FileBlock: BlockConfig = {
   type: 'file',
   name: 'File (Legacy)',
   description: 'Read and parse multiple files',
@@ -421,7 +420,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   },
 }
 
-export const FileV2Block: BlockConfig<FileParserOutput> = {
+export const FileV2Block: BlockConfig = {
   ...FileBlock,
   type: 'file_v2',
   name: 'File (Legacy)',
@@ -518,7 +517,7 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
   },
 }
 
-export const FileV3Block: BlockConfig<FileParserV3Output> = {
+export const FileV3Block: BlockConfig = {
   type: 'file_v3',
   name: 'File',
   description: 'Read and write workspace files',
@@ -830,7 +829,7 @@ const parseReadFileIds = (input: unknown): string | string[] | null => {
   return null
 }
 
-export const FileV4Block: BlockConfig<FileParserV3Output> = {
+export const FileV4Block: BlockConfig = {
   ...FileV3Block,
   type: 'file_v4',
   name: 'File (Legacy)',
@@ -1105,7 +1104,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
   },
 }
 
-export const FileV5Block: BlockConfig<FileParserV3Output> = {
+export const FileV5Block: BlockConfig = {
   ...FileV4Block,
   sunset: undefined,
   type: 'file_v5',
@@ -1960,22 +1959,18 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         if (operation === 'file_write') {
           // Writing stores one file, so the single form.
           const fileInput = normalizeFileInput(params.writeFileInput, { single: true })
-          // The contract counts any defined `content` as "text was provided", and
-          // an untouched Content box serializes as an empty string — so sending it
-          // unconditionally would make every file write collide with its own empty
-          // text box. The selected file is what disambiguates: with one present,
-          // an empty Content box means "not used" and is dropped, while a
-          // non-empty one is still forwarded so the contract can report that both
-          // were filled. With no file, `content` always goes through, which keeps
-          // writing a deliberately empty text file possible.
-          const contentText = typeof params.content === 'string' ? params.content : undefined
-          const omitContent = Boolean(fileInput) && !contentText
+          /**
+           * Explicitly clear unused Content because the executor merges these params
+           * over the original inputs. Preserve empty text when no file is selected.
+           */
+          const omitContent =
+            Boolean(fileInput) && (params.content == null || params.content === '')
           return {
             fileName: params.fileName,
             folderPath: optionalText(params.writeFolderRef),
-            ...(omitContent ? {} : { content: params.content }),
+            content: omitContent ? undefined : params.content,
             ...(fileInput ? { fileInput } : {}),
-            contentType: params.contentType,
+            contentType: params.contentType ?? undefined,
             overwrite: params.overwrite === true || params.overwrite === 'true',
             workspaceId: params._context?.workspaceId,
           }
@@ -2352,7 +2347,16 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     lineCount: {
       type: 'number',
-      description: 'Lines in the file after the change (edit, insert)',
+      description: 'Lines in the file after the change (edit)',
+    },
+    version: {
+      type: 'number',
+      description: 'Version number of the content a write recorded (write, append, edit)',
+    },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content a write recorded, accepted as expectedRevision by the write and edit tools to make a later write conditional (write, append, edit)',
     },
     results: {
       type: 'array',

@@ -2031,8 +2031,6 @@ Create a new list in HubSpot. Specify the object type and processing type (MANUA
 | `listId` | string | The created list ID |
 | `success` | boolean | Operation success status |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2077,4 +2075,38 @@ Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom o
 | `previousValue` | string | Previous value before the change \(property_changed events only\) |
 | `listId` | string | HubSpot list ID \(list_membership events only\) |
 | `timestamp` | string | ISO timestamp when Sim emitted the event |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a HubSpot account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/hubspot` |
+| Environment variables | `HUBSPOT_CLIENT_ID`, `HUBSPOT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `crm.objects.contacts.read` | Read HubSpot contacts |
+| `crm.objects.contacts.write` | Create, update, and delete HubSpot contacts |
+| `crm.objects.companies.read` | Read HubSpot companies |
+| `crm.objects.companies.write` | Create, update, and delete HubSpot companies |
+| `crm.objects.deals.read` | Read HubSpot deals |
+| `crm.objects.deals.write` | Create, update, and delete HubSpot deals |
+| `crm.objects.owners.read` | Read HubSpot object owners |
+| `crm.objects.users.read` | Read HubSpot users |
+| `crm.objects.marketing_events.read` | Read HubSpot marketing events |
+| `crm.objects.line_items.read` | Read HubSpot line items |
+| `crm.objects.line_items.write` | Create, update, and delete HubSpot line items |
+| `crm.objects.quotes.read` | Read HubSpot quotes |
+| `crm.objects.appointments.read` | Read HubSpot appointments |
+| `crm.objects.appointments.write` | Create and update HubSpot appointments |
+| `crm.objects.carts.read` | Read HubSpot shopping carts |
+| `sales-email-read` | Read the content of HubSpot email engagements |
+| `crm.lists.read` | Read HubSpot lists |
+| `crm.lists.write` | Create and update HubSpot lists |
+| `tickets` | Create, read, update, and delete HubSpot tickets |
+| `oauth` | Authenticate with HubSpot OAuth |
+
 

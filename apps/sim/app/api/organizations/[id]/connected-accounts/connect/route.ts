@@ -20,7 +20,8 @@ export const POST = defineInternalJsonRoute({
   errorPolicy: createCredentialGroupInternalErrorPolicy('Failed to connect account'),
   mapInput: ({ params, body }) => ({
     organizationId: params.id,
-    optionId: body.optionId,
+    ...body,
+    ...(body.oauthCompletionId ? { returnTo: 'integrations' as const } : {}),
   }),
   useCase: startOrganizationAccountConnection,
 })

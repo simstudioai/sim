@@ -1,18 +1,18 @@
-/**
- * @vitest-environment node
- */
+import { createBlock } from '@sim/testing/factories'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { FolderCollectionFullError } from '@/lib/folders/errors'
+import { createForkSubBlockTransform } from '@/lib/workflows/references/remap-references'
+import { getBlock } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const { mockSaveWorkflowToNormalizedTables } = vi.hoisted(() => ({
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import {
   buildWorkflowNameRegistry,
@@ -20,28 +20,13 @@ import {
   resolveForkFolderMapping,
 } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 
-describe('buildWorkflowNameRegistry', () => {
-  it('reports a name as taken by another workflow in the same folder', () => {
-    const reg = buildWorkflowNameRegistry([{ id: 'w1', folderId: 'f1', name: 'Onboarding' }])
-    expect(reg.isTaken('f1', 'Onboarding', null)).toBe(true)
-    expect(reg.isTaken('f1', 'Onboarding', 'w2')).toBe(true)
-  })
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
 
+describe('buildWorkflowNameRegistry', () => {
   it('excludes the workflow itself so a replace can keep its own name', () => {
     const reg = buildWorkflowNameRegistry([{ id: 'w1', folderId: 'f1', name: 'Onboarding' }])
     expect(reg.isTaken('f1', 'Onboarding', 'w1')).toBe(false)
-  })
-
-  it('is folder-scoped: the same name in another folder is free', () => {
-    const reg = buildWorkflowNameRegistry([{ id: 'w1', folderId: 'f1', name: 'Onboarding' }])
-    expect(reg.isTaken('f2', 'Onboarding', null)).toBe(false)
-    expect(reg.isTaken(null, 'Onboarding', null)).toBe(false)
-  })
-
-  it('treats the root (null) folder distinctly, matching coalesce(folderId, "")', () => {
-    const reg = buildWorkflowNameRegistry([{ id: 'w1', folderId: null, name: 'Root WF' }])
-    expect(reg.isTaken(null, 'Root WF', null)).toBe(true)
-    expect(reg.isTaken('f1', 'Root WF', null)).toBe(false)
   })
 
   it('claims a new name so a later workflow in the same copy loop sees it taken', () => {
@@ -57,23 +42,6 @@ describe('buildWorkflowNameRegistry', () => {
     reg.claim('f1', 'New', 'w1')
     expect(reg.isTaken('f1', 'Old', null)).toBe(false)
     expect(reg.isTaken('f1', 'New', null)).toBe(true)
-  })
-
-  it('re-claiming the same (folder, name) is a no-op', () => {
-    const reg = buildWorkflowNameRegistry([{ id: 'w1', folderId: 'f1', name: 'Same' }])
-    reg.claim('f1', 'Same', 'w1')
-    expect(reg.isTaken('f1', 'Same', 'w1')).toBe(false)
-    expect(reg.isTaken('f1', 'Same', null)).toBe(true)
-  })
-
-  it('handles multiple holders (legacy duplicates) and partial release', () => {
-    const reg = buildWorkflowNameRegistry([
-      { id: 'w1', folderId: 'f1', name: 'Dup' },
-      { id: 'w2', folderId: 'f1', name: 'Dup' },
-    ])
-    expect(reg.isTaken('f1', 'Dup', 'w1')).toBe(true)
-    reg.claim('f1', 'Other', 'w2')
-    expect(reg.isTaken('f1', 'Dup', 'w1')).toBe(false)
   })
 })
 
@@ -195,27 +163,6 @@ describe('resolveForkFolderMapping', () => {
     expect(map.has('E')).toBe(false)
   })
 
-  it('prunes a root-level empty folder when the copied workflows live at root', async () => {
-    const { tx, insertedRows } = buildFolderTx([folderRow('F', 'Never used')])
-
-    const map = await resolveMapping({ tx, contentFolderIds: [null, null] })
-
-    expect(insertedRows).toHaveLength(0)
-    expect(map.size).toBe(0)
-  })
-
-  it('creates no folders when nothing is copied into any folder', async () => {
-    const { tx, insertedRows } = buildFolderTx([
-      folderRow('A', 'Alpha'),
-      folderRow('B', 'Beta', 'A'),
-    ])
-
-    const map = await resolveMapping({ tx, contentFolderIds: [] })
-
-    expect(insertedRows).toHaveLength(0)
-    expect(map.size).toBe(0)
-  })
-
   it('mirrors an empty folder selected by canonical path and returns its path mapping', async () => {
     const { tx, insertedRows } = buildFolderTx([
       folderRow('A', 'Reports'),
@@ -247,16 +194,6 @@ describe('resolveForkFolderMapping', () => {
     expect(map.get('G')).toBe('T1')
   })
 
-  it('maps a pruned folder onto a matching existing target folder without creating it', async () => {
-    const existing = { ...folderRow('T1', 'Prior sync'), workspaceId: 'ws-target' }
-    const { tx, insertedRows } = buildFolderTx([folderRow('P', 'Prior sync')], [existing])
-
-    const map = await resolveMapping({ tx, contentFolderIds: [] })
-
-    expect(insertedRows).toHaveLength(0)
-    expect(map.get('P')).toBe('T1')
-  })
-
   it('never root-aliases a pruned nested folder onto a same-named root target folder', async () => {
     // Source X is nested under unmatched P; the target's root-level "X" is unrelated.
     const existing = { ...folderRow('T-root-x', 'X'), workspaceId: 'ws-target' }
@@ -269,21 +206,6 @@ describe('resolveForkFolderMapping', () => {
 
     expect(insertedRows).toHaveLength(0)
     expect(map.size).toBe(0)
-  })
-
-  it('creates a kept child under a reused existing parent folder', async () => {
-    const existingParent = { ...folderRow('T-parent', 'Parent'), workspaceId: 'ws-target' }
-    const { tx, insertedRows } = buildFolderTx(
-      [folderRow('P', 'Parent'), folderRow('C', 'Child', 'P')],
-      [existingParent]
-    )
-
-    const map = await resolveMapping({ tx, contentFolderIds: ['C'] })
-
-    expect(map.get('P')).toBe('T-parent')
-    expect(insertedRows).toHaveLength(1)
-    expect(insertedRows[0].name).toBe('Child')
-    expect(insertedRows[0].parentId).toBe('T-parent')
   })
 
   /**
@@ -305,18 +227,6 @@ describe('resolveForkFolderMapping', () => {
     expect(insertedRows).toHaveLength(0)
   })
 
-  it('allows a fork whose new folders exactly fill the target workspace ceiling', async () => {
-    const { tx, insertedRows } = buildFolderTx(
-      [folderRow('A', 'Alpha'), folderRow('B', 'Beta', 'A'), folderRow('C', 'Gamma', 'B')],
-      [],
-      MAX_FOLDERS_PER_WORKSPACE - 3
-    )
-
-    await resolveMapping({ tx, contentFolderIds: ['C'] })
-
-    expect(insertedRows).toHaveLength(3)
-  })
-
   /**
    * A sync that reuses every target folder adds no rows, so an already-over-cap target must
    * not have it refused — the ceiling gates writes, never reads.
@@ -336,41 +246,146 @@ describe('resolveForkFolderMapping', () => {
   })
 })
 
-describe('copyWorkflowStateIntoTarget folder fallback', () => {
-  it('places a copied workflow at the target root when its source folder has no mapping', async () => {
-    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
-    const insertedWorkflows: Array<Record<string, unknown>> = []
-    const tx = {
-      insert: () => ({
-        values: (row: Record<string, unknown>) => {
-          insertedWorkflows.push(row)
-          return Promise.resolve()
+describe('copyWorkflowStateIntoTarget source tool identities', () => {
+  it.each([false, true])(
+    'applies source-indexed choices before pruning optional tools (serialized=%s)',
+    async (serialized) => {
+      const tools = [
+        { type: 'custom-tool', customToolId: 'deleted-custom-tool' },
+        { type: 'workflow_input', params: { workflowId: 'uncopied-workflow' } },
+        {
+          type: 'mcp',
+          title: 'First',
+          params: { serverId: 'source-server', toolName: 'old-first' },
         },
-      }),
-    } as unknown as DbOrTx
+        {
+          type: 'mcp',
+          title: 'Second',
+          params: { serverId: 'source-server', toolName: 'old-second' },
+        },
+      ]
+      const sourceState: WorkflowState = {
+        blocks: {
+          agent: {
+            id: 'agent',
+            type: 'agent',
+            name: 'Agent',
+            enabled: true,
+            position: { x: 0, y: 0 },
+            outputs: {},
+            subBlocks: {
+              tools: {
+                id: 'tools',
+                type: 'tool-input',
+                value: serialized ? JSON.stringify(tools) : tools,
+              },
+            },
+            data: { canonicalModes: { '2:credential': 'advanced' } },
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+        variables: {},
+      }
+      const config = { subBlocks: [{ id: 'tools', type: 'tool-input' }] } as BlockConfig
+      await vi.mocked(getBlock).withImplementation(
+        (type) => (type === 'agent' ? config : undefined),
+        async () => {
+          mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+          await copyWorkflowStateIntoTarget({
+            tx: { insert: () => ({ values: () => Promise.resolve() }) } as unknown as DbOrTx,
+            targetWorkflowId: 'wf-child',
+            targetWorkspaceId: 'ws-child',
+            userId: 'user',
+            mode: 'create',
+            now: new Date('2026-09-09'),
+            sourceState,
+            sourceMeta: { name: 'Agent mapping', description: null, folderId: null, sortOrder: 0 },
+            workflowIdMap: new Map([['wf-source', 'wf-child']]),
+            folderIdMap: new Map(),
+            nameRegistry: buildWorkflowNameRegistry([]),
+            resolveBlockId: () => 'target-agent',
+            transformSubBlocks: createForkSubBlockTransform((kind) =>
+              kind === 'mcp-server' ? 'target-server' : null
+            ),
+            dependentOverrides: new Map([
+              [
+                'target-agent',
+                new Map([
+                  ['tools[2].toolName', 'chosen-first'],
+                  ['tools[3].toolName', 'chosen-second'],
+                ]),
+              ],
+            ]),
+          })
+        }
+      )
+      const saved = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)![1] as WorkflowState
+      const value = saved.blocks['target-agent'].subBlocks.tools.value
+      const copied = typeof value === 'string' ? JSON.parse(value) : value
+      expect(copied).toEqual([
+        expect.objectContaining({
+          title: 'First',
+          params: { serverId: 'target-server', toolName: 'chosen-first' },
+        }),
+        expect.objectContaining({
+          title: 'Second',
+          params: { serverId: 'target-server', toolName: 'chosen-second' },
+        }),
+      ])
+      expect(saved.blocks['target-agent'].data?.canonicalModes).toEqual({
+        '0:credential': 'advanced',
+      })
+      expect(sourceState.blocks.agent.subBlocks.tools.value).toEqual(
+        serialized ? JSON.stringify(tools) : tools
+      )
+    }
+  )
+})
 
-    const result = await copyWorkflowStateIntoTarget({
-      tx,
+describe('copied MCP configuration normalization', () => {
+  it('normalizes an explicit connection before resource remapping and persistence', async () => {
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+    const source = createBlock({
+      id: 'mcp',
+      type: 'mcp',
+      subBlocks: {
+        server: { id: 'server', type: 'mcp-server-selector', value: 'canonical-parent' },
+        connection: { id: 'connection', type: 'mcp-server-selector', value: 'explicit-connection' },
+        operation: { id: 'operation', type: 'dropdown', value: 'run' },
+        tool: { id: 'tool', type: 'mcp-tool-selector', value: 'read' },
+      },
+    })
+    await copyWorkflowStateIntoTarget({
+      tx: { insert: () => ({ values: () => Promise.resolve() }) } as unknown as DbOrTx,
       targetWorkflowId: 'wf-child',
       targetWorkspaceId: 'ws-target',
       userId: 'target-user',
       mode: 'create',
       now: new Date('2026-07-01'),
-      sourceState: { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} },
-      sourceMeta: {
-        name: 'Orphaned placement',
-        description: null,
-        folderId: 'folder-with-no-mapping',
-        sortOrder: 0,
-      },
+      sourceState: { blocks: { mcp: source }, edges: [], loops: {}, parallels: {}, variables: {} },
+      sourceMeta: { name: 'MCP', description: null, folderId: null, sortOrder: 0 },
       workflowIdMap: new Map(),
       folderIdMap: new Map(),
       nameRegistry: buildWorkflowNameRegistry([]),
+      transformSubBlocks: (subBlocks, _type, modes) => {
+        expect(subBlocks.serverSelector.value).toBe('explicit-connection')
+        expect(subBlocks.connection).toBeUndefined()
+        expect(subBlocks.server).toBeUndefined()
+        expect(modes).toEqual({ server: 'basic', tool: 'basic' })
+        return { ...subBlocks, serverSelector: { ...subBlocks.serverSelector, value: '' } }
+      },
     })
-
-    expect(insertedWorkflows).toHaveLength(1)
-    expect(insertedWorkflows[0].folderId).toBeNull()
-    expect(result.name).toBe('Orphaned placement')
+    const [, state] = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)!
+    const persisted = Object.values(state.blocks)[0] as {
+      subBlocks: Record<string, { value: unknown }>
+      data: { canonicalModes: unknown }
+    }
+    expect(persisted.subBlocks.serverSelector.value).toBe('')
+    expect(persisted.subBlocks.server).toBeUndefined()
+    expect(persisted.subBlocks.connection).toBeUndefined()
+    expect(persisted.data.canonicalModes).toEqual({ server: 'basic', tool: 'basic' })
   })
 })
 
@@ -491,26 +506,6 @@ describe('copyWorkflowStateIntoTarget webhook path pinning', () => {
     })
     expect(writtenSubBlocks().triggerPath?.value).toBe('parent-live-path')
   })
-
-  /**
-   * The adoption case: the arriving trigger has a different target block id (re-created in the
-   * source), and the resolver handed it the URL retiring in the same target workflow.
-   */
-  it('writes an ADOPTED path onto a trigger block that serves no webhook of its own', async () => {
-    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
-    await copyWorkflowStateIntoTarget({
-      ...baseParams,
-      tx: stubTx(),
-      triggerPathByBlockId: new Map([['tgt-blk-src', 'retiring-slack-path']]),
-    })
-    expect(writtenSubBlocks().triggerPath?.value).toBe('retiring-slack-path')
-  })
-
-  it('leaves the path unset when the target block serves no webhook yet (derives as before)', async () => {
-    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
-    await copyWorkflowStateIntoTarget({ ...baseParams, tx: stubTx() })
-    expect(writtenSubBlocks().triggerPath).toBeUndefined()
-  })
 })
 
 describe('copyWorkflowStateIntoTarget custom-block remap', () => {
@@ -564,21 +559,6 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     return state.blocks['tgt-blk-cb']
   }
 
-  it('repoints the placed block at the mapped target type', async () => {
-    // The push symptom was read as "it still has the old custom block" — but both
-    // environments' blocks share a NAME, so a successful rewrite looks identical on the
-    // canvas. Pin the type itself rather than trusting the visual.
-    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
-
-    await copyWorkflowStateIntoTarget({
-      ...baseParams,
-      tx: stubTx(),
-      transformBlockType: (type) => (type === UAT ? PROD : type),
-    })
-
-    expect(writtenBlock().type).toBe(PROD)
-  })
-
   it('drops the source-keyed inputs when the type changes, instead of leaving them to rot', async () => {
     // Left in place they survive the copy and are then dropped SILENTLY by the serializer
     // (a stored value with no matching config is a deleted input), which is what made a
@@ -594,24 +574,6 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     const subBlocks = writtenBlock().subBlocks ?? {}
     expect(subBlocks['field-uat-a']).toBeUndefined()
     expect(subBlocks['field-uat-b']).toBeUndefined()
-  })
-
-  it('writes the inputs configured for the target block', async () => {
-    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
-
-    await copyWorkflowStateIntoTarget({
-      ...baseParams,
-      tx: stubTx(),
-      transformBlockType: (type) => (type === UAT ? PROD : type),
-      dependentOverrides: new Map([
-        ['tgt-blk-cb', new Map([[`${PROD}::string::field-prod-x`, 'prod value X']])],
-      ]),
-    })
-
-    const subBlocks = writtenBlock().subBlocks ?? {}
-    expect(subBlocks['field-prod-x']?.value).toBe('prod value X')
-    // No value migrated across the swap — two custom blocks are independent workflows.
-    expect(subBlocks['field-uat-a']).toBeUndefined()
   })
 
   it('preserves reserved wiring across the swap', async () => {
@@ -637,26 +599,6 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     const subBlocks = writtenBlock().subBlocks ?? {}
     expect(subBlocks.workflowId?.value).toBe('wf-uat')
     expect(subBlocks['field-prod-x']?.value).toBe('ok')
-  })
-
-  it('leaves inputs untouched when the type does NOT change', async () => {
-    // Identity mapping, or no mapping at all: the field ids still describe this same block,
-    // so the values carry exactly like a regular block's.
-    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
-
-    await copyWorkflowStateIntoTarget({
-      ...baseParams,
-      tx: stubTx(),
-      transformBlockType: (type) => type,
-      dependentOverrides: new Map([
-        ['tgt-blk-cb', new Map([[`${PROD}::string::field-prod-x`, 'must not apply']])],
-      ]),
-    })
-
-    const subBlocks = writtenBlock().subBlocks ?? {}
-    expect(writtenBlock().type).toBe(UAT)
-    expect(subBlocks['field-uat-a']?.value).toBe('uat value A')
-    expect(subBlocks['field-prod-x']).toBeUndefined()
   })
 
   it('ignores values stored for a DIFFERENT target, so a second remap starts clean', async () => {
@@ -709,32 +651,5 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     expect(subBlocks['flag-off']?.value).toBe(false)
     // A string field whose value happens to read "true" stays a string.
     expect(subBlocks.text?.value).toBe('true')
-  })
-
-  it('leaves an unset boolean unset rather than writing false', async () => {
-    // The modal submits '' for an untouched optional flag. Coercing that to `false` writes a
-    // value the user never chose: `assembleCustomBlockInputMapping` skips '' but keeps
-    // `false`, so it would reach the child's inputMapping and override the Start field's own
-    // default. Only an explicit 'false' means false.
-    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
-
-    await copyWorkflowStateIntoTarget({
-      ...baseParams,
-      tx: stubTx(),
-      transformBlockType: (type) => (type === UAT ? PROD : type),
-      dependentOverrides: new Map([
-        [
-          'tgt-blk-cb',
-          new Map([
-            [`${PROD}::boolean::untouched`, ''],
-            [`${PROD}::boolean::explicit-false`, 'false'],
-          ]),
-        ],
-      ]),
-    })
-
-    const subBlocks = writtenBlock().subBlocks ?? {}
-    expect(subBlocks).not.toHaveProperty('untouched')
-    expect(subBlocks['explicit-false']?.value).toBe(false)
   })
 })

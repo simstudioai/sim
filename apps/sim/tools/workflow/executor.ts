@@ -35,7 +35,7 @@ export const workflowExecutorTool: InternalToolConfig<
   },
   operation: {
     secretProvenance: {
-      request: (params) => [
+      request: () => [
         {
           key: WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY,
           inputPaths: [['inputMapping']],

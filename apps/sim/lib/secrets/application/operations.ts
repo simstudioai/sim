@@ -1,6 +1,11 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
-const HUMAN_API_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'oauth_access_token'] as const
+const HUMAN_API_PRINCIPAL_KINDS = [
+  'session',
+  'personal_api_key',
+  'oauth_access_token',
+  'delegated',
+] as const
 
 export const secretOperations = {
   list: defineWorkspaceOperation({
@@ -10,6 +15,7 @@ export const secretOperations = {
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
+    delegatedServices: ['copilot'],
   }),
   set: defineWorkspaceOperation({
     id: 'secrets.set',
@@ -18,6 +24,7 @@ export const secretOperations = {
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
+    delegatedServices: ['copilot'],
   }),
   delete: defineWorkspaceOperation({
     id: 'secrets.delete',
@@ -26,6 +33,7 @@ export const secretOperations = {
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
+    delegatedServices: ['copilot'],
   }),
   /**
    * Reading a secret's usage trail names who ran what with it. The use case narrows this to
@@ -38,6 +46,7 @@ export const secretOperations = {
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
+    delegatedServices: ['copilot'],
   }),
   /**
    * Reading where a secret is wired in names workflows, blocks, and the tools and servers that
@@ -51,6 +60,7 @@ export const secretOperations = {
     workspaceApiKey: 'deny',
     capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
+    delegatedServices: ['copilot'],
   }),
 } as const
 

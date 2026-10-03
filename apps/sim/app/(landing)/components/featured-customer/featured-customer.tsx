@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type TouchEvent, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import {
   FeaturedCustomerCard,
@@ -12,6 +12,10 @@ import {
   LANDING_GUTTER,
   LANDING_STAGE_RADIUS,
 } from '@/app/(landing)/components/landing-layout'
+import { useLazyMount } from '@/app/(landing)/hooks/use-lazy-mount'
+
+const WHEEL_GESTURE_GAP_MS = 200
+const WHEEL_THRESHOLD_PX = 50
 
 const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
   {
@@ -53,12 +57,86 @@ const CUSTOMER_STORIES: FeaturedCustomerStory[] = [
  * between stories, with the arrow that has nowhere to go disabled.
  */
 export function FeaturedCustomer() {
+  const railRef = useRef<HTMLDivElement>(null)
+  const touchStartRef = useRef<{ id: number; x: number; y: number } | null>(null)
+  const { ref: mediaRegionRef, inView: preloadVideos } = useLazyMount('0px')
   const [activeIndex, setActiveIndex] = useState(0)
   const [previewedIndex, setPreviewedIndex] = useState<number | null>(null)
   const activeStory = CUSTOMER_STORIES[activeIndex]
   const previousStory = activeIndex > 0 ? CUSTOMER_STORIES[activeIndex - 1] : null
   const nextStory =
     activeIndex < CUSTOMER_STORIES.length - 1 ? CUSTOMER_STORIES[activeIndex + 1] : null
+
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail) return
+
+    let distance = 0
+    let lastEventAt = 0
+    let advanced = false
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) return
+
+      const now = performance.now()
+      if (now - lastEventAt > WHEEL_GESTURE_GAP_MS) {
+        distance = 0
+        advanced = false
+      }
+      lastEventAt = now
+
+      const deltaX = event.shiftKey && event.deltaX === 0 ? event.deltaY : event.deltaX
+      const deltaY = event.shiftKey ? 0 : event.deltaY
+      if (deltaX === 0 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+        distance = 0
+        return
+      }
+
+      event.preventDefault()
+      if (advanced) return
+
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rail.clientWidth : 1
+      distance += deltaX * unit
+      if (Math.abs(distance) < WHEEL_THRESHOLD_PX) return
+
+      advanced = true
+      const direction = distance > 0 ? 1 : -1
+      setPreviewedIndex(null)
+      setActiveIndex((index) =>
+        Math.max(0, Math.min(CUSTOMER_STORIES.length - 1, index + direction))
+      )
+    }
+
+    rail.addEventListener('wheel', handleWheel, { passive: false })
+    return () => rail.removeEventListener('wheel', handleWheel)
+  }, [])
+
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0]
+    touchStartRef.current =
+      event.touches.length === 1
+        ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+        : null
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    const start = touchStartRef.current
+    touchStartRef.current = null
+    if (!start || event.touches.length > 0) return
+
+    const touch = Array.from(event.changedTouches).find((touch) => touch.identifier === start.id)
+    if (!touch) return
+
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < 50 || Math.abs(deltaX) <= Math.abs(deltaY)) return
+
+    event.preventDefault()
+    setPreviewedIndex(null)
+    setActiveIndex((index) =>
+      Math.max(0, Math.min(CUSTOMER_STORIES.length - 1, index + (deltaX < 0 ? 1 : -1)))
+    )
+  }
 
   return (
     <section
@@ -67,7 +145,7 @@ export function FeaturedCustomer() {
       aria-roledescription='carousel'
       className='w-full overflow-hidden'
     >
-      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+      <div ref={mediaRegionRef} className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
         <div className='mb-4 flex items-center justify-end gap-2 xl:pr-24'>
           <FeaturedCustomerNavigationButton
             direction='previous'
@@ -88,9 +166,15 @@ export function FeaturedCustomer() {
         </div>
 
         <div
+          ref={railRef}
           data-customer-carousel-rail='true'
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={() => {
+            touchStartRef.current = null
+          }}
           className={cn(
-            'transition-[translate] duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none xl:pr-24',
+            'touch-pan-y touch-pinch-zoom transition-[translate] duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none xl:pr-24',
             activeIndex > 0 && 'xl:translate-x-24'
           )}
         >
@@ -128,6 +212,7 @@ export function FeaturedCustomer() {
                     story={story}
                     active={isActive}
                     emphasized={isActive || isPreviewed}
+                    preload={preloadVideos}
                   />
                   {!isActive && (
                     <button

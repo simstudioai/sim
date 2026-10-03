@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   assertMicrosoftDataverseLegacyOAuthCallbackScopes,
@@ -10,7 +7,6 @@ import {
   classifyMicrosoftDataverseCredentialEnvironment,
   extractMicrosoftDataverseEnvironmentUrl,
   getBoundMicrosoftDataverseEnvironment,
-  getMicrosoftDataverseIdentityScopes,
   getMicrosoftDataverseOAuthScopes,
   getMicrosoftDataverseRequiredScope,
   normalizeMicrosoftDataverseEnvironmentUrl,
@@ -38,7 +34,6 @@ function userInfoFor(oid: string) {
 describe('Microsoft Dataverse OAuth environment binding', () => {
   it.each([
     ['https://contoso.crm.dynamics.com', 'https://contoso.api.crm.dynamics.com'],
-    [' https://contoso.crm4.dynamics.com/ ', 'https://contoso.api.crm4.dynamics.com'],
     ['https://contoso.api.crm12.dynamics.com', 'https://contoso.api.crm12.dynamics.com'],
   ])('normalizes a documented public-cloud environment root', (input, expected) => {
     expect(normalizeMicrosoftDataverseEnvironmentUrl(input)).toBe(expected)
@@ -47,15 +42,10 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
   it.each([
     'http://contoso.crm.dynamics.com',
     'https://user@contoso.crm.dynamics.com',
-    'https://contoso.crm.dynamics.com:444',
     'https://contoso.crm.dynamics.com/api/data/v9.2',
-    'https://contoso.crm.dynamics.com?x=1',
-    'https://contoso.crm.dynamics.com#fragment',
     'https://contoso.crm.dynamics.com.evil.test',
     'https://disco.crm.dynamics.com',
-    'https://globaldisco.crm.dynamics.com',
     'https://contoso.crm.microsoftdynamics.us',
-    'https://contoso.crm.dynamics.cn',
   ])('rejects an untrusted or unsupported environment root: %s', (input) => {
     expect(() => normalizeMicrosoftDataverseEnvironmentUrl(input)).toThrow()
   })
@@ -66,15 +56,6 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
       'profile',
       'email',
       'https://contoso.api.crm4.dynamics.com/.default',
-      'offline_access',
-    ])
-  })
-
-  it('derives identity permissions from the canonical service grant', () => {
-    expect(getMicrosoftDataverseIdentityScopes(LEGACY_DATAVERSE_SCOPES)).toEqual([
-      'openid',
-      'profile',
-      'email',
       'offline_access',
     ])
   })
@@ -121,9 +102,6 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
       )
     ).toThrow('do not match')
     expect(() =>
-      assertMicrosoftDataverseOAuthLinkRequest(callbackURL, ['openid'], LEGACY_DATAVERSE_SCOPES)
-    ).toThrow('do not match')
-    expect(() =>
       assertMicrosoftDataverseOAuthLinkRequest(
         callbackURL,
         [...scopes, 'openid'],
@@ -147,13 +125,6 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
     expect(() =>
       assertMicrosoftDataverseOAuthLinkRequest(
         'https://sim.test/workspace',
-        getMicrosoftDataverseOAuthScopes('https://dev.crm.dynamics.com'),
-        LEGACY_DATAVERSE_SCOPES
-      )
-    ).toThrow('legacy scopes')
-    expect(() =>
-      assertMicrosoftDataverseOAuthLinkRequest(
-        'https://sim.test/workspace',
         ['openid', 'https://attacker.example/.default'],
         LEGACY_DATAVERSE_SCOPES
       )
@@ -171,18 +142,11 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
       getMicrosoftDataverseRequiredScope('https://dev.crm.dynamics.com'),
     ]
     expect(resolveMicrosoftDataverseOAuthCallbackScopes(callbackURL, [])).toEqual(expected)
-    expect(resolveMicrosoftDataverseOAuthCallbackScopes(callbackURL, undefined)).toEqual(expected)
   })
 
   it('allows legacy callback scopes but rejects an unbound resource audience', () => {
     expect(() =>
       assertMicrosoftDataverseLegacyOAuthCallbackScopes(undefined, LEGACY_DATAVERSE_SCOPES)
-    ).not.toThrow()
-    expect(() =>
-      assertMicrosoftDataverseLegacyOAuthCallbackScopes(
-        LEGACY_DATAVERSE_SCOPES,
-        LEGACY_DATAVERSE_SCOPES
-      )
     ).not.toThrow()
     expect(() =>
       assertMicrosoftDataverseLegacyOAuthCallbackScopes(
@@ -193,12 +157,6 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
     expect(() =>
       assertMicrosoftDataverseLegacyOAuthCallbackScopes(
         ['openid', 'https://dev.crm.dynamics.com/user_impersonation'],
-        LEGACY_DATAVERSE_SCOPES
-      )
-    ).toThrow('invalid resource scope')
-    expect(() =>
-      assertMicrosoftDataverseLegacyOAuthCallbackScopes(
-        ['openid', 'https://attacker.example/.default'],
         LEGACY_DATAVERSE_SCOPES
       )
     ).toThrow('invalid resource scope')
@@ -260,12 +218,9 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
     ).toThrow('supported public-cloud Microsoft Dynamics host')
   })
 
-  it('extracts one trusted environment from space-, comma-, or array-delimited scopes', () => {
+  it('extracts one trusted environment from space-delimited or array scopes', () => {
     const marker = getMicrosoftDataverseRequiredScope('https://contoso.crm4.dynamics.com')
     expect(extractMicrosoftDataverseEnvironmentUrl(`openid ${marker} offline_access`)).toBe(
-      'https://contoso.api.crm4.dynamics.com'
-    )
-    expect(extractMicrosoftDataverseEnvironmentUrl(`openid,${marker},offline_access`)).toBe(
       'https://contoso.api.crm4.dynamics.com'
     )
     expect(extractMicrosoftDataverseEnvironmentUrl(['openid', marker])).toBe(

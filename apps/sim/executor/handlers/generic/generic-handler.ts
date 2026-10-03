@@ -160,7 +160,7 @@ function createStructuredModelProjection(
 }
 
 export class GenericBlockHandler implements BlockHandler {
-  canHandle(block: SerializedBlock): boolean {
+  canHandle(): boolean {
     return true
   }
 
@@ -170,6 +170,7 @@ export class GenericBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     nodeMetadata?: BlockNodeMetadata
   ): Promise<any> {
+    ctx.mcpBlockId = block.id
     const isMcp = block.config.tool ? isMcpTool(block.config.tool) : false
     let tool = null
 

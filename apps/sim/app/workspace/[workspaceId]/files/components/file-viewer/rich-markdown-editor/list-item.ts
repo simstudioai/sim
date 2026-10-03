@@ -16,6 +16,6 @@ export const MarkdownListItem = ListItem.extend({
   renderMarkdown: (node, helpers, context) => {
     const rendered = ListItem.config.renderMarkdown?.(node, helpers, context) ?? ''
     /** Marked misreads an opening empty `- ` line as prose when it has a trailing space. */
-    return rendered.replace(/^-[ \t]+\n/, '-\n')
+    return rendered.replace(/^-[ \t]+(?=\n|$)/, '-')
   },
 })

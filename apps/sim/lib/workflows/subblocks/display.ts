@@ -359,19 +359,29 @@ export function resolveFilterFieldLabel(
   }
 }
 
+/** Evaluates local option definitions against the block values supplied by the caller. */
+export function resolveSubBlockOptions(
+  subBlock: SubBlockConfig,
+  values: Record<string, unknown> = {}
+) {
+  return typeof subBlock.options === 'function'
+    ? subBlock.options({ values })
+    : (subBlock.options ?? [])
+}
+
 /**
  * Resolves a static dropdown/combobox value to its option label.
  * Returns null if not a dropdown/combobox or no matching option is found.
  */
 export function resolveDropdownLabel(
   subBlock: SubBlockConfig | undefined,
-  rawValue: unknown
+  rawValue: unknown,
+  values: Record<string, unknown> = {}
 ): string | null {
   if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
   if (!rawValue) return null
 
-  const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
-  if (!options) return null
+  const options = resolveSubBlockOptions(subBlock, values)
 
   const labelFor = (id: string): string | null => {
     const option = options.find((opt) => (typeof opt === 'string' ? opt === id : opt.id === id))
@@ -580,6 +590,29 @@ export function resolveSkillsLabel(
     .filter((name): name is string => !!name)
 
   return summarizeNames(names)
+}
+
+/**
+ * Resolves a fallback-model list to its model ids, e.g. "gpt-5.6, gemini-3.6-flash +1".
+ * Returns null for other subblocks and for an empty list so callers fall through.
+ * Row keys are never shown.
+ */
+export function resolveFallbackModelsLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown
+): string | null {
+  if (subBlock?.type !== 'model-fallback-list') return null
+  if (!Array.isArray(rawValue) || rawValue.length === 0) return null
+
+  const models = rawValue
+    .map((row: unknown) => {
+      if (!row || typeof row !== 'object') return null
+      const model = (row as { model?: unknown }).model
+      return typeof model === 'string' && model.trim() ? model.trim() : null
+    })
+    .filter((model): model is string => !!model)
+
+  return summarizeNames(models)
 }
 
 /**

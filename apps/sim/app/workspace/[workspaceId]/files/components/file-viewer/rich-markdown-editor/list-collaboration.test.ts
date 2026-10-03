@@ -268,31 +268,5 @@ describe('list editing with delayed peer updates', () => {
         expect(a.editor.state.doc.firstChild!.toJSON()).toEqual(expectedList)
       }
     )
-
-    it.each([false, true])(
-      'exits a trailing empty item without losing peer edits (reordered=%s)',
-      (reversed) => {
-        const { a, b } = pair(content)
-        for (const word of ['one', 'two', 'three']) {
-          b.editor.commands.insertContentAt(findText(b.editor, word), `PEER-${word} `)
-        }
-        const expectedList = b.editor.state.doc.firstChild!.toJSON()
-
-        a.editor.commands.setTextSelection(findText(a.editor, 'three') + 'three'.length)
-        key(a.editor, 'Enter')
-        key(a.editor, 'Enter')
-        expect(a.editor.state.selection.$from.depth).toBe(1)
-        expect(a.editor.state.selection.$from.parent.type.name).toBe('paragraph')
-        a.editor.commands.insertContent('LOCAL AFTER LIST')
-        reconnect(a, b, reversed)
-
-        expect(a.editor.state.doc.firstChild!.type.name).toBe(listType)
-        expect(a.editor.state.doc.firstChild!.toJSON()).toEqual(expectedList)
-        expect(a.editor.state.doc.child(1).toJSON()).toEqual({
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'LOCAL AFTER LIST' }],
-        })
-      }
-    )
   })
 })

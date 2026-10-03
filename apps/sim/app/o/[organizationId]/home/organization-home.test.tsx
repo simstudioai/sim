@@ -1,35 +1,91 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps } from 'react'
+
+import { act, type ComponentProps, type ReactNode } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
+import { kbConnectorsQueriesMock } from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
+import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthorizedAppsPage } from '@/lib/api/contracts/user'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
+  plan: false,
+  resourcePanel: vi.fn(),
   chat: vi.fn(),
   composer: vi.fn(),
   renderer: vi.fn(),
   markRead: vi.fn(),
   send: vi.fn(),
   consume: vi.fn(),
-  sources: vi.fn(),
   apiKeys: vi.fn(),
+  authorizedApps: vi.fn(),
+  fetchNextPage: vi.fn(),
+  upload: vi.fn(),
+  addResource: vi.fn(),
+  selectResource: vi.fn(),
+  activeResource: null as string | null,
 }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'reader' } } }),
+vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+  useFeatureFlag: (name: string) => (name === 'mothership-plan-mode' ? mocks.plan : false),
 }))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@tanstack/react-query', () => reactQueryMock)
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
+  useResourcePanelController: () => ({
+    onResourceEvent: undefined,
+    activeResourceState: undefined,
+    activeResourceParam: mocks.activeResource,
+    setActiveResourceUrl: mocks.selectResource,
+  }),
+  useChatResourcePanel: () => ({
+    isResourceCollapsed: true,
+    addResourceFromUser: mocks.addResource,
+    prepareResourceViewForAgentTurn: vi.fn(),
+  }),
+}))
+vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () => ({
+  ChatResourcePanel: mocks.resourcePanel,
+}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/lib/core/utils/browser-storage', () => ({
   MothershipHandoffStorage: { consume: mocks.consume },
 }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: mocks.context,
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
+  getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
+  useChat: mocks.chat,
 }))
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({ useChat: mocks.chat }))
 vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({ useSearchSources: mocks.sources }))
+vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () => ({
+  SuggestedActions: ({ onSelectPrompt }: { onSelectPrompt: (prompt: string) => void }) => (
+    <button onClick={() => onSelectPrompt('Create a CRM with sample data.')}>
+      Suggested actions
+    </button>
+  ),
+}))
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
+vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => ({
   MothershipChat: mocks.renderer,
 }))
@@ -37,19 +93,46 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => (
 import type { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 
+const mockSession = authClientMockFns.mockUseSession
+const mockContext = organizationProviderMockFns.mockUseOrganizationContext
+const deploymentShape = () => createMockDeploymentShape()
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
+deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
+
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
-  vi.clearAllMocks()
+  useMothershipDraftsStore.setState({ drafts: {} })
+  mocks.plan = false
+  mocks.activeResource = null
+  mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
+  useOrganizationChatModeStore.setState({ modes: {}, assistantSearchLevels: {} })
+  mocks.resourcePanel.mockImplementation(({ children }: { children: ReactNode }) => children)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  mocks.context.mockReturnValue({
-    organization: { id: 'organization-a' },
+  vi.stubGlobal(
+    'URL',
+    class extends URL {
+      static createObjectURL = vi.fn(() => 'blob:image-preview')
+      static revokeObjectURL = vi.fn()
+    }
+  )
+  mocks.upload.mockResolvedValue({ key: 'image-key', path: '/image-path' })
+  mockContext.mockReturnValue({
+    organization: { id: 'organization-a', name: 'Acme' },
     searchAccess: { memberScoped: true },
-    viewer: { isAdmin: false },
+    mothershipAvailable: true,
+    canBuild: true,
+    viewer: { isAdmin: false, canUseSearchMcp: true },
   })
-  mocks.sources.mockReturnValue({ data: [] })
   mocks.apiKeys.mockReturnValue({ data: { personalKeys: [] } })
-  mocks.chat.mockReturnValue({ messages: [], isChatHistoryPending: true, sendMessage: mocks.send })
+  mockAuthorizedApps([{ apps: [], nextCursor: null }])
+  mocks.chat.mockReturnValue({
+    messages: [],
+    resources: [],
+    isChatHistoryPending: true,
+    sendMessage: mocks.send,
+  })
+
   mocks.composer.mockReturnValue(<div>Question composer</div>)
   mocks.renderer.mockReturnValue(<div>Chat history</div>)
   container = document.createElement('div')
@@ -59,97 +142,85 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
+function renderHome(element: ReactNode, searchParams = '') {
+  root.render(
+    <NuqsTestingAdapter hasMemory searchParams={searchParams}>
+      {element}
+    </NuqsTestingAdapter>
+  )
+}
 function composerProps(): ComponentProps<typeof Composer> {
   return mocks.composer.mock.lastCall![0]
 }
 
-describe('organization home', () => {
-  it.each([undefined, 'chat-a'])(
-    'does not mount Home or chat %s when Search is disabled',
-    async (chatId) => {
-      mocks.context.mockReturnValue({ searchAccess: { memberScoped: false } })
-      await act(async () => root.render(<OrganizationHome chatId={chatId} />))
-      expect(container.textContent).toBe('')
-      expect(mocks.composer).not.toHaveBeenCalled()
-      expect(mocks.chat).not.toHaveBeenCalled()
-      expect(mocks.consume).not.toHaveBeenCalled()
-      expect(mocks.renderer).not.toHaveBeenCalled()
-    }
+async function attachDraftImage() {
+  const files = [new File(['image'], 'draft.png', { type: 'image/png' })]
+  await act(async () =>
+    composerProps().files.processFiles(
+      Object.assign(files, { item: (index: number) => files[index] ?? null })
+    )
   )
+}
 
-  it('greets the viewer over the composer and steps while the history query is pending', async () => {
-    await act(async () => root.render(<OrganizationHome userName='Ada Lovelace' />))
-    expect(container.textContent).toContain('What should we get done, Ada?')
-    expect(container.textContent).toContain('Question composer')
-    expect(container.textContent).toContain('Get started')
-    expect(mocks.renderer).not.toHaveBeenCalled()
-    expect(mocks.chat).toHaveBeenCalledWith({ organizationId: 'organization-a' }, undefined)
+function mockAuthorizedApps(
+  pages: AuthorizedAppsPage[],
+  state: { isFetching?: boolean; isError?: boolean } = {}
+) {
+  mocks.authorizedApps.mockReturnValue({
+    data: { pages },
+    fetchNextPage: mocks.fetchNextPage,
+    hasNextPage: Boolean(pages.at(-1)?.nextCursor),
+    isFetching: false,
+    isError: false,
+    ...state,
   })
-  it('keeps history loading scoped to an actual routed chat', async () => {
-    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
-    expect(mocks.renderer).toHaveBeenCalledWith(
-      expect.objectContaining({ isLoading: true }),
-      undefined
-    )
-    expect(container.textContent).not.toContain('Get started')
-    expect(mocks.consume).not.toHaveBeenCalled()
-  })
-  it.each([
-    { isAdmin: true, integrationHref: '/o/organization-a/settings/integrations' },
-    { isAdmin: false, integrationHref: '/o/organization-a/integrations' },
-  ])(
-    'routes onboarding for admin=$isAdmin without a workspace creation requirement',
-    async ({ isAdmin, integrationHref }) => {
-      mocks.context.mockReturnValue({
-        organization: { id: 'organization-a' },
-        searchAccess: { memberScoped: true },
-        viewer: { isAdmin },
-      })
-      await act(async () => root.render(<OrganizationHome />))
-      expect(
-        Array.from(container.querySelectorAll('a')).map((link) => ({
-          label: link.textContent,
-          href: link.getAttribute('href'),
-        }))
-      ).toEqual([
-        { label: 'Connect an integration', href: integrationHref },
-        { label: 'Connect Sim Search MCP', href: '/o/organization-a/settings/search-mcp' },
-      ])
-      expect(container.textContent).not.toContain('Create a workspace')
-      expect(mocks.sources).toHaveBeenCalledWith({
-        kind: 'organization',
-        organizationId: 'organization-a',
-      })
-    }
-  )
-  it('sends the member question as an assistant turn and clears the draft', async () => {
-    await act(async () => root.render(<OrganizationHome />))
-    await act(async () => composerProps().onChange('Find our launch plan'))
-    await act(async () => composerProps().onSubmit())
-    expect(mocks.send).toHaveBeenCalledExactlyOnceWith(
-      'Find our launch plan',
-      undefined,
-      undefined,
-      { requestMode: 'assistant' }
-    )
+}
+
+describe('organization home', () => {
+  it('isolates conversation state when switching cached chats', async () => {
+    mocks.chat.mockReturnValue({
+      resources: [],
+      messages: [],
+      isChatHistoryPending: false,
+      sendMessage: mocks.send,
+    })
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
+    await act(async () => composerProps().onChange('A draft for chat A'))
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
+    expect(composerProps().value).toBe('A draft for chat A')
+    await act(async () => renderHome(<OrganizationHome chatId='chat-b' />))
     expect(composerProps().value).toBe('')
-  })
-  it('ignores a blank submission', async () => {
-    await act(async () => root.render(<OrganizationHome />))
-    await act(async () => composerProps().onChange('   '))
-    await act(async () => composerProps().onSubmit())
+    expect(mocks.chat).toHaveBeenLastCalledWith(
+      { organizationId: 'organization-a' },
+      'chat-b',
+      expect.objectContaining({
+        requestMode: 'agent',
+      })
+    )
     expect(mocks.send).not.toHaveBeenCalled()
   })
-  it('resumes a scoped handoff with the original search filters', async () => {
-    const assistantSearch = { documentIds: ['document-a'] }
-    mocks.consume.mockReturnValueOnce({ message: 'Summarize', assistantSearch })
-    await act(async () => root.render(<OrganizationHome />))
-    expect(mocks.consume).toHaveBeenCalledWith({ organizationId: 'organization-a' })
-    expect(mocks.send).toHaveBeenCalledWith('Summarize', undefined, undefined, {
-      requestMode: 'assistant',
-      assistantSearch,
-    })
+})
+
+it('isolates saved drafts by user, organization, and conversation', async () => {
+  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  await attachDraftImage()
+  await act(async () => composerProps().onChange('Chat A follow-up'))
+  await act(async () => renderHome(<OrganizationHome chatId='chat-b' requestMode='assistant' />))
+  expect(composerProps().value).toBe('')
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  expect(composerProps().value).toBe('Chat A follow-up')
+  expect(composerProps().files.attachedFiles[0]?.key).toBe('image-key')
+  mockSession.mockReturnValue({ data: { user: { id: 'other-user' } } })
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  expect(composerProps().value).toBe('')
+  mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
+  mockContext.mockReturnValue({
+    ...mockContext(),
+    organization: { id: 'other-org', name: 'Other' },
   })
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  expect(composerProps().value).toBe('')
 })

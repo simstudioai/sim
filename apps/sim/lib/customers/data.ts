@@ -31,7 +31,8 @@ export const CUSTOMER_STORIES: readonly CustomerStory[] = [
     company: 'eXp Realty',
     industry: 'Real estate',
     focus: ['Real estate operations', 'AI workflows', 'Governance'],
-    heroAlt: 'eXp Realty',
+    heroImage: '/landing/customers/exp-beach-house.jpg',
+    heroAlt: 'A modern beach house overlooking the ocean',
     heroVideo: {
       src: '/landing/customer-stories/exp-house-color-loop.mp4',
       poster: '/landing/customer-stories/exp-house-color-poster.jpg',

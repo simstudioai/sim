@@ -174,7 +174,16 @@ const BlockSafeParagraph = Paragraph.extend({
   },
   renderMarkdown: (node: JSONContent, h, context) => {
     if (!node.content?.length && context.parentType === 'blockquote') return '<p></p>'
-    const rendered = h.renderChildren(node.content ?? [])
+    let rendered = h.renderChildren(node.content ?? [])
+    const first = node.content?.[0]
+    if (
+      context.parentType === 'blockquote' &&
+      first?.type === 'text' &&
+      !first.marks?.length &&
+      /^\[![A-Za-z]+\]/.test(first.text ?? '')
+    ) {
+      rendered = rendered.replace(/^\\\[!([A-Za-z]+)\\\]/, '[!$1]')
+    }
     let codeDelimiter = 0
     return rendered
       .split('\n')

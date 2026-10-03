@@ -8,6 +8,27 @@ export type Principal =
   | SystemPrincipal
   | CredentialGroupEnrollmentPrincipal
   | ScimConnectionPrincipal
+  | SlackInstallationPrincipal
+  | SlackAppPrincipal
+
+/** Verified app-wide ingress authority; installation lookup grants no human access. */
+export interface SlackAppPrincipal {
+  kind: 'slack_app'
+  appId: string
+  appRevision: string
+  receivedAt: Date
+}
+
+/** Authority from a verified Slack request; it grants no human or workspace access. */
+export interface SlackInstallationPrincipal {
+  kind: 'slack_installation'
+  credentialId: string
+  credentialVersion: string
+  appId: string
+  teamId: string
+  eventId: string
+  receivedAt: Date
+}
 
 export interface SessionPrincipal {
   kind: 'session'
@@ -31,6 +52,8 @@ export interface OAuthAccessTokenPrincipal {
   kind: 'oauth_access_token'
   userId: string
   clientId: string
+  /** Admission-time display metadata only; never grants authority or enters workflow payloads. */
+  clientName?: string
   /** The `oauth_access_token` row id, never the token itself. */
   tokenId: string
   scopes: readonly string[]
@@ -121,6 +144,7 @@ interface DelegatedPrincipalBase {
     credentialId?: string
     credentialGroupId?: string
     mcpServerId?: string
+    mcpBlockId?: string
   }
 }
 
@@ -164,17 +188,24 @@ export type BoundWorkflowExecutionDelegatedPrincipal = WorkflowExecutionDelegate
 export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDelegatedPrincipal
 
 /** Search-only authority delegated by a current organization member. */
-export interface OrganizationDelegatedPrincipal {
+interface OrganizationDelegatedPrincipalBase {
   kind: 'organization_delegated'
-  serviceId: 'copilot'
   organizationId: string
   subjectUserId: string
   delegationId: string
   audience: string
   issuedAt: Date
   expiresAt: Date
-  resourceScope: { chatId: string }
 }
+
+export type OrganizationDelegatedPrincipal = OrganizationDelegatedPrincipalBase &
+  (
+    | { serviceId: 'copilot'; resourceScope: { chatId: string } }
+    | {
+        serviceId: 'slack-search'
+        resourceScope: { installationId: string; eventId: string }
+      }
+  )
 
 /** Bearer identity established by a currently valid Credential Group invitation. */
 interface CredentialGroupEnrollmentIdentity {
@@ -262,7 +293,7 @@ export type WorkflowExecutionPrincipal =
 type SerializedWorkflowExecutionPrincipal =
   | SessionPrincipal
   | PersonalApiKeyPrincipal
-  | (Omit<OAuthAccessTokenPrincipal, 'expiresAt'> & { expiresAt: string })
+  | (Omit<OAuthAccessTokenPrincipal, 'expiresAt' | 'clientName'> & { expiresAt: string })
   | WorkspaceApiKeyPrincipal
   | SystemPrincipal
   | (Omit<SubjectDelegatedPrincipal, 'issuedAt' | 'expiresAt'> & {
@@ -322,6 +353,7 @@ function parseResourceScope(value: unknown): DelegatedPrincipal['resourceScope']
     'credentialId',
     'credentialGroupId',
     'mcpServerId',
+    'mcpBlockId',
   ] as const
   requireExactKeys(scope, [], keys)
   const parsed: NonNullable<DelegatedPrincipal['resourceScope']> = {}
@@ -368,7 +400,10 @@ export function serializePrincipal(principal: WorkflowExecutionPrincipal): Seria
       return {
         version: 1,
         principal: {
-          ...principal,
+          kind: principal.kind,
+          userId: principal.userId,
+          clientId: principal.clientId,
+          tokenId: principal.tokenId,
           scopes: [...principal.scopes],
           expiresAt: principal.expiresAt.toISOString(),
         },
@@ -540,14 +575,16 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
 }
 
 export type PrincipalActor =
+  | Omit<SlackAppPrincipal, 'receivedAt'>
   | {
       kind: 'organization_delegated'
-      serviceId: 'copilot'
+      serviceId: OrganizationDelegatedPrincipal['serviceId']
       subjectUserId: string
       organizationId: string
       delegationId: string
     }
   | { kind: 'session'; userId: string }
+  | Omit<SlackInstallationPrincipal, 'receivedAt' | 'credentialVersion'>
   | { kind: 'personal_api_key'; keyId: string; userId: string }
   | { kind: 'oauth_access_token'; tokenId: string; clientId: string; userId: string }
   | { kind: 'workspace_api_key'; keyId: string; workspaceId: string }
@@ -633,12 +670,24 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'workspace_api_key':
     case 'credential_group_enrollment':
     case 'scim_connection':
+    case 'slack_installation':
+    case 'slack_app':
       return null
   }
 }
 
 export function toPrincipalActor(principal: Principal): PrincipalActor {
   switch (principal.kind) {
+    case 'slack_app':
+      return { kind: principal.kind, appId: principal.appId, appRevision: principal.appRevision }
+    case 'slack_installation':
+      return {
+        kind: principal.kind,
+        credentialId: principal.credentialId,
+        appId: principal.appId,
+        teamId: principal.teamId,
+        eventId: principal.eventId,
+      }
     case 'session':
       return { kind: principal.kind, userId: principal.userId }
     case 'personal_api_key':
@@ -707,6 +756,27 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
   }
 }
 
+/**
+ * How a principal was authenticated, for request logs and analytics: its kind,
+ * plus the service behind a delegated or system principal and the OAuth client
+ * behind an access token. Identifiers that name a person, key, or token are
+ * deliberately left out — this describes the credential's kind, not the actor.
+ */
+export interface PrincipalAuthDescriptor {
+  kind: Principal['kind']
+  service?: string
+  clientId?: string
+}
+
+export function describePrincipalAuth(principal: Principal): PrincipalAuthDescriptor {
+  const actor = toPrincipalActor(principal)
+  return {
+    kind: actor.kind,
+    ...('serviceId' in actor ? { service: actor.serviceId } : {}),
+    ...('clientId' in actor ? { clientId: actor.clientId } : {}),
+  }
+}
+
 export function resolvePrincipalAuditAttribution(principal: Principal): PrincipalAuditAttribution {
   const actor = toPrincipalActor(principal)
 
@@ -729,6 +799,10 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
       return { actor, actorId: null, actorName: actor.email }
     case 'scim_connection':
       return { actor, actorId: null, actorName: 'SCIM provisioning' }
+    case 'slack_installation':
+      return { actor, actorId: null, actorName: 'Slack Search' }
+    case 'slack_app':
+      return { actor, actorId: null, actorName: 'Slack app' }
   }
 }
 
@@ -768,6 +842,20 @@ export function resolvePrincipalAttribution(
     }
     case 'credential_group_enrollment':
     case 'scim_connection':
+    case 'slack_installation':
+    case 'slack_app':
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }
+
+/** User ID every request acts as when `DISABLE_AUTH` is enabled. */
+export const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
+
+/** The user record behind {@link ANONYMOUS_USER_ID}, shared by the app and the realtime server. */
+export const ANONYMOUS_USER = {
+  id: ANONYMOUS_USER_ID,
+  name: 'Anonymous',
+  email: 'anonymous@localhost',
+  emailVerified: true,
+  image: null,
+} as const

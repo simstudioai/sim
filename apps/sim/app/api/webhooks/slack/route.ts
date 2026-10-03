@@ -1,12 +1,26 @@
 import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
+import { isRecordLike } from '@sim/utils/object'
+import { after, type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { receiveSlackSearchCommand } from '@/lib/knowledge/application/slack-search/commands'
+import { resolveSlackAppInstallation } from '@/lib/knowledge/application/slack-search/ingress'
+import {
+  revokeSlackSearchAccess,
+  slackSearchLifecycleSchema,
+} from '@/lib/knowledge/application/slack-search/lifecycle'
+import { dispatchSlackSearchTurn } from '@/lib/knowledge/application/slack-search/outbox'
+import { loadSlackAppConfiguration } from '@/lib/slack-search/app-configuration'
+import { slackSearchCommandEventId, slackSearchCommandSchema } from '@/lib/slack-search/commands'
+import { dispatchSlackSearch } from '@/lib/slack-search/dispatcher'
 import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
 import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
+import {
+  dispatchSlackCustomBotCredential,
+  handleSlackAgentSessionStopped,
+} from '@/lib/webhooks/slack-custom-ingress'
 import { dispatchSlackWebhooks, getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
-import { getSlackNativeSigningSecret } from '@/lib/webhooks/slack-native-config'
 
 const logger = createLogger('SlackAppWebhookAPI')
 
@@ -15,11 +29,8 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 /**
- * Single ingest endpoint for the official Sim Slack app. Every workspace's
- * events arrive here and are routed to listening workflows by Slack `team_id`
- * (and Slack Connect `authorizations[].team_id`) after HMAC verification with
- * the shared app signing secret. This is the request URL configured in the
- * app's Event Subscriptions.
+ * Shared ingest for registered custom and platform apps. The untrusted app ID
+ * selects exactly one signing key; routing occurs only after raw-body verification.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const ticket = tryAdmit()
@@ -44,23 +55,94 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
   }
   const { body, rawBody } = parseResult
 
-  const signingSecret = getSlackNativeSigningSecret()
-  if (!signingSecret) {
-    logger.error(`[${requestId}] SLACK_SIGNING_SECRET is not configured`)
-    return new NextResponse('Slack app not configured', { status: 500 })
-  }
+  /** Manifest creation precedes credential registration; challenge echo never dispatches work. */
+  const challenge = handleSlackChallenge(body)
+  if (challenge) return challenge
+  if (!isRecordLike(body)) return new NextResponse('Invalid Slack payload', { status: 400 })
+  const payload = body
+  const appId = payload.api_app_id
+  if (typeof appId !== 'string' || !/^A[A-Z0-9]{1,199}$/.test(appId))
+    return new NextResponse('Missing Slack app identity', { status: 400 })
+  const configuration = await loadSlackAppConfiguration(appId)
+  if (!configuration) return new NextResponse('Unknown Slack app', { status: 401 })
 
-  const authError = verifySlackRequestSignature(signingSecret, request, rawBody, requestId)
+  const authError = verifySlackRequestSignature(
+    configuration.signingSecret,
+    request,
+    rawBody,
+    requestId
+  )
   if (authError) {
     return authError
   }
 
-  const challenge = handleSlackChallenge(body)
-  if (challenge) {
-    return challenge
+  const lifecycle = slackSearchLifecycleSchema.safeParse(payload)
+  if (lifecycle.success) {
+    await revokeSlackSearchAccess.execute({
+      principal: {
+        kind: 'slack_app',
+        appId,
+        appRevision: configuration.app.revision,
+        receivedAt: new Date(receivedAt),
+      },
+      input: lifecycle.data,
+    })
+    return new NextResponse(null, { status: 200 })
   }
 
-  const payload = body as Record<string, unknown>
+  const interactionTeam = payload.team as { id?: unknown } | undefined
+  const searchTeamId = typeof payload.team_id === 'string' ? payload.team_id : interactionTeam?.id
+  const searchInstallation =
+    typeof searchTeamId === 'string'
+      ? await resolveSlackAppInstallation.execute({
+          principal: {
+            kind: 'slack_app',
+            appId,
+            appRevision: configuration.app.revision,
+            receivedAt: new Date(receivedAt),
+          },
+          input: { teamId: searchTeamId },
+        })
+      : null
+  const command = slackSearchCommandSchema.safeParse(payload)
+  if (command.success) {
+    if (!searchInstallation)
+      return NextResponse.json({
+        response_type: 'ephemeral',
+        text: 'An admin needs to install and enable Sim Search for this workspace.',
+      })
+    const { turnId, ...response } = await receiveSlackSearchCommand.execute({
+      principal: {
+        kind: 'slack_installation',
+        ...searchInstallation,
+        appId,
+        teamId: command.data.team_id,
+        eventId: slackSearchCommandEventId(command.data),
+        receivedAt: new Date(receivedAt),
+      },
+      input: command.data,
+    })
+    if (turnId) after(() => dispatchSlackSearchTurn(turnId))
+    return NextResponse.json(response)
+  }
+  if (searchInstallation) {
+    await Promise.all([
+      dispatchSlackSearch({ ...searchInstallation, body, receivedAt }),
+      handleSlackAgentSessionStopped(searchInstallation.credentialId, body),
+    ])
+  }
+  if (configuration.app.kind === 'custom') {
+    if (!searchInstallation) return new NextResponse(null, { status: 200 })
+    return getSlackDispatchResponse(
+      await dispatchSlackCustomBotCredential({
+        credentialId: searchInstallation.credentialId,
+        body,
+        request,
+        requestId,
+        receivedAt,
+      })
+    )
+  }
 
   // Route by the installed workspace(s). For Slack Connect the outer `team_id`
   // may be the sender's workspace, so every authorized installation is a
@@ -93,7 +175,10 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     return new NextResponse(null, { status: 200 })
   }
 
-  const webhooksById = new Map<string, { webhook: any; workflow: any }>()
+  const webhooksById = new Map<
+    string,
+    Awaited<ReturnType<typeof findWebhooksByRoutingKey>>[number]
+  >()
   for (const teamId of teamIds) {
     const found = await findWebhooksByRoutingKey(teamId, requestId)
     for (const entry of found) {
