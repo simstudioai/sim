@@ -1,0 +1,632 @@
+---
+title: Oracle EPM Data Integration
+description: Manage Data Integration jobs, mappings, pipelines, POVs, and repository files.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_data"
+  color="#C74634"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Oracle EPM Data Integration](https://www.oracle.com/erp/performance-management/) connects source data to configured EPM targets. This block operates existing Data Integration/Data Management configurations: connections, integration and pipeline submissions, data rules, batches, reports, mappings, snapshots, POV locks, and supporting repository files. It does not implement direct Planning, FCCS, Tax, or Profitability APIs, or create pipelines and their constituent product jobs.
+
+## Connect an account
+
+Use the existing **Oracle EPM Cloud** reusable service-account credential. Enter the environment's HTTPS **REST Base URL**, integration username, and password. Omit `/epmcloud` and API endpoint paths; include a gateway prefix only when required by your deployment. The credential's destination is authoritative, and credentials remain server-side. This uses Oracle's documented [Basic authentication](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/authentication.html); it is not a new OAuth login flow.
+
+Use a dedicated integration user with the roles required by the selected endpoint and access to the configured application. Check the tenant's enabled features and permissions before writes. Oracle's [POV page](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_lock_unlock.html) contains inconsistent role descriptions between its prerequisite prose and role table; verify the required role with your administrator instead of assuming that the least-privileged role can perform every action.
+
+## Submission and completion are different
+
+**Run Integration** and **Run Pipeline** expose only `httpStatus` and `data` (uninterpreted Oracle JSON). Their official [integration](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_integration_jobtype_106x0fea7396.html) and [pipeline](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_run_pipeline.html) pages establish requests but not the response contract needed to extract a reliable execution ID. A successful Sim return means the HTTP/JSON response was retrieved, not that Oracle accepted or completed the job. These two tools have no automatic waiting, invented job fields, or submission retry. Inspect the response and Oracle UI; do not build a workflow around an assumed nested execution-ID field.
+
+Other documented job tools return immediately unless **Wait for Completion** is enabled. Waiting lasts at most five minutes, subject to the workflow deadline and cancellation, with a two-second initial delay between polls and a ten-second maximum delay. The first status read is immediate. Oracle status `-1` and cancel-pending `2` remain pending; `0` succeeds; `1`, `3`, and `4` are unsuccessful terminal states. Unknown states fail explicitly. Numeric status takes precedence over contradictory status text in examples. See [job status](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_jobstatus_di.html).
+
+Keep `httpStatus`, Oracle `status`, and Sim's framework status separate. HTTP 200 alone does not prove completion. If waiting stops, the failure output retains the known `jobId` and latest available status; use **Get Job Status** to resume observation, not the submission action. Cancellation or a local timeout does not cancel a remotely accepted Oracle job. A timed-out submission may already have changed Oracle state; inspect Oracle before retrying manually.
+
+## Inputs and tenant-defined behavior
+
+- Integration periods use Oracle expressions such as `{Jan-26}` or `{Jan-26}{Mar-26}`. Quick Mode requires its documented execution mode. Import/export modes depend on the configured source/target and load mode. Source filters and target options use tenant-defined English display names; native file integrations do not support source filters. Follow the [integration request documentation](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_integration_jobtype_106x0fea7396.html) and your tenant configuration.
+- Pipeline names are the pipeline **code**: 3–30 alphanumeric characters. Use **Get Pipeline Details** to inspect documented variables, stages, and jobs, then submit variables by their actual names. Do not assume every pipeline defines the same variables. See [pipeline details](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/get_pipeline.html).
+- **Update Connection** updates the documented source-system option array. Secret options that require encryption must contain values generated by Oracle's encryption workflow (the encrypted password-file contents), not plaintext or Sim's credential password. This integration does not encrypt these values. See [connection APIs](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/di_connections_update_a_connection.html).
+- Data rules require explicit start/end periods and import/export modes; report parameter names depend on the selected report. See [data rules](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_run_data_rule.html), [batches](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_run_batch.html), and [reports](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_execute_report.html).
+
+## Selectors and limits
+
+Connections and repository files have documented list-backed selectors. Location suggestions are scoped to **Application**, **Period**, and **Category** and come from POV rows. Application-summary rows (whose location equals the application name) are excluded. These suggestions are not a complete location catalog; a real location with the same name is also ambiguous, so enter it manually.
+
+Switch selector fields to Advanced mode for manual names or references. Integrations, data rules, pipelines, periods, and jobs use manual names/codes/IDs because the available documentation does not establish trustworthy list item schemas for those catalogs. A documented collection URL alone is not a response contract.
+
+JSON requests/responses are bounded to 16 MiB. Documented collections and pipeline arrays are bounded to 10,000 entries, and tenant option/variable maps to 100 entries. Exceeding a limit fails explicitly rather than silently truncating or accumulating more pages. Selectors may also apply the shared platform's display limits; manual inputs remain available.
+
+## Repository files and destructive workflows
+
+- **Upload File** accepts exactly one authorized Sim UserFile, through the basic upload field or an advanced resolved file reference. Both upload and download are capped at **100 MiB**, including actual streamed bytes, regardless of higher Oracle limits. Upload uses the direct binary API, with no chunked/multipart Oracle protocol or overwrite option. Set **Upload Directory** to `inbox` (or a supported subfolder) for Data Integration input files; omitting it uses the repository root. Upload status `-1` means extraction is still running, not completed. See [upload](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/upload.html).
+- Pass raw complete repository filenames, including folders, not pre-encoded URLs. Download encodes the whole filename as one path parameter, supports Oracle's slash/backslash forms, and rejects traversal. JSON responses from this endpoint are errors, not downloaded files. Binary results stream into authorized workflow execution storage and return a canonical UserFile. Download requires valid workflow, workspace, and execution context. See [download](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/download.html).
+- Mapping imports read uploaded `inbox` CSV/TXT/XLS/XLSX files. **REPLACE** replaces existing mappings; **MERGE** is Oracle's default when omitted. Mapping exports require a location and dimension (or `ALL`) and produce an `outbox` file. The export format is selected by filename extension, not an invented export-mode parameter. Oracle's export page disagrees on XLS versus XLSX; use a documented compatible format such as CSV or confirm your tenant's spreadsheet behavior. See [mapping import](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_import_data_mapping.html) and [export](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_export_data_mapping.html).
+- **Import Data Integration** clears existing target Data Integration setup/staging data before restoring the snapshot; it does not merge. Oracle documents a placeholder `jobId: 0`, which cannot be polled by **Get Job Status**, so this action never auto-waits. Verify completion in Oracle. **Export Data Integration** supports ALL, ALL_INCREMENTAL, INCREMENTAL, and SETUP with the documented `overwriteFile` option; Oracle produces the snapshot in outbox. See [snapshot import](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_import_data_snapshot.html) and [export](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_export_data_snapshot.html).
+- **Set POV Lock** changes the selected application or location scope. **Delete File** permanently removes the specified repository file or snapshot. Review scope and replacement options before running these actions. See [POV locks](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/fdmee_lock_unlock.html) and [file deletion](https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/delete_files_v2.html).
+
+Typical workflows: upload an inbox file and run an existing data rule; export mappings and download the completed output; run a report and download its output file; or export a SETUP snapshot before an explicitly approved restore. For documented jobs, check successful completion before using output filenames. No live tenant execution is required to configure the block, and no tenant-specific response fixtures are bundled.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Use existing Oracle EPM Data Integration and Data Management configurations with 20 actions. Integration and pipeline submissions return opaque Oracle JSON without assumed completion or execution-ID fields. Other documented jobs support optional bounded waiting. File transfers are capped at 100 MiB. Snapshot import clears target data; connection updates, replacement modes, POV locks, and file deletion change provider state. Product-specific Planning, FCCS, Tax, and Profitability APIs are outside this block.
+
+
+
+## Actions
+
+### Oracle EPM Data List Connections
+
+List documented Data Integration connection names.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `connections` | array | Documented Data Integration connection names and references |
+|   ↳ `connectionName` | string | Connection name |
+|   ↳ `refUrl` | string | Provider reference URL; not an arbitrary URL input |
+
+### Oracle EPM Data Get Connection
+
+Read a Data Integration source-system connection and its Oracle-returned options.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `connectionName` | string | Yes | Exact Data Integration connection name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `connection` | json | Connection definition and Oracle-returned options |
+|   ↳ `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+|   ↳ `sourceSystemId` | string | Connection ID, normalized to a string |
+|   ↳ `sourceSystemName` | string | Source system name |
+|   ↳ `sourceSystemType` | string | Source system type |
+|   ↳ `sourceSystemDescription` | string | Source system description |
+|   ↳ `sourceSystemOptions` | array | Connection options |
+|     ↳ `optionName` | string | Oracle option name |
+|     ↳ `optionValue` | string | Oracle option value; secret values may be masked by Oracle |
+
+### Oracle EPM Data Update Connection
+
+Update an existing Data Integration connection using Oracle-encrypted secret option values.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `sourceSystemId` | string | Yes | Source-system ID returned by Get Connection |
+| `sourceSystemName` | string | Yes | Source-system connection name |
+| `sourceSystemType` | string | Yes | Source-system type returned by Get Connection |
+| `sourceSystemOptions` | json | Yes | Array of \{optionName, optionValue\}. password, consumerSecret and tokenSecret require EPM Automate-encrypted .epw contents, not plaintext. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `response` | string | Oracle confirmation message |
+
+### Oracle EPM Data Get Pipeline Details
+
+Read an existing pipeline's definition, variables, stages, jobs, and latest execution metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `pipelineCode` | string | Yes | Immutable pipeline code, not display name; 3–30 alphanumeric characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `pipeline` | json | Pipeline definition, variables, stages, jobs, and latest execution metadata |
+|   ↳ `name` | string | Pipeline code |
+|   ↳ `displayName` | string | Pipeline display name |
+|   ↳ `id` | number | Pipeline definition ID |
+|   ↳ `parallelJobs` | number | Parallel job setting |
+|   ↳ `variables` | array | Configured pipeline variables |
+|     ↳ `varName` | string | Variable name |
+|     ↳ `varDisplayName` | string | Variable display name |
+|     ↳ `varDefaultValue` | string | Variable default value |
+|     ↳ `varType` | string | Variable type |
+|     ↳ `varValObject` | string | Variable value object |
+|     ↳ `varSequence` | number | Variable sequence |
+|     ↳ `varDefaultParam` | string | Default parameter flag |
+|   ↳ `stages` | array | Configured stages and their jobs |
+|     ↳ `stageName` | string | Stage name |
+|     ↳ `stageDisplayName` | string | Stage display name |
+|     ↳ `stageID` | number | Stage ID |
+|     ↳ `stageSequence` | number | Stage sequence |
+|     ↳ `stageParallel` | string | Parallel stage flag |
+|     ↳ `plNextStageSuccess` | string | Next-stage behavior on success |
+|     ↳ `plNextStageFailure` | string | Next-stage behavior on failure |
+|     ↳ `jobs` | array | Configured stage jobs |
+|       ↳ `jobType` | string | Configured job type |
+|       ↳ `jobName` | string | Configured job name |
+|       ↳ `jobID` | number | Configured job ID |
+|       ↳ `jobSeq` | number | Job sequence |
+|       ↳ `jobObject` | string | Job object |
+|       ↳ `jobConnection` | string | Connection name |
+|       ↳ `status` | string | Latest job status |
+|       ↳ `endTime` | string | Latest end time |
+|       ↳ `logFile` | string | Latest log filename |
+|       ↳ `processId` | number | Latest process ID |
+|       ↳ `parameters` | array | Configured job parameters |
+|         ↳ `paramName` | string | Parameter name |
+|         ↳ `paramValue` | string | Parameter value |
+|         ↳ `paramLevel` | string | Parameter level |
+|   ↳ `status` | string | Latest pipeline status |
+|   ↳ `processId` | number | Latest process ID |
+|   ↳ `lastUpdatedDate` | string | Latest update date |
+|   ↳ `proxyAdminUser` | string | Proxy administrator |
+
+### Oracle EPM Data Run Integration
+
+Submit an existing integration and return uninterpreted Oracle JSON, without inferring acceptance or completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `jobName` | string | Yes | Existing Data Integration integration name |
+| `periodName` | string | Yes | Oracle period expression, for example \{Jan-20\}, \{Jan-20\}\{Mar-20\}, \{Jan#FY20\}, or \{GLOBAL_POV\} |
+| `importMode` | string | Yes | Import mode supported by this integration: Append, Replace, Map and Validate, No Import, or Direct |
+| `exportMode` | string | Yes | Export mode supported by the target and load method: Merge, Replace, Accumulate, Subtract, or No Export |
+| `fileName` | string | No | Optional source filename already uploaded to inbox, or #epminbox/&lt;filename&gt;; omission uses the integration definition |
+| `executionMode` | string | No | SYNC or ASYNC; mandatory for Quick Mode only. Oracle SYNC may wait server-side; Sim does not poll this submission. |
+| `sourceFilters` | json | No | Tenant-defined English source filter names and string values. Unsupported for native file-based loads. |
+| `targetOptions` | json | No | Tenant-defined English target option names and string values |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `data` | json | Uninterpreted Oracle submission JSON. No acceptance, completion, status, or job-ID field is assumed. |
+
+### Oracle EPM Data Run Pipeline
+
+Submit an existing pipeline and return uninterpreted Oracle JSON, without assumed job-ID fields or polling.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `pipelineCode` | string | Yes | Immutable pipeline code, not display name; 3–30 alphanumeric characters |
+| `variables` | json | No | Configured pipeline variable names and string values; omitted variables retain tenant defaults |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `data` | json | Uninterpreted Oracle submission JSON. No acceptance, completion, status, or job-ID field is assumed. |
+
+### Oracle EPM Data Run Data Rule
+
+Execute an existing Data Management load rule with explicit period and import/export modes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `jobName` | string | Yes | Existing Data Management data load rule name |
+| `startPeriod` | string | Yes | First period defined in Data Management period mapping |
+| `endPeriod` | string | Yes | Last period defined in Data Management period mapping |
+| `importMode` | string | Yes | APPEND, REPLACE, RECALCULATE, or NONE |
+| `exportMode` | string | Yes | Planning: STORE_DATA, ADD_DATA, SUBTRACT_DATA, REPLACE_DATA, NONE. FCCS/Tax: REPLACE, MERGE, NONE. |
+| `fileName` | string | No | Optional inbox source file; omission uses the data rule's configured filename |
+| `waitForCompletion` | boolean | No | Wait up to five minutes for this documented job to finish; default false. Timeout preserves the job ID and never resubmits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Run Batch
+
+Execute a predefined Data Management batch with optional bounded completion waiting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `jobName` | string | Yes | Existing Data Management batch name |
+| `waitForCompletion` | boolean | No | Wait up to five minutes for this documented job to finish; default false. Timeout preserves the job ID and never resubmits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Get Job Status
+
+Read a documented Data Integration job by its process ID, optionally waiting for completion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `jobId` | string | Yes | Positive Data Integration process ID; snapshot import placeholder 0 is not usable |
+| `waitForCompletion` | boolean | No | Wait up to five minutes for this documented job to finish; default false. Timeout preserves the job ID and never resubmits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Execute Report
+
+Run an existing Data Management report and return its job and repository output information.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `jobName` | string | Yes | Existing Data Management report name |
+| `reportFormatType` | string | Yes | PDF, XLSX, HTML, or EXCEL |
+| `parameters` | json | Yes | Report-specific parameter names and string values, such as Dimension Name, Category, Period, and Location |
+| `waitForCompletion` | boolean | No | Wait up to five minutes for this documented job to finish; default false. Timeout preserves the job ID and never resubmits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Import Mappings
+
+Import member mappings from an uploaded file, optionally replacing existing mappings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `dimension` | string | Yes | Dimension name, or ALL for all dimensions |
+| `fileName` | string | Yes | Existing inbox .CSV, .TXT, .XLS, or .XLSX mapping filename |
+| `importMode` | string | No | MERGE \(Oracle default\) or REPLACE, which clears existing mapping rules |
+| `validationMode` | boolean | No | Validate target members against the target application; Oracle default false |
+| `locationName` | string | No | Location where mappings should be loaded |
+| `waitForCompletion` | boolean | No | Wait up to five minutes for this documented job to finish; default false. Timeout preserves the job ID and never resubmits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Export Mappings
+
+Export a location's member mappings to a repository file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `dimension` | string | Yes | Dimension name, or ALL for all dimensions |
+| `fileName` | string | Yes | Destination outbox filename; the extension selects .CSV, .TXT, or .XLS format |
+| `locationName` | string | Yes | Location whose mapping rules should be exported |
+| `waitForCompletion` | boolean | No | Wait up to five minutes for this documented job to finish; default false. Timeout preserves the job ID and never resubmits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Import Data Integration
+
+Restore a Data Integration snapshot, clearing existing target setup/staging data instead of merging.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `fileName` | string | Yes | Uploaded inbox snapshot ZIP. A bare filename refers to the Data Integration root, which is populated only through Oracle's UI. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Export Data Integration
+
+Back up Data Integration setup and staging data to a snapshot in outbox.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `fileName` | string | Yes | Output snapshot filename; Oracle generates it in outbox and appends .zip if necessary |
+| `snapshotType` | string | Yes | ALL, ALL_INCREMENTAL, INCREMENTAL, or SETUP |
+| `overwriteFile` | boolean | No | Replace an existing output snapshot; default false |
+| `waitForCompletion` | boolean | No | Wait up to five minutes for this documented job to finish; default false. Timeout preserves the job ID and never resubmits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `jobId` | string | Oracle process ID; snapshot imports return the non-pollable placeholder 0 |
+| `jobName` | string | Job name when returned |
+| `jobStatus` | string | Provider job status text |
+| `descriptiveStatus` | string | Provider description of job status |
+| `logFileName` | string | Repository filename of the execution log |
+| `outputFileName` | string | Repository filename of generated output, when available |
+| `processType` | string | Oracle process type |
+| `executedBy` | string | User that executed the Oracle job |
+| `action` | string | Snapshot action, when returned |
+| `snapshotType` | string | Export snapshot type, when returned |
+
+### Oracle EPM Data Get POV Status
+
+Read location/application lock status for a Data Integration period and category.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `period` | string | Yes | Data Integration POV period |
+| `category` | string | Yes | Configured POV category, such as Actual |
+| `application` | string | No | Application whose POV status should be read |
+| `locationName` | string | No | Optional location filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `povs` | array | POV lock records; may include an application-summary record |
+|   ↳ `period` | string | Period name |
+|   ↳ `category` | string | Category name |
+|   ↳ `status` | string | Lock status |
+|   ↳ `application` | string | Application name |
+|   ↳ `location` | string | Location or application-summary name |
+
+### Oracle EPM Data Set POV Lock
+
+Lock or unlock a location/application POV; locking prevents associated data-load work.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `period` | string | Yes | Data Integration POV period |
+| `category` | string | Yes | Configured POV category |
+| `lockType` | string | Yes | application or location |
+| `lockOperation` | string | Yes | lock or unlock |
+| `application` | string | No | Required when lockType is application |
+| `locationName` | string | No | Required when lockType is location |
+| `unlockByLocation` | boolean | No | Application lock option allowing locations to be unlocked independently; Oracle default false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `response` | string | Oracle confirmation message |
+
+### Oracle EPM Data List Files
+
+List EPM repository files and application snapshots with documented size and modification metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `files` | array | Repository files and application snapshots |
+|   ↳ `name` | string | Complete repository filename |
+|   ↳ `type` | string | EXTERNAL or LCM snapshot |
+|   ↳ `size` | string | Byte count as an Oracle decimal string; null for LCM snapshots |
+|   ↳ `lastmodifiedtime` | string | Milliseconds since epoch as an Oracle decimal string; null for LCM snapshots |
+
+### Oracle EPM Data Upload File
+
+Upload one authorized UserFile of at most 100 MiB to the EPM repository without overwriting existing files.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `file` | file | Yes | One uploaded UserFile or resolved prior-block file reference; maximum 100 MiB |
+| `fileName` | string | Yes | Raw destination filename, not a URL-encoded path |
+| `extDirPath` | string | No | Oracle upload directory such as inbox, inbox/subfolder, or outbox; omit to use repository root |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `fileName` | string | Complete repository filename |
+
+### Oracle EPM Data Download File
+
+Download an EPM repository file of at most 100 MiB into this workflow's execution storage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `fileName` | string | Yes | Complete raw repository filename, including folders. Do not URL-encode it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `fileName` | string | Complete repository filename |
+| `file` | file | Downloaded UserFile stored in this workflow execution |
+
+### Oracle EPM Data Delete File
+
+Permanently delete the specified EPM repository file or application snapshot.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle EPM reusable service-account credential |
+| `fileName` | string | Yes | Complete raw repository filename, including folders. Do not URL-encode it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `httpStatus` | number | HTTP status returned by Oracle, distinct from Oracle job status |
+| `status` | number | Oracle status code; HTTP success alone does not mean job completion |
+| `details` | string | Oracle operation or error details |
+| `fileName` | string | Complete repository filename |
+
+
