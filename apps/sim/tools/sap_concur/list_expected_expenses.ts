@@ -1,15 +1,14 @@
-import type { ListExpectedExpensesParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListExpectedExpensesParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listExpectedExpensesTool: ToolConfig<
+export const listExpectedExpensesTool: InternalToolConfig<
   ListExpectedExpensesParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_list_expected_expenses',
   name: 'SAP Concur List Expected Expenses',
@@ -72,23 +71,20 @@ export const listExpectedExpensesTool: ToolConfig<
       description: 'User UUID acting on the request (optional)',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       const query: Record<string, string> = {}
       if (params.userId?.trim()) query.userId = params.userId.trim()
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}/expenses`,
         method: 'GET',
         ...(Object.keys(query).length > 0 ? { query } : {}),
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

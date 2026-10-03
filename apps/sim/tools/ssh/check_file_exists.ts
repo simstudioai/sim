@@ -1,7 +1,7 @@
 import type { SSHCheckFileExistsParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const checkFileExistsTool: ToolConfig<SSHCheckFileExistsParams, SSHResponse> = {
+export const checkFileExistsTool: InternalToolConfig<SSHCheckFileExistsParams, SSHResponse> = {
   id: 'ssh_check_file_exists',
   name: 'SSH Check File Exists',
   description: 'Check if a file or directory exists on the remote SSH server',
@@ -58,13 +58,8 @@ export const checkFileExistsTool: ToolConfig<SSHCheckFileExistsParams, SSHRespon
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/check-file-exists',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

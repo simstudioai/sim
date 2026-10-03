@@ -1,15 +1,14 @@
-import type { GetRequestCashAdvanceParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetRequestCashAdvanceParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getRequestCashAdvanceTool: ToolConfig<
+export const getRequestCashAdvanceTool: InternalToolConfig<
   GetRequestCashAdvanceParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_get_request_cash_advance',
   name: 'SAP Concur Get Request Cash Advance',
@@ -66,20 +65,17 @@ export const getRequestCashAdvanceTool: ToolConfig<
       description: 'Cash advance UUID (returned as part of a travel request)',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const cashAdvanceUuid = trimRequired(params.cashAdvanceUuid, 'cashAdvanceUuid')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/cashadvances/${encodeURIComponent(cashAdvanceUuid)}`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

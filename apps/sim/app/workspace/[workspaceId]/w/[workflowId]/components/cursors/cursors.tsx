@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useMemo } from 'react'
-import { useViewport } from 'reactflow'
+import { useViewport } from '@xyflow/react'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'

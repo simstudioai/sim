@@ -3,7 +3,7 @@ import { tableRowExecutions, userTableRows, workflowExecutionLogs } from '@sim/d
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
@@ -20,7 +20,6 @@ import {
   markTableJobRunning,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
-import { pluckByPath } from '@/lib/table/pluck'
 import { createTableRowSecretProvenanceFromRegistry } from '@/lib/table/rows/secret-provenance'
 import { batchUpdateRows } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -56,6 +55,31 @@ export interface TableBackfillPayload {
   overwrite: boolean
   /** User who triggered the schema change, for usage attribution on the row writes. */
   actorUserId?: string | null
+  /**
+   * Person whose permission group gates any cell the backfill's writes cascade
+   * into. Separate from `actorUserId`, which is a billing attribution and names
+   * the workspace billed account when the schema change carried no human. Null
+   * when the change had no acting person.
+   *
+   * Absent only on a payload enqueued before this field existed and still
+   * running after the deploy that added it — a backfill over more rows than
+   * `BACKFILL_ASYNC_THRESHOLD_ROWS`, mid-flight at the cutover. Such a payload
+   * reads as null, and that is a deliberate choice between two wrong answers
+   * rather than the status quo: before this field, the cascaded cells gated on
+   * `actorUserId`, so for a session-made change the window loosens the gate for
+   * as long as that one job runs.
+   *
+   * Falling back to `actorUserId` would close that and open a worse one.
+   * `attributedUserId` yields the workspace's billed account for a change made
+   * by a workspace API key, and nothing on the payload distinguishes that id
+   * from a human actor — so the fallback would apply a bystander's denylist,
+   * which is the substitution this field exists to remove. Failing closed
+   * instead would abandon the backfill's writes entirely, turning a bounded
+   * governance edge into visible data loss on runs the schema change promised
+   * to fill. Null is the least wrong of the three, and the window is one
+   * deploy long.
+   */
+  capabilityGovernedUserId?: string | null
 }
 
 /**
@@ -136,8 +160,11 @@ async function processBackfillPage(opts: {
   execs: Array<{ rowId: string; executionId: string | null }>
   requestId: string
   actorUserId?: string | null
+  /** See {@link TableBackfillPayload.capabilityGovernedUserId}. */
+  capabilityGovernedUserId?: string | null
 }): Promise<number> {
-  const { table, outputs, overwrite, execs, requestId, actorUserId } = opts
+  const { table, outputs, overwrite, execs, requestId, actorUserId, capabilityGovernedUserId } =
+    opts
 
   const executionIdsByRow = new Map<string, string>()
   for (const e of execs) {
@@ -203,7 +230,7 @@ async function processBackfillPage(opts: {
       if (!overwrite && (r.data as RowData)[out.columnName] !== undefined) continue
       const functionalOutput = getFunctionalBlockOutput(log.data, out.blockId)
       if (functionalOutput === undefined) continue
-      const picked = pluckByPath(functionalOutput, out.path)
+      const picked = getValueAtPath(functionalOutput, out.path)
       if (picked === undefined) continue
       dataPatch[out.columnName] = picked as RowData[string]
       mutated = true
@@ -224,6 +251,15 @@ async function processBackfillPage(opts: {
       updates,
       workspaceId: table.workspaceId,
       actorUserId,
+      /**
+       * A backfill replays values already produced by earlier runs, but the
+       * cells it fills are dependencies: `batchUpdateRows` starts every
+       * downstream group whose deps just became satisfied. Those cells are
+       * governed by whoever made the schema change, carried separately from
+       * `actorUserId` — an attribution that names the workspace billed account
+       * when the change carried no human, whose denylist is nobody's to run.
+       */
+      capabilityGovernedUserId: capabilityGovernedUserId ?? null,
       secretProvenanceByRowId,
     },
     table,
@@ -242,7 +278,8 @@ async function processBackfillPage(opts: {
  * passes skip already-filled cells).
  */
 export async function runTableBackfill(payload: TableBackfillPayload): Promise<void> {
-  const { jobId, tableId, groupId, outputs, overwrite, actorUserId } = payload
+  const { jobId, tableId, groupId, outputs, overwrite, actorUserId, capabilityGovernedUserId } =
+    payload
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -268,6 +305,7 @@ export async function runTableBackfill(payload: TableBackfillPayload): Promise<v
         execs,
         requestId,
         actorUserId,
+        capabilityGovernedUserId,
       })
       processed += execs.length
     }
@@ -322,8 +360,11 @@ export async function maybeBackfillGroupOutputs(opts: {
   overwrite: boolean
   requestId: string
   actorUserId?: string | null
+  /** See {@link TableBackfillPayload.capabilityGovernedUserId}. */
+  capabilityGovernedUserId?: string | null
 }): Promise<void> {
-  const { table, groupId, outputs, overwrite, requestId, actorUserId } = opts
+  const { table, groupId, outputs, overwrite, requestId, actorUserId, capabilityGovernedUserId } =
+    opts
   if (outputs.length === 0) return
 
   const [{ count: completedCount }] = await db
@@ -347,7 +388,15 @@ export async function maybeBackfillGroupOutputs(opts: {
       const execs = await selectCompletedExecPage(table.id, groupId, afterRowId, BACKFILL_PAGE_SIZE)
       if (execs.length === 0) break
       afterRowId = execs[execs.length - 1].rowId
-      await processBackfillPage({ table, outputs, overwrite, execs, requestId, actorUserId })
+      await processBackfillPage({
+        table,
+        outputs,
+        overwrite,
+        execs,
+        requestId,
+        actorUserId,
+        capabilityGovernedUserId,
+      })
     }
     return
   }
@@ -370,6 +419,7 @@ export async function maybeBackfillGroupOutputs(opts: {
     outputs,
     overwrite,
     actorUserId,
+    capabilityGovernedUserId,
   }
   if (isTriggerDevEnabled) {
     try {

@@ -4,9 +4,9 @@ import {
   type LatestCommitResponse,
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitResponse> = {
+export const latestCommitTool: InternalToolConfig<LatestCommitParams, LatestCommitResponse> = {
   id: 'github_latest_commit',
   name: 'GitHub Latest Commit',
   description: 'Retrieve the latest commit from a GitHub repository',
@@ -39,13 +39,8 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     },
   },
 
-  request: {
-    url: '/api/tools/github/latest-commit',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       owner: params.owner,
       repo: params.repo,
       branch: params.branch,
@@ -62,13 +57,13 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
   },
 }
 
-export const latestCommitV2Tool: ToolConfig = {
+export const latestCommitV2Tool: InternalToolConfig = {
   id: 'github_latest_commit_v2',
   name: latestCommitTool.name,
   description: latestCommitTool.description,
   version: '2.0.0',
   params: latestCommitTool.params,
-  request: latestCommitTool.request,
+  operation: latestCommitTool.operation,
   oauth: latestCommitTool.oauth,
   transformResponse: async (response: Response) => {
     const data = await response.json()

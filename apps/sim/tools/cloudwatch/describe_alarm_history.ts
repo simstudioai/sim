@@ -2,9 +2,9 @@ import type {
   CloudWatchDescribeAlarmHistoryParams,
   CloudWatchDescribeAlarmHistoryResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const describeAlarmHistoryTool: ToolConfig<
+export const describeAlarmHistoryTool: InternalToolConfig<
   CloudWatchDescribeAlarmHistoryParams,
   CloudWatchDescribeAlarmHistoryResponse
 > = {
@@ -71,13 +71,8 @@ export const describeAlarmHistoryTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/describe-alarm-history',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

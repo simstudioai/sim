@@ -1,19 +1,18 @@
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import {
+  createSsrfGuardedFetchWithDispatcher,
   type SecureFetchOptions,
   type SecureFetchResponse,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
 import {
-  attachRetryHeaders,
-  type HTTPError,
+  createRetryableHttpError,
   isRetryableError,
   type RetryOptions,
-  resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
 
 export interface SecureFetchRetryOptions extends RetryOptions {
-  allowHttp?: boolean
   timeout?: number
   maxResponseBytes?: number
 }
@@ -30,17 +29,15 @@ export interface SecureFetchRetryOptions extends RetryOptions {
  */
 export async function secureFetchWithRetry(
   url: string,
-  options: SecureFetchOptions = {},
+  options: SecureFetchOptions,
   retryOptions: SecureFetchRetryOptions = {}
 ): Promise<SecureFetchResponse> {
-  const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
-
+  const { timeout, maxResponseBytes, ...retry } = retryOptions
   return retryWithExponentialBackoff(async () => {
     const response = await secureFetchWithValidation(
       url,
       {
         ...options,
-        ...(allowHttp !== undefined ? { allowHttp } : {}),
         ...(timeout !== undefined ? { timeout } : {}),
         ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
       },
@@ -56,22 +53,68 @@ export async function secureFetchWithRetry(
      * limit) use instead.
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await response.text()
-      const error: HTTPError = new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
-      )
-      error.status = response.status
-      error.statusText = response.statusText
-      attachRetryHeaders(error, response.headers)
-
-      const waitMs = resolveRetryDelayMs(response.headers)
-      if (waitMs !== undefined) {
-        error.retryAfterMs = waitMs
-      }
-
-      throw error
+      throw await createRetryableHttpError(response)
     }
 
     return response
   }, retry)
+}
+
+const DEFAULT_FETCH_RETRY_BUDGET_MS = 150_000
+let connectorTransport: ReturnType<typeof createSsrfGuardedFetchWithDispatcher> | undefined
+
+/**
+ * Bounds requests and response bodies within one retry budget.
+ */
+export async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  retryOptions: RetryOptions = {}
+): Promise<Response> {
+  const callerSignal = options.signal
+    ? retryOptions.signal
+      ? AbortSignal.any([options.signal, retryOptions.signal])
+      : options.signal
+    : retryOptions.signal
+
+  return retryWithExponentialBackoff(
+    async (signal, deadlineAt) => {
+      /** The fetch deadline stays active while callers consume the returned response body. */
+      const requestSignal = AbortSignal.any([
+        signal,
+        AbortSignal.timeout(Math.max(0, Math.ceil(deadlineAt - Date.now()))),
+      ])
+      const transport: typeof fetch = async (input, init) => {
+        const route = await resolveCurrentOutboundRoute()
+        if (route.kind === 'direct') return fetch(input, init)
+        connectorTransport ??= createSsrfGuardedFetchWithDispatcher({
+          profile: 'configuredEndpoint',
+        })
+        return connectorTransport.fetch(input, init)
+      }
+      const init = { ...options, signal: requestSignal }
+      const response = retryOptions.fetcher
+        ? await retryOptions.fetcher(url, init, transport)
+        : await transport(url, init)
+
+      if (
+        !response.ok &&
+        isRetryableError({ status: response.status, headers: response.headers })
+      ) {
+        throw await createRetryableHttpError(response)
+      }
+
+      return response
+    },
+    {
+      ...retryOptions,
+      retryBudgetMs: retryOptions.retryBudgetMs ?? DEFAULT_FETCH_RETRY_BUDGET_MS,
+      maxRetryAfterMs:
+        retryOptions.maxRetryAfterMs ??
+        retryOptions.retryBudgetMs ??
+        retryOptions.maxDelayMs ??
+        30_000,
+      signal: callerSignal,
+    }
+  )
 }

@@ -1,19 +1,18 @@
-import type { GetItineraryParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetItineraryParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Concur Trips v1.1 serves this endpoint as XML only — there is no JSON representation.
- * The shared proxy therefore surfaces the payload as a raw XML string in `data`, which
+ * The direct operation therefore surfaces the payload as a raw XML string in `data`, which
  * downstream blocks are expected to parse.
  */
-export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResponse> = {
+export const getItineraryTool: InternalToolConfig<GetItineraryParams, SapConcurResponse> = {
   id: 'sap_concur_get_itinerary',
   name: 'SAP Concur Get Trip',
   description: 'Get a single trip/itinerary (GET /api/travel/trip/v1.1/{tripID}).',
@@ -88,11 +87,8 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
         'Optional response format. The only supported value is "Tripit", which returns a completely different XML document rooted at <Response><Trip> instead of the standard itinerary document.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const tripId = trimRequired(params.tripId, 'tripId')
       const query = buildListQuery({
         userid_type: params.useridType,
@@ -100,7 +96,7 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
         systemFormat: params.systemFormat,
       })
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/api/travel/trip/v1.1/${encodeURIComponent(tripId)}`,
         method: 'GET',
         accept: 'application/xml',
@@ -108,7 +104,7 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

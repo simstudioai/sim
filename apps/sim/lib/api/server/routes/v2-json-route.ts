@@ -1,6 +1,10 @@
+import type { Principal } from '@sim/auth/principal'
+import { describePrincipalAuth } from '@sim/auth/principal'
+import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
+import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import {
   methodMatchesContract,
   requireJsonRouteDefinition,
@@ -15,13 +19,28 @@ import {
   authenticateV2ApiKey,
   type V2ApiKeyAuthContext,
   V2ApiKeyUnauthenticatedError,
+  type V2CredentialType,
 } from '@/lib/api/server/routes/v2-api-key-auth'
-import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
-import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
+import {
+  hasV2Credential,
+  readV2CredentialHeaders,
+} from '@/lib/api/server/routes/v2-credential-headers'
+import {
+  type ParsedRequest,
+  type ParseRequestOptions,
+  parseRequest,
+} from '@/lib/api/server/validation'
+import { getOAuthAccessTokenAudience } from '@/lib/auth/oauth-access-token'
+import {
+  type ApplicationOperation,
+  InsufficientScopeError,
+  OAuthAccessTokenExpiredError,
+  type OperationUseCase,
+  requireOAuthOperationScope,
+} from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
   v2Error,
@@ -39,15 +58,22 @@ const V2_PREAUTH_IP_LIMIT = {
 } as const
 
 export class V2RouteInfrastructureError extends Error {
-  constructor(stage: 'authentication' | 'rollout_gate' | 'rate_limit', cause: unknown) {
+  constructor(stage: 'authentication' | 'rate_limit', cause: unknown) {
     super(`V2 ${stage} infrastructure failed`, { cause })
     this.name = 'V2RouteInfrastructureError'
   }
 }
 
+/**
+ * The v2 credential policy: an API key in `x-api-key`, or a Sim OAuth access
+ * token as `Authorization: Bearer`.
+ */
 export const v2ApiKeyAuth = {
   authenticate(request: NextRequest) {
-    return authenticateV2ApiKey(request.headers.get('x-api-key'))
+    return authenticateV2ApiKey(
+      readV2CredentialHeaders(request.headers),
+      getOAuthAccessTokenAudience()
+    )
   },
 } as const
 
@@ -244,7 +270,7 @@ export function requireHeadAuthorizableUseCase(
  */
 export async function v2HeadAuthorizationResponse(args: {
   useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
-  principal: V2ApiKeyAuthContext['principal']
+  principal: Principal
   input: unknown
   request: NextRequest
   errorPolicy: V2ErrorPolicy
@@ -310,52 +336,125 @@ async function admitAuthenticatedV2Request(
     auth = await authPolicy.authenticate(request)
   } catch (error) {
     if (error instanceof V2ApiKeyUnauthenticatedError) {
-      return { success: false, response: v2Error('UNAUTHORIZED', error.message) }
+      return {
+        success: false,
+        response: v2Error('UNAUTHORIZED', error.message, {
+          authChallenge: error.challenge,
+        }),
+      }
     }
     throw new V2RouteInfrastructureError('authentication', error)
   }
+  setRequestAuth(describePrincipalAuth(auth.principal))
 
-  let gate
   try {
-    gate = await v2ApiGateError(auth.rolloutUserId)
+    requireOAuthOperationScope(auth.principal, operation)
   } catch (error) {
-    throw new V2RouteInfrastructureError('rollout_gate', error)
+    if (error instanceof InsufficientScopeError || error instanceof OAuthAccessTokenExpiredError) {
+      const response = v2CaughtOrchestrationError(error)
+      if (response) return { success: false, response }
+    }
+    throw error
   }
-  if (gate) return { success: false, response: gate }
 
   const limited = await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
 
-export async function admitV2Request(
+type V2AdmissionAuth =
+  | V2ApiKeyAuthContext
+  | {
+      principal: Principal
+      keyType?: undefined
+      keyExpiresAt?: undefined
+    }
+
+type CopilotRouteUseCase = Pick<
+  OperationUseCase<ApplicationOperation, unknown, unknown>,
+  'operation' | 'delegationAudience'
+>
+
+async function admitRateLimitedV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase?: CopilotRouteUseCase
+): Promise<{ success: true; auth: V2AdmissionAuth } | { success: false; response: NextResponse }> {
+  if (isCopilotRequest(request)) {
+    const principal = copilotRequestPrincipal(request, operation, useCase)
+    if (!principal)
+      return {
+        success: false,
+        response: v2Error('FORBIDDEN', 'This operation is unavailable through Mothership.'),
+      }
+    setRequestAuth(describePrincipalAuth(principal))
+    return { success: true, auth: { principal } }
+  }
+  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
+  if (preAuthResponse) return { success: false, response: preAuthResponse }
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+}
+
+/** Admission for a v2 route the builders do not cover, such as the resume leg. */
+export function admitV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
   rateLimitPolicy: V2RateLimitPolicy
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
-> {
-  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
-  if (preAuthResponse) return { success: false, response: preAuthResponse }
-  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+>
+export function admitV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase: CopilotRouteUseCase
+): Promise<{ success: true; auth: V2AdmissionAuth } | { success: false; response: NextResponse }>
+export async function admitV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase?: CopilotRouteUseCase
+): Promise<{ success: true; auth: V2AdmissionAuth } | { success: false; response: NextResponse }> {
+  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy, useCase)
 }
 
 export async function admitOptionalV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
-  rateLimitPolicy: V2RateLimitPolicy
-): Promise<
-  { success: true; auth?: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
-> {
+  rateLimitPolicy: V2RateLimitPolicy,
+  useCase?: CopilotRouteUseCase
+): Promise<{ success: true; auth?: V2AdmissionAuth } | { success: false; response: NextResponse }> {
+  if (isCopilotRequest(request))
+    return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy, useCase)
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
-  if (!request.headers.has('x-api-key')) return { success: true }
+  if (!hasV2Credential(request.headers)) return { success: true }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
+/**
+ * What `mapInput` learns about the authenticated credential.
+ *
+ * Deliberately not the whole {@link V2ApiKeyAuthContext}: it carries the
+ * principal, and a route mapping identity into use-case input would be routing
+ * an authorization decision around the application boundary. These are facts
+ * about the credential rather than about who holds it.
+ *
+ * One route reads it: `GET /api/v2/meta`, whose resource *is* the calling key.
+ */
+export interface V2CredentialFacts {
+  readonly keyType: V2CredentialType | undefined
+  readonly keyExpiresAt: Date | null | undefined
+}
+
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>
-  extends JsonRouteDefinition<C, O, I, R> {
+  extends Omit<JsonRouteDefinition<C, O, I, R>, 'mapInput'> {
+  mapInput(input: ParsedRequest<C>, credential: V2CredentialFacts): I
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
@@ -379,15 +478,27 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   beforeParse?(args: {
     request: NextRequest
-    principal: V2ApiKeyAuthContext['principal']
+    principal: Principal
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
   onSuccess?(args: {
-    principal: V2ApiKeyAuthContext['principal']
+    principal: Principal
     input: NoInfer<I>
     result: NoInfer<R>
   }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+}
+
+/**
+ * The operation each v2 JSON route handler serves, so another transport for
+ * the same route (the Sim MCP server) can read its policy, such as the OAuth
+ * scope, without restating it. Keys are the module-level handlers.
+ */
+const routeOperations = new WeakMap<object, ApplicationOperation>()
+
+/** The operation a loaded v2 route handler serves, or `null` for a raw route. */
+export function v2RouteOperation(handler: unknown): ApplicationOperation | null {
+  return typeof handler === 'function' ? (routeOperations.get(handler) ?? null) : null
 }
 
 export function defineV2JsonRoute<
@@ -402,7 +513,6 @@ export function defineV2JsonRoute<
     options.useCase.operation
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
-
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -411,11 +521,12 @@ export function defineV2JsonRoute<
         )
       }
 
-      const admission = await admitV2Request(
+      const admission = await admitRateLimitedV2Request(
         request,
         options.operation,
         options.auth,
-        options.rateLimit
+        options.rateLimit,
+        options.useCase
       )
       if (!admission.success) return admission.response
       const { auth } = admission
@@ -423,7 +534,11 @@ export function defineV2JsonRoute<
       if (options.beforeParse) {
         const rawParams = context?.params ? await context.params : {}
         try {
-          await options.beforeParse({ request, principal: auth.principal, params: rawParams })
+          await options.beforeParse({
+            request,
+            principal: auth.principal,
+            params: rawParams,
+          })
         } catch (error) {
           const response = options.errorPolicy.render(error)
           if (response) return response
@@ -439,10 +554,15 @@ export function defineV2JsonRoute<
       })
       if (!parsed.success) return parsed.response
 
+      const credentialFacts: V2CredentialFacts = {
+        keyType: auth.keyType,
+        keyExpiresAt: auth.keyExpiresAt,
+      }
+
       if (request.method === 'HEAD' && options.headSafe === false) {
         let input: I
         try {
-          input = options.mapInput(parsed.data)
+          input = options.mapInput(parsed.data, credentialFacts)
         } catch (error) {
           const response = options.errorPolicy.render(error)
           if (response) return response
@@ -458,7 +578,7 @@ export function defineV2JsonRoute<
       }
 
       try {
-        const input = options.mapInput(parsed.data)
+        const input = options.mapInput(parsed.data, credentialFacts)
         const result = await options.useCase.execute({
           principal: auth.principal,
           input,
@@ -497,5 +617,7 @@ export function defineV2JsonRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  const route: JsonNextRouteHandler = async (request, context) => wrapped(request, context)
+  routeOperations.set(route, options.operation)
+  return route
 }

@@ -53,7 +53,9 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
  * send arbitrary strings the server would reject downstream.
  */
-export const columnTypeSchema = z.enum(COLUMN_TYPES)
+export const columnTypeSchema = z
+  .enum(COLUMN_TYPES)
+  .meta({ omitEnumValuesFromOpenApi: ['ttl'] as const })
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
@@ -478,9 +480,7 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
   { message: 'Filter must not be empty' }
 )
 
-const filterSchema = domainObjectSchema<Filter>()
-
-/* --------------------------- v2 predicate grammar --------------------------- */
+// v2 predicate grammar
 
 /**
  * Body cap for the row-query routes. A query body is a predicate tree plus a
@@ -502,12 +502,10 @@ const MAX_SORT_KEYS = 16
  * it reaches the OpenAPI description of every endpoint taking a predicate.
  */
 const PREDICATE_OPERATOR_GRAMMAR = [
-  'Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`.',
-  'Membership: `in`, `nin` (array operand).',
-  'Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand).',
-  'Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`.',
-  'Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`.',
-  'A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+  'Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`; `in`/`nin` take arrays; `isEmpty`, `isNotEmpty`, `isNull`, and `isNotNull` take no operand.',
+  'Text operators are `contains`, `ncontains`, `startsWith`, `endsWith`, `like`, `nlike`, `ilike`, and `nilike`. Contains variants are case-insensitive and literal; `like`/`nlike` are case-sensitive, while `ilike`/`nilike` are case-insensitive.',
+  '`*` is the only wildcard; `%`, `_`, and backslash are literal.',
+  'For `select` columns, single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names resolve to IDs.',
 ].join(' ')
 
 /**
@@ -609,8 +607,7 @@ const PREDICATE_LEAF_JSON_SCHEMA = {
     op: {
       type: 'string',
       enum: [...FILTER_OPS],
-      description:
-        'Comparison operator. The `TablePredicate` schema description carries the grammar for all of them.',
+      description: PREDICATE_OPERATOR_GRAMMAR,
     },
     value: {
       description:
@@ -665,21 +662,15 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  * to claim it was: its `ncontains` is `NOT (data @> '{"tags":["opt"]}')`, and
  * `data` is never NULL, so an absent or null cell makes the containment test
  * false and the negation true — the same include-nulls behaviour as every other
- * negation. Pinned by `__tests__/sql.test.ts`.
+ * negation. Pinned by `sql.test.ts`.
  */
-const PREDICATE_LIMITS_DESCRIPTION = `At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`
+const PREDICATE_LIMITS_DESCRIPTION = `Limits: ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels, and ${MAX_PREDICATE_NODES} nodes.`
 const PREDICATE_NEGATION_DESCRIPTION =
-  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`.'
-const PREDICATE_TREE_DESCRIPTION = [
-  `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. ${PREDICATE_LIMITS_DESCRIPTION}`,
-  PREDICATE_NEGATION_DESCRIPTION,
-  PREDICATE_OPERATOR_GRAMMAR,
-].join(' ')
-const PREDICATE_INPUT_DESCRIPTION = [
-  `A single \`{ field, op, value }\` condition or a recursive \`all\`/\`any\` group; either form is normalized to a grouped predicate after validation. ${PREDICATE_LIMITS_DESCRIPTION}`,
-  PREDICATE_NEGATION_DESCRIPTION,
-  PREDICATE_OPERATOR_GRAMMAR,
-].join(' ')
+  'The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them.'
+const PREDICATE_OPERATOR_SUMMARY =
+  'Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.'
+const PREDICATE_TREE_DESCRIPTION = `Recursive non-empty \`all\`/\`any\` groups containing groups or conditions; the root cannot be a condition. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION} ${PREDICATE_OPERATOR_SUMMARY}`
+const PREDICATE_INPUT_DESCRIPTION = `One condition or a recursive \`all\`/\`any\` group, normalized to a grouped predicate. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION} ${PREDICATE_OPERATOR_SUMMARY}`
 
 /**
  * The canonical grouped predicate schema for dual-grammar boundaries. Keeping
@@ -942,21 +933,6 @@ export const importTableAsyncBodySchema = z.object({
 })
 
 export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>
-
-export const importTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/import-async',
-  body: importTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(
-      z.object({
-        tableId: z.string(),
-        importId: z.string(),
-      })
-    ),
-  },
-})
 
 export const getTableContract = defineRouteContract({
   method: 'GET',
@@ -1308,22 +1284,6 @@ export const importIntoTableAsyncBodySchema = z.object({
 
 export type ImportIntoTableAsyncBody = z.input<typeof importIntoTableAsyncBodySchema>
 
-export const importIntoTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/import-async',
-  params: tableIdParamsSchema,
-  body: importIntoTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(
-      z.object({
-        tableId: z.string(),
-        importId: z.string(),
-      })
-    ),
-  },
-})
-
 /**
  * `createColumns` form field — a JSON-encoded array of CSV header names that
  * the import should auto-create as new columns on the target table.
@@ -1367,22 +1327,6 @@ export const exportTableAsyncBodySchema = z.object({
 
 export type ExportTableAsyncBody = z.input<typeof exportTableAsyncBodySchema>
 
-/**
- * Kickoff for a background export (large tables — small ones use the synchronous streaming
- * `/export` route). The worker generates the file, uploads it to workspace storage, and the
- * client fetches a presigned URL from the download contract once the job is `ready`.
- */
-export const exportTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/export-async',
-  params: tableIdParamsSchema,
-  body: exportTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ tableId: z.string(), jobId: z.string() })),
-  },
-})
-
 export const tableJobSummarySchema = z.object({
   jobId: z.string(),
   tableId: z.string(),
@@ -1419,18 +1363,6 @@ export const listTableJobsContract = defineRouteContract({
 export const exportDownloadQuerySchema = z.object({
   workspaceId: workspaceIdSchema,
   jobId: requiredFieldSchema('Job ID is required'),
-})
-
-/** Resolves a completed export job to a short-lived presigned download URL. */
-export const exportDownloadContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/table/[tableId]/export/download',
-  params: tableIdParamsSchema,
-  query: exportDownloadQuerySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ url: z.string().min(1), fileName: z.string() })),
-  },
 })
 
 /**
@@ -1519,6 +1451,23 @@ export const batchUpdateTableRowsContract = defineRouteContract({
         message: z.string(),
         updatedCount: z.number(),
         updatedRowIds: z.array(z.string()),
+      })
+    ),
+  },
+})
+
+export const updateTableRowsByFilterContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/table/[tableId]/rows',
+  params: tableIdParamsSchema,
+  body: updateRowsByFilterBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        message: z.string(),
+        updatedCount: z.number(),
+        updatedRowIds: z.array(z.string()).optional(),
       })
     ),
   },
@@ -1684,7 +1633,7 @@ export const addWorkflowGroupBodySchema = z.object({
         .array(workflowGroupInputMappingSchema)
         .optional()
         .describe('Workflow inputs mapped from table columns.'),
-      /** Which workflow state per-cell runs execute against. Defaults to `'live'`. */
+      /** Which workflow state per-cell runs execute against. Defaults to `'deployed'`. */
       deploymentMode: workflowGroupDeploymentModeSchema
         .optional()
         .describe('Workflow state used for cell runs.'),
@@ -1893,22 +1842,6 @@ export const cancelTableJobBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   jobId: requiredFieldSchema('Job ID is required'),
 })
-
-/**
- * Cancel an in-flight async table job (import or delete). The worker stops at its next ownership
- * check; committed work (inserted/deleted rows) is left in place.
- */
-export const cancelTableJobContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/job/cancel',
-  params: tableIdParamsSchema,
-  body: cancelTableJobBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ canceled: z.boolean() })),
-  },
-})
-export type CancelTableJobBody = z.input<typeof cancelTableJobBodySchema>
 
 /**
  * Run modes for `POST /api/table/[tableId]/columns/run`:

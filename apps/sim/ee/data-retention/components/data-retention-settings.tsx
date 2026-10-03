@@ -11,6 +11,7 @@ import {
   ChipSwitch,
   ChipTag,
   Info,
+  OverflowText,
   Search,
   toast,
 } from '@sim/emcn'
@@ -23,7 +24,7 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type CustomPiiPattern,
   emptyPiiStages,
@@ -150,19 +151,29 @@ function overrideValueToHours(value: string): number | null | undefined {
   return toRetentionHours(value)
 }
 
-function buildRetentionOverride(workspaceId: string, draft: PolicyDraft): RetentionOverride | null {
-  const override: RetentionOverride = { workspaceId }
-  const log = overrideValueToHours(draft.logDays)
-  const soft = overrideValueToHours(draft.softDeleteDays)
-  const task = overrideValueToHours(draft.taskCleanupDays)
-  if (log !== undefined) override.logRetentionHours = log
-  if (soft !== undefined) override.softDeleteRetentionHours = soft
-  if (task !== undefined) override.taskCleanupHours = task
-  const hasField =
-    override.logRetentionHours !== undefined ||
-    override.softDeleteRetentionHours !== undefined ||
-    override.taskCleanupHours !== undefined
-  return hasField ? override : null
+/**
+ * Builds a workspace override from the editable fields, starting from the override being replaced so
+ * fields this form does not edit (such as the API-only `fileVersionRetentionHours`) survive a save.
+ */
+function buildRetentionOverride(
+  workspaceId: string,
+  draft: PolicyDraft,
+  existing: RetentionOverride | undefined
+): RetentionOverride | null {
+  const override: RetentionOverride = { ...existing, workspaceId }
+  const edited = {
+    logRetentionHours: overrideValueToHours(draft.logDays),
+    softDeleteRetentionHours: overrideValueToHours(draft.softDeleteDays),
+    taskCleanupHours: overrideValueToHours(draft.taskCleanupDays),
+  }
+  for (const [field, hours] of Object.entries(edited) as [
+    keyof typeof edited,
+    number | null | undefined,
+  ][]) {
+    if (hours === undefined) delete override[field]
+    else override[field] = hours
+  }
+  return Object.keys(override).length > 1 ? override : null
 }
 
 /** Stable serialization of a stage set for dirty-detection. */
@@ -336,7 +347,7 @@ function EntityCheckboxGrid({
                       checked={selected.includes(entity.value)}
                       onCheckedChange={() => toggle(entity.value)}
                     />
-                    <span className='truncate text-sm'>{entity.label}</span>
+                    <OverflowText label={entity.label} className='text-sm' />
                   </label>
                 )
               })}
@@ -446,8 +457,6 @@ interface PolicyDetailProps {
   isNew: boolean
   changed: boolean
   isSaving: boolean
-  piiEnabled: boolean
-  piiGranularEnabled: boolean
   canRemove: boolean
   workspaceOptions: { value: string; label: string }[]
   onChange: (draft: PolicyDraft) => void
@@ -462,8 +471,6 @@ function PolicyDetail({
   isNew,
   changed,
   isSaving,
-  piiEnabled,
-  piiGranularEnabled,
   canRemove,
   workspaceOptions,
   onChange,
@@ -474,22 +481,13 @@ function PolicyDetail({
 }: PolicyDetailProps) {
   const isOrg = draft.isOrgDefault
   const showPiiGrid = isOrg || draft.piiOverride
-  // The execution-altering stages (input/blockOutputs) are gated behind the
-  // pii-granular-redaction flag; when off, only the Logs stage is configurable.
-  const visibleStages = piiGranularEnabled
-    ? PII_STAGE_META
-    : PII_STAGE_META.filter((s) => s.key === 'logs')
   const [activeStage, setActiveStage] = useState<PiiStageKey>(
     () =>
       PII_STAGE_META.find((s) => stageHasContent(draft.piiStages[s.key]))?.key ??
       PII_STAGE_META[0].key
   )
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
-  // Clamp to a visible stage so turning the flag off never strands the tab on a hidden stage.
-  const effectiveStage = visibleStages.some((s) => s.key === activeStage)
-    ? activeStage
-    : visibleStages[0].key
-  const activeStageMeta = PII_STAGE_META.find((s) => s.key === effectiveStage) ?? PII_STAGE_META[0]
+  const activeStageMeta = PII_STAGE_META.find((s) => s.key === activeStage) ?? PII_STAGE_META[0]
   const title = isOrg
     ? 'Organization defaults'
     : isNew
@@ -540,7 +538,7 @@ function PolicyDetail({
                 value={draft.workspaceIds}
                 onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
                 options={workspaceOptions}
-                className='flex-shrink-0'
+                className='shrink-0'
               />
             </div>
           </SettingsSection>
@@ -575,88 +573,81 @@ function PolicyDetail({
           </div>
         </SettingsSection>
 
-        {piiEnabled && (
-          <SettingsSection
-            label='PII redaction'
-            action={
-              showPiiGrid ? (
-                <Chip
-                  onClick={() =>
+        <SettingsSection
+          label='PII redaction'
+          action={
+            showPiiGrid ? (
+              <Chip
+                onClick={() =>
+                  onChange({
+                    ...draft,
+                    piiStages: {
+                      ...draft.piiStages,
+                      [activeStage]: {
+                        ...draft.piiStages[activeStage],
+                        entityTypes: [],
+                        // Clearing entity types leaves any custom patterns intact,
+                        // so the stage stays enabled while patterns remain.
+                        enabled: (draft.piiStages[activeStage].customPatterns?.length ?? 0) > 0,
+                      },
+                    },
+                  })
+                }
+                disabled={draft.piiStages[activeStage].entityTypes.length === 0}
+              >
+                Deselect all
+              </Chip>
+            ) : undefined
+          }
+        >
+          <div className='flex flex-col gap-4'>
+            {!isOrg && (
+              <div className='flex items-center justify-between gap-3'>
+                <span className='text-[var(--text-muted)] text-small'>
+                  Inherit the organization defaults or set workspace-specific redaction
+                </span>
+                <ChipSwitch
+                  value={draft.piiOverride ? 'override' : 'inherit'}
+                  onChange={(mode) => onChange({ ...draft, piiOverride: mode === 'override' })}
+                  aria-label='PII redaction override mode'
+                  options={[
+                    { value: 'inherit', label: 'Inherit' },
+                    { value: 'override', label: 'Override' },
+                  ]}
+                />
+              </div>
+            )}
+            {!isOrg && draft.piiOverride && (
+              <span className='text-[var(--text-muted)] text-caption'>
+                Overriding replaces all three redaction stages for this workspace.
+              </span>
+            )}
+            {showPiiGrid && (
+              <>
+                <ChipSwitch
+                  value={activeStage}
+                  onChange={setActiveStage}
+                  aria-label='Redaction stage'
+                  options={PII_STAGE_META.map((stage) => ({
+                    value: stage.key,
+                    label: stage.label,
+                  }))}
+                />
+                <PiiStagePanel
+                  stageKey={activeStage}
+                  description={activeStageMeta.description}
+                  value={draft.piiStages[activeStage]}
+                  onChange={(next) =>
                     onChange({
                       ...draft,
-                      piiStages: {
-                        ...draft.piiStages,
-                        [effectiveStage]: {
-                          ...draft.piiStages[effectiveStage],
-                          entityTypes: [],
-                          // Clearing entity types leaves any custom patterns intact,
-                          // so the stage stays enabled while patterns remain.
-                          enabled:
-                            (draft.piiStages[effectiveStage].customPatterns?.length ?? 0) > 0,
-                        },
-                      },
+                      piiStages: { ...draft.piiStages, [activeStage]: next },
                     })
                   }
-                  disabled={draft.piiStages[effectiveStage].entityTypes.length === 0}
-                >
-                  Deselect all
-                </Chip>
-              ) : undefined
-            }
-          >
-            <div className='flex flex-col gap-4'>
-              {!isOrg && (
-                <div className='flex items-center justify-between gap-3'>
-                  <span className='text-[var(--text-muted)] text-small'>
-                    Inherit the organization defaults or set workspace-specific redaction
-                  </span>
-                  <ChipSwitch
-                    value={draft.piiOverride ? 'override' : 'inherit'}
-                    onChange={(mode) => onChange({ ...draft, piiOverride: mode === 'override' })}
-                    aria-label='PII redaction override mode'
-                    options={[
-                      { value: 'inherit', label: 'Inherit' },
-                      { value: 'override', label: 'Override' },
-                    ]}
-                  />
-                </div>
-              )}
-              {!isOrg && draft.piiOverride && (
-                <span className='text-[var(--text-muted)] text-caption'>
-                  {piiGranularEnabled
-                    ? 'Overriding replaces all three redaction stages for this workspace.'
-                    : 'Overriding replaces the redaction settings for this workspace.'}
-                </span>
-              )}
-              {showPiiGrid && (
-                <>
-                  {visibleStages.length > 1 && (
-                    <ChipSwitch
-                      value={effectiveStage}
-                      onChange={setActiveStage}
-                      aria-label='Redaction stage'
-                      options={visibleStages.map((stage) => ({
-                        value: stage.key,
-                        label: stage.label,
-                      }))}
-                    />
-                  )}
-                  <PiiStagePanel
-                    stageKey={effectiveStage}
-                    description={activeStageMeta.description}
-                    value={draft.piiStages[effectiveStage]}
-                    onChange={(next) =>
-                      onChange({
-                        ...draft,
-                        piiStages: { ...draft.piiStages, [effectiveStage]: next },
-                      })
-                    }
-                  />
-                </>
-              )}
-            </div>
-          </SettingsSection>
-        )}
+                />
+              </>
+            )}
+          </div>
+        </SettingsSection>
       </SettingsPanel>
 
       <ChipConfirmModal
@@ -703,9 +694,6 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   const workspaceName = (id: string) =>
     workspaceOptions.find((w) => w.value === id)?.label ?? 'Unknown workspace'
 
-  const piiEnabled = Boolean(data.piiRedactionEnabled)
-  const piiGranularEnabled = Boolean(data.piiGranularRedactionEnabled)
-
   const [logDays, setLogDays] = useState(() => hoursToDisplayDays(data.effective.logRetentionHours))
   const [softDeleteDays, setSoftDeleteDays] = useState(() =>
     hoursToDisplayDays(data.effective.softDeleteRetentionHours)
@@ -739,10 +727,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
   const guard = useSettingsUnsavedGuard({ isDirty: editingChanged })
 
   const overrideWorkspaceIds = Array.from(
-    new Set([
-      ...overrides.map((o) => o.workspaceId),
-      ...(piiEnabled ? piiOverrides.map((p) => p.workspaceId) : []),
-    ])
+    new Set([...overrides.map((o) => o.workspaceId), ...piiOverrides.map((p) => p.workspaceId)])
   ).sort((a, b) => workspaceName(a).localeCompare(workspaceName(b)))
   const takenWorkspaceIds = new Set(overrideWorkspaceIds)
   const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))
@@ -759,13 +744,11 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       `Soft-delete ${dayValueLabel(softDeleteDays)}`,
       `Task ${dayValueLabel(taskCleanupDays)}`,
     ]
-    if (piiEnabled) {
-      parts.push(
-        defaultPii && anyStageHasContent(defaultPii.stages)
-          ? `PII: ${stageSummary(defaultPii.stages)}`
-          : 'No PII'
-      )
-    }
+    parts.push(
+      defaultPii && anyStageHasContent(defaultPii.stages)
+        ? `PII: ${stageSummary(defaultPii.stages)}`
+        : 'No PII'
+    )
     return parts.join(' · ')
   }
 
@@ -777,7 +760,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       `Soft-delete ${retentionLabel(ov?.softDeleteRetentionHours)}`,
       `Task ${retentionLabel(ov?.taskCleanupHours)}`,
     ]
-    if (piiEnabled) parts.push(pii ? `PII: ${stageSummary(pii.stages)}` : 'PII inherited')
+    parts.push(pii ? `PII: ${stageSummary(pii.stages)}` : 'PII inherited')
     return parts.join(' · ')
   }
 
@@ -801,31 +784,27 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       taskCleanupHours: daysToHours(next.taskCleanupDays),
       retentionOverrides: next.overrides,
     }
-    if (piiEnabled) {
-      const rules: { id: string; workspaceId: string | null; stages: PiiStages }[] =
-        next.piiOverrides.map((p) => ({
-          id: p.id,
-          workspaceId: p.workspaceId,
-          stages: withSyncedEnabled(p.stages),
-        }))
-      if (next.defaultPii) {
-        rules.unshift({
-          id: next.defaultPii.id,
-          workspaceId: null,
-          stages: withSyncedEnabled(next.defaultPii.stages),
-        })
-      }
-      settings.piiRedaction = { rules }
+    const rules: { id: string; workspaceId: string | null; stages: PiiStages }[] =
+      next.piiOverrides.map((p) => ({
+        id: p.id,
+        workspaceId: p.workspaceId,
+        stages: withSyncedEnabled(p.stages),
+      }))
+    if (next.defaultPii) {
+      rules.unshift({
+        id: next.defaultPii.id,
+        workspaceId: null,
+        stages: withSyncedEnabled(next.defaultPii.stages),
+      })
     }
+    settings.piiRedaction = { rules }
     await updateMutation.mutateAsync({ orgId, settings })
     setLogDays(next.logDays)
     setSoftDeleteDays(next.softDeleteDays)
     setTaskCleanupDays(next.taskCleanupDays)
     setOverrides(next.overrides)
-    if (piiEnabled) {
-      setDefaultPii(next.defaultPii)
-      setPiiOverrides(next.piiOverrides)
-    }
+    setDefaultPii(next.defaultPii)
+    setPiiOverrides(next.piiOverrides)
   }
 
   function snapshot() {
@@ -909,10 +888,19 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       const clearIds = new Set([...editing.original.workspaceIds, ...ids])
       const nextOverrides = overrides.filter((o) => !clearIds.has(o.workspaceId))
       const nextPiiOverrides = piiOverrides.filter((p) => !clearIds.has(p.workspaceId))
+      /** An edited override moved to another workspace keeps what only the API can set. */
+      const replacedOverride =
+        editing.original.workspaceIds.length === 1
+          ? overrides.find((o) => o.workspaceId === editing.original.workspaceIds[0])
+          : undefined
       for (const workspaceId of ids) {
-        const ov = buildRetentionOverride(workspaceId, draft)
+        const ov = buildRetentionOverride(
+          workspaceId,
+          draft,
+          overrides.find((o) => o.workspaceId === workspaceId) ?? replacedOverride
+        )
         if (ov) nextOverrides.push(ov)
-        if (piiEnabled && draft.piiOverride) {
+        if (draft.piiOverride) {
           const existing = piiOverrides.find((p) => p.workspaceId === workspaceId)
           nextPiiOverrides.push({
             id: existing?.id ?? generateId(),
@@ -972,8 +960,6 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
           isNew={editing.isNew}
           changed={editingChanged}
           isSaving={updateMutation.isPending}
-          piiEnabled={piiEnabled}
-          piiGranularEnabled={piiGranularEnabled}
           canRemove={!editing.draft.isOrgDefault && !editing.isNew}
           workspaceOptions={workspacePickerOptions(editing.draft)}
           onChange={(draft) => setEditing({ ...editing, draft })}
@@ -1020,6 +1006,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
 export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
   const { data, isLoading } = useOrganizationRetention(orgId)
   const { data: workspaces = [] } = useWorkspacesQuery(Boolean(orgId))
+  const { billingEnabled } = useDeploymentShape()
 
   if (isLoading) {
     return (
@@ -1042,7 +1029,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
   }
 
-  if (isBillingEnabled && !data.isEnterprise) {
+  if (billingEnabled && !data.isEnterprise) {
     return (
       <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
     )

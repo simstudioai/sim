@@ -69,7 +69,7 @@ export interface EnqueueResult {
 /**
  * Per-workspace+provider FIFO queue for hosted-key acquisitions.
  *
- * Callers `enqueue` to claim a position, then `waitForHead` until they're at
+ * Callers `enqueue` to claim a position, then poll `checkHead` until they're at
  * the head, then attempt to consume from the token bucket. On success or cap
  * exceeded, they `dequeue` to make room for the next caller.
  *

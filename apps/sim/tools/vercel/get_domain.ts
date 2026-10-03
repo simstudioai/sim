@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelGetDomainParams, VercelGetDomainResponse } from '@/tools/vercel/types'
 
 export const vercelGetDomainTool: ToolConfig<VercelGetDomainParams, VercelGetDomainResponse> = {
@@ -40,7 +41,7 @@ export const vercelGetDomainTool: ToolConfig<VercelGetDomainParams, VercelGetDom
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v5/domains/${params.domain.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v5/domains/${safeUrlPathSegment(params.domain, 'domain')}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelGetDomainParams) => ({

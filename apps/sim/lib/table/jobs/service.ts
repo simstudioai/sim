@@ -15,6 +15,7 @@ import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import type { Column, SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm'
+import type { CsvSkippedRecord } from '@/lib/table/import'
 import { pendingDeleteMask } from '@/lib/table/rows/pending-delete-mask'
 import type {
   RowData,
@@ -243,26 +244,6 @@ export async function releaseJobClaim(tableId: string, jobId: string): Promise<v
     )
 }
 
-/** Releases only the active claim in the canonical workspace and reports no-op races. */
-export async function releaseJobClaimInWorkspace(
-  tableId: string,
-  workspaceId: string,
-  jobId: string
-): Promise<boolean> {
-  const released = await db
-    .delete(tableJobs)
-    .where(
-      and(
-        eq(tableJobs.id, jobId),
-        eq(tableJobs.tableId, tableId),
-        eq(tableJobs.workspaceId, workspaceId),
-        eq(tableJobs.status, 'running')
-      )
-    )
-    .returning({ id: tableJobs.id })
-  return released.length > 0
-}
-
 /**
  * Records job progress (rows processed so far) and bumps `updated_at` so the stale-job janitor
  * (`cleanup-stale-executions`) sees a live heartbeat.
@@ -298,6 +279,55 @@ export async function updateJobProgressInWorkspace(
     .where(ownsActiveJobInWorkspace(tableId, workspaceId, jobId))
     .returning({ id: tableJobs.id })
   return updated.length > 0
+}
+
+/**
+ * Rejection accounting an import worker folds into `table_jobs.payload`, so a partial
+ * import is observable on the import record. Kept in the existing payload column
+ * rather than new columns because the payload is already the job's type-specific
+ * descriptor (see `doomedCount`), and an import record must be able to report loss
+ * without a schema migration.
+ */
+export interface TableImportRejectionSummary {
+  /**
+   * Lower bound on the source records the CSV parser could not read and dropped —
+   * one per parser failure, and a single failure can discard many records.
+   */
+  rowsRejected: number
+  /** Non-empty cell values the target column type could not represent (stored as null). */
+  cellsRejected: number
+  /** Bounded sample of the dropped records, for locating them in the source file. */
+  rejectedSamples: CsvSkippedRecord[]
+}
+
+/**
+ * Merges an import's rejection summary into its job payload.
+ *
+ * Deliberately NOT scoped to `status = 'running'` like the progress writes: the summary is
+ * written once the run is terminal (including cancel/failure), when the row is no longer
+ * active. It is still scoped to the job id, table, workspace and type, so a stale worker can
+ * only ever annotate its own job row. `||` merges into the existing payload, leaving the
+ * import descriptor `parseImportJobPayload` reads intact.
+ */
+export async function recordImportRejections(
+  tableId: string,
+  workspaceId: string,
+  jobId: string,
+  summary: TableImportRejectionSummary
+): Promise<void> {
+  await db
+    .update(tableJobs)
+    .set({
+      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || ${JSON.stringify(summary)}::jsonb`,
+    })
+    .where(
+      and(
+        eq(tableJobs.id, jobId),
+        eq(tableJobs.tableId, tableId),
+        eq(tableJobs.workspaceId, workspaceId),
+        eq(tableJobs.type, 'import')
+      )
+    )
 }
 
 /**
@@ -410,24 +440,6 @@ export async function listWorkspaceExportJobs(workspaceId: string): Promise<Work
       error: r.error,
     }
   })
-}
-
-/** Reads one job row (type/status/payload) scoped to its table. Null when absent. */
-export async function getTableJob(
-  tableId: string,
-  jobId: string
-): Promise<{ id: string; type: string; status: string; payload: unknown } | null> {
-  const [job] = await db
-    .select({
-      id: tableJobs.id,
-      type: tableJobs.type,
-      status: tableJobs.status,
-      payload: tableJobs.payload,
-    })
-    .from(tableJobs)
-    .where(and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId)))
-    .limit(1)
-  return job ?? null
 }
 
 /** Stamps an export result only while the canonical workspace-scoped job is active. */

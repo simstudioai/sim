@@ -1,0 +1,39 @@
+---
+title: Enterprise
+description: Enterprise features for business organizations
+---
+
+Sim Enterprise adds organization controls for access, provisioning, operations, and branding. Organization owners and admins configure these features in Settings.
+
+| Feature | Use it to |
+|---|---|
+| [Permission groups](/platform/enterprise/access-control) | Restrict features, models, blocks, and tools by workspace and member |
+| [Single sign-on](/platform/enterprise/sso) | Connect a SAML or OIDC identity provider |
+| [Verified domains](/platform/enterprise/verified-domains) | Prove domain ownership for SSO and provisioning |
+| [Directory provisioning](/platform/enterprise/scim) | Sync users and group-based access from your directory |
+| [Security](/platform/enterprise/security) | Manage session policies and view configured outbound IP addresses |
+| [Session policies](/platform/enterprise/session-policies) | Set session lifetimes and revoke member sessions |
+| [Audit logs](/platform/enterprise/audit-logs) | Investigate configuration and security events |
+| [Insights](/platform/enterprise/usage-tracking) | Explore credit usage, workflow performance, and recorded chat activity |
+| [Data retention](/platform/enterprise/data-retention) | Set retention windows and configure PII redaction |
+| [Data drains](/platform/enterprise/data-drains) | Export logs and Chat records to your own destination |
+| [Custom blocks](/platform/enterprise/custom-blocks) | Share a workflow as a block across the organization |
+| [Workspace forks](/platform/enterprise/forks) | Copy a workspace and sync deployed workflow changes |
+| [White-labeling](/platform/enterprise/whitelabeling) | Configure organization branding |
+
+## Self-hosted setup
+
+Self-hosted deployments unlock enterprise features through environment configuration instead of billing. One switch turns on the whole set:
+
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+```
+
+Each feature also keeps its own flag, so you can enable them one at a time or switch a single feature back off.
+
+Most of these features read their settings from the organization that owns a workspace, so a deployment also needs an organization model — either one instance-wide organization that every user joins automatically, or organizations you provision yourself through the Admin API.
+
+See the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the full variable list, both organization patterns, the Admin API reference, and troubleshooting.
+
+Once enabled, each feature is configured through the same Settings UI as Sim Cloud. When invitations are disabled (`DISABLE_INVITATIONS`, `NEXT_PUBLIC_DISABLE_INVITATIONS`), use the Admin API (`x-admin-key` header) to manage organization membership and workspace access. Internal members join the organization; external workspace members only receive access to a specific workspace.

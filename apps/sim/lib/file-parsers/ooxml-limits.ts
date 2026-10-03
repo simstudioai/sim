@@ -15,9 +15,23 @@ export const MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES = 150 * 1024 * 1024
 /** Hard ceiling on any single entry's declared uncompressed size. */
 export const MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
 
+/** Bounds the per-entry object graph created by OOXML ZIP parsers. */
+export const MAX_OOXML_CENTRAL_DIRECTORY_RECORDS = 10_000
+
+/** Bounds retained central-directory extra-field metadata before ZIP parsing. */
+export const MAX_OOXML_CENTRAL_DIRECTORY_EXTRA_BYTES = 4 * 1024 * 1024
+
 export class ZipBombError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'ZipBombError'
+  }
+}
+
+/** A ZIP-shaped file whose structure cannot be verified safely or parsed consistently. */
+export class ArchiveIntegrityError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ArchiveIntegrityError'
   }
 }

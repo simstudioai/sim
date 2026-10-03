@@ -25,7 +25,9 @@ import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/paral
 import { isResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   computeExecutionSets,
+  overlayVariableInputs,
   type RunFromBlockContext,
+  RunFromBlockValidationError,
   resolveContainerToSentinelStart,
   validateRunFromBlock,
 } from '@/executor/utils/run-from-block'
@@ -39,7 +41,7 @@ import {
   extractParallelIdFromSentinel,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedWorkflow } from '@/serializer/types'
@@ -129,8 +131,12 @@ export class DAGExecutor {
   async executeFromBlock(
     workflowId: string,
     startBlockId: string,
-    sourceSnapshot: SerializableExecutionState
+    sourceSnapshot: SerializableExecutionState,
+    variableInputs?: Record<string, unknown>
   ): Promise<ExecutionResult> {
+    if (variableInputs && Object.keys(variableInputs).length > 0) {
+      sourceSnapshot = overlayVariableInputs(this.workflow, sourceSnapshot, variableInputs)
+    }
     // Build full DAG with all blocks to compute upstream set for snapshot filtering
     // includeAllBlocks is needed because the startBlockId might be a trigger not reachable from the main trigger
     const dag = this.dagBuilder.build(this.workflow, { includeAllBlocks: true })
@@ -138,7 +144,9 @@ export class DAGExecutor {
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
     if (!validation.valid) {
-      throw new Error(validation.error)
+      throw new RunFromBlockValidationError(
+        validation.error ?? `Cannot run from block: ${startBlockId}`
+      )
     }
 
     const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, startBlockId)
@@ -375,6 +383,15 @@ export class DAGExecutor {
       snapshotState?.deactivatedEdges,
       snapshotState?.nodesWithActivatedEdge
     )
+    /**
+     * Run-from-block re-executes its dirty set from scratch, so the source execution's edge state
+     * for those nodes must not carry over: a stale activation runs an unselected branch, and a
+     * stale deactivation releases a join before its live input completes.
+     */
+    const dirtySet = context.runFromBlockContext?.dirtySet
+    if (dirtySet) {
+      edgeManager.clearDeactivatedEdgesForNodes(dirtySet)
+    }
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,
@@ -418,10 +435,11 @@ export class DAGExecutor {
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
       largeValueExecutionIds: this.contextExtensions.largeValueExecutionIds,
-      largeValueKeys: this.contextExtensions.largeValueKeys,
-      fileKeys: this.contextExtensions.fileKeys,
+      largeValueKeys: this.contextExtensions.largeValueKeys ?? [],
+      fileKeys: this.contextExtensions.fileKeys ?? [],
       allowLargeValueWorkflowScope: this.contextExtensions.allowLargeValueWorkflowScope,
       userId: this.contextExtensions.userId,
+      principal: this.contextExtensions.principal,
       executorDelegationOrigin: this.contextExtensions.executorDelegationOrigin,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
@@ -490,6 +508,9 @@ export class DAGExecutor {
       completedLoops: snapshotState?.completedLoops
         ? new Set(snapshotState.completedLoops)
         : new Set(),
+      // Deliberately not restored from a snapshot: it is a cache, so a resumed run re-resolves.
+      toolBindingLabelCache: new Map(),
+      permissionConfigCache: new Map(),
       loopExecutions: snapshotState?.loopExecutions
         ? new Map(
             Object.entries(snapshotState.loopExecutions).map(([loopId, scope]) => [
@@ -576,10 +597,10 @@ export class DAGExecutor {
       const isRegularBlock = this.workflow.blocks.some((b) => b.id === startBlockId)
 
       if (isRegularBlock) {
-        this.initializeStarterBlock(context, state, startBlockId)
+        this.initializeStarterBlock(state, startBlockId)
       }
     } else {
-      this.initializeStarterBlock(context, state, triggerBlockId)
+      this.initializeStarterBlock(state, triggerBlockId)
     }
 
     return { context, state }
@@ -619,11 +640,7 @@ export class DAGExecutor {
     return parentMap
   }
 
-  private initializeStarterBlock(
-    context: ExecutionContext,
-    state: ExecutionState,
-    triggerBlockId?: string
-  ): void {
+  private initializeStarterBlock(state: ExecutionState, triggerBlockId?: string): void {
     let startResolution: ReturnType<typeof resolveExecutorStartBlock> | null = null
 
     if (triggerBlockId) {
@@ -664,6 +681,7 @@ export class DAGExecutor {
       resolution: startResolution,
       workflowInput: this.workflowInput,
       runMetadata: this.contextExtensions.startRunMetadata,
+      workspaceId: this.contextExtensions.workspaceId,
     })
 
     state.setBlockState(startResolution.block.id, {

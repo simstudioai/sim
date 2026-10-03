@@ -2,9 +2,11 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
+import { OverflowText } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
-import { HEX_COLOR_REGEX } from '@/lib/branding'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { BlockTile } from '@/blocks/block-tile'
@@ -18,9 +20,7 @@ interface ItemMetaProps {
 }
 
 function ItemMeta({ meta }: ItemMetaProps) {
-  return (
-    <span className='ml-auto flex-shrink-0 pl-2 text-[var(--text-subtle)] text-small'>{meta}</span>
-  )
+  return <span className='ml-auto shrink-0 pl-2 text-[var(--text-subtle)] text-small'>{meta}</span>
 }
 
 interface ItemFolderPathProps {
@@ -33,13 +33,14 @@ function ItemFolderPath({ folderPath }: ItemFolderPathProps) {
     <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
       {folderPath.length > 1 && (
         <>
-          <span className='min-w-0 truncate [flex-shrink:9999]'>
-            {folderPath.slice(0, -1).join(' / ')}
-          </span>
-          <span className='flex-shrink-0 whitespace-pre'> / </span>
+          <OverflowText
+            label={folderPath.slice(0, -1).join(' / ')}
+            className='[flex-shrink:9999]'
+          />
+          <span className='shrink-0 whitespace-pre'> / </span>
         </>
       )}
-      <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
+      <OverflowText label={folderPath[folderPath.length - 1]} />
     </span>
   )
 }
@@ -66,7 +67,7 @@ function ShortcutHint({ shortcut }: ShortcutHintProps) {
   return (
     <span
       aria-label={`Keyboard shortcut ${shortcut}`}
-      className='ml-auto grid w-10 flex-shrink-0 grid-cols-3 text-center text-[var(--text-subtle)] text-small'
+      className='ml-auto grid w-10 shrink-0 grid-cols-3 text-center text-[var(--text-subtle)] text-small'
     >
       {slots.map((slot, index) => (
         <span key={`${index}-${slot}`} aria-hidden='true'>
@@ -91,10 +92,13 @@ export const MemoizedCommandItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <BlockTile blockType={blockType} icon={Icon} bgColor={bgColor} />
-        <span className='truncate text-[var(--text-body)]'>
+        <OverflowText
+          label={`${labelPrefix ? `${labelPrefix} ` : ''}${label}`}
+          className='text-[var(--text-body)]'
+        >
           {labelPrefix && <span className='text-[var(--text-subtle)]'>{labelPrefix} </span>}
           {label}
-        </span>
+        </OverflowText>
         {meta ? <ItemMeta meta={meta} /> : null}
       </Command.Item>
     )
@@ -126,8 +130,8 @@ export const MemoizedActionItem = memo(
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[var(--text-body)]'>{name}</span>
+        <Icon className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        <OverflowText label={name} className='text-[var(--text-body)]' />
         {meta ? <ItemMeta meta={meta} /> : shortcut ? <ShortcutHint shortcut={shortcut} /> : null}
       </Command.Item>
     )
@@ -157,12 +161,12 @@ export const MemoizedWorkflowItem = memo(
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+        <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
           <Workflow className='size-[14px] text-[var(--text-icon)]' />
         </div>
-        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
-          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
+        <span className='flex min-w-0 max-w-[75%] shrink-0 text-[var(--text-body)]'>
+          <OverflowText label={name} />
+          {isCurrent && <span className='shrink-0 whitespace-pre'> (current)</span>}
         </span>
         {meta ? (
           <ItemMeta meta={meta} />
@@ -195,11 +199,11 @@ export const MemoizedFileItem = memo(
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+        <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
           <File className='size-[14px] text-[var(--text-icon)]' />
         </div>
-        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
+        <span className='flex min-w-0 max-w-[75%] shrink-0 text-[var(--text-body)]'>
+          <OverflowText label={name} />
         </span>
         {meta ? (
           <ItemMeta meta={meta} />
@@ -229,7 +233,7 @@ export const MemoizedTaskItem = memo(
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <span className='truncate text-[var(--text-body)]'>{name}</span>
+        <OverflowText label={name} className='text-[var(--text-body)]' />
         {meta && <ItemMeta meta={meta} />}
       </Command.Item>
     )
@@ -244,7 +248,6 @@ export const MemoizedWorkspaceItem = memo(
     name,
     isCurrent,
     logoUrl,
-    color,
     meta,
   }: {
     value: string
@@ -252,34 +255,13 @@ export const MemoizedWorkspaceItem = memo(
     name: string
     isCurrent?: boolean
     logoUrl?: string | null
-    color?: string
   } & ResultMetaProps) {
-    const backgroundColor = color && HEX_COLOR_REGEX.test(color) ? color : 'var(--brand-accent)'
-
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        {logoUrl ? (
-          <img
-            data-slot='workspace-icon'
-            src={logoUrl}
-            alt=''
-            className='size-[16px] flex-shrink-0 rounded-sm object-cover'
-          />
-        ) : (
-          <span
-            data-slot='workspace-icon'
-            aria-hidden='true'
-            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm font-medium text-[9px] text-white leading-none'
-          >
-            <svg className='absolute inset-0 size-full' viewBox='0 0 16 16'>
-              <rect width='16' height='16' rx='2' fill={backgroundColor} />
-            </svg>
-            <span className='relative'>{name.charAt(0).toUpperCase() || 'W'}</span>
-          </span>
-        )}
+        <IdentityTile initial={getWorkspaceInitial(name)} logoUrl={logoUrl} slot='workspace-icon' />
         <span className='flex min-w-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
-          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
+          <OverflowText label={name} />
+          {isCurrent && <span className='shrink-0 whitespace-pre'> (current)</span>}
         </span>
         {meta && <ItemMeta meta={meta} />}
       </Command.Item>
@@ -290,7 +272,6 @@ export const MemoizedWorkspaceItem = memo(
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
     prev.logoUrl === next.logoUrl &&
-    prev.color === next.color &&
     prev.meta === next.meta
 )
 
@@ -311,8 +292,8 @@ export const MemoizedPageItem = memo(
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate text-[var(--text-body)]'>{name}</span>
+        <Icon className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        <OverflowText label={name} className='text-[var(--text-body)]' />
         {meta ? <ItemMeta meta={meta} /> : shortcut ? <ShortcutHint shortcut={shortcut} /> : null}
       </Command.Item>
     )
@@ -342,9 +323,9 @@ export const MemoizedIconItem = memo(
   } & ResultMetaProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
-          <span className='truncate'>{name}</span>
+        <Icon className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+        <span className='flex min-w-0 max-w-[75%] shrink-0 text-[var(--text-body)]'>
+          <OverflowText label={name} />
         </span>
         {meta ? (
           <ItemMeta meta={meta} />

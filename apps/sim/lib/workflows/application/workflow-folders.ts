@@ -15,11 +15,12 @@ import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import {
   listActiveFolderRows,
   loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
   resolveFolderPathFromIndex,
 } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 type WorkflowFolderRecord = typeof folder.$inferSelect
 type WorkflowFolderIndex = FolderPathIndex<WorkflowFolderRecord>
@@ -103,6 +104,28 @@ export function workflowFolderPathForId(
   return path
 }
 
+/**
+ * The same projection for a workflow that may itself be archived.
+ *
+ * Archiving a folder cascades onto the workflows inside it but leaves their
+ * `folderId` pointing at the now-inactive row — which is exactly why restore has
+ * to null a dangling `folderId` before it re-reads. So on any read that can
+ * surface an archived workflow, an unresolvable folder is the expected state
+ * rather than the inconsistency {@link workflowFolderPathForId} treats it as,
+ * and one such row would otherwise throw a bare `Error` and 500 the whole page
+ * with no cursor position able to skip past it.
+ *
+ * The root is the honest answer: it is where restore would put the workflow if
+ * the caller restored it now.
+ */
+export function archivableWorkflowFolderPath(
+  index: WorkflowFolderIndex,
+  folderId: string | null | undefined
+): string {
+  if (!folderId) return ROOT_FOLDER_PATH
+  return index.pathById.get(folderId) ?? ROOT_FOLDER_PATH
+}
+
 export const listWorkflowFolders = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.listFolders,
   resolveContext: ({ input }: { input: ListWorkflowFoldersInput }) =>
@@ -111,15 +134,10 @@ export const listWorkflowFolders = defineAuthorizedWorkflowUseCase({
     const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
-    const parentId =
-      input.parentPath === undefined
-        ? undefined
-        : resolveFolderPathFromIndex(index, input.parentPath)
-    if (input.parentPath !== undefined && parentId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
-    }
+    const parentFilter = resolveFolderPathFilter(index, input.parentPath)
+    if (parentFilter.kind === 'noMatch') return { folders: [], index }
     const folders = await listActiveFolderRows(context.workspaceId, 'workflow', {
-      parentId,
+      parentId: parentFilter.kind === 'folder' ? parentFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
@@ -185,15 +203,17 @@ export const relocateWorkflowFolder = defineAuthorizedWorkflowUseCase({
     return { folder: result.folder, index }
   },
   projectAudit({ input, result }) {
+    /** Where the folder landed — inside an existing destination, or at the root, rather than the path as typed. */
+    const destinationPath = result.index.pathById.get(result.folder.id) ?? input.destinationPath
     return {
       action: AuditAction.FOLDER_MOVED,
       resourceType: AuditResourceType.FOLDER,
       resourceId: result.folder.id,
       resourceName: result.folder.name,
-      description: `Moved workflow folder to "${input.destinationPath}"`,
+      description: `Moved workflow folder to "${destinationPath}"`,
       metadata: {
         sourcePath: input.path,
-        destinationPath: input.destinationPath,
+        destinationPath,
         folderResourceType: 'workflow',
       },
     }

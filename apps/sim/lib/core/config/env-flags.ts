@@ -4,18 +4,23 @@
  */
 
 import {
+  hasEnvCapabilityValue,
+  inspectCapability,
+  SANDBOX_CAPABILITY,
+} from '@sim/deployment-config/env-capabilities'
+import {
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
 } from '@sim/utils/sandbox-references'
+import { resolveCostMultiplier } from './cost-multiplier'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
   resolveEnterpriseEntitlement,
   resolveSandboxFeatureAvailability,
 } from './enterprise-entitlements'
-import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
-import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
+import { env, envBoolean, envNumber, getEnv, isFalsy, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -35,13 +40,18 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application.
  * True for sim.ai and any subdomain of sim.ai (e.g. staging.sim.ai, dev.sim.ai).
+ *
+ * Workspace surfaces in the browser read `hosted` from the deployment shape the
+ * workspace host context carries (`@/lib/core/config/deployment-shape`), not this
+ * constant: it is computed once from the `NEXT_PUBLIC_*` transport the root layout
+ * emits, which a `global-error` or bare 404 document never provides.
  */
 const appUrl = getEnv('NEXT_PUBLIC_APP_URL')
 let appHostname = ''
 try {
   appHostname = appUrl ? new URL(appUrl).hostname : ''
 } catch {
-  // invalid URL — isHosted stays false
+  /** An unparseable configured URL reads as self-hosted. */
 }
 /**
  * Local-development escape hatch for exercising hosted-only paths (the sim-auto
@@ -53,20 +63,6 @@ try {
 const forceHosted = !isProd && isTruthy(getEnv('NEXT_PUBLIC_FORCE_HOSTED'))
 
 export const isHosted = forceHosted || appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
-
-/**
- * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
- * consumer has rolled out. Disabled is the Sim-first compatibility stage.
- */
-export const isCopilotBillingAttributionV1Enabled = isTruthy(
-  env.COPILOT_BILLING_ATTRIBUTION_V1_ENABLED
-)
-
-/**
- * Rejects markerless old-Go billing traffic after an operator explicitly
- * confirms the compatibility window has closed. Off by default.
- */
-export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
 
 /**
  * Are the Chat module's surfaces shown. On by default, so a deployment that
@@ -101,6 +97,14 @@ export const isStatusNoticePreviewEnabled = isTruthy(getEnv('NEXT_PUBLIC_STATUS_
  * used tools, so it is an opt-in change in how the product feels, not just a
  * safety toggle. With it off nothing is stamped, gated, or persisted, and an
  * approval stamp arriving from Go is cleared on the way to the client.
+ *
+ * The gate is a property of the lane, not only of the tool. Sim can hold a call
+ * for a decision on the dispatch lane, where a streaming context and a decision
+ * row exist. It cannot on the in-band route (`POST /api/copilot/tools/execute`),
+ * which the mothership drives for background lanes, so that route refuses a
+ * `requiresApproval` tool outright rather than running it ungated — see
+ * `toolRequiresApprovalLane`. Any new execution lane has to answer the same
+ * question before this flag is turned on.
  */
 export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISSIONS_ENABLED)
 
@@ -149,14 +153,38 @@ if (isTruthy(env.DISABLE_AUTH)) {
 }
 
 /**
- * Whether database/connector tools may connect to private, reserved, or loopback
- * hosts (e.g. Docker/K8s service names, localhost). Off by default: the SSRF guard
- * in {@link validateDatabaseHost} blocks these so an untrusted user cannot pivot
- * into the deployment's internal network. Self-hosted operators can opt in when
- * their database lives on the same private network. Blocked on the hosted platform
- * regardless of the env var, mirroring {@link isAuthDisabled}.
+ * Destinations on a private network that outbound requests may reach, as raw
+ * operator config. Empty on the hosted platform regardless of what is set, so a
+ * tenant can never pivot into Sim's own network — mirroring {@link isAuthDisabled}.
+ *
+ * Read through a function rather than captured at module load so a changed value
+ * is picked up, and parsed in `@sim/security/egress` rather than here: this file
+ * is loaded by `next.config.ts` before the `@/` alias exists and must stay
+ * dependency-light.
  */
-export const isPrivateDatabaseHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS) && !isHosted
+export function getEgressAllowedHosts(): string | undefined {
+  return isHosted ? undefined : env.EGRESS_ALLOWED_HOSTS
+}
+
+export function getEgressAllowedIpRanges(): string | undefined {
+  return isHosted ? undefined : env.EGRESS_ALLOWED_IP_RANGES
+}
+
+/**
+ * Whether the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` is set.
+ *
+ * It stood for a blanket "database and connector tools may reach anything
+ * private", so it maps to a policy that vouches for every private address rather
+ * than to a range list — a list would silently drop the ranges it never
+ * enumerated, CGNAT (`100.64.0.0/10`, where Tailscale lives) among them.
+ *
+ * Scoped to database hosts, which is all the flag ever governed. Widening it to
+ * HTTP destinations would hand every workflow author on an upgrading deployment
+ * a route into the internal network they never granted.
+ */
+export function isLegacyPrivateDatabaseAccessAllowed(): boolean {
+  return !isHosted && isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)
+}
 
 if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
   import('@sim/logger')
@@ -164,11 +192,32 @@ if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
       const logger = createLogger('EnvFlags')
       if (isHosted) {
         logger.error(
-          'ALLOW_PRIVATE_DATABASE_HOSTS is set but ignored on hosted environment. Private/reserved database hosts remain blocked for security.'
+          'ALLOW_PRIVATE_DATABASE_HOSTS is set but ignored on hosted environment. Private, reserved, and loopback destinations remain blocked for security.'
         )
       } else {
         logger.warn(
-          'ALLOW_PRIVATE_DATABASE_HOSTS is enabled. Database/connector tools may reach private, reserved, and loopback hosts. Only use this in trusted private networks.'
+          'ALLOW_PRIVATE_DATABASE_HOSTS is deprecated. It opens the whole private address space to database and connector tools. Replace it with EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES naming only the destinations you need.'
+        )
+      }
+    })
+    .catch(() => {
+      // Fallback during config compilation when logger is unavailable
+    })
+}
+
+if (env.EGRESS_ALLOWED_HOSTS || env.EGRESS_ALLOWED_IP_RANGES) {
+  import('@sim/logger')
+    .then(({ createLogger }) => {
+      const logger = createLogger('EnvFlags')
+      if (isHosted) {
+        logger.error(
+          'EGRESS_ALLOWED_HOSTS/EGRESS_ALLOWED_IP_RANGES are set but ignored on hosted environment. Private, reserved, and loopback destinations remain blocked for security.'
+        )
+      } else {
+        // The entries themselves are internal network topology and stay out of
+        // the log line, which may leave the deployment.
+        logger.warn(
+          'Private-network egress allowlist is configured. Outbound requests may reach the listed destinations. Only use this on a trusted private network.'
         )
       }
     })
@@ -289,6 +338,31 @@ export const isSsoEnabled = enterpriseFeatureEnabled(
 )
 
 /**
+ * Is SCIM directory provisioning enabled.
+ *
+ * Hosted deployments default on; an explicit false defers activation during a rolling deploy.
+ * Gates the settings section, the admin API, and the provisioning endpoints
+ * alike. A connection whose organization loses the entitlement stops
+ * authenticating rather than continuing to accept directory writes.
+ */
+export const isScimEnabled = isHosted
+  ? (explicitEnterpriseFlag(env.SCIM_ENABLED, 'NEXT_PUBLIC_SCIM_ENABLED') ?? true)
+  : enterpriseFeatureEnabled('scim', env.SCIM_ENABLED, 'NEXT_PUBLIC_SCIM_ENABLED')
+
+/**
+ * Is organization usage monitoring enabled.
+ *
+ * Gates the settings section and the API that backs it, so nav and server always
+ * answer the same question — a section visible but rejected (or reachable but
+ * hidden) is exactly what this pairing exists to prevent.
+ */
+export const isUsageMonitoringEnabled = enterpriseFeatureEnabled(
+  'usageMonitoring',
+  env.USAGE_MONITORING_ENABLED,
+  'NEXT_PUBLIC_USAGE_MONITORING_ENABLED'
+)
+
+/**
  * Is access control (permission groups) enabled.
  * Required for permission-group enforcement to run at all off-hosted.
  */
@@ -359,6 +433,12 @@ export const isAuditLogsEnabled = enterpriseFeatureEnabled(
   'auditLogs',
   env.AUDIT_LOGS_ENABLED,
   'NEXT_PUBLIC_AUDIT_LOGS_ENABLED'
+)
+
+export const isCustomBlocksEnabled = enterpriseFeatureEnabled(
+  'customBlocks',
+  env.CUSTOM_BLOCKS_ENABLED,
+  'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'
 )
 
 /**
@@ -634,8 +714,15 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
 }
 
 /**
- * Get cost multiplier based on environment
+ * Get cost multiplier based on environment.
+ *
+ * `COST_MULTIPLIER` is declared as a number but arrives as a string from
+ * `process.env` because `createEnv` skips validation, so it is normalized
+ * through {@link envNumber}. Unset, empty, non-numeric, and negative values
+ * fall back to 1.
  */
 export function getCostMultiplier(): number {
-  return isProd ? (env.COST_MULTIPLIER ?? 1) : 1
+  return resolveCostMultiplier(env.COST_MULTIPLIER, isProd)
 }
+
+/** Backend selector. Kept independent of enterprise entitlement overrides. */

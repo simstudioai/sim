@@ -57,7 +57,12 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, workflowData.workspaceId)
+      const accessError = await validateWorkspaceAccess(
+        rateLimit,
+        userId,
+        workflowData.workspaceId,
+        'none'
+      )
       if (accessError) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }

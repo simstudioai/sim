@@ -2,9 +2,11 @@ import { db } from '@sim/db'
 import { tableRowExecutions, userTableDefinitions, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray } from 'drizzle-orm'
 import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { appendTableEvent } from '@/lib/table/events'
+import { normalizeBlockErrors } from '@/lib/table/rows/run-state'
 
 const logger = createLogger('WorkflowGroupCancellation')
 const ACTIVE_WORKFLOW_GROUP_STATUSES = ['queued', 'running', 'pending'] as const
@@ -66,21 +68,11 @@ interface WorkflowGroupExecutionTarget {
   blockErrors: unknown
 }
 
-function normalizeBlockErrors(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-
-  const blockErrors: Record<string, string> = {}
-  for (const [blockId, error] of Object.entries(value)) {
-    if (typeof error === 'string') blockErrors[blockId] = error
-  }
-  return Object.keys(blockErrors).length > 0 ? blockErrors : undefined
-}
-
 function getExecutionCorrelationSource(value: unknown): string | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  if (!isRecordLike(value)) return null
   const executionData = value as Record<string, unknown>
   const correlation = executionData.correlation
-  if (!correlation || typeof correlation !== 'object' || Array.isArray(correlation)) return null
+  if (!isRecordLike(correlation)) return null
   const source = (correlation as Record<string, unknown>).source
   return typeof source === 'string' ? source : null
 }

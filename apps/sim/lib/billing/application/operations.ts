@@ -1,16 +1,27 @@
 import type { Principal } from '@sim/auth/principal'
-import type { ApplicationOperation } from '@/lib/core/application'
+import type { ApplicationOperation } from '@/lib/core/application/operation'
+import {
+  assertOperationCapability,
+  assertOperationOAuthPolicy,
+} from '@/lib/core/application/operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 export type BillingReadPrincipal = Extract<
   Principal,
-  { kind: 'personal_api_key' | 'workspace_api_key' }
+  { kind: 'personal_api_key' | 'oauth_access_token' | 'workspace_api_key' | 'delegated' }
 >
 
 export interface BillingReadOperation<Id extends string = string> extends ApplicationOperation<Id> {
   readonly accountScope: 'personal_self'
   readonly workspaceMinimumRole: 'read'
   readonly workspaceApiKey: 'workspace_only'
-  readonly principalKinds: readonly ['personal_api_key', 'workspace_api_key']
+  readonly oauthScope: 'api:read'
+  readonly principalKinds: readonly [
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ]
 }
 
 function defineBillingReadOperation<const Id extends string>(
@@ -19,23 +30,51 @@ function defineBillingReadOperation<const Id extends string>(
   if (operation.workspaceMinimumRole !== 'read') {
     throw new Error(`Billing read operation ${operation.id} exceeds its workspace-key ceiling`)
   }
+  assertOperationCapability(operation)
+  assertOperationOAuthPolicy(operation)
   Object.freeze(operation.principalKinds)
   return Object.freeze(operation)
 }
 
 export const billingOperations = {
+  // permission-group-exempt: a personal account reading its own plan and balance; permission groups scope a workspace, not the billing account that owns it
   readStatus: defineBillingReadOperation({
     id: 'billing.status.read',
+    oauthScope: 'api:read',
+    capability: 'none',
     accountScope: 'personal_self',
     workspaceMinimumRole: 'read',
     workspaceApiKey: 'workspace_only',
-    principalKinds: ['personal_api_key', 'workspace_api_key'],
+    principalKinds: ['personal_api_key', 'oauth_access_token', 'workspace_api_key', 'delegated'],
   }),
+  // permission-group-exempt: the same personal billing account reading its own usage records; no group key names it
   listLogs: defineBillingReadOperation({
     id: 'billing.logs.list',
+    oauthScope: 'api:read',
+    capability: 'none',
     accountScope: 'personal_self',
     workspaceMinimumRole: 'read',
     workspaceApiKey: 'workspace_only',
-    principalKinds: ['personal_api_key', 'workspace_api_key'],
+    principalKinds: ['personal_api_key', 'oauth_access_token', 'workspace_api_key', 'delegated'],
+  }),
+} as const
+
+/** Private workspace reads retain the public operation identity and require current Mothership access. */
+export const copilotBillingOperations = {
+  readStatus: defineWorkspaceOperation({
+    id: billingOperations.readStatus.id,
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'copilot.use',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
+  listLogs: defineWorkspaceOperation({
+    id: billingOperations.listLogs.id,
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'copilot.use',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
   }),
 } as const

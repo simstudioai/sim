@@ -1,5 +1,6 @@
 import type { AshbyCustomField } from '@/tools/ashby/types'
 import {
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   CUSTOM_FIELD_ON_OBJECT_OUTPUT,
@@ -10,6 +11,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbySetCustomFieldValueParams {
   apiKey: string
+  onBehalfOfUserId?: string
   objectId: string
   objectType: string
   fieldId: string
@@ -39,6 +41,7 @@ export const setCustomFieldValueTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     objectId: {
       type: 'string',
       required: true,
@@ -78,7 +81,7 @@ export const setCustomFieldValueTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/customField.setValue',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     /**
      * `null` clears the field, so an omitted or blank value must not be allowed
      * to reach Ashby as one - that would turn a dropped variable, an unresolved

@@ -1,9 +1,12 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import { VANTA_DOCUMENT_DETAIL_OUTPUT_PROPERTIES } from '@/tools/vanta/outputs'
 import type { VantaGetDocumentParams, VantaGetDocumentResponse } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaGetDocumentTool: ToolConfig<VantaGetDocumentParams, VantaGetDocumentResponse> = {
+export const vantaGetDocumentTool: InternalToolConfig<
+  VantaGetDocumentParams,
+  VantaGetDocumentResponse
+> = {
   id: 'vanta_get_document',
   name: 'Vanta Get Document',
   description:
@@ -37,11 +40,8 @@ export const vantaGetDocumentTool: ToolConfig<VantaGetDocumentParams, VantaGetDo
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_get_document',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

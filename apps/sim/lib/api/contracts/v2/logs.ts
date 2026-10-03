@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   booleanQueryFlagSchema,
-  noInputSchema,
   runIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -10,25 +9,72 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v1ListLogsQuerySchema } from '@/lib/api/contracts/v1/logs'
 import {
   V2_FOLDER_FILTER_MISS,
+  V2_SEARCH_MAX_LENGTH,
   v2CursorListResponse,
   v2DataResponse,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2PaginationFields,
-  v2RunOrderSchema,
   v2RunWindowBoundSchema,
+  v2SortFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
+import { v2RunFileSchema } from '@/lib/api/contracts/v2/workflows'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 /**
- * v2 logs contracts. The query schemas are reused verbatim from v1 (the request
- * shape is unchanged); only the response envelope is upgraded to the canonical
- * v2 shapes with concrete item schemas.
+ * v2 logs contracts. List queries retain the v1 filters; responses use the
+ * canonical v2 envelope and concrete item schemas.
  */
 
 const v2LogCostSchema = z
   .object({ total: z.number().describe('Total execution cost in USD.') })
+  .nullable()
+  .describe(
+    'Cost charged for the run, or null when the run has neither a recorded total nor an itemized ledger.'
+  )
+
+const v2CostLedgerItemSchema = z
+  .object({
+    category: z
+      .enum(['fixed', 'model', 'tool'])
+      .describe(
+        "What the line is for: the run's base fee (`fixed`), one model's inference (`model`), or one metered tool or integration call (`tool`)."
+      ),
+    description: z
+      .string()
+      .describe('Human-readable name of the billed item, such as the model or tool id.'),
+    cost: z.number().describe('Amount billed for this line, in USD.'),
+    inputTokens: z
+      .number()
+      .optional()
+      .describe('Input tokens attributed to this line. Absent for lines that do not bill tokens.'),
+    outputTokens: z
+      .number()
+      .optional()
+      .describe('Output tokens attributed to this line. Absent for lines that do not bill tokens.'),
+  })
+  .describe('One billed line of a run, folded across every event that billed it.')
+
+/**
+ * The run's cost, itemized.
+ *
+ * `items: null` and `items: []` are different answers and both are reachable, so
+ * a caller must not read one as the other. `null` means no ledger exists for the
+ * run — it predates the ledger, or it is a job run, whose costs are not recorded
+ * under the workflow source the ledger reads. An empty array would claim a
+ * ledger that itemizes to nothing.
+ */
+const v2LogDetailCostSchema = z
+  .object({
+    total: z.number().describe('Total execution cost in USD.'),
+    items: z
+      .array(v2CostLedgerItemSchema)
+      .nullable()
+      .describe(
+        'Billed lines reconciling to `total`, or null when no itemized ledger exists for the run.'
+      ),
+  })
   .nullable()
   .describe('Cost charged for the run, or null when unavailable.')
 /**
@@ -55,11 +101,45 @@ export const v2LogStatusSchema = z
     'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters.'
   )
 
-/** Execution `files` is a per-run jsonb array of attachment metadata. */
+/**
+ * One file a run produced, as the log surface publishes it.
+ *
+ * Exactly the run resource's own file projection minus `base64` — this read
+ * never inlines bytes — rather than a parallel shape, because the two describe
+ * the same objects and a caller addresses them through the same
+ * `downloadPath`. Reusing it also carries the reason the storage `key` is
+ * absent: a caller names a file by `id`, the key is re-derived server side from
+ * the run's recording on every request, and publishing it would let a request
+ * name bytes the run did not produce.
+ */
+const v2LogFileSchema = v2RunFileSchema.omit({ base64: true }).meta({
+  id: 'V2LogFile',
+  title: 'Execution log file',
+  description: 'A file produced by the run this log records.',
+})
+
+/**
+ * Files the run produced.
+ *
+ * Projected from `workflow_execution_logs.files` rather than passed through.
+ * That column is a recording, not a manifest: the start block copies every
+ * caller-supplied input field verbatim into its output, so the blob carries
+ * input attachments and can carry a `UserFile` naming any storage key at all.
+ * Only entries whose key sits under this run's own
+ * `execution/<workspaceId>/<workflowId>/<executionId>/…` prefix survive
+ * (`isRunOutputFileKey`), so a recorded entry that names another run's — or
+ * another tenant's — bytes is dropped rather than published.
+ *
+ * `null` and `[]` mean different things and both are reachable: `null` is a run
+ * that recorded no files at all, `[]` a run whose recorded entries were all
+ * input files or otherwise outside its own output scope.
+ */
 const v2LogFilesSchema = z
-  .array(z.unknown().describe('Attachment metadata captured for the execution.'))
+  .array(v2LogFileSchema)
   .nullable()
-  .describe('Files attached to the run, or null when none are recorded.')
+  .describe(
+    "Files the run produced, or null when none are recorded. Only the run's own output files appear; input attachments a caller supplied are addressed through the files API instead."
+  )
 
 /**
  * The graph as executed, sourced from the run's snapshot row. Declared loose because the
@@ -82,7 +162,7 @@ const v2LogWorkflowStateSchema = z
   )
   .nullable()
   .describe(
-    'Workflow graph snapshot captured for the run, or null when none is retained. Credential-bearing values are redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata. `{{VAR}}` references in non-opaque fields are preserved.'
+    'Workflow graph captured for the run, or null if unavailable or includeWorkflowState=false. Sensitive values are redacted to null; environment-variable references may be preserved.'
   )
 
 const v2LogWorkflowSummarySchema = z.object({
@@ -94,6 +174,19 @@ const v2LogWorkflowSummarySchema = z.object({
 
 export const v2LogListItemSchema = z
   .object({
+    /**
+     * Which sequence the row came from.
+     *
+     * Load-bearing rather than decorative: a job run and a workflow run whose
+     * workflow was deleted both report `workflowId: null`, so without this a
+     * caller cannot tell "this run never had a workflow" from "its workflow is
+     * gone" — two different answers to the same field.
+     */
+    kind: z
+      .enum(['workflow', 'job'])
+      .describe(
+        'Whether the run executed a workflow or a Chat / Sim-agent job. Job runs appear only when `includeJobRuns=true`.'
+      ),
     runId: z.string().describe('Unique run identifier.'),
     workflowId: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
     deploymentVersionId: z
@@ -113,6 +206,11 @@ export const v2LogListItemSchema = z
       .describe('Total execution duration in milliseconds, or null while unavailable.'),
     cost: v2LogCostSchema,
     files: v2LogFilesSchema,
+    hasHandledErrors: z
+      .boolean()
+      .describe(
+        'Whether a block in the run errored and was recovered by an error path. Such a run keeps `level: info`, so this is the only place the handled error shows at run level; pass `includeHandledErrors=true` with `level=error` to list these runs. Always false for a job run.'
+      ),
     /** Present only when `details=full`. */
     workflow: v2LogWorkflowSummarySchema
       .describe('Workflow summary for a full-detail result.')
@@ -150,6 +248,20 @@ export const v2LogDetailSchema = z
       .nullable()
       .describe('Total execution duration in milliseconds, or null while unavailable.'),
     files: v2LogFilesSchema,
+    /**
+     * The identity the run acted as, captured by the run itself rather than read
+     * from the workflow row. Supersedes the deprecated `workflow.ownerEmail`,
+     * which named whoever the workflow currently belongs to — a mutable pointer
+     * that member removal reassigns, so it could describe someone who had nothing
+     * to do with a run that happened months earlier and contributed nothing to it
+     * beyond a personal-variable fallback.
+     */
+    executedByEmail: z
+      .email()
+      .nullable()
+      .describe(
+        'Email of the identity the run executed as: the caller for an interactive or personal-API-key run, and the workspace billing account for a schedule, webhook, deployed chat, or public API call. Null when the run failed before an identity was resolved.'
+      ),
     workflow: z
       .object({
         id: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
@@ -160,10 +272,20 @@ export const v2LogDetailSchema = z
           .describe(
             'Canonical folder path of the workflow, in the same form `folderPaths` accepts as a filter: `/` for a workflow at the workspace root. Null only when the path cannot be resolved — the folder has been deleted, or the workflow itself no longer exists.'
           ),
+        /**
+         * Retained only because it was a required field of this schema before
+         * `executedByEmail` replaced it, and removing it would break typed
+         * clients. It answers a different question than most readers assume: who
+         * the workflow belongs to now, which member removal reassigns and which
+         * says nothing about who ran any particular execution.
+         */
         ownerEmail: z
           .email()
           .nullable()
-          .describe('Workflow owner email, or null when unavailable.'),
+          .describe(
+            "Deprecated — use the run-level `executedByEmail` instead. Email of the workflow's current owner, or null when unavailable. This is a property of the workflow as it stands today, not of the run: it changes when workflow ownership is reassigned, and the owner is not the identity a background run executes as."
+          )
+          .meta({ deprecated: true }),
         workspaceId: z
           .string()
           .nullable()
@@ -180,13 +302,27 @@ export const v2LogDetailSchema = z
     workflowState: v2LogWorkflowStateSchema,
     /** Materialized block-level execution trace spans. */
     traceSpans: traceSpansSchema.describe('Materialized block-level execution trace spans.'),
-    /** Materialized final output, when the execution produced one. */
+    /**
+     * Both `.describe()` calls survive and both are required: the inner one
+     * documents the `unknown` branch of the nullable union, which the OpenAPI
+     * generator refuses to emit undescribed, and the outer one documents the
+     * union itself. Collapsing them to one fails `generate:openapi`.
+     */
     finalOutput: z
       .unknown()
       .describe('Materialized final workflow output value.')
       .nullable()
       .describe('Materialized final workflow output, or null when none was produced.'),
-    cost: v2LogCostSchema,
+    cost: v2LogDetailCostSchema,
+    // untyped-response: workflow input is the caller-supplied trigger payload, which has no server-side schema
+    /** Doubly described for the reason `finalOutput` above is. */
+    workflowInput: z
+      .unknown()
+      .describe('Caller-supplied trigger payload for the run.')
+      .nullable()
+      .describe(
+        'Input the run was triggered with, or null when the run recorded none. Credential-bearing and PII-masked values are redacted the same way `finalOutput` is.'
+      ),
     createdAt: v2TimestampSchema.describe('ISO 8601 log creation timestamp.'),
   })
   .meta({
@@ -205,7 +341,7 @@ export const v2LogParamsSchema = z.object({
  * Upper bound of `workflow_execution_logs.total_duration_ms`, whose column is a
  * Postgres `integer`.
  *
- * The same rule `DEPLOYMENT_VERSION_MAX` states for deployment versions: a
+ * The same rule `INT4_MAX` states for version numbers: a
  * comparison against an `integer` column is an `integer` comparison, so a bound
  * outside int4 — or one carrying a fractional part — is not a filter that
  * matches nothing, it is a value Postgres refuses to parse. `1.5`,
@@ -277,22 +413,117 @@ function v2CostBoundSchema(field: 'minCost' | 'maxCost', bound: 'Minimum' | 'Max
  * malformed list into a narrower filter and reports nothing, which on a log
  * search reads as "those runs do not exist".
  */
-function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: string) {
+function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: string, max: number) {
   return z
     .string()
-    .describe(description)
+    .describe(`${description} At most ${max} entries.`)
     .refine((value) => value.split(',').every((entry) => entry.length > 0), {
       error: `${field} must not contain an empty entry`,
     })
+    .refine((value) => value.split(',').length <= max, {
+      error: `${field} cannot contain more than ${max} entries`,
+    })
 }
 
+/**
+ * Ceilings on the comma-separated filter lists.
+ *
+ * An id list compiles to `IN (...)`, so an unbounded one is an unbounded query
+ * string, an unbounded bind-parameter list, and a plan whose cost the caller
+ * rather than the server chooses.
+ *
+ * The numbers came from a JSON-body variant of this read that existed only
+ * inside the change that added them and never reached the wire, so do not go
+ * looking for a shipped endpoint that enforced them — these ceilings are this
+ * list's own, and `GET /logs/stats` reuses them so the two filter dialects over
+ * the same rows cannot drift.
+ */
+export const V2_LOG_WORKFLOW_IDS_MAX = 200
+export const V2_LOG_FOLDER_PATHS_MAX = 100
+export const V2_LOG_TRIGGERS_MAX = 100
+
+/**
+ * The `status` filter: a comma-separated list of persisted execution statuses.
+ *
+ * Matched against exactly the column the responses report, rather than being
+ * derived from `level` + `ended_at` the way the first-party list's
+ * `running`/`pending` pseudo-levels are. A filter that selected on a different
+ * rule than the field it names would hand back rows whose reported `status` is
+ * not the one asked for — a wrong answer rather than a missing feature. `level`
+ * stays accepted and orthogonal: it is severity, this is lifecycle, and the two
+ * are ANDed.
+ */
+const v2LogStatusFilterSchema = z
+  .string()
+  .describe(
+    `Comma-separated execution statuses to include, from ${PERSISTED_WORKFLOW_EXECUTION_STATUSES.map((status) => `\`${status}\``).join(' | ')}. An empty entry is rejected. ANDed with \`level\`, which reports severity rather than lifecycle.`
+  )
+  .refine((value) => value.split(',').every((entry) => entry.length > 0), {
+    error: 'status must not contain an empty entry',
+  })
+  .refine((value) => value.split(',').length <= PERSISTED_WORKFLOW_EXECUTION_STATUSES.length, {
+    error: `status cannot contain more than ${PERSISTED_WORKFLOW_EXECUTION_STATUSES.length} entries`,
+  })
+  .refine(
+    (value) =>
+      value
+        .split(',')
+        .every((entry) =>
+          (PERSISTED_WORKFLOW_EXECUTION_STATUSES as readonly string[]).includes(entry)
+        ),
+    {
+      error: `status: expected one or more of ${PERSISTED_WORKFLOW_EXECUTION_STATUSES.map((status) => `"${status}"`).join(' | ')}`,
+    }
+  )
+
+/**
+ * The `workflowName` filter: a bounded, case-insensitive substring of the run's
+ * workflow name.
+ *
+ * Bounded for the reason every v2 `search` term is — it compiles to an unindexed
+ * `ILIKE` — and spelled `workflowName` rather than `search` because that is what
+ * it matches. The first-party `search` param matches an execution-id substring,
+ * which is not a search anyone would ask for over opaque identifiers and which
+ * `runId` already answers exactly, so it is deliberately not published here.
+ */
+const v2WorkflowNameFilterSchema = z
+  .string()
+  .trim()
+  .min(1, 'workflowName cannot be empty')
+  .max(V2_SEARCH_MAX_LENGTH, 'workflowName is too long')
+  .describe(
+    "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable."
+  )
+
+/**
+ * The columns `GET /api/v2/logs` can order by.
+ *
+ * Kept in step with `PUBLIC_LOG_SORT_FIELDS` in `lib/logs/public-queries.ts`,
+ * which turns each of these into a keyset; a member here with no keyset there
+ * is a sort the read cannot express.
+ */
+const v2LogSortFields = ['startedAt', 'durationMs', 'cost', 'status'] as const
+
+/** The shared `sortBy` + `sortOrder` pair, at this resource's defaults. */
+const v2LogSortFieldSchemas = v2SortFields(v2LogSortFields, {
+  sortBy: 'startedAt',
+  sortOrder: 'desc',
+})
+
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
-  .omit({ executionId: true, folderIds: true })
+  /**
+   * `order` is dropped in favour of the surface-wide `sortBy` + `sortOrder`
+   * pair. v2 logs now sort by four columns, so a lone direction param cannot
+   * express the ordering, and carrying both would be two spellings of one thing
+   * with undefined precedence when both arrive.
+   */
+  .omit({ executionId: true, folderIds: true, order: true })
   .extend({
     workspaceId: workspaceIdSchema.describe('Workspace whose execution logs should be returned.'),
     workflowIds: v2CommaListSchema(
       'workflowIds',
-      'Comma-separated workflow identifiers to include. An empty entry is rejected.'
+      'Comma-separated workflow identifiers to include. An empty entry is rejected.',
+      V2_LOG_WORKFLOW_IDS_MAX
     ).optional(),
     /**
      * Not a closed enum, which is why an unrecognized member is not a 400.
@@ -314,9 +545,24 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
      */
     triggers: v2CommaListSchema(
       'triggers',
-      'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
+      'Comma-separated, lowercase trigger types or webhook provider IDs. Matching is exact and case-sensitive; unknown values select no runs. An empty entry is rejected. The sentinel `all` disables this filter, even when listed with other values.',
+      V2_LOG_TRIGGERS_MAX
     ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
+    includeHandledErrors: booleanQueryFlagSchema
+      .describe(
+        'Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.'
+      )
+      .optional()
+      .default(false),
+    status: v2LogStatusFilterSchema.optional(),
+    workflowName: v2WorkflowNameFilterSchema.optional(),
+    includeJobRuns: booleanQueryFlagSchema
+      .describe(
+        'Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`.'
+      )
+      .optional()
+      .default(false),
     startDate: v2RunWindowBoundSchema('startDate').optional(),
     endDate: v2RunWindowBoundSchema('endDate').optional(),
     runId: runIdSchema.describe('Exact run identifier to match.').optional(),
@@ -328,7 +574,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     details: z
       .enum(['basic', 'full'])
       .describe(
-        'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.'
+        'Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.'
       )
       .optional()
       .default('basic'),
@@ -350,28 +596,33 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       outOfRange: 'clamp',
       description: 'Maximum log entries per page.',
     }),
+    ...v2LogSortFieldSchemas,
     /**
-     * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention, and
-     * the same one `GET /workflows/{id}/runs` makes for the same reason: logs
-     * have exactly one sortable column (execution start time), so there is no
-     * `sortBy` to pair with. `order` is the published name and renaming it
-     * would break every caller, while accepting `sortOrder` as an alias would
-     * add a second spelling of one thing with undefined precedence when both
-     * arrive — so the split is documented rather than papered over.
-     *
-     * Shared with `GET /workflows/{id}/runs` so the two spell the enum the same
-     * way in the generated specs.
+     * Re-described rather than re-declared: the pair itself comes from the
+     * shared {@link v2SortFields} helper, and only the null-ordering caveat is
+     * local to this resource.
      */
-    order: v2RunOrderSchema('execution'),
+    sortBy: v2LogSortFieldSchemas.sortBy.describe(
+      'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs sort before recorded values in ascending order and after them in descending order. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.'
+    ),
     folderPaths: z
       .string()
-      .describe(`Comma-separated workflow folder paths to include. ${V2_FOLDER_FILTER_MISS}`)
+      .describe(
+        `Comma-separated workflow folder paths, including descendants. Up to ${V2_LOG_FOLDER_PATHS_MAX} paths. ${V2_FOLDER_FILTER_MISS}`
+      )
       .optional()
       .transform((value, ctx) => {
         if (value === undefined) return undefined
         const paths = value.split(',')
         if (paths.length === 0 || paths.some((path) => path.length === 0)) {
           ctx.addIssue({ code: 'custom', message: 'folderPaths must contain valid paths' })
+          return z.NEVER
+        }
+        if (paths.length > V2_LOG_FOLDER_PATHS_MAX) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `folderPaths cannot contain more than ${V2_LOG_FOLDER_PATHS_MAX} entries`,
+          })
           return z.NEVER
         }
 
@@ -434,6 +685,21 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
         path: ['minDurationMs'],
       })
     }
+    /**
+     * `job_execution_logs` stores cost as a jsonb document and records no
+     * comparable persisted status, so ordering the two tables together on
+     * `durationMs`, `cost`, or `status` would compare values that do not mean
+     * the same thing. Silently dropping the job branch would answer a request
+     * the caller made with a sequence it did not ask for, so the combination is
+     * refused and the message names the way out.
+     */
+    if (query.includeJobRuns && query.sortBy !== 'startedAt') {
+      ctx.addIssue({
+        code: 'custom',
+        message: `sortBy: only "startedAt" can order job runs; drop includeJobRuns or sort by "startedAt"`,
+        path: ['sortBy'],
+      })
+    }
   })
 
 export const v2ListLogsContract = defineRouteContract({
@@ -449,7 +715,21 @@ export const v2ListLogsContract = defineRouteContract({
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs/[runId]',
-  query: noInputSchema,
+  query: z
+    .object({
+      includeWorkflowState: booleanQueryFlagSchema
+        .default(true)
+        .describe(
+          'Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.'
+        ),
+    })
+    .strict()
+    .meta({
+      id: 'GetLogQuery',
+      title: 'Execution log detail options',
+      description: 'Controls whether a log detail read includes its saved workflow snapshot.',
+      examples: [{ includeWorkflowState: false }],
+    }),
   params: v2LogParamsSchema,
   response: {
     mode: 'json',

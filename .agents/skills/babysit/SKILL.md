@@ -1,6 +1,6 @@
 ---
 name: babysit
-description: Drive a PR to a clean review (Greptile 5/5, zero open threads) — ships if needed, keeps it mergeable against staging, triggers Greptile/Cursor Bugbot, fixes real findings, replies to and resolves every thread, and loops until clean
+description: Drive a PR to a clean review (Greptile 5/5, zero open threads) — ships if needed, keeps it mergeable against staging, re-triggers both Greptile and cubic, fixes real findings, replies to and resolves every thread, and loops until clean
 ---
 
 # Babysit PRs
@@ -8,7 +8,8 @@ description: Drive a PR to a clean review (Greptile 5/5, zero open threads) — 
 Owns a PR end-to-end through review: ship it, wait for the automatic review round, and if it
 isn't already clean, drive fix → reply → resolve → re-review cycles until Greptile reports 5/5
 and there are zero open comment threads, keeping the branch mergeable against staging along the
-way. Designed to be run under `/loop` (no fixed interval — let it self-pace on review latency)
+way. Two bots review this repo — Greptile and cubic — and they behave differently; see
+"Two reviewers" below. Designed to be run under `/loop` (no fixed interval — let it self-pace on review latency)
 so it survives across multiple wakeups in the same session.
 
 ## When to use
@@ -23,44 +24,79 @@ Needs a PR number. If none is given and there's no open PR for the current branc
 first (which includes the `origin/staging` sync check — see `.agents/skills/ship/SKILL.md`) to
 create one.
 
+## Two reviewers
+
+Both post inline threads that count toward "clean", and they need re-triggering separately:
+
+| | Greptile (`greptile-apps`) | cubic (`cubic-dev-ai`) |
+|---|---|---|
+| Verdict | `Confidence Score: X/5` in a summary comment | no score — only inline threads |
+| Summary comment | edited in place across rounds | fresh review per run |
+| Re-trigger | `@greptile` | `@cubic-dev-ai review this PR` |
+| Latency | 1–3 min | 1–3 min |
+
+Post **both** after every push, as two separate comments. Triggering only Greptile is the easy
+mistake: the PR then shows 5/5 with cubic's threads still open from an earlier commit, and its
+findings never get re-checked against the fix.
+
+`@cubic-dev-ai review this PR` is the documented wording — `@cubic` alone does not trigger it.
+
+cubic reviews the commit that was HEAD when its run started, so a thread can describe code the
+next commit already changed. Before treating a cubic finding as real, check whether the current
+HEAD still has the problem — a stale round is a reply-and-resolve, not a fix.
+
 ## Definition of "clean"
 
-Both must hold:
+All three must hold:
 1. The latest Greptile summary comment reports **Confidence Score: 5/5**
-2. `reviewThreads` (GraphQL, see below) has **zero threads with `isResolved: false`**
+2. `reviewThreads` (GraphQL, see below) has **zero threads with `isResolved: false`**, from
+   either bot
+3. Every check has **finished and passed** — `gh pr checks <n>` shows no `fail` *and* no
+   `pending`. A red run is not clean no matter what the reviewers say, and the lint/audit jobs
+   routinely catch what a local run misses. A `pending` one is not clean either: it has not
+   reported yet, and treating "not failing" as "passing" reports the PR clean before CI has
+   had its say. Wait for it — the step-10 stop condition covers a check that never settles.
 
 Do not stop early on "no new comments this round" alone — a thread can be open from an earlier
-round. Always check both conditions freshly after every push.
+round, and cubic often lands its first threads a round after Greptile's. Always check all three
+conditions freshly after every push.
 
 ## Loop
 
 1. **Check current state** before doing anything, including whether the PR is still mergeable:
    ```bash
    gh pr view <n> --json mergeable
+   gh pr checks <n> | grep -v skipping
    gh pr view <n> --json comments -q '[.comments[] | select(.author.login=="greptile-apps")] | last | .body'
    gh api graphql -f query='
    query { repository(owner: "<owner>", name: "<repo>") { pullRequest(number: <n>) {
      reviewThreads(first: 50) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line
        comments(first: 5) { nodes { id databaseId author { login } body } } } } } } }'
    ```
-   `[.comments[]] | last | .body`, not `... | .body | tail -1` — the latter pipes every matching
-   comment's full multi-line body through the pipeline and keeps only the final *line* of that
-   combined output (usually the "Reviews (n): Last reviewed commit..." footer), not the last
-   *comment*, so it silently misses the actual "Confidence Score: X/5" line.
+   The score is a line inside the body of Greptile's *latest* comment (`| last | .body`), which
+   it edits in place across rounds.
    `reviewThreads(first: 50)` is a single page — check `pageInfo.hasNextPage`. If `true`, don't
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
    stopping on a partial page would silently miss unresolved ones past the cutoff.
-   If `mergeable` is `CONFLICTING`, fix that first (step 2). Otherwise, if Greptile is 5/5 and
-   every thread across all pages has `isResolved: true`, stop — report the outcome (see
-   "Reporting" below) and skip the rest of this list.
+   The query returns both bots' threads. A `ReviewThread` has no author of its own — identity
+   lives on its comments, so read the opener's at `comments.nodes[0].author.login` and do not
+   add an `author` field at the thread level, which makes the query fail to compile.
+   If `mergeable` is `CONFLICTING`, fix that first (step 2). If a check is failing, fix that too
+   — treat it exactly like a review finding. If a check is still `pending`, do not evaluate
+   "clean" at all: go to step 9 and wait for it. Otherwise, if Greptile is 5/5, every thread
+   across all pages has `isResolved: true`, and every check has finished and passed, stop —
+   report the outcome (see "Reporting" below) and skip the rest of this list.
 
-2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
-   usual pre-push checks, push, and go to step 8 to re-trigger review.
+2. **If the PR has a merge conflict**, rebase rather than merge (step 6's rebase would discard a
+   merge commit): `git fetch origin staging && git rebase origin/staging`, resolve each conflict
+   and `git rebase --continue` until the rebase finishes. Then run step 6 (the sync check and the
+   `/ship` gates), then steps 7–8: push with `--force-with-lease` and re-trigger review.
 
-3. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
-   automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
-   `Greptile Review`) and wait for that first round before doing anything else.
+3. **If no review has run yet** (fresh PR, no bot comments): both run automatically on PR open —
+   confirm via `gh pr checks <n>` (look for `Greptile Review` and `cubic · AI code reviewer`) and
+   wait for both before doing anything else. They finish at different times, so a PR that looks
+   clean because only one has reported is not clean yet.
 
 4. **If a review round has landed and it isn't clean**: for every thread where
    `isResolved: false`, triage the finding on its own merits — this is the part that requires
@@ -87,15 +123,13 @@ round. Always check both conditions freshly after every push.
    ```
 
 6. **Before pushing, re-run the full sync check from `/ship` step 2** — not just the log command,
-   the whole check-and-recover flow (stash WIP if needed, rebase, verify the rebase didn't just
+   the whole check-and-recover flow (stash WIP pinned by SHA as `/ship` step 2 shows, rebase, verify the rebase didn't just
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
-   was fixed once. Then run the repo's pre-ship checks the same way `/ship` does before
-   committing — not just lint/typecheck/boundary-validation, but also the conditional `/cleanup`
-   (if this round's fix touched UI code) and `/db-migrate` (if it touched schema/migrations)
-   gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
-   either gate just as easily as the original commit did.
+   was fixed once. Then run `/ship` steps 4–6 on this round's diff — the cleanup and test gates,
+   migration safety, and the regenerate + audit phases. A review-fix round is still a code change
+   and can trip any of them just as easily as the original commit did.
 
 7. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 6's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
@@ -106,23 +140,23 @@ round. Always check both conditions freshly after every push.
    git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
    ```
-   `--reverse` makes `git log` oldest-first, matching the PR commit list's order — plain
-   `git log` is newest-first, so without it a positional comparison can spuriously fail on any
-   multi-commit branch.
    These two lists must describe the same commits. A review loop runs many pushes across many
    rounds; checking sync only before the push (step 6) and never after is how a bad push or a
    PR whose commit history quietly went stale between rounds goes unnoticed.
 
-8. **Re-trigger review** by posting `@greptile` and `@cursor review` as **two separate PR
-   comments** — never combine them into one comment, each bot only responds to its own mention:
+8. **Re-trigger both reviewers**, each as its own PR comment — a combined comment does not
+   reliably trigger both:
    ```bash
    gh pr comment <n> --body "@greptile"
-   gh pr comment <n> --body "@cursor review"
+   gh pr comment <n> --body "@cubic-dev-ai review this PR"
    ```
+   Then confirm both actually picked it up before waiting — `gh pr checks <n>` should show
+   `Greptile Review` and `cubic · AI code reviewer` as `pending`. If one stayed `pass` from the
+   previous round, its trigger did not land; re-post that one.
 
 9. **Wait for the new round**, then go back to step 1. Pace the wait with `ScheduleWakeup` using
-   a fallback delay of ~250–300s (Greptile/Cursor typically take 1–3 minutes) — never busy-poll
-   in a sleep loop. Pass the same `/loop babysit PR <n>` prompt on each wakeup so the loop
+   a fallback delay of ~300s — both bots take 1–3 minutes, and CI is usually the slowest of the
+   three — never busy-poll in a sleep loop. Pass the same `/loop babysit PR <n>` prompt on each wakeup so the loop
    resumes correctly.
 
 10. **Stop conditions**: clean state reached (see above), or the same unresolved finding or
@@ -132,25 +166,24 @@ round. Always check both conditions freshly after every push.
 ## Reporting
 
 When the loop ends, summarize: how many rounds it took, what was actually fixed (one line each),
-what was pushed back on as a false positive and why, and the final Greptile score / thread count.
+what was pushed back on as a false positive and why, and the final state — Greptile score, open
+thread count across both bots, and whether every check finished and passed.
 
 ## Public-repo hygiene
 
 Every reply, comment and commit you post here is public and permanent, and review bots quote
-your replies back so a leak propagates. Before each post, strip anything that ties the change to
-a tenant: customer/company names, workspace/user/org/KB/connector IDs, emails, tenant hostnames,
-verbatim document/sheet/folder names, log lines, and per-tenant DB output. Cite the mechanism and
-aggregate numbers instead — see `/ship`'s "What to Omit" for the full list and the pre-publish
-grep. Triaging a finding often means pasting evidence you gathered from prod; that is exactly the
-moment this gets violated. Check before posting, not after: editing a comment does not unsend its
-notification email.
+your replies back, so a leak propagates. `/ship`'s "What to Omit" (the category list and the
+pre-publish grep) applies to every post in this loop. Triaging a finding often means pasting
+evidence gathered from prod — that is exactly the moment it gets violated. Run the grep on the
+reply before posting, not after: editing a comment does not unsend its notification email.
 
 ## Hard rules
 
-- Never post the two re-review mentions as a single combined comment.
 - Never paste prod evidence into a reply without scrubbing it first (see above).
 - Never resolve a thread without replying to it first.
 - Never fix a finding with a hacky workaround — if the clean fix isn't obvious, find the sibling
   pattern elsewhere in the codebase solving the same class of problem and match it.
 - Never silently drop a finding — every thread gets either a code fix or a reasoned reply.
+- Never re-trigger only one reviewer. Both get a comment after every push, and both get confirmed
+  `pending` before you start waiting.
 - Always re-run the `/ship`-style sync check before every push in the loop, not just the first.

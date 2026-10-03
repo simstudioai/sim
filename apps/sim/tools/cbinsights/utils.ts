@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toArray } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -418,6 +419,25 @@ export function parseIdListParam(value: unknown, paramName: string): number[] | 
   return toPositiveIntegers(entries, paramName)
 }
 
+/** Parses an optional organization-ID filter while enforcing the shared request ceiling. */
+export function parseOptionalOrgIds(value: unknown): number[] | undefined {
+  const orgIds = parseIdListParam(value, 'orgIds')
+  if (orgIds && orgIds.length > MAX_ORG_IDS) {
+    throw new Error(`CB Insights accepts at most ${MAX_ORG_IDS} organization IDs per request`)
+  }
+  return orgIds
+}
+
+/** Trims an optional text parameter and rejects non-text runtime values. */
+export function parseOptionalStringParam(value: unknown, paramName: string): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') {
+    throw new Error(`CB Insights "${paramName}" must be a string`)
+  }
+  const trimmed = value.trim()
+  return trimmed || undefined
+}
+
 /**
  * Parses a list of free-text values, rejecting an entry that is not text.
  *
@@ -533,7 +553,7 @@ export function pageInfo(data: {
 
 /** Narrows an optional array field to a list, never null. */
 export function asArray(value: unknown): CbInsightsRecord[] {
-  return Array.isArray(value) ? (value as CbInsightsRecord[]) : []
+  return toArray<CbInsightsRecord>(value)
 }
 
 /** Narrows an optional string array. */
@@ -541,21 +561,4 @@ export function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : []
-}
-
-/** Narrows an optional object field. */
-export function asRecord(value: unknown): CbInsightsRecord | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as CbInsightsRecord)
-    : null
-}
-
-/** Narrows an optional string field. */
-export function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-/** Narrows an optional number field. */
-export function asNumber(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
 }

@@ -1,171 +1,53 @@
-import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
 import { rowQueryContract, TABLE_QUERY_MAX_BODY_BYTES } from '@/lib/api/contracts/tables'
-import { parseRequest } from '@/lib/api/server'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Sort, TableSchema } from '@/lib/table'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { internalTableV2QueryErrorPolicy } from '@/lib/table/api/row-route-policies'
+import { tableOperations } from '@/lib/table/application/operations'
+import { queryTableRows } from '@/lib/table/application/rows'
 import {
-  buildIdByName,
-  columnMatchesRef,
-  getColumnId,
-  sortSpecNamesToIds,
-} from '@/lib/table/column-keys'
-import { TableQueryValidationError } from '@/lib/table/errors'
-import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
-import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
-import { queryRows } from '@/lib/table/rows/service'
-import { predicateToStorage } from '@/lib/table/select-values'
-import { createTableRowsResponse } from '@/app/api/table/row-secret-provenance'
-import { rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess, tablesV2GateError } from '@/app/api/table/utils'
+  finalizeTableRowsProvenance,
+  negotiateTableRowsProvenance,
+} from '@/app/api/table/row-secret-provenance'
+import { presentQueryRowForPrincipal } from '@/app/api/table/row-wire'
 
-const logger = createLogger('TableRowQueryAPI')
-
-interface RowQueryRouteParams {
-  params: Promise<{ tableId: string }>
-}
-
-/**
- * POST /api/table/[tableId]/query — v2 row query. Typed `predicate`/`sort`
- * objects (validated server-side) + opaque cursor pagination (no offset on the
- * wire). Shares the same engine as the legacy GET /rows route via `queryRows`.
- */
-export const POST = withRouteHandler(async (request: NextRequest, context: RowQueryRouteParams) => {
-  const requestId = generateRequestId()
-
-  try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(rowQueryContract, request, context, {
-      maxBodyBytes: TABLE_QUERY_MAX_BODY_BYTES,
-    })
-    if (!parsed.success) return parsed.response
-    const { params, body } = parsed.data
-    const { tableId } = params
-
-    const accessResult = await checkAccess(tableId, authResult.userId, 'read')
-    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-    const { table } = accessResult
-
-    if (body.workspaceId !== table.workspaceId) {
-      logger.warn(
-        `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${body.workspaceId}, Actual: ${table.workspaceId}`
-      )
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    // After authz: the gate reads the workspace's org off the primary DB, and its
-    // 404 would otherwise distinguish "not in the rollout cohort" from "no access".
-    const gateError = await tablesV2GateError(authResult.userId, body.workspaceId)
-    if (gateError) return gateError
-
-    const schema = table.schema as TableSchema
-    const wire = rowWireTranslators(authResult.authType, schema)
-    const cursor = body.cursor ? decodeCursor(body.cursor) : undefined
-    /**
-     * A reference that matches no column is dropped, not rejected: a workflow
-     * whose picked column was since deleted keeps running and simply gets the
-     * columns that still exist (the editor shows the orphaned id so it can be
-     * cleared). Skipped references are logged for server-side diagnostics.
-     */
-    let selectedColumnIds: Set<string> | undefined
-    const ignoredColumns: string[] = []
-    if (body.columns?.length) {
-      selectedColumnIds = new Set()
-      for (const reference of body.columns) {
-        const column = schema.columns.find((candidate) => columnMatchesRef(candidate, reference))
-        if (column) selectedColumnIds.add(getColumnId(column))
-        else ignoredColumns.push(reference)
-      }
-      if (ignoredColumns.length > 0) {
-        logger.warn(
-          `[${requestId}] Ignoring output columns not on table ${tableId}: ${ignoredColumns.join(', ')}`
-        )
-      }
-    }
-
-    // Predicate/sort fields are column-NAME-keyed by construction (the caller
-    // authors names), so validate against the schema then translate names →
-    // storage ids unconditionally — unlike row data, this is not authType-dependent.
-    const idByName = buildIdByName(schema)
-    let predicate = body.predicate
-    if (predicate) {
-      validatePredicate(predicate, schema.columns)
-      predicate = predicateToStorage(predicate, schema)
-    }
-    let sortSpec = body.sort
-    if (sortSpec?.length) {
-      validateSortSpec(sortSpec, schema.columns)
-      sortSpec = sortSpecNamesToIds(sortSpec, idByName)
-    }
-    const sort: Sort | undefined = sortSpec?.length
-      ? Object.fromEntries(sortSpec.map((s) => [s.field, s.direction]))
-      : undefined
-
-    // Cursor↔sort binding: keyset cursors are default-order only; an offset
-    // cursor must be replayed under the exact sort it was minted with.
-    if (cursor) assertCursorQueryBinding(cursor, { sort, predicate })
-
-    const result = await queryRows(
-      table,
-      {
-        predicate,
-        sort,
-        limit: body.limit,
-        after: cursor?.after,
-        offset: cursor?.offset,
-        // Only the first page (no inbound cursor) pays for the total count.
-        includeTotal: !body.cursor,
-        // Executions are grid UI state; the v2 surface returns row data only
-        // and the byte budget deliberately measures just `data`.
-        withExecutions: false,
-        // Projected inside the drain so the byte budget measures the response.
-        columnIds: selectedColumnIds,
-      },
-      requestId
-    )
-
-    const responseBody = {
-      success: true,
-      data: {
-        rows: result.rows.map((r) => ({
-          id: r.id,
-          data: wire.dataOut(r.data),
-          executions: r.executions,
-          position: r.position,
-          orderKey: r.orderKey ?? undefined,
-          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-        })),
-        rowCount: result.rowCount,
-        totalCount: result.totalCount,
-        limit: result.limit,
-        nextCursor: result.nextCursor,
-      },
-    }
-    return createTableRowsResponse({
+export const POST = defineInternalJsonRoute({
+  contract: rowQueryContract,
+  operation: tableOperations.queryRows,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal v2 table query behavior',
+  }),
+  errorPolicy: internalTableV2QueryErrorPolicy,
+  parseOptions: { maxBodyBytes: TABLE_QUERY_MAX_BODY_BYTES },
+  mapInput: ({ params, body }, { principal, request }) => ({
+    tableId: params.tableId,
+    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    predicate: body.predicate,
+    sort: body.sort,
+    columns: body.columns,
+    limit: body.limit,
+    cursor: body.cursor,
+    includeTotal: !body.cursor,
+    includeRunState: false,
+    allowExpandedLimit: true,
+    requireV2Feature: true,
+    includePersistedSecretProvenance: negotiateTableRowsProvenance(
       request,
-      authType: authResult.authType,
-      userId: authResult.userId,
-      workspaceId: table.workspaceId,
-      body: responseBody,
-      rows: result.rows,
-    })
-  } catch (error) {
-    if (isZodError(error)) return validationErrorResponse(error)
-    if (error instanceof TableQueryValidationError) {
-      return NextResponse.json(
-        { error: error.message, ...(error.code ? { code: error.code } : {}) },
-        { status: 400 }
-      )
-    }
-    logger.error(`[${requestId}] Error querying rows (v2):`, error)
-    return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
-  }
+      principal.kind === 'delegated'
+    ),
+  }),
+  useCase: queryTableRows,
+  present: (result, { principal }) => ({
+    success: true as const,
+    data: {
+      rows: result.rows.map((row) =>
+        presentQueryRowForPrincipal(row, result.table.schema, principal)
+      ),
+      rowCount: result.rowCount,
+      totalCount: result.totalCount,
+      limit: result.limit,
+      nextCursor: result.nextCursor,
+    },
+  }),
+  finalizeResponse: ({ result }) => finalizeTableRowsProvenance(result.secretProvenance),
 })

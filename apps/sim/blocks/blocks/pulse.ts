@@ -7,13 +7,12 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { PulseParserOutput } from '@/tools/pulse/types'
 
 const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
 const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
 
-export const PulseBlock: BlockConfig<PulseParserOutput> = {
+export const PulseBlock: BlockConfig = {
   type: 'pulse',
   name: 'Pulse',
   description: 'Extract text from documents using Pulse OCR',
@@ -141,7 +140,11 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
     bounding_boxes: { type: 'json', description: 'Bounding box layout information' },
     extraction_url: { type: 'string', description: 'URL for extraction results (large documents)' },
     html: { type: 'string', description: 'HTML content if requested' },
-    structured_output: { type: 'json', description: 'Structured output if schema was provided' },
+    structured_output: {
+      type: 'json',
+      description:
+        'Structured output; Sim exposes no input for supplying a schema, so this is always null',
+    },
     chunks: { type: 'json', description: 'Chunked content if chunking was enabled' },
     figures: { type: 'json', description: 'Extracted figures if figure extraction was enabled' },
   },
@@ -175,7 +178,7 @@ const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
   return [subBlock]
 })
 
-export const PulseV2Block: BlockConfig<PulseParserOutput> = {
+export const PulseV2Block: BlockConfig = {
   ...PulseBlock,
   sunset: undefined,
   type: 'pulse_v2',

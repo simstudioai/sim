@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_FILE_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillDownloadPrimaryContentTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillDownloadPrimaryContentTool: InternalToolConfig<
+  WindchillParams,
+  WindchillResponse
+> = {
   id: 'windchill_download_primary_content',
   name: 'Windchill Download Primary Content',
   description: 'Download primary content into a canonical UserFile',
@@ -47,12 +50,8 @@ export const windchillDownloadPrimaryContentTool: ToolConfig<WindchillParams, Wi
       description: 'Optional downloaded file name override',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_download_primary_content', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_download_primary_content', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_download_primary_content', response),

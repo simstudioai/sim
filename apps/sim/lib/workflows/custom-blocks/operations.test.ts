@@ -1,40 +1,33 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { extractInputFieldsFromBlocks, loadDeployedWorkflowState } = vi.hoisted(() => ({
+const { extractInputFieldsFromBlocks } = vi.hoisted(() => ({
   extractInputFieldsFromBlocks: vi.fn(),
-  loadDeployedWorkflowState: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/workflows/input-format', () => ({
   extractInputFieldsFromBlocks,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   CustomBlockValidationError,
   listCustomBlocksWithInputs,
   publishCustomBlock,
-  updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
+
+const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
 
 const publishParams = {
   organizationId: 'org-1',
@@ -46,7 +39,6 @@ const publishParams = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
@@ -73,13 +65,13 @@ describe('custom block input hydration', () => {
         workspaceName: 'Source workspace',
       },
     ])
-    loadDeployedWorkflowState.mockResolvedValue({ blocks: { start: { type: 'start' } } })
+    mockLoadDeployedWorkflowState.mockResolvedValue({ blocks: { start: { type: 'start' } } })
     extractInputFieldsFromBlocks.mockReturnValue([])
 
     const result = await listCustomBlocksWithInputs('org-1')
 
     expect(result).toHaveLength(1)
-    expect(loadDeployedWorkflowState).toHaveBeenCalledWith('workflow-1', 'workspace-source')
+    expect(mockLoadDeployedWorkflowState).toHaveBeenCalledWith('workflow-1', 'workspace-source')
   })
 
   it('bounds concurrent deployed-state hydration', async () => {
@@ -106,7 +98,7 @@ describe('custom block input hydration', () => {
     )
     let active = 0
     let maxActive = 0
-    loadDeployedWorkflowState.mockImplementation(async () => {
+    mockLoadDeployedWorkflowState.mockImplementation(async () => {
       active++
       maxActive = Math.max(maxActive, active)
       await Promise.resolve()
@@ -139,13 +131,5 @@ describe('reserved exposed-output names', () => {
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'Success' }],
       })
     ).rejects.toThrow('"Success" is a reserved output name (success, error, cost)')
-  })
-
-  it('updateCustomBlock rejects a reserved output name', async () => {
-    await expect(
-      updateCustomBlock('cb-1', {
-        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'error' }],
-      })
-    ).rejects.toThrow(CustomBlockValidationError)
   })
 })

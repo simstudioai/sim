@@ -1,7 +1,10 @@
 import type { AsanaCreateSectionParams, AsanaSectionResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaCreateSectionTool: ToolConfig<AsanaCreateSectionParams, AsanaSectionResponse> = {
+export const asanaCreateSectionTool: InternalToolConfig<
+  AsanaCreateSectionParams,
+  AsanaSectionResponse
+> = {
   id: 'asana_create_section',
   name: 'Asana Create Section',
   description: 'Create a new section in an Asana project',
@@ -33,13 +36,8 @@ export const asanaCreateSectionTool: ToolConfig<AsanaCreateSectionParams, AsanaS
     },
   },
 
-  request: {
-    url: '/api/tools/asana/create-section',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       projectGid: params.projectGid,
       name: params.name,

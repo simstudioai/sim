@@ -1,12 +1,9 @@
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { eq, inArray } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 
-const logger = createLogger('UserQueries')
 const MAX_USER_EMAIL_BATCH = 1000
 
 /**
@@ -86,23 +83,18 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
 }
 
 /**
- * Loads a user's email address, or `null` when no matching user exists or the
- * lookup fails. Fail-soft: callers use this for optional run metadata, and a
- * transient lookup error must not abort an otherwise valid execution.
+ * Loads the email for a trusted Sim-user subject. A missing user or email is an
+ * execution-identity integrity failure and must abort metadata construction.
  */
-export async function getUserEmailById(userId: string): Promise<string | null> {
-  try {
-    const [userRecord] = await db
-      .select({ email: user.email })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1)
+export async function getUserEmailById(userId: string): Promise<string> {
+  const [userRecord] = await db
+    .select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
 
-    return userRecord?.email ?? null
-  } catch (error) {
-    logger.warn('Failed to load user email', { userId, error: getErrorMessage(error) })
-    return null
-  }
+  if (!userRecord?.email) throw new Error(`Authenticated user ${userId} has no email address`)
+  return userRecord.email
 }
 
 /**
@@ -111,24 +103,31 @@ export async function getUserEmailById(userId: string): Promise<string | null> {
  * never replaced with the raw ID or a placeholder.
  */
 export async function getUserEmailsByIds(userIds: readonly string[]): Promise<Map<string, string>> {
+  const emailByUserId = await findUserEmailsByIds(userIds)
+  const missingIds = Array.from(new Set(userIds)).filter((id) => !emailByUserId.has(id))
+  if (missingIds.length > 0) {
+    throw new Error(`Unable to resolve email for user IDs: ${missingIds.join(', ')}`)
+  }
+  return emailByUserId
+}
+
+/**
+ * Resolves user IDs to current email addresses, omitting users that no longer exist. For
+ * attribution that legitimately outlives an account, such as the authors of a file version.
+ */
+export async function findUserEmailsByIds(
+  userIds: readonly string[]
+): Promise<Map<string, string>> {
   const uniqueIds = Array.from(new Set(userIds))
   if (uniqueIds.length === 0) return new Map()
   if (uniqueIds.length > MAX_USER_EMAIL_BATCH) {
     throw new Error(`Cannot resolve more than ${MAX_USER_EMAIL_BATCH} user emails at once`)
   }
-
   const rows = await db
     .select({ id: user.id, email: user.email })
     .from(user)
     .where(inArray(user.id, uniqueIds))
-
-  const emailByUserId = new Map(rows.map((row) => [row.id, row.email]))
-  const missingIds = uniqueIds.filter((id) => !emailByUserId.has(id))
-  if (missingIds.length > 0) {
-    throw new Error(`Unable to resolve email for user IDs: ${missingIds.join(', ')}`)
-  }
-
-  return emailByUserId
+  return new Map(rows.map((row) => [row.id, row.email]))
 }
 
 /** Returns one previously resolved email or throws on an incomplete projection. */

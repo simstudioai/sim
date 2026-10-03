@@ -69,12 +69,12 @@ const ROW_TONES = [
  * window: a frameless, centered vignette (the access tile's composition,
  * which sits beside it in the row) where each record is a plain row —
  * gradient actor avatar, the action label in the row's regular sans face
- * (`font-medium text-small`, the same treatment the standards tile gives
+ * (`text-small`, the same treatment the standards tile gives
  * its row titles), an "actor · resource" attribution line, and a
  * right-aligned timestamp. The newest record is the selected event: it
  * sits on a solid white card wearing the build tile's window chrome
  * exactly — `--white` fill, 1px `--border-1` hairline, `rounded-xl`,
- * `shadow-sm` — while the older records rest directly on the tile,
+ * `shadow-xs` — while the older records rest directly on the tile,
  * quietening with age until a mask gradient dissolves the oldest —
  * implying the trail continues into history. A small "Audit log"
  * header with an `Append-only` mono ChipTag (fill stepped up to
@@ -120,7 +120,7 @@ export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps 
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-4 flex items-center justify-between'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Audit log</span>
+            <span className='text-[var(--text-primary)] text-base'>Audit log</span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
               Append-only
             </ChipTag>
@@ -138,14 +138,14 @@ export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps 
                     'flex items-center gap-3 px-3 py-2.5',
                     newest &&
                       cn(
-                        'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-sm',
+                        'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-xs dark:bg-[var(--surface-4)]',
                         styles.stampIn
                       )
                   )}
                 >
                   <span
                     className={cn(
-                      'relative size-7 shrink-0 overflow-hidden rounded-full shadow-sm',
+                      'relative size-7 shrink-0 overflow-hidden rounded-full shadow-xs',
                       tone.avatar,
                       newest && styles.sealPulse
                     )}
@@ -159,7 +159,7 @@ export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps 
                     />
                   </span>
                   <span className='min-w-0 flex-1'>
-                    <span className={cn('block truncate font-medium text-small', tone.action)}>
+                    <span className={cn('block truncate text-small', tone.action)}>
                       {entry.action}
                     </span>
                     <span className='block truncate text-[var(--text-muted)] text-caption'>

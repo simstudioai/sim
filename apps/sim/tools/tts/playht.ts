@@ -1,7 +1,7 @@
 import type { PlayHtTtsParams, TtsBlockResponse } from '@/tools/tts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const playhtTtsTool: ToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
+export const playhtTtsTool: InternalToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
   id: 'tts_playht',
   name: 'PlayHT TTS',
   description: 'Convert text to speech using PlayHT (voice cloning)',
@@ -78,22 +78,12 @@ export const playhtTtsTool: ToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ text: params.text }),
     },
-    url: '/api/tools/tts/unified',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: PlayHtTtsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      provider: 'playht',
+    input: (params) => ({
       text: params.text,
       apiKey: params.apiKey,
       userId: params.userId,
@@ -105,9 +95,6 @@ export const playhtTtsTool: ToolConfig<PlayHtTtsParams, TtsBlockResponse> = {
       voiceGuidance: params.voiceGuidance,
       textGuidance: params.textGuidance,
       sampleRate: params.sampleRate,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

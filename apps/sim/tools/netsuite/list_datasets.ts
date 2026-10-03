@@ -1,12 +1,12 @@
 import type { NetSuiteListDatasetsParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  normalizePagination,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteListDatasetsTool: ToolConfig<NetSuiteListDatasetsParams, NetSuiteResponse> = {
+export const netsuiteListDatasetsTool: InternalToolConfig<
+  NetSuiteListDatasetsParams,
+  NetSuiteResponse
+> = {
   id: 'netsuite_list_datasets',
   name: 'NetSuite List SuiteAnalytics Datasets',
   description:
@@ -30,18 +30,9 @@ export const netsuiteListDatasetsTool: ToolConfig<NetSuiteListDatasetsParams, Ne
         'Zero-based result offset; must be divisible by limit and stay within the first 100,000 results and 1,000 pages',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'GET',
-        path: '/services/rest/query/v1/dataset/',
-        success: { status: 200, body: 'object', validator: 'collection-page' },
-        query: normalizePagination(params.limit, params.offset),
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

@@ -1,0 +1,80 @@
+import {
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
+import {
+  knowledgeBaseUseCasesMock,
+  knowledgeBaseUseCasesMockFns,
+} from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import { NextRequest } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
+
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
+
+import { NoWorkspaceAccessError } from '@/lib/core/application'
+import { POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/restore/route'
+
+const { mockGetUserEmailsByIds: mockGetUserEmails } = usersQueriesMockFns
+const { mockRestoreKnowledgeBaseExecute: mockRestore } = knowledgeBaseUseCasesMockFns
+
+const WORKSPACE_ID = 'workspace-1'
+const context = { params: Promise.resolve({ knowledgeBaseId: 'kb-1' }) }
+
+const RESTORED = {
+  id: 'kb-1',
+  userId: 'user-1',
+  name: 'Docs',
+  description: null,
+  tokenCount: 12,
+  embeddingModel: 'text-embedding-3-small',
+  embeddingDimension: 1536,
+  chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200 },
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-02-01T00:00:00Z'),
+  deletedAt: null,
+  workspaceId: WORKSPACE_ID,
+  folderId: null,
+  docCount: 3,
+  connectorTypes: [],
+}
+
+function buildRequest(body: unknown = { workspaceId: WORKSPACE_ID }) {
+  return new NextRequest('http://localhost/api/v2/knowledge/kb-1/restore', {
+    method: 'POST',
+    headers: { 'x-api-key': 'secret', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+beforeEach(() => {
+  v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+  v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+  v2RouteMocks.authenticate.mockResolvedValue({
+    principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+    rateLimitSubjectIds: ['api-key:key-1'],
+    rateLimitSubscription: null,
+    keyType: 'personal',
+  })
+  mockGetUserEmails.mockResolvedValue(new Map([['user-1', 'owner@example.com']]))
+  mockRestore.mockResolvedValue({ knowledgeBase: RESTORED, folderPath: '/', restored: true })
+})
+
+describe('POST /api/v2/knowledge/[knowledgeBaseId]/restore', () => {
+  it('conceals a knowledge base in another tenant as not found', async () => {
+    mockRestore.mockRejectedValue(new NoWorkspaceAccessError())
+
+    const response = await POST(buildRequest(), context)
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.message).toBe('Knowledge base not found')
+  })
+})

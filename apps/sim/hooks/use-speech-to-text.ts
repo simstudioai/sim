@@ -50,13 +50,41 @@ interface UseSpeechToTextProps {
   onError?: (error: SpeechToTextError) => void
   /** Attributes the voice-input cost to this workspace for per-member usage. */
   workspaceId?: string
+  /** Attributes organization chat and search voice input to the organization. */
+  organizationId?: string
 }
 
 interface UseSpeechToTextReturn {
   isListening: boolean
   isSupported: boolean
+  /** Live input levels, filled in place while listening; the array identity never changes. */
+  audioLevels: Float32Array
   toggleListening: () => void
   resetTranscript: () => void
+}
+
+const AUDIO_LEVEL_COUNT = 5
+const AUDIO_LEVEL_GAIN = 8
+const AUDIO_LEVEL_SMOOTHING = 0.55
+
+function updateAudioLevels(input: Float32Array, levels: Float32Array): void {
+  const samplesPerLevel = Math.floor(input.length / levels.length)
+
+  for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+    const start = levelIndex * samplesPerLevel
+    const end = levelIndex === levels.length - 1 ? input.length : start + samplesPerLevel
+    let sumOfSquares = 0
+
+    for (let sampleIndex = start; sampleIndex < end; sampleIndex++) {
+      const sample = input[sampleIndex]
+      sumOfSquares += sample * sample
+    }
+
+    const rms = Math.sqrt(sumOfSquares / Math.max(1, end - start))
+    const normalizedLevel = Math.min(1, rms * AUDIO_LEVEL_GAIN)
+    levels[levelIndex] =
+      levels[levelIndex] * AUDIO_LEVEL_SMOOTHING + normalizedLevel * (1 - AUDIO_LEVEL_SMOOTHING)
+  }
 }
 
 export function useSpeechToText({
@@ -64,6 +92,7 @@ export function useSpeechToText({
   onUsageLimitExceeded,
   onError,
   workspaceId,
+  organizationId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
   /**
@@ -83,6 +112,7 @@ export function useSpeechToText({
   const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
   const onErrorRef = useRef(onError)
   const workspaceIdRef = useRef(workspaceId)
+  const organizationIdRef = useRef(organizationId)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
 
@@ -90,6 +120,8 @@ export function useSpeechToText({
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const levelsRef = useRef<Float32Array | null>(null)
+  const audioLevels = (levelsRef.current ??= new Float32Array(AUDIO_LEVEL_COUNT))
 
   const pcmBufferRef = useRef<Float32Array[]>([])
   const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -102,6 +134,7 @@ export function useSpeechToText({
   onUsageLimitExceededRef.current = onUsageLimitExceeded
   onErrorRef.current = onError
   workspaceIdRef.current = workspaceId
+  organizationIdRef.current = organizationId
 
   const flushAudioBuffer = useCallback(() => {
     const ws = wsRef.current
@@ -175,6 +208,7 @@ export function useSpeechToText({
     }
 
     pcmBufferRef.current = []
+    audioLevels.fill(0)
     isFirstChunkRef.current = true
   }, [])
 
@@ -186,7 +220,9 @@ export function useSpeechToText({
       let tokenData: Awaited<ReturnType<typeof requestJson<typeof speechTokenContract>>>
       try {
         tokenData = await requestJson(speechTokenContract, {
-          body: workspaceIdRef.current ? { workspaceId: workspaceIdRef.current } : {},
+          body: organizationIdRef.current
+            ? { organizationId: organizationIdRef.current }
+            : { workspaceId: workspaceIdRef.current },
         })
       } catch (err) {
         if (isApiClientError(err) && err.status === 402) {
@@ -292,6 +328,7 @@ export function useSpeechToText({
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0)
+        updateAudioLevels(input, audioLevels)
         pcmBufferRef.current.push(new Float32Array(input))
       }
 
@@ -360,6 +397,8 @@ export function useSpeechToText({
       streamRef.current = null
     }
 
+    audioLevels.fill(0)
+
     const wsToClose = wsRef.current
     wsRef.current = null
     if (wsToClose) {
@@ -402,6 +441,7 @@ export function useSpeechToText({
   return {
     isListening,
     isSupported,
+    audioLevels,
     toggleListening,
     resetTranscript,
   }

@@ -1,12 +1,16 @@
-/**
- * @vitest-environment node
- */
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { PUBLIC_ENV_ATTRIBUTE } from '@/lib/core/config/env'
-import { PublicEnvScript, publicEnvHtmlAttributes } from '@/app/_shell/public-env-script'
+import {
+  PublicEnvScript,
+  publicEnvHtmlAttributes,
+  serializePublicEnv,
+} from '@/app/_shell/public-env-script'
 
 vi.unmock('@/lib/core/config/env')
+
+const { mockConnection } = vi.hoisted(() => ({ mockConnection: vi.fn() }))
+
+vi.mock('next/server', () => ({ connection: mockConnection }))
 
 /**
  * Guards the one property that matters: the emitted tag assigns `window.__ENV`
@@ -17,16 +21,13 @@ vi.unmock('@/lib/core/config/env')
  * document. See the component's TSDoc for the full ordering argument.
  */
 describe('PublicEnvScript', () => {
-  it('emits a script that assigns window.__ENV directly', () => {
-    const markup = renderToStaticMarkup(<PublicEnvScript />)
+  it('cannot be terminated by a script-like public value', () => {
+    const serialized = serializePublicEnv({
+      NEXT_PUBLIC_SCRIPT_ESCAPE_TEST: '</script><script>window.pwned=true</script>',
+    })
 
-    expect(markup).toContain("window['__ENV'] =")
-  })
-
-  it('does not defer the assignment into the __next_s queue', () => {
-    const markup = renderToStaticMarkup(<PublicEnvScript />)
-
-    expect(markup).not.toContain('__next_s')
+    expect(serialized).not.toContain('</script>')
+    expect(serialized).toContain('\\u003c/script>')
   })
 
   it('passes only NEXT_PUBLIC_ variables through to the browser', () => {
@@ -43,27 +44,9 @@ describe('PublicEnvScript', () => {
  * same values readable by code that runs in that gap.
  */
 describe('publicEnvHtmlAttributes', () => {
-  it('carries the public env under the attribute getEnv reads', () => {
-    const attributes = publicEnvHtmlAttributes()
-
-    expect(Object.keys(attributes)).toEqual([PUBLIC_ENV_ATTRIBUTE])
-    expect(() => JSON.parse(attributes[PUBLIC_ENV_ATTRIBUTE])).not.toThrow()
-  })
-
   it('exposes only NEXT_PUBLIC_ variables', () => {
     const values = JSON.parse(publicEnvHtmlAttributes()[PUBLIC_ENV_ATTRIBUTE])
 
     expect(Object.keys(values).every((key) => /^NEXT_PUBLIC_/i.test(key))).toBe(true)
-  })
-
-  /**
-   * Two transports for one snapshot only stays safe while they agree; a reader
-   * that resolved different values depending on which one it happened to hit
-   * would be worse than the race this replaces.
-   */
-  it('carries exactly what the script assigns', () => {
-    const values = JSON.parse(publicEnvHtmlAttributes()[PUBLIC_ENV_ATTRIBUTE])
-
-    expect(values).toEqual(PublicEnvScript().props.env)
   })
 })

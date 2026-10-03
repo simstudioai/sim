@@ -1,7 +1,7 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { WorkdayChangeJobParams, WorkdayChangeJobResponse } from '@/tools/workday/types'
 
-export const changeJobTool: ToolConfig<WorkdayChangeJobParams, WorkdayChangeJobResponse> = {
+export const changeJobTool: InternalToolConfig<WorkdayChangeJobParams, WorkdayChangeJobResponse> = {
   id: 'workday_change_job',
   name: 'Change Workday Job',
   description:
@@ -77,13 +77,8 @@ export const changeJobTool: ToolConfig<WorkdayChangeJobParams, WorkdayChangeJobR
     },
   },
 
-  request: {
-    url: '/api/tools/workday/change-job',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

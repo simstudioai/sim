@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { RawFileInputArraySchema, RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
 export const googleAccessTokenSchema = z.string().min(1, 'Access token is required')
 export const gmailMessageIdSchema = z.string().min(1, 'Message ID is required')
@@ -35,58 +35,6 @@ export const gmailMailBodySchema = z.object({
 
 export const gmailEditDraftBodySchema = gmailMailBodySchema.extend({
   draftId: z.string().min(1, 'Draft ID is required'),
-})
-
-export const googleDriveUploadBodySchema = z.object({
-  accessToken: googleAccessTokenSchema,
-  fileName: z.string().min(1, 'File name is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  mimeType: z.string().optional().nullable(),
-  folderId: z.string().optional().nullable(),
-})
-
-export const googleDriveDownloadBodySchema = z.object({
-  accessToken: googleAccessTokenSchema,
-  fileId: z.string().min(1, 'File ID is required'),
-  mimeType: z.string().optional().nullable(),
-  fileName: z.string().optional().nullable(),
-  includeRevisions: z.boolean().optional().default(true),
-})
-
-export const googleDriveExportBodySchema = z.object({
-  accessToken: googleAccessTokenSchema,
-  fileId: z.string().min(1, 'File ID is required'),
-  mimeType: z.string().min(1, 'Target export MIME type is required'),
-  fileName: z.string().optional().nullable(),
-})
-
-export const googleVaultDownloadExportFileBodySchema = z.object({
-  accessToken: googleAccessTokenSchema,
-  bucketName: z.string().min(1, 'Bucket name is required'),
-  objectName: z.string().min(1, 'Object name is required'),
-  fileName: z.string().optional().nullable(),
-})
-
-export const googleSlidesExportFormatSchema = z.preprocess((value) => {
-  if (typeof value !== 'string') return value
-  const normalized = value.trim().toUpperCase()
-  return normalized || undefined
-}, z.enum(['PDF', 'PPTX', 'ODP', 'TXT', 'PNG', 'JPEG', 'SVG']).optional())
-
-/** Google Drive / Slides file IDs are opaque base62-ish strings without URL metacharacters. */
-export const googlePresentationIdSchema = z
-  .string()
-  .trim()
-  .min(1, 'Presentation ID is required')
-  .regex(/^[a-zA-Z0-9_-]+$/, 'Presentation ID contains invalid characters')
-
-export const googleSlidesExportPresentationBodySchema = z.object({
-  accessToken: googleAccessTokenSchema,
-  presentationId: googlePresentationIdSchema,
-  exportFormat: googleSlidesExportFormatSchema,
-  workspaceId: z.string().optional(),
-  workflowId: z.string().optional(),
-  executionId: z.string().optional(),
 })
 
 const toolJsonResponseSchema = z.unknown()
@@ -168,41 +116,6 @@ export const gmailUnarchiveContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
-export const googleDriveUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/google_drive/upload',
-  body: googleDriveUploadBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const googleDriveDownloadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/google_drive/download',
-  body: googleDriveDownloadBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const googleDriveExportContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/google_drive/export',
-  body: googleDriveExportBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const googleVaultDownloadExportFileContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/google_vault/download-export-file',
-  body: googleVaultDownloadExportFileBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const googleSlidesExportPresentationContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/google_slides/export-presentation',
-  body: googleSlidesExportPresentationBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
 export type GmailAddLabelBody = ContractBodyInput<typeof gmailAddLabelContract>
 export type GmailArchiveBody = ContractBodyInput<typeof gmailArchiveContract>
 export type GmailDeleteBody = ContractBodyInput<typeof gmailDeleteContract>
@@ -214,15 +127,6 @@ export type GmailMoveBody = ContractBodyInput<typeof gmailMoveContract>
 export type GmailRemoveLabelBody = ContractBodyInput<typeof gmailRemoveLabelContract>
 export type GmailSendBody = ContractBodyInput<typeof gmailSendContract>
 export type GmailUnarchiveBody = ContractBodyInput<typeof gmailUnarchiveContract>
-export type GoogleDriveUploadBody = ContractBodyInput<typeof googleDriveUploadContract>
-export type GoogleDriveDownloadBody = ContractBodyInput<typeof googleDriveDownloadContract>
-export type GoogleDriveExportBody = ContractBodyInput<typeof googleDriveExportContract>
-export type GoogleVaultDownloadExportFileBody = ContractBodyInput<
-  typeof googleVaultDownloadExportFileContract
->
-export type GoogleSlidesExportPresentationBody = ContractBodyInput<
-  typeof googleSlidesExportPresentationContract
->
 
 export type GmailAddLabelResponse = ContractJsonResponse<typeof gmailAddLabelContract>
 export type GmailArchiveResponse = ContractJsonResponse<typeof gmailArchiveContract>
@@ -235,12 +139,3 @@ export type GmailMoveResponse = ContractJsonResponse<typeof gmailMoveContract>
 export type GmailRemoveLabelResponse = ContractJsonResponse<typeof gmailRemoveLabelContract>
 export type GmailSendResponse = ContractJsonResponse<typeof gmailSendContract>
 export type GmailUnarchiveResponse = ContractJsonResponse<typeof gmailUnarchiveContract>
-export type GoogleDriveUploadResponse = ContractJsonResponse<typeof googleDriveUploadContract>
-export type GoogleDriveDownloadResponse = ContractJsonResponse<typeof googleDriveDownloadContract>
-export type GoogleDriveExportResponse = ContractJsonResponse<typeof googleDriveExportContract>
-export type GoogleVaultDownloadExportFileResponse = ContractJsonResponse<
-  typeof googleVaultDownloadExportFileContract
->
-export type GoogleSlidesExportPresentationResponse = ContractJsonResponse<
-  typeof googleSlidesExportPresentationContract
->

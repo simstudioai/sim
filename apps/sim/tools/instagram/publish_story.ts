@@ -4,9 +4,9 @@ import {
   PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
 import { createPublishTransform } from '@/tools/instagram/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const instagramPublishStoryTool: ToolConfig<
+export const instagramPublishStoryTool: InternalToolConfig<
   InstagramPublishStoryParams,
   InstagramPublishResponse
 > = {
@@ -43,13 +43,8 @@ export const instagramPublishStoryTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/publish-story',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: InstagramPublishStoryParams) => ({
+  operation: {
+    input: (params: InstagramPublishStoryParams) => ({
       accessToken: params.accessToken,
       igUserId: params.igUserId,
       media: params.media,

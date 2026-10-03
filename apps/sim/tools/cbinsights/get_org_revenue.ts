@@ -1,14 +1,8 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  asNumber,
-  asString,
-  cbInsightsRequest,
-  requireOrgId,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const cbinsightsGetOrgRevenueTool: ToolConfig<CbInsightsOrgParams, ToolResponse> = {
+export const cbinsightsGetOrgRevenueTool: InternalToolConfig<CbInsightsOrgParams, ToolResponse> = {
   id: 'cbinsights_get_org_revenue',
   name: 'CB Insights Get Organization Revenue',
   description:
@@ -37,26 +31,8 @@ export const cbinsightsGetOrgRevenueTool: ToolConfig<CbInsightsOrgParams, ToolRe
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{
-      orgId?: unknown
-      orgName?: unknown
-      orgUrl?: unknown
-      revenue?: unknown
-    }>(
-      params,
-      { path: `/v2/organizations/${orgId}/revenuebyyear` },
-      (data) => ({
-        orgId: asNumber(data.orgId),
-        orgName: asString(data.orgName),
-        orgUrl: asString(data.orgUrl),
-        revenue: asArray(data.revenue),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

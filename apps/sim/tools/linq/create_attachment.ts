@@ -1,7 +1,8 @@
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { LinqCreateAttachmentParams, LinqCreateAttachmentResult } from '@/tools/linq/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const linqCreateAttachmentTool: ToolConfig<
+export const linqCreateAttachmentTool: InternalToolConfig<
   LinqCreateAttachmentParams,
   LinqCreateAttachmentResult
 > = {
@@ -44,11 +45,15 @@ export const linqCreateAttachmentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/linq/upload',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: (params) =>
+        params.file
+          ? selectModelBoundFileInputPaths(params.file, ['file'], { parseSerializedFile: true })
+          : [],
+    },
+    input: (params) => ({
       apiKey: params.apiKey,
       file: params.file,
       fileContent: params.fileContent,

@@ -15,7 +15,7 @@ import type {
  */
 export function convexApiUrl(deploymentUrl: string, path: string): string {
   const trimmed = deploymentUrl.trim().replace(/\/+$/, '')
-  const validation = validateExternalUrl(trimmed, 'Deployment URL')
+  const validation = validateExternalUrl(trimmed, 'Deployment URL', 'configuredEndpoint')
   if (!validation.isValid) {
     throw new Error(`${validation.error} (e.g., https://your-deployment.convex.cloud)`)
   }

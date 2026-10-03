@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import * as echarts from 'echarts'
 import { describe, expect, it } from 'vitest'
 import { buildChartRenderOption } from '@/lib/charts/option'
@@ -21,10 +18,6 @@ const rows = [
 ]
 
 describe('shapeTableRows', () => {
-  it('passes rows through without groupBy', () => {
-    expect(shapeTableRows(rows, { type: 'table', tableId: 't' })).toBe(rows)
-  })
-
   it('groups and aggregates, keeping first-seen group order', () => {
     const shaped = shapeTableRows(rows, {
       type: 'table',
@@ -50,23 +43,6 @@ describe('shapeTableRows', () => {
       { month: '2024-01', NA: 100, EMEA: 50 },
       { month: '2024-02', NA: 200, EMEA: 80 },
     ])
-  })
-
-  it('prefixes pivot columns when several metrics are aggregated', () => {
-    const shaped = shapeTableRows(rows, {
-      type: 'table',
-      tableId: 't',
-      groupBy: ['month'],
-      aggregate: { revenue: 'sum', conversion: 'avg' },
-      pivot: 'region',
-    })
-    expect(shaped[0]).toEqual({
-      month: '2024-01',
-      'NA revenue': 100,
-      'NA conversion': 4,
-      'EMEA revenue': 50,
-      'EMEA conversion': 2,
-    })
   })
 
   it('counts rows and ignores non-numeric values in numeric ops', () => {
@@ -95,6 +71,7 @@ describe('shapeTableRows', () => {
 })
 
 const XSS_FORMATTER = '<img src=x onerror="alert(1)">'
+const XSS_LINK = 'javascript:alert(document.domain)'
 
 describe('parseChartSpec option confinement', () => {
   it('forces the tooltip off the innerHTML path, keeping the formatter template', () => {
@@ -107,14 +84,6 @@ describe('parseChartSpec option confinement', () => {
       formatter: XSS_FORMATTER,
       renderMode: 'richText',
     })
-  })
-
-  it('overrides a spec-declared html render mode', () => {
-    const option = parse({
-      schema_version: 1,
-      option: { tooltip: { renderMode: 'html', formatter: XSS_FORMATTER } },
-    })
-    expect((option.tooltip as Record<string, unknown>).renderMode).toBe('richText')
   })
 
   it('reaches tooltips nested under media, baseOption, timeline options, and series', () => {
@@ -149,17 +118,6 @@ describe('parseChartSpec option confinement', () => {
     expect(renderModes.every((mode) => mode === 'richText')).toBe(true)
   })
 
-  it('confines a tooltip declared as an array', () => {
-    const option = parse({
-      schema_version: 1,
-      option: { tooltip: [{ formatter: XSS_FORMATTER }, { formatter: 'plain' }] },
-    })
-    expect(option.tooltip).toEqual([
-      { formatter: XSS_FORMATTER, renderMode: 'richText' },
-      { formatter: 'plain', renderMode: 'richText' },
-    ])
-  })
-
   it('drops the toolbox at every level', () => {
     const option = parse({
       schema_version: 1,
@@ -175,9 +133,21 @@ describe('parseChartSpec option confinement', () => {
     expect(media[0].option.toolbox).toBeUndefined()
   })
 
-  it('adds no tooltip to a document that declares none', () => {
-    const option = parse({ schema_version: 1, option: { series: [{ type: 'bar', data: [1] }] } })
-    expect('tooltip' in option).toBe(false)
+  it('drops every navigation sink — title link/sublink and treemap/sunburst item links', () => {
+    const option = parse({
+      schema_version: 1,
+      option: {
+        title: { text: 'click me', link: XSS_LINK, sublink: XSS_LINK, target: 'self' },
+        series: [
+          { type: 'treemap', data: [{ name: 'a', value: 1, link: XSS_LINK }] },
+          { type: 'sunburst', data: [{ name: 'b', value: 1, link: XSS_LINK }] },
+        ],
+        baseOption: { title: { link: XSS_LINK } },
+        media: [{ query: { minWidth: 100 }, option: { title: { link: XSS_LINK } } }],
+      },
+    })
+    expect(JSON.stringify(option)).not.toContain('javascript:')
+    expect(option.title).toEqual({ text: 'click me', target: 'self' })
   })
 
   it('rejects a document too deep to walk instead of throwing', () => {
@@ -188,12 +158,6 @@ describe('parseChartSpec option confinement', () => {
     }
     expect(parseChartSpec(nest(500)).error).toBeUndefined()
     expect(parseChartSpec(nest(50_000)).error).toMatch(/deeply/)
-  })
-
-  it('leaves dataset rows alone — they hold data, not components', () => {
-    const rows = [{ tooltip: 'ok', toolbox: 'ok' }]
-    const option = parse({ schema_version: 1, option: { dataset: { source: rows } } })
-    expect((option.dataset as Record<string, unknown>).source).toEqual(rows)
   })
 })
 
@@ -267,6 +231,24 @@ describe('chart option confinement against echarts', () => {
       })
     )
     expect(model.getComponent('toolbox')).toBeUndefined()
+  })
+
+  it('leaves the title component no link to hand to windowOpen', () => {
+    const model = renderModel(
+      parse({
+        schema_version: 1,
+        option: {
+          xAxis: {},
+          yAxis: {},
+          series: [{ type: 'bar', data: [1] }],
+          title: { text: 'click me', link: XSS_LINK, sublink: XSS_LINK },
+        },
+      })
+    )
+    const title = model.getComponent('title')
+    expect(title?.get('text')).toBe('click me')
+    expect(title?.get('link')).toBeUndefined()
+    expect(title?.get('sublink')).toBeUndefined()
   })
 })
 

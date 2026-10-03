@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { V2KnowledgeDocumentSummary } from '@/lib/api/contracts/v2/knowledge'
+import type { KnowledgeDocumentUploadRecipe } from '@/lib/knowledge/upload-metadata'
 import {
   assertMultiFileUploadAdmission,
   MultiFileUploadAdmissionError,
@@ -49,7 +50,7 @@ export interface UploadError {
 }
 
 export interface ProcessingOptions {
-  recipe?: string
+  recipe?: KnowledgeDocumentUploadRecipe
 }
 
 export interface UseKnowledgeUploadOptions {
@@ -119,11 +120,11 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     })
   }
 
-  /** Reconciles both caches an upload moves: the base's documents and the list's `docCount`. */
+  /** Reconciles both caches an upload moves: the base's documents and the counted `docCount`. */
   const invalidateKnowledgeCaches = async (knowledgeBaseId: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) }),
-      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.countedLists() }),
     ])
   }
 
@@ -175,7 +176,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       } else if (result?.status === 'rejected') {
         failed.push({
           file: files[idx],
-          error: result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
+          error: toError(result.reason),
         })
       }
     })

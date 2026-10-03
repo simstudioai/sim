@@ -7,7 +7,6 @@ const logger = createLogger('DesktopNavigation')
 
 export type MainNavigationAction =
   | 'in-app'
-  | 'idp-in-window'
   | 'idp-system-login'
   | 'idp-system-connect'
   | 'external'
@@ -104,10 +103,10 @@ export function isAuthSurfacePath(pathname: string): boolean {
  * else comes back `state_mismatch`. The handoff keeps the whole flow in one
  * jar and hands a one-time token back over the loopback.
  *
- * Everything else is an integration connect from a workspace page: those stay
- * in-window (the session cookie is already in this partition) unless the IdP
- * hard-blocks embedded user agents, which is what {@link
- * SYSTEM_BROWSER_IDP_HOSTS} enumerates.
+ * Integration connects use the explicit desktop handoff IPC. A cross-origin
+ * departure from any other app page is therefore an ordinary external
+ * navigation, not evidence of OAuth, and must never replace the privileged
+ * app document that owns the preload bridge.
  */
 export function classifyNavigation(rawUrl: string, ctx: NavigationContext): MainNavigationAction {
   if (rawUrl === 'about:blank') {
@@ -133,7 +132,7 @@ export function classifyNavigation(rawUrl: string, ctx: NavigationContext): Main
   if (matchesHostList(url.hostname, SYSTEM_BROWSER_IDP_HOSTS)) {
     return 'idp-system-connect'
   }
-  return 'idp-in-window'
+  return 'external'
 }
 
 /**

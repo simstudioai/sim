@@ -54,7 +54,7 @@ export const V2_ERROR_STATUS_BY_CODE: Record<V2ErrorCode, number> = {
  * example name the wrong code.
  *
  * This describes how a code chooses its status, not every status the surface can send. A
- * route may pass an explicit status alongside a code — `POST /workflows/{id}/execute` answers
+ * route may pass an explicit status alongside a code — `POST /workflows/{workflowId}/execute` answers
  * `408` with `BAD_REQUEST` — so a status absent from this map is one no documented error
  * response may claim, which is what the OpenAPI layer enforces.
  */

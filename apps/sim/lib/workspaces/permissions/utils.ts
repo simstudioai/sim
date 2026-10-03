@@ -12,7 +12,6 @@ import {
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { HttpError } from '@/lib/core/utils/http-error'
 import type { DbOrTx } from '@/lib/db/types'
-import { getOrgAdminWorkspaceRows } from '@/lib/workspaces/utils'
 
 export type { PermissionType }
 export interface WorkspaceBasic {
@@ -78,6 +77,13 @@ export async function getWorkspaceById(
   return exists ? { id: workspaceId } : null
 }
 
+/**
+ * Reads one workspace row, optionally locking it. The lock is `FOR NO KEY
+ * UPDATE`: the workspace row is a foreign-key parent, and `FOR UPDATE` would
+ * both block every concurrent insert into its child tables and deadlock
+ * against callers that write a child row first. See the module header of
+ * `lib/billing/storage/tracking.ts`.
+ */
 async function selectWorkspaceWithOwner(
   workspaceId: string,
   includeArchived: boolean,
@@ -101,7 +107,7 @@ async function selectWorkspaceWithOwner(
         ? eq(workspace.id, workspaceId)
         : and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt))
     )
-  const [ws] = forUpdate ? await query.for('update').limit(1) : await query.limit(1)
+  const [ws] = forUpdate ? await query.for('no key update').limit(1) : await query.limit(1)
 
   return ws || null
 }
@@ -550,92 +556,4 @@ export async function isOrganizationAdminOrOwner(
     .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
     .limit(1)
   return isOrgAdminRole(row?.role)
-}
-
-/**
- * Check whether a user is a member (any role) of a specific organization.
- *
- * @param userId - The ID of the user to check
- * @param organizationId - The ID of the organization to check
- * @returns Promise<boolean> - True when the user has an organization membership row
- */
-export async function isOrganizationMember(
-  userId: string,
-  organizationId: string
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-    .limit(1)
-  return !!row
-}
-
-/**
- * Get a list of workspaces that the user has access to
- *
- * @param userId - The ID of the user to check
- * @returns Promise<Array<{
- *   id: string
- *   name: string
- *   ownerId: string
- *   accessType: 'direct' | 'owner'
- * }>> - A list of workspaces that the user has access to
- */
-export async function getManageableWorkspaces(userId: string): Promise<
-  Array<{
-    id: string
-    name: string
-    ownerId: string
-    accessType: 'direct' | 'owner'
-  }>
-> {
-  const ownedWorkspaces = await db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      ownerId: workspace.ownerId,
-    })
-    .from(workspace)
-    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
-
-  const adminWorkspaces = await db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      ownerId: workspace.ownerId,
-    })
-    .from(workspace)
-    .innerJoin(permissions, eq(permissions.entityId, workspace.id))
-    .where(
-      and(
-        isNull(workspace.archivedAt),
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.permissionType, 'admin')
-      )
-    )
-
-  const orgAdminWorkspaces = (await getOrgAdminWorkspaceRows(userId, 'active')).map((ws) => ({
-    id: ws.id,
-    name: ws.name,
-    ownerId: ws.ownerId,
-  }))
-
-  const ownedSet = new Set(ownedWorkspaces.map((w) => w.id))
-  const seen = new Set(ownedSet)
-  const combined: Array<{
-    id: string
-    name: string
-    ownerId: string
-    accessType: 'direct' | 'owner'
-  }> = ownedWorkspaces.map((ws) => ({ ...ws, accessType: 'owner' as const }))
-
-  for (const ws of [...adminWorkspaces, ...orgAdminWorkspaces]) {
-    if (seen.has(ws.id)) continue
-    seen.add(ws.id)
-    combined.push({ ...ws, accessType: 'direct' as const })
-  }
-
-  return combined
 }

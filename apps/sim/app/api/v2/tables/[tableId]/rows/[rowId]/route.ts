@@ -23,10 +23,11 @@ export const GET = defineV2JsonRoute({
     tableId: params.tableId,
     rowId: params.rowId,
     assertedWorkspaceId: query.workspaceId,
+    includeRunState: query.includeRunState,
   }),
   useCase: readTableRow,
-  present: ({ table, row }) => ({
-    data: toApiRow(row, namedRowMapper(table.schema.columns)),
+  present: ({ table, row, runState }) => ({
+    data: toApiRow(row, namedRowMapper(table.schema.columns), runState),
   }),
 })
 

@@ -1,10 +1,11 @@
+import { type ExternalUserSubject, serializePrincipal } from '@sim/auth/principal'
 import { db, webhook, webhookPathClaim, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { and, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -26,6 +27,7 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
+import { createWebhookExecutionPrincipal } from '@/lib/webhooks/execution-principal'
 import {
   getPendingWebhookVerification,
   matchesPendingWebhookVerificationProbe,
@@ -44,7 +46,18 @@ const logger = createLogger('WebhookProcessor')
 
 type WebhookRecord = typeof webhook.$inferSelect
 type WorkflowRecord = typeof workflow.$inferSelect
-type WebhookTarget = { webhook: WebhookRecord; workflow: WorkflowRecord }
+type WebhookTarget = {
+  webhook: WebhookRecord
+  workflow: WorkflowRecord
+  /** Whether the webhook's trigger block exists in the workflow's active deployment. */
+  triggerBlockDeployed: boolean
+}
+
+/**
+ * Answers {@link blockExistsInDeployment} from the active deployment a lookup
+ * already joins, so delivery does not read it a second time.
+ */
+const triggerBlockDeployedColumn = sql<boolean>`coalesce(json_typeof(${workflowDeploymentVersion.state} -> 'blocks' -> ${webhook.blockId}) = 'object', false)`
 type ResolvedWebhookRecord = Omit<WebhookRecord, 'provider' | 'providerConfig'> & {
   provider: string
   providerConfig: Record<string, unknown>
@@ -63,6 +76,10 @@ export interface WebhookProcessorOptions {
   receivedAt?: number
   /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
   triggerTimestampMs?: number
+  /** Provider-authenticated external actor. Never derived from workflow input. */
+  subject?: ExternalUserSubject
+  /** The lookup's answer for this webhook's trigger block; read fresh when absent. */
+  triggerBlockDeployed?: boolean
 }
 
 export interface WebhookPreprocessingResult {
@@ -76,6 +93,7 @@ export interface WebhookPreprocessingResult {
 }
 
 const WEBHOOK_BODY_LABEL = 'Webhook request body'
+const MAX_WEBHOOK_TARGETS_PER_LOOKUP = 1_000
 
 /**
  * Flattens a `multipart/form-data` body into the plain object shape provider handlers
@@ -358,6 +376,7 @@ export async function findAllWebhooksForPath(
     .select({
       webhook: webhook,
       workflow: workflow,
+      triggerBlockDeployed: triggerBlockDeployedColumn,
     })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
@@ -379,6 +398,13 @@ export async function findAllWebhooksForPath(
         )
       )
     )
+    .limit(MAX_WEBHOOK_TARGETS_PER_LOOKUP + 1)
+
+  if (results.length > MAX_WEBHOOK_TARGETS_PER_LOOKUP) {
+    throw new Error(
+      `Webhook path resolves more than ${MAX_WEBHOOK_TARGETS_PER_LOOKUP} active webhooks`
+    )
+  }
 
   if (results.length === 0) {
     logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
@@ -455,6 +481,7 @@ export async function findWebhooksByRoutingKey(
     .select({
       webhook: webhook,
       workflow: workflow,
+      triggerBlockDeployed: triggerBlockDeployedColumn,
     })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
@@ -477,6 +504,13 @@ export async function findWebhooksByRoutingKey(
         )
       )
     )
+    .limit(MAX_WEBHOOK_TARGETS_PER_LOOKUP + 1)
+
+  if (results.length > MAX_WEBHOOK_TARGETS_PER_LOOKUP) {
+    throw new Error(
+      `Routing key resolves more than ${MAX_WEBHOOK_TARGETS_PER_LOOKUP} active ${provider} webhooks`
+    )
+  }
 
   if (results.length === 0) {
     logger.warn(`[${requestId}] No active ${provider} webhooks for routing key`)
@@ -592,6 +626,8 @@ export async function checkWebhookPreprocessing(
     const preprocessResult = await preprocessExecution({
       workflowId: foundWorkflow.id,
       userId: foundWorkflow.userId,
+      // The workflow owner, not whoever sent this delivery — nobody sent it.
+      userIdIsStoredReference: true,
       triggerType: 'webhook',
       executionId,
       requestId,
@@ -725,6 +761,15 @@ async function queueWebhookExecutionWithResult(
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
+      principal: serializePrincipal(
+        createWebhookExecutionPrincipal({
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          provider: foundWebhook.provider,
+          ...(options.subject ? { subject: options.subject } : {}),
+        })
+      ),
       userId: actorUserId,
       billingAttribution,
       executionId,
@@ -866,7 +911,9 @@ export async function dispatchResolvedWebhookTarget(
   }
 
   if (webhookRecord.blockId) {
-    const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId)
+    const blockExists =
+      options.triggerBlockDeployed ??
+      (await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId))
     if (!blockExists) {
       const verificationResponse = handlePreDeploymentVerification(webhookRecord, options.requestId)
       return {
@@ -1020,6 +1067,14 @@ export async function processPolledWebhookEvent(
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
+      principal: serializePrincipal(
+        createWebhookExecutionPrincipal({
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          provider,
+        })
+      ),
       userId: actorUserId,
       billingAttribution,
       executionId,

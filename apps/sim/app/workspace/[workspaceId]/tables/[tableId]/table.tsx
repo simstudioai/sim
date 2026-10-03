@@ -9,6 +9,7 @@ import { isEqual } from 'es-toolkit'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
@@ -24,12 +25,7 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { withCellValueFilter } from '@/lib/table/query-builder/cell-filter'
-import {
-  type BreadcrumbItem,
-  type ColumnOption,
-  Resource,
-  type SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
@@ -37,12 +33,20 @@ import {
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
+import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  ColumnOption,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   getTableViewRevision,
   resolveTableViewConfig,
+  resolveTableViewPinTransition,
   resolveTableViewSelection,
   shouldApplyTableViewRevision,
   type TableViewRevision,
@@ -68,14 +72,15 @@ import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
+import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
+  ColumnDropdown,
   ColumnsMenu,
   EnrichmentDetails,
   EnrichmentsSidebar,
   LockSettingsModal,
-  NewColumnDropdown,
   RowModal,
   RunStatusControl,
   SaveViewModal,
@@ -90,14 +95,19 @@ import {
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { columnTypeIcon } from './components/table-grid/headers'
 import { useTable, useTableEventStream, useTableRoom } from './hooks'
-import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
+import {
+  type BlockedTableAction,
+  describeBlockedAction,
+  LOCK_TOOLTIPS,
+  lockedNouns,
+} from './lock-copy'
 import {
   ALL_VIEW_PARAM,
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
   tableDetailParsers,
   tableDetailUrlKeys,
 } from './search-params'
-import type { QueryOptions } from './types'
+import type { QueryOptions, RowInsertTarget } from './types'
 import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
@@ -113,25 +123,14 @@ interface TableProps {
   workspaceId?: string
   tableId?: string
   /**
-   * Whether an admin may CHANGE locks, resolved server-side by the page (the
-   * flag's gating lives in AppConfig and has no client counterpart). Defaults
-   * to false so embedded renders, which have no server resolution, fail closed
-   * — enforcement of stored locks is unaffected either way.
-   */
-  tableLocksEnabled?: boolean
-  /**
-   * Resolved `table-views` flag. Server-only to resolve for the same reason.
-   * Defaults to `false` so any caller that has not resolved the flag stays on
-   * today's Filter/Sort behavior.
-   */
-  viewsEnabled?: boolean
-  /**
    * Saved view to adopt on first seed instead of the table's default —
    * embedded mode only, set when the agent opened this table pinned to a
    * view. Participates only in the one-time adoption branch, so it never
    * fights a later user switch.
    */
   initialViewId?: string
+  /** Reports the embedded panel query to its chat owner. */
+  onViewContextChange?: (context: MothershipTableViewContext) => void
 }
 
 /**
@@ -199,10 +198,9 @@ interface ViewConfigKeep {
 export function Table({
   embedded,
   initialViewId,
+  onViewContextChange,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
-  tableLocksEnabled = false,
-  viewsEnabled = false,
 }: TableProps = {}) {
   const params = useParams()
   const router = useRouter()
@@ -210,6 +208,7 @@ export function Table({
   const tableId = propTableId || (params.tableId as string)
 
   const posthog = usePostHog()
+  const tableRowTtlEnabled = useFeatureFlag('table-row-ttl')
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
 
@@ -237,6 +236,7 @@ export function Table({
   const blockedToastIdRef = useRef<string | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
+  const [addRowTarget, setAddRowTarget] = useState<RowInsertTarget | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [deletingAll, setDeletingAll] = useState<{
     excludeRowIds: string[]
@@ -306,6 +306,7 @@ export function Table({
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
+  const onOpenAddRowModal = (insertAt: RowInsertTarget = {}) => setAddRowTarget(insertAt)
   // useCallback because <Resource.Header> is memo-wrapped — these flow into
   // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
@@ -361,10 +362,13 @@ export function Table({
     ((previousName: string, newName: string) => void) | null
   >(null)
 
-  const { data: viewsData, isError: viewsErrored } = useTableViews({
+  const {
+    data: viewsData,
+    isError: viewsErrored,
+    isFetching: viewsFetching,
+  } = useTableViews({
     workspaceId,
     tableId,
-    enabled: viewsEnabled,
   })
   const views = viewsData ?? NO_VIEWS
   /** A views list exists — fresh or cached. A failed background refetch flips
@@ -397,7 +401,17 @@ export function Table({
 
   /** Resolve the default synchronously so the grid, autosave owner, and menu all
    *  agree before the URL effect records the adopted view id. */
-  const { selectedView, defaultView, activeView } = resolveTableViewSelection(views, activeViewId)
+  const {
+    selectedView,
+    defaultView,
+    activeView,
+    pending: viewSelectionPending,
+  } = resolveTableViewSelection(
+    views,
+    activeViewId,
+    embedded ? initialViewId : undefined,
+    viewsFetching
+  )
   const activeViewConfig = useMemo(
     () => resolveTableViewConfig(tableData?.metadata, activeView?.config ?? null),
     [tableData?.metadata, activeView?.config]
@@ -562,7 +576,6 @@ export function Table({
    * view even after someone changes which view is default.
    */
   useEffect(() => {
-    if (!viewsEnabled) return
     // Terminal only when the fetch failed WITHOUT ever producing a list — then
     // the table settles to All: mark the owner resolved so layout writes flow
     // to shared metadata, and flush what was touched during the load. It does
@@ -575,7 +588,8 @@ export function Table({
       resolvePendingLayout(null)
       return
     }
-    if (!viewsAvailable || !tableAvailable) return
+    /** A tool can select a newly saved view before invalidation has refreshed the cached list. */
+    if (!viewsAvailable || !tableAvailable || viewSelectionPending) return
     ownerResolvedRef.current = true
     if (appliedViewRevisionRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
@@ -675,6 +689,13 @@ export function Table({
       return
     }
 
+    // Embedded tables record the adopted id BEFORE the revision guard can bail:
+    // `resolveTableViewSelection` resolves a null param to the restored view, so
+    // leaving the param unwritten lets a later render drift back to the default.
+    // Standalone tables have no restored view and keep writing it below.
+    if (embedded && activeView && activeViewId === null) {
+      setTableParams({ view: activeView.id })
+    }
     const nextViewRevision = getTableViewRevision(activeView)
     if (
       !shouldApplyTableViewRevision(
@@ -698,8 +719,8 @@ export function Table({
     applyViewConfig(activeViewConfig, keep)
     if (activeView) flushPendingViewConfig(activeView.id)
   }, [
-    viewsEnabled,
     viewsAvailable,
+    viewSelectionPending,
     viewsErrored,
     tableAvailable,
     views,
@@ -717,6 +738,47 @@ export function Table({
     preserveViewState,
     flushPendingViewConfig,
     tableData?.metadata,
+  ])
+
+  /**
+   * A view the agent just created or edited (see the view-pin store). Applied
+   * only once the views list carries it — the pin arrives ahead of the list
+   * refetch, and writing the URL earlier would name a view the effect above
+   * resolves to nothing and treats as dead. First adoption is left to that
+   * effect (it honours `initialViewId` itself); a pin that turns out to be the
+   * view already applied is consumed without a URL write.
+   */
+  const viewPin = useTableViewPinStore((state) => state.pins[tableId])
+  const consumeViewPin = useTableViewPinStore((state) => state.consume)
+  useEffect(() => {
+    if (!embedded || !viewPin) return
+    if (appliedViewRevisionRef.current === undefined) return
+    if (!views.some((view) => view.id === viewPin.viewId)) return
+    consumeViewPin(tableId, viewPin.seq)
+    const transition = resolveTableViewPinTransition(
+      activeViewId,
+      appliedViewRevisionRef.current.id,
+      viewPin.viewId,
+      pendingCreatedViewIdRef.current
+    )
+    pendingCreatedViewIdRef.current = transition.pendingCreatedViewId
+    if (!transition.nextViewId) return
+    preservedViewStateRef.current = null
+    setTableParams({ view: transition.nextViewId })
+    // `viewsAvailable`/`tableAvailable` are what gate first adoption, and
+    // adoption records itself in a ref, which re-renders nothing. Without them
+    // a pin that arrives before the table is ready is never reconsidered — the
+    // restore path has no query invalidation to nudge `views` and rescue it.
+  }, [
+    embedded,
+    viewPin,
+    views,
+    activeViewId,
+    tableId,
+    viewsAvailable,
+    tableAvailable,
+    consumeViewPin,
+    setTableParams,
   ])
 
   /**
@@ -771,7 +833,7 @@ export function Table({
    */
   const persistActiveViewConfig = useCallback(
     (configPatch: TableViewConfig) => {
-      if (!viewsEnabled || !userPermissions.canEdit) return
+      if (!userPermissions.canEdit) return
       const viewId = activeView?.id ?? pendingCreatedViewIdRef.current
       if (!viewId) {
         if (!ownerResolvedRef.current) {
@@ -791,7 +853,7 @@ export function Table({
         }
       )
     },
-    [viewsEnabled, activeView?.id, userPermissions.canEdit, releasePersistedViewState]
+    [activeView?.id, userPermissions.canEdit, releasePersistedViewState]
   )
 
   /**
@@ -932,13 +994,14 @@ export function Table({
       if (mutateArgs.groupIds.length === 0) return
       if (mutateArgs.rowIds && mutateArgs.rowIds.length === 0) return
       runColumnMutate(mutateArgs)
-      // Derive the run's deployment mode from the targeted groups (default 'live' when unset).
+      // Derive the run's deployment mode from the targeted groups (effective mode, so an
+      // unset value resolves to the shared default rather than a third state).
       // 'mixed' when the targeted groups don't all agree.
       const targetGroupIds = new Set(mutateArgs.groupIds)
       const modes = new Set(
         tableWorkflowGroups
           .filter((g) => targetGroupIds.has(g.id))
-          .map((g) => g.deploymentMode ?? 'live')
+          .map((g) => resolveWorkflowGroupDeploymentMode(g))
       )
       const deploymentMode = modes.size === 1 ? [...modes][0] : 'mixed'
       captureEvent(posthogRef.current, 'table_workflow_run', {
@@ -1198,9 +1261,9 @@ export function Table({
       active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
       onSort: handleSortColumn,
       onClear: handleClearSort,
-      keepOpenOnSelect: viewsEnabled,
+      keepOpenOnSelect: true,
     }),
-    [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort, viewsEnabled]
+    [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort]
   )
 
   const handleFilterChange = useCallback(
@@ -1262,13 +1325,10 @@ export function Table({
                     icon: Pencil,
                     onClick: handleStartTableRename,
                   },
-                  // Reachable with the flag off when something is locked, so an
-                  // admin can always clear locks (the route allows clearing).
-                  ...(userPermissions.canAdmin &&
-                  (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+                  ...(userPermissions.canAdmin
                     ? [
                         {
-                          label: 'Lock settings',
+                          label: 'Table Security',
                           icon: Lock,
                           onClick: () => setShowLockSettings(true),
                         },
@@ -1291,7 +1351,6 @@ export function Table({
       userPermissions.canAdmin,
       userPermissions.canEdit,
       tableData,
-      tableLocksEnabled,
       tableHeaderRename.editingId,
       tableHeaderRename.editValue,
       tableHeaderRename.setEditValue,
@@ -1302,13 +1361,7 @@ export function Table({
     ]
   )
 
-  // An admin can always reach the settings on a locked table — clearing locks
-  // stays allowed with the flag off, so the kill switch can't strand one. With
-  // the flag off and nothing locked there is nothing to change, so the toast is
-  // a plain notice with no action.
-  const canOpenLockSettings =
-    userPermissions.canAdmin === true &&
-    (tableLocksEnabled || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
+  const canOpenLockSettings = userPermissions.canAdmin === true
 
   /**
    * Explains why a table mutation is unavailable. A toast rather than a modal:
@@ -1327,7 +1380,7 @@ export function Table({
         description: text,
         ...(canOpenLockSettings
           ? {
-              action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
+              action: { label: 'Table Security', onClick: () => setShowLockSettings(true) },
               // An action would otherwise pin the toast open until dismissed.
               duration: BLOCKED_TOAST_MS,
             }
@@ -1364,7 +1417,7 @@ export function Table({
   )
 
   // A toast's action is captured when it is created, so a viewer who loses
-  // admin access mid-toast would keep a Lock settings button that opens
+  // admin access mid-toast would keep a Table Security button that opens
   // nothing. Dismiss on that transition only — a viewer who never had access
   // has a legitimate action-less notice that must survive.
   const couldOpenLockSettingsRef = useRef(canOpenLockSettings)
@@ -1400,11 +1453,12 @@ export function Table({
   // table is schema-locked and explains itself instead of disappearing.
   const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
   const createTrigger = userPermissions.canEdit ? (
-    <NewColumnDropdown
+    <ColumnDropdown
+      columns={columns}
+      tableRowTtlEnabled={tableRowTtlEnabled}
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}
-      onBlocked={() => showBlockedToast('add-column')}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
@@ -1480,6 +1534,24 @@ export function Table({
    *  doesn't render an empty flex row. */
   const optionsTrailing = runStatus || undefined
 
+  useEffect(() => {
+    if (!embedded || !onViewContextChange || !tableAvailable || !viewsAvailable) return
+    if (appliedViewRevisionRef.current?.id !== (activeView?.id ?? null)) return
+    onViewContextChange({
+      viewId: activeView?.id ?? null,
+      filter: effectiveFilter ?? null,
+      sort: queryOptions.sort ?? null,
+    })
+  }, [
+    embedded,
+    onViewContextChange,
+    tableAvailable,
+    viewsAvailable,
+    activeView?.id,
+    effectiveFilter,
+    queryOptions.sort,
+  ])
+
   return (
     <Resource>
       {!embedded && (
@@ -1522,7 +1594,7 @@ export function Table({
         sort={sortConfig}
         filter={filterConfig}
         aside={
-          viewsEnabled && viewsAvailable ? (
+          viewsAvailable ? (
             <ViewsMenu
               views={views}
               activeViewId={activeView?.id ?? null}
@@ -1536,14 +1608,12 @@ export function Table({
           ) : undefined
         }
         asideEnd={
-          viewsEnabled ? (
-            <ColumnsMenu
-              columns={columns}
-              workflowGroups={tableWorkflowGroups}
-              hiddenColumns={effectiveHiddenColumns}
-              onChange={handleHiddenColumnsChange}
-            />
-          ) : undefined
+          <ColumnsMenu
+            columns={columns}
+            workflowGroups={tableWorkflowGroups}
+            hiddenColumns={effectiveHiddenColumns}
+            onChange={handleHiddenColumnsChange}
+          />
         }
         trailing={optionsTrailing}
       />
@@ -1552,13 +1622,13 @@ export function Table({
           key={filterSeed}
           columns={columns}
           filter={effectiveFilter}
-          autoApply={viewsEnabled}
+          autoApply
           onChange={handleFilterChange}
           onClose={() => setFilterOpen(false)}
         />
       )}
       <SaveViewModal
-        open={viewsEnabled && (viewModal?.mode === 'new' || renamingView !== null)}
+        open={viewModal?.mode === 'new' || renamingView !== null}
         onOpenChange={(open) => !open && setViewModal(null)}
         mode={viewModal?.mode === 'rename' ? 'rename' : 'new'}
         initialName={renamingView?.name ?? ''}
@@ -1569,6 +1639,7 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         embedded={embedded}
+        tableRowTtlEnabled={tableRowTtlEnabled}
         locks={tableData?.locks}
         onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
@@ -1581,6 +1652,7 @@ export function Table({
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenEnrichmentDetails={onOpenEnrichmentDetails}
         onOpenRowModal={onOpenRowModal}
+        onOpenAddRowModal={onOpenAddRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
         onRequestDeleteColumns={onRequestDeleteColumns}
@@ -1598,10 +1670,10 @@ export function Table({
         hiddenColumns={effectiveHiddenColumns}
         viewLayout={activeViewConfig}
         viewLayoutKey={activeView?.id ?? null}
-        // Always bound while views are enabled: the router reads the owner at
-        // call time (buffer / view / All-metadata), so no binding gap can send a
-        // write to the wrong place between settle and adoption.
-        onPersistLayout={viewsEnabled ? handlePersistLayout : undefined}
+        // The router reads the owner at call time (buffer / view / All-metadata),
+        // so no binding gap can send a write to the wrong place between settle
+        // and adoption.
+        onPersistLayout={handlePersistLayout}
         columnRenameSinkRef={columnRenameSinkRef}
         layoutSnapshotSinkRef={layoutSnapshotRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
@@ -1674,7 +1746,9 @@ export function Table({
       )}
       <ColumnConfigSidebar
         config={columnConfig}
+        tableRowTtlEnabled={tableRowTtlEnabled}
         onClose={onCloseSlideout}
+        allColumns={columns}
         existingColumn={
           columnConfig?.mode === 'edit'
             ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)
@@ -1683,6 +1757,12 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         onColumnRename={onColumnRename}
+        readOnly={!canMutateSchema}
+        readOnlyReason={
+          tableData?.locks.schemaLocked
+            ? LOCK_TOOLTIPS.schema
+            : 'You don’t have permission to change columns.'
+        }
       />
       <EnrichmentsSidebar
         open={slideout.kind === 'enrichments'}
@@ -1721,6 +1801,16 @@ export function Table({
           onOpenChange={setIsImportCsvOpen}
           workspaceId={workspaceId}
           table={tableData}
+        />
+      )}
+      {addRowTarget && tableData && (
+        <RowModal
+          mode='add'
+          isOpen={true}
+          onClose={() => setAddRowTarget(null)}
+          table={tableData}
+          insertAt={addRowTarget}
+          onSuccess={() => setAddRowTarget(null)}
         />
       )}
       {editingRow && tableData && (
@@ -1842,6 +1932,7 @@ export function Table({
       )}
       {tableData && userPermissions.canAdmin && (
         <LockSettingsModal
+          key={tableData.id}
           isOpen={showLockSettings}
           onClose={() => setShowLockSettings(false)}
           workspaceId={workspaceId}

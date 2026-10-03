@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task, timeout } from '@trigger.dev/sdk'
 import {
@@ -14,11 +15,14 @@ import {
   getTimeoutErrorMessage,
 } from '@/lib/core/execution-limits'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
+import type { WorkflowCellProgressWriter } from '@/lib/table/cell-write'
 import { isExecCancelled } from '@/lib/table/deps'
 import type { RowExecutionMetadata } from '@/lib/table/types'
 import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-result'
+import type { CellResumeContext } from '@/lib/table/workflow-columns'
 import {
   createResumeAttemptTimeoutController,
+  type FailedResumeOutcome,
   PauseResumeManager,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
@@ -174,13 +178,36 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
       cellContext.rowId,
       parentExecutionId,
       async () => {
+        let completedBeforeFailure = false
         const result = await runResumeAndCellTerminal(
           payload,
           pausedExecution,
           writers,
           attemptSignal,
-          attemptTimeoutController
-        )
+          attemptTimeoutController,
+          () => {
+            completedBeforeFailure = true
+          }
+        ).catch(async (error: unknown) => {
+          /**
+           * The run completed and only a later step of the attempt threw, so its
+           * cell is completed: continue the cascade as a completed run would, and
+           * still surface the failure.
+           */
+          if (completedBeforeFailure) {
+            await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal).catch(
+              (cascadeError: unknown) => {
+                logger.error(
+                  'Failed to continue the cascade after a completed resume',
+                  projectResolvedSecretDiagnosticError(cascadeError, undefined, {
+                    resumeExecutionId,
+                  })
+                )
+              }
+            )
+          }
+          throw error
+        })
         if (result.status === 'paused' || result.status === 'cancelled') return result
         await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal)
         return result
@@ -242,11 +269,11 @@ function throwIfResumeAttemptTimedOut(
     return
   }
 
-  throw new ExecutionTimeoutError(getTimeoutErrorMessage(null, timeoutController.timeoutMs))
+  throw new ExecutionTimeoutError(getTimeoutErrorMessage(timeoutController.timeoutMs))
 }
 
 type CellWriters = {
-  cellOnBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  cellOnBlockComplete: WorkflowCellProgressWriter['onBlockComplete']
   writeCellTerminal: (
     status: 'completed' | 'error' | 'cancelled' | 'paused',
     error: string | null
@@ -357,12 +384,39 @@ async function buildResumeCellWriters(
   return { cellOnBlockComplete, writeCellTerminal }
 }
 
+/**
+ * A resume that throws never reaches the terminal write in
+ * {@link runResumeAndCellTerminal}, which would leave the cell showing its last
+ * partial `running` state. Mirror what the failed attempt left the execution
+ * as: a pause that stayed resumable goes back to paused, a failed execution
+ * fails the cell, and a run that completed before a later step threw
+ * completes it.
+ */
+async function writeFailedResumeCellTerminal(
+  writers: CellWriters,
+  outcome: FailedResumeOutcome,
+  error: unknown
+): Promise<void> {
+  switch (outcome) {
+    case 'pause_retained':
+      await writers.writeCellTerminal('paused', null)
+      return
+    case 'execution_completed':
+      await writers.writeCellTerminal('completed', null)
+      return
+    case 'execution_failed':
+      await writers.writeCellTerminal('error', getErrorMessage(error, 'Resume execution failed'))
+      return
+  }
+}
+
 async function runResumeAndCellTerminal(
   payload: ResumeExecutionPayload,
   pausedExecution: Awaited<ReturnType<typeof PauseResumeManager.getPausedExecutionById>>,
   writers: CellWriters,
   signal: AbortSignal | undefined,
-  timeoutController: ReturnType<typeof createTimeoutAbortController>
+  timeoutController: ReturnType<typeof createTimeoutAbortController>,
+  onCompletedBeforeFailure?: () => void
 ): Promise<Awaited<ReturnType<typeof PauseResumeManager.startResumeExecution>>> {
   if (!pausedExecution) throw new Error('Paused execution missing — already nulled by caller')
   const result = await PauseResumeManager.startResumeExecution({
@@ -373,6 +427,11 @@ async function runResumeAndCellTerminal(
     resumeInput: payload.resumeInput,
     userId: payload.userId,
     onBlockComplete: writers.cellOnBlockComplete,
+    onAttemptFailed: async (outcome, error) => {
+      await writeFailedResumeCellTerminal(writers, outcome, error)
+      /** Only a cell saved as completed may start its downstream groups. */
+      if (outcome === 'execution_completed') onCompletedBeforeFailure?.()
+    },
     abortSignal: signal,
   })
 
@@ -390,18 +449,17 @@ async function runResumeAndCellTerminal(
 }
 
 async function continueCascadeAfterResume(
-  cellContext: {
-    tableId: string
-    rowId: string
-    workspaceId: string
-    groupId: string
-  },
+  cellContext: Pick<
+    CellResumeContext,
+    'tableId' | 'rowId' | 'workspaceId' | 'groupId' | 'capabilityGovernedUserId'
+  >,
   billingAttribution: BillingAttributionSnapshot,
   signal?: AbortSignal
 ): Promise<void> {
   const { getTableById } = await import('@/lib/table/service')
   const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+  const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
   const { runRowCascadeLoop } = await import('@/background/workflow-column-execution')
 
   const freshTable = await getTableById(cellContext.tableId)
@@ -410,6 +468,8 @@ async function continueCascadeAfterResume(
   if (!freshRow) return
   const next = pickNextEligibleGroupForRow(freshTable, freshRow, cellContext.groupId)
   if (!next) return
+  const nextExec = freshRow.executions?.[next.id]
+  const isQueuedMarker = nextExec?.status === 'pending' && nextExec.executionId == null
   await runRowCascadeLoop(
     {
       tableId: cellContext.tableId,
@@ -420,6 +480,22 @@ async function continueCascadeAfterResume(
       workflowId: next.workflowId,
       executionId: generateId(),
       billingAttribution,
+      /**
+       * The person who asked for the run that paused still gates the groups it
+       * cascades into. Reconstructing this from the resume payload is not
+       * possible — `payload.userId` is the resumer/attribution, not the gate —
+       * so it rides the pause snapshot instead.
+       *
+       * Unless the next group carries another dispatch's unclaimed pre-stamp:
+       * that is an explicit request from someone else that this cascade happens
+       * to be draining, and it runs under the subject persisted with it. The
+       * same decision both drain points in `workflow-column-execution.ts` make;
+       * a resume that skipped it would hand a stranger's request the paused
+       * cell's gate.
+       */
+      capabilityGovernedUserId: isQueuedMarker
+        ? await readStampedCapabilitySubject(cellContext.rowId, next.id)
+        : cellContext.capabilityGovernedUserId,
     },
     signal
   )

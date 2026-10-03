@@ -1,18 +1,14 @@
+import { createLogger } from '@sim/logger'
 import { getLLMText } from '@/lib/llms'
 import { source } from '@/lib/source'
+
+const logger = createLogger('DocsLlmsFullText')
 
 export const revalidate = false
 
 export async function GET() {
   try {
-    const pages = source.getPages().filter((page) => {
-      if (!page || !page.data || !page.url) return false
-
-      const pathParts = page.url.split('/').filter(Boolean)
-      const hasLangPrefix = pathParts[0] && ['es', 'fr', 'de', 'ja', 'zh'].includes(pathParts[0])
-
-      return !hasLangPrefix
-    })
+    const pages = source.getPages().filter((page) => Boolean(page?.data && page.url))
 
     const scan = pages.map((page) => getLLMText(page))
     const scanned = await Promise.all(scan)
@@ -25,7 +21,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('Error generating LLM full text:', error)
+    logger.error('Error generating LLM full text:', error)
     return new Response('Error generating full documentation text', { status: 500 })
   }
 }

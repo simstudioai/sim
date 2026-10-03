@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { spawnSync } from 'node:child_process'
 import { hasPython3, PYTHON_SKIP_REASON } from '@sim/testing/environment'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -9,6 +6,11 @@ import {
   type CodePlaceholderRuntimeBinding,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
+import {
+  applySourceEdits,
+  CodePlaceholderCompileError,
+  CodePlaceholderInvariantError,
+} from '@/lib/execution/code-placeholders/shared'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const installedGlobals = new Set<string>()
@@ -1544,5 +1546,31 @@ describe('python true positives survive the dot guard', () => {
     ['double quotes', 'x = environmentVariables["API_KEY"]'],
   ])('%s', async (_label, code) => {
     expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+})
+
+describe('compiler failure classification', () => {
+  it('reports overlapping source edits as a compiler invariant, not a user compile error', () => {
+    const applyOverlappingEdits = () =>
+      applySourceEdits('return value', [
+        { start: 0, end: 6, text: 'yield' },
+        { start: 3, end: 9, text: 'x' },
+      ])
+
+    expect(applyOverlappingEdits).toThrow(CodePlaceholderInvariantError)
+    expect(applyOverlappingEdits).not.toThrow(CodePlaceholderCompileError)
+  })
+
+  it('reports an exhausted JavaScript sentinel space as a user compile error', async () => {
+    /** Every `$xyz$` sentinel a five-character `{{a}}` could take, packed under the code cap. */
+    const alphabet = [...'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ']
+    const payloads = alphabet.flatMap((a) =>
+      alphabet.flatMap((b) => alphabet.map((c) => `${a}${b}${c}`))
+    )
+    const code = `const taken = '$${payloads.join('$')}$'\nreturn {{a}}`
+
+    await expect(
+      compileCodePlaceholders({ code, language: CodeLanguage.JavaScript, params: { a: 1 } })
+    ).rejects.toBeInstanceOf(CodePlaceholderCompileError)
   })
 })

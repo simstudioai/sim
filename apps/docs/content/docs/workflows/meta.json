@@ -1,0 +1,12 @@
+{
+  "title": "Workflows",
+  "pages": [
+    "how-it-runs",
+    "data-flow",
+    "connections",
+    "variables",
+    "deployment",
+    "triggers",
+    "blocks"
+  ]
+}

@@ -24,11 +24,9 @@ export interface GuardDeps {
  */
 export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): void {
   const handle = (event: { preventDefault(): void }, url: string) => {
-    // The agent browser's tabs are general-purpose browsing surfaces: any
-    // http(s) navigation is their job (they run isolated on their own
-    // partition with no preload). Everything else stays denied.
     if (isAgentWebContents(contents)) {
-      if (!/^https?:/i.test(url)) {
+      const hasAllowedAgentBrowserScheme = /^https?:/i.test(url)
+      if (!hasAllowedAgentBrowserScheme) {
         event.preventDefault()
         logger.warn('Denied non-http navigation in agent browser', { url: scrubUrl(url) })
       }
@@ -41,7 +39,6 @@ export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): 
     })
     switch (action) {
       case 'in-app':
-      case 'idp-in-window':
         return
       case 'external':
         event.preventDefault()

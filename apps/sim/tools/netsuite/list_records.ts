@@ -1,14 +1,12 @@
 import type { NetSuiteListRecordsParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  buildRecordPath,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  normalizePagination,
-  optionalTrim,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteListRecordsTool: ToolConfig<NetSuiteListRecordsParams, NetSuiteResponse> = {
+export const netsuiteListRecordsTool: InternalToolConfig<
+  NetSuiteListRecordsParams,
+  NetSuiteResponse
+> = {
   id: 'netsuite_list_records',
   name: 'NetSuite List/Search Records',
   description:
@@ -44,21 +42,9 @@ export const netsuiteListRecordsTool: ToolConfig<NetSuiteListRecordsParams, NetS
         'Zero-based result offset; must be divisible by limit and stay within the first 100,000 results and 1,000 pages',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'GET',
-        path: buildRecordPath({ value: params.recordType, label: 'Record type' }),
-        success: { status: 200, body: 'object', validator: 'collection-page' },
-        query: {
-          ...normalizePagination(params.limit, params.offset),
-          q: optionalTrim(params.q, 'Filter'),
-        },
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

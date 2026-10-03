@@ -1,0 +1,157 @@
+/**
+ * `/api/v1/tables/[tableId]/**` shares `checkAccess` with the raw internal
+ * `/api/table/**` routes, and `checkAccess` gates `tables.use` inside itself.
+ * That gate is correct for the internal routes — `checkSessionOrInternalAuth`
+ * rejects `x-api-key`, so every caller there is a person. v1 authenticates with
+ * an API key, and a WORKSPACE key reports its creator's user id: gating on that
+ * id applies a bystander's permission group to every caller of a shared
+ * credential, which is exactly what `principal-scope.server.ts` and the
+ * `workspace_api_key` branch of `authorizeWorkspaceOperation` refuse to do.
+ *
+ * These run the real middleware and the real `checkAccess` against the real
+ * route — only the credential, the rate bucket, the workspace role, the table
+ * row and the governing group config are mocked.
+ */
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  resetPermissionGroupScopeMock,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
+import {
+  v1PersonalKeyCredential,
+  v1RateLimitContextModuleMock,
+  v1RateLimiterModuleMock,
+  v1SubscriptionModuleMock,
+  v1WorkspaceKeyCredential,
+} from '@sim/testing/mocks/v1-route.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockAuthenticateV1Request } = vi.hoisted(() => ({
+  mockAuthenticateV1Request: vi.fn(),
+}))
+
+/** The shape `checkAccess` reads: the viewer's permission plus the workspace it just loaded. */
+function workspaceAccess(permission: string | null, organizationId: string | null = 'org-1') {
+  return {
+    exists: true,
+    hasAccess: permission !== null,
+    canWrite: permission === 'admin' || permission === 'write',
+    canAdmin: permission === 'admin',
+    workspace: { id: 'ws-1', organizationId },
+    permission,
+  }
+}
+
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/app/api/v1/auth', () => ({ authenticateV1Request: mockAuthenticateV1Request }))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
+vi.mock('@/lib/billing/core/subscription', () => v1SubscriptionModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v1RateLimiterModuleMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/orchestration', () => ({ performDeleteTable: vi.fn() }))
+vi.mock('@/lib/table/wire', () => tableWireMock)
+
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { GET as getTable } from '@/app/api/v1/tables/[tableId]/route'
+
+const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
+workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId.mockImplementation(
+  async () => 'billed-user'
+)
+workspacesUtilsMockFns.mockGetWorkspaceOrganizationId.mockImplementation(async () => null)
+const { mockGetTableById } = tableMockFns
+
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+/** The v1 middleware reads the permission alone; `checkAccess` reads the whole access. */
+permissionsMockFns.mockGetUserEntityPermissions.mockImplementation(
+  async (...args: unknown[]) => (await mockCheckWorkspaceAccess(...args)).permission
+)
+
+const MEMBER_ID = 'user-1'
+const TABLE_ID = '22222222-2222-4222-8222-222222222222'
+const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
+
+const TABLE = {
+  id: TABLE_ID,
+  name: 'expenses',
+  workspaceId: WORKSPACE_ID,
+  description: null,
+  rowCount: 0,
+  maxRows: 1000,
+  locks: null,
+  schema: { columns: [] },
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+}
+
+function governedBy(overrides: Partial<typeof DEFAULT_PERMISSION_GROUP_CONFIG>) {
+  permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+    ...DEFAULT_PERMISSION_GROUP_CONFIG,
+    ...overrides,
+  })
+}
+
+function readTable() {
+  return getTable(
+    createMockRequest({
+      url: `http://localhost/api/v1/tables/${TABLE_ID}?workspaceId=${WORKSPACE_ID}`,
+      headers: { 'x-api-key': 'sim_test' },
+    }),
+    createRouteContext({ tableId: TABLE_ID })
+  )
+}
+
+const REFUSAL = /is not available under your organization's permission group/
+
+beforeEach(() => {
+  resetPermissionGroupScopeMock()
+  mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(MEMBER_ID))
+  mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin'))
+  mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
+  mockGetTableById.mockResolvedValue(TABLE)
+})
+
+describe('tables.use gate on /api/v1/tables/[tableId]', () => {
+  it('lets a workspace API key through even when its CREATOR is denied Tables', async () => {
+    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
+    governedBy({ hideTablesTab: true })
+
+    const response = await readTable()
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.table.id).toBe(TABLE_ID)
+  })
+
+  it('still refuses a personal API key whose group withholds Tables', async () => {
+    governedBy({ hideTablesTab: true })
+
+    const response = await readTable()
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.error).toMatch(REFUSAL)
+    expect(body.details).toEqual({ code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' })
+  })
+
+  it('still refuses either key kind on role, before naming the capability', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess(null))
+    governedBy({ hideTablesTab: true })
+
+    const response = await readTable()
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Access denied' })
+  })
+})

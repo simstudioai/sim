@@ -25,6 +25,15 @@
  */
 export const EDGE_Z_BASE = 10
 /**
+ * The z-scale above is only honored when React Flow's automatic z-index
+ * management is off: v12's default `basic` mode adds a parented node's
+ * internal z to every edge touching it, silently lifting a `zIndex: 11` edge
+ * inside a container to 1011 — above the cards it must render behind. Every
+ * `<ReactFlow>` mount that renders this scale must pass
+ * `zIndexMode={CANVAS_Z_INDEX_MODE}`.
+ */
+export const CANVAS_Z_INDEX_MODE = 'manual' as const
+/**
  * Deepest nesting tier an ordinary edge reaches, leaving the top of the band to
  * the two edges that have to be seen whole.
  */

@@ -2,6 +2,7 @@
  * Utility functions for generating names for workspaces and folders
  */
 
+import { escapeRegExp } from '@sim/utils/string'
 import { requestJson } from '@/lib/api/client/request'
 import { type FolderApi, listFoldersContract } from '@/lib/api/contracts/folders'
 
@@ -20,7 +21,7 @@ export function generateIncrementalName<T extends NameableEntity>(
   existingEntities: T[],
   prefix: string
 ): string {
-  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} (\\d+)$`)
+  const pattern = new RegExp(`^${escapeRegExp(prefix)} (\\d+)$`)
 
   const existingNumbers = existingEntities
     .map((entity) => entity.name.match(pattern))

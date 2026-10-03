@@ -1,5 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
+import { HttpError } from '@/lib/core/utils/http-error'
 import {
+  extractWorkspaceIdFromStorageKey,
   inferContextFromKey,
   isInternalFileUrl,
   parseInternalFileUrl,
@@ -273,15 +276,88 @@ export function coerceValue(type: string | null | undefined, value: unknown): un
   }
 }
 
+/**
+ * A Start input the declared field type cannot represent.
+ *
+ * Raised before any block runs, so the run fails at start naming the field and
+ * the value it received instead of continuing on a value of the wrong type —
+ * a `number` field handed `"not-a-number"` used to keep the string and branch
+ * downstream conditions on it. 400 because the payload, not the workflow, is
+ * what is malformed; the message names only caller-authored values.
+ */
+export class StartInputValidationError extends HttpError {
+  readonly statusCode = 400
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'StartInputValidationError'
+  }
+}
+
+/** Maximum characters of a rejected value quoted back in the error message. */
+const REJECTED_VALUE_PREVIEW_LENGTH = 80
+
+function describeRejectedValue(value: unknown): string {
+  const encoded = typeof value === 'string' ? JSON.stringify(value) : String(value)
+  return truncate(encoded, REJECTED_VALUE_PREVIEW_LENGTH)
+}
+
+/**
+ * Coerces one declared Start field and rejects a value its type cannot hold.
+ *
+ * {@link coerceValue} is deliberately lenient (it also seeds editor defaults),
+ * so on its own a `number` field given `"abc"` kept the string and a `boolean`
+ * field given `"yes"` kept that. Here the coerced value is held to the declared
+ * type. An empty string is left to the lenient path because the editor stores
+ * `''` as a field's unset default, so rejecting it would fail every run that
+ * omits an optional field.
+ */
+function coerceDeclaredValue(
+  field: InputFormatField,
+  fieldName: string,
+  value: unknown,
+  block: SerializedBlock | undefined
+): unknown {
+  const coerced = coerceValue(field.type, value)
+  if (block === undefined || coerced === undefined || coerced === null) {
+    return coerced
+  }
+  if (typeof value === 'string' && value.trim() === '') {
+    return coerced
+  }
+
+  const holdsDeclaredType =
+    field.type === 'number'
+      ? typeof coerced === 'number' && Number.isFinite(coerced)
+      : field.type === 'boolean'
+        ? typeof coerced === 'boolean'
+        : true
+  if (holdsDeclaredType) {
+    return coerced
+  }
+
+  const blockName = block.metadata?.name ?? block.id
+  const expected = field.type === 'number' ? 'a number' : 'true or false'
+  throw new StartInputValidationError(
+    `Start block "${blockName}" field "${fieldName}" expects ${expected} but received ${describeRejectedValue(value)}. Send ${expected} or omit the field.`
+  )
+}
+
 interface DerivedInputResult {
   structuredInput: Record<string, unknown>
   finalInput: unknown
   hasStructured: boolean
 }
 
+/**
+ * `validatingBlock` is the Start block whose declared field types the values
+ * are held to; `undefined` keeps the lenient coercion for paths that never read
+ * the structured input (the chat path ignores its `inputFormat` entirely).
+ */
 function deriveInputFromFormat(
   inputFormat: InputFormatField[],
-  workflowInput: unknown
+  workflowInput: unknown,
+  validatingBlock: SerializedBlock | undefined
 ): DerivedInputResult {
   const structuredInput: Record<string, unknown> = {}
 
@@ -314,7 +390,7 @@ function deriveInputFromFormat(
       fieldValue = field.value
     }
 
-    structuredInput[fieldName] = coerceValue(field.type, fieldValue)
+    structuredInput[fieldName] = coerceDeclaredValue(field, fieldName, fieldValue, validatingBlock)
   }
 
   const hasStructured = Object.keys(structuredInput).length > 0
@@ -334,8 +410,61 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
   return workflowInput
 }
 
-function normalizeStartFile(file: unknown): UserFile | null {
-  if (!isRecordLike(file)) {
+/**
+ * The storage key for a Start file, when the caller can prove the execution's
+ * workspace owns it.
+ *
+ * Checks the supplied key first and the key parsed out of an internal URL
+ * second; both are caller-authored, so both are held to the same ownership test
+ * and neither is preferred for being "more official".
+ */
+function resolveOwnedStartFileKey(suppliedKey: unknown, url: string, workspaceId: string): string {
+  if (typeof suppliedKey === 'string' && suppliedKey) {
+    if (extractWorkspaceIdFromStorageKey(suppliedKey) === workspaceId) {
+      return suppliedKey
+    }
+    return ''
+  }
+
+  if (!url || !isInternalFileUrl(url)) {
+    return ''
+  }
+
+  try {
+    const parsed = parseInternalFileUrl(url)
+    return extractWorkspaceIdFromStorageKey(parsed.key) === workspaceId ? parsed.key : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Normalizes one caller-supplied file object into the executor's canonical
+ * {@link UserFile}, or returns `null` when the shape is not usable.
+ *
+ * A storage key names a specific tenant's bytes, so the test is ownership, not
+ * provenance: a key is accepted when its own layout names the workspace this
+ * execution runs in — `workspace/{workspaceId}/…` or
+ * `execution/{workspaceId}/…` — and rejected otherwise. That holds whether the
+ * key arrives directly or is parsed out of the file's URL, so neither source has
+ * to be trusted: {@link isInternalFileUrl} matches the path prefix on any host,
+ * and a caller can author either field.
+ *
+ * Both sources have to be honoured. The server-side uploader for run inputs
+ * hands back a *presigned cloud* URL whenever object storage is configured
+ * (`generatePresignedDownloadUrl`), whose path is the bucket key rather than
+ * `/api/files/serve/...` — so a URL-only rule silently drops every chat
+ * attachment, API `files[]` payload and webhook file field on any deployment
+ * that is not using local storage, while passing locally and in tests.
+ *
+ * Key layouts that name no workspace (`kb/`, `chat/`, `copilot/`, the
+ * world-readable prefixes) prove no ownership and are rejected, as is every file
+ * when the execution carries no workspace at all. `context` is derived from the
+ * accepted key rather than read from the payload or the URL's `?context=`, so it
+ * cannot label owned bytes with a bucket they do not live in.
+ */
+function normalizeStartFile(file: unknown, workspaceId: string | undefined): UserFile | null {
+  if (!isRecordLike(file) || !workspaceId) {
     return null
   }
 
@@ -345,26 +474,14 @@ function normalizeStartFile(file: unknown): UserFile | null {
     typeof file.url === 'string' ? file.url : typeof file.path === 'string' ? file.path : ''
   const size = typeof file.size === 'number' ? file.size : Number.NaN
   const type = typeof file.type === 'string' ? file.type : ''
-  const explicitKey = typeof file.key === 'string' ? file.key : ''
 
-  let key = explicitKey
-  let context = typeof file.context === 'string' ? file.context : undefined
-
-  if (!key && url && isInternalFileUrl(url)) {
-    try {
-      const parsed = parseInternalFileUrl(url)
-      key = parsed.key
-      context = context || parsed.context
-    } catch {
-      return null
-    }
-  }
-
-  if (!context && key) {
+  const key = resolveOwnedStartFileKey(file.key, url, workspaceId)
+  let context: string | undefined
+  if (key) {
     try {
       context = inferContextFromKey(key)
     } catch {
-      // Older file outputs may have opaque keys; keep the file shape intact.
+      return null
     }
   }
 
@@ -384,7 +501,10 @@ function normalizeStartFile(file: unknown): UserFile | null {
   }
 }
 
-function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefined {
+function getFilesFromWorkflowInput(
+  workflowInput: unknown,
+  workspaceId: string | undefined
+): UserFile[] | undefined {
   if (!isRecordLike(workflowInput)) {
     return undefined
   }
@@ -393,7 +513,7 @@ function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefin
     return undefined
   }
 
-  const normalizedFiles = files.map(normalizeStartFile)
+  const normalizedFiles = files.map((file) => normalizeStartFile(file, workspaceId))
   if (normalizedFiles.every((file): file is UserFile => Boolean(file))) {
     return normalizedFiles
   }
@@ -402,9 +522,10 @@ function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefin
 
 function mergeFilesIntoOutput(
   output: NormalizedBlockOutput,
-  workflowInput: unknown
+  workflowInput: unknown,
+  workspaceId: string | undefined
 ): NormalizedBlockOutput {
-  const files = getFilesFromWorkflowInput(workflowInput)
+  const files = getFilesFromWorkflowInput(workflowInput, workspaceId)
   if (files) {
     output.files = files
   } else if (isRecordLike(workflowInput) && Object.hasOwn(workflowInput, 'files')) {
@@ -468,10 +589,10 @@ function buildUnifiedStartOutput(
     output.conversationId = undefined
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
-function buildApiOrInputOutput(finalInput: unknown, workflowInput: unknown): NormalizedBlockOutput {
+function buildApiOrInputOutput(finalInput: unknown): NormalizedBlockOutput {
   const isObjectInput = isRecordLike(finalInput)
 
   const output: NormalizedBlockOutput = isObjectInput
@@ -481,7 +602,7 @@ function buildApiOrInputOutput(finalInput: unknown, workflowInput: unknown): Nor
       }
     : { input: finalInput }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildChatOutput(workflowInput: unknown): NormalizedBlockOutput {
@@ -496,7 +617,7 @@ function buildChatOutput(workflowInput: unknown): NormalizedBlockOutput {
     output.conversationId = conversationId
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildLegacyStarterOutput(
@@ -523,7 +644,7 @@ function buildLegacyStarterOutput(
     output.conversationId = ensureString(conversationId)
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildManualTriggerOutput(
@@ -538,7 +659,7 @@ function buildManualTriggerOutput(
     output.input = getRawInputCandidate(workflowInput)
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function buildIntegrationTriggerOutput(
@@ -566,7 +687,7 @@ function buildIntegrationTriggerOutput(
     }
   }
 
-  return mergeFilesIntoOutput(output, workflowInput)
+  return output
 }
 
 function extractSubBlocks(block: SerializedBlock): Record<string, unknown> | undefined {
@@ -592,6 +713,11 @@ export interface StartBlockOutputOptions {
   workflowInput: unknown
   /** Trusted, server-built run metadata. Only applied when the block's toggle is on. */
   runMetadata?: StartBlockRunMetadata
+  /**
+   * Workspace this execution runs in. Caller-supplied Start files are admitted
+   * only when their storage key names this workspace; absent it, none are.
+   */
+  workspaceId?: string
 }
 
 function assertNoMetadataInputFormatField(
@@ -621,7 +747,8 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
       ? getSerializedLegacyStarterMode(resolution.block)
       : null
 
-  if (pathConsumesInputFormat(resolution.path, legacyStarterMode)) {
+  const consumesInputFormat = pathConsumesInputFormat(resolution.path, legacyStarterMode)
+  if (consumesInputFormat) {
     assertNoReservedInputFormatFields(inputFormat, resolution.block)
     if (runMetadataEnabled) {
       assertNoMetadataInputFormatField(inputFormat, resolution.block)
@@ -630,7 +757,8 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
   const { finalInput, structuredInput, hasStructured } = deriveInputFromFormat(
     inputFormat,
-    workflowInput
+    workflowInput,
+    consumesInputFormat ? resolution.block : undefined
   )
 
   let output: NormalizedBlockOutput
@@ -642,7 +770,7 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
     case StartBlockPath.SPLIT_API:
     case StartBlockPath.SPLIT_INPUT:
-      output = buildApiOrInputOutput(finalInput, workflowInput)
+      output = buildApiOrInputOutput(finalInput)
       break
 
     case StartBlockPath.SPLIT_CHAT:
@@ -663,6 +791,10 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
     default:
       output = buildManualTriggerOutput(finalInput, workflowInput)
+  }
+
+  if (resolution.path !== StartBlockPath.EXTERNAL_TRIGGER) {
+    output = mergeFilesIntoOutput(output, workflowInput, options.workspaceId)
   }
 
   if (runMetadataEnabled) {

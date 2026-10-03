@@ -1,7 +1,7 @@
 import type { GmailMarkReadParams, GmailToolResponse } from '@/tools/gmail/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const gmailDeleteTool: ToolConfig<GmailMarkReadParams, GmailToolResponse> = {
+export const gmailDeleteTool: InternalToolConfig<GmailMarkReadParams, GmailToolResponse> = {
   id: 'gmail_delete',
   name: 'Gmail Delete',
   description: 'Delete a Gmail message (move to trash)',
@@ -27,13 +27,8 @@ export const gmailDeleteTool: ToolConfig<GmailMarkReadParams, GmailToolResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/gmail/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: GmailMarkReadParams) => ({
+  operation: {
+    input: (params: GmailMarkReadParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
     }),
@@ -85,14 +80,14 @@ interface GmailModifyV2Response {
   }
 }
 
-export const gmailDeleteV2Tool: ToolConfig<GmailMarkReadParams, GmailModifyV2Response> = {
+export const gmailDeleteV2Tool: InternalToolConfig<GmailMarkReadParams, GmailModifyV2Response> = {
   id: 'gmail_delete_v2',
   name: 'Gmail Delete',
   description: 'Delete a Gmail message (move to trash). Returns API-aligned fields only.',
   version: '2.0.0',
   oauth: gmailDeleteTool.oauth,
   params: gmailDeleteTool.params,
-  request: gmailDeleteTool.request,
+  operation: gmailDeleteTool.operation,
   transformResponse: async (response) => {
     const legacy = await gmailDeleteTool.transformResponse!(response)
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }

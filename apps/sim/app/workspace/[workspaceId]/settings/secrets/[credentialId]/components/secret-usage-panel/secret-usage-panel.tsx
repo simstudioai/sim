@@ -6,7 +6,7 @@ import { formatDateTime } from '@sim/utils/formatting'
 import { SettingsActionChip } from '@/components/settings/settings-header'
 import type { SecretUsageEntryPayload, SecretUsageScope } from '@/lib/api/contracts'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
   ActivityLog,
@@ -63,9 +63,9 @@ export function SecretUsagePanel({ workspaceId, secretName, scope }: SecretUsage
          */
         description: (
           <span className='flex min-w-0 items-center gap-2'>
-            <FloatingOverflowText label={usedBy(entry)} className='block truncate' />
+            <FloatingOverflowText label={usedBy(entry)} className='block' />
             {entry.useCount > 1 && (
-              <span className='flex-shrink-0 text-[var(--text-muted)]'>{entry.useCount} runs</span>
+              <span className='shrink-0 text-[var(--text-muted)]'>{entry.useCount} runs</span>
             )}
           </span>
         ),

@@ -16,6 +16,7 @@ export const docusignConnectorMeta: ConnectorMeta = {
 
   supportsIncrementalSync: true,
 
+  permissionScopedListing: { capFieldIds: ['maxEnvelopes'] },
   configFields: [
     {
       id: 'lookback',

@@ -1,3 +1,4 @@
+export { ResourceFilterPanel, ResourceFilterSection } from './resource-filter-panel'
 export type {
   ColumnOption,
   FilterConfig,

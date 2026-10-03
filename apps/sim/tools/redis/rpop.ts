@@ -1,7 +1,7 @@
 import type { RedisRPopParams, RedisRPopResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisRPopTool: ToolConfig<RedisRPopParams, RedisRPopResponse> = {
+export const redisRPopTool: InternalToolConfig<RedisRPopParams, RedisRPopResponse> = {
   id: 'redis_rpop',
   name: 'Redis RPOP',
   description: 'Remove and return the last element of a list stored at a key in Redis.',
@@ -22,11 +22,8 @@ export const redisRPopTool: ToolConfig<RedisRPopParams, RedisRPopResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'RPOP',
       args: [params.key],

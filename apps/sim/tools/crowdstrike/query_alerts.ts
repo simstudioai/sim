@@ -2,9 +2,9 @@ import type {
   CrowdStrikeQueryAlertsParams,
   CrowdStrikeQueryAlertsResponse,
 } from '@/tools/crowdstrike/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const crowdstrikeQueryAlertsTool: ToolConfig<
+export const crowdstrikeQueryAlertsTool: InternalToolConfig<
   CrowdStrikeQueryAlertsParams,
   CrowdStrikeQueryAlertsResponse
 > = {
@@ -71,13 +71,8 @@ export const crowdstrikeQueryAlertsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/crowdstrike/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,

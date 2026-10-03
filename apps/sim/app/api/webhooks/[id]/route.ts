@@ -15,10 +15,14 @@ import {
   updateWebhookContract,
 } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 
@@ -139,6 +143,32 @@ export const PATCH = withRouteHandler(
 
       const setClause: Partial<typeof webhook.$inferInsert> = {}
       if (isActive !== undefined && isActive !== webhooks[0].webhook.isActive) {
+        /**
+         * permission-group-enforced: triggers.webhook — reactivating is the act
+         * the key names, "prevent making a workflow reachable from an inbound
+         * webhook", so gating creation alone left it reachable by flipping a
+         * dormant webhook back on. Only this direction: deactivating must stay
+         * open, or a policy change would strand a member with a live webhook
+         * they cannot turn off.
+         *
+         * Keyed to the governed subject rather than `auth.userId`: an internal
+         * executor JWT embeds the run's actor, and gating on it would apply that
+         * person's capabilities to a delegation that carries only their role.
+         */
+        const governedUserId = capabilityGovernedAuthUserId(auth)
+        if (isActive && governedUserId) {
+          const withheld = await isWorkspaceCapabilityWithheld(
+            governedUserId,
+            webhooks[0].workflow.workspaceId ?? '',
+            'triggers.webhook'
+          )
+          if (withheld) {
+            return NextResponse.json(
+              { error: capabilityRefusal('triggers.webhook') },
+              { status: 403 }
+            )
+          }
+        }
         setClause.isActive = isActive
       }
       if (failedCount !== undefined && failedCount !== webhooks[0].webhook.failedCount) {

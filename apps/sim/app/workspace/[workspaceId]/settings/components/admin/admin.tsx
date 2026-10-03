@@ -11,6 +11,7 @@ import {
   ChipModalField,
   ChipSelect,
   Label,
+  OverflowText,
   Search,
   Switch,
   toast,
@@ -19,6 +20,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
 import {
   adminParsers,
@@ -156,8 +158,8 @@ export function Admin() {
         },
         onSuccess: async () => {
           recordImpersonation(email)
-          await clearUserData()
-          window.location.assign('/workspace')
+          await clearUserData({ preserveRecentImpersonations: true })
+          window.location.assign(APP_ENTRY_PATH)
         },
       }
     )
@@ -219,8 +221,8 @@ export function Admin() {
 
   const renderUserRow = (u: AdminUser) => (
     <div key={u.id} className='flex items-center gap-3 px-3 py-2 text-small'>
-      <span className='w-[170px] truncate text-[var(--text-primary)]'>{u.name || '—'}</span>
-      <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
+      <OverflowText label={u.name || '—'} className='w-[170px] text-[var(--text-primary)]' />
+      <OverflowText label={u.email} className='flex-1 text-[var(--text-secondary)]' />
       <span className='w-[60px]'>
         <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>{u.role || 'user'}</Badge>
       </span>
@@ -443,7 +445,7 @@ export function Admin() {
                   <div className='flex gap-1'>
                     <Button
                       variant='active'
-                      className='h-[28px] px-2 text-caption'
+                      className='h-[28px] text-caption'
                       onClick={() =>
                         setAdminParams((prev) => ({
                           offset: Math.max(0, prev.offset - PAGE_SIZE),
@@ -455,7 +457,7 @@ export function Admin() {
                     </Button>
                     <Button
                       variant='active'
-                      className='h-[28px] px-2 text-caption'
+                      className='h-[28px] text-caption'
                       onClick={() =>
                         setAdminParams((prev) => ({ offset: prev.offset + PAGE_SIZE }))
                       }

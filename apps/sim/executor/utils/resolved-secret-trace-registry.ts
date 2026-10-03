@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { compareStrings } from '@sim/utils/string'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -69,6 +70,11 @@ export type ResolvedSecretIncompletenessReason =
   | 'knowledge-row-missing'
   | 'knowledge-row-content-mismatch'
   | 'table-result-provenance-unavailable'
+  /**
+   * A table result carried run-state or enrichment error text, captured from executor output that
+   * can hold resolved secret plaintext, with no provenance persisted beside it.
+   */
+  | 'table-run-state-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
   | 'workspace-file-provenance-unknown'
   | 'file-source-unidentified'
@@ -99,6 +105,40 @@ export type ResolvedSecretIncompletenessReason =
  * inheriting a parent that reported moments earlier, or an unaudited caller taking the default
  * reason from flooding the error stream. A reason added later without thought stays quiet.
  */
+/**
+ * Reasons meaning provenance was never on offer AND no secret material transited the latching
+ * context. This is a deliberately separate, narrower set than the warn side of the report-level
+ * split below: that split assigns report ownership, and a warn-level reason can still involve
+ * plaintext in flight — `value-provenance-filter-incomplete` latches after a staged source
+ * registry decrypted real entries it then could not narrow to the value, so the plaintext existed
+ * in-process without ever activating. Membership here requires the stronger claim.
+ *
+ * The claim holds for each member: an absent or declared-incomplete envelope carries no entries
+ * (the envelope schema rejects incomplete-with-entries), so nothing was decrypted; a registry
+ * built without a catalog or without a persisted log never handled material; a durable read that
+ * latched did so before importing anything; and the inherited markers never occur alone — the
+ * source's own reasons are copied first, so they are judged by the originals they accompany.
+ *
+ * Consumers use this to separate `unrecorded` (absence — readable under the fail-open policy)
+ * from taint at a write decision. A reason outside this set keeps the taint.
+ */
+const PROVENANCE_ABSENCE_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'value-provenance-absent',
+  'source-provenance-incomplete',
+  'constructed-incomplete',
+  'log-creation-skipped',
+  'durable-provenance-unknown',
+  'inherited-incomplete-source',
+  'inherited-incomplete-input-path',
+])
+
+/** True when {@link PROVENANCE_ABSENCE_REASONS} holds the reason; see its contract. */
+export function isResolvedSecretProvenanceAbsence(
+  reason: ResolvedSecretIncompletenessReason
+): boolean {
+  return PROVENANCE_ABSENCE_REASONS.has(reason)
+}
+
 const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'untrusted-provenance',
   'entry-decrypt-failed',
@@ -191,6 +231,18 @@ export interface ResolvedSecretIncompletenessDiagnostics {
 
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
 export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
+
+/**
+ * The envelope for content no secret ever reached: vouched for, naming nothing.
+ *
+ * Distinct from an incomplete envelope, which says the opposite — that something may be carried
+ * and cannot be named. A boundary that knows nothing was resolved should say so with this rather
+ * than latch, since latching is the claim that redaction is impossible. Returned fresh so no
+ * caller shares a value it may serialize or extend.
+ */
+export function emptyResolvedSecretTraceProvenance(): ResolvedSecretTraceProvenanceV1 {
+  return { version: 1, complete: true, entries: [] }
+}
 
 const MAX_PROVENANCE_ENTRIES = PROVENANCE_MAX_ENTRIES
 const MAX_SERIALIZED_PROVENANCE_BYTES = PROVENANCE_MAX_SERIALIZED_BYTES
@@ -395,12 +447,6 @@ export interface CreateResolvedSecretTraceRegistryOptions {
    * `{{NAME}}` and are omitted from exported provenance envelopes.
    */
   workspaceUnredactedKeys?: readonly string[]
-}
-
-function compareStrings(left: string, right: string): number {
-  if (left < right) return -1
-  if (left > right) return 1
-  return 0
 }
 
 function cloneProvenanceScope(scope: ResolvedSecretTraceScopeV1): ResolvedSecretTraceScopeV1 {
@@ -1127,6 +1173,46 @@ export class ResolvedSecretTraceRegistry {
       )
     }
     child.copyResolvedInputPathsTo(this)
+  }
+
+  /**
+   * Vouches for one explicit resolution using the same authorized environment snapshot that
+   * supplied its value. A long-lived Copilot turn can outlive a secret addition or rotation;
+   * refreshing this name leaves earlier active values and sibling call registries intact.
+   */
+  recordResolvedFromEnvironment(
+    name: string,
+    resolvedValue: string,
+    environment: CreateResolvedSecretTraceRegistryOptions,
+    options: { path?: ResolvedSecretInputPath; propagated?: boolean } = {}
+  ): boolean {
+    if (!scopesMatch(this.scope, environment.scope)) {
+      this.markIncomplete('tool-call-scope-mismatch')
+      return false
+    }
+
+    const encryptedValue = hasOwn(environment.workspaceEncrypted, name)
+      ? environment.workspaceEncrypted[name]
+      : environment.personalEncrypted[name]
+    const entry =
+      typeof encryptedValue === 'string' && encryptedValue.length > 0
+        ? buildEffectiveCatalogEntry(
+            environment,
+            new Set(environment.decryptionFailures ?? []),
+            new Set(environment.workspaceUnredactedKeys ?? []),
+            name,
+            encryptedValue
+          )
+        : undefined
+    if (!entry || entry.plaintext !== resolvedValue || !this.addCatalogEntry(entry)) {
+      if (options.path?.length) {
+        this.markInputPathIncomplete(options.path, 'unverified-resolved-entry')
+      } else {
+        this.markIncomplete('unverified-resolved-entry')
+      }
+      return false
+    }
+    return this.recordResolvedAtInputPath(name, resolvedValue, options.path, options)
   }
 
   /** Activates a configured secret only when the resolved runtime value matches its catalog value. */

@@ -15,16 +15,23 @@ import type { ToolConfig } from '@/tools/types'
 const POLL_INTERVAL_MS = 3000
 const MAX_POLL_TIME_MS = 120_000
 
-/** Map a raw Enrow find-email result payload to the typed output shape. */
-function mapFindResult(data: Record<string, unknown>): EnrowFindEmailResult {
+/**
+ * Map a raw Enrow find-email result payload to the typed output shape.
+ *
+ * `email` and `qualification` are top-level on the 200 body; the person and
+ * company fields are nested under `info`.
+ */
+function mapFindResult(data: Record<string, unknown>, jobId: string): EnrowFindEmailResult {
+  const info = (data.info as Record<string, unknown> | undefined) ?? {}
   return {
-    id: (data.id as string) ?? '',
+    id: jobId,
     email: (data.email as string) ?? null,
     qualification: (data.qualification as string) ?? null,
-    fullname: (data.fullname as string) ?? null,
-    company_name: (data.company_name as string) ?? null,
-    company_domain: (data.company_domain as string) ?? null,
-    linkedin_url: (data.linkedin_url as string) ?? null,
+    fullname: (info.fullname as string) ?? null,
+    firstname: (info.firstname as string) ?? null,
+    lastname: (info.lastname as string) ?? null,
+    company_name: (info.company_name as string) ?? null,
+    company_domain: (info.company_domain as string) ?? null,
   }
 }
 
@@ -37,13 +44,13 @@ function mapFindResult(data: Record<string, unknown>): EnrowFindEmailResult {
  * search is still in progress.
  *
  * Pricing: 1 credit per valid email found (charged only on success).
- * Docs: https://enrow.readme.io/reference/find-single-email
+ * Docs: https://docs.enrow.io/api-reference/email-finder/find-single
  */
 export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmailResponse> = {
   id: 'enrow_find_email',
   name: 'Enrow Find Email',
   description:
-    'Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://enrow.readme.io/reference/find-single-email)',
+    'Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://docs.enrow.io/api-reference/email-finder/find-single)',
   version: '1.0.0',
 
   hosting: enrowHosting<EnrowFindEmailParams>((_params, output) => {
@@ -111,9 +118,10 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
         email: null,
         qualification: null,
         fullname: null,
+        firstname: null,
+        lastname: null,
         company_name: null,
         company_domain: null,
-        linkedin_url: null,
       },
     }
   },
@@ -158,7 +166,7 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
       const data = (json as Record<string, unknown>) ?? {}
       return {
         success: true,
-        output: mapFindResult({ ...data, id: jobId }),
+        output: mapFindResult(data, jobId),
       }
     }
 
@@ -174,6 +182,16 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
       description: 'Full name of the person searched',
       optional: true,
     },
+    firstname: {
+      type: 'string',
+      description: 'First name of the person searched',
+      optional: true,
+    },
+    lastname: {
+      type: 'string',
+      description: 'Last name of the person searched',
+      optional: true,
+    },
     company_name: {
       type: 'string',
       description: 'Company name associated with the result',
@@ -182,11 +200,6 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
     company_domain: {
       type: 'string',
       description: 'Company domain associated with the result',
-      optional: true,
-    },
-    linkedin_url: {
-      type: 'string',
-      description: 'LinkedIn profile URL of the person',
       optional: true,
     },
   },

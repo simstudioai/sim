@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { asanaConnectorMeta } from '@/connectors/asana/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -313,6 +314,9 @@ async function listWorkspaceProjects(
 
 export const asanaConnector: ConnectorConfig = {
   ...asanaConnectorMeta,
+
+  isListingScopeUnavailableError: (error) =>
+    error instanceof AsanaApiError && (error.status === 404 || error.status === 403),
 
   listDocuments: async (
     accessToken: string,

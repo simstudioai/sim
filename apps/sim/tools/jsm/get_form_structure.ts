@@ -1,7 +1,7 @@
 import type { JsmGetFormStructureParams, JsmGetFormStructureResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetFormStructureTool: ToolConfig<
+export const jsmGetFormStructureTool: InternalToolConfig<
   JsmGetFormStructureParams,
   JsmGetFormStructureResponse
 > = {
@@ -49,13 +49,8 @@ export const jsmGetFormStructureTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/forms/structure',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

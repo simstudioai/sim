@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { a2aSendMessageTool } from '@/tools/a2a/send_message'
 import { agentphoneCreateCallTool } from '@/tools/agentphone/create_call'
@@ -47,14 +44,14 @@ import { crawlTool as tavilyCrawlTool } from '@/tools/tavily/crawl'
 import { mapTool as tavilyMapTool } from '@/tools/tavily/map'
 import { searchTool as tavilySearchTool } from '@/tools/tavily/search'
 import { textractParserTool } from '@/tools/textract/parser'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import { zepAddMessagesTool } from '@/tools/zep/add_messages'
 
 function selectModelInput(
-  tool: ToolConfig,
+  tool: ExecutableToolConfig,
   params: Record<string, unknown>
 ): Record<string, unknown> {
-  const modelInput = tool.request.modelInput
+  const modelInput = tool.operation?.modelInput ?? tool.request?.modelInput
   expect(modelInput?.mode).toBe('project')
   if (modelInput?.mode !== 'project') throw new Error(`Expected ${tool.id} to project model input`)
   const selected = modelInput.select(params)
@@ -323,7 +320,7 @@ describe('model-facing integration selectors', () => {
   })
 
   it('projects only Textract query text when the QUERIES feature is active', () => {
-    const modelInput = textractParserTool.request.modelInput
+    const modelInput = textractParserTool.operation.modelInput
     if (modelInput?.mode !== 'project' || !modelInput.applyProjected) {
       throw new Error('Expected Textract queries to define a nested projector')
     }

@@ -1,26 +1,20 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAttachLargeFileRemoteUrls,
-  mockGetApiKeyWithBYOK,
-  mockExecuteRequest,
-  mockFilterModelSafeWorkspaceFileAttachments,
-  mockUploadLargeFilesToProvider,
-} = vi.hoisted(() => ({
-  mockAttachLargeFileRemoteUrls: vi.fn(),
-  mockGetApiKeyWithBYOK: vi.fn(),
-  mockExecuteRequest: vi.fn(),
-  mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
-  mockUploadLargeFilesToProvider: vi.fn(),
-}))
+const { mockAttachLargeFileRemoteUrls, mockExecuteRequest, mockUploadLargeFilesToProvider } =
+  vi.hoisted(() => ({
+    mockAttachLargeFileRemoteUrls: vi.fn(),
+    mockExecuteRequest: vi.fn(),
+    mockUploadLargeFilesToProvider: vi.fn(),
+  }))
 
-vi.mock('@/lib/api-key/byok', () => ({
-  getApiKeyWithBYOK: (...args: unknown[]) => mockGetApiKeyWithBYOK(...args),
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
 vi.mock('@/providers/registry', () => ({
   getProviderExecutor: vi.fn().mockResolvedValue({
@@ -34,14 +28,36 @@ vi.mock('@/providers/file-attachments.server', () => ({
   uploadLargeFilesToProvider: (...args: unknown[]) => mockUploadLargeFilesToProvider(...args),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
-    mockFilterModelSafeWorkspaceFileAttachments(...args),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
+vi.mock('@/tools', () => toolsMock)
+
+import type { AgentTurnState } from '@/lib/memory/conversation-types'
+import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
+import type { ExecutionContext, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
-import type { ProviderResponse } from '@/providers/types'
+import * as conversationGeneration from '@/providers/conversation-generation'
+import { captureProviderConversationStep } from '@/providers/conversation-history'
+import {
+  isConversationHistoryNotice,
+  markConversationHistoryNotice,
+} from '@/providers/conversation-metadata'
+import { executeProviderTool } from '@/providers/runtime-context'
+import type { AgentStreamEvent } from '@/providers/stream-events'
+import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
+import { prepareToolExecution } from '@/providers/utils'
+
+const mockGetApiKeyWithBYOK = apiKeyByokMockFns.mockGetApiKeyWithBYOK
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+mockExecuteTool.mockImplementation(async () => ({ success: true, output: {} }))
+const mockFilterModelSafeWorkspaceFileAttachments =
+  workspaceFileSecretProvenanceMockFns.mockFilterModelSafeWorkspaceFileAttachments
+mockFilterModelSafeWorkspaceFileAttachments.mockImplementation(async (attachments) => attachments)
 
 const HOSTED_RATE_INPUT_COST = 0.340285
 const HOSTED_RATE_OUTPUT_COST = 0.0387
@@ -91,11 +107,483 @@ function makeAnthropicResponse(): ProviderResponse {
   }
 }
 
-describe('executeProviderRequest — BYOK regression', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+function makeProviderTool(id: string, credential: string): ProviderToolConfig {
+  return {
+    id,
+    description: id,
+    params: { oauthCredential: credential },
+    parameters: { type: 'object', properties: {}, required: [] },
+  }
+}
+
+describe('executeProviderRequest — durable Agent continuation', () => {
+  const tool = makeProviderTool('http_request', 'credential-1')
+  const initialRequest: ProviderRequest = {
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: 'Finish the work.' }],
+    tools: [tool],
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
+    blockId: 'agent-1',
+  }
+  const toolMessage = (ids: string[]) => ({
+    role: 'assistant',
+    content: 'Looking up records.',
+    tool_calls: ids.map((id) => ({
+      id,
+      type: 'function',
+      function: { name: 'http_request', arguments: JSON.stringify({ key: id }) },
+    })),
+  })
+  const response = (): ProviderResponse => ({
+    content: 'Finished.',
+    model: 'gpt-4o',
+    tokens: { input: 2, output: 1, total: 3 },
+    toolCalls: [],
   })
 
+  beforeEach(() => {
+    mockExecuteRequest.mockReset().mockImplementation(async () => response())
+    mockExecuteTool.mockReset().mockResolvedValue({ success: true, output: { value: 'saved' } })
+  })
+
+  async function executeCall(request: ProviderRequest, id: string) {
+    const configuredTool = request.tools![0]
+    const { executionParams } = prepareToolExecution(configuredTool, { key: id }, request, id)
+    return executeProviderTool(configuredTool.id, executionParams)
+  }
+
+  it.each([undefined, { role: 'user', content: 'Actual current input' }])(
+    'does not bind a runtime history notice instead of current input %j',
+    async (currentInput) => {
+      const notice = { role: 'user', content: 'Some retained history was omitted.' }
+      markConversationHistoryNotice(notice)
+      const bindPrompt = vi.spyOn(conversationGeneration, 'bindConversationGenerationPrompt')
+      try {
+        await executeProviderRequest(
+          'openai',
+          { ...initialRequest, messages: [...(currentInput ? [currentInput] : []), notice] },
+          { agentConversation: new AgentTurnStateMachine({ save: vi.fn() }) }
+        )
+        expect(bindPrompt).toHaveBeenCalledWith(expect.anything(), currentInput)
+        const request = mockExecuteRequest.mock.calls[0][0] as ProviderRequest
+        expect(isConversationHistoryNotice(request.messages!.at(-1)!)).toBe(true)
+        expect(Object.keys(request.messages!.at(-1)!)).toEqual(['role', 'content'])
+      } finally {
+        bindPrompt.mockRestore()
+      }
+    }
+  )
+
+  it('carries completed work and usage to fallback without dispatching the tool again', async () => {
+    const session = new AgentTurnStateMachine({ save: vi.fn() })
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['call-1']), {
+        input: 7,
+        output: 3,
+      })
+      await executeCall(request, 'call-1')
+      throw new Error('Primary failed after the completed tool')
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toThrow('Primary failed')
+
+    const result = (await executeProviderRequest(
+      'groq',
+      { ...initialRequest, model: 'llama-3.3-70b-versatile' },
+      { agentConversation: session }
+    )) as ProviderResponse
+
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    const fallback = mockExecuteRequest.mock.calls[1][0] as ProviderRequest
+    expect(fallback.messages).toEqual([
+      ...initialRequest.messages!,
+      expect.objectContaining({
+        role: 'assistant',
+        tool_calls: toolMessage(['call-1']).tool_calls,
+      }),
+      { role: 'tool', name: 'http_request', tool_call_id: 'call-1', content: '{"value":"saved"}' },
+    ])
+    expect(session.getPendingCalls()).toEqual([])
+    expect(result.tokens).toMatchObject({ input: 9, output: 4, total: 13 })
+  })
+
+  it('restores a partial parallel batch and only retries the call without a recorded result', async () => {
+    let checkpoint: AgentTurnState | undefined
+    const session = new AgentTurnStateMachine({
+      save: async (state) => {
+        checkpoint = state
+      },
+    })
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        toolMessage(['done', 'pending'])
+      )
+      await executeCall(request, 'done')
+      throw new Error('Process stopped before the other result was recorded')
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toThrow('Process stopped')
+    const pendingIdentity = session.getPendingCalls()[0].invocationId
+    const restored = new AgentTurnStateMachine({ save: vi.fn() }, checkpoint)
+
+    await executeProviderRequest('openai', initialRequest, { agentConversation: restored })
+
+    expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    expect(mockExecuteTool.mock.calls.map((call) => (call[1] as { key: string }).key)).toEqual([
+      'done',
+      'pending',
+    ])
+    expect(mockExecuteTool.mock.calls[1][1]).toMatchObject({
+      _context: { invocationId: pendingIdentity },
+    })
+    expect(restored.getPendingCalls()).toEqual([])
+    const resumedRequest = mockExecuteRequest.mock.calls[1][0] as ProviderRequest
+    expect(resumedRequest.messages?.filter((message) => message.role === 'tool')).toHaveLength(2)
+    await executeProviderRequest('openai', initialRequest, { agentConversation: restored })
+    expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves the ordinary provider path without an Agent memory session', async () => {
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['call-1']))
+      expect(request.resolveToolInvocationId).toBeUndefined()
+      await executeCall(request, 'call-1')
+      return response()
+    })
+    await executeProviderRequest('openai', initialRequest)
+    await executeProviderRequest('openai', initialRequest)
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    expect(mockExecuteRequest.mock.calls[1][0].messages).toEqual(initialRequest.messages)
+  })
+
+  it('returns a completed checkpoint after current authorization without another model call', async () => {
+    const state: AgentTurnState = {
+      version: 1,
+      steps: [
+        {
+          id: 'final-step',
+          assistant: { role: 'assistant', content: '{"answer":42}' },
+          calls: [],
+          results: [],
+          usage: { input: 7, output: 3, cacheRead: 2 },
+          cost: { input: 0.4, output: 0.6, total: 1 },
+        },
+      ],
+      final: { content: '{"answer":42}', model: 'claude-opus-4-6' },
+    }
+    const restored = new AgentTurnStateMachine({ save: vi.fn() }, state)
+    mockGetApiKeyWithBYOK.mockResolvedValueOnce({ apiKey: 'new-byok-key', isBYOK: true })
+
+    const result = (await executeProviderRequest(
+      'openai',
+      { ...initialRequest, workspaceId: 'workspace-1' },
+      { agentConversation: restored }
+    )) as ProviderResponse
+
+    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledTimes(1)
+    expect(mockAttachLargeFileRemoteUrls).toHaveBeenCalledTimes(1)
+    expect(mockUploadLargeFilesToProvider).toHaveBeenCalledTimes(1)
+    expect(mockExecuteRequest).not.toHaveBeenCalled()
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      content: '{"answer":42}',
+      model: 'claude-opus-4-6',
+      tokens: { input: 7, output: 3, cacheRead: 2, total: 12 },
+      cost: { input: 0.4, output: 0.6, total: 1 },
+    })
+  })
+
+  it('adds previous usage once when a stream completion callback is repeated', async () => {
+    const session = new AgentTurnStateMachine(
+      { save: vi.fn() },
+      {
+        version: 1,
+        steps: [
+          {
+            id: 'previous-step',
+            assistant: { role: 'assistant', content: 'Partial answer' },
+            calls: [],
+            results: [],
+            usage: { input: 7, output: 3 },
+            cost: { input: 0.4, output: 0.6, total: 1 },
+          },
+        ],
+      }
+    )
+    const onFullContent = vi.fn()
+    const streaming: StreamingExecution = {
+      stream: new ReadableStream(),
+      onFullContent,
+      execution: {
+        success: true,
+        logs: [],
+        metadata: { startTime: '', duration: 0 },
+        output: {
+          content: 'Finished.',
+          tokens: { input: 2, output: 1, total: 3 },
+          cost: { input: 0, output: 0, total: 0 },
+        },
+      },
+    }
+    mockExecuteRequest.mockResolvedValueOnce(streaming)
+    const result = (await executeProviderRequest(
+      'openai',
+      { ...initialRequest, stream: true },
+      { agentConversation: session }
+    )) as StreamingExecution
+
+    await Promise.all([result.onFullContent?.('Finished.'), result.onFullContent?.('Finished.')])
+    expect(result.execution.output.tokens).toMatchObject({ input: 9, output: 4, total: 13 })
+    expect(result.execution.output.cost).toMatchObject({ input: 0.4, output: 0.6, total: 1 })
+    expect(onFullContent).toHaveBeenCalledTimes(2)
+  })
+
+  it('retains prior billed usage when the finishing provider has no usage or cost', async () => {
+    const session = new AgentTurnStateMachine(
+      { save: vi.fn() },
+      {
+        version: 1,
+        steps: [
+          {
+            id: 'previous-step',
+            assistant: { role: 'assistant', content: 'Partial answer' },
+            calls: [],
+            results: [],
+            usage: { input: 7, output: 3 },
+            cost: { input: 0.4, output: 0.6, total: 1 },
+          },
+        ],
+      }
+    )
+    mockExecuteRequest.mockResolvedValueOnce({ content: 'Finished.', model: 'gpt-4o' })
+
+    const result = (await executeProviderRequest('openai', initialRequest, {
+      agentConversation: session,
+    })) as ProviderResponse
+
+    expect(result.tokens).toMatchObject({ input: 7, output: 3, total: 10 })
+    expect(result.cost).toMatchObject({ input: 0.4, output: 0.6, total: 1 })
+  })
+
+  it.each(['empty', 'cancelled', 'failed'])(
+    'retains prior usage when a %s stream never calls onFullContent',
+    async (exit) => {
+      const session = new AgentTurnStateMachine(
+        { save: vi.fn() },
+        {
+          version: 1,
+          steps: [
+            {
+              id: 'previous-step',
+              assistant: { role: 'assistant', content: 'Partial answer' },
+              calls: [],
+              results: [],
+              usage: { input: 7, output: 3 },
+              cost: { input: 0.4, output: 0.6, total: 1 },
+            },
+          ],
+        }
+      )
+      mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'test-byok', isBYOK: true })
+      const output: NormalizedBlockOutput = { content: '' }
+      const writeUsage = () => {
+        output.tokens = { input: 2, output: 1, cacheRead: 4, total: 7 }
+        output.cost = { input: 2, output: 3, toolCost: 0.25, total: 5.25 }
+      }
+      const onFullContent = vi.fn()
+      const streaming: StreamingExecution = {
+        stream: new ReadableStream(
+          {
+            pull(controller) {
+              writeUsage()
+              if (exit === 'failed') controller.error(new Error('stream interrupted'))
+              else controller.close()
+            },
+            cancel: writeUsage,
+          },
+          { highWaterMark: 0 }
+        ),
+        onFullContent,
+        execution: {
+          success: true,
+          logs: [],
+          metadata: { startTime: '', duration: 0 },
+          output,
+        },
+      }
+      mockExecuteRequest.mockResolvedValueOnce(streaming)
+      const result = (await executeProviderRequest(
+        'openai',
+        { ...initialRequest, workspaceId: 'workspace-1', stream: true },
+        { agentConversation: session }
+      )) as StreamingExecution
+
+      expect(output.tokens).toMatchObject({ input: 7, output: 3, total: 10 })
+      expect(output.cost).toMatchObject({ input: 0.4, output: 0.6, total: 1 })
+      if (exit === 'cancelled') await result.stream.cancel()
+      else if (exit === 'failed')
+        await expect(result.stream.getReader().read()).rejects.toThrow('stream interrupted')
+      else await expect(result.stream.getReader().read()).resolves.toMatchObject({ done: true })
+
+      expect(output.tokens).toMatchObject({ input: 9, output: 4, cacheRead: 4, total: 17 })
+      expect(output.cost).toMatchObject({ input: 0.4, output: 0.6, toolCost: 0.25, total: 1.25 })
+      expect({ ...output }.cost).toMatchObject({ total: 1.25 })
+      expect(output.cost).toMatchObject({ total: 1.25 })
+      expect(onFullContent).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not replay pending tools after cancellation', async () => {
+    const session = new AgentTurnStateMachine({ save: vi.fn() })
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['pending']))
+      throw new Error('Process stopped')
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toThrow('Process stopped')
+    const abort = new AbortController()
+    abort.abort()
+    await expect(
+      executeProviderRequest(
+        'openai',
+        { ...initialRequest, abortSignal: abort.signal },
+        {
+          agentConversation: session,
+        }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockExecuteRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates a nonretryable tool failure without another execution', async () => {
+    const session = new AgentTurnStateMachine({ save: vi.fn() })
+    const failure = Object.assign(new Error('Policy denied this operation'), { retryable: false })
+    mockExecuteTool.mockRejectedValueOnce(failure)
+    mockExecuteRequest.mockImplementationOnce(async (request: ProviderRequest) => {
+      await captureProviderConversationStep(request, 'chat-completions', toolMessage(['call-1']))
+      await executeCall(request, 'call-1')
+      return response()
+    })
+    await expect(
+      executeProviderRequest('openai', initialRequest, { agentConversation: session })
+    ).rejects.toBe(failure)
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1)
+    expect(mockExecuteRequest).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('executeProviderRequest — tool identities', () => {
+  it('passes trusted execution context to both attachment authorization stages without serializing it', async () => {
+    const executionContext = {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+    } as ExecutionContext
+    mockExecuteRequest.mockResolvedValueOnce({ content: 'ready', model: 'test-model' })
+    await executeProviderRequest('anthropic', { model: 'test-model' }, { executionContext })
+    expect(mockAttachLargeFileRemoteUrls).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'test-model' }),
+      'anthropic',
+      executionContext
+    )
+    expect(mockUploadLargeFilesToProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'test-model' }),
+      'anthropic',
+      executionContext
+    )
+    expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('executionContext')
+    expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('principal')
+  })
+
+  it('sends unique opaque ids and projects provider aliases out of the response', async () => {
+    const tools = [
+      makeProviderTool('gmail_send', 'credential-a'),
+      makeProviderTool('gmail_send', 'credential-b'),
+    ]
+    mockExecuteRequest.mockImplementationOnce(async (request) => {
+      const alias = request.tools[1].id
+      expect(request.tools.map((tool: ProviderToolConfig) => tool.id)).toEqual([
+        'gmail_send',
+        'gmail_send__sim_2',
+      ])
+      expect(alias).not.toContain('credential-b')
+      return {
+        content: 'sent',
+        model: 'test-model',
+        toolCalls: [{ name: alias, arguments: {} }],
+        timing: {
+          startTime: 'start',
+          endTime: 'end',
+          duration: 1,
+          timeSegments: [{ type: 'tool', name: alias, startTime: 0, endTime: 1, duration: 1 }],
+        },
+      }
+    })
+
+    const response = (await executeProviderRequest('anthropic', {
+      model: 'test-model',
+      tools,
+    })) as ProviderResponse
+
+    expect(response.toolCalls?.[0].name).toBe('gmail_send')
+    expect(response.timing?.timeSegments?.[0].name).toBe('gmail_send')
+    expect(tools[1].params.oauthCredential).toBe('credential-b')
+  })
+
+  it('keeps the alias map active while a streaming provider executes the selected instance', async () => {
+    const tools = [
+      makeProviderTool('gmail_send', 'credential-a'),
+      makeProviderTool('gmail_send', 'credential-b'),
+    ]
+    mockExecuteRequest.mockImplementationOnce(async (request) => {
+      const selected = request.tools[1] as ProviderToolConfig
+      const output: NormalizedBlockOutput = {
+        toolCalls: { list: [], count: 0 },
+        providerTiming: { startTime: 'start', endTime: 'end', duration: 0, timeSegments: [] },
+      }
+      return {
+        streamFormat: 'agent-events-v1',
+        stream: new ReadableStream<AgentStreamEvent>({
+          async pull(controller) {
+            await executeProviderTool(selected.id, selected.params)
+            output.toolCalls = { list: [{ name: selected.id }], count: 1 }
+            controller.enqueue({ type: 'tool_call_start', id: 'call-1', name: selected.id })
+            controller.close()
+          },
+        }),
+        execution: { success: true, output },
+      }
+    })
+
+    const response = await executeProviderRequest('anthropic', {
+      model: 'test-model',
+      tools,
+    })
+    expect(response).not.toBeInstanceOf(ReadableStream)
+    expect(response).toHaveProperty('stream')
+    const streaming = response as StreamingExecution
+    const reader = (streaming.stream as ReadableStream<AgentStreamEvent>).getReader()
+    const event = await reader.read()
+    await reader.read()
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'gmail_send',
+      { oauthCredential: 'credential-b' },
+      expect.any(Object)
+    )
+    expect(event.value).toEqual({ type: 'tool_call_start', id: 'call-1', name: 'gmail_send' })
+    expect(streaming.execution.output.toolCalls?.list[0].name).toBe('gmail_send')
+  })
+})
+
+describe('executeProviderRequest — BYOK regression', () => {
   it('zeroes block-level model cost for BYOK callers (existing behavior)', async () => {
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-byok', isBYOK: true })
     mockExecuteRequest.mockResolvedValue(makeAnthropicResponse())
@@ -172,6 +660,33 @@ describe('executeProviderRequest — BYOK regression', () => {
 
     expect(result.cost?.toolCost).toBeCloseTo(0.005, 8)
     expect(result.cost?.total).toBeCloseTo(0.00675, 8)
+  })
+
+  it('adds failed Function cost once alongside successful tool results', async () => {
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-byok', isBYOK: true })
+    mockExecuteTool.mockResolvedValueOnce({
+      success: false,
+      output: { cost: { total: 0.004 } },
+      error: 'execution failed',
+    })
+    mockExecuteRequest.mockImplementationOnce(async () => {
+      const execution = await executeProviderTool('function_execute', {})
+      expect(execution.rawResponse.success).toBe(false)
+      return {
+        ...makeAnthropicResponse(),
+        toolResults: [{ cost: { total: 0.005 } }],
+      } as ProviderResponse
+    })
+
+    const result = (await executeProviderRequest('anthropic', {
+      model: 'claude-opus-4-6',
+      workspaceId: 'ws-1',
+      tools: [makeProviderTool('function_execute', 'credential')],
+    })) as ProviderResponse
+
+    expect(result.cost).toMatchObject({ input: 0, output: 0 })
+    expect(result.cost?.toolCost).toBeCloseTo(0.009, 8)
+    expect(result.cost?.total).toBeCloseTo(0.009, 8)
   })
 
   /**
@@ -352,7 +867,6 @@ describe('executeProviderRequest — BYOK regression', () => {
  */
 describe('executeProviderRequest — streaming cost policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
   })
 
@@ -443,7 +957,6 @@ describe('executeProviderRequest — streaming cost policy', () => {
 
 describe('executeProviderRequest — caller-prepared model input', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteRequest.mockResolvedValue({
       content: 'ok',
       model: 'test-model',
@@ -810,35 +1323,85 @@ describe('executeProviderRequest — caller-prepared model input', () => {
     })
   })
 
-  it('omits only unsafe durable files before any provider attachment processing', async () => {
-    const unsafe = {
-      id: 'wf-unsafe',
-      name: 'unsafe.txt',
-      url: '/unsafe',
-      size: 10,
-      type: 'text/plain',
-      key: 'workspace/ws-1/unsafe.txt',
-    }
-    const safe = {
-      id: 'wf-safe',
-      name: 'safe.txt',
-      url: '/safe',
-      size: 10,
-      type: 'text/plain',
-      key: 'workspace/ws-1/safe.txt',
-    }
-    mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce([safe])
+  it.each([
+    { stream: false, includeSafeFile: false },
+    { stream: false, includeSafeFile: true },
+    { stream: true, includeSafeFile: false },
+    { stream: true, includeSafeFile: true },
+  ])(
+    'continues with an attachment error notice (stream=$stream, mixed=$includeSafeFile)',
+    async ({ stream, includeSafeFile }) => {
+      const unsafe = {
+        id: 'wf-unsafe',
+        name: 'private-filename.txt',
+        url: '/private-file-url',
+        size: 10,
+        type: 'text/plain',
+        key: 'workspace/ws-1/private-storage-key.txt',
+        base64: 'private-file-bytes',
+      }
+      const safe = {
+        ...unsafe,
+        id: 'wf-safe',
+        name: 'safe.txt',
+        url: '/safe',
+        key: 'safe-key',
+        base64: 'safe-bytes',
+      }
+      const safeFiles = includeSafeFile ? [safe] : []
+      mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce(safeFiles)
+      const messages = [
+        { role: 'user' as const, content: 'Earlier context' },
+        {
+          role: 'user' as const,
+          content: includeSafeFile ? 'Review files' : null,
+          files: [...safeFiles, unsafe],
+        },
+      ]
+      const originalMessages = structuredClone(messages)
+      if (stream) {
+        mockExecuteRequest.mockResolvedValueOnce({
+          stream: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('ok'))
+              controller.close()
+            },
+          }),
+          execution: { success: true, output: { content: 'ok' } },
+        })
+      }
 
-    await executeProviderRequest('openai', {
-      model: 'test-model',
-      workspaceId: 'ws-1',
-      messages: [{ role: 'user', content: 'Review files', files: [unsafe, safe] }],
-    })
+      const response = await executeProviderRequest('openai', {
+        model: 'test-model',
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        stream,
+        messages,
+      })
 
-    expect(mockAttachLargeFileRemoteUrls.mock.calls[0][0].messages[0].files).toEqual([safe])
-    expect(mockUploadLargeFilesToProvider.mock.calls[0][0].messages[0].files).toEqual([safe])
-    expect(mockExecuteRequest.mock.calls[0][0].messages[0].files).toEqual([safe])
-  })
+      if (stream) {
+        expect(await new Response((response as StreamingExecution).stream).text()).toBe('ok')
+      } else {
+        expect(response).toMatchObject({ content: 'ok' })
+      }
+      expect(mockFilterModelSafeWorkspaceFileAttachments).toHaveBeenCalledWith(
+        [...safeFiles, unsafe],
+        { workspaceId: 'ws-1', actorUserId: 'user-1' }
+      )
+      const sent = mockExecuteRequest.mock.calls[0][0]
+      expect(sent.messages[0]).toEqual(messages[0])
+      expect(sent.messages[1].content).toContain(
+        'Attachment error: 1 requested file attachment was not provided'
+      )
+      expect(sent.messages[1].content).toContain('Continue with the available inputs')
+      if (includeSafeFile) expect(sent.messages[1].content).toMatch(/^Review files\n\n/)
+      expect(sent.messages[1].files ?? []).toEqual(safeFiles)
+      expect(JSON.stringify(sent)).not.toContain('private-')
+      expect(mockAttachLargeFileRemoteUrls.mock.calls[0][0]).toBe(sent)
+      expect(mockUploadLargeFilesToProvider.mock.calls[0][0]).toBe(sent)
+      expect(messages).toEqual(originalMessages)
+    }
+  )
 
   it('fails explicitly when file provenance lookup is unavailable', async () => {
     mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))
@@ -1324,7 +1887,6 @@ describe('executeProviderRequest — caller-prepared model input', () => {
  */
 describe('executeProviderRequest — model level normalization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
     mockExecuteRequest.mockResolvedValue({
       content: 'hi',
@@ -1468,6 +2030,30 @@ describe('executeProviderRequest — model level normalization', () => {
     expect(sentRequest().reasoningEffort).toBe('high')
   })
 
+  it.each([
+    ['azure-openai', 'azure/MyDeployment'],
+    ['azure-anthropic', 'azure-anthropic/MyDeployment'],
+    ['bedrock', 'bedrock/custom-inference-profile'],
+    ['vertex', 'vertex/custom-gemini'],
+  ])('preserves tuning levels for a custom %s deployment', async (provider, model) => {
+    await executeProviderRequest(provider, {
+      model,
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+      verbosity: 'low',
+      thinkingLevel: 'high',
+      temperature: 0.7,
+    })
+
+    expect(sentRequest()).toMatchObject({
+      model,
+      reasoningEffort: 'high',
+      verbosity: 'low',
+      thinkingLevel: 'high',
+      temperature: 0.7,
+    })
+  })
+
   it('still drops levels for a dynamic-provider model that does not take them', async () => {
     await executeProviderRequest('ollama', {
       model: 'ollama/llama3',
@@ -1476,5 +2062,113 @@ describe('executeProviderRequest — model level normalization', () => {
     })
 
     expect(sentRequest().reasoningEffort).toBeUndefined()
+  })
+})
+
+describe('native evaluation provider boundary', () => {
+  beforeEach(() => {
+    envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
+    mockExecuteRequest.mockResolvedValue({
+      content: '{"passed":true}',
+      model: 'jev-1.13.0',
+      answers: { passed: true },
+      tokens: { input: 100, output: 10, total: 110 },
+    })
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'resolved-typesafe-key', isBYOK: true })
+  })
+
+  it.each([
+    ['typesafe', { model: 'jev-1.13.0', messages: [{ role: 'user', content: 'Chat' }] }],
+    ['openai', { model: 'gpt-4o', evaluation: { state: 'Test', questions: {} } }],
+  ] satisfies Array<[string, ProviderRequest]>)(
+    'rejects a mismatched %s request modality',
+    async (provider, request) => {
+      await expect(executeProviderRequest(provider, request)).rejects.toThrow(
+        'same evaluation or chat modality'
+      )
+      expect(mockExecuteRequest).not.toHaveBeenCalled()
+    }
+  )
+
+  it('resolves BYOK credentials and keeps evaluation answers without charging Sim credits', async () => {
+    const evaluation = {
+      state: 'Task complete',
+      questions: { passed: { type: 'noul', instructions: 'Passed?' } },
+    }
+    const result = await executeProviderRequest('typesafe', {
+      model: 'jev-1.13.0',
+      apiKey: 'test-key',
+      workspaceId: 'test-workspace',
+      evaluation,
+    })
+    expect(mockGetApiKeyWithBYOK).toHaveBeenCalledWith(
+      'typesafe',
+      'jev-1.13.0',
+      'test-workspace',
+      'test-key'
+    )
+    expect(mockExecuteRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'resolved-typesafe-key', evaluation })
+    )
+    expect(result).toMatchObject({
+      answers: { passed: true },
+      tokens: { total: 110 },
+      cost: { input: 0, output: 0, total: 0 },
+    })
+  })
+
+  it.each(['jev-latest', 'jev-1.13.0', 'jev-preview'])(
+    'bills hosted %s using the resolved model price and shared multiplier once',
+    async (model) => {
+      mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'hosted-typesafe-key', isBYOK: false })
+      const result = await executeProviderRequest('typesafe', {
+        model,
+        workspaceId: 'test-workspace',
+        evaluation: {
+          state: 'Task complete',
+          questions: { passed: { type: 'noul', instructions: 'Passed?' } },
+        },
+      })
+      expect(mockExecuteRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: 'hosted-typesafe-key', isBYOK: false })
+      )
+      expect(result).toMatchObject({
+        model: 'jev-1.13.0',
+        cost: { input: 0.0000084, output: 0, total: 0.0000084 },
+      })
+    }
+  )
+
+  it.each([false, true])('applies Jev streaming billing consistently, BYOK=%s', async (isBYOK) => {
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'resolved-typesafe-key', isBYOK })
+    const streaming: StreamingExecution = {
+      stream: new ReadableStream(),
+      execution: {
+        success: true,
+        output: {
+          content: '{"passed":{"type":"noul","noul":0.9}}',
+          answers: { passed: { type: 'noul', noul: 0.9 } },
+          model: 'jev-1.13.0',
+          tokens: { input: 100, output: 10, total: 110 },
+          cost: { input: 0.0000042, output: 0, total: 0.0000042 },
+        },
+        logs: [],
+      },
+    }
+    mockExecuteRequest.mockResolvedValue(streaming)
+    await executeProviderRequest('typesafe', {
+      model: 'jev-latest',
+      workspaceId: 'test-workspace',
+      stream: true,
+      evaluation: {
+        state: 'Task complete',
+        questions: { passed: { type: 'noul', instructions: 'Passed?' } },
+      },
+    })
+    expect(streaming.execution.output.cost).toMatchObject({
+      input: isBYOK ? 0 : 0.0000084,
+      output: 0,
+      total: isBYOK ? 0 : 0.0000084,
+    })
   })
 })

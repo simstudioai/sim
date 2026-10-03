@@ -1,3 +1,4 @@
+import { escapeLikePattern } from '@sim/utils/string'
 import {
   and,
   asc,
@@ -27,19 +28,6 @@ export type ListSortOrder = (typeof LIST_SORT_ORDERS)[number]
  * itself listed (the contract enum is what makes that lookup total), and a
  * cursor's values are type-checked against their key before they are bound.
  */
-
-/**
- * Escapes LIKE/ILIKE wildcards so `%`, `_`, and `\` in a caller's term match
- * themselves. Postgres treats `\` as the default LIKE escape character, so no
- * explicit `ESCAPE` clause is needed.
- *
- * `lib/table/sql.ts` carries its own copy for the JSONB predicate engine; the
- * two are worth folding together, but that module is table-specific and pulls
- * the whole column-type registry with it.
- */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, '\\$&')
-}
 
 /**
  * Case-insensitive substring predicate for a v2 `search` term, or `undefined`
@@ -91,6 +79,40 @@ export function numberKey<Row>(column: SQLWrapper, read: (row: Row) => number): 
     expr: column,
     encode: read,
     bind: (value) => (typeof value === 'number' && Number.isFinite(value) ? sql`${value}` : null),
+  }
+}
+
+/**
+ * The spellings of a Postgres `numeric` literal a cursor may carry back.
+ *
+ * Deliberately narrower than what `numeric` accepts: `NaN`, `Infinity`, and
+ * exponent forms all parse as `numeric` but compare in ways a keyset cannot
+ * order totally, and a cursor value is caller-controlled.
+ */
+const DECIMAL_CURSOR_PATTERN = /^-?\d+(\.\d+)?$/
+
+/**
+ * An arbitrary-precision key — a `numeric`/`decimal` column, carried through the
+ * cursor as the digit string Postgres returned.
+ *
+ * Never through a JS number. `numeric` is unconstrained, so two rows can differ
+ * in a place float64 cannot represent; narrowing the anchor to a double and
+ * comparing it back against full-precision `numeric` collapses those rows onto
+ * one anchor, and the page boundary then skips or repeats them.
+ *
+ * The bound value carries an explicit `::numeric` cast for the same reason
+ * {@link timestampKey} casts: a bare placeholder arrives as `unknown`, and while
+ * that infers fine against a bare column, these expressions are wrapped in
+ * `COALESCE`, whose result type must be resolvable from its arguments.
+ */
+export function decimalKey<Row>(column: SQLWrapper, read: (row: Row) => string): KeysetKey<Row> {
+  return {
+    expr: column,
+    encode: read,
+    bind: (value) =>
+      typeof value === 'string' && DECIMAL_CURSOR_PATTERN.test(value)
+        ? sql`cast(${value} as numeric)`
+        : null,
   }
 }
 

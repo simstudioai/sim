@@ -3,8 +3,7 @@ import { EMAIL_CAPABILITY, inspectCapability } from '@sim/deployment-config/env-
 /**
  * Server/client feature-flag pairs that must be set together — server code
  * reads the bare var, the browser bundle reads the NEXT_PUBLIC_ twin
- * (apps/sim/lib/core/config/env-flags.ts documents each). Note the one
- * mismatched pair: DEPLOY_AS_BLOCK ↔ NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED.
+ * (apps/sim/lib/core/config/env-flags.ts documents each).
  */
 export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'BILLING_ENABLED', client: 'NEXT_PUBLIC_BILLING_ENABLED' },
@@ -13,6 +12,7 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'ORGANIZATIONS_ENABLED', client: 'NEXT_PUBLIC_ORGANIZATIONS_ENABLED' },
   { server: 'WHITELABELING_ENABLED', client: 'NEXT_PUBLIC_WHITELABELING_ENABLED' },
   { server: 'AUDIT_LOGS_ENABLED', client: 'NEXT_PUBLIC_AUDIT_LOGS_ENABLED' },
+  { server: 'CUSTOM_BLOCKS_ENABLED', client: 'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED' },
   { server: 'DATA_RETENTION_ENABLED', client: 'NEXT_PUBLIC_DATA_RETENTION_ENABLED' },
   { server: 'SESSION_POLICIES_ENABLED', client: 'NEXT_PUBLIC_SESSION_POLICIES_ENABLED' },
   { server: 'DATA_DRAINS_ENABLED', client: 'NEXT_PUBLIC_DATA_DRAINS_ENABLED' },
@@ -21,9 +21,10 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'DISABLE_INVITATIONS', client: 'NEXT_PUBLIC_DISABLE_INVITATIONS' },
   { server: 'DISABLE_PUBLIC_API', client: 'NEXT_PUBLIC_DISABLE_PUBLIC_API' },
   { server: 'SSO_ENABLED', client: 'NEXT_PUBLIC_SSO_ENABLED' },
+  { server: 'USAGE_MONITORING_ENABLED', client: 'NEXT_PUBLIC_USAGE_MONITORING_ENABLED' },
   { server: 'EMAIL_PASSWORD_SIGNUP_ENABLED', client: 'NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED' },
   { server: 'E2B_ENABLED', client: 'NEXT_PUBLIC_E2B_ENABLED' },
-  { server: 'DEPLOY_AS_BLOCK', client: 'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED' },
+  { server: 'SLACK_EXTENDED_SCOPES', client: 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES' },
 ]
 
 /** Self-host feature unlocks offered by the wizard's Custom flow. */
@@ -40,17 +41,18 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
   },
   { server: 'ORGANIZATIONS_ENABLED', label: 'Organizations', hint: 'multi-workspace orgs' },
   { server: 'AUDIT_LOGS_ENABLED', label: 'Audit logs', hint: '' },
+  { server: 'CUSTOM_BLOCKS_ENABLED', label: 'Custom blocks', hint: 'reusable org-wide blocks' },
   { server: 'DATA_RETENTION_ENABLED', label: 'Data retention', hint: 'deletes expired data' },
   { server: 'SESSION_POLICIES_ENABLED', label: 'Session policies', hint: 'session lifetime caps' },
   { server: 'DATA_DRAINS_ENABLED', label: 'Data drains', hint: 'export streams' },
   { server: 'FORKING_ENABLED', label: 'Workflow forking', hint: '' },
   { server: 'INBOX_ENABLED', label: 'Inbox', hint: '' },
-  { server: 'WHITELABELING_ENABLED', label: 'Whitelabeling', hint: 'custom branding' },
   {
-    server: 'DEPLOY_AS_BLOCK',
-    label: 'Deploy as block',
-    hint: 'publish workflows as reusable blocks',
+    server: 'USAGE_MONITORING_ENABLED',
+    label: 'Usage monitoring',
+    hint: 'org-wide credit usage',
   },
+  { server: 'WHITELABELING_ENABLED', label: 'Whitelabeling', hint: 'custom branding' },
 ]
 
 export function getConfiguredMailProvider(vars: Map<string, string>): string {

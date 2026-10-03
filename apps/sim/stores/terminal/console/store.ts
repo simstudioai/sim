@@ -8,14 +8,14 @@ import {
   type AgentStreamToolTerminalStatus,
   settleRunningToolCallList,
 } from '@/components/agent-stream/tool-call-lifecycle'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
+import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/current-user-data'
 import { useExecutionStore } from '@/stores/execution'
 import {
   CONSOLE_STORAGE_VERSION,
@@ -161,7 +161,6 @@ function cloneWorkflowEntries(
 }
 
 function removeWorkflowIndexes(
-  workflowId: string,
   entries: ConsoleEntry[],
   entryIdsByBlockExecution: Record<string, string[]>,
   entryLocationById: Record<string, ConsoleEntryLocation>
@@ -222,7 +221,7 @@ function replaceWorkflowEntries(
   const entryLocationById = { ...state.entryLocationById }
   const previousEntries = workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
 
-  removeWorkflowIndexes(workflowId, previousEntries, entryIdsByBlockExecution, entryLocationById)
+  removeWorkflowIndexes(previousEntries, entryIdsByBlockExecution, entryLocationById)
 
   if (nextEntries.length === 0) {
     delete workflowEntries[workflowId]
@@ -250,7 +249,7 @@ function appendWorkflowEntry(
   const survivingIds = new Set(trimmedEntries.map((e) => e.id))
   const droppedEntries = previousEntries.filter((e) => !survivingIds.has(e.id))
   if (droppedEntries.length > 0) {
-    removeWorkflowIndexes(workflowId, droppedEntries, entryIdsByBlockExecution, entryLocationById)
+    removeWorkflowIndexes(droppedEntries, entryIdsByBlockExecution, entryLocationById)
   }
 
   trimmedEntries.forEach((entry, index) => {
@@ -317,7 +316,7 @@ const notifyBlockError = ({
 
     toast.error(displayName, {
       description: errorMessage,
-      action: isChatEnabled
+      action: getDeploymentShape().chatEnabled
         ? {
             label: 'Fix in Chat',
             onClick: () => sendMothershipMessage(copilotMessage),
@@ -833,6 +832,13 @@ async function hydrateConsoleStore(): Promise<void> {
   }
 }
 
+let consoleHydrationPromise = Promise.resolve()
+
+/** Resolves after any persisted console state discovered at module load has been applied. */
+export function waitForConsoleHydration(): Promise<void> {
+  return consoleHydrationPromise
+}
+
 if (typeof window !== 'undefined') {
   consolePersistence.bind(() => {
     const state = useTerminalConsoleStore.getState()
@@ -843,7 +849,7 @@ if (typeof window !== 'undefined') {
     }
   })
 
-  hydrateConsoleStore()
+  consoleHydrationPromise = hydrateConsoleStore()
 
   window.addEventListener('pagehide', () => consolePersistence.persist())
 }

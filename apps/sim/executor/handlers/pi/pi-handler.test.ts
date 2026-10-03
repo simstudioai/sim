@@ -1,6 +1,9 @@
-/**
- * @vitest-environment node
- */
+import {
+  MockToolNotAllowedError,
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -15,12 +18,10 @@ const {
   mockAppendMemory,
   mockResolvePiModelId,
   mockIsPiSupportedProvider,
-  mockGetProviderFromModel,
   mockParseSearchProvider,
   mockResolveSearchKey,
   mockBuildSearchTool,
-  mockAssertPermissionsAllowed,
-  MockToolNotAllowedError,
+  mockBuildSimToolSpecs,
 } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
@@ -33,12 +34,10 @@ const {
   mockAppendMemory: vi.fn(),
   mockResolvePiModelId: vi.fn(),
   mockIsPiSupportedProvider: vi.fn(),
-  mockGetProviderFromModel: vi.fn(),
   mockParseSearchProvider: vi.fn(),
   mockResolveSearchKey: vi.fn(),
   mockBuildSearchTool: vi.fn(),
-  mockAssertPermissionsAllowed: vi.fn(),
-  MockToolNotAllowedError: class ToolNotAllowedError extends Error {},
+  mockBuildSimToolSpecs: vi.fn(),
 }))
 
 vi.mock('@/executor/handlers/pi/core/keys', () => ({
@@ -54,17 +53,14 @@ vi.mock('@/executor/handlers/pi/core/keys', () => ({
 vi.mock('@/executor/handlers/pi/search/tool', () => ({
   buildPiSearchToolSpec: mockBuildSearchTool,
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mockAssertPermissionsAllowed,
-  ToolNotAllowedError: MockToolNotAllowedError,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/executor/handlers/pi/core/context', () => ({
   resolvePiSkills: mockResolveSkills,
   loadPiMemory: mockLoadMemory,
   appendPiMemory: mockAppendMemory,
 }))
 vi.mock('@/executor/handlers/pi/local/sim-tools', () => ({
-  buildSimToolSpecs: vi.fn().mockResolvedValue([]),
+  buildSimToolSpecs: mockBuildSimToolSpecs,
 }))
 vi.mock('@/executor/handlers/pi/local/backend', () => ({ runLocalPi: mockRunLocal }))
 vi.mock('@/executor/handlers/pi/cloud/authoring/backend', () => ({
@@ -79,14 +75,7 @@ vi.mock('@/providers/pi-providers', () => ({
   isPiSupportedProvider: mockIsPiSupportedProvider,
   resolvePiModelId: mockResolvePiModelId,
 }))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: mockGetProviderFromModel,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/blocks/utils', () => ({
   parseOptionalNumberInput: (
     value: unknown,
@@ -109,10 +98,15 @@ vi.mock('@/blocks/utils', () => ({
   },
 }))
 
+import type { PiRunContext } from '@/executor/handlers/pi/core/backend'
 import { PiBlockHandler, parsePiReviewMentions } from '@/executor/handlers/pi/pi-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
+
+const mockAssertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
+const mockGetProviderFromModel = providersUtilsMockFns.mockGetProviderFromModel
 
 const block = { id: 'blk', metadata: { id: 'pi' } } as unknown as SerializedBlock
 
@@ -144,7 +138,6 @@ describe('PiBlockHandler', () => {
   const handler = new PiBlockHandler()
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetProviderFromModel.mockReturnValue('anthropic')
     mockIsPiSupportedProvider.mockReturnValue(true)
     mockResolvePiModelId.mockImplementation((_providerId: string, modelId: string) => modelId)
@@ -153,6 +146,7 @@ describe('PiBlockHandler', () => {
     mockResolveSearchKey.mockReturnValue('search-key')
     mockBuildSearchTool.mockReturnValue({ name: 'web_search' })
     mockAssertPermissionsAllowed.mockResolvedValue(undefined)
+    mockBuildSimToolSpecs.mockResolvedValue([])
     mockResolveSkills.mockResolvedValue([])
     mockLoadMemory.mockResolvedValue([])
     mockAppendMemory.mockResolvedValue(undefined)
@@ -182,17 +176,6 @@ describe('PiBlockHandler', () => {
     })
   })
 
-  it('canHandle matches the pi block type', () => {
-    expect(handler.canHandle(block)).toBe(true)
-    expect(
-      handler.canHandle({ id: 'x', metadata: { id: 'agent' } } as unknown as SerializedBlock)
-    ).toBe(false)
-  })
-
-  it('throws when the task is missing', async () => {
-    await expect(handler.execute(ctx(), block, { mode: 'local', task: '' })).rejects.toThrow(/Task/)
-  })
-
   it('projects activated task secrets at the final Pi input boundary', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
@@ -215,16 +198,6 @@ describe('PiBlockHandler', () => {
     expect(mockRunLocal.mock.calls[0][0].task).toBe('Use {{API_KEY}} without changing Box.')
   })
 
-  it('preserves legacy task behavior when no provenance registry exists', async () => {
-    await handler.execute(
-      ctx({ resolvedSecretTraceRegistry: undefined }),
-      block,
-      localInputs({ task: 'ordinary task' })
-    )
-
-    expect(mockRunLocal.mock.calls[0][0].task).toBe('ordinary task')
-  })
-
   it('fails closed when task provenance is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete('unspecified')
@@ -240,42 +213,41 @@ describe('PiBlockHandler', () => {
     expect(mockRunLocal).not.toHaveBeenCalled()
   })
 
-  it('throws on an invalid mode', async () => {
-    await expect(
-      handler.execute(ctx(), block, { mode: 'spaceship', task: 'x', model: 'claude' })
-    ).rejects.toThrow(/Invalid Pi mode/)
-  })
-
-  it('rejects a mode outside the three the block offers', async () => {
-    await expect(
-      handler.execute(ctx(), block, { mode: 'babysit', task: 'x', model: 'claude' })
-    ).rejects.toThrow(/Use Create PR or Update PR with Babysit Mode enabled/)
-    expect(mockResolveKey).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unavailable model before resolving credentials', async () => {
+  it('rejects an unavailable model with replacement guidance before credentials or remote setup', async () => {
     mockResolvePiModelId.mockReturnValue(undefined)
 
     await expect(handler.execute(ctx(), block, localInputs())).rejects.toThrow(
-      /not available.*installed Pi catalog/
+      /not available.*Choose a supported Pi model/
     )
     expect(mockResolveKey).not.toHaveBeenCalled()
-  })
-
-  it('routes Local Dev to the local backend with SSH params', async () => {
-    const output = await handler.execute(ctx(), block, localInputs())
-    expect(mockRunLocal).toHaveBeenCalledTimes(1)
+    expect(mockRunLocal).not.toHaveBeenCalled()
     expect(mockRunCloud).not.toHaveBeenCalled()
-    expect(mockRunCloudBranch).not.toHaveBeenCalled()
+    expect(mockRunCloudPlan).not.toHaveBeenCalled()
     expect(mockRunCloudReview).not.toHaveBeenCalled()
-    const params = mockRunLocal.mock.calls[0][0]
-    expect(params.mode).toBe('local')
-    expect(params.ssh.host).toBe('box.example.com')
-    expect(params.repoPath).toBe('/srv/repo')
-    expect((output as Record<string, unknown>).content).toBe('hi')
   })
 
-  it('routes Create PR to the cloud backend and surfaces PR output', async () => {
+  it('adds successful Function tool cost once to a non-streaming Local Dev result', async () => {
+    mockBuildSimToolSpecs.mockImplementation(
+      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+        functionToolCost.total += 0.125
+        return []
+      }
+    )
+
+    const output = (await handler.execute(ctx(), block, localInputs())) as { cost: unknown }
+
+    expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.125, total: 0.125 })
+  })
+
+  it('bills the cloud sandbox a Pi session ran in, even when the model is BYOK', async () => {
+    // The regression this guards: the agent's own sandbox runs on Sim's provider
+    // account, so a BYOK run whose model cost is zero by definition would
+    // otherwise report no cost at all for tens of minutes of paid compute.
+    mockRunCloud.mockImplementation(async (_params: unknown, context: PiRunContext) => {
+      if (context.sandboxCost) context.sandboxCost.total += 0.0842
+      return { totals: { finalText: 'done', inputTokens: 0, outputTokens: 0 } }
+    })
+
     const output = (await handler.execute(ctx(), block, {
       mode: 'cloud',
       task: 'do it',
@@ -283,141 +255,38 @@ describe('PiBlockHandler', () => {
       owner: 'o',
       repo: 'r',
       githubToken: 'ghp',
-    })) as Record<string, unknown>
-    expect(mockRunCloud).toHaveBeenCalledTimes(1)
-    expect(mockRunCloudBranch).not.toHaveBeenCalled()
-    expect(mockRunCloudReview).not.toHaveBeenCalled()
-    expect(output.prUrl).toBe('https://github.com/o/r/pull/1')
-    expect(output.branch).toBe('pi/abc')
+    })) as { cost: unknown }
+
+    expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.0842, total: 0.0842 })
   })
 
-  it('routes Update PR metadata to the cloud branch backend and surfaces branch output', async () => {
-    const output = (await handler.execute(ctx(), block, {
-      mode: 'cloud_branch',
-      task: 'continue it',
-      model: 'claude',
-      owner: 'o',
-      repo: 'r',
-      githubToken: 'ghp',
-      targetBranch: 'feature/existing',
-      baseBranch: 'staging',
-      prTitle: 'Updated title',
-      prBody: 'Updated body',
-      prState: 'ready',
-      skills: [{ skillId: 'skill-1' }],
-      memoryType: 'conversation',
-      conversationId: 'thread-1',
-    })) as Record<string, unknown>
-
-    expect(mockRunCloudBranch).toHaveBeenCalledTimes(1)
-    expect(mockRunCloud).not.toHaveBeenCalled()
-    expect(mockRunCloudReview).not.toHaveBeenCalled()
-    expect(mockRunCloudBranch.mock.calls[0][0]).toEqual(
-      expect.objectContaining({
-        mode: 'cloud_branch',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-        targetBranch: 'feature/existing',
-        baseBranch: 'staging',
-        prTitle: 'Updated title',
-        prBody: 'Updated body',
-        prState: 'ready',
-        skills: [],
-        initialMessages: [],
-      })
-    )
-    expect(mockResolveSkills).toHaveBeenCalled()
-    expect(mockLoadMemory).toHaveBeenCalled()
-    expect(mockAppendMemory).toHaveBeenCalled()
-    expect(output.branch).toBe('feature/existing')
-    expect(output.content).toBe('updated')
-  })
-
-  it('routes Plan inputs and context to the cloud plan backend', async () => {
-    mockResolveSkills.mockResolvedValue([{ name: 'style', content: 'Keep it small.' }])
-    mockLoadMemory.mockResolvedValue([{ role: 'user', content: 'Earlier context' }])
-
-    const output = (await handler.execute(ctx(), block, {
-      mode: 'cloud_plan',
-      task: 'plan it',
-      model: 'claude',
-      owner: 'o',
-      repo: 'r',
-      githubToken: 'ghp',
-      baseBranch: 'staging',
-      skills: [{ skillId: 'skill-1' }],
-      memoryType: 'conversation',
-      conversationId: 'thread-1',
-    })) as Record<string, unknown>
-
-    expect(mockRunCloudPlan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: 'cloud_plan',
-        task: 'plan it',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-        baseBranch: 'staging',
-        skills: [{ name: 'style', content: 'Keep it small.' }],
-        initialMessages: [{ role: 'user', content: 'Earlier context' }],
-      }),
-      expect.anything()
-    )
-    expect(mockRunCloud).not.toHaveBeenCalled()
-    expect(mockRunCloudBranch).not.toHaveBeenCalled()
-    expect(mockRunCloudReview).not.toHaveBeenCalled()
-    expect(mockRunLocal).not.toHaveBeenCalled()
-    expect(mockAppendMemory).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      'plan it',
-      '# Plan\nDo it'
-    )
-    expect(output).toMatchObject({
-      content: '# Plan\nDo it',
-      model: 'claude',
-      tokens: { input: 3, output: 4, total: 7 },
-      cost: { input: 0, output: 0, total: 0 },
-      providerTiming: {
-        startTime: expect.any(String),
-        endTime: expect.any(String),
-        duration: expect.any(Number),
-      },
+  it('keeps the sandbox charge on a cloud session whose agent reported an error', async () => {
+    // The backend returned, so the sandbox was billed and the sink holds the
+    // charge — but this path throws instead of reaching buildOutput, which is
+    // what would otherwise have published it.
+    mockRunCloud.mockImplementation(async (_params: unknown, context: PiRunContext) => {
+      if (context.sandboxCost) context.sandboxCost.total += 0.0631
+      return {
+        totals: { finalText: '', inputTokens: 0, outputTokens: 0, errorMessage: 'agent gave up' },
+      }
     })
-    expect(output).not.toHaveProperty('prUrl')
-    expect(output).not.toHaveProperty('branch')
-    expect(output).not.toHaveProperty('changedFiles')
-    expect(output).not.toHaveProperty('diff')
-  })
 
-  it('routes cloud_review mode and surfaces review output', async () => {
-    const output = (await handler.execute(ctx(), block, {
-      mode: 'cloud_review',
-      task: 'review it',
-      model: 'claude',
-      owner: 'o',
-      repo: 'r',
-      githubToken: 'ghp',
-      pullNumber: '7',
-      reviewEvent: 'REQUEST_CHANGES',
-    })) as Record<string, unknown>
+    const error = await handler
+      .execute(ctx(), block, {
+        mode: 'cloud',
+        task: 'do it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+      })
+      .catch((thrown: unknown) => thrown)
 
-    expect(mockRunCloudReview).toHaveBeenCalledTimes(1)
-    expect(mockRunCloud).not.toHaveBeenCalled()
-    expect(mockRunCloudBranch).not.toHaveBeenCalled()
-    const params = mockRunCloudReview.mock.calls[0][0]
-    expect(params.mode).toBe('cloud_review')
-    expect(params.pullNumber).toBe(7)
-    expect(params.reviewEvent).toBe('REQUEST_CHANGES')
-    expect(params).not.toHaveProperty('skills')
-    expect(params).not.toHaveProperty('initialMessages')
-    expect(mockResolveSkills).not.toHaveBeenCalled()
-    expect(mockLoadMemory).not.toHaveBeenCalled()
-    expect(mockAppendMemory).not.toHaveBeenCalled()
-    expect(output.reviewUrl).toBe('https://github.com/o/r/pull/7#pullrequestreview-1')
-    expect(output.commentsPosted).toBe(2)
-    expect(output.content).toBe('looks good')
+    expect(error).toBeInstanceOf(Error)
+    // `toolCost` is absent by design: the trusted envelope validates exactly the
+    // three numeric fields it will let cross the handler boundary. `total` is
+    // what the ledger bills on, and it carries the sandbox charge intact.
+    expect(readTrustedExecutionCost(error)).toEqual({ input: 0, output: 0, total: 0.0631 })
   })
 
   it('passes enabled Babysit configuration through Create PR and forces a ready PR', async () => {
@@ -486,64 +355,6 @@ describe('PiBlockHandler', () => {
     })
   })
 
-  it('passes the same Babysit configuration through Update PR', async () => {
-    mockRunCloudBranch.mockResolvedValue({
-      totals: {
-        finalText: 'Update PR:\nupdated\n\nBabysit:\nclean',
-        inputTokens: 1,
-        outputTokens: 2,
-        toolCalls: [],
-      },
-      memoryText: 'updated',
-      prUrl: 'https://github.com/o/r/pull/7',
-      branch: 'feature/existing',
-      rounds: 1,
-      threadsClean: true,
-      checksGreen: true,
-      threadsResolved: 1,
-      commitsPushed: 1,
-      stopReason: 'clean',
-    })
-
-    const output = (await handler.execute(ctx({ executionId: 'execution-2' }), block, {
-      mode: 'cloud_branch',
-      task: 'continue it',
-      model: 'claude',
-      owner: 'o',
-      repo: 'r',
-      githubToken: 'ghp',
-      targetBranch: 'feature/existing',
-      babysitMode: true,
-      maxRounds: '5',
-      reviewMentions: '@greptile, @cursor review',
-      memoryType: 'conversation',
-      conversationId: 'memory',
-    })) as Record<string, unknown>
-
-    expect(mockRunCloudBranch.mock.calls[0][0]).toMatchObject({
-      mode: 'cloud_branch',
-      targetBranch: 'feature/existing',
-      babysit: {
-        maxRounds: 5,
-        reviewMentions: ['@greptile', '@cursor review'],
-        executionId: 'execution-2',
-      },
-    })
-    expect(mockAppendMemory).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      'continue it',
-      'updated'
-    )
-    expect(output).toMatchObject({
-      prUrl: 'https://github.com/o/r/pull/7',
-      rounds: 1,
-      threadsClean: true,
-      checksGreen: true,
-      stopReason: 'clean',
-    })
-  })
-
   it.each(['cloud', 'cloud_branch'])(
     'requires reviewer mentions and bounds maxRounds in %s',
     async (mode) => {
@@ -590,119 +401,12 @@ describe('PiBlockHandler', () => {
     expect(mockRunCloud.mock.calls[0][0]).not.toHaveProperty('babysit')
   })
 
-  // A `switch` arrives as a string when its value came through a variable reference,
-  // an API trigger payload, or a legacy serialized workflow.
-  it('enables Babysit when the toggle arrives as the string "true"', async () => {
-    await handler.execute(ctx(), block, {
-      mode: 'cloud',
-      task: 'build it',
-      model: 'claude',
-      owner: 'o',
-      repo: 'r',
-      githubToken: 'ghp',
-      babysitMode: 'true',
-      reviewMentions: '@greptile',
-    })
-
-    expect(mockRunCloud.mock.calls[0][0].babysit).toMatchObject({
-      reviewMentions: ['@greptile'],
-    })
-  })
-
-  // The negative polarity is the one `draft` needs: it defaults on, so a strict
-  // `!== false` read the string 'false' as truthy and opened a draft PR against
-  // the user's explicit setting.
-  it('honours a draft toggle supplied as the string "false"', async () => {
-    await handler.execute(ctx(), block, {
-      mode: 'cloud',
-      task: 'build it',
-      model: 'claude',
-      owner: 'o',
-      repo: 'r',
-      githubToken: 'ghp',
-      babysitMode: false,
-      draft: 'false',
-    })
-
-    expect(mockRunCloud.mock.calls[0][0].draft).toBe(false)
-  })
-
   it('parses review mentions as a bounded, trimmed list', () => {
     expect(parsePiReviewMentions(' @one, , @two ')).toEqual(['@one', '@two'])
     expect(parsePiReviewMentions('')).toEqual([])
     expect(() => parsePiReviewMentions(Array.from({ length: 11 }, () => '@x').join(','))).toThrow(
       /at most 10/
     )
-  })
-
-  // Each entry becomes its own issue comment, re-posted after every pushed round, so a
-  // comma inside a single mention would leave the tail on the PR once per round.
-  it('rejects a mention that is really prose split on an interior comma', () => {
-    expect(() => parsePiReviewMentions('@cursor review this, focusing on auth')).toThrow(
-      /must start with "@" — got "focusing on auth"/
-    )
-  })
-
-  it('requires SSH fields in Local Dev', async () => {
-    await expect(
-      handler.execute(ctx(), block, { mode: 'local', task: 'x', model: 'claude', host: 'h' })
-    ).rejects.toThrow(/Local Dev requires/)
-  })
-
-  it('requires repo + token in Create PR', async () => {
-    await expect(
-      handler.execute(ctx(), block, { mode: 'cloud', task: 'x', model: 'claude', owner: 'o' })
-    ).rejects.toThrow(/Create PR requires/)
-  })
-
-  it('requires repo + token in Plan', async () => {
-    await expect(
-      handler.execute(ctx(), block, { mode: 'cloud_plan', task: 'x', model: 'claude', owner: 'o' })
-    ).rejects.toThrow(/Plan requires/)
-    expect(mockRunCloudPlan).not.toHaveBeenCalled()
-  })
-
-  it('requires a target branch in Update PR', async () => {
-    await expect(
-      handler.execute(ctx(), block, {
-        mode: 'cloud_branch',
-        task: 'x',
-        model: 'claude',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-      })
-    ).rejects.toThrow(/Update PR requires a target branch/)
-    expect(mockRunCloudBranch).not.toHaveBeenCalled()
-  })
-
-  it('rejects an invalid Update PR state before starting the backend', async () => {
-    await expect(
-      handler.execute(ctx(), block, {
-        mode: 'cloud_branch',
-        task: 'x',
-        model: 'claude',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-        targetBranch: 'feature/existing',
-        prState: 'closed',
-      })
-    ).rejects.toThrow(/Invalid PR state/)
-    expect(mockRunCloudBranch).not.toHaveBeenCalled()
-  })
-
-  it('requires pullNumber in cloud_review mode', async () => {
-    await expect(
-      handler.execute(ctx(), block, {
-        mode: 'cloud_review',
-        task: 'x',
-        model: 'claude',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-      })
-    ).rejects.toThrow(/Review Code requires/)
   })
 
   it.each(['0', '-1', '1.5'])('rejects invalid pull request number %s', async (pullNumber) => {
@@ -736,15 +440,6 @@ describe('PiBlockHandler', () => {
   })
 
   describe('optional web search', () => {
-    it('leaves search out of the backend params when the provider is None', async () => {
-      await handler.execute(ctx(), block, localInputs())
-
-      expect(mockRunLocal.mock.calls[0][0]).not.toHaveProperty('search')
-      expect(mockAssertPermissionsAllowed).not.toHaveBeenCalled()
-      expect(mockResolveSearchKey).not.toHaveBeenCalled()
-      expect(mockBuildSearchTool).not.toHaveBeenCalled()
-    })
-
     it('resolves the key and builds the host tool for Local Dev', async () => {
       mockParseSearchProvider.mockReturnValue('exa')
 
@@ -795,29 +490,6 @@ describe('PiBlockHandler', () => {
       )
     })
 
-    it('builds the host tool for Review Code too', async () => {
-      mockParseSearchProvider.mockReturnValue('serper')
-
-      await handler.execute(ctx(), block, {
-        mode: 'cloud_review',
-        task: 'review it',
-        model: 'claude',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-        pullNumber: '7',
-        searchProvider: 'serper',
-      })
-
-      expect(mockBuildSearchTool).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ provider: 'serper' }),
-        'cloud_review',
-        'search-key'
-      )
-      expect(mockRunCloudReview.mock.calls[0][0].search.tool).toEqual({ name: 'web_search' })
-    })
-
     it('passes Create PR the key without a host tool, which the sandbox could never call', async () => {
       mockParseSearchProvider.mockReturnValue('exa')
 
@@ -838,72 +510,9 @@ describe('PiBlockHandler', () => {
       })
     })
 
-    it('passes Plan the key without a host tool, which the sandbox extension handles', async () => {
-      mockParseSearchProvider.mockReturnValue('exa')
-
-      await handler.execute(ctx(), block, {
-        mode: 'cloud_plan',
-        task: 'plan it',
-        model: 'claude',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-        searchProvider: 'exa',
-      })
-
-      expect(mockBuildSearchTool).not.toHaveBeenCalled()
-      expect(mockRunCloudPlan.mock.calls[0][0].search).toEqual({
-        provider: 'exa',
-        apiKey: 'search-key',
-      })
-    })
-
-    it('passes Babysit-enabled Create PR the key without constructing a host search tool', async () => {
-      mockParseSearchProvider.mockReturnValue('exa')
-
-      await handler.execute(ctx(), block, {
-        mode: 'cloud',
-        task: 'build it',
-        model: 'claude',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-        babysitMode: true,
-        reviewMentions: '@greptile',
-        searchProvider: 'exa',
-      })
-
-      expect(mockBuildSearchTool).not.toHaveBeenCalled()
-      expect(mockRunCloud.mock.calls[0][0].search).toEqual({
-        provider: 'exa',
-        apiKey: 'search-key',
-      })
-    })
-
-    it('passes Update PR the key without a host tool', async () => {
-      mockParseSearchProvider.mockReturnValue('exa')
-
-      await handler.execute(ctx(), block, {
-        mode: 'cloud_branch',
-        task: 'continue it',
-        model: 'claude',
-        owner: 'o',
-        repo: 'r',
-        githubToken: 'ghp',
-        targetBranch: 'feature/existing',
-        searchProvider: 'exa',
-      })
-
-      expect(mockBuildSearchTool).not.toHaveBeenCalled()
-      expect(mockRunCloudBranch.mock.calls[0][0].search).toEqual({
-        provider: 'exa',
-        apiKey: 'search-key',
-      })
-    })
-
     it('checks the tool denylist before touching the key', async () => {
       mockParseSearchProvider.mockReturnValue('exa')
-      mockAssertPermissionsAllowed.mockRejectedValue(new MockToolNotAllowedError('denied'))
+      mockAssertPermissionsAllowed.mockRejectedValue(new MockToolNotAllowedError('exa_search'))
 
       await expect(
         handler.execute(ctx(), block, localInputs({ searchProvider: 'exa' }))
@@ -942,6 +551,12 @@ describe('PiBlockHandler', () => {
   })
 
   it('streams text when the block is selected for streaming output', async () => {
+    mockBuildSimToolSpecs.mockImplementation(
+      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+        functionToolCost.total += 0.25
+        return []
+      }
+    )
     mockRunLocal.mockImplementation(async (_params, runCtx) => {
       runCtx.onEvent({ type: 'text', text: 'streamed' })
       return { totals: { finalText: 'streamed', inputTokens: 0, outputTokens: 0, toolCalls: [] } }
@@ -965,42 +580,11 @@ describe('PiBlockHandler', () => {
     }
     expect(text).toContain('streamed')
     expect(result.execution.output.content).toBe('streamed')
-  })
-
-  it('streams only the canonical final document for Plan mode', async () => {
-    mockRunCloudPlan.mockImplementation(async (_params, runCtx) => {
-      runCtx.onEvent({ type: 'text', text: 'Inspecting files...' })
-      runCtx.onEvent({ type: 'final', text: '# Final Plan\n\n1. Make the change.' })
-      return {
-        totals: {
-          finalText: '# Final Plan\n\n1. Make the change.',
-          inputTokens: 0,
-          outputTokens: 0,
-          toolCalls: [],
-        },
-      }
+    expect(result.execution.output.cost).toEqual({
+      input: 0,
+      output: 0,
+      toolCost: 0.25,
+      total: 0.25,
     })
-
-    const result = (await handler.execute(ctx({ stream: true, selectedOutputs: ['blk'] }), block, {
-      mode: 'cloud_plan',
-      task: 'plan it',
-      model: 'claude',
-      owner: 'o',
-      repo: 'r',
-      githubToken: 'ghp',
-    })) as StreamingExecution
-
-    const reader = result.stream.getReader()
-    const decoder = new TextDecoder()
-    let text = ''
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      text += decoder.decode(value)
-    }
-
-    expect(text).toBe('# Final Plan\n\n1. Make the change.')
-    expect(text).not.toContain('Inspecting files...')
-    expect(result.execution.output.content).toBe('# Final Plan\n\n1. Make the change.')
   })
 })

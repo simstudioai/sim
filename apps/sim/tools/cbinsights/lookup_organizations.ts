@@ -1,15 +1,8 @@
 import type { CbInsightsAuthParams, CbInsightsListResponse } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  cbInsightsRequest,
-  clampLimit,
-  compactBody,
-  pageInfo,
-  parseStringListParam,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-interface CbInsightsLookupOrganizationsParams extends CbInsightsAuthParams {
+export interface CbInsightsLookupOrganizationsParams extends CbInsightsAuthParams {
   names?: string[] | string
   urls?: string[] | string
   profileUrl?: string
@@ -17,7 +10,7 @@ interface CbInsightsLookupOrganizationsParams extends CbInsightsAuthParams {
   nextPageToken?: string
 }
 
-export const cbinsightsLookupOrganizationsTool: ToolConfig<
+export const cbinsightsLookupOrganizationsTool: InternalToolConfig<
   CbInsightsLookupOrganizationsParams,
   CbInsightsListResponse
 > = {
@@ -73,44 +66,8 @@ export const cbinsightsLookupOrganizationsTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const names = parseStringListParam(params.names, 'names')
-    const urls = parseStringListParam(params.urls, 'urls')
-    const profileUrl = params.profileUrl?.trim()
-
-    if (!names && !urls && !profileUrl) {
-      throw new Error(
-        'CB Insights lookup requires at least one of "names", "urls", or "profileUrl"'
-      )
-    }
-    if (profileUrl && (names || urls)) {
-      throw new Error(
-        'CB Insights rejects "profileUrl" combined with "names" or "urls" — pass only one'
-      )
-    }
-
-    return cbInsightsRequest<{
-      orgs?: unknown
-      nextPageToken?: unknown
-      totalHits?: unknown
-      totalHitsRelation?: unknown
-    }>(
-      params,
-      {
-        path: '/v2/organizations',
-        body: compactBody({
-          names,
-          urls,
-          profileUrl,
-          limit: clampLimit(params.limit),
-          nextPageToken: params.nextPageToken?.trim(),
-        }),
-      },
-      (data) => ({ orgs: asArray(data.orgs), ...pageInfo(data) }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {
