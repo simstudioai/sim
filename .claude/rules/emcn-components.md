@@ -54,6 +54,6 @@ Declare keyboard intent on the action-owning primitive; never add document-level
 - **Discriminated-union props for modes** (e.g. `multiple`, the modal field `type`) instead of near-duplicate components.
 - **Delete legacy variants after migration** — leave no dead paths.
 - **Verify CSS vars exist.** An undefined var resolves to `currentColor`, which draws black borders. Align to the canonical tokens: normal weight, `--text-body`, `--text-icon`.
-- Use Radix UI primitives for accessibility. Export the component and its `variants` (when using CVA). Document with TSDoc + a usage example.
+- Use Radix UI primitives for accessibility. Export the component; export its CVA `variants` once another module composes them (`check:unused-exports` flags an export nothing imports). Document with TSDoc + a usage example.
 
 Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styling.md` — follow it rather than restating.
