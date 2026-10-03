@@ -20,7 +20,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
-import { extractEnvVarName, isEnvVarReference } from '@/executor/constants'
+import { isEnvVarReference } from '@/executor/constants'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { executeTool as executeRegistryTool } from '@/tools'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -82,9 +83,9 @@ function hostedKeyParamFor(
 /**
  * Whether a `{{VAR}}` key resolves to a key of the caller's own.
  *
- * The registry resolves the reference from this same environment before it
- * decides on Sim's key, and a variable that is missing or empty leaves the
- * parameter for Sim's key to fill.
+ * Resolved exactly as the registry resolves it — same environment, same
+ * options — before it decides on Sim's key. A variable that is missing or
+ * empty leaves the parameter for Sim's key to fill.
  */
 async function referencesOwnKey(
   value: unknown,
@@ -92,8 +93,13 @@ async function referencesOwnKey(
   workspaceId: string
 ): Promise<boolean> {
   if (typeof value !== 'string' || !isEnvVarReference(value)) return false
-  const env = await getEffectiveDecryptedEnv(userId, workspaceId)
-  return Boolean(env[extractEnvVarName(value)]?.trim())
+  const missingKeys: string[] = []
+  const resolved = resolveEnvVarReferences(
+    value,
+    await getEffectiveDecryptedEnv(userId, workspaceId),
+    { allowEmbedded: false, missingKeys }
+  )
+  return missingKeys.length === 0 && typeof resolved === 'string' && resolved.trim().length > 0
 }
 
 /**

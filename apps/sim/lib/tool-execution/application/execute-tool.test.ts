@@ -531,6 +531,10 @@ describe('executeToolForCaller', () => {
       { input: { url: 'https://a.co', apiKey: '{{FIRECRAWL_KEY}}' } },
     ],
     [
+      'the reference pads the variable name',
+      { input: { url: 'https://a.co', apiKey: '{{ FIRECRAWL_KEY }}' } },
+    ],
+    [
       'the tool has no hosted key',
       { toolId: 'zendesk_get_ticket', input: { ticketId: '4', subdomain: 'a', apiToken: 't' } },
     ],
