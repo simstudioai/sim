@@ -1,7 +1,6 @@
 import { NetSuiteIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { OracleB2CServiceResponse } from '@/tools/oracle_b2c_service/types'
 
 const LIST_OPERATIONS = [
   'list_incidents',
@@ -55,7 +54,7 @@ function toOptionalBoolean(value: unknown): boolean | undefined {
   return value === true || value === 'true'
 }
 
-export const OracleB2CServiceBlock: BlockConfig<OracleB2CServiceResponse> = {
+export const OracleB2CServiceBlock: BlockConfig = {
   type: 'oracle_b2c_service',
   name: 'Oracle B2C Service',
   description: 'Manage Oracle B2C Service incidents, contacts, organizations, and answers',

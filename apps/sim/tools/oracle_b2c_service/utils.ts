@@ -1,4 +1,4 @@
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isRecordLike, toRecordOrNull as readObject } from '@sim/utils/object'
 import {
   DEFAULT_APPLICATION_CONTEXT,
   DEFAULT_PAGE_LIMIT,
@@ -41,14 +41,6 @@ import type {
 
 type JsonObject = Record<string, unknown>
 
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function readObject(value: unknown): JsonObject | null {
-  return isObject(value) ? value : null
-}
-
 function readString(record: JsonObject | null, key: string): string | null {
   const value = record?.[key]
   return typeof value === 'string' ? value : null
@@ -83,7 +75,7 @@ export function readOracleId(value: unknown, label = 'Oracle ID'): string | null
   return null
 }
 
-export function requireOracleId(value: unknown, label: string): string {
+function requireOracleId(value: unknown, label: string): string {
   const id = typeof value === 'number' ? readOracleId(value, label) : String(value ?? '').trim()
   if (!id || !/^[1-9]\d*$/.test(id)) {
     throw new Error(`${label} must be a positive Oracle numeric ID represented as a string.`)
@@ -299,7 +291,7 @@ function getOracleErrorMessage(data: unknown, response: Response): string {
   return errorCode ? `${summary} (${errorCode})` : summary
 }
 
-export async function parseOracleResponse(response: Response): Promise<unknown> {
+async function parseOracleResponse(response: Response): Promise<unknown> {
   const text = await response.text()
   let data: unknown = null
   if (text) {
@@ -362,7 +354,7 @@ function mapAssignedTo(value: unknown): OracleAssignedTo | null {
 }
 
 function mapCustomFields(value: unknown): OracleCustomFields | null {
-  return isObject(value) ? value : null
+  return readObject(value)
 }
 
 function mapName(value: unknown): OracleName | null {
@@ -604,7 +596,7 @@ export async function transformIncidentResponse(
 
 function validateCustomFields(value: unknown): OracleCustomFields | undefined {
   if (value === undefined) return undefined
-  if (!isObject(value)) throw new Error('customFields must be a JSON object.')
+  if (!isRecordLike(value)) throw new Error('customFields must be a JSON object.')
   return value
 }
 

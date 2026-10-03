@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it } from 'vitest'
 import { OracleB2CServiceBlock } from '@/blocks/blocks/oracle-b2c-service'
 import * as oracleTools from '@/tools/oracle_b2c_service'
@@ -35,13 +36,6 @@ function requestUrl(tool: ToolConfig, params: Record<string, unknown>): string {
 
 function requestBody(tool: ToolConfig, params: Record<string, unknown>): Record<string, unknown> {
   return tool.request.body?.(params) as Record<string, unknown>
-}
-
-function jsonResponse(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 const operationCases = [

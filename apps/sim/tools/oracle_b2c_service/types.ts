@@ -45,12 +45,12 @@ export interface OracleName {
   last: string | null
 }
 
-export interface OracleEmailAddress {
+interface OracleEmailAddress {
   address: string | null
   addressType: OracleNamedId | null
 }
 
-export interface OraclePhoneNumber {
+interface OraclePhoneNumber {
   number: string | null
   rawNumber: string | null
   phoneType: OracleNamedId | null
@@ -142,7 +142,7 @@ export type OracleContactSummary = Omit<OracleContact, 'emails' | 'phones' | 'cu
 export type OracleOrganizationSummary = Omit<OracleOrganization, 'customFields'>
 export type OracleAnswerSummary = Omit<OracleAnswer, 'question' | 'solution' | 'customFields'>
 
-export interface OracleContactEmailInput {
+interface OracleContactEmailInput {
   address: string
   addressTypeId: string
 }
@@ -244,7 +244,7 @@ export interface OracleUpdateAnswerParams
   extends OracleB2CServiceRecordParams,
     OracleAnswerWriteFields {}
 
-export interface OraclePage<T> {
+interface OraclePage<T> {
   items: T[]
   count: number
   hasMore: boolean
@@ -268,11 +268,3 @@ export interface OracleMutationResponse extends ToolResponse {
 export interface OracleIncidentResponseResponse extends ToolResponse {
   output: { incident: OracleNamedId | null; responseSent: true }
 }
-
-export type OracleB2CServiceResponse =
-  | OracleResourceResponse<OracleIncident | OracleContact | OracleOrganization | OracleAnswer>
-  | OraclePageResponse<
-      OracleIncidentSummary | OracleContactSummary | OracleOrganizationSummary | OracleAnswerSummary
-    >
-  | OracleMutationResponse
-  | OracleIncidentResponseResponse
