@@ -235,6 +235,16 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oracleEpmAccountReconciliation.periods': providerSelector([], {
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleEpmAccountReconciliation.files': providerSelector([], {
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
