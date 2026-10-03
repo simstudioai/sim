@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
 import type { SearchResponse } from '@/tools/search/types'
@@ -37,7 +37,7 @@ export async function executeSearchOperation(
   const rawResults =
     isRecordLike(result.output) && Array.isArray(result.output.results) ? result.output.results : []
   const results = rawResults.map((rawResult, index) => {
-    const resultRecord = isRecordLike(rawResult) ? rawResult : {}
+    const resultRecord = toRecord(rawResult)
     const highlights = Array.isArray(resultRecord.highlights)
       ? resultRecord.highlights.filter((value): value is string => typeof value === 'string')
       : []

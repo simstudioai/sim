@@ -47,7 +47,6 @@ export interface ToolCall {
   error?: string
 }
 
-export type BlockInputData = Record<string, any>
 export type BlockOutputData = NormalizedBlockOutput | null
 
 export interface ExecutionEnvironment {
@@ -101,17 +100,6 @@ export interface ExecutionLastCompletedBlock {
   success: boolean
 }
 
-export interface WorkflowExecutionSnapshot {
-  id: string
-  workflowId: string | null
-  stateHash: string
-  stateData: WorkflowState
-  createdAt: string
-}
-
-export type WorkflowExecutionSnapshotInsert = Omit<WorkflowExecutionSnapshot, 'createdAt'>
-export type WorkflowExecutionSnapshotSelect = WorkflowExecutionSnapshot
-
 export interface WorkflowExecutionLog {
   id: string
   workflowId: string | null
@@ -149,6 +137,7 @@ export interface WorkflowExecutionLog {
     lastCompletedBlock?: ExecutionLastCompletedBlock
     hasTraceSpans?: boolean
     traceSpanCount?: number
+    hasHandledErrors?: boolean
     completionFailure?: string
     finalizationPath?: ExecutionFinalizationPath
     traceSpans?: TraceSpan[]
@@ -255,9 +244,6 @@ export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
   persistedStatus: PersistedWorkflowExecutionStatus
 }
 
-export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
-export type WorkflowExecutionLogSelect = WorkflowExecutionLog
-
 export type TokenInfo = BlockTokens
 
 export interface ProviderTiming {
@@ -285,6 +271,8 @@ export interface TraceSpan {
   errorHandled?: boolean
   /** Total handler tries, present only when the block retried at least once. */
   tries?: number
+  /** Models that failed before the one that answered; present only when the block fell back. */
+  modelFallbacks?: string[]
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string
@@ -371,210 +359,4 @@ export interface TraceSpan {
   errorType?: string
   /** For failed child spans: human-readable error message. */
   errorMessage?: string
-}
-
-export interface WorkflowExecutionSummary {
-  id: string
-  workflowId: string
-  workflowName: string
-  executionId: string
-  trigger: ExecutionTrigger['type']
-  status: ExecutionStatus['status']
-  startedAt: string
-  endedAt: string
-  durationMs: number
-
-  costSummary: {
-    total: number
-    inputCost: number
-    outputCost: number
-    tokens: number
-  }
-  stateSnapshotId: string
-  errorSummary?: {
-    blockId: string
-    blockName: string
-    message: string
-  }
-}
-
-export interface WorkflowExecutionDetail extends WorkflowExecutionSummary {
-  environment: ExecutionEnvironment
-  triggerData: ExecutionTrigger
-  blockExecutions: BlockExecutionSummary[]
-  traceSpans: TraceSpan[]
-  workflowState: WorkflowState
-}
-
-export interface BlockExecutionSummary {
-  id: string
-  blockId: string
-  blockName: string
-  blockType: string
-  startedAt: string
-  endedAt: string
-  durationMs: number
-  status: 'success' | 'error' | 'skipped'
-  errorMessage?: string
-  cost?: CostBreakdown
-  inputSummary: {
-    parameterCount: number
-    hasComplexData: boolean
-  }
-  outputSummary: {
-    hasOutput: boolean
-    outputType: string
-    hasError: boolean
-  }
-}
-
-export interface PaginatedResponse<T> {
-  data: T[]
-  pagination: {
-    page: number
-    pageSize: number
-    total: number
-    totalPages: number
-    hasNext: boolean
-    hasPrevious: boolean
-  }
-}
-
-export type WorkflowExecutionsResponse = PaginatedResponse<WorkflowExecutionSummary>
-export type BlockExecutionsResponse = PaginatedResponse<BlockExecutionSummary>
-
-export interface WorkflowExecutionFilters {
-  workflowIds?: string[]
-  folderIds?: string[]
-  triggers?: ExecutionTrigger['type'][]
-  status?: ExecutionStatus['status'][]
-  startDate?: string
-  endDate?: string
-  search?: string
-  minDuration?: number
-  maxDuration?: number
-  minCost?: number
-  maxCost?: number
-  hasErrors?: boolean
-}
-
-export interface PaginationParams {
-  page: number
-  pageSize: number
-  sortBy?: 'startedAt' | 'durationMs' | 'totalCost' | 'blockCount'
-  sortOrder?: 'asc' | 'desc'
-}
-
-export interface LogsQueryParams extends WorkflowExecutionFilters, PaginationParams {
-  includeBlockSummary?: boolean
-  includeWorkflowState?: boolean
-}
-
-export interface LogsError {
-  code: 'EXECUTION_NOT_FOUND' | 'SNAPSHOT_NOT_FOUND' | 'INVALID_WORKFLOW_STATE' | 'STORAGE_ERROR'
-  message: string
-  details?: Record<string, unknown>
-}
-
-export interface ValidationError {
-  field: string
-  message: string
-  value: unknown
-}
-
-export class LogsServiceError extends Error {
-  public code: LogsError['code']
-  public details?: Record<string, unknown>
-
-  constructor(message: string, code: LogsError['code'], details?: Record<string, unknown>) {
-    super(message)
-    this.name = 'LogsServiceError'
-    this.code = code
-    this.details = details
-  }
-}
-
-export interface DatabaseOperationResult<T> {
-  success: boolean
-  data?: T
-  error?: LogsServiceError
-}
-
-export interface BatchInsertResult<T> {
-  inserted: T[]
-  failed: Array<{
-    item: T
-    error: string
-  }>
-  totalAttempted: number
-  totalSucceeded: number
-  totalFailed: number
-}
-
-export interface SnapshotService {
-  createSnapshot(workflowId: string, state: WorkflowState): Promise<WorkflowExecutionSnapshot>
-  getSnapshot(id: string): Promise<WorkflowExecutionSnapshot | null>
-  computeStateHash(state: WorkflowState): string
-  cleanupOrphanedSnapshots(olderThanDays: number): Promise<number>
-}
-
-export interface SnapshotCreationResult {
-  snapshot: WorkflowExecutionSnapshot
-  isNew: boolean
-}
-
-export interface ExecutionLoggerService {
-  loadTraceSpansForProjection(params: {
-    executionId: string
-    workflowId: string
-    workspaceId: string | null
-    traceSpans: TraceSpan[]
-    isResume?: boolean
-  }): Promise<TraceSpan[]>
-
-  prepareTraceSpansForProjection(params: {
-    executionId: string
-    workflowId: string
-    workspaceId: string | null
-    userId?: string | null
-    traceSpans: TraceSpan[]
-  }): Promise<TraceSpan[]>
-
-  startWorkflowExecution(params: {
-    workflowId: string
-    workspaceId: string
-    executionId: string
-    trigger: ExecutionTrigger
-    environment: ExecutionEnvironment
-    actorUserId?: string | null
-    billingAttribution?: BillingAttributionSnapshot
-    workflowState: WorkflowState
-  }): Promise<{
-    workflowLog: WorkflowExecutionLog
-    snapshot: WorkflowExecutionSnapshot
-  }>
-
-  completeWorkflowExecution(params: {
-    executionId: string
-    endedAt: string
-    totalDurationMs: number
-
-    costSummary: {
-      totalCost: number
-      totalInputCost: number
-      totalOutputCost: number
-      totalTokens: number
-    }
-    finalOutput: BlockOutputData
-    traceSpans?: TraceSpan[]
-    workflowInput?: any
-    executionState?: SerializableExecutionState
-    finalizationPath?: ExecutionFinalizationPath
-    completionFailure?: string
-    isResume?: boolean
-    level?: 'info' | 'error'
-    status?: 'completed' | 'failed' | 'cancelled' | 'pending'
-    actorUserId?: string | null
-    billingAttribution?: BillingAttributionSnapshot
-  }): Promise<CompletedWorkflowExecutionLog>
 }

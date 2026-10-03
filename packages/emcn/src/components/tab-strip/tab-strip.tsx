@@ -8,72 +8,60 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import {
+  OverflowText,
+  RowActions,
+  rowActionsGroupClass,
+  SCROLL_FADE_BAND_PX,
+  scrollFadeAttributes,
+  scrollFadeXClass,
+} from '@sim/emcn'
+import {
+  AnimatePresence,
+  type AnimationPlaybackControls,
+  animate,
+  motion,
+  useReducedMotion,
+} from 'framer-motion'
 import { Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
-import { overflowTextClipClass, overflowTextFadeClass } from '../overflow-text/overflow-text'
 import { Tooltip } from '../tooltip/tooltip'
+import { TabStripAction } from './tab-strip-action'
 
 const DRAG_EDGE_ZONE = 40
 const DRAG_SCROLL_SPEED = 8
-const TITLE_TOOLTIP_HIDDEN_PX = 8
-/**
- * Width of the scroll-edge fades, and so the margin a tab has to clear to be
- * genuinely visible. Keep in step with the `w-4` on the gradients below: a tab
- * revealed flush against the container edge lands under its gradient and reads
- * as half-faded, which is indistinguishable from "there is more to scroll".
- */
-const EDGE_FADE_PX = 24
-
-/**
- * Edge fades, as a mask rather than a tinted gradient laid over the tabs.
- *
- * Tabs paint their own fills, and an overlay tinted with the surface colour
- * washes a pill's edge toward that colour instead of dissolving it — and it is
- * only correct while whatever sits behind the strip is exactly that colour. A
- * mask fades pill and label together to real transparency, over any background.
- * This is how the command palette fades its results, and how every other
- * horizontal fade in the app is drawn.
- *
- * The four combinations are spelled out because Tailwind scans for literal class
- * strings; a template built at runtime would never be generated. Keep the 24px
- * stops in step with {@link EDGE_FADE_PX}, which is how far `revealActiveTab`
- * insets a tab so it lands clear of the fade rather than under it.
- */
-const SCROLL_FADE = {
-  none: '',
-  start:
-    '[-webkit-mask-image:linear-gradient(to_right,transparent_0px,black_24px)] [mask-image:linear-gradient(to_right,transparent_0px,black_24px)]',
-  end: '[-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent_100%)] [mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent_100%)]',
-  both: '[-webkit-mask-image:linear-gradient(to_right,transparent_0px,black_24px,black_calc(100%_-_24px),transparent_100%)] [mask-image:linear-gradient(to_right,transparent_0px,black_24px,black_calc(100%_-_24px),transparent_100%)]',
-} as const
 const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
+/**
+ * Fixed duration for bringing the active tab into view. Native smooth scrolling
+ * takes longer the further it travels, so a crowded strip crawled across dozens
+ * of tabs.
+ */
+const REVEAL_SCROLL_TRANSITION = { duration: 0.2, ease: TAB_TRANSITION.ease }
 
 /**
  * Width, not flex-basis: `flex-1` compiles to `flex: 1 1 0%`, and Tailwind emits
  * the `flex` shorthand after `flex-basis`, so pairing the two silently discarded
  * the basis and left every tab sized by its own title.
  *
- * `attached` gives every tab the same width and a floor, so a crowded strip
- * degrades evenly and then scrolls. `floating` sizes to content up to a cap, so
- * short labels stay short and only a long one ellipsizes — a row of bare labels
- * must not read as a grid of buttons.
- *
- * Both refuse to shrink below their floor, and that is what makes the strip
- * scrollable at all: a flex child that is both shrinkable and `min-w-0` compresses
- * to fit its container instead of overflowing it, so `scrollWidth` never exceeds
- * `clientWidth`, the edge fades never appear, and every label crushes to an
- * ellipsis. `floating` therefore never shrinks; `attached` shrinks only to 96px.
+ * Floating tabs start at their content width, capped at 200px, then shrink with
+ * the available space. Their 112px minimum leaves 50px for the title beside a
+ * 16px icon and visible close button, including OverflowText's fade. Keep the
+ * same minimum in every interaction state so revealing actions never shifts
+ * tabs beneath the pointer. Touch layouts reserve both action slots even when
+ * no activity indicator is present, so activity changes cannot resize tabs.
+ * Crowded rows then scroll.
  */
 const TAB_WIDTH: Record<TabStripVariant, string> = {
   attached: 'w-[156px] min-w-[96px] shrink',
-  floating: 'max-w-[var(--tab-strip-max-tab-width,200px)] shrink-0',
+  floating: 'min-w-28 max-w-[var(--tab-strip-max-tab-width,200px)] shrink',
+  underline: 'max-w-[var(--tab-strip-max-tab-width,200px)] shrink-0',
 }
 
 /** The resting shape of a tab that is not the active one. */
@@ -84,6 +72,8 @@ const TAB_SHAPE: Record<TabStripVariant, string> = {
   // shape appears on hover, which is where the close affordance lives.
   floating:
     'rounded-lg text-[var(--text-secondary)] hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]',
+  underline:
+    'rounded-none border-transparent border-b-2 text-[var(--text-muted)] hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
 }
 
 /**
@@ -93,9 +83,11 @@ const TAB_SHAPE: Record<TabStripVariant, string> = {
  */
 const TAB_ACTIVE: Record<TabStripVariant, string> = {
   attached:
-    'hover-hover:!border-[var(--border)] hover-hover:!bg-[var(--bg)] hover-hover:!text-[var(--text-primary)] hover-hover:!brightness-100 hover-hover:!opacity-100 border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none',
+    'hover-hover:border-[var(--border)]! hover-hover:bg-[var(--bg)]! hover-hover:text-[var(--text-primary)]! hover-hover:brightness-100! hover-hover:opacity-100! border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none',
   floating:
-    'hover-hover:!bg-[var(--surface-active)] hover-hover:!text-[var(--text-primary)] bg-[var(--surface-active)] text-[var(--text-primary)]',
+    'hover-hover:bg-[var(--surface-active)]! hover-hover:text-[var(--text-primary)]! bg-[var(--surface-active)] text-[var(--text-primary)]',
+  underline:
+    'border-[var(--text-body)] bg-transparent text-[var(--text-body)] hover-hover:bg-transparent!',
 }
 
 /**
@@ -110,6 +102,7 @@ const TAB_ACTIVE: Record<TabStripVariant, string> = {
 const TAB_SELECTED: Record<TabStripVariant, string> = {
   attached: 'bg-[var(--surface-active)]',
   floating: 'bg-[var(--surface-4)]',
+  underline: 'text-[var(--text-body)]',
 }
 
 /** Whether a tab draws no shape of its own, and so needs dividing from its neighbour. */
@@ -172,7 +165,8 @@ export interface TabStripDragContext {
  *   divided by a hairline. Quieter, and it does not claim the surface below, so
  *   it suits a panel header that sits above content it does not own.
  */
-export type TabStripVariant = 'attached' | 'floating'
+/** Underline tabs use an active bottom indicator without a filled tab surface. */
+export type TabStripVariant = 'attached' | 'floating' | 'underline'
 
 /** How a tab selection was initiated. */
 export type TabStripSelectionSource = 'pointer' | 'keyboard'
@@ -235,7 +229,7 @@ interface TabStripBaseProps {
     id: string,
     drag: TabStripDragContext
   ) => void
-  /** In-flow controls pinned to the far end, past the tabs and the new-tab slot. */
+  /** In-flow controls pinned to the far end; use `TabStripAction` for band-sized icon actions. */
   endActions?: ReactNode
   /**
    * Out-of-flow content that has to live inside the strip — a context menu
@@ -245,6 +239,10 @@ interface TabStripBaseProps {
   overlays?: ReactNode
   /** Defaults to `attached`. See {@link TabStripVariant}. */
   variant?: TabStripVariant
+  /** Larger labels and targets for content navigation, such as dashboard sections. */
+  size?: 'default' | 'large'
+  /** Draw the strip's bottom rule and separators between floating tabs. Defaults to true. */
+  dividers?: boolean
   /**
    * Merged onto the strip root. Intended for the geometry custom properties
    * below rather than for competing utility classes, so a caller that owns the
@@ -258,18 +256,6 @@ interface TabStripBaseProps {
    *   tab's label ellipsizes at. `attached` is fixed-width and ignores it.
    */
   className?: string
-}
-
-/**
- * Whether a title is clipped enough to be worth a tooltip. A couple of hidden
- * pixels is not, but a tab should not lose a meaningful part of its identity
- * before it explains itself.
- */
-export function isTabTitleTruncated(
-  element: Pick<HTMLElement, 'clientWidth' | 'scrollWidth'>
-): boolean {
-  const hiddenWidth = element.scrollWidth - element.clientWidth
-  return hiddenWidth >= TITLE_TOOLTIP_HIDDEN_PX
 }
 
 /**
@@ -322,6 +308,7 @@ export function tabDropIndex(
 }
 
 interface TabProps {
+  buttonId: string
   tab: TabStripItem
   variant: TabStripVariant
   /**
@@ -350,6 +337,7 @@ interface TabProps {
 
 const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
   {
+    buttonId,
     tab,
     variant,
     showDivider,
@@ -368,33 +356,83 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
   },
   ref
 ) {
-  const titleRef = useRef<HTMLSpanElement>(null)
-  const [titleTruncated, setTitleTruncated] = useState(false)
   const closeable = Boolean(onClose) && !tab.pinned
 
-  useLayoutEffect(() => {
-    const element = titleRef.current
-    if (!element) return
-    const update = () => setTitleTruncated(isTabTitleTruncated(element))
-    update()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(update)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [tab.title])
+  const tabButton = (
+    <Button
+      id={buttonId}
+      type='button'
+      variant='subtle'
+      size='sm'
+      role='tab'
+      aria-selected={Boolean(tab.active)}
+      aria-keyshortcuts={closeable ? 'Delete' : undefined}
+      aria-label={
+        tab.attention && !tab.active
+          ? `${tab.title}, Background activity`
+          : tab.pinned
+            ? tab.title
+            : undefined
+      }
+      data-tab-strip-button={tab.id}
+      tabIndex={focusable ? 0 : -1}
+      className={cn(
+        'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-caption',
+        tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
+        closeable && 'pr-8',
+        closeable &&
+          (variant === 'floating' || (tab.attention && !tab.active)) &&
+          '[@media(any-pointer:coarse)]:pr-[62px] [@media(hover:none)]:pr-[62px]',
+        TAB_SHAPE[variant],
+        tab.selected && !tab.active && TAB_SELECTED[variant],
+        tab.active && 'relative z-10',
+        tab.active && TAB_ACTIVE[variant]
+      )}
+      onClick={(event) => onSelect(tab.id, 'pointer', event)}
+      onKeyDown={(event) => onKeyDown(event, tab.id)}
+    >
+      {tab.icon}
+      {!tab.pinned && (
+        <span className='min-w-0 flex-1 select-none text-left'>
+          <OverflowText
+            label={tab.title}
+            focusTarget='nearest-interactive'
+            tooltipEnabled={!tab.tooltip}
+            className={cn(
+              closeable &&
+                !tab.active &&
+                !tab.attention &&
+                'w-[calc(100%_+_24px)] group-focus-within/row-actions:w-full group-hover/row-actions:w-full [@media(any-pointer:coarse)]:w-full [@media(hover:none)]:w-full'
+            )}
+          />
+        </span>
+      )}
+      {tab.attention && !tab.active && !closeable && (
+        <span
+          className={cn(
+            'size-1.5 shrink-0 rounded-full bg-[var(--brand-blue)]',
+            tab.pinned && 'absolute right-1 bottom-1'
+          )}
+          aria-hidden='true'
+        />
+      )}
+    </Button>
+  )
 
   return (
     <motion.div
       ref={ref}
       initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
-      animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }}
+      animate={{ opacity: 1, scale: 1 }}
       exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98 }}
       transition={TAB_TRANSITION}
       className={cn(
         'group relative select-none',
-        // `shrink` lets a crowded strip squeeze tabs to their floor before it
-        // starts scrolling.
+        rowActionsGroupClass,
         tab.pinned ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none' : TAB_WIDTH[variant],
+        variant === 'floating' &&
+          closeable &&
+          '[@media(any-pointer:coarse)]:min-w-36 [@media(hover:none)]:min-w-36',
         dragging && 'opacity-30'
       )}
       data-tab-strip-item={tab.id}
@@ -417,77 +455,40 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       {showDropAfter && (
         <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-30 h-4 w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
       )}
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
+      {tab.tooltip || tab.pinned ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>{tabButton}</Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>{tab.tooltip || tab.title}</Tooltip.Content>
+        </Tooltip.Root>
+      ) : (
+        tabButton
+      )}
+      {closeable && (
+        <RowActions
+          size='md'
+          open={tab.active}
+          indicator={
+            tab.attention && !tab.active ? (
+              <span className='size-1.5 rounded-full bg-[var(--brand-blue)]' aria-hidden='true' />
+            ) : undefined
+          }
+          className='-translate-y-1/2 absolute top-1/2 right-0.5 z-20'
+        >
           <Button
             type='button'
-            variant='subtle'
+            variant='ghost-secondary'
             size='sm'
-            role='tab'
-            aria-selected={Boolean(tab.active)}
-            aria-label={tab.pinned ? tab.title : undefined}
-            data-tab-strip-button={tab.id}
-            tabIndex={focusable ? 0 : -1}
-            className={cn(
-              'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-caption',
-              tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
-              closeable && 'pr-8',
-              TAB_SHAPE[variant],
-              tab.selected && !tab.active && TAB_SELECTED[variant],
-              tab.active && 'relative z-10',
-              tab.active && TAB_ACTIVE[variant]
-            )}
-            onClick={(event) => onSelect(tab.id, 'pointer', event)}
-            onKeyDown={(event) => onKeyDown(event, tab.id)}
+            aria-label={`Close ${tab.title}`}
+            tabIndex={-1}
+            className='size-[24px] p-0'
+            onClick={(event) => {
+              event.stopPropagation()
+              onClose?.(tab.id)
+            }}
           >
-            {tab.icon}
-            {!tab.pinned && (
-              <span
-                ref={titleRef}
-                className={cn(
-                  overflowTextClipClass,
-                  'flex-1 select-none text-left',
-                  titleTruncated && overflowTextFadeClass
-                )}
-              >
-                {tab.title}
-              </span>
-            )}
-            {tab.attention && !tab.active && (
-              <span
-                className={cn(
-                  'size-1.5 shrink-0 rounded-full bg-[var(--brand-primary)]',
-                  tab.pinned && 'absolute right-1 bottom-1'
-                )}
-                aria-label='Background activity'
-              />
-            )}
+            <X className='size-[11px]' />
           </Button>
-        </Tooltip.Trigger>
-        {(tab.tooltip || tab.pinned || titleTruncated) && (
-          <Tooltip.Content side='bottom'>{tab.tooltip || tab.title}</Tooltip.Content>
-        )}
-      </Tooltip.Root>
-      {closeable && (
-        <Button
-          type='button'
-          variant='ghost-secondary'
-          size='sm'
-          aria-label={`Close ${tab.title}`}
-          tabIndex={-1}
-          className={cn(
-            '-translate-y-1/2 absolute top-1/2 right-0.5 z-20 size-[24px] p-0 transition-opacity',
-            tab.active
-              ? 'opacity-100'
-              : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
-          )}
-          onClick={(event) => {
-            event.stopPropagation()
-            onClose?.(tab.id)
-          }}
-        >
-          <X className='size-[11px]' />
-        </Button>
+        </RowActions>
       )}
     </motion.div>
   )
@@ -502,9 +503,13 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
  * contains. Callers map their own state onto {@link TabStripItem} and supply
  * the icon, which is why a favicon and a spinning shell indicator can share
  * one component.
+ *
+ * The tablist owns only tabs so adjacent close buttons remain separate
+ * accessible controls while sharing each tab's visual geometry.
  */
 export function TabStrip({
   tabs,
+  size = 'default',
   onSelect,
   onClose,
   onNew,
@@ -517,8 +522,10 @@ export function TabStrip({
   endActions,
   overlays,
   variant = 'attached',
+  dividers = true,
   className,
 }: TabStripProps) {
+  const stripId = useId()
   const atLimit = maxTabs !== undefined && tabs.length >= maxTabs
   const stripRef = useRef<HTMLDivElement>(null)
   const scrollNodeRef = useRef<HTMLDivElement>(null)
@@ -526,6 +533,13 @@ export function TabStrip({
   const dropTargetIndexRef = useRef<number | null>(null)
   const autoScrollRafRef = useRef<number | null>(null)
   const autoScrollDirectionRef = useRef(0)
+  const revealScrollRef = useRef<AnimationPlaybackControls | null>(null)
+  const revealScrollLeftRef = useRef(0)
+  const focusedTabRef = useRef<{
+    id: string
+    element: HTMLButtonElement
+    index: number
+  } | null>(null)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -550,6 +564,11 @@ export function TabStrip({
     setCanScrollRight(node.scrollLeft < maxScrollLeft - 1)
   }, [])
 
+  const stopRevealScroll = useCallback(() => {
+    revealScrollRef.current?.stop()
+    revealScrollRef.current = null
+  }, [])
+
   const stopAutoScroll = useCallback(() => {
     if (autoScrollRafRef.current !== null) cancelAnimationFrame(autoScrollRafRef.current)
     autoScrollRafRef.current = null
@@ -569,6 +588,9 @@ export function TabStrip({
   const revealActiveTab = useCallback(() => {
     const node = scrollNodeRef.current
     if (!node || !activeRegularId) return
+    // Stopped before any early return, so a reveal still in flight toward a
+    // previous tab cannot scroll an already-visible active tab away.
+    stopRevealScroll()
     const element = Array.from(node.querySelectorAll<HTMLElement>('[data-tab-strip-item]')).find(
       (candidate) => candidate.dataset.tabStripItem === activeRegularId
     )
@@ -577,25 +599,35 @@ export function TabStrip({
     const nodeRect = node.getBoundingClientRect()
     const tabLeft = tabRect.left - nodeRect.left + node.scrollLeft
     const tabRight = tabLeft + tabRect.width
-    // Inset by the fade on both sides so the tab comes to rest clear of the
-    // gradient rather than beneath it.
-    const viewLeft = node.scrollLeft + EDGE_FADE_PX
-    const viewRight = node.scrollLeft + node.clientWidth - EDGE_FADE_PX
+    /** Keep the active tab clear of the canonical scroll fade. */
+    const viewLeft = node.scrollLeft + SCROLL_FADE_BAND_PX
+    const viewRight = node.scrollLeft + node.clientWidth - SCROLL_FADE_BAND_PX
     const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
     const target =
       tabLeft < viewLeft
-        ? tabLeft - EDGE_FADE_PX
+        ? tabLeft - SCROLL_FADE_BAND_PX
         : tabRight > viewRight
-          ? tabRight - node.clientWidth + EDGE_FADE_PX
+          ? tabRight - node.clientWidth + SCROLL_FADE_BAND_PX
           : null
     if (target === null) return
     // The clamp is what lets the first and last tabs sit flush: there is no
     // gradient at a scroll extreme, so no margin is needed to clear one.
     const nextLeft = Math.max(0, Math.min(maxScrollLeft, target))
     if (Math.abs(nextLeft - node.scrollLeft) < 1) return
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    node.scrollTo({ left: nextLeft, behavior: reduceMotion ? 'auto' : 'smooth' })
-  }, [activeRegularId, regularTabOrder])
+    if (reduceMotion) {
+      node.scrollLeft = nextLeft
+      return
+    }
+    revealScrollRef.current = animate(node.scrollLeft, nextLeft, {
+      ...REVEAL_SCROLL_TRANSITION,
+      onUpdate: (left) => {
+        revealScrollLeftRef.current = left
+        node.scrollLeft = left
+      },
+    })
+  }, [activeRegularId, regularTabOrder, reduceMotion, stopRevealScroll])
+
+  useEffect(() => stopRevealScroll, [stopRevealScroll])
 
   useLayoutEffect(() => {
     revealActiveTab()
@@ -609,17 +641,25 @@ export function TabStrip({
       revealActiveTab()
     }
     updateLayout()
-    node.addEventListener('scroll', updateOverflow, { passive: true })
+    const handleScroll = () => {
+      updateOverflow()
+      // A position the reveal did not set means touch, the scrollbar, or the
+      // keyboard took over scrolling, so the reveal yields to it.
+      if (revealScrollRef.current && Math.abs(node.scrollLeft - revealScrollLeftRef.current) > 1) {
+        stopRevealScroll()
+      }
+    }
+    node.addEventListener('scroll', handleScroll, { passive: true })
     if (typeof ResizeObserver === 'undefined') {
-      return () => node.removeEventListener('scroll', updateOverflow)
+      return () => node.removeEventListener('scroll', handleScroll)
     }
     const observer = new ResizeObserver(updateLayout)
     observer.observe(node)
     return () => {
       observer.disconnect()
-      node.removeEventListener('scroll', updateOverflow)
+      node.removeEventListener('scroll', handleScroll)
     }
-  }, [regularTabs.length, revealActiveTab, updateOverflow])
+  }, [regularTabs.length, revealActiveTab, stopRevealScroll, updateOverflow])
 
   useEffect(() => {
     const strip = stripRef.current
@@ -635,13 +675,14 @@ export function TabStrip({
         event.deltaY
       )
       if (next === null) return
+      stopRevealScroll()
       node.scrollLeft = next
       updateOverflow()
       event.preventDefault()
     }
     strip.addEventListener('wheel', handleWheel, { passive: false })
     return () => strip.removeEventListener('wheel', handleWheel)
-  }, [updateOverflow])
+  }, [stopRevealScroll, updateOverflow])
 
   const handleDragStart = useCallback(
     (event: ReactDragEvent<HTMLDivElement>, id: string) => {
@@ -691,6 +732,7 @@ export function TabStrip({
       stopAutoScroll()
       if (direction === 0) return
       autoScrollDirectionRef.current = direction
+      stopRevealScroll()
       const tick = () => {
         const before = node.scrollLeft
         node.scrollLeft += direction * DRAG_SCROLL_SPEED
@@ -704,7 +746,7 @@ export function TabStrip({
       }
       autoScrollRafRef.current = requestAnimationFrame(tick)
     },
-    [stopAutoScroll, tabs, updateOverflow]
+    [stopAutoScroll, stopRevealScroll, tabs, updateOverflow]
   )
 
   const handleDragOver = useCallback(
@@ -751,6 +793,18 @@ export function TabStrip({
       : null
     button?.focus()
   }, [])
+
+  /** Restore keyboard focus only after the owner commits a close, including multi-tab closes. */
+  useLayoutEffect(() => {
+    const focusedTab = focusedTabRef.current
+    if (!focusedTab || tabs.some((tab) => tab.id === focusedTab.id)) return
+    focusedTabRef.current = null
+    const focused = document.activeElement
+    if (focused !== focusedTab.element && focused !== document.body) return
+    const nextTab =
+      tabs.find((tab) => tab.active) ?? tabs[Math.min(focusedTab.index, tabs.length - 1)]
+    if (nextTab) focusTab(nextTab.id)
+  }, [tabs, focusTab])
 
   const handleTabKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => {
@@ -801,9 +855,10 @@ export function TabStrip({
     return (
       <Tab
         key={tab.id}
+        buttonId={`${stripId}-${encodeURIComponent(tab.id)}`}
         tab={tab}
         variant={variant}
-        showDivider={variant === 'floating' && isBareTab(tab) && isBareTab(previous)}
+        showDivider={dividers && variant === 'floating' && isBareTab(tab) && isBareTab(previous)}
         draggable={reorderable || Boolean(onTabDragStart)}
         dragging={draggedId === tab.id}
         focusable={tab.active || (activeIndex < 0 && index === 0)}
@@ -823,11 +878,28 @@ export function TabStrip({
   return (
     <div
       ref={stripRef}
+      data-tab-strip
+      onFocusCapture={(event) => {
+        const target = event.target
+        const id = target instanceof HTMLButtonElement ? target.dataset.tabStripButton : undefined
+        const index = tabs.findIndex((tab) => tab.id === id)
+        focusedTabRef.current =
+          target instanceof HTMLButtonElement && id !== undefined && index >= 0
+            ? { id, element: target, index }
+            : null
+      }}
+      onBlurCapture={(event) => {
+        if (event.relatedTarget !== null) focusedTabRef.current = null
+      }}
       // Geometry reads from custom properties with defaults baked into the
       // `var()` calls, so a caller resizes the strip by setting a property
       // rather than by passing a utility class that has to out-merge this one.
       className={cn(
-        'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none gap-1 border-[var(--border)] border-b bg-transparent pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none gap-1 bg-transparent pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        size === 'large' && '[--tab-strip-band:42px] [&_[data-tab-strip-button]]:text-base',
+        size === 'large' &&
+          (variant === 'attached' ? '[--tab-strip-height:46px]' : '[--tab-strip-height:42px]'),
+        dividers && 'border-[var(--border)] border-b',
         // Attached tabs hang from the top so the active one can reach the strip's
         // bottom border and cover it; floating tabs are centred in the bar.
         variant === 'attached' ? 'items-end pt-1' : 'items-center',
@@ -862,9 +934,17 @@ export function TabStrip({
         was a tab strip you could scroll vertically by exactly one pixel. Pulling the whole
         row down instead keeps the tabs flush inside it, so there is nothing to scroll.
       */}
+      {tabs.length > 0 && (
+        <div
+          role='tablist'
+          aria-label='Tabs'
+          aria-owns={[...pinnedTabs, ...regularTabs]
+            .map((tab) => `${stripId}-${encodeURIComponent(tab.id)}`)
+            .join(' ')}
+          className='sr-only'
+        />
+      )}
       <div
-        role='tablist'
-        aria-label='Tabs'
         className={cn(
           'flex min-w-0 shrink gap-0.5',
           variant === 'attached' ? '-mb-px items-end' : 'items-center gap-2'
@@ -885,18 +965,11 @@ export function TabStrip({
         <div className='flex min-w-0 shrink'>
           <div
             ref={scrollNodeRef}
+            {...scrollFadeAttributes({ left: canScrollLeft, right: canScrollRight })}
             className={cn(
               'flex min-w-0 shrink select-none gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
               variant === 'attached' ? 'items-end' : 'items-center gap-2',
-              SCROLL_FADE[
-                canScrollLeft
-                  ? canScrollRight
-                    ? 'both'
-                    : 'start'
-                  : canScrollRight
-                    ? 'end'
-                    : 'none'
-              ]
+              scrollFadeXClass
             )}
           >
             <AnimatePresence initial={false} mode='popLayout'>
@@ -919,20 +992,17 @@ export function TabStrip({
       ) : onNew ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
+            <TabStripAction
               type='button'
               variant='ghost-secondary'
               size='sm'
               aria-label={newTabLabel}
-              className={cn(
-                'size-[var(--tab-strip-band,30px)] shrink-0 p-0',
-                variant === 'attached' && 'mb-px'
-              )}
+              className={variant === 'attached' ? 'mb-px' : undefined}
               disabled={atLimit}
               onClick={onNew}
             >
               <Plus className='size-[14px]' />
-            </Button>
+            </TabStripAction>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
             {atLimit ? `Maximum of ${maxTabs} tabs` : newTabLabel}

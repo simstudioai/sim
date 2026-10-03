@@ -1,72 +1,80 @@
-/**
- * @vitest-environment node
- */
+import type { ConverseStreamCommand } from '@aws-sdk/client-bedrock-runtime'
+import { collectStream } from '@sim/testing/helpers/async'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBedrockStreamingToolLoopStream } from '@/providers/bedrock/streaming-tool-loop'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 
-async function collectEvents(
-  stream: ReadableStream<AgentStreamEvent>
-): Promise<AgentStreamEvent[]> {
-  const events: AgentStreamEvent[] = []
-  const reader = stream.getReader()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    events.push(value)
-  }
-  return events
-}
-
-const { mockExecuteTool } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(),
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: { url: 'https://example.com' },
+  executionParams: { url: 'https://example.com' },
+})
+providersUtilsMockFns.mockCalculateCost.mockImplementation(() => ({
+  input: 0.01,
+  output: 0.02,
+  total: 0.03,
+  pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
 }))
 
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-}))
+vi.mock('@/tools', () => toolsMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  prepareToolExecution: vi.fn(() => ({
-    toolParams: { url: 'https://example.com' },
-    executionParams: { url: 'https://example.com' },
-  })),
-  calculateCost: vi.fn(() => ({
-    input: 0.01,
-    output: 0.02,
-    total: 0.03,
-    pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
-  })),
-  sumToolCosts: vi.fn(() => 0),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 describe('createBedrockStreamingToolLoopStream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({
       success: true,
       output: { ok: true },
     })
   })
 
-  it('emits tool_call_start/end and final text; no invented thinking', async () => {
+  it('preserves signed and redacted reasoning across tool turns without exposing it', async () => {
     const turns = [
       (async function* () {
         yield {
-          contentBlockStart: {
+          contentBlockDelta: {
             contentBlockIndex: 0,
-            start: { toolUse: { toolUseId: 'tooluse_1', name: 'http_request' } },
+            delta: { reasoningContent: { text: 'Check the endpoint.' } },
           },
         }
         yield {
           contentBlockDelta: {
             contentBlockIndex: 0,
+            delta: { reasoningContent: { signature: 'signature-' } },
+          },
+        }
+        yield {
+          contentBlockDelta: {
+            contentBlockIndex: 0,
+            delta: { reasoningContent: { signature: 'value' } },
+          },
+        }
+        yield {
+          contentBlockDelta: { contentBlockIndex: 1, delta: { text: 'Checking now.' } },
+        }
+        yield {
+          contentBlockDelta: {
+            contentBlockIndex: 2,
+            delta: { reasoningContent: { redactedContent: new Uint8Array([1, 2]) } },
+          },
+        }
+        yield {
+          contentBlockDelta: {
+            contentBlockIndex: 2,
+            delta: { reasoningContent: { redactedContent: new Uint8Array([3]) } },
+          },
+        }
+        yield {
+          contentBlockStart: {
+            contentBlockIndex: 3,
+            start: { toolUse: { toolUseId: 'tooluse_1', name: 'http_request' } },
+          },
+        }
+        yield {
+          contentBlockDelta: {
+            contentBlockIndex: 3,
             delta: { toolUse: { input: '{"url":"https://example.com"}' } },
           },
         }
@@ -91,7 +99,7 @@ describe('createBedrockStreamingToolLoopStream', () => {
 
     let turnIdx = 0
     const client = {
-      send: vi.fn(async () => ({ stream: turns[turnIdx++] })),
+      send: vi.fn(async (_command: ConverseStreamCommand) => ({ stream: turns[turnIdx++] })),
     }
 
     const onComplete = vi.fn()
@@ -126,7 +134,27 @@ describe('createBedrockStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
+
+    expect(client.send.mock.calls[1][0].input.messages?.[1]).toEqual({
+      role: 'assistant',
+      content: [
+        {
+          reasoningContent: {
+            reasoningText: { text: 'Check the endpoint.', signature: 'signature-value' },
+          },
+        },
+        { text: 'Checking now.' },
+        { reasoningContent: { redactedContent: new Uint8Array([1, 2, 3]) } },
+        {
+          toolUse: {
+            toolUseId: 'tooluse_1',
+            name: 'http_request',
+            input: { url: 'https://example.com' },
+          },
+        },
+      ],
+    })
 
     expect(events.some((e) => e.type === 'thinking_delta')).toBe(false)
     expect(events.filter((e) => e.type === 'tool_call_start')).toEqual([
@@ -141,7 +169,7 @@ describe('createBedrockStreamingToolLoopStream', () => {
         .filter((e) => e.type === 'text_delta' && e.turn === 'pending')
         .map((e) => e.text)
         .join('')
-    ).toBe('Request completed.')
+    ).toBe('Checking now.Request completed.')
     expect(events.filter((e) => e.type === 'turn_end').map((e) => e.turn)).toEqual([
       'intermediate',
       'final',
@@ -211,7 +239,7 @@ describe('createBedrockStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(collectStream(stream)).rejects.toMatchObject({ name: 'AbortError' })
     expect(onComplete).toHaveBeenLastCalledWith(
       expect.objectContaining({ tokens: { input: 11, output: 4, total: 15 } })
     )
@@ -249,7 +277,7 @@ describe('createBedrockStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).resolves.toEqual([
+    await expect(collectStream(stream)).resolves.toEqual([
       { type: 'text_delta', text: 'Truncated answer', turn: 'pending' },
       { type: 'turn_end', turn: 'final' },
     ])

@@ -24,6 +24,7 @@ import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-al
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
+import { WorkspaceOperationConflict } from '@/lib/workspaces/operations/receipts'
 import {
   v2CaughtOrchestrationError,
   v2Data,
@@ -32,9 +33,10 @@ import {
 
 function v2CancelRunErrorResponse(error: unknown) {
   if (error instanceof WorkflowRunAlreadyTerminalError) {
+    // A terminal run is a `200` no-op: nothing was cancelled, so `success` is false.
     return v2Data(
       v2CancelWorkflowRunDataSchema.parse({
-        success: true,
+        success: false,
         runId: error.executionId,
         redisAvailable: error.redisAvailable,
         durablyRecorded: false,
@@ -51,7 +53,7 @@ export const v2WorkflowErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   import: {
     render(error) {
-      if (error instanceof WorkflowImportError) {
+      if (error instanceof WorkflowImportError || error instanceof WorkspaceOperationConflict) {
         return v2ErrorForOrchestration(error.code, error.message, error.details)
       }
       return v2CaughtOrchestrationError(error)

@@ -1,3 +1,4 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedBillingReadUseCase } from '@/lib/billing/application/authorized-billing-read-use-case'
 import { billingOperations } from '@/lib/billing/application/operations'
 import {
@@ -38,14 +39,14 @@ function apportionLogCredits(usage: ListBillingLogsResult['usage']): Record<stri
 }
 
 /**
- * A personal API key reports the person holding it: their own usage events,
- * narrowed to the workspace they named when they named one. A workspace API key
- * has no actor behind it, so it reports the workspace itself: every member's
- * events for the workspace the key is pinned to.
+ * An OAuth access token or personal API key reports the person holding it:
+ * their own usage events, narrowed to the workspace they named when they named
+ * one. A workspace API key has no actor behind it, so it reports the workspace
+ * itself: every member's events for the workspace the key is pinned to.
  *
  * The two are deliberately different questions, and the answer says which one it
  * answered via `scope`. Harmonizing them onto the resolved scope would hand any
- * workspace member holding a personal key every other member's Wand, Chat,
+ * workspace member holding a user credential every other member's Wand, Chat,
  * voice, enrichment, and knowledge-base spend, none of which is exposed by any
  * other surface at this role.
  */
@@ -61,9 +62,10 @@ export const listBillingLogs = defineAuthorizedBillingReadUseCase({
       cursor: input.cursor,
       includeSummary: false,
     }
-    if (principal.kind === 'personal_api_key') {
+    const actorUserId = resolvePrincipalSubjectUserId(principal)
+    if (actorUserId) {
       const workspaceId = scope.kind === 'workspace' ? scope.workspace.workspaceId : undefined
-      const usage = await getUserUsageLogs(principal.userId, { ...query, workspaceId })
+      const usage = await getUserUsageLogs(actorUserId, { ...query, workspaceId })
       return { usage, creditsByLogId: apportionLogCredits(usage), scope: 'user' }
     }
     /**
@@ -71,6 +73,8 @@ export const listBillingLogs = defineAuthorizedBillingReadUseCase({
      * whatever the query asked for, and has already loaded and validated that
      * workspace, so this is the same id the resolved scope carries.
      */
+    if (principal.kind !== 'workspace_api_key')
+      throw new Error('Billing read lost its acting subject')
     const usage = await getWorkspaceUsageLogs(principal.workspaceId, query)
     return { usage, creditsByLogId: apportionLogCredits(usage), scope: 'workspace' }
   },

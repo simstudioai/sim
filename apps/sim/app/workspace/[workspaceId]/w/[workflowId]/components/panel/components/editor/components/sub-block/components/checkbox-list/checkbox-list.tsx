@@ -94,7 +94,7 @@ export function CheckboxList({
             />
             <Label
               htmlFor={`${blockId}-${subBlockId}-${option.id}`}
-              className='cursor-pointer font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
+              className='cursor-pointer font-sans text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
             >
               {formatDisplayText(option.label, { workflowSearchHighlight })}
             </Label>

@@ -1,10 +1,9 @@
 import { FindymailIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { FindymailResponse } from '@/tools/findymail/types'
 
 const COMPANY_LOOKUP_FIELD = ['gc_domain', 'gc_name', 'gc_linkedin_url'] as const
 
-export const FindymailBlock: BlockConfig<FindymailResponse> = {
+export const FindymailBlock: BlockConfig = {
   type: 'findymail',
   name: 'Findymail',
   description: 'Find and verify B2B emails, phones, employees, and company data',

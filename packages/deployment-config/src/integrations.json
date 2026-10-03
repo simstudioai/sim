@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-10-02",
   "integrations": [
     {
       "type": "onepassword",
@@ -846,8 +846,13 @@
       "bgColor": "#6366F1",
       "iconName": "AirweaveIcon",
       "docsUrl": "https://docs.sim.ai/integrations/airweave",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Airweave Search",
+          "description": "Search your synced data collections using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -1033,7 +1038,7 @@
       "slug": "amazon-sqs",
       "name": "Amazon SQS",
       "description": "Connect to Amazon SQS",
-      "longDescription": "Integrate Amazon SQS into the workflow. Can send messages to SQS queues.",
+      "longDescription": "Integrate Amazon SQS into the workflow. Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.",
       "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
       "iconName": "SQSIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sqs",
@@ -1041,12 +1046,92 @@
         {
           "name": "Send Message",
           "description": "Send a message to an Amazon SQS queue"
+        },
+        {
+          "name": "Send Message Batch",
+          "description": "Send up to 10 messages to an Amazon SQS queue in a single request"
+        },
+        {
+          "name": "Receive Message",
+          "description": "Receive up to 10 messages from an Amazon SQS queue, with optional long polling"
+        },
+        {
+          "name": "Delete Message",
+          "description": "Delete a received message from an Amazon SQS queue using its receipt handle"
+        },
+        {
+          "name": "Delete Message Batch",
+          "description": "Delete up to 10 received messages from an Amazon SQS queue in a single request"
+        },
+        {
+          "name": "Change Message Visibility",
+          "description": "Change how long a received Amazon SQS message stays hidden from other consumers"
+        },
+        {
+          "name": "Change Message Visibility Batch",
+          "description": "Change the visibility timeout of up to 10 received Amazon SQS messages at once"
+        },
+        {
+          "name": "List Queues",
+          "description": "List Amazon SQS queue URLs in a region, optionally filtered by name prefix"
+        },
+        {
+          "name": "Get Queue URL",
+          "description": "Resolve an Amazon SQS queue name to its queue URL"
+        },
+        {
+          "name": "Get Queue Attributes",
+          "description": "Read configuration and message-count attributes of an Amazon SQS queue"
+        },
+        {
+          "name": "Set Queue Attributes",
+          "description": "Update configuration attributes of an existing Amazon SQS queue"
+        },
+        {
+          "name": "Create Queue",
+          "description": "Create a standard or FIFO Amazon SQS queue"
+        },
+        {
+          "name": "Delete Queue",
+          "description": "Delete an Amazon SQS queue and every message still in it"
+        },
+        {
+          "name": "Purge Queue",
+          "description": "Delete every message in an Amazon SQS queue while keeping the queue itself"
+        },
+        {
+          "name": "List Dead-Letter Source Queues",
+          "description": "List the Amazon SQS queues that use a given queue as their dead-letter queue"
+        },
+        {
+          "name": "List Queue Tags",
+          "description": "List the cost-allocation tags attached to an Amazon SQS queue"
+        },
+        {
+          "name": "Tag Queue",
+          "description": "Add or overwrite cost-allocation tags on an Amazon SQS queue"
+        },
+        {
+          "name": "Untag Queue",
+          "description": "Remove cost-allocation tags from an Amazon SQS queue"
+        },
+        {
+          "name": "Start Message Move Task",
+          "description": "Start redriving messages out of an Amazon SQS dead-letter queue"
+        },
+        {
+          "name": "List Message Move Tasks",
+          "description": "List the most recent message move tasks for an Amazon SQS source queue"
+        },
+        {
+          "name": "Cancel Message Move Task",
+          "description": "Cancel an in-progress Amazon SQS message move task"
         }
       ],
-      "operationCount": 1,
+      "operationCount": 21,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "messaging", "automation"]
@@ -1673,7 +1758,7 @@
       "slug": "athena",
       "name": "Athena",
       "description": "Run SQL queries on data in Amazon S3 using AWS Athena",
-      "longDescription": "Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.",
+      "longDescription": "Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.",
       "bgColor": "linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)",
       "iconName": "AthenaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/athena",
@@ -1689,6 +1774,10 @@
         {
           "name": "Get Query Results",
           "description": "Retrieve the results of a completed Athena query execution"
+        },
+        {
+          "name": "Get Query Runtime Statistics",
+          "description": "Get runtime statistics (timeline, row counts, and output stage) for a completed Athena query execution"
         },
         {
           "name": "Stop Query",
@@ -1711,6 +1800,14 @@
           "description": "Get details of a saved/named query in AWS Athena"
         },
         {
+          "name": "Batch Get Named Queries",
+          "description": "Get the details of up to 50 Athena named queries by ID in a single call"
+        },
+        {
+          "name": "Update Named Query",
+          "description": "Update the name, description, or SQL of an existing Athena named query (database and workgroup cannot change)"
+        },
+        {
           "name": "List Named Queries",
           "description": "List saved/named query IDs in AWS Athena"
         },
@@ -1719,15 +1816,63 @@
           "description": "Delete a saved/named query in AWS Athena"
         },
         {
+          "name": "Create Prepared Statement",
+          "description": "Create a parameterized prepared statement in an Athena workgroup for use with EXECUTE or execution parameters"
+        },
+        {
+          "name": "Get Prepared Statement",
+          "description": "Get the SQL and metadata of a prepared statement in an Athena workgroup"
+        },
+        {
+          "name": "Batch Get Prepared Statements",
+          "description": "Get the details of up to 256 prepared statements in an Athena workgroup by name in a single call"
+        },
+        {
+          "name": "Update Prepared Statement",
+          "description": "Replace the SQL and description of an existing prepared statement in an Athena workgroup"
+        },
+        {
+          "name": "List Prepared Statements",
+          "description": "List the prepared statements saved in an Athena workgroup"
+        },
+        {
+          "name": "Delete Prepared Statement",
+          "description": "Delete a prepared statement from an Athena workgroup"
+        },
+        {
+          "name": "List Data Catalogs",
+          "description": "List the data catalogs (data sources) registered in the AWS account"
+        },
+        {
+          "name": "Get Data Catalog",
+          "description": "Get the type, status, and connection parameters of an Athena data catalog"
+        },
+        {
           "name": "List Databases",
           "description": "List the databases available in an Athena data catalog"
         },
         {
+          "name": "Get Database",
+          "description": "Get a single database (name, description, and parameters) from an Athena data catalog"
+        },
+        {
           "name": "List Table Metadata",
           "description": "List tables and their column/partition metadata for an Athena database"
+        },
+        {
+          "name": "Get Table Metadata",
+          "description": "Get the columns, partition keys, and properties of a single table in an Athena data catalog database"
+        },
+        {
+          "name": "List Workgroups",
+          "description": "List the Athena workgroups available in the AWS account"
+        },
+        {
+          "name": "Get Workgroup",
+          "description": "Get the configuration of an Athena workgroup, including its result location, encryption, and limits"
         }
       ],
-      "operationCount": 12,
+      "operationCount": 27,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -2228,12 +2373,24 @@
           "description": "List managed IAM policies"
         },
         {
+          "name": "Get Policy",
+          "description": "Get details about a managed IAM policy, including its description — the field ListPolicies never returns"
+        },
+        {
           "name": "Create Access Key",
           "description": "Create a new access key pair for an IAM user"
         },
         {
           "name": "Delete Access Key",
           "description": "Delete an access key pair for an IAM user"
+        },
+        {
+          "name": "List Access Keys",
+          "description": "List an IAM user's access key IDs with their status and age — use to find stale keys and to confirm which keys remain after a rotation"
+        },
+        {
+          "name": "Update Access Key",
+          "description": "Activate or deactivate an IAM access key — deactivate an old key and verify nothing breaks before deleting it"
         },
         {
           "name": "List Groups",
@@ -2260,7 +2417,7 @@
           "description": "Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks"
         }
       ],
-      "operationCount": 21,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2299,12 +2456,24 @@
           "description": "Look up a user in the Identity Store by email address"
         },
         {
+          "name": "Describe User",
+          "description": "Resolve an Identity Store user ID to the user behind it. Use to turn the principalId on an account assignment into a name and email."
+        },
+        {
           "name": "Get Group",
           "description": "Look up a group in the Identity Store by display name"
         },
         {
+          "name": "Describe Group",
+          "description": "Resolve an Identity Store group ID to the group behind it. Use to turn the principalId on an account assignment into a group name."
+        },
+        {
           "name": "List Groups",
           "description": "List all groups in the Identity Store"
+        },
+        {
+          "name": "List Group Memberships",
+          "description": "List the users who belong to an Identity Store group"
         },
         {
           "name": "Create Account Assignment",
@@ -2323,11 +2492,15 @@
           "description": "Check the deprovisioning status of an account assignment deletion request"
         },
         {
-          "name": "List Account Assignments",
-          "description": "List all account assignments for a specific user or group across all accounts"
+          "name": "List Account Assignments For Principal",
+          "description": "List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals."
+        },
+        {
+          "name": "List Assignments For Account",
+          "description": "List every principal assigned a specific permission set on a specific AWS account. Use for per-account access reviews."
         }
       ],
-      "operationCount": 12,
+      "operationCount": 16,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2531,6 +2704,113 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["cloud", "identity"]
+    },
+    {
+      "type": "ssm",
+      "slug": "aws-systems-manager",
+      "name": "AWS Systems Manager",
+      "description": "Run commands, manage parameters, and audit managed nodes",
+      "longDescription": "Integrate AWS Systems Manager into your workflow. Run commands on managed nodes, read and write Parameter Store values, inspect node inventory and patch compliance, and drive Automation runbooks.",
+      "bgColor": "#E7157B",
+      "iconName": "SSMIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/ssm",
+      "operations": [
+        {
+          "name": "Send Command",
+          "description": "Run an SSM document on managed nodes with AWS Systems Manager Run Command"
+        },
+        {
+          "name": "List Commands",
+          "description": "List Run Command executions in an AWS account"
+        },
+        {
+          "name": "List Command Invocations",
+          "description": "List the per-node invocations of Run Command executions"
+        },
+        {
+          "name": "Get Command Invocation",
+          "description": "Read the output and status of a Run Command execution on one managed node"
+        },
+        {
+          "name": "Cancel Command",
+          "description": "Cancel an in-flight Run Command execution"
+        },
+        {
+          "name": "Get Parameter",
+          "description": "Read one parameter from AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Get Parameters",
+          "description": "Read up to ten parameters from AWS Systems Manager Parameter Store by name"
+        },
+        {
+          "name": "Get Parameters By Path",
+          "description": "Read parameters under a Parameter Store hierarchy path"
+        },
+        {
+          "name": "Put Parameter",
+          "description": "Create or update a parameter in AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Delete Parameter",
+          "description": "Delete a parameter from AWS Systems Manager Parameter Store"
+        },
+        {
+          "name": "Describe Parameters",
+          "description": "List Parameter Store parameter metadata without reading any values"
+        },
+        {
+          "name": "Describe Instance Information",
+          "description": "List managed nodes registered with AWS Systems Manager and their agent status"
+        },
+        {
+          "name": "Describe Instance Patches",
+          "description": "List the patches reported for one managed node"
+        },
+        {
+          "name": "Describe Instance Patch States",
+          "description": "Read patch compliance summaries for a set of managed nodes"
+        },
+        {
+          "name": "List Compliance Items",
+          "description": "List individual compliance findings reported to AWS Systems Manager"
+        },
+        {
+          "name": "List Compliance Summaries",
+          "description": "Read compliant and non-compliant counts per compliance type"
+        },
+        {
+          "name": "Start Automation Execution",
+          "description": "Start an AWS Systems Manager Automation runbook execution"
+        },
+        {
+          "name": "Describe Automation Executions",
+          "description": "List Automation runbook executions in an AWS account"
+        },
+        {
+          "name": "Get Automation Execution",
+          "description": "Read the status, outputs, and step results of one Automation execution"
+        },
+        {
+          "name": "Stop Automation Execution",
+          "description": "Stop a running AWS Systems Manager Automation execution"
+        },
+        {
+          "name": "List Documents",
+          "description": "List SSM documents and runbooks available to an AWS account"
+        },
+        {
+          "name": "Get Document",
+          "description": "Read the content of an SSM document or Automation runbook"
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud", "automation"]
     },
     {
       "type": "textract_v2",
@@ -3138,7 +3418,7 @@
       "tags": ["version-control", "ci-cd", "automation"]
     },
     {
-      "type": "box",
+      "type": "box_v2",
       "slug": "box",
       "name": "Box",
       "description": "Manage files, folders, and e-signatures with Box",
@@ -3459,8 +3739,13 @@
       "bgColor": "#181C1E",
       "iconName": "BrowserUseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/browser_use",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Browser Use",
+          "description": "Runs a browser automation task using BrowserUse"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4091,8 +4376,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "ClayIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clay",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Clay Populate",
+          "description": "Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5058,6 +5348,81 @@
       "tags": ["cloud"]
     },
     {
+      "type": "cloudtrail",
+      "slug": "cloudtrail",
+      "name": "CloudTrail",
+      "description": "Audit who did what in AWS with CloudTrail event history and Lake queries",
+      "longDescription": "Integrate AWS CloudTrail into workflows. Look up the last 90 days of management and Insights events by user, event name, resource, or access key; inspect trail configuration, logging status, and event selectors; and run SQL queries against CloudTrail Lake event data stores. This block never changes trail or event data store configuration, and never starts or stops logging. Starting and cancelling a Lake query are the only actions that are not reads, and AWS bills Lake queries on the data they scan. Requires AWS access key and secret access key.",
+      "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+      "iconName": "CloudTrailIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/cloudtrail",
+      "operations": [
+        {
+          "name": "Look Up Events",
+          "description": "Look up AWS CloudTrail management or Insights events from the last 90 days in a Region"
+        },
+        {
+          "name": "Describe Trails",
+          "description": "Retrieve the full configuration of one or more CloudTrail trails in the current Region"
+        },
+        {
+          "name": "Get Trail",
+          "description": "Retrieve the settings of a single CloudTrail trail by name or ARN"
+        },
+        {
+          "name": "Get Trail Status",
+          "description": "Check whether a CloudTrail trail is logging and surface its most recent delivery errors"
+        },
+        {
+          "name": "List Trails",
+          "description": "List the ARN, name, and home Region of every CloudTrail trail visible to the account"
+        },
+        {
+          "name": "Get Event Selectors",
+          "description": "Read which management, data, and network activity events a CloudTrail trail is configured to log"
+        },
+        {
+          "name": "Get Insight Selectors",
+          "description": "Read which CloudTrail Insights types are enabled on a trail or event data store"
+        },
+        {
+          "name": "Start Lake Query",
+          "description": "Start a CloudTrail Lake SQL query over an event data store"
+        },
+        {
+          "name": "Describe Lake Query",
+          "description": "Check the status, run time, and scan statistics of a CloudTrail Lake query"
+        },
+        {
+          "name": "Get Lake Query Results",
+          "description": "Fetch a page of result rows from a finished CloudTrail Lake query"
+        },
+        {
+          "name": "Cancel Lake Query",
+          "description": "Cancel a running CloudTrail Lake query"
+        },
+        {
+          "name": "List Event Data Stores",
+          "description": "List the CloudTrail Lake event data stores in the account for the current Region"
+        },
+        {
+          "name": "Get Event Data Store",
+          "description": "Retrieve the configuration of a single CloudTrail Lake event data store"
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags on CloudTrail trails, event data stores, dashboards, or channels"
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["cloud", "monitoring", "identity"]
+    },
+    {
       "type": "cloudwatch",
       "slug": "cloudwatch",
       "name": "CloudWatch",
@@ -5127,6 +5492,265 @@
       "category": "tools",
       "integrationType": "observability",
       "tags": ["cloud", "monitoring"]
+    },
+    {
+      "type": "coda",
+      "slug": "coda",
+      "name": "Coda",
+      "description": "Read and write Coda docs, pages, tables, and rows",
+      "longDescription": "Integrate Coda (Superhuman Docs) into your workflow with a reusable API-token credential. Create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.",
+      "bgColor": "#FFFFFF",
+      "iconName": "CodaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/coda",
+      "operations": [
+        {
+          "name": "List Docs",
+          "description": "List Coda docs the user has opened, most recently used first, filtered by search, owner, publishing, stars, workspace, folder, or source doc"
+        },
+        {
+          "name": "Get Doc",
+          "description": "Get metadata for a Coda doc, including its owner, workspace, folder, size, and publishing settings"
+        },
+        {
+          "name": "Create Doc",
+          "description": "Create a Coda doc, optionally copying an existing doc and setting up its first page with Markdown, HTML, an embed, or a sync page. Requires Doc Maker access in the workspace."
+        },
+        {
+          "name": "Update Doc",
+          "description": "Rename a Coda doc or change its icon. Renaming requires Doc Maker access in the workspace."
+        },
+        {
+          "name": "Delete Doc",
+          "description": "Delete a Coda doc"
+        },
+        {
+          "name": "Publish Doc",
+          "description": "Publish a Coda doc or update its publishing settings: URL slug, discoverability, categories, and interaction mode. The doc owner needs a Coda maker profile."
+        },
+        {
+          "name": "Unpublish Doc",
+          "description": "Unpublish a Coda doc"
+        },
+        {
+          "name": "List Doc Categories",
+          "description": "List the categories that can be applied to a published Coda doc"
+        },
+        {
+          "name": "List Custom Domains",
+          "description": "List the custom domains connected to a published Coda doc and their setup status"
+        },
+        {
+          "name": "Add Custom Domain",
+          "description": "Connect a custom domain to a published Coda doc. Requires a Coda plan with custom domains."
+        },
+        {
+          "name": "Delete Custom Domain",
+          "description": "Remove a custom domain from a published Coda doc"
+        },
+        {
+          "name": "Get Custom Domain Provider",
+          "description": "Look up the DNS provider (GoDaddy, Namecheap, Hover, Network Solutions, Google Domains, or Other) of a custom domain"
+        },
+        {
+          "name": "List Permissions",
+          "description": "List who a Coda doc is shared with and their access levels"
+        },
+        {
+          "name": "Share Doc",
+          "description": "Share a Coda doc with a user, group, domain, workspace, or anyone with the link. Sharing with an email sends a notification unless suppressed."
+        },
+        {
+          "name": "Remove Permission",
+          "description": "Revoke a sharing permission on a Coda doc"
+        },
+        {
+          "name": "Search Users and Groups",
+          "description": "Search for users and groups a Coda doc can be shared with (up to 20 of each). Returns nothing without a query."
+        },
+        {
+          "name": "Get Sharing Metadata",
+          "description": "Check whether the connected user can share or copy a Coda doc, and whether they can share it with the workspace or organization"
+        },
+        {
+          "name": "Get Sharing Settings",
+          "description": "Get the sharing settings of a Coda doc"
+        },
+        {
+          "name": "Update Sharing Settings",
+          "description": "Update who can change permissions, copy, or request edit access on a Coda doc; unset settings are left unchanged"
+        },
+        {
+          "name": "List Pages",
+          "description": "List the pages in a Coda doc, including their hierarchy"
+        },
+        {
+          "name": "Get Page",
+          "description": "Get metadata for a page in a Coda doc"
+        },
+        {
+          "name": "Create Page",
+          "description": "Create a page in a Coda doc, optionally as a subpage, with Markdown or HTML content, a full-page embed, or a sync page from another doc. The page is created asynchronously. Requires Doc Maker access."
+        },
+        {
+          "name": "Update Page",
+          "description": "Update a Coda page: rename it, change its subtitle, icon, cover, or visibility, and append, prepend, or replace content with Markdown or HTML. Applied asynchronously."
+        },
+        {
+          "name": "Delete Page",
+          "description": "Delete a page from a Coda doc. Applied asynchronously."
+        },
+        {
+          "name": "Get Page Content",
+          "description": "Read the content of a Coda canvas page as plain-text lines with their styles (headings, paragraphs, lists, quotes, code) and element IDs"
+        },
+        {
+          "name": "Delete Page Content",
+          "description": "Delete specific content elements from a Coda page, or all of its content when no element IDs are given. Applied asynchronously."
+        },
+        {
+          "name": "Export Page",
+          "description": "Start exporting a Coda page as HTML or Markdown. Poll Get Page Export Status with the returned export ID for the download link."
+        },
+        {
+          "name": "Get Page Export Status",
+          "description": "Check a Coda page export and get its download link once complete. Download links expire shortly after they are issued."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables and views in a Coda doc"
+        },
+        {
+          "name": "Get Table",
+          "description": "Get details about a table or view in a Coda doc, including its row count, sorts, layout, and filter"
+        },
+        {
+          "name": "List Columns",
+          "description": "List the columns of a Coda table with their IDs, formats, and formulas. Use column IDs when reading and writing rows."
+        },
+        {
+          "name": "Get Column",
+          "description": "Get details about a column in a Coda table, including its full format settings"
+        },
+        {
+          "name": "List Rows",
+          "description": "List rows in a Coda table or view, optionally filtered by a column value, sorted, or limited to rows changed since a sync token"
+        },
+        {
+          "name": "Get Row",
+          "description": "Get a single row from a Coda table, including all of its cell values"
+        },
+        {
+          "name": "Insert or Upsert Rows",
+          "description": "Insert rows into a Coda base table, or update matching rows when key columns are given. Only works on base tables, not views. Applied asynchronously."
+        },
+        {
+          "name": "Update Row",
+          "description": "Update cell values in a row of a Coda table. Applied asynchronously."
+        },
+        {
+          "name": "Delete Row",
+          "description": "Delete a row from a Coda table or view. Applied asynchronously."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete multiple rows from a Coda table or view by ID. Applied asynchronously."
+        },
+        {
+          "name": "Push Button",
+          "description": "Push a button column on a row of a Coda table, running its action. The button can perform any action in the doc."
+        },
+        {
+          "name": "List Formulas",
+          "description": "List the named formulas in a Coda doc"
+        },
+        {
+          "name": "Get Formula",
+          "description": "Get the current computed value of a named formula in a Coda doc"
+        },
+        {
+          "name": "List Controls",
+          "description": "List the controls (sliders, selects, checkboxes, date pickers, buttons, etc.) in a Coda doc"
+        },
+        {
+          "name": "Get Control",
+          "description": "Get the type and current value of a control in a Coda doc"
+        },
+        {
+          "name": "Trigger Automation",
+          "description": "Trigger a webhook-invoked automation in a Coda doc, optionally passing a JSON payload the automation can read"
+        },
+        {
+          "name": "List Folders",
+          "description": "List the Coda folders the user can access, optionally within one workspace"
+        },
+        {
+          "name": "Get Folder",
+          "description": "Get details about a Coda folder"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a folder in a Coda workspace"
+        },
+        {
+          "name": "Update Folder",
+          "description": "Rename a Coda folder or change its description. Coda can return the folder as it was before the change; read it again to confirm."
+        },
+        {
+          "name": "Delete Folder",
+          "description": "Delete an empty Coda folder (it must contain no docs)"
+        },
+        {
+          "name": "List Subfolders",
+          "description": "List the direct subfolders of a Coda folder. Subfolders you cannot access but manage the parent of are returned with only an ID and restricted visibility."
+        },
+        {
+          "name": "List Workspace Members",
+          "description": "List the members of a Coda workspace with their roles and doc activity, requesting user first. The workspace must belong to an organization."
+        },
+        {
+          "name": "Change User Role",
+          "description": "Change the workspace role of a Coda user. Requires Admin access in a workspace that belongs to an organization."
+        },
+        {
+          "name": "List Workspace Role Activity",
+          "description": "Get monthly counts of active and inactive Admins, Doc Makers, and Editors in a workspace. The workspace must belong to an organization."
+        },
+        {
+          "name": "List Doc Analytics",
+          "description": "Get per-day or cumulative analytics (views, copies, likes, sessions by device, AI credits) for Coda docs"
+        },
+        {
+          "name": "List Page Analytics",
+          "description": "Get daily analytics (views, sessions, users, time viewed) for each page of a Coda doc. Only available for docs in Enterprise workspaces."
+        },
+        {
+          "name": "Get Doc Analytics Summary",
+          "description": "Get the total number of sessions across the Coda docs the user can access"
+        },
+        {
+          "name": "Get Analytics Last Updated",
+          "description": "Get the dates (Pacific time) Coda analytics were last refreshed, to know how current analytics data is"
+        },
+        {
+          "name": "Resolve Browser Link",
+          "description": "Resolve a Coda browser URL (doc, page, table, row, etc.) into its resource type and ID for use in other Coda operations"
+        },
+        {
+          "name": "Get Mutation Status",
+          "description": "Check whether a queued Coda change (row, page, publish, or automation request) has been applied. Status is kept for about a day."
+        },
+        {
+          "name": "Get Current User",
+          "description": "Get the user and default workspace behind the connected Coda API token"
+        }
+      ],
+      "operationCount": 60,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["note-taking", "knowledge-base", "spreadsheet", "project-management", "automation"]
     },
     {
       "type": "codepipeline",
@@ -6009,8 +6633,8 @@
       "type": "databricks",
       "slug": "databricks",
       "name": "Databricks",
-      "description": "Run SQL queries and manage jobs on Databricks",
-      "longDescription": "Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.",
+      "description": "Run SQL, manage jobs, and ask Genie agents on Databricks",
+      "longDescription": "Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Ask Genie spaces (Genie agents) questions in natural language and get back answers, the generated SQL, result rows, and charts, continuing a conversation across follow-ups, or run Genie agent mode for multi-step research reports. Requires a Personal Access Token and workspace host URL.",
       "bgColor": "#F9F7F4",
       "iconName": "DatabricksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/databricks",
@@ -6062,9 +6686,65 @@
         {
           "name": "Get Cluster",
           "description": "Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID."
+        },
+        {
+          "name": "Ask Genie",
+          "description": "Ask a Databricks Genie space a question in natural language and wait for the answer. Starts a new conversation, or continues an existing one when a conversation ID is given. Returns the text answer, the SQL Genie generated, and the query result rows."
+        },
+        {
+          "name": "Get Genie Message",
+          "description": "Get a Genie message's status and answer, including the generated SQL, visualizations, and suggested follow-up questions."
+        },
+        {
+          "name": "List Genie Messages",
+          "description": "List the messages in a Genie conversation with their answers and generated SQL, for example to replay a conversation history."
+        },
+        {
+          "name": "Get Genie Query Result",
+          "description": "Get the rows returned by the SQL query Genie generated for a message. Available once the message is EXECUTING_QUERY or COMPLETED."
+        },
+        {
+          "name": "Execute Genie Query",
+          "description": "Re-run the SQL query Genie generated for a message. Use this when the message's query result has expired (status QUERY_RESULT_EXPIRED). If the returned status is PENDING or RUNNING, fetch the rows afterwards with Get Genie Query Result."
+        },
+        {
+          "name": "Download Genie Visualization",
+          "description": "Download a chart Genie generated as a PNG image, for example to post it to Slack. The message must be COMPLETED and asked with visualization enabled. Not supported on Private Link workspaces."
+        },
+        {
+          "name": "Send Genie Feedback",
+          "description": "Rate a Genie answer as positive or negative, with an optional comment. Space authors use this feedback to improve the space's instructions."
+        },
+        {
+          "name": "Delete Genie Message",
+          "description": "Delete a message from a Genie conversation."
+        },
+        {
+          "name": "List Genie Conversations",
+          "description": "List conversations in a Genie space, including whether each is a chat-mode or agent-mode conversation. By default only your own conversations are returned."
+        },
+        {
+          "name": "Delete Genie Conversation",
+          "description": "Delete a Genie conversation you no longer need."
+        },
+        {
+          "name": "List Genie Spaces",
+          "description": "List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question."
+        },
+        {
+          "name": "Get Genie Space",
+          "description": "Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions)."
+        },
+        {
+          "name": "Ask Genie Agent",
+          "description": "Ask a Genie agent a question in agent mode, where Genie plans multi-step research, runs several SQL queries, and writes a report with citations. Waits for the final report. Starts a new agent-mode conversation, or continues one when a conversation ID is given. Agent mode is in preview and must be enabled on the workspace."
+        },
+        {
+          "name": "List Genie Agent Items",
+          "description": "List an agent-mode conversation's full history in order: questions, reasoning, SQL calls, query results, and reports. Agent mode is in preview and must be enabled on the workspace."
         }
       ],
-      "operationCount": 12,
+      "operationCount": 26,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -6731,7 +7411,7 @@
       "tags": ["monitoring", "incident-management"]
     },
     {
-      "type": "dropbox",
+      "type": "dropbox_v2",
       "slug": "dropbox",
       "name": "Dropbox",
       "description": "Upload, download, share, and manage files in Dropbox",
@@ -6857,7 +7537,7 @@
       "tags": ["llm", "agentic", "automation"]
     },
     {
-      "type": "dub",
+      "type": "dub_v2",
       "slug": "dub",
       "name": "Dub",
       "description": "Link management with Dub",
@@ -6952,8 +7632,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "DuckDuckGoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/duckduckgo",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "DuckDuckGo Search",
+          "description": "Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, and related topics for your query. Free to use without an API key."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "none",
@@ -7460,12 +8145,37 @@
       "slug": "embeddings",
       "name": "Embeddings",
       "description": "Generate embeddings",
-      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.",
+      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.",
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "OpenAI Embeddings",
+          "description": "Generate embeddings from text using OpenAI's embedding models"
+        },
+        {
+          "name": "OpenRouter Embeddings",
+          "description": "Generate embeddings through OpenRouter"
+        },
+        {
+          "name": "Gemini Embeddings",
+          "description": "Generate embeddings from text using Google's Gemini embedding models"
+        },
+        {
+          "name": "Cohere Embeddings",
+          "description": "Generate embeddings from text using Cohere's embedding models"
+        },
+        {
+          "name": "Mistral Embeddings",
+          "description": "Generate embeddings from text using Mistral's embedding models"
+        },
+        {
+          "name": "Ollama Embeddings",
+          "description": "Generate embeddings on a self-hosted Ollama server"
+        }
+      ],
+      "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -7695,8 +8405,13 @@
       "bgColor": "#000000",
       "iconName": "ExtendIcon",
       "docsUrl": "https://docs.sim.ai/integrations/extend",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Extend Document Parser",
+          "description": "Parse and extract content from documents using Extend AI"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8032,7 +8747,7 @@
       "slug": "github",
       "name": "GitHub",
       "description": "Interact with GitHub or trigger workflows from GitHub events",
-      "longDescription": "Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.",
+      "longDescription": "Read and update GitHub repositories, pull requests, issues, and related records. Use trigger mode to start workflows from GitHub events.",
       "bgColor": "#181C1E",
       "iconName": "GithubIcon",
       "docsUrl": "https://docs.sim.ai/integrations/github",
@@ -8772,11 +9487,11 @@
       "operations": [
         {
           "name": "Send Email",
-          "description": "Send Gmail messages"
+          "description": "Send emails using Gmail"
         },
         {
           "name": "Read Email",
-          "description": "Read Gmail messages"
+          "description": "Read emails from Gmail"
         },
         {
           "name": "Draft Email",
@@ -9205,6 +9920,10 @@
           "description": "Invite attendees to an existing Google Calendar event"
         },
         {
+          "name": "Respond to Invitation (RSVP)",
+          "description": "RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched."
+        },
+        {
           "name": "Check Free/Busy",
           "description": "Query free/busy information for one or more Google Calendars"
         },
@@ -9237,7 +9956,7 @@
           "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 18,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "google_calendar_poller",
@@ -9388,7 +10107,7 @@
       "operations": [
         {
           "name": "List Files",
-          "description": "List Google Drive files"
+          "description": "List files and folders in Google Drive with complete metadata"
         },
         {
           "name": "Search Files",
@@ -9780,8 +10499,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GooglePagespeedIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_pagespeed",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google PageSpeed Analyze",
+          "description": "Analyze a webpage for performance, accessibility, SEO, and best practices using Google PageSpeed Insights."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -9798,8 +10522,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "GoogleIcon",
       "docsUrl": "https://docs.sim.ai/integrations/google_search",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Google Search",
+          "description": "Search the web with the Custom Search API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -10741,10 +11470,6 @@
           "description": "Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions."
         },
         {
-          "name": "Search",
-          "description": "Search repositories in natural language and get relevant code references without generating an answer. Useful for finding specific code locations."
-        },
-        {
           "name": "Index Repository",
           "description": "Submit a repository to be indexed by Greptile. Indexing must complete before the repository can be queried. Small repos take 3-5 minutes, larger ones can take over an hour."
         },
@@ -10753,7 +11478,7 @@
           "description": "Check the indexing status of a repository. Use this to verify if a repository is ready to be queried or to monitor indexing progress."
         }
       ],
-      "operationCount": 4,
+      "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -11170,8 +11895,13 @@
       "bgColor": "#0B0F19",
       "iconName": "HuggingFaceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/huggingface",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Hugging Face Chat",
+          "description": "Generate completions using Hugging Face Inference API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -12605,7 +13335,7 @@
       "tags": ["forms", "automation", "webhooks"]
     },
     {
-      "type": "jupyter",
+      "type": "jupyter_v2",
       "slug": "jupyter",
       "name": "Jupyter",
       "description": "Manage files, notebooks, kernels, and sessions on a Jupyter server",
@@ -13770,8 +14500,13 @@
       "bgColor": "#D6D3C7",
       "iconName": "LinkupIcon",
       "docsUrl": "https://docs.sim.ai/integrations/linkup",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Linkup Search",
+          "description": "Search the web for information using Linkup"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -14581,6 +15316,150 @@
       "tags": ["messaging", "email-marketing"]
     },
     {
+      "type": "manageengine_sdp",
+      "slug": "manageengine-servicedesk-plus",
+      "name": "ManageEngine ServiceDesk Plus",
+      "description": "Manage ServiceDesk Plus Cloud requests, problems, changes, assets, and knowledge base solutions",
+      "longDescription": "Full read and write access to ManageEngine ServiceDesk Plus Cloud: create, search, update and delete requests, problems, changes, assets and knowledge base solutions, and add notes to requests, problems and changes. Supports multi-portal accounts. Connecting requires a Zoho account in the US data center.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ManageEngineIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/manageengine_sdp",
+      "operations": [
+        {
+          "name": "Create Request",
+          "description": "Create a request (ticket) in ManageEngine ServiceDesk Plus Cloud with a subject, description, requester and classification."
+        },
+        {
+          "name": "Get Request",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud request by ID."
+        },
+        {
+          "name": "List Requests",
+          "description": "List ManageEngine ServiceDesk Plus Cloud requests, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Request",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud request: change its status, priority, assignment, classification or description."
+        },
+        {
+          "name": "Delete Request",
+          "description": "Move a ManageEngine ServiceDesk Plus Cloud request to the trash. Deleting a request also removes its notes, tasks and worklogs."
+        },
+        {
+          "name": "Add Request Note",
+          "description": "Add a note to a ManageEngine ServiceDesk Plus Cloud request, optionally making it visible to the requester."
+        },
+        {
+          "name": "List Request Notes",
+          "description": "List the notes on a ManageEngine ServiceDesk Plus Cloud request."
+        },
+        {
+          "name": "Create Problem",
+          "description": "Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, description and classification."
+        },
+        {
+          "name": "Get Problem",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID."
+        },
+        {
+          "name": "List Problems",
+          "description": "List ManageEngine ServiceDesk Plus Cloud problems, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Problem",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, assignment or classification."
+        },
+        {
+          "name": "Delete Problem",
+          "description": "Delete a ManageEngine ServiceDesk Plus Cloud problem and its associated notes."
+        },
+        {
+          "name": "Add Problem Note",
+          "description": "Add a note to a ManageEngine ServiceDesk Plus Cloud problem."
+        },
+        {
+          "name": "List Problem Notes",
+          "description": "List the notes on a ManageEngine ServiceDesk Plus Cloud problem."
+        },
+        {
+          "name": "Create Change",
+          "description": "Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stage, status and schedule."
+        },
+        {
+          "name": "Get Change",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID."
+        },
+        {
+          "name": "List Changes",
+          "description": "List ManageEngine ServiceDesk Plus Cloud changes, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Change",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, reschedule it, or change its assignment. ServiceDesk Plus requires a comment whenever the status changes."
+        },
+        {
+          "name": "Delete Change",
+          "description": "Delete a ManageEngine ServiceDesk Plus Cloud change and its associated notes."
+        },
+        {
+          "name": "Add Change Note",
+          "description": "Add a note to a ManageEngine ServiceDesk Plus Cloud change."
+        },
+        {
+          "name": "List Change Notes",
+          "description": "List the notes on a ManageEngine ServiceDesk Plus Cloud change."
+        },
+        {
+          "name": "Create Asset",
+          "description": "Create an asset in the ManageEngine ServiceDesk Plus Cloud inventory. Requires a name and an existing product."
+        },
+        {
+          "name": "Get Asset",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud asset by ID."
+        },
+        {
+          "name": "List Assets",
+          "description": "List ManageEngine ServiceDesk Plus Cloud assets, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Asset",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud asset: reassign it, change its state, or correct its inventory details."
+        },
+        {
+          "name": "Delete Asset",
+          "description": "Delete an asset from the ManageEngine ServiceDesk Plus Cloud inventory."
+        },
+        {
+          "name": "Create Solution",
+          "description": "Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under an existing topic."
+        },
+        {
+          "name": "Get Solution",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by ID."
+        },
+        {
+          "name": "List Solutions",
+          "description": "Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Solution",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its body, retitle it, or move it to another topic."
+        },
+        {
+          "name": "Delete Solution",
+          "description": "Delete an article from the ManageEngine ServiceDesk Plus Cloud knowledge base, along with its comments and versions."
+        }
+      ],
+      "operationCount": 31,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "manageengine-sdp",
+      "category": "tools",
+      "integrationType": "support",
+      "tags": ["ticketing", "customer-support", "incident-management", "automation"]
+    },
+    {
       "type": "mem0",
       "slug": "mem0",
       "name": "Mem0",
@@ -14612,7 +15491,7 @@
       "tags": ["llm", "knowledge-base", "agentic"]
     },
     {
-      "type": "microsoft_dataverse",
+      "type": "microsoft_dataverse_v2",
       "slug": "microsoft-dataverse",
       "name": "Microsoft Dataverse",
       "description": "Manage records in Microsoft Dataverse tables",
@@ -15228,8 +16107,13 @@
       "bgColor": "#000000",
       "iconName": "MistralIcon",
       "docsUrl": "https://docs.sim.ai/integrations/mistral_parse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Mistral PDF Parser",
+          "description": "Parse PDF documents using Mistral OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -15610,8 +16494,81 @@
       "bgColor": "#FFFFFF",
       "iconName": "NotionIcon",
       "docsUrl": "https://docs.sim.ai/integrations/notion",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Read Page",
+          "description": "Read content from a Notion page"
+        },
+        {
+          "name": "Read Database",
+          "description": "Read database information and structure from Notion"
+        },
+        {
+          "name": "Create Page",
+          "description": "Create a new page in Notion"
+        },
+        {
+          "name": "Update Page Properties",
+          "description": "Update properties of a Notion page"
+        },
+        {
+          "name": "Create Database",
+          "description": "Create a new database in Notion with custom properties"
+        },
+        {
+          "name": "Add Database Row",
+          "description": "Add a new row to a Notion database with specified properties"
+        },
+        {
+          "name": "Append Content",
+          "description": "Append content to a Notion page"
+        },
+        {
+          "name": "Append Block Children",
+          "description": "Append new block children (content) to a Notion page or block"
+        },
+        {
+          "name": "Retrieve Block",
+          "description": "Retrieve a single Notion block by its UUID, including its type-specific content"
+        },
+        {
+          "name": "Retrieve Block Children",
+          "description": "Retrieve the block children (content) of a Notion page or block"
+        },
+        {
+          "name": "Update Block",
+          "description": "Update the content or archived state of a single Notion block"
+        },
+        {
+          "name": "Delete Block",
+          "description": "Delete (move to trash) a single Notion block"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Create a comment on a Notion page or within an existing discussion thread"
+        },
+        {
+          "name": "List Comments",
+          "description": "List unresolved comments on a Notion page or block"
+        },
+        {
+          "name": "List Users",
+          "description": "List all users (members and bots) in the Notion workspace"
+        },
+        {
+          "name": "Retrieve User",
+          "description": "Retrieve a single Notion user by their UUID"
+        },
+        {
+          "name": "Query Database",
+          "description": "Query and filter Notion database entries with advanced filtering"
+        },
+        {
+          "name": "Search Workspace",
+          "description": "Search across all pages and databases in Notion workspace"
+        }
+      ],
+      "operationCount": 18,
       "triggers": [
         {
           "id": "notion_page_created",
@@ -16177,6 +17134,73 @@
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["automation", "data-analytics", "payments"]
+    },
+    {
+      "type": "otter",
+      "slug": "otter-ai",
+      "name": "Otter.ai",
+      "description": "Read Otter.ai meeting conversations, transcripts, and summaries",
+      "longDescription": "Integrate Otter.ai into your workflow to list and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OtterIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/otter",
+      "operations": [
+        {
+          "name": "List Conversations",
+          "description": "List Otter conversations for the authenticated user, most recent first, optionally including shared conversations or filtering by channel."
+        },
+        {
+          "name": "Get Conversation",
+          "description": "Get an Otter conversation with its summary and details, plus any requested action items, insights, outline, and transcript."
+        },
+        {
+          "name": "Get Conversation Audio",
+          "description": "Get the MP3 audio download link for an Otter conversation."
+        },
+        {
+          "name": "Import Recording",
+          "description": "Import an audio or video recording into Otter as a new conversation from a publicly reachable file URL."
+        },
+        {
+          "name": "List Channels",
+          "description": "List the Otter channels available to the authenticated user, in alphabetical order."
+        },
+        {
+          "name": "List Channel Members",
+          "description": "List the members of an Otter channel, in alphabetical order."
+        },
+        {
+          "name": "Get Workspace",
+          "description": "Get the Otter workspace of the authenticated user, including its ID, name, owner, member count, handle, and type."
+        },
+        {
+          "name": "List Workspace Conversations",
+          "description": "List every conversation in an Otter workspace, most recent first. Requires an Otter Super Admin API key in a workspace with Super Admin enabled."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [
+        {
+          "id": "otter_conversation_completed",
+          "name": "Otter Conversation Completed",
+          "description": "Trigger workflow when an Otter conversation shared to the webhook source finishes processing"
+        },
+        {
+          "id": "otter_conversation_shared",
+          "name": "Otter Conversation Shared",
+          "description": "Trigger workflow when an existing Otter conversation is shared to the webhook source"
+        },
+        {
+          "id": "otter_webhook",
+          "name": "Otter Webhook",
+          "description": "Trigger workflow on any Otter workspace webhook event"
+        }
+      ],
+      "triggerCount": 3,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["meeting", "note-taking", "speech-to-text"]
     },
     {
       "type": "outlook",
@@ -17189,6 +18213,85 @@
       "tags": ["enrichment", "data-analytics"]
     },
     {
+      "type": "planetscale",
+      "slug": "planetscale",
+      "name": "PlanetScale",
+      "description": "Manage PlanetScale databases, branches, backups, and deploy requests",
+      "longDescription": "Manage PlanetScale databases and branches, create and inspect backups, and create, review, queue, and close Vitess deploy requests. Authenticate with an organization service token. Deploy-request actions require a Vitess database; SQL queries are available through the MySQL and PostgreSQL integrations.",
+      "bgColor": "#111111",
+      "iconName": "PlanetScaleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/planetscale",
+      "operations": [
+        {
+          "name": "List Databases",
+          "description": "List databases"
+        },
+        {
+          "name": "Get Database",
+          "description": "Get a database"
+        },
+        {
+          "name": "List Branches",
+          "description": "List branches"
+        },
+        {
+          "name": "Get Branch",
+          "description": "Get a branch"
+        },
+        {
+          "name": "Create Branch",
+          "description": "Create a branch"
+        },
+        {
+          "name": "Delete Branch",
+          "description": "Delete a branch"
+        },
+        {
+          "name": "List Backups",
+          "description": "List backups"
+        },
+        {
+          "name": "Get Backup",
+          "description": "Get a backup"
+        },
+        {
+          "name": "Create Backup",
+          "description": "Create a backup"
+        },
+        {
+          "name": "List Deploy Requests (Vitess)",
+          "description": "List deploy requests (Vitess only)"
+        },
+        {
+          "name": "Get Deploy Request (Vitess)",
+          "description": "Get a deploy request (Vitess only)"
+        },
+        {
+          "name": "Create Deploy Request (Vitess)",
+          "description": "Create a deploy request (Vitess only)"
+        },
+        {
+          "name": "Review Deploy Request (Vitess)",
+          "description": "Review a deploy request (Vitess only)"
+        },
+        {
+          "name": "Queue Deploy Request (Vitess)",
+          "description": "Queue a deploy request (Vitess only)"
+        },
+        {
+          "name": "Close Deploy Request (Vitess)",
+          "description": "Close a deploy request (Vitess only)"
+        }
+      ],
+      "operationCount": 15,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["cloud", "ci-cd", "automation"]
+    },
+    {
       "type": "polymarket",
       "slug": "polymarket",
       "name": "Polymarket",
@@ -17542,6 +18645,58 @@
       "tags": ["data-analytics", "monitoring", "feature-flags"]
     },
     {
+      "type": "powerbi",
+      "slug": "power-bi",
+      "name": "Power BI",
+      "description": "Query semantic models and manage reports and refreshes",
+      "longDescription": "Connect a home-tenant organizational account through the Power BI Microsoft connection to list named workspaces, inspect reports and semantic models, execute DAX queries, request standard refreshes, and read refresh history. Microsoft Graph connections cannot substitute for this delegated OAuth connection. Self-hosted installations use the shared Microsoft app registration and register /api/auth/oauth2/callback/microsoft-powerbi as a Web redirect URI. Workspace listing supports a result limit, offset, and OData filter; reports and semantic models return flat lists. Read-only models may contain only their ID and name, and paginated reports may omit their semantic-model ID. Missing optional fields are null and do not establish permission or feature availability. Keep results small with summaries or TOPN: provider JSON reads are limited to 20 MiB, and workflow tool responses have a stricter 10 MiB inline budget. My Workspace, cross-tenant guest configuration, Credential Groups, service principals, impersonation, enhanced refresh, report exports, dashboards, and triggers are outside this version.",
+      "bgColor": "#FFFFFF",
+      "iconName": "PowerBIIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/powerbi",
+      "operations": [
+        {
+          "name": "List Workspaces",
+          "description": "List accessible Power BI workspaces with optional OData filtering and pagination."
+        },
+        {
+          "name": "List Reports",
+          "description": "List reports in a Power BI workspace, including paginated reports."
+        },
+        {
+          "name": "Get Report",
+          "description": "Get report metadata from a Power BI workspace."
+        },
+        {
+          "name": "List Semantic Models",
+          "description": "List semantic models in a Power BI workspace; available metadata depends on permissions."
+        },
+        {
+          "name": "Get Semantic Model",
+          "description": "Get semantic model metadata from a Power BI workspace."
+        },
+        {
+          "name": "Execute DAX Query",
+          "description": "Execute one DAX query returning one table. Requires workspace access, Read/Build permissions, and the tenant Execute Queries setting. Reported errors fail the action even with HTTP 200. Direct tool responses retain partial rows and typed errors; failed workflows expose only the standard error output. Sim limits workflow tool responses to 10 MiB; use summaries or TOPN for larger results."
+        },
+        {
+          "name": "Refresh Semantic Model",
+          "description": "Request a standard asynchronous semantic model refresh and return acceptance immediately. Acceptance does not mean completion; use Get Refresh History separately to inspect status. Shared capacity allows eight refresh requests per day, including scheduled refreshes."
+        },
+        {
+          "name": "Get Refresh History",
+          "description": "Get recent semantic model refresh history; requires Write permission on the model. Unknown can mean a refresh is in progress or its completion state is unknown."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-powerbi",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "microsoft-365", "automation"]
+    },
+    {
       "type": "profound",
       "slug": "profound",
       "name": "Profound",
@@ -17716,8 +18871,13 @@
       "bgColor": "#FFFFFF",
       "iconName": "PulseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/pulse",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Pulse Document Parser",
+          "description": "Parse documents (PDF, images, Office docs) using Pulse OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -17844,7 +19004,369 @@
       "tags": ["data-analytics", "enrichment", "document-processing"]
     },
     {
-      "type": "quiver",
+      "type": "quickbooks",
+      "slug": "quickbooks",
+      "name": "QuickBooks",
+      "description": "Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments",
+      "longDescription": "Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.",
+      "bgColor": "#2CA01C",
+      "iconName": "QuickBooksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/quickbooks",
+      "operations": [
+        {
+          "name": "Get Company Info",
+          "description": "Get information about the connected QuickBooks Online company"
+        },
+        {
+          "name": "Read Master Data",
+          "description": "List or read one account, class, customer, department, employee, item, or vendor"
+        },
+        {
+          "name": "Create Customer",
+          "description": "Create a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Customer",
+          "description": "Sparse-update a customer in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Create Employee",
+          "description": "Create a non-payroll employee profile in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Employee",
+          "description": "Read, merge, and full-update a non-payroll employee profile"
+        },
+        {
+          "name": "Create Vendor",
+          "description": "Create a vendor in the connected QuickBooks Online company"
+        },
+        {
+          "name": "Update Vendor",
+          "description": "Read, merge, and full-update a vendor in QuickBooks Online"
+        },
+        {
+          "name": "Create Item",
+          "description": "Create a Service or Non-inventory item in QuickBooks Online"
+        },
+        {
+          "name": "Update Item",
+          "description": "Read, merge, and full-update a Service or Non-inventory item without changing its type"
+        },
+        {
+          "name": "Read Sales Transactions",
+          "description": "List or read one estimate, invoice, sales receipt, payment, credit memo, or refund receipt"
+        },
+        {
+          "name": "Create Estimate",
+          "description": "Create an estimate with bounded item and description lines"
+        },
+        {
+          "name": "Update Estimate",
+          "description": "Sparse-update an estimate using its current sync token"
+        },
+        {
+          "name": "Create Invoice",
+          "description": "Create an invoice without emailing or collecting payment"
+        },
+        {
+          "name": "Update Invoice",
+          "description": "Sparse-update an invoice using its current sync token"
+        },
+        {
+          "name": "Void Invoice",
+          "description": "Void an invoice after explicit confirmation"
+        },
+        {
+          "name": "Create Sales Receipt",
+          "description": "Create a sales receipt for a completed customer sale"
+        },
+        {
+          "name": "Update Sales Receipt",
+          "description": "Sparse-update a sales receipt using its current sync token"
+        },
+        {
+          "name": "Void Sales Receipt",
+          "description": "Void a sales receipt after explicit confirmation"
+        },
+        {
+          "name": "Create Customer Payment",
+          "description": "Record a customer payment with optional bounded invoice allocations"
+        },
+        {
+          "name": "Update Customer Payment",
+          "description": "Read, merge, and full-update a customer payment using its current sync token"
+        },
+        {
+          "name": "Void Customer Payment",
+          "description": "Void a customer payment after explicit confirmation"
+        },
+        {
+          "name": "Create Credit Memo",
+          "description": "Create a customer credit memo with bounded sales lines"
+        },
+        {
+          "name": "Update Credit Memo",
+          "description": "Read, merge, and full-update a credit memo using its current sync token"
+        },
+        {
+          "name": "Create Refund Receipt",
+          "description": "Create a customer refund receipt against a required deposit account"
+        },
+        {
+          "name": "Update Refund Receipt",
+          "description": "Sparse-update a refund receipt using its current sync token"
+        },
+        {
+          "name": "Read Purchasing Transactions",
+          "description": "List or read one purchase order, bill, bill payment, vendor credit, or purchase"
+        },
+        {
+          "name": "Create Purchase Order",
+          "description": "Create a purchase order with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase Order",
+          "description": "Read, merge, and full-update purchase-order header fields"
+        },
+        {
+          "name": "Create Bill",
+          "description": "Create a vendor bill with optional Purchase Order line links without paying it"
+        },
+        {
+          "name": "Update Bill",
+          "description": "Read, merge, and full-update bill header fields using its current sync token"
+        },
+        {
+          "name": "Create Bill Payment",
+          "description": "Record a check or credit-card payment allocated to one or more bills"
+        },
+        {
+          "name": "Update Bill Payment",
+          "description": "Read, merge, and full-update a BillPayment without changing allocations"
+        },
+        {
+          "name": "Void Bill Payment",
+          "description": "Void a bill payment after explicit confirmation"
+        },
+        {
+          "name": "Create Vendor Credit",
+          "description": "Create a vendor credit without applying it to a bill"
+        },
+        {
+          "name": "Update Vendor Credit",
+          "description": "Read, merge, and full-update vendor-credit header fields"
+        },
+        {
+          "name": "Create Purchase or Expense",
+          "description": "Record a cash, check, or credit-card purchase with bounded expense lines"
+        },
+        {
+          "name": "Update Purchase or Expense",
+          "description": "Read, merge, and full-update purchase header fields without changing lines"
+        },
+        {
+          "name": "Read Accounting Transactions",
+          "description": "List or read one journal entry, deposit, or transfer"
+        },
+        {
+          "name": "Create Journal Entry",
+          "description": "Post a balanced journal entry after explicit confirmation"
+        },
+        {
+          "name": "Update Journal Entry",
+          "description": "Sparse-update journal-entry header fields after explicit confirmation"
+        },
+        {
+          "name": "Create Deposit",
+          "description": "Create a deposit with bounded account lines"
+        },
+        {
+          "name": "Update Deposit",
+          "description": "Sparse-update deposit header fields using the current sync token and destination account"
+        },
+        {
+          "name": "Run Financial Report",
+          "description": "Run a fixed QuickBooks financial report with verified accountant-focused filters"
+        },
+        {
+          "name": "Email Transaction",
+          "description": "Send a supported QuickBooks transaction by email. This causes an external email and Intuit limits sandbox email delivery."
+        },
+        {
+          "name": "Download Transaction PDF",
+          "description": "Download a supported QuickBooks transaction as a bounded PDF file"
+        },
+        {
+          "name": "Read Attachments",
+          "description": "List attachment metadata for a fixed QuickBooks entity or read one attachment by ID"
+        },
+        {
+          "name": "Add Attachment",
+          "description": "Attach one supported file or one note to a fixed QuickBooks entity"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a QuickBooks file attachment as a stored Sim file"
+        }
+      ],
+      "operationCount": 49,
+      "triggers": [
+        {
+          "id": "quickbooks_invoice_events",
+          "name": "QuickBooks Invoice Events",
+          "description": "Trigger when selected Invoice events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_customer_events",
+          "name": "QuickBooks Customer Events",
+          "description": "Trigger when selected Customer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_estimate_events",
+          "name": "QuickBooks Estimate Events",
+          "description": "Trigger when selected Estimate events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_payment_events",
+          "name": "QuickBooks Payment Events",
+          "description": "Trigger when selected Payment events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_credit_memo_events",
+          "name": "QuickBooks Credit Memo Events",
+          "description": "Trigger when selected Credit Memo events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_refund_receipt_events",
+          "name": "QuickBooks Refund Receipt Events",
+          "description": "Trigger when selected Refund Receipt events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_sales_receipt_events",
+          "name": "QuickBooks Sales Receipt Events",
+          "description": "Trigger when selected Sales Receipt events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_vendor_events",
+          "name": "QuickBooks Vendor Events",
+          "description": "Trigger when selected Vendor events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_bill_events",
+          "name": "QuickBooks Bill Events",
+          "description": "Trigger when selected Bill events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_bill_payment_events",
+          "name": "QuickBooks Bill Payment Events",
+          "description": "Trigger when selected Bill Payment events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_purchase_order_events",
+          "name": "QuickBooks Purchase Order Events",
+          "description": "Trigger when selected Purchase Order events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_purchase_events",
+          "name": "QuickBooks Purchase Events",
+          "description": "Trigger when selected Purchase events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_vendor_credit_events",
+          "name": "QuickBooks Vendor Credit Events",
+          "description": "Trigger when selected Vendor Credit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_deposit_events",
+          "name": "QuickBooks Deposit Events",
+          "description": "Trigger when selected Deposit events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_entry_events",
+          "name": "QuickBooks Journal Entry Events",
+          "description": "Trigger when selected Journal Entry events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_transfer_events",
+          "name": "QuickBooks Transfer Events",
+          "description": "Trigger when selected Transfer events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_item_events",
+          "name": "QuickBooks Item Events",
+          "description": "Trigger when selected Item events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_employee_events",
+          "name": "QuickBooks Employee Events",
+          "description": "Trigger when selected Employee events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_time_activity_events",
+          "name": "QuickBooks Time Activity Events",
+          "description": "Trigger when selected Time Activity events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_account_events",
+          "name": "QuickBooks Account Events",
+          "description": "Trigger when selected Account events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_budget_events",
+          "name": "QuickBooks Budget Events",
+          "description": "Trigger when selected Budget events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_class_events",
+          "name": "QuickBooks Class Events",
+          "description": "Trigger when selected Class events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_currency_events",
+          "name": "QuickBooks Currency Events",
+          "description": "Trigger when selected Currency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_department_events",
+          "name": "QuickBooks Department Events",
+          "description": "Trigger when selected Department events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_journal_code_events",
+          "name": "QuickBooks Journal Code Events",
+          "description": "Trigger when selected Journal Code events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_payment_method_events",
+          "name": "QuickBooks Payment Method Events",
+          "description": "Trigger when selected Payment Method events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_preferences_updated",
+          "name": "QuickBooks Preferences Updated",
+          "description": "Trigger when QuickBooks Preferences are updated"
+        },
+        {
+          "id": "quickbooks_tax_agency_events",
+          "name": "QuickBooks Tax Agency Events",
+          "description": "Trigger when selected Tax Agency events occur in QuickBooks"
+        },
+        {
+          "id": "quickbooks_term_events",
+          "name": "QuickBooks Term Events",
+          "description": "Trigger when selected Term events occur in QuickBooks"
+        }
+      ],
+      "triggerCount": 29,
+      "authType": "oauth",
+      "oauthServiceId": "quickbooks",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "automation", "data-analytics"]
+    },
+    {
+      "type": "quiver_v2",
       "slug": "quiver",
       "name": "Quiver",
       "description": "Generate and vectorize SVGs",
@@ -18455,8 +19977,13 @@
       "bgColor": "#5c0c5c",
       "iconName": "ReductoIcon",
       "docsUrl": "https://docs.sim.ai/integrations/reducto",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Reducto PDF Parser",
+          "description": "Parse PDF documents using Reducto OCR API"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -19588,7 +21115,7 @@
       "slug": "sailpoint",
       "name": "SailPoint",
       "description": "Govern identities and access in SailPoint Identity Security Cloud",
-      "longDescription": "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes include sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:access-request-config:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally use idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation and entitlement request configuration, idn:campaign:manage for certification decisions and sign-off, the access-request scopes listed by SailPoint for request submission, idn:access-request:create for account-selection discovery, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
+      "longDescription": "Connect SailPoint Identity Security Cloud with a Personal Access Token to search identity-governance data, manage access requests and approvals, review certifications, and import source data. The token owner and scopes determine the operations available to the integration.",
       "bgColor": "#FFFFFF",
       "iconName": "SailPointIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sailpoint",
@@ -20277,7 +21804,7 @@
       "slug": "sap-s4hana",
       "name": "SAP S4HANA",
       "description": "Read and write SAP S4HANA Cloud business data via OData",
-      "longDescription": "Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.",
+      "longDescription": "Connect SAP S4HANA Cloud Public Edition, Cloud Private Edition, or an on-premise tenant using the deployment and authentication settings for that tenant. Read and manage business records through the listed OData operations.",
       "bgColor": "#FFFFFF",
       "iconName": "SapS4HanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sap_s4hana",
@@ -20877,8 +22404,13 @@
       "bgColor": "#2B3543",
       "iconName": "SerperIcon",
       "docsUrl": "https://docs.sim.ai/integrations/serper",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Web Search",
+          "description": "A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, images, videos, and shopping. Returns comprehensive results including organic results, knowledge graph, answer box, people also ask, related searches, and top stories."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -20887,7 +22419,7 @@
       "tags": ["web-scraping", "seo"]
     },
     {
-      "type": "servicenow",
+      "type": "servicenow_v2",
       "slug": "servicenow",
       "name": "ServiceNow",
       "description": "Create, read, update, and delete ServiceNow records",
@@ -21072,7 +22604,7 @@
       "tags": ["customer-support", "ticketing", "incident-management"]
     },
     {
-      "type": "sftp",
+      "type": "sftp_v2",
       "slug": "sftp",
       "name": "SFTP",
       "description": "Transfer files via SFTP (SSH File Transfer Protocol)",
@@ -21384,8 +22916,8 @@
       "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
-      "description": "Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, and canvases",
-      "longDescription": "Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.",
+      "description": "Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions",
+      "longDescription": "Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.",
       "bgColor": "#611f69",
       "iconName": "SlackIcon",
       "docsUrl": "https://docs.sim.ai/integrations/slack",
@@ -21452,7 +22984,7 @@
         },
         {
           "name": "List Channels",
-          "description": "List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages."
+          "description": "List one page of accessible public and private Slack channels. Pass the returned nextCursor as cursor to fetch the next page."
         },
         {
           "name": "List Channel Members",
@@ -21519,6 +23051,38 @@
           "description": "Delete a Slack canvas by its canvas ID"
         },
         {
+          "name": "Create List",
+          "description": "Create a Slack List with an optional column schema. Requires a paid Slack plan."
+        },
+        {
+          "name": "Update List",
+          "description": "Update a Slack List name, description, or task tracking fields."
+        },
+        {
+          "name": "Share List",
+          "description": "Grant users or channels access to a Slack List. Provide exactly one of userIds or channelIds. Read allows viewing, write allows editing, and owner grants ownership to users only; only a current owner can grant ownership."
+        },
+        {
+          "name": "Read List Items",
+          "description": "Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination."
+        },
+        {
+          "name": "Get List Item",
+          "description": "Read a Slack List row and its parent List column schema."
+        },
+        {
+          "name": "Create List Item",
+          "description": "Create a Slack List row using real column IDs and typed cell values. Text columns require rich_text, not text."
+        },
+        {
+          "name": "Update List Items",
+          "description": "Update cells across Slack List rows. Each cell requires row_id, column_id, and one typed value. Use empty arrays to clear array-valued cells, or false to clear a checkbox."
+        },
+        {
+          "name": "Delete List Item",
+          "description": "Delete a row from an existing Slack List."
+        },
+        {
           "name": "Create Conversation",
           "description": "Create a new public or private channel in a Slack workspace."
         },
@@ -21569,9 +23133,177 @@
         {
           "name": "Set Conversation Purpose",
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
+        },
+        {
+          "name": "Revoke List Access",
+          "description": "Remove access to a Slack List for either users or channels."
+        },
+        {
+          "name": "Start List Export",
+          "description": "Start an asynchronous CSV or JSON List export. Use the returned job_id with Get List Export and the same format options."
+        },
+        {
+          "name": "Get List Export",
+          "description": "Read a List export job status and its download URL when ready. Format, Include Threads, and Include Attachments must match Start List Export."
+        },
+        {
+          "name": "Delete List Items",
+          "description": "Delete multiple rows from a Slack List in one call."
+        },
+        {
+          "name": "Share Canvas",
+          "description": "Change access for users or regular channels on a standalone canvas. For sharing, first send the canvas link in Slack to the target. Channel resource canvases cannot be changed this way."
+        },
+        {
+          "name": "Revoke Canvas Access",
+          "description": "Remove user or regular-channel access to a standalone canvas. Channel-granted access must be revoked at the channel level."
+        },
+        {
+          "name": "Join Conversation",
+          "description": "Join a public Slack channel as the authenticated bot."
+        },
+        {
+          "name": "Leave Conversation",
+          "description": "Leave a Slack channel as the authenticated identity."
+        },
+        {
+          "name": "Remove User from Conversation",
+          "description": "Remove a user from a Slack conversation, subject to workspace permissions."
+        },
+        {
+          "name": "Unarchive Conversation",
+          "description": "Restore an archived Slack channel."
+        },
+        {
+          "name": "Close Conversation",
+          "description": "Close a direct message or group direct message for the authenticated identity."
+        },
+        {
+          "name": "Mark Conversation Read",
+          "description": "Move the authenticated identity’s read cursor to a message timestamp."
+        },
+        {
+          "name": "Open Conversation",
+          "description": "Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Supply exactly one target; omit the calling user from User IDs."
+        },
+        {
+          "name": "Find User by Email",
+          "description": "Find a Slack user by their email address."
+        },
+        {
+          "name": "List User Conversations",
+          "description": "List one page of conversations accessible to the selected user. Continue with response_metadata.next_cursor."
+        },
+        {
+          "name": "Get User Profile",
+          "description": "Read a Slack user’s profile, status, and custom fields. Omit User ID for the authenticated identity."
+        },
+        {
+          "name": "Set Bot Presence",
+          "description": "Set the selected custom bot’s presence to away or automatic. This does not change a workspace member’s presence."
+        },
+        {
+          "name": "Get File Info",
+          "description": "Read Slack file metadata and one page of legacy file comments. Continue with response_metadata.next_cursor."
+        },
+        {
+          "name": "List Files",
+          "description": "List one page of Slack files matching user, channel, type, or timestamp filters. Continue using paging.page and paging.pages."
+        },
+        {
+          "name": "Delete File",
+          "description": "Permanently delete a Slack file the authenticated identity is allowed to delete."
+        },
+        {
+          "name": "Get Reactions",
+          "description": "Get reactions for exactly one message, file, or file comment. Messages require both Channel ID and Message Timestamp."
+        },
+        {
+          "name": "List Reactions",
+          "description": "List one page of items reacted to by a user. Continue with response_metadata.next_cursor."
+        },
+        {
+          "name": "Pin Message",
+          "description": "Pin a message to its Slack conversation."
+        },
+        {
+          "name": "Unpin Message",
+          "description": "Remove a message from its conversation’s pinned items."
+        },
+        {
+          "name": "List Pins",
+          "description": "Read the pinned messages and files in a Slack conversation."
+        },
+        {
+          "name": "Add Bookmark",
+          "description": "Add a link bookmark to a Slack channel."
+        },
+        {
+          "name": "Edit Bookmark",
+          "description": "Change a channel link bookmark’s title, URL, or emoji."
+        },
+        {
+          "name": "List Bookmarks",
+          "description": "Read the bookmarks in a Slack channel."
+        },
+        {
+          "name": "Remove Bookmark",
+          "description": "Remove a bookmark from a Slack channel."
+        },
+        {
+          "name": "Create User Group",
+          "description": "Create a Slack user group with a mention handle and default channels. Requires a paid plan and permission to manage user groups."
+        },
+        {
+          "name": "Update User Group",
+          "description": "Change a Slack user group’s name, handle, description, or default channels. Requires permission to manage user groups."
+        },
+        {
+          "name": "Enable User Group",
+          "description": "Reactivate a disabled Slack user group. Requires permission to manage user groups."
+        },
+        {
+          "name": "Disable User Group",
+          "description": "Disable a Slack user group and remove its members. Requires permission to manage user groups."
+        },
+        {
+          "name": "List User Groups",
+          "description": "Read Slack user groups, optionally including disabled groups, members, and member counts."
+        },
+        {
+          "name": "List User Group Members",
+          "description": "Read the user IDs in a Slack user group."
+        },
+        {
+          "name": "Update User Group Members",
+          "description": "Replace all members of a Slack user group with the supplied user IDs. An empty list is not supported; disable the group instead."
+        },
+        {
+          "name": "Get Do Not Disturb Info",
+          "description": "Read a user’s Do Not Disturb schedule and available snooze information."
+        },
+        {
+          "name": "Get Team Do Not Disturb Info",
+          "description": "Read Do Not Disturb settings for the supplied user IDs."
+        },
+        {
+          "name": "List Custom Emoji",
+          "description": "List workspace custom emoji as names mapped to image URLs or alias references."
+        },
+        {
+          "name": "Get Workspace Info",
+          "description": "Read a Slack workspace’s name, domain, icon, and available organization details."
+        },
+        {
+          "name": "Get Workspace Profile Fields",
+          "description": "Read the workspace’s custom profile field definitions, optionally filtered by visibility."
+        },
+        {
+          "name": "Unfurl Links",
+          "description": "Attach custom previews to links already shared in a message. Configure the relevant unfurl domains in your Slack app."
         }
       ],
-      "operationCount": 45,
+      "operationCount": 95,
       "triggers": [
         {
           "id": "slack_oauth",
@@ -21831,8 +23563,13 @@
       "bgColor": "#2D3748",
       "iconName": "SmtpIcon",
       "docsUrl": "https://docs.sim.ai/integrations/smtp",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "SMTP Send Mail",
+          "description": "Send emails via SMTP server"
+        }
+      ],
+      "operationCount": 1,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -21844,8 +23581,8 @@
       "type": "snowflake",
       "slug": "snowflake",
       "name": "Snowflake",
-      "description": "Query data and manage warehouses and tasks in Snowflake",
-      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.",
+      "description": "Query data, ask Cortex Analyst, and manage warehouses and tasks in Snowflake",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures. Ask Cortex Analyst questions in natural language against a semantic view or model to get generated SQL and, optionally, its results, with multi-turn follow-ups.",
       "bgColor": "#FFFFFF",
       "iconName": "SnowflakeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/snowflake",
@@ -21969,9 +23706,17 @@
         {
           "name": "Call Procedure",
           "description": "Call a stored procedure with explicitly typed Snowflake bindings."
+        },
+        {
+          "name": "Ask Cortex Analyst",
+          "description": "Ask Snowflake Cortex Analyst a question in natural language against a semantic view or semantic model. Returns its interpretation and the generated SQL, or suggested questions when the question is ambiguous, and can run the SQL to return rows. Pass the returned conversation as history to ask a follow-up."
+        },
+        {
+          "name": "Send Cortex Analyst Feedback",
+          "description": "Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedback appears in the Snowsight Cortex Analyst monitoring tab."
         }
       ],
-      "operationCount": 30,
+      "operationCount": 32,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -23105,7 +24850,7 @@
       "tags": ["payments", "subscriptions", "automation"]
     },
     {
-      "type": "ssh",
+      "type": "ssh_v2",
       "slug": "ssh",
       "name": "SSH",
       "description": "Connect to remote servers via SSH",
@@ -23286,15 +25031,15 @@
         },
         {
           "name": "Resume Subscription",
-          "description": "Resume a subscription that was scheduled for cancellation"
+          "description": "Resume a paused subscription"
         },
         {
           "name": "List Subscriptions",
-          "description": "List all subscriptions"
+          "description": "List one page of subscriptions. Follow starting_after while metadata.has_more is true."
         },
         {
           "name": "Search Subscriptions",
-          "description": "Search for subscriptions using query syntax"
+          "description": "Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue."
         },
         {
           "name": "Create Invoice",
@@ -24266,9 +26011,13 @@
         {
           "name": "List Vault Items",
           "description": "List the credentials available from password managers connected to TinyFish, with the URIs an agent run can be scoped to"
+        },
+        {
+          "name": "List Browser Profiles",
+          "description": "List the Browser Context Profiles saved on the TinyFish account, with the ids an agent run can start from to reuse a logged-in session"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 9,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -24584,8 +26333,13 @@
       "bgColor": "#F22F46",
       "iconName": "TwilioIcon",
       "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Twilio Send SMS",
+          "description": "Send text messages to single or multiple recipients using the Twilio API."
+        }
+      ],
+      "operationCount": 1,
       "triggers": [
         {
           "id": "twilio_sms_received",
@@ -26012,6 +27766,57 @@
       "category": "tools",
       "integrationType": "communication",
       "tags": ["marketing", "messaging"]
+    },
+    {
+      "type": "youcom",
+      "slug": "you-com",
+      "name": "You.com",
+      "description": "Search, read, and research the web with You.com",
+      "longDescription": "Integrate You.com into the workflow. Search the web and news with query-relevant highlights or full page content, fetch page contents, get cited answers, run deep or financial research, search images, and check API credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "YouComIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/youcom",
+      "operations": [
+        {
+          "name": "Search",
+          "description": ""
+        },
+        {
+          "name": "Get Contents",
+          "description": ""
+        },
+        {
+          "name": "Answer",
+          "description": ""
+        },
+        {
+          "name": "Research",
+          "description": ""
+        },
+        {
+          "name": "Get Research Task",
+          "description": ""
+        },
+        {
+          "name": "Finance Research",
+          "description": ""
+        },
+        {
+          "name": "Search Images",
+          "description": ""
+        },
+        {
+          "name": "Get Account Balance",
+          "description": ""
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "llm", "agentic"]
     },
     {
       "type": "youtube",

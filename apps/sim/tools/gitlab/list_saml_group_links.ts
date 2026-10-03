@@ -10,6 +10,7 @@ export const gitlabListSamlGroupLinksTool: ToolConfig<
   GitLabListSamlGroupLinksResponse
 > = {
   id: 'gitlab_list_saml_group_links',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List SAML Group Links',
   description:
     'List SAML group links for a GitLab group. Use this to detect whether a group is governed by SAML group sync before provisioning members.',

@@ -20,8 +20,13 @@ import {
   type WorkspaceCredentialRole,
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
+import {
+  type CreateOrganizationCredentialDraftBody,
+  createOrganizationCredentialDraftContract,
+} from '@/lib/api/contracts/organization-credentials'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
+import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
@@ -56,13 +61,18 @@ export function useWorkspaceCredentials(params: {
   })
 }
 
-export function useWorkspaceCredential(credentialId?: string, enabled = true) {
+export function useWorkspaceCredential(
+  credentialId?: string,
+  enabled = true,
+  workspaceId?: string
+) {
   return useQuery<WorkspaceCredential | null>({
-    queryKey: workspaceCredentialKeys.detail(credentialId),
+    queryKey: workspaceCredentialKeys.detailForWorkspace(credentialId, workspaceId),
     queryFn: async ({ signal }) => {
       if (!credentialId) return null
       const data = await requestJson(getWorkspaceCredentialContract, {
         params: { id: credentialId },
+        query: { workspaceId },
         signal,
       })
       return data.credential ?? null
@@ -78,7 +88,13 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
 
 export function useCreateCredentialDraft() {
   return useMutation({
-    mutationFn: async (payload: ContractBodyInput<typeof createCredentialDraftContract>) => {
+    mutationFn: async (
+      payload:
+        | ContractBodyInput<typeof createCredentialDraftContract>
+        | CreateOrganizationCredentialDraftBody
+    ) => {
+      if ('organizationId' in payload)
+        return requestJson(createOrganizationCredentialDraftContract, { body: payload })
       return requestJson(createCredentialDraftContract, { body: payload })
     },
   })
@@ -93,6 +109,7 @@ export function useCreateWorkspaceCredential() {
     },
     onSettled: () =>
       Promise.all([
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
         queryClient.invalidateQueries({
           queryKey: workspaceCredentialKeys.lists(),
         }),
@@ -104,7 +121,7 @@ export function useCreateWorkspaceCredential() {
   })
 }
 
-export function useUpdateWorkspaceCredential() {
+export function useUpdateWorkspaceCredential(workspaceId?: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -120,6 +137,7 @@ export function useUpdateWorkspaceCredential() {
       return requestJson(updateWorkspaceCredentialContract, {
         params: { id: credentialId },
         body,
+        query: { workspaceId },
       })
     },
     onMutate: async (variables) => {
@@ -132,7 +150,7 @@ export function useUpdateWorkspaceCredential() {
         queryKey: workspaceCredentialKeys.lists(),
       })
       const previousDetail = queryClient.getQueryData<WorkspaceCredential | null>(
-        workspaceCredentialKeys.detail(variables.credentialId)
+        workspaceCredentialKeys.detailForWorkspace(variables.credentialId, workspaceId)
       )
 
       /** Applies the in-flight edit to one cached credential. */
@@ -153,7 +171,7 @@ export function useUpdateWorkspaceCredential() {
        * Discard to restore the pre-save value over the committed one.
        */
       queryClient.setQueryData<WorkspaceCredential | null>(
-        workspaceCredentialKeys.detail(variables.credentialId),
+        workspaceCredentialKeys.detailForWorkspace(variables.credentialId, workspaceId),
         (old) => (old ? withEdit(old) : old)
       )
 
@@ -175,13 +193,14 @@ export function useUpdateWorkspaceCredential() {
       }
       if (context?.previousDetail !== undefined) {
         queryClient.setQueryData(
-          workspaceCredentialKeys.detail(variables.credentialId),
+          workspaceCredentialKeys.detailForWorkspace(variables.credentialId, workspaceId),
           context.previousDetail
         )
       }
     },
     onSettled: (_data, _error, variables) =>
       Promise.all([
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
         queryClient.invalidateQueries({
           queryKey: workspaceCredentialKeys.detail(variables.credentialId),
         }),
@@ -196,15 +215,19 @@ export function useUpdateWorkspaceCredential() {
   })
 }
 
-export function useDeleteWorkspaceCredential() {
+export function useDeleteWorkspaceCredential(workspaceId?: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (credentialId: string) => {
-      return requestJson(deleteWorkspaceCredentialContract, { params: { id: credentialId } })
+      return requestJson(deleteWorkspaceCredentialContract, {
+        params: { id: credentialId },
+        query: { workspaceId },
+      })
     },
     onSettled: (_data, _error, credentialId) =>
       Promise.all([
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) }),
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY }),
@@ -319,11 +342,13 @@ export function useSecretUsage({ workspaceId, name, scope }: SecretUsageParams, 
 }
 
 /**
- * References only move when someone edits a workflow, a custom tool, or an MCP server — far
- * less often than the usage trail, which every run appends to. A longer window keeps the scan
- * (which reads every candidate block in the workspace) off the wire on tab switches.
+ * Always stale: the list mirrors the canvas, and the reader has usually just come from editing
+ * it — deleting the block a row pointed at, then returning here to see it gone. A stale window
+ * served the old list for its whole length, and no invalidation can cover a workflow someone
+ * else changed. Cached data still shows while the scan refreshes, so a tab switch costs one
+ * bounded, prefiltered query rather than a blank panel.
  */
-export const SECRET_REFERENCES_STALE_TIME = 5 * 60 * 1000
+export const SECRET_REFERENCES_STALE_TIME = 0
 
 interface SecretReferencesParams {
   workspaceId?: string
@@ -334,6 +359,11 @@ interface SecretReferencesParams {
  * Reads where one secret is wired in. Takes no scope: a reference names a key, not a scope, and
  * the server authorizes against what the name resolves to. Only credential admins of a workspace
  * secret — or the owner of a personal one — are authorized server-side.
+ *
+ * Refetches on window focus even on the web, where the app default leaves it off: the edit that
+ * moves a reference happens on a canvas, often in another tab, and this panel has no other
+ * signal for it. `'always'`, not `true`: `true` refetches only a STALE query, which would tie
+ * this guarantee to `SECRET_REFERENCES_STALE_TIME` staying exactly 0.
  */
 export function useSecretReferences({ workspaceId, name }: SecretReferencesParams, enabled = true) {
   return useQuery({
@@ -345,5 +375,6 @@ export function useSecretReferences({ workspaceId, name }: SecretReferencesParam
       }),
     enabled: Boolean(workspaceId && name) && enabled,
     staleTime: SECRET_REFERENCES_STALE_TIME,
+    refetchOnWindowFocus: 'always',
   })
 }

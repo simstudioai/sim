@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { workspaceCredentialRoleSchema } from '@/lib/api/contracts/credentials'
+import {
+  atlassianProductSchema,
+  quickBooksOAuthClientConfigSchema,
+  workspaceCredentialRoleSchema,
+} from '@/lib/api/contracts/credentials'
 import {
   missingFieldError,
   noInputSchema,
@@ -126,6 +130,10 @@ export const v2OAuthCredentialProviderSchema = z
       .min(1)
       .max(10)
       .describe('Authorization servers available for this OAuth service.'),
+    fields: z
+      .array(v2CredentialProviderFieldSchema)
+      .max(20)
+      .describe('Write-only setup fields required before starting this OAuth flow.'),
   })
   .strict()
 
@@ -142,7 +150,9 @@ export const v2ServiceAccountCredentialProviderSchema = z
     helpText: z.string().min(1).max(2000).optional().describe('Provider-specific setup guidance.'),
     requiresClientGeneratedCredentialId: z
       .boolean()
-      .describe('Whether the caller must generate and submit the credential ID before setup.'),
+      .describe(
+        'Whether the caller must generate and submit the credential ID before setup. False for every provider: credential creation mints an ID when none is supplied, and a Slack custom bot may still send one to configure its Request URL ahead of time.'
+      ),
     fields: z
       .array(v2CredentialProviderFieldSchema)
       .min(1)
@@ -179,8 +189,13 @@ export const v2ListCredentialsQuerySchema = z
     search: v2SearchSchema.describe(
       'Case-insensitive substring match against the credential display name.'
     ),
-    ...v2SortFields(v2CredentialSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-    ...v2PaginationFields({ description: 'Maximum credentials to return per page.' }),
+    ...v2SortFields(v2CredentialSortFields, {
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    }),
+    ...v2PaginationFields({
+      description: 'Maximum credentials to return per page.',
+    }),
   })
   .strict()
 export type V2ListCredentialsQuery = z.output<typeof v2ListCredentialsQuerySchema>
@@ -217,23 +232,111 @@ export const v2ListCredentialProvidersContract = defineRouteContract({
   },
 })
 
-const v2CreateCredentialConnectionByProviderSchema = z
+export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
+  'github-repositories',
+  'google-email',
+  'google-drive',
+  'google-docs',
+  'google-sheets',
+  'google-forms',
+  'google-calendar',
+  'google-contacts',
+  'google-ads',
+  'google-bigquery',
+  'google-tasks',
+  'google-vault',
+  'google-groups',
+  'google-chat',
+  'google-meet',
+  'vertex-ai',
+  'microsoft-ad',
+  'microsoft-dataverse',
+  'microsoft-excel',
+  'microsoft-planner',
+  'microsoft-powerbi',
+  'microsoft-teams',
+  'microsoft-word',
+  'outlook',
+  'onedrive',
+  'sharepoint',
+  'x',
+  'tiktok',
+  'confluence',
+  'jira',
+  'airtable',
+  'bitbucket',
+  'notion',
+  'clickup',
+  'linear',
+  'manageengine-sdp',
+  'monday',
+  'box',
+  'dropbox',
+  'shopify',
+  'slack',
+  'reddit',
+  'wealthbox',
+  'webflow',
+  'trello',
+  'asana',
+  'attio',
+  'calcom',
+  'docusign',
+  'pipedrive',
+  'quickbooks',
+  'hubspot',
+  'linkedin',
+  'instagram',
+  'salesforce',
+  'salesforce-sandbox',
+  'zoho-desk',
+  'zoom',
+  'wordpress',
+  'spotify',
+] as const
+
+const V2_NON_QUICKBOOKS_OAUTH_CONNECTION_PROVIDER_IDS = V2_OAUTH_CONNECTION_PROVIDER_IDS.filter(
+  (
+    providerId
+  ): providerId is Exclude<(typeof V2_OAUTH_CONNECTION_PROVIDER_IDS)[number], 'quickbooks'> =>
+    providerId !== 'quickbooks'
+)
+
+const v2CredentialConnectionBaseFields = {
+  workspaceId: workspaceIdSchema.describe('Workspace that will own the credential.'),
+  displayName: z
+    .string({ error: 'displayName is required' })
+    .trim()
+    .min(1, 'displayName cannot be empty')
+    .max(255, 'displayName must be at most 255 characters')
+    .describe('Name shown for the new credential in Sim.'),
+}
+
+const v2CreateQuickBooksCredentialConnectionSchema = z
   .object({
-    workspaceId: workspaceIdSchema.describe('Workspace that will own the credential.'),
+    ...v2CredentialConnectionBaseFields,
     providerId: z
-      .string({ error: 'providerId is required' })
-      .trim()
-      .min(1, 'providerId cannot be empty')
-      .max(255, 'providerId must be at most 255 characters')
-      .describe('Exact OAuth provider ID returned by credential-provider discovery.'),
-    displayName: z
-      .string({ error: 'displayName is required' })
-      .trim()
-      .min(1, 'displayName cannot be empty')
-      .max(255, 'displayName must be at most 255 characters')
-      .describe('Name shown for the new credential in Sim.'),
+      .literal('quickbooks')
+      .describe('QuickBooks OAuth provider ID returned by credential-provider discovery.'),
+    oauthClientConfig: quickBooksOAuthClientConfigSchema.describe(
+      'Write-only caller-managed Intuit OAuth app configuration.'
+    ),
   })
   .strict()
+
+const v2CreateStandardOAuthCredentialConnectionSchema = z
+  .object({
+    ...v2CredentialConnectionBaseFields,
+    providerId: z
+      .enum(V2_NON_QUICKBOOKS_OAUTH_CONNECTION_PROVIDER_IDS)
+      .describe('Exact OAuth provider ID returned by credential-provider discovery.'),
+  })
+  .strict()
+
+const v2CreateCredentialConnectionByProviderSchema = z.union([
+  v2CreateQuickBooksCredentialConnectionSchema,
+  v2CreateStandardOAuthCredentialConnectionSchema,
+])
 
 const v2CreateCredentialConnectionByCredentialSchema = z
   .object({
@@ -243,7 +346,14 @@ const v2CreateCredentialConnectionByCredentialSchema = z
       .trim()
       .min(1, 'credentialId cannot be empty')
       .max(255, 'credentialId must be at most 255 characters')
-      .describe('Existing OAuth credential to reconnect in place.'),
+      .describe(
+        'Existing OAuth credential to reconnect in place. QuickBooks reconnects also require oauthClientConfig with the Intuit client ID, client secret, environment, and webhook verifier token.'
+      ),
+    oauthClientConfig: quickBooksOAuthClientConfigSchema
+      .optional()
+      .describe(
+        'Write-only Intuit OAuth app configuration. Required when credentialId identifies a QuickBooks credential; omit it for other providers.'
+      ),
   })
   .strict()
 
@@ -308,6 +418,11 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only provider API token.')
       .meta({ writeOnly: true }),
     domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+    atlassianProduct: atlassianProductSchema
+      .optional()
+      .describe(
+        'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.'
+      ),
     signingSecret: z
       .string()
       .trim()
@@ -406,12 +521,18 @@ const v2ServiceAccountCredentialsJsonSchema = z
     try {
       parsed = JSON.parse(value)
     } catch {
-      ctx.addIssue({ code: 'custom', message: 'credentials must be valid JSON' })
+      ctx.addIssue({
+        code: 'custom',
+        message: 'credentials must be valid JSON',
+      })
       return z.NEVER
     }
 
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      ctx.addIssue({ code: 'custom', message: 'credentials must be a JSON object' })
+      ctx.addIssue({
+        code: 'custom',
+        message: 'credentials must be a JSON object',
+      })
       return z.NEVER
     }
 
@@ -419,7 +540,11 @@ const v2ServiceAccountCredentialsJsonSchema = z
     if (result.success) return result.data
 
     for (const issue of result.error.issues) {
-      ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
+      ctx.addIssue({
+        code: 'custom',
+        path: issue.path,
+        message: issue.message,
+      })
     }
     return z.NEVER
   })
@@ -451,7 +576,9 @@ export const v2CreateServiceAccountCredentialBodySchema = z
       .string()
       .uuid('id must be a valid UUID')
       .optional()
-      .describe('Required only when provider discovery requests a client-generated ID.'),
+      .describe(
+        `Optional client-generated credential ID. The server mints one when it is omitted, so no provider requires it. A \`${SLACK_CUSTOM_BOT_PROVIDER_ID}\` credential may supply one so its Slack Request URL, which embeds the ID, can be configured before the credential exists; every other provider ignores it.`
+      ),
     credentials: v2ServiceAccountCredentialsJsonSchema,
   })
   .strict()
@@ -463,13 +590,6 @@ export const v2CreateServiceAccountCredentialBodySchema = z
         message: `Unknown service-account provider: ${body.providerId}`,
       })
       return
-    }
-    if (body.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID && !body.id) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['id'],
-        message: `id is required for ${SLACK_CUSTOM_BOT_PROVIDER_ID} credentials`,
-      })
     }
     for (const field of getServiceAccountRequiredFields(body.providerId)) {
       if (!body.credentials[field]) {
@@ -577,6 +697,11 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only provider API token.')
     .meta({ writeOnly: true }),
   domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+  atlassianProduct: atlassianProductSchema
+    .optional()
+    .describe(
+      'Atlassian product to verify; defaults to Jira on create and preserves the saved product on reconnect.'
+    ),
   signingSecret: z
     .string()
     .trim()

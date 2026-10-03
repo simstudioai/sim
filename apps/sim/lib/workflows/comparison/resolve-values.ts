@@ -8,6 +8,7 @@ import { buildSelectorRawContext, projectSelectorContext } from '@/lib/selectors
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { resolveFolderPathLabel } from '@/lib/workflows/subblocks/display'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { isUuid } from '@/executor/constants'
@@ -136,18 +137,28 @@ function extractMcpToolName(toolId: string): string {
   return withoutPrefix
 }
 
-/**
- * Resolves a subBlock field ID to its human-readable title.
- * Falls back to the raw ID if the block or subBlock is not found.
- */
-export function resolveFieldLabel(blockType: string, subBlockId: string): string {
+const BLOCK_FIELD_LABELS: Record<string, string> = {
+  'data.canonicalModes': 'Field modes',
+  enabled: 'Block enabled',
+  errorEnabled: 'Error handling',
+  advancedMode: 'Advanced mode',
+  triggerMode: 'Trigger mode',
+}
+
+/** Resolves field labels in their block-setting or subblock namespace. */
+export function resolveFieldLabel(
+  blockType: string,
+  subBlockId: string,
+  scope: 'block' | 'subblock' = 'subblock'
+): string {
+  if (scope === 'block') return BLOCK_FIELD_LABELS[subBlockId] ?? formatParameterLabel(subBlockId)
   if (subBlockId.startsWith('data.')) {
     return formatParameterLabel(subBlockId.slice(5))
   }
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return subBlockId
   const subBlockConfig = blockConfig.subBlocks.find((sb) => sb.id === subBlockId)
-  return subBlockConfig?.title ?? subBlockId
+  return subBlockConfig?.title || subBlockId
 }
 
 /**
@@ -261,6 +272,17 @@ export async function resolveValueForDisplay(
     } catch {
       logger.warn('Failed to resolve dropdown display label')
     }
+  }
+
+  /*
+   * A folder picker is in the hydration list but has no selector manifest entry,
+   * so without this it falls through to the generic semantic fallback and a diff
+   * renders both the old and the new path as the same word — hiding the change
+   * it exists to show. Same resolver the canvas card uses, so the two agree.
+   */
+  const folderPathLabel = resolveFolderPathLabel(subBlockConfig, value)
+  if (folderPathLabel) {
+    return { original: value, displayLabel: folderPathLabel, resolved: true }
   }
 
   if (SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlockConfig.type)) {

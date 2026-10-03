@@ -3,11 +3,6 @@ exact = true
 # Supply-chain gate: only install package versions published at least 7 days ago
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
-# @typescript/native-preview stays excluded permanently: it only publishes nightly
-# dev builds, so every version is structurally younger than any age gate.
-minimumReleaseAgeExcludes = [
-  "@typescript/native-preview",
-]
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }

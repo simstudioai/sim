@@ -1,7 +1,14 @@
 import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import type { ApplicationOperation, PrincipalKind } from '@/lib/core/application/operation'
-import { assertOperationCapability } from '@/lib/core/application/operation'
+import type {
+  ApplicationOperation,
+  OAuthOperationPolicy,
+  PrincipalKind,
+} from '@/lib/core/application/operation'
+import {
+  assertOperationCapability,
+  assertOperationOAuthPolicy,
+} from '@/lib/core/application/operation'
 import {
   type ResourcePolicyBinding,
   requireResourcePolicyBinding,
@@ -75,10 +82,12 @@ export function defineWorkspaceOperation<
   const ResourcePolicy extends ResourcePolicyBinding | undefined = undefined,
 >(
   operation: WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
+    OAuthOperationPolicy<PrincipalKinds> &
     WorkspaceApiKeyPrincipalConsistency<Role, PrincipalKinds> &
     DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
     ResourcePolicyOperationConsistency<ResourcePolicy>
 ): WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
+  OAuthOperationPolicy<PrincipalKinds> &
   DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
   ResourcePolicyOperationConsistency<ResourcePolicy> {
   if (operation.principalKinds.length === 0) {
@@ -86,6 +95,10 @@ export function defineWorkspaceOperation<
   }
   if (new Set(operation.principalKinds).size !== operation.principalKinds.length) {
     throw new Error(`Operation ${operation.id} declares duplicate principal kinds`)
+  }
+
+  if (operation.principalKinds.includes('organization_delegated')) {
+    throw new Error(`Workspace operation ${operation.id} cannot accept organization delegation`)
   }
 
   const allowsWorkspaceApiKey = operation.principalKinds.includes('workspace_api_key')
@@ -122,6 +135,7 @@ export function defineWorkspaceOperation<
    * tenants that bought the feature. Named here instead, at definition time.
    */
   assertOperationCapability(operation)
+  assertOperationOAuthPolicy(operation)
 
   Object.freeze(operation.principalKinds)
   if (operation.delegatedServices) Object.freeze(operation.delegatedServices)

@@ -47,7 +47,7 @@ export const discordUnpinMessageTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

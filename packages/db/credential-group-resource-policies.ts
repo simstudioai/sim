@@ -3,6 +3,7 @@ import type { Sql } from 'postgres'
 export const CREDENTIAL_GROUP_POLICY_BATCH_SIZE = 500
 export const CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT = 50
 export const CREDENTIAL_GROUP_POLICY_DOCUMENT_MAX_BYTES = 32 * 1024
+export const ORGANIZATION_ACCOUNT_POLICY_DOCUMENT_MAX_BYTES = 256 * 1024
 
 const ACTOR_ACCESS_SID = 'CredentialGroupActorCredentialAccess'
 const WORKFLOW_ACCESS_SID = 'WorkflowCredentialAccess'
@@ -69,7 +70,8 @@ export interface MissingCredentialGroupPolicyRow {
 
 export interface StoredCredentialGroupPolicyRow {
   id: string
-  workspaceId: string
+  organizationId?: string | null
+  workspaceId: string | null
   resourceId: string
   revision: number
   documentBytes: number
@@ -353,6 +355,93 @@ export function parseCredentialGroupPolicyDocument(
   }
 }
 
+/** Validates the org-only workspace sharing document without importing application code. */
+export function validateOrganizationAccountPolicyDocument(
+  value: unknown,
+  expectedResourceId: string
+): void {
+  const document = requireRecord(value, 'Organization account policy')
+  requireExactKeys(document, ['version', 'resource', 'statements'], 'Organization account policy')
+  if (document.version !== 2) throw new Error('Organization account policy version must be 2')
+  const resource = requireRecord(document.resource, 'Organization account resource')
+  requireExactKeys(resource, ['type', 'id'], 'Organization account resource')
+  if (
+    resource.type !== 'credential_group' ||
+    requireCanonicalId(resource.id, 'Organization account resource ID') !== expectedResourceId
+  )
+    throw new Error('Organization account policy resource does not match its canonical resource')
+  if (!Array.isArray(document.statements) || document.statements.length > 128)
+    throw new Error('Organization account policy has too many statements')
+  const seenStatements = new Set<string>()
+  const allWorkspaces = new Set<string>()
+  const selectedWorkspaces = new Set<string>()
+  for (const value of document.statements) {
+    const statement = requireRecord(value, 'Organization account workspace statement')
+    requireExactKeys(
+      statement,
+      [
+        'sid',
+        'effect',
+        'actions',
+        'principals',
+        ...(statement.condition === undefined ? [] : ['condition']),
+      ],
+      'Organization account workspace statement'
+    )
+    let credentialType: string | undefined
+    if (statement.condition !== undefined) {
+      const condition = requireRecord(statement.condition, 'Credential type condition')
+      requireExactKeys(condition, ['StringEquals'], 'Credential type condition')
+      const equals = requireRecord(condition.StringEquals, 'Credential type StringEquals')
+      requireExactKeys(equals, ['credential_group:CredentialType'], 'Credential type StringEquals')
+      credentialType = requireCanonicalId(
+        equals['credential_group:CredentialType'],
+        'Credential type'
+      )
+      if (!/^(oauth|mcp|personal_token):[a-z][a-z0-9-]*$/.test(credentialType))
+        throw new Error('Invalid credential type')
+    }
+    const sid = credentialType
+      ? `WorkspaceCredentialAccess:${credentialType}`
+      : 'WorkspaceCredentialAccess'
+    if (
+      statement.sid !== sid ||
+      seenStatements.has(sid) ||
+      statement.effect !== 'allow' ||
+      !Array.isArray(statement.actions) ||
+      statement.actions.length !== 1 ||
+      statement.actions[0] !== CREDENTIAL_USE_ACTION
+    )
+      throw new Error('Organization account workspace statement is invalid')
+    seenStatements.add(sid)
+    if (
+      !Array.isArray(statement.principals) ||
+      statement.principals.length < 1 ||
+      statement.principals.length > 1000
+    )
+      throw new Error('Organization account policy supports 1-1000 workspaces')
+    let previous = ''
+    for (const value of statement.principals) {
+      const principal = requireRecord(value, 'Organization account workspace principal')
+      requireExactKeys(
+        principal,
+        ['type', 'workspaceId'],
+        'Organization account workspace principal'
+      )
+      const id = requireCanonicalId(principal.workspaceId, 'Organization account workspace ID')
+      if (principal.type !== 'workspace' || id <= previous)
+        throw new Error('Organization account workspace principals must be unique and sorted')
+      previous = id
+      const workspaces = credentialType ? selectedWorkspaces : allWorkspaces
+      workspaces.add(id)
+    }
+  }
+  if ([...allWorkspaces].some((id) => selectedWorkspaces.has(id)))
+    throw new Error('Workspace has overlapping all and selected grants')
+  if (new Set([...allWorkspaces, ...selectedWorkspaces]).size > 1000)
+    throw new Error('Organization account policy supports at most 1000 workspaces')
+}
+
 function assertPage<T extends { id: string }>(
   rows: T[],
   afterId: string,
@@ -414,16 +503,24 @@ export async function reconcileCredentialGroupResourcePolicies(
       if (!Number.isInteger(row.revision) || row.revision < 1) {
         throw new Error(`Credential Group policy ${row.id} has an invalid revision`)
       }
+      const maxBytes = row.organizationId
+        ? ORGANIZATION_ACCOUNT_POLICY_DOCUMENT_MAX_BYTES
+        : CREDENTIAL_GROUP_POLICY_DOCUMENT_MAX_BYTES
       if (
         !Number.isInteger(row.documentBytes) ||
         row.documentBytes < 0 ||
-        row.documentBytes > CREDENTIAL_GROUP_POLICY_DOCUMENT_MAX_BYTES
+        row.documentBytes > maxBytes
       ) {
-        throw new Error(
-          `Credential Group policy ${row.id} exceeds the ${CREDENTIAL_GROUP_POLICY_DOCUMENT_MAX_BYTES}-byte limit`
-        )
+        throw new Error(`Credential Group policy ${row.id} exceeds the ${maxBytes}-byte limit`)
       }
-      parseCredentialGroupPolicyDocument(row.document, row.resourceId)
+      if (row.organizationId) {
+        if (row.workspaceId)
+          throw new Error('Organization account policy cannot also belong to a workspace')
+        validateOrganizationAccountPolicyDocument(row.document, row.resourceId)
+      } else {
+        if (!row.workspaceId) throw new Error('Credential group policy has no owner')
+        parseCredentialGroupPolicyDocument(row.document, row.resourceId)
+      }
     }
     result.validated += rows.length
     afterId = lastId
@@ -446,6 +543,9 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           AS $$
           BEGIN
             IF TG_OP = 'INSERT' THEN
+              IF NEW."workspace_id" IS NULL THEN
+                RETURN NEW;
+              END IF;
               INSERT INTO "public"."resource_policy" (
                 "id",
                 "workspace_id",
@@ -488,7 +588,7 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
             END IF;
 
             DELETE FROM "public"."resource_policy"
-            WHERE "workspace_id" = OLD."workspace_id"
+            WHERE ("workspace_id" = OLD."workspace_id" OR "organization_id" = OLD."organization_id")
               AND "resource_type" = 'credential_group'
               AND "resource_id" = OLD."id";
             RETURN OLD;
@@ -516,6 +616,7 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           cg.created_by AS "createdBy"
         FROM credential_group cg
         WHERE cg.id > ${afterId}
+          AND cg.workspace_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1
             FROM resource_policy rp
@@ -573,6 +674,7 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
           cg.created_by
         FROM credential_group cg
         WHERE cg.id = ANY(${ids}::text[])
+          AND cg.workspace_id IS NOT NULL
         ON CONFLICT (resource_type, resource_id) DO NOTHING
         RETURNING resource_id AS "resourceId"
       `
@@ -594,7 +696,8 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
             ON rp.resource_type = 'credential_group'
             AND rp.resource_id = cg.id
           WHERE rp.resource_id IS NULL
-            OR rp.workspace_id IS DISTINCT FROM cg.workspace_id
+              OR rp.workspace_id IS DISTINCT FROM cg.workspace_id
+              OR rp.organization_id IS DISTINCT FROM cg.organization_id
 
           UNION ALL
 
@@ -615,11 +718,15 @@ export function createPostgresCredentialGroupPolicyLifecycleStore(
         SELECT
           id,
           workspace_id AS "workspaceId",
+          organization_id AS "organizationId",
           resource_id AS "resourceId",
           revision,
           octet_length(document::text)::integer AS "documentBytes",
           CASE
-            WHEN octet_length(document::text) <= ${CREDENTIAL_GROUP_POLICY_DOCUMENT_MAX_BYTES}
+            WHEN octet_length(document::text) <= CASE
+              WHEN organization_id IS NULL THEN ${CREDENTIAL_GROUP_POLICY_DOCUMENT_MAX_BYTES}::integer
+              ELSE ${ORGANIZATION_ACCOUNT_POLICY_DOCUMENT_MAX_BYTES}::integer
+            END
             THEN document
             ELSE NULL
           END AS document

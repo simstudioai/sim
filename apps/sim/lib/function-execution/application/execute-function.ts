@@ -5,6 +5,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { functionExecutionDelegationPolicy } from '@/lib/function-execution/application/authorization'
 import { functionExecutionOperations } from '@/lib/function-execution/application/operations'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ExecuteFunctionInput {
   workspaceId: string
@@ -12,6 +13,8 @@ export interface ExecuteFunctionInput {
   headers: Headers
   signal?: AbortSignal
   sandboxProfile?: 'mothership'
+  /** Trusted in-process provenance state; never accepted from the Function request body. */
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 /**
@@ -57,6 +60,9 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
       {
         attributedUserId,
         principal,
+        ...(input.resolvedSecretTraceRegistry
+          ? { resolvedSecretTraceRegistry: input.resolvedSecretTraceRegistry }
+          : {}),
         ...(subject?.kind === 'sim_user' ? { fileAccessUserId: subject.userId } : {}),
         ...(input.sandboxProfile ? { sandboxProfile: input.sandboxProfile } : {}),
       }

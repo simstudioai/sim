@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { type WorkspaceMode, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
@@ -18,6 +19,7 @@ import {
   getWorkspaceCreationPolicy,
   WorkspaceCreationCapabilityWithheldError,
   WorkspaceCreationContextChangedError,
+  WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
@@ -86,6 +88,10 @@ export const GET = withRouteHandler(async (request: Request) => {
         })
         return NextResponse.json(refreshedPayload)
       }
+      /** A cached session cookie outlived the account it belongs to. */
+      if (error instanceof WorkspaceOwnerMissingError) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
       throw error
     }
 
@@ -122,7 +128,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const parsed = await parseRequest(createWorkspaceContract, req, {})
     if (!parsed.success) return parsed.response
-    const { name, color, skipDefaultWorkflow } = parsed.data.body
+    const { name, skipDefaultWorkflow } = parsed.data.body
     const activeOrganizationId = getActiveOrganizationId(session)
     const creationPolicy = await getWorkspaceCreationPolicy({
       userId: session.user.id,
@@ -152,11 +158,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       userId: session.user.id,
       name,
       skipDefaultWorkflow,
-      explicitColor: color,
       organizationId: creationPolicy.organizationId,
       workspaceMode: creationPolicy.workspaceMode,
       billedAccountUserId: creationPolicy.billedAccountUserId,
       observedOrganizationId: creationPolicy.observedOrganizationId,
+      governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
     })
 
     captureServerEvent(
@@ -186,7 +192,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       description: `Created workspace "${newWorkspace.name}"`,
       metadata: {
         name: newWorkspace.name,
-        color: newWorkspace.color,
         workspaceMode: newWorkspace.workspaceMode,
         organizationId: newWorkspace.organizationId,
       },
@@ -207,6 +212,24 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         { status: 409 }
       )
     }
+    /** A cached session cookie outlived the account it belongs to. */
+    if (error instanceof WorkspaceOwnerMissingError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    /**
+     * A lock timeout is contention, not a fault: creation serializes on the
+     * organization's mutation locks and now also on `permission_group:<org>`,
+     * so a concurrent create or a permission-group admin write can exhaust the
+     * `lock_timeout` and abort this transaction. Answer 503 like the
+     * permission-group routes do, rather than letting it reach the generic 500
+     * below — the caller should retry, and a 500 tells them the opposite.
+     */
+    if (getPostgresErrorCode(error) === '55P03') {
+      return NextResponse.json(
+        { error: 'This organization is being updated by another request. Please try again.' },
+        { status: 503 }
+      )
+    }
     logger.error('Error creating workspace:', error)
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
@@ -220,6 +243,7 @@ async function createDefaultWorkspace(
     workspaceMode: WorkspaceMode
     billedAccountUserId: string
     observedOrganizationId: string | null
+    governingPermissionGroupOrganizationId: string | null
   }
 ) {
   const firstName = userName?.split(' ')[0] || null
@@ -231,6 +255,7 @@ async function createDefaultWorkspace(
     workspaceMode: creationPolicy.workspaceMode,
     billedAccountUserId: creationPolicy.billedAccountUserId,
     observedOrganizationId: creationPolicy.observedOrganizationId,
+    governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
   })
 }
 

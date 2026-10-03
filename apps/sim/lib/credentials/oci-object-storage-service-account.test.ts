@@ -90,6 +90,7 @@ describe('OCI Object Storage service-account credential', () => {
       {
         type: 'service_account',
         providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+        revokedAt: null,
         encryptedServiceAccountKey: 'ciphertext',
       },
     ])
@@ -122,6 +123,7 @@ describe('OCI Object Storage service-account credential', () => {
       {
         type: 'service_account',
         providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+        revokedAt: null,
         encryptedServiceAccountKey: 'ciphertext',
       },
     ])

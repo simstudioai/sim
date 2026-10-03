@@ -138,7 +138,7 @@ export function InboxTaskList() {
                         {task.subject}
                       </span>
                       {task.hasAttachments && (
-                        <Paperclip className='size-[12px] flex-shrink-0 text-[var(--text-muted)]' />
+                        <Paperclip className='size-[12px] shrink-0 text-[var(--text-muted)]' />
                       )}
                     </div>
                     <span className='truncate text-[var(--text-muted)] text-caption'>
@@ -168,7 +168,7 @@ export function InboxTaskList() {
                         </span>
                       )}
                   </div>
-                  <div className='flex flex-shrink-0 items-center gap-2'>
+                  <div className='flex shrink-0 items-center gap-2'>
                     <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
                       {formatRelativeTime(task.createdAt)}
                     </span>

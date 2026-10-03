@@ -128,6 +128,7 @@ export async function getOciObjectStorageServiceAccountSecret(
     .select({
       type: credential.type,
       providerId: credential.providerId,
+      revokedAt: credential.revokedAt,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
     })
     .from(credential)
@@ -138,6 +139,7 @@ export async function getOciObjectStorageServiceAccountSecret(
     !row ||
     row.type !== 'service_account' ||
     row.providerId !== OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID ||
+    row.revokedAt !== null ||
     !row.encryptedServiceAccountKey
   ) {
     throw new OciObjectStorageCredentialError('OCI Object Storage credential not found')

@@ -1,9 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_CONVERSATIONS, outlookConnectorMeta } from '@/connectors/outlook/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  BoundedLines,
+  CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
   htmlToPlainText,
   isListingScopeUnavailableError,
   listingRequestError,
@@ -563,24 +566,20 @@ function formatConversation(
   const from = formatRecipient(first.from)
   const to = first.toRecipients?.map(formatRecipient).join(', ') || ''
 
-  const lines: string[] = []
-  lines.push(`Subject: ${subject}`)
-  lines.push(`From: ${from}`)
+  const lines = new BoundedLines()
+  lines.push(`Subject: ${subject}`, `From: ${from}`)
   if (to) lines.push(`To: ${to}`)
-  lines.push(`Messages: ${sorted.length}`)
-  lines.push('')
+  lines.push(`Messages: ${sorted.length}`, '')
 
   for (const msg of sorted) {
     const msgFrom = formatRecipient(msg.from)
     const msgDate = msg.receivedDateTime || ''
     const body = extractBodyText(msg.body)
 
-    lines.push(`--- ${msgFrom} (${msgDate}) ---`)
-    lines.push(body.trim())
-    lines.push('')
+    if (!lines.push(`--- ${msgFrom} (${msgDate}) ---`, body.trim(), '')) break
   }
 
-  const content = lines.join('\n').trim()
+  const content = lines.join().trim()
   if (!content) return null
 
   const categories = new Set<string>()
@@ -805,6 +804,7 @@ export const outlookConnector: ConnectorConfig = {
         title: subject,
         content: '',
         contentDeferred: true,
+        estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
         mimeType: 'text/plain',
         sourceUrl,
         contentHash: `outlook:${convId}:${lastDate}`,

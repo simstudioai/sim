@@ -37,16 +37,20 @@ const SELECTOR_PAGE_SIZE = 100
 
 async function prepareCredential(args: ExecuteServerSelectorArgs) {
   const credential = args.credential
+  const credentialId = credential?.organization
+    ? credential.suppliedId
+    : credential?.access?.credentialType === 'service_account'
+      ? credential.access.resolvedCredentialId
+      : undefined
   if (
     !credential ||
     credential.providerId !== 'oci-object-storage-service-account' ||
-    credential.access?.credentialType !== 'service_account' ||
-    !credential.access.resolvedCredentialId
+    !credentialId
   ) {
     throw new SelectorConnectionUnavailableError()
   }
   try {
-    return await getOciObjectStorageServiceAccountSecret(credential.access.resolvedCredentialId)
+    return await getOciObjectStorageServiceAccountSecret(credentialId)
   } catch {
     throw new SelectorConnectionUnavailableError()
   }

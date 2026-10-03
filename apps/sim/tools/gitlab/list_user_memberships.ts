@@ -10,6 +10,7 @@ export const gitlabListUserMembershipsTool: ToolConfig<
   GitLabListUserMembershipsResponse
 > = {
   id: 'gitlab_list_user_memberships',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List User Memberships',
   description:
     "List a user's project and group memberships. Requires an administrator access token (GET /users/:id/memberships is admin-only). For a non-admin path, iterate List Members on each project or group instead.",

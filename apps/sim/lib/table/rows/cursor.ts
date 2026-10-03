@@ -18,6 +18,7 @@
  * {@link assertCursorQueryBinding}.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { canonicalJson, canonicalUnorderedArray, fingerprint } from '@/lib/api/cursor-binding'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type { Filter, Sort, TablePredicate, TableRow, TableRowsCursor } from '@/lib/table/types'
@@ -235,7 +236,7 @@ export function decodeCursor(token: string): {
   } catch {
     invalidCursor()
   }
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     invalidCursor()
   }
 

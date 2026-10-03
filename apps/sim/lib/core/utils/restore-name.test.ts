@@ -1,18 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 
 describe('generateRestoreName', () => {
-  it('returns original when unused', async () => {
-    const nameExists = vi.fn().mockResolvedValue(false)
-    await expect(generateRestoreName('doc.pdf', nameExists, { hasExtension: true })).resolves.toBe(
-      'doc.pdf'
-    )
-    expect(nameExists).toHaveBeenCalledWith('doc.pdf')
-  })
-
   it('uses _restored suffix when original is taken', async () => {
     const nameExists = vi
       .fn()

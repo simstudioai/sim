@@ -29,8 +29,10 @@ export interface ResourcePolicyStatement {
   condition?: ResourcePolicyCondition
 }
 
-export interface ResourcePolicyTarget<ResourceType extends ResourcePolicyResourceType> {
-  workspaceId: string
+export type ResourcePolicyTarget<ResourceType extends ResourcePolicyResourceType> = (
+  | { workspaceId: string; organizationId?: never }
+  | { organizationId: string; workspaceId?: never }
+) & {
   resourceType: ResourceType
   resourceId: string
 }

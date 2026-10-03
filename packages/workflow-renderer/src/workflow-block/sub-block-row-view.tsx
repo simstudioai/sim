@@ -82,7 +82,7 @@ export function SubBlockRowView({
   if (variant === 'meta' && Icon) {
     return (
       <div className='flex min-w-0 items-center gap-2'>
-        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <OverflowSpan
           value={displayValue ?? '-'}
           className={cn(

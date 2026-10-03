@@ -2234,6 +2234,524 @@
       "when": 1788328068201,
       "tag": "0319_permission_aware_knowledge",
       "breakpoints": true
+    },
+    {
+      "idx": 320,
+      "version": "7",
+      "when": 1788384579773,
+      "tag": "0320_striped_shatterstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 321,
+      "version": "7",
+      "when": 1788482043862,
+      "tag": "0321_multi_width_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1788554098115,
+      "tag": "0322_friendly_white_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1788820403571,
+      "tag": "0323_oauth_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1788826234724,
+      "tag": "0324_scim_provisioning",
+      "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1788832902289,
+      "tag": "0325_scim_manual_workspace_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1788853965912,
+      "tag": "0326_enterprise_organization_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1788853965913,
+      "tag": "0327_organization_search_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 328,
+      "version": "7",
+      "when": 1788853965914,
+      "tag": "0328_organization_connected_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 329,
+      "version": "7",
+      "when": 1788902854629,
+      "tag": "0329_oauth_search_resources",
+      "breakpoints": true
+    },
+    {
+      "idx": 330,
+      "version": "7",
+      "when": 1788908598091,
+      "tag": "0330_provider_capacity_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 331,
+      "version": "7",
+      "when": 1788912482786,
+      "tag": "0331_knowledge_base_required_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 332,
+      "version": "7",
+      "when": 1788920388685,
+      "tag": "0332_slack_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 333,
+      "version": "7",
+      "when": 1788973930563,
+      "tag": "0333_outbox_ready_type_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 334,
+      "version": "7",
+      "when": 1788977497552,
+      "tag": "0334_sso_provider_org_domain_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 335,
+      "version": "7",
+      "when": 1788978439734,
+      "tag": "0335_embedding_width_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 336,
+      "version": "7",
+      "when": 1788980365048,
+      "tag": "0336_knowledge_processing_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 337,
+      "version": "7",
+      "when": 1788986020651,
+      "tag": "0337_colossal_the_renegades",
+      "breakpoints": true
+    },
+    {
+      "idx": 338,
+      "version": "7",
+      "when": 1789076658450,
+      "tag": "0338_organization_search_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 339,
+      "version": "7",
+      "when": 1789084655493,
+      "tag": "0339_connector_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 340,
+      "version": "7",
+      "when": 1789150173739,
+      "tag": "0340_slack_shared_app_env",
+      "breakpoints": true
+    },
+    {
+      "idx": 341,
+      "version": "7",
+      "when": 1789154850550,
+      "tag": "0341_organization_logo_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 342,
+      "version": "7",
+      "when": 1789171419865,
+      "tag": "0342_clean_weapon_omega",
+      "breakpoints": true
+    },
+    {
+      "idx": 343,
+      "version": "7",
+      "when": 1789410616549,
+      "tag": "0343_stored_embedding_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 344,
+      "version": "7",
+      "when": 1789423183443,
+      "tag": "0344_audit_log_surface",
+      "breakpoints": true
+    },
+    {
+      "idx": 345,
+      "version": "7",
+      "when": 1789427851762,
+      "tag": "0345_document_connector_processing_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 346,
+      "version": "7",
+      "when": 1789430644029,
+      "tag": "0346_half_precision_search_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 347,
+      "version": "7",
+      "when": 1789436120319,
+      "tag": "0347_sso_domain_primary_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 348,
+      "version": "7",
+      "when": 1789514921671,
+      "tag": "0348_drop_retired_usage_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1789518532535,
+      "tag": "0349_permission_access_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1789579589946,
+      "tag": "0350_organization_require_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1789583796385,
+      "tag": "0351_copilot_run_activity_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 352,
+      "version": "7",
+      "when": 1789588587193,
+      "tag": "0352_search_document_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 353,
+      "version": "7",
+      "when": 1789591219081,
+      "tag": "0353_search_mcp_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 354,
+      "version": "7",
+      "when": 1789600824945,
+      "tag": "0354_member_sync_failure_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 355,
+      "version": "7",
+      "when": 1789609714073,
+      "tag": "0355_workflow_activity_covering_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 356,
+      "version": "7",
+      "when": 1789672641125,
+      "tag": "0356_connector_partition_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 357,
+      "version": "7",
+      "when": 1789677432855,
+      "tag": "0357_outbox_autovacuum",
+      "breakpoints": true
+    },
+    {
+      "idx": 358,
+      "version": "7",
+      "when": 1789678807393,
+      "tag": "0358_workspace_file_content_version_precision",
+      "breakpoints": true
+    },
+    {
+      "idx": 359,
+      "version": "7",
+      "when": 1789679618205,
+      "tag": "0359_workspace_file_search_chunks",
+      "breakpoints": true
+    },
+    {
+      "idx": 360,
+      "version": "7",
+      "when": 1789692860287,
+      "tag": "0360_drop_unused_embedding_hnsw_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 361,
+      "version": "7",
+      "when": 1789700848145,
+      "tag": "0361_workspace_file_search_backfill_keyset",
+      "breakpoints": true
+    },
+    {
+      "idx": 362,
+      "version": "7",
+      "when": 1789700849145,
+      "tag": "0362_document_autovacuum",
+      "breakpoints": true
+    },
+    {
+      "idx": 363,
+      "version": "7",
+      "when": 1789713467804,
+      "tag": "0363_connector_sync_schedule_precision",
+      "breakpoints": true
+    },
+    {
+      "idx": 364,
+      "version": "7",
+      "when": 1789773032501,
+      "tag": "0364_workspace_file_search_direct_gin",
+      "breakpoints": true
+    },
+    {
+      "idx": 365,
+      "version": "7",
+      "when": 1789780463212,
+      "tag": "0365_workspace_file_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 366,
+      "version": "7",
+      "when": 1789801452516,
+      "tag": "0366_member_scope_renewed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 367,
+      "version": "7",
+      "when": 1789837174274,
+      "tag": "0367_tin_keyword_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 368,
+      "version": "7",
+      "when": 1789842468472,
+      "tag": "0368_durable_agent_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 369,
+      "version": "7",
+      "when": 1789879464494,
+      "tag": "0369_embedding_search_connector",
+      "breakpoints": true
+    },
+    {
+      "idx": 370,
+      "version": "7",
+      "when": 1789890789212,
+      "tag": "0370_projection_acl",
+      "breakpoints": true
+    },
+    {
+      "idx": 371,
+      "version": "7",
+      "when": 1789922529920,
+      "tag": "0371_document_modified_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 372,
+      "version": "7",
+      "when": 1790006041116,
+      "tag": "0372_drop_binary_search_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 373,
+      "version": "7",
+      "when": 1790007865916,
+      "tag": "0373_keyword_tin_document_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 374,
+      "version": "7",
+      "when": 1790044060326,
+      "tag": "0374_document_connector_tombstone_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 375,
+      "version": "7",
+      "when": 1790051159355,
+      "tag": "0375_document_connector_live_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1790115308709,
+      "tag": "0376_knowledge_connector_detached_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1790119588517,
+      "tag": "0377_member_tombstone_cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1790147511551,
+      "tag": "0378_knowledge_projection_dirty",
+      "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1790180334617,
+      "tag": "0379_sync_log_database_failure_class",
+      "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1790187690218,
+      "tag": "0380_mothership_staging_merge",
+      "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1790197970553,
+      "tag": "0381_browser_download_save_claim",
+      "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1790284582673,
+      "tag": "0382_workspace_file_search_dispatch_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1790296491758,
+      "tag": "0383_workspace_visit",
+      "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1790383464399,
+      "tag": "0384_marvelous_maestro",
+      "breakpoints": true
+    },
+    {
+      "idx": 385,
+      "version": "7",
+      "when": 1790442555127,
+      "tag": "0385_document_connector_processing_recovery_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 386,
+      "version": "7",
+      "when": 1790458840414,
+      "tag": "0386_drop_redundant_and_unusable_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1790459930776,
+      "tag": "0387_date_tag_range_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 388,
+      "version": "7",
+      "when": 1790465741392,
+      "tag": "0388_document_connector_reconciliation_v2_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1790559081077,
+      "tag": "0389_member_resurrection_cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1790562554468,
+      "tag": "0390_table_rows_version_at_commit",
+      "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1790647979450,
+      "tag": "0391_fork_sync_new_workflow_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 392,
+      "version": "7",
+      "when": 1790723607543,
+      "tag": "0392_dashboard",
+      "breakpoints": true
+    },
+    {
+      "idx": 393,
+      "version": "7",
+      "when": 1790973503076,
+      "tag": "0393_fork_workflow_sync_provenance",
+      "breakpoints": true
     }
   ]
 }

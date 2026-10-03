@@ -2,10 +2,12 @@ import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileWriteParams {
   fileName?: string
+  folderPath?: string
   content?: string
   fileInput?: unknown
   contentType?: string
   overwrite?: boolean
+  expectedRevision?: string
   workspaceId?: string
 }
 
@@ -23,6 +25,12 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       visibility: 'user-or-llm',
       description:
         'File name (e.g., "data.csv"). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled.',
+    },
+    folderPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Folder to create the file in. Omit for the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/".`,
     },
     content: {
       type: 'string',
@@ -52,22 +60,33 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       description:
         'Replace the contents of an existing file at the exact target path (folder and name) instead of creating a suffixed copy. Creates the file when that path does not exist yet.',
     },
+    expectedRevision: {
+      type: 'string',
+      required: false,
+      visibility: 'llm-only',
+      description:
+        'Refuse the write unless the file still holds the content this revision names, as returned by Get File or an earlier write. Use it so an edit computed from what you read cannot overwrite someone else\u2019s change.',
+    },
   },
 
   operation: {
     input: (params) => ({
       operation: 'write',
       fileName: params.fileName,
+      folderPath: params.folderPath?.trim() || undefined,
       content: params.content,
       fileInput: params.fileInput,
       contentType: params.contentType,
       overwrite: params.overwrite,
+      expectedRevision: params.expectedRevision,
       workspaceId: params.workspaceId,
     }),
     secretProvenance: {
-      // Only the text branch carries caller-authored content. A stored file's
-      // bytes come from an already-tracked object, whose own provenance follows
-      // it rather than being re-derived from this request.
+      /**
+       * Only the text branch carries caller-authored content. A stored file's bytes come from an
+       * already-tracked object, whose own provenance follows it rather than being re-derived from
+       * this request.
+       */
       request: () => [{ key: 'content', inputPaths: [['content']] }],
     },
   },
@@ -85,5 +104,11 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
     name: { type: 'string', description: 'File name' },
     size: { type: 'number', description: 'File size in bytes' },
     url: { type: 'string', description: 'URL to access the file', optional: true },
+    version: { type: 'number', description: 'Version number of the content this write recorded' },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since.',
+    },
   },
 }

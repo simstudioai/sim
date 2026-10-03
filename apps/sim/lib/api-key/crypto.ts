@@ -3,6 +3,7 @@ import { decrypt, encrypt } from '@sim/security/encryption'
 import { sha256Hex } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
 import { toError } from '@sim/utils/errors'
+import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('ApiKeyCrypto')
@@ -60,10 +61,17 @@ export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted
 
 /**
  * Generates a standardized API key with the 'sim_' prefix (legacy format)
+ *
+ * Never one starting with the OAuth access-token prefix: base64url can spell
+ * `sim_oat_`, and a bearer credential's prefix is what tells an OAuth token
+ * from an API key.
  * @returns A new API key string
  */
 export function generateApiKey(): string {
-  return `sim_${generateSecureToken(24)}`
+  for (;;) {
+    const key = `sim_${generateSecureToken(24)}`
+    if (!key.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) return key
+  }
 }
 
 /**

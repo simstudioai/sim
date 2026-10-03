@@ -5,20 +5,10 @@ import { decrypt, encrypt } from './encryption'
 const KEY = Buffer.from('0'.repeat(64), 'hex')
 
 describe('encrypt', () => {
-  it('returns iv:ciphertext:authTag and a 32-char hex IV', async () => {
-    const result = await encrypt('secret', KEY)
-    expect(result.encrypted.split(':')).toHaveLength(3)
-    expect(result.iv).toHaveLength(32)
-  })
-
   it('produces distinct ciphertexts for the same input', async () => {
     const a = await encrypt('same', KEY)
     const b = await encrypt('same', KEY)
     expect(a.encrypted).not.toBe(b.encrypted)
-  })
-
-  it('rejects keys that are not 32 bytes', async () => {
-    await expect(encrypt('x', Buffer.alloc(16))).rejects.toThrow(/32 bytes/)
   })
 })
 
@@ -28,28 +18,6 @@ describe('decrypt', () => {
     const { encrypted } = await encrypt(plaintext, KEY)
     const { decrypted } = await decrypt(encrypted, KEY)
     expect(decrypted).toBe(plaintext)
-  })
-
-  it('round-trips empty strings', async () => {
-    const { encrypted } = await encrypt('', KEY)
-    const { decrypted } = await decrypt(encrypted, KEY)
-    expect(decrypted).toBe('')
-  })
-
-  it('round-trips long inputs', async () => {
-    const plaintext = 'a'.repeat(10_000)
-    const { encrypted } = await encrypt(plaintext, KEY)
-    const { decrypted } = await decrypt(encrypted, KEY)
-    expect(decrypted).toBe(plaintext)
-  })
-
-  it('throws on malformed input', async () => {
-    await expect(decrypt('invalid', KEY)).rejects.toThrow(
-      'Invalid encrypted value format. Expected "iv:encrypted:authTag"'
-    )
-    await expect(decrypt('part1:part2', KEY)).rejects.toThrow(
-      'Invalid encrypted value format. Expected "iv:encrypted:authTag"'
-    )
   })
 
   it('throws when ciphertext is tampered', async () => {

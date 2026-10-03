@@ -251,7 +251,7 @@ function parseScalar(value: string): JsonValue {
 }
 
 function parseFilterGroup(group: Filter): FilterRule[] {
-  if (!group || typeof group !== 'object' || Array.isArray(group)) return []
+  if (!isRecordLike(group)) return []
 
   const rules: FilterRule[] = []
 
@@ -306,7 +306,7 @@ function formatValueForBuilder(value: JsonValue): string {
   return String(value)
 }
 
-/* ----------------------------- v2 grammar ----------------------------- */
+// v2 grammar
 
 /** Operators that carry no value — the full v2 set, a superset of the legacy
  *  `VALUELESS_OPERATORS` in constants.ts (which the `$`-grammar serializer

@@ -4,7 +4,6 @@ description: Define reusable workflow variables referenced with angle brackets a
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 A **variable** is a value you set yourself and reuse across a workflow. Sim has two kinds. **Workflow variables** hold data during a run, like a counter or a config object, and you reference them with `<variable.name>`. **Environment variables** hold secrets and configuration, like API keys, and you reference them with `{{KEY}}`.
@@ -67,7 +66,7 @@ Reference one anywhere a field accepts input. For an object or array variable, u
 
 ### Scope
 
-Workflow variables are global: every block in the workflow can read and modify them. Use the [Variables block](/workflows/blocks/variables) to update a value mid-run.
+Use the [Variables block](/workflows/blocks/variables) to update a value mid-run. Parallel instances have separate variable scopes.
 
 Each run starts fresh from the values defined in the panel. A change made during a run is visible to later blocks in that same run, but it never alters the saved initial value for future runs.
 
@@ -97,11 +96,3 @@ Inside Function and Custom Tool code, `{{KEY}}` always evaluates to a **string**
 When a workspace and a personal variable share a key, the workspace value wins.
 
 Use an environment variable for a raw API key or config value. When a service needs OAuth or managed token refresh (Slack, GitHub, Google), use a [credential](/platform/credentials) instead, selected from a dropdown in the block's config.
-
-## Next
-
-<Cards>
-  <Card title="How blocks pass data" href="/workflows/data-flow" description="Block outputs and connection tags." />
-  <Card title="Variables block" href="/workflows/blocks/variables" description="Update a variable mid-run." />
-  <Card title="Secrets" href="/platform/credentials" description="Manage environment variables and credentials." />
-</Cards>

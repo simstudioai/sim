@@ -130,7 +130,7 @@ async function updateUserStatsForWand(
 
     await recordUsage({
       userId: billingAttribution.actorUserId,
-      workspaceId: billingAttribution.workspaceId,
+      workspaceId: billingAttribution.workspaceId ?? undefined,
       ...toBillingContext(billingAttribution),
       entries: [
         {
@@ -464,7 +464,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                   let parsed: any
                   try {
                     parsed = JSON.parse(data)
-                  } catch (parseError) {
+                  } catch {
                     continue
                   }
 

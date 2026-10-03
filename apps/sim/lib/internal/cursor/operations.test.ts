@@ -1,26 +1,30 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
 
 import { downloadCursorArtifact } from '@/lib/internal/cursor/operations'
 
+const storedFile = {
+  id: 'stored-file',
+  name: 'stored.bin',
+  size: 5,
+  type: 'application/octet-stream',
+  mimeType: 'application/octet-stream',
+  url: '/api/files/stored',
+  key: 'execution/workspace/workflow/run/stored.bin',
+  context: 'execution',
+} as const
+
 describe('downloadCursorArtifact', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.unstubAllGlobals()
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response('artifact', { headers: { 'content-type': 'text/plain' } })
     )
   })
@@ -34,7 +38,8 @@ describe('downloadCursorArtifact', () => {
 
     const result = await downloadCursorArtifact(
       { apiKey: 'cursor-key', agentId: 'agent-1', path: '/src/index.ts' },
-      { requestId: 'request-1', signal: controller.signal }
+      { requestId: 'request-1', signal: controller.signal },
+      'v2'
     )
 
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -42,16 +47,17 @@ describe('downloadCursorArtifact', () => {
       expect.stringContaining('/agents/agent-1/artifacts/download'),
       expect.objectContaining({ signal: controller.signal })
     )
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://download.example/artifact',
       '203.0.113.1',
       { profile: 'contentFetch', signal: controller.signal }
     )
-    expect(result.output.file).toEqual({
-      name: 'index.ts',
-      mimeType: 'text/plain',
-      data: Buffer.from('artifact').toString('base64'),
-      size: 8,
+    expect(result.files).toEqual([
+      { name: 'index.ts', mimeType: 'text/plain', buffer: Buffer.from('artifact') },
+    ])
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: { file: storedFile },
     })
   })
 })

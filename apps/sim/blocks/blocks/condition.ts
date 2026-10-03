@@ -1,20 +1,7 @@
 import { ConditionalIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 
-interface ConditionBlockOutput {
-  success: boolean
-  output: {
-    conditionResult: boolean
-    selectedPath: {
-      blockId: string
-      blockType: string
-      blockTitle: string
-    }
-    selectedOption: string
-  }
-}
-
-export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
+export const ConditionBlock: BlockConfig = {
   type: 'condition',
   name: 'Condition',
   description: 'Add a condition',
@@ -39,8 +26,17 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   },
   inputs: {},
   outputs: {
-    conditionResult: { type: 'boolean', description: 'Condition result' },
+    conditionResult: {
+      type: 'boolean',
+      description:
+        "Whether the selected branch's own test passed: true when an if/else-if condition matched, false when the else branch or no branch fired",
+    },
     selectedPath: { type: 'json', description: 'Selected execution path' },
     selectedOption: { type: 'string', description: 'Selected condition option ID' },
+    selectedTitle: {
+      type: 'string',
+      description:
+        'Title of the selected branch (e.g. "if", "else if", "else"); null when no branch fired',
+    },
   },
 }
