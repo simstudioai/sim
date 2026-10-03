@@ -1,21 +1,22 @@
 /**
  * @vitest-environment jsdom
  */
+import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Integration } from '@/lib/integrations/types'
 
-const { availabilityState, mockPush } = vi.hoisted(() => ({
+const { availabilityState } = vi.hoisted(() => ({
   /** `null` stands for an availability answer that has not arrived. */
   availabilityState: {
     availability: null as { state: string; oauthAvailable: boolean } | null,
     isLoading: false,
   },
-  mockPush: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }))
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnRouter: () => {} }))
 vi.mock('@/hooks/queries/credentials', () => ({
@@ -24,9 +25,7 @@ vi.mock('@/hooks/queries/credentials', () => ({
 vi.mock('@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration', () => ({
   useScrollRestoration: () => {},
 }))
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({ chatEnabled: true }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map(
@@ -66,10 +65,6 @@ vi.mock(
     ConnectPersonalTokenModal: () => null,
   })
 )
-vi.mock('@/blocks/registry', () => ({
-  getTemplatesForBlock: () => [],
-  getSuggestedSkillsForBlock: () => [],
-}))
 
 import { getServiceAccountConnectNoun } from '@/lib/credentials/service-account-provider-ids'
 import { INTEGRATIONS } from '@/lib/integrations'
@@ -114,7 +109,6 @@ function headerAction(): string {
 }
 
 beforeEach(() => {
-  mockPush.mockClear()
   availabilityState.availability = { state: 'ready', oauthAvailable: false }
   availabilityState.isLoading = false
 })

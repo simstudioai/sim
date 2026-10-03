@@ -67,8 +67,8 @@ describe('resolveServiceAccountIntegration', () => {
   it.each(['netsuite', 'snowflake', 'harmonic', 'claude-platform'])(
     'resolves %s without offering OAuth',
     (serviceId) => {
-      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)!
-      expect(integration).toBeDefined()
+      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)
+      if (!integration) throw new Error(`Missing service-account integration for ${serviceId}`)
       expect(integration.authType).toBe('api-key')
       expect(resolveOAuthServiceForSlug(integration.slug)).toBeNull()
       expect(
@@ -95,7 +95,8 @@ describe('resolveServiceAccountIntegration', () => {
       expect(typeof match?.serviceIcon, slug).toBe('function')
     }
     for (const serviceId of ['netsuite', 'snowflake', 'harmonic', 'claude-platform']) {
-      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)!
+      const integration = INTEGRATIONS.find((entry) => entry.serviceAccountServiceId === serviceId)
+      if (!integration) throw new Error(`Missing service-account integration for ${serviceId}`)
       expect(resolveServiceAccountIntegration(integration.slug)?.serviceIcon, serviceId).toBe(
         resolveServiceAccountServiceForIntegration(integration)?.serviceIcon
       )
@@ -103,8 +104,9 @@ describe('resolveServiceAccountIntegration', () => {
   })
 
   it('only offers the OAuth fallback when the canonical service supports stored accounts', () => {
-    const jira = INTEGRATIONS.find((entry) => entry.slug === 'jira')!
-    const x = INTEGRATIONS.find((entry) => entry.type === 'x')!
+    const jira = INTEGRATIONS.find((entry) => entry.slug === 'jira')
+    const x = INTEGRATIONS.find((entry) => entry.type === 'x')
+    if (!jira || !x) throw new Error('Missing OAuth integration fixtures')
     expect(resolveServiceAccountServiceForIntegration(jira)?.serviceAccountProviderId).toBe(
       'atlassian-service-account'
     )
