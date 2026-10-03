@@ -102,4 +102,22 @@ describe('parseClientCredentialAccountSecretBlob', () => {
       )
     ).toThrow(MALFORMED)
   })
+
+  it('requires the complete Oracle EPM integration-user blob', () => {
+    const oracleBlob = blob({
+      providerId: 'oracle-epm-service-account',
+      orgId: 'https://epm.example.com/gateway',
+      clientId: 'integration.user@example.com',
+      clientSecret: 'password',
+    })
+    expect(
+      parseClientCredentialAccountSecretBlob(oracleBlob, 'oracle-epm-service-account')
+    ).toMatchObject({ orgId: 'https://epm.example.com/gateway' })
+    expect(() =>
+      parseClientCredentialAccountSecretBlob(
+        blob({ providerId: 'oracle-epm-service-account', clientSecret: '' }),
+        'oracle-epm-service-account'
+      )
+    ).toThrow(MALFORMED)
+  })
 })

@@ -3,6 +3,7 @@ import {
   BOX_SERVICE_ACCOUNT_PROVIDER_ID,
   getClientCredentialAccountDescriptor,
   normalizeNetSuiteSuiteTalkOrigin,
+  ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   resolveClientCredentialAuthMethod,
   resolveSalesforceAuthMethod,
@@ -12,6 +13,8 @@ import {
 
 const salesforce = getClientCredentialAccountDescriptor(SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID)!
 const box = getClientCredentialAccountDescriptor(BOX_SERVICE_ACCOUNT_PROVIDER_ID)!
+const oracleEpm = getClientCredentialAccountDescriptor(ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID)
+if (!oracleEpm) throw new Error('Oracle EPM credential descriptor is missing')
 
 const ids = (fields: { id: string }[]) => fields.map((field) => field.id)
 
@@ -20,6 +23,20 @@ describe('partitionClientCredentialFields', () => {
     it('ignores an auth method a single-grant provider does not declare', () => {
       const { required } = partitionClientCredentialFields(box, 'jwt_bearer')
       expect(ids(required)).toEqual(['clientId', 'clientSecret', 'orgId'])
+    })
+
+    it('guides Oracle EPM users to the REST base URL and authentication docs', () => {
+      const restBaseUrl = oracleEpm.fields.find((field) => field.id === 'orgId')
+
+      expect(restBaseUrl).toMatchObject({
+        label: 'REST Base URL',
+        placeholder: 'https://example.oraclecloud.com',
+      })
+      expect(restBaseUrl?.hint).toContain('without /epmcloud')
+      expect(restBaseUrl?.hint).toContain('gateway prefix')
+      expect(oracleEpm.docsUrl).toBe(
+        'https://docs.oracle.com/en/cloud/saas/enterprise-performance-management-common/prest/authentication.html'
+      )
     })
   })
 
