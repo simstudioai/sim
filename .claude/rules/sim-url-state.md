@@ -2,10 +2,10 @@
 description: Shareable client view-state lives in the URL via nuqs
 paths:
   - "apps/sim/app/**/*.tsx"
-  - "apps/sim/app/**/*.ts"
-  - "apps/sim/app/**/search-params.ts"
   - "apps/sim/ee/**/*.tsx"
-  - "apps/sim/ee/**/*.ts"
+  - "apps/sim/**/search-params.ts"
+  - "apps/sim/**/use-*.ts"
+  - "apps/sim/lib/url-state/**"
 ---
 
 # URL / Query-Param State (nuqs)

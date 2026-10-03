@@ -1,5 +1,10 @@
 ---
 description: Behavior-preserving React render-performance idioms
+paths:
+  - "apps/sim/**/*.ts"
+  - "apps/sim/**/*.tsx"
+  - "packages/emcn/**/*.tsx"
+  - "packages/workflow-renderer/**/*.tsx"
 ---
 
 # React & Render Performance

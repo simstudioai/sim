@@ -1,6 +1,6 @@
 ---
 description: "Shareable client view-state lives in the URL via nuqs"
-globs: ["apps/sim/app/**/*.tsx","apps/sim/app/**/*.ts","apps/sim/app/**/search-params.ts","apps/sim/ee/**/*.tsx","apps/sim/ee/**/*.ts"]
+globs: ["apps/sim/app/**/*.tsx","apps/sim/ee/**/*.tsx","apps/sim/**/search-params.ts","apps/sim/**/use-*.ts","apps/sim/lib/url-state/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-url-state.md by `bun run skills:sync`. Edit the source, not this file. -->

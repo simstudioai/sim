@@ -7,7 +7,7 @@ globs: ["packages/emcn/**"]
 
 # EMCN Components
 
-Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from the `@sim/emcn/icons` subpath, and CSS modules from their file path. Never deep-import other component subpaths. The **chip family** is the platform's primary chrome — always reach for it over the legacy primitives it is progressively replacing (`Input`→`ChipInput`, `Textarea`→`ChipTextarea`, `Modal`→`ChipModal`, `Select`/`Combobox`→`ChipSelect`/`ChipCombobox`/`ChipDropdown`, `Switch`→`ChipSwitch`, date field→`ChipDatePicker`). For context/action menus the canonical control is `DropdownMenu` — the standard menu (not a chip, and never a hand-rolled popover).
+Import components, `cn`, and tokens from the `@sim/emcn` barrel; icons come from the `@sim/emcn/icons` subpath, and CSS modules from their file path. Never deep-import other component subpaths. The **chip family** is the platform's primary chrome — always reach for it over the legacy primitives it is progressively replacing (`Input`→`ChipInput`, `Textarea`→`ChipTextarea`, `Modal`→`ChipModal`, `Select`/`Combobox`→`ChipSelect`/`ChipCombobox`/`ChipDropdown`, date field→`ChipDatePicker`). `ChipSwitch` is a segmented choice between options, not a replacement for `Switch`: a boolean on/off toggle stays `Switch`. For context/action menus the canonical control is `DropdownMenu` — the standard menu (not a chip, and never a hand-rolled popover).
 
 ## Chip chrome — single source of truth
 
