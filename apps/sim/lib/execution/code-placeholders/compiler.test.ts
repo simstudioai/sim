@@ -885,6 +885,26 @@ describe('code placeholder compiler', () => {
     expect(executeShell(compiled.code, compiled.bindings)).toBe('<secret-value>\n')
   })
 
+  it('keeps shell quote context after heredoc bodies with unbalanced quotes', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'cat <<EOF',
+        "Today's report",
+        'EOF',
+        "cat <<'EOF'",
+        'a "quote',
+        'EOF',
+        'printf "<%s>\\n" "{{KEY}}"',
+      ].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { KEY: ' * ' },
+    })
+
+    expect(executeShell(compiled.code, compiled.bindings)).toBe(
+      'Today\'s report\na "quote\n< * >\n'
+    )
+  })
+
   it('tracks nested shell command substitutions and their own quote contexts', async () => {
     const compiled = await compileCodePlaceholders({
       code: [
@@ -1264,6 +1284,23 @@ describe('direct environment reads in shell', () => {
 
     expect(quoted.resolvedSecretNames).toEqual([])
     expect(unquoted.resolvedSecretNames).toEqual(['API_KEY'])
+  })
+
+  it('reports reads after heredoc bodies with unbalanced quotes', async () => {
+    for (const header of ['cat <<EOF', "cat <<'EOF'"]) {
+      const compiled = await compileCodePlaceholders({
+        code: [header, "Today's report", 'EOF', 'echo $API_KEY'].join('\n'),
+        language: CodeLanguage.Shell,
+        environmentVariables: { API_KEY: 'a-value' },
+      })
+      expect(compiled.resolvedSecretNames).toEqual(['API_KEY'])
+    }
+    const inBody = await compileCodePlaceholders({
+      code: ['cat <<EOF', "it's $API_KEY", 'EOF'].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+    expect(inBody.resolvedSecretNames).toEqual(['API_KEY'])
   })
 
   it('ignores a shell variable that is not a configured secret', async () => {
