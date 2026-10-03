@@ -3,14 +3,13 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type ForkCopyableKind, forkCopyableKindSchema } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
-import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
-import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
-import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'
+import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
 import {
-  buildForkResolver,
-  getEdgeMappingRows,
-  resourceTypeToForkKind,
-} from '@/ee/workspace-forking/lib/mapping/mapping-store'
+  type ForkReference,
+  type ForkReferenceResolver,
+  type ForkRemapKind,
+  scanWorkflowReferences,
+} from '@/lib/workflows/references/remap-references'
 import {
   type ForkCopyableLabel,
   type ForkCopyableSourceResource,
@@ -18,14 +17,16 @@ import {
   getWorkspaceEnvKeys,
   listForkCopyableSourceResources,
   loadForkCopyableResourceLabels,
-} from '@/ee/workspace-forking/lib/mapping/resources'
-import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
+} from '@/lib/workflows/references/resources'
+import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'
 import {
-  type ForkReference,
-  type ForkReferenceResolver,
-  type ForkRemapKind,
-  scanWorkflowReferences,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+  buildForkResolver,
+  type ForkMappingRow,
+  getEdgeMappingRows,
+  resourceTypeToForkKind,
+} from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export interface ForkPromotePlanItem {
@@ -352,6 +353,7 @@ export function collectForkUnreferencedCopyables(
  * Shared by the diff preview and the promote orchestrator.
  */
 export async function computeForkPromotePlan(params: {
+  mappingRows?: ForkMappingRow[]
   executor: DbOrTx
   edge: ForkEdge
   sourceWorkspaceId: string
@@ -375,7 +377,8 @@ export async function computeForkPromotePlan(params: {
     sourceStates,
   } = params
 
-  const mappingRows = await getEdgeMappingRows(executor, edge.childWorkspaceId)
+  const mappingRows =
+    params.mappingRows ?? (await getEdgeMappingRows(executor, edge.childWorkspaceId))
   const [targetEnvKeys, sourceEnvKeys] = await Promise.all([
     getWorkspaceEnvKeys(executor, targetWorkspaceId),
     getWorkspaceEnvKeys(executor, sourceWorkspaceId),

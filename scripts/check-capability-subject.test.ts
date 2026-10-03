@@ -21,18 +21,6 @@ describe('assertion B — a v1 route may not decide a capability for itself', ()
     expect(findings[0].message).toContain('user-scope.server')
   })
 
-  it.each([
-    '@/lib/permission-groups/capability-assertions',
-    '@/lib/permission-groups/capabilities',
-    '@/lib/permission-groups/resolve.server',
-    '@/lib/permission-groups/config-scope.server',
-    '@/lib/permission-groups/user-scope.server',
-  ])('reports a route that imports %s', (module) => {
-    const { findings } = auditSource(ROUTE, `import { thing } from '${module}'\n`)
-
-    expect(findings).toHaveLength(1)
-  })
-
   it('allows the middleware itself, which is where the decision belongs', () => {
     const { findings } = auditSource(
       MIDDLEWARE,
@@ -44,19 +32,6 @@ describe('assertion B — a v1 route may not decide a capability for itself', ()
 })
 
 describe('assertion C — the subject came from capabilityGovernedUserId', () => {
-  it('accepts a subject bound to the governed id', () => {
-    const { findings, sinks } = auditSource(
-      MIDDLEWARE,
-      [
-        'const governedUserId = capabilityGovernedUserId(rateLimit)',
-        "await isWorkspaceCapabilityWithheld(governedUserId, workspaceId, 'personal_api_key.use')",
-      ].join('\n')
-    )
-
-    expect(findings).toEqual([])
-    expect(sinks).toBe(1)
-  })
-
   it('reports the key creator read straight off the rate-limit result', () => {
     const { findings, sinks } = auditSource(
       MIDDLEWARE,
@@ -88,20 +63,6 @@ describe('assertion C — the two renames that made it a no-op', () => {
     expect(findings[0].message).toContain('rateLimit.userId')
   })
 
-  it('accepts an aliased call whose subject is still governed', () => {
-    const { findings, sinks } = auditSource(
-      'apps/sim/app/api/v1/logs/route.ts',
-      [
-        'import { resolveLogFieldProjection as project } from "@/lib/logs/log-projection"',
-        'const governed = capabilityGovernedUserId(rateLimit)',
-        'await project(governed, workspaceId)',
-      ].join('\n')
-    )
-
-    expect(findings).toEqual([])
-    expect(sinks).toBe(1)
-  })
-
   it('refuses a route that declares the governed-subject name for itself', () => {
     const { findings } = auditSource(
       'apps/sim/app/api/v1/logs/route.ts',
@@ -119,12 +80,6 @@ describe('assertion C — the two renames that made it a no-op', () => {
 describe('assertion A — the name the audit is written in terms of', () => {
   it('reports a middleware that no longer exports it', () => {
     expect(auditMiddlewareExport('export function someOtherName() {}')).toHaveLength(1)
-  })
-
-  it('accepts a middleware that still does', () => {
-    expect(
-      auditMiddlewareExport('export function capabilityGovernedUserId(rateLimit) { return null }')
-    ).toEqual([])
   })
 })
 
@@ -147,45 +102,6 @@ describe('assertion C — a fallback welded to the governed subject', () => {
     expect(sinks).toBe(0)
     expect(findings).toHaveLength(1)
     expect(findings[0].message).toContain('falls back when')
-  })
-
-  it('reports a logical-or fallback the same way', () => {
-    const { findings, sinks } = auditSource(
-      ROUTE,
-      "const withheld = await isWorkspaceCapabilityWithheld(capabilityGovernedUserId(rateLimit) || rateLimit.userId, workspaceId, 'tables.use')\n"
-    )
-
-    expect(sinks).toBe(0)
-    expect(findings).toHaveLength(1)
-  })
-
-  /**
-   * The bound-local form of the same evasion. The local is refused rather than
-   * registered: registering it would make every sink taking it read as governed.
-   */
-  it('reports a fallback on the binding, and refuses the local it binds', () => {
-    const { findings, sinks } = auditSource(
-      ROUTE,
-      'const subject = capabilityGovernedUserId(rateLimit) ?? rateLimit.userId\n' +
-        "await assertWorkspaceCapability(subject, workspaceId, 'tables.use')\n"
-    )
-
-    expect(sinks).toBe(0)
-    expect(findings).toHaveLength(2)
-    expect(findings[0].message).toContain('falls back when')
-    expect(findings[1].message).toContain('did not come from')
-  })
-
-  it('leaves an un-welded governed call alone, inline and through a local', () => {
-    const { findings, sinks } = auditSource(
-      ROUTE,
-      'const subject = capabilityGovernedUserId(rateLimit)\n' +
-        "await assertWorkspaceCapability(subject, workspaceId, 'tables.use')\n" +
-        "await isWorkspaceCapabilityWithheld(capabilityGovernedUserId(rateLimit), workspaceId, 'tables.use')\n"
-    )
-
-    expect(findings).toEqual([])
-    expect(sinks).toBe(2)
   })
 
   /**

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ButtonGroup, ButtonGroupItem, cn } from '@sim/emcn'
+import { ChipButtonGroup, ChipButtonGroupItem, cn } from '@sim/emcn'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 export type { PermissionType }
@@ -16,28 +16,27 @@ interface PermissionSelectorProps {
   size?: SelectorSize
 }
 
-const COMPACT_ITEM_CLASS = 'h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
-
 export const PermissionSelector = React.memo<PermissionSelectorProps>(
   ({ value, onChange, disabled = false, className, size = 'default' }) => {
-    const itemClass = size === 'compact' ? COMPACT_ITEM_CLASS : undefined
+    const itemClass = size === 'compact' ? 'min-w-[38px]' : undefined
     return (
-      <ButtonGroup
+      <ChipButtonGroup
+        size={size}
         value={value}
         onValueChange={(val) => onChange(val as PermissionType)}
         disabled={disabled}
         className={cn(disabled && 'cursor-not-allowed', className)}
       >
-        <ButtonGroupItem value='read' className={itemClass} title='View only'>
+        <ChipButtonGroupItem value='read' className={itemClass} title='View only'>
           Read
-        </ButtonGroupItem>
-        <ButtonGroupItem value='write' className={itemClass} title='Edit content'>
+        </ChipButtonGroupItem>
+        <ChipButtonGroupItem value='write' className={itemClass} title='Edit content'>
           Write
-        </ButtonGroupItem>
-        <ButtonGroupItem value='admin' className={itemClass} title='Full access'>
+        </ChipButtonGroupItem>
+        <ChipButtonGroupItem value='admin' className={itemClass} title='Full access'>
           Admin
-        </ButtonGroupItem>
-      </ButtonGroup>
+        </ChipButtonGroupItem>
+      </ChipButtonGroup>
     )
   }
 )
@@ -53,25 +52,24 @@ interface OrgRoleSelectorProps {
   size?: SelectorSize
 }
 
-const COMPACT_ORG_ITEM_CLASS = 'h-[22px] min-w-[58px] px-1.5 py-0 text-xs'
-
 export const OrgRoleSelector = React.memo<OrgRoleSelectorProps>(
   ({ value, onChange, disabled = false, className, size = 'compact' }) => {
-    const itemClass = size === 'compact' ? COMPACT_ORG_ITEM_CLASS : undefined
+    const itemClass = size === 'compact' ? 'min-w-[58px]' : undefined
     return (
-      <ButtonGroup
+      <ChipButtonGroup
+        size={size}
         value={value}
         onValueChange={(val) => onChange(val as OrgRole)}
         disabled={disabled}
         className={cn(disabled && 'cursor-not-allowed', className)}
       >
-        <ButtonGroupItem value='member' className={itemClass} title='Organization member'>
+        <ChipButtonGroupItem value='member' className={itemClass} title='Organization member'>
           Member
-        </ButtonGroupItem>
-        <ButtonGroupItem value='admin' className={itemClass} title='Organization admin'>
+        </ChipButtonGroupItem>
+        <ChipButtonGroupItem value='admin' className={itemClass} title='Organization admin'>
           Admin
-        </ButtonGroupItem>
-      </ButtonGroup>
+        </ChipButtonGroupItem>
+      </ChipButtonGroup>
     )
   }
 )

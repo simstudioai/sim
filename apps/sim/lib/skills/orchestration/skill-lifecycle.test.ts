@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetSkillActorContext, mockUpsertSkills, mockGetSkillById, mockDeleteSkill } =
@@ -46,7 +43,6 @@ function actorOwning(name: string) {
 
 describe('skill lifecycle built-in name collision', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockUpsertSkills.mockResolvedValue({ touched: [{ id: SKILL_ID, name: 'x' }] })
     mockGetSkillById.mockResolvedValue(skillRow(BUILTIN_NAME))
   })

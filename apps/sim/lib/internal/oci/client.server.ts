@@ -47,18 +47,18 @@ import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 
 export type OciRequestMethod = 'GET' | 'HEAD' | 'DELETE' | 'POST' | 'PUT' | 'PATCH'
 
-export interface OciSafeRetryPolicy {
+interface OciSafeRetryPolicy {
   readonly kind: 'safe'
   readonly maxAttempts: number
 }
 
-export interface OciTokenizedRetryPolicy {
+interface OciTokenizedRetryPolicy {
   readonly kind: 'tokenized'
   readonly maxAttempts: number
   readonly retryToken: string
 }
 
-export type OciRetryPolicy = OciSafeRetryPolicy | OciTokenizedRetryPolicy
+type OciRetryPolicy = OciSafeRetryPolicy | OciTokenizedRetryPolicy
 
 interface OciRequestBase {
   readonly endpoint: OciPreparedEndpoint
@@ -581,7 +581,8 @@ function signRequest(params: {
   }
   const headerNames = ['x-date', '(request-target)', 'host']
   if (params.body !== undefined) {
-    headers['content-type'] = params.contentType!
+    if (params.contentType === undefined) throw new OciClientError('invalid_request')
+    headers['content-type'] = params.contentType
     headers['content-length'] = String(params.body.byteLength)
     headers['x-content-sha256'] = createHash('sha256').update(params.body).digest('base64')
     headerNames.push('content-type', 'content-length', 'x-content-sha256')

@@ -9,7 +9,8 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, RESPONSE_API_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Workflows" title="Deployment" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-deployments.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Workflows" title="Deployment" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-deployments.mp4"
+  captionsSrc="/captions/academy/workflows-deployments.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -56,9 +57,9 @@ Here's the shape of the workflow you'll deploy: a Start block, a chain, and a re
 
 <WorkflowPreview workflow={RESPONSE_API_WORKFLOW} />
 
-## Deploy gives it an address
+## Publish a version
 
-Deploying publishes the workflow and gives it an **address**. Nothing inside the chain changes, same blocks, same Start block, same logic. What's new is that the workflow is now **live** and reachable from outside, at a stable, versioned URL. A deployment is a snapshot, so you can promote new versions and roll back.
+A deployment publishes a snapshot of the workflow. Requests use that version while you continue editing; publish a new version when the changes are ready, or roll back when needed.
 
 ## A call from outside
 
@@ -69,14 +70,12 @@ An external request comes in, hits that address, and flows straight into the **S
 The one deployed workflow can be reached three ways, and you choose which:
 
 - **API**, other systems POST to an endpoint and get the response back.
-- **Chat**, a hosted chat page anyone can open; each message becomes the workflow's input.
+- **Chat**, a hosted chat page with the access settings you configure; each message becomes the workflow's input.
 - **MCP**, the workflow becomes a tool that other AI agents (like Cursor or Claude) can call.
 
 Same blocks underneath, same Start, just different doors in.
 
-## Runs when they run it
 
-Once deployed, the workflow runs on demand, whenever a caller hits it, with no one in the editor. The same process you built is now an operational system.
 
 <FAQ items={[
   { question: "What does deploying a workflow actually do?", answer: "It gives the workflow an address the outside world can call. The same Start block then answers API requests, chat messages, or MCP tool calls, depending on the surface you enable." },

@@ -17,6 +17,7 @@ function blockCursorFilters(query: V2ListBlocksQuery) {
     category: query.category,
     capability: query.capability,
     source: query.source,
+    includeSunset: query.includeSunset,
   })
 }
 

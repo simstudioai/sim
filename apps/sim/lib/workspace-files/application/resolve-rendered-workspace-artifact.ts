@@ -12,9 +12,8 @@ import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-file
  * The record's declared size bounds nothing here — a source is text and orders
  * of magnitude smaller than what it renders to — so the artifact is checked
  * against the ceiling the caller is serving under. Note this rejects an
- * oversized artifact rather than preventing it being read: the artifact store
- * fetch is not itself streaming-bounded, so the bytes are resident before the
- * check rejects them.
+ * oversized artifact while reading it: the artifact store fetch enforces the
+ * byte ceiling and forwards cancellation to the underlying download.
  *
  * An artifact that is still compiling is retryable rather than a fault, so it
  * surfaces as `conflict` — a 500 would give the caller no reason to try again.
@@ -31,13 +30,16 @@ import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-file
 export async function resolveRenderedWorkspaceArtifact(
   file: WorkspaceFileRecord,
   filePrincipal: Principal,
-  options: { maxBytes: number; tooLargeMessage?: (limit: string) => string }
+  options: { maxBytes: number; signal?: AbortSignal; tooLargeMessage?: (limit: string) => string }
 ): Promise<{ buffer: Buffer; contentType: string }> {
   try {
+    options.signal?.throwIfAborted()
     return await fetchAuthorizedServableWorkspaceFileBuffer(file, filePrincipal, {
       maxBytes: options.maxBytes,
+      signal: options.signal,
     })
   } catch (error) {
+    options.signal?.throwIfAborted()
     if (isDocNotReadyError(error)) {
       if (error.pending) throw new OrchestrationError('conflict', docNotReadyMessage())
       throw new OrchestrationError(

@@ -1,82 +1,185 @@
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
-import { workspaceFileCollabState } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { workspaceFileCollabState, workspaceFiles } from '@sim/db/schema'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 
-/**
- * The cached-collab-state cache (`workspace_file_collab_state`) lets a cold room open load the file's
- * last-persisted Yjs binary directly instead of re-converting markdown → Yjs on every open — the
- * Hocuspocus load-document pattern. See {@link workspaceFileCollabState} for the full rationale.
- */
+/** Matches the decoded size of the persist endpoint's 16 MiB base64 snapshot limit. */
+export const MAX_COLLAB_DOC_STATE_BYTES = 12 * 1024 * 1024
 
-/** sha256 (hex) of a markdown buffer — the freshness tag matching a cached doc state to the live file. */
+/** Reject oversized snapshots before copying, decoding, or writing them. */
+export function assertCollabDocStateSize(docState: Uint8Array): void {
+  if (docState.byteLength > MAX_COLLAB_DOC_STATE_BYTES) {
+    throw new RangeError('Collaborative document state exceeds the 12 MiB limit')
+  }
+}
+
+/** SHA-256 freshness tag for the exact durable markdown bytes. */
 export function hashMarkdown(markdown: Buffer): string {
   return createHash('sha256').update(markdown).digest('hex')
 }
 
-/** A file's stored collaborative document, with the markdown it was last derived from. */
-export interface CachedCollabDocState {
-  docState: Uint8Array
-  /** Hash of the markdown this binary projects to — `null`s out nothing; compare to decide freshness. */
+/** Both the projected markdown and the complete binary history identify a cached revision. */
+export interface CollabDocStateToken {
   sourceHash: string
+  stateHash: string
+}
+
+/** The binary document is authoritative for CRDT identity, including deleted content history. */
+export interface CachedCollabDocState extends CollabDocStateToken {
+  docState: Uint8Array
+}
+
+/** A snapshot prepared against an exact cached revision, or an observed absent cache row. */
+export interface PreparedCollabDocState {
+  docState: Uint8Array
+  sourceHash: string
+  expectedState: CollabDocStateToken | null
+}
+
+/** A different writer has replaced the cached revision used to prepare this snapshot. */
+export class CollabDocStateConflictError extends Error {
+  constructor(fileId: string) {
+    super(`Collaborative document state changed for file ${fileId}`)
+    this.name = 'CollabDocStateConflictError'
+  }
 }
 
 /**
- * Load a file's stored Yjs binary, fresh or not.
- *
- * FRESH (its `sourceHash` matches the file's current markdown) means it can seed a room verbatim.
- * STALE means the markdown moved on out-of-band, and the caller must bring it up to date — but it must
- * do so by UPDATING this document, never by building a second one: the stored binary carries the
- * document's identity, and a rebuilt document's items carry different client ids, so any client still
- * holding the old one would merge the two into duplicated content. Either way this row is the file's
- * collaborative document; there is only ever one.
+ * Load the existing binary without mistaking an oversized state or a database failure for absence.
+ * CASE bounds both the transferred binary and the hash work before either is materialized.
  */
-export async function loadCollabDocState(fileId: string): Promise<CachedCollabDocState | null> {
+export async function loadCollabDocState(
+  fileId: string,
+  options?: { maxBytes: number }
+): Promise<CachedCollabDocState | null> {
+  const maxBytes = Math.min(
+    options?.maxBytes ?? MAX_COLLAB_DOC_STATE_BYTES,
+    MAX_COLLAB_DOC_STATE_BYTES
+  )
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    throw new RangeError('Collaborative document state byte limit must be a non-negative integer')
+  }
+  const byteCount = sql<number>`octet_length(${workspaceFileCollabState.docState})`
   const [row] = await db
     .select({
-      docState: workspaceFileCollabState.docState,
+      byteCount,
+      docState: sql<Buffer | null>`CASE WHEN ${byteCount} <= ${maxBytes} THEN ${workspaceFileCollabState.docState} END`,
       sourceHash: workspaceFileCollabState.sourceHash,
+      stateHash: sql<
+        string | null
+      >`CASE WHEN ${byteCount} <= ${maxBytes} THEN encode(sha256(${workspaceFileCollabState.docState}), 'hex') END`,
     })
     .from(workspaceFileCollabState)
     .where(eq(workspaceFileCollabState.fileId, fileId))
     .limit(1)
 
   if (!row) return null
-  return { docState: new Uint8Array(row.docState), sourceHash: row.sourceHash }
+  if (row.byteCount > maxBytes || row.docState === null || row.stateHash === null) {
+    throw new RangeError(`Collaborative document state exceeds the ${maxBytes} byte limit`)
+  }
+  return {
+    docState: new Uint8Array(row.docState),
+    sourceHash: row.sourceHash,
+    stateHash: row.stateHash,
+  }
 }
 
 /**
- * The markdown hash this file's cached doc state was derived from — i.e. the exact bytes the live
- * document last projected onto the file — or `null` when nothing is cached. Selects only the tag, so a
- * caller asking "is what's on disk still our own last write?" never loads the binary to find out.
+ * Replace only the cached revision used to prepare this snapshot. The caller must already hold the
+ * workspaceFiles row lock and validate its content version in this transaction.
  */
-export async function collabDocStateSourceHash(fileId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ sourceHash: workspaceFileCollabState.sourceHash })
-    .from(workspaceFileCollabState)
-    .where(eq(workspaceFileCollabState.fileId, fileId))
-    .limit(1)
-  return row?.sourceHash ?? null
-}
-
-/**
- * Persist a collaborative doc's Yjs binary as the file's cold-start state, tagged with the hash of the
- * markdown it was derived from. Upsert — one row per file. Called from the server-side persist right
- * after the markdown is written, so the cached binary and its `sourceHash` are always consistent with
- * the file that was just saved.
- */
-export async function saveCollabDocState(
+export async function saveCollabDocStateInTx(
+  tx: DbTransaction,
   fileId: string,
-  docState: Uint8Array,
-  sourceHash: string
+  prepared: PreparedCollabDocState
 ): Promise<void> {
-  const state = Buffer.from(docState)
-  const updatedAt = new Date()
-  await db
-    .insert(workspaceFileCollabState)
-    .values({ fileId, docState: state, sourceHash, updatedAt })
-    .onConflictDoUpdate({
-      target: workspaceFileCollabState.fileId,
-      set: { docState: state, sourceHash, updatedAt },
+  assertCollabDocStateSize(prepared.docState)
+  const expected = prepared.expectedState
+  const matchesExpected = expected
+    ? and(
+        eq(workspaceFileCollabState.fileId, fileId),
+        eq(workspaceFileCollabState.sourceHash, expected.sourceHash),
+        eq(
+          sql<
+            string | null
+          >`CASE WHEN octet_length(${workspaceFileCollabState.docState}) <= ${MAX_COLLAB_DOC_STATE_BYTES} THEN encode(sha256(${workspaceFileCollabState.docState}), 'hex') END`,
+          expected.stateHash
+        )
+      )
+    : undefined
+
+  if (
+    expected?.sourceHash === prepared.sourceHash &&
+    expected.stateHash === createHash('sha256').update(prepared.docState).digest('hex')
+  ) {
+    const [current] = await tx
+      .select({ fileId: workspaceFileCollabState.fileId })
+      .from(workspaceFileCollabState)
+      .where(matchesExpected)
+      .limit(1)
+    if (!current) throw new CollabDocStateConflictError(fileId)
+    return
+  }
+
+  const values = {
+    docState: Buffer.from(prepared.docState),
+    sourceHash: prepared.sourceHash,
+    updatedAt: new Date(),
+  }
+  const [accepted] = expected
+    ? await tx
+        .update(workspaceFileCollabState)
+        .set(values)
+        .where(matchesExpected)
+        .returning({ fileId: workspaceFileCollabState.fileId })
+    : await tx
+        .insert(workspaceFileCollabState)
+        .values({ fileId, ...values })
+        .onConflictDoNothing({ target: workspaceFileCollabState.fileId })
+        .returning({ fileId: workspaceFileCollabState.fileId })
+
+  if (!accepted) throw new CollabDocStateConflictError(fileId)
+}
+
+export type CommitCollabDocStateResult =
+  | { status: 'committed'; version: number }
+  | { status: 'missing' }
+  | { status: 'conflict' }
+
+/** Commit a cache-only refresh against the locked file version and the exact cached revision. */
+export async function commitCollabDocState(
+  workspaceId: string,
+  fileId: string,
+  expectedVersion: number,
+  prepared: PreparedCollabDocState
+): Promise<CommitCollabDocStateResult> {
+  assertCollabDocStateSize(prepared.docState)
+  try {
+    return await db.transaction(async (tx): Promise<CommitCollabDocStateResult> => {
+      const [file] = await tx
+        .select({ contentUpdatedAt: workspaceFiles.contentUpdatedAt })
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.id, fileId),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'workspace'),
+            isNull(workspaceFiles.deletedAt)
+          )
+        )
+        .for('update')
+        .limit(1)
+
+      if (!file) return { status: 'missing' }
+      const version = file.contentUpdatedAt.getTime()
+      if (version !== expectedVersion) return { status: 'conflict' }
+
+      await saveCollabDocStateInTx(tx, fileId, prepared)
+      return { status: 'committed', version }
     })
+  } catch (error) {
+    if (error instanceof CollabDocStateConflictError) return { status: 'conflict' }
+    throw error
+  }
 }

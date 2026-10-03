@@ -2,7 +2,6 @@ import { MicrosoftWordIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { MicrosoftWordResponse } from '@/tools/microsoft_word/types'
 
 const DOCUMENT_FIELD = ['documentSelector', 'manualDocumentId'] as const
 
@@ -76,7 +75,7 @@ function requireString(value: unknown, label: string): string {
   return trimmed
 }
 
-export const MicrosoftWordBlock: BlockConfig<MicrosoftWordResponse> = {
+export const MicrosoftWordBlock: BlockConfig = {
   type: 'microsoft_word',
   name: 'Microsoft Word',
   description: 'Create, fill, read, edit, and export Word documents',

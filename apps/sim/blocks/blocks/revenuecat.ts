@@ -1,10 +1,9 @@
 import { RevenueCatIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RevenueCatResponse } from '@/tools/revenuecat/types'
 import { getTrigger } from '@/triggers'
 
-export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
+export const RevenueCatBlock: BlockConfig = {
   type: 'revenuecat',
   name: 'RevenueCat',
   description: 'Manage in-app subscriptions and entitlements',

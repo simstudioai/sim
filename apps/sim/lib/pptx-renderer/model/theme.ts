@@ -63,7 +63,7 @@ function parseFontInfo(fontNode: SafeXmlNode): { latin: string; ea: string; cs: 
 export function parseTheme(root: SafeXmlNode): ThemeData {
   const themeElements = root.child('themeElements')
 
-  // --- Color scheme ---
+  // Color scheme
   const clrScheme = themeElements.child('clrScheme')
   const colorScheme = new Map<string, string>()
 
@@ -77,12 +77,12 @@ export function parseTheme(root: SafeXmlNode): ThemeData {
     }
   }
 
-  // --- Font scheme ---
+  // Font scheme
   const fontScheme = themeElements.child('fontScheme')
   const majorFont = parseFontInfo(fontScheme.child('majorFont'))
   const minorFont = parseFontInfo(fontScheme.child('minorFont'))
 
-  // --- Format scheme ---
+  // Format scheme
   const fmtScheme = themeElements.child('fmtScheme')
   const fillStyleLst = fmtScheme.child('fillStyleLst')
   const fillStyles: SafeXmlNode[] = fillStyleLst.allChildren()

@@ -45,10 +45,10 @@ export function NoOrganizationView({
       <div>
         <div className='flex flex-col gap-5'>
           <div>
-            <h4 className='text-[var(--text-primary)] text-base'>Create Your Team Workspace</h4>
+            <h4 className='text-[var(--text-primary)] text-base'>Create your organization</h4>
             <p className='mt-1 text-[var(--text-muted)] text-small'>
               You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
-              workspace to start collaborating with your team.
+              organization to start collaborating with your team.
             </p>
           </div>
 
@@ -107,7 +107,7 @@ export function NoOrganizationView({
                   onClick={onCreateOrganization}
                   disabled={!orgName || !orgSlug || isCreatingOrg}
                 >
-                  {isCreatingOrg ? 'Creating...' : 'Create Team Workspace'}
+                  {isCreatingOrg ? 'Creating...' : 'Create organization'}
                 </Button>
               </div>
             </div>

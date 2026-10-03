@@ -19,12 +19,6 @@ export interface PolymarketPaginationParams {
   offset?: string
 }
 
-interface PolymarketPagingInfo {
-  limit: number
-  offset: number
-  count: number
-}
-
 export interface PolymarketMarket {
   id: string
   question: string
@@ -115,10 +109,6 @@ export interface PolymarketOrderBook {
   tick_size: string
   neg_risk: boolean
   last_trade_price: string
-}
-
-interface PolymarketPrice {
-  price: string
 }
 
 export interface PolymarketPriceHistoryEntry {

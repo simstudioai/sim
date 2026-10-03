@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * End-to-end over a real socket: the guard resolves, classifies, pins, and
  * connects. Nothing about the transport is mocked, which is what makes this the
  * check that the policy is actually wired to the wire.

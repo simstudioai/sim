@@ -1,22 +1,24 @@
 import type { Extensions } from '@tiptap/core'
-import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
-import { withAlpha } from '@/lib/workspaces/colors'
 import { BlockMover } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-mover'
 import { CodeBlockWithLanguage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block'
 import { CodeBlockHighlight } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-highlight'
 import {
+  caretColorSlot,
   createCaretActivityExtension,
-  DEFAULT_CARET_COLOR,
   renderCaret,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/caret-presence'
+import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
 import { LinkEmbed } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/embed/link-embed'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { RichMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
-import { ResizableImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+import {
+  ResizableImage,
+  ResizableInlineImage,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
 import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
 import { RichMarkdownKeymap } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/keymap'
 import { MarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
@@ -31,6 +33,20 @@ import {
   RawHtmlBlockWithView,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/raw-markdown-snippet'
 import { SlashCommand } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/slash-command/slash-command'
+
+const FileCollaborationCaret = CollaborationCaret.extend({
+  addProseMirrorPlugins() {
+    // Older peers need a resolved colour to apply their selection opacity.
+    // Resolve at editor mount, before the parent captures and publishes user.
+    const color = this.options.user.color
+    const token = typeof color === 'string' ? /^var\((--[\w-]+)\)$/.exec(color)?.[1] : undefined
+    if (token && typeof document !== 'undefined') {
+      const resolved = getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+      if (resolved) this.options.user = { ...this.options.user, color: resolved }
+    }
+    return this.parent?.() ?? []
+  },
+})
 
 /** Live collaboration binding for the editor. When present, the editor's history
  * is Yjs-backed and remote carets/selection render via CollaborationCaret. */
@@ -70,6 +86,7 @@ export function createMarkdownEditorExtensions({
       {
         codeBlock: CodeBlockWithLanguage,
         image: ResizableImage,
+        inlineImage: ResizableInlineImage,
         mention: MentionChip,
         rawHtmlBlock: RawHtmlBlockWithView,
         footnoteDef: FootnoteDefWithView,
@@ -78,20 +95,20 @@ export function createMarkdownEditorExtensions({
     ),
     ...(collaboration
       ? [
-          Collaboration.configure({ document: collaboration.doc }),
+          FileCollaboration.configure({ document: collaboration.doc }),
           // CollaborationCaret reads only `provider.awareness` (created synchronously,
           // relayed by the socket provider once connected). `render` tags each caret
           // with the peer's client id and shows its name label; the selection tint is
           // a translucent fill of the peer's identity color.
-          CollaborationCaret.configure({
+          FileCollaborationCaret.configure({
             provider: { awareness: collaboration.awareness },
             user: collaboration.user,
             render: renderCaret,
             selectionRender: (user) => {
-              const hex = typeof user.color === 'string' ? user.color : DEFAULT_CARET_COLOR
+              const slot = caretColorSlot(user.color)
               return {
                 class: 'collaboration-carets__selection',
-                style: `background-color: ${withAlpha(hex, 0.2)};`,
+                ...(slot >= 0 ? { 'data-color-slot': String(slot) } : {}),
               }
             },
           }),

@@ -3,13 +3,12 @@ slug: govern-ai-agents-multiple-teams-enterprise-workspace
 title: 'Governing AI Agents Built by Different Teams in One Enterprise Workspace'
 description: 'Learn how centralized AI agent governance gives enterprise teams a shared workspace for identity, access control, audit evidence, deployment, and oversight.'
 date: 2026-08-17
-updated: 2026-08-17
+updated: 2026-10-01
 authors:
   - andrew
 readingTime: 11
 tags: [AI Agents, Enterprise AI, AI Governance, Sim]
 ogImage: /library/govern-ai-agents-multiple-teams-enterprise-workspace/cover.jpg
-canonical: https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace
 draft: false
 faq:
   - q: "Are Access Control and SSO available below Enterprise on Sim Cloud?"
@@ -23,7 +22,7 @@ faq:
   - q: "What happens to governance logs in a self-hosted deployment?"
     a: "A self-hosted operator controls the infrastructure on which Sim and its logging environment run. Enterprise data-retention settings determine how long supported data remains, and data drains export workflow logs, audit logs, and Chat data to customer-owned storage or a webhook. The operator remains responsible for infrastructure security, storage, backup, and compliance configuration."
   - q: "Does self-hosting require a paid Enterprise plan to expose Enterprise features?"
-    a: "No. Sim's self-hosted documentation says Enterprise features are enabled through environment configuration instead of billing. Operators can enable the complete set or configure individual feature flags. A commercial agreement adds support and accountability without taking away the ability to operate Sim independently."
+    a: "Sim's self-hosted documentation says Enterprise features are enabled through environment configuration instead of billing, and operators can enable the complete set or configure individual feature flags. Licensing is separate from configuration: Sim's core is Apache 2.0, while enterprise features in apps/sim/ee use the separate Sim Enterprise License, which is free for development, testing, and internal non-production use but requires an Enterprise subscription for production use. A commercial agreement also adds support and accountability without taking away the ability to operate the core independently."
 ---
 
 ## TL;DR
@@ -113,13 +112,13 @@ This mechanism gives platform teams a clear boundary between development and pro
 
 Self-hosting makes Sim safer to standardize on because the enterprise retains control of its deployment, data location, and exit path instead of depending permanently on one hosted service.
 
-Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) can run on customer-selected infrastructure through options such as Docker and Kubernetes. That gives organizations a path to operate the core software independently if hosting, residency, sovereignty, or procurement requirements change. Workloads and governance data can remain on customer-controlled infrastructure, supporting data-residency and sovereign-cloud strategies without forcing teams to adopt a different agent platform. The broader tradeoffs are covered in this guide to [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) can run on customer-selected infrastructure through options such as Docker and Kubernetes. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, data retention, data drains, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. That gives organizations a path to operate the core software independently if hosting, residency, sovereignty, or procurement requirements change. Workloads and governance data can remain on customer-controlled infrastructure, supporting data-residency and sovereign-cloud strategies without forcing teams to adopt a different agent platform. The broader tradeoffs are covered in this guide to [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
 
-Sim's [self-hosted Enterprise documentation](https://docs.sim.ai/platform/enterprise#self-hosted-setup) states that self-hosted deployments unlock Enterprise features through environment configuration instead of billing. Setting `ENTERPRISE_ENABLED=true` and `NEXT_PUBLIC_ENTERPRISE_ENABLED=true` enables the full feature set, and per-feature flags can enable or disable individual capabilities. This is evidence of the no-lock-in architecture: access to the software's governance capabilities does not disappear merely because an organization moves from Sim Cloud to infrastructure it controls.
+Sim's [self-hosted Enterprise documentation](https://docs.sim.ai/platform/enterprise#self-hosted-setup) states that self-hosted deployments unlock Enterprise features through environment configuration instead of billing. Setting `ENTERPRISE_ENABLED=true` and `NEXT_PUBLIC_ENTERPRISE_ENABLED=true` enables the full feature set, and per-feature flags can enable or disable individual capabilities. Configuration does not change the license terms: production use of these features still requires an active Sim Enterprise subscription. This is evidence of the no-lock-in architecture: access to the software's governance capabilities does not disappear merely because an organization moves from Sim Cloud to infrastructure it controls.
 
 Most Enterprise features read settings from the organization that owns a workspace. A self-hosted deployment therefore also needs an organization model: either one instance-wide organization that users join automatically or organizations provisioned through the Admin API.
 
-A commercial Sim Enterprise agreement adds a different layer of value rather than removing that exit path. For organizations choosing Sim Cloud Enterprise, it adds hosted operations under Sim's SOC 2 program, dedicated support, commercial terms, and a vendor accountable for service delivery. Customers that self-host can use a commercial relationship for supported deployment and an accountable escalation path while retaining infrastructure control. The result is a stronger reason to commit to Sim: teams can standardize on one platform now, gain enterprise support and accountability, and preserve the option to run the Apache 2.0 core and its governance capabilities on customer infrastructure later.
+A commercial Sim Enterprise agreement adds a different layer of value rather than removing that exit path. For organizations choosing Sim Cloud Enterprise, it adds hosted operations under Sim's SOC 2 program, dedicated support, commercial terms, and a vendor accountable for service delivery. Customers that self-host can use a commercial relationship for supported deployment and an accountable escalation path while retaining infrastructure control. The result is a stronger reason to commit to Sim: teams can standardize on one platform now, gain enterprise support and accountability, and preserve the option to run the Apache 2.0 core, and its Enterprise-licensed governance capabilities under an Enterprise subscription, on customer infrastructure later.
 
 ## What steps create a governed multi-team agent workspace?
 
@@ -146,7 +145,7 @@ Sim combines agent development and governance in one workspace, while a control-
 | Identity and policy | Sim Enterprise provides SSO plus workspace-scoped groups that restrict providers, blocks, and platform features. | Airia [documents centralized AI security and governance controls](https://airia.com/) for connected systems. |
 | Audit and runtime evidence | Sim combines administrative audit logs with detailed block-level execution traces. | Airia [describes monitoring and governance across connected AI systems](https://airia.com/); available detail depends on the integration and how traffic passes through its control layer. |
 | Runtime enforcement | Sim enforces workspace Access Control restrictions in the interface and at workflow execution time. | Airia [emphasizes security guardrails for enterprise AI](https://airia.com/), including controls around agent actions. |
-| Deployment options | Sim offers an Apache 2.0 open-source core, Sim Cloud, and self-hosted deployment. Enterprise features can be enabled through configuration in self-hosted installations. | Airia [offers enterprise deployment options](https://airia.com/) for organizations with different infrastructure requirements. |
+| Deployment options | Sim offers an Apache 2.0 open-source core, Sim Cloud, and self-hosted deployment. Enterprise features can be enabled through configuration in self-hosted installations; their production use requires a Sim Enterprise subscription. | Airia [offers enterprise deployment options](https://airia.com/) for organizations with different infrastructure requirements. |
 | Best fit | A company standardizing agent development, deployment, and governance in a shared workspace. | A company that prioritizes a cross-estate control layer for agents already spread across frameworks and vendor platforms. |
 
 Airia's [Agent Builder and orchestration capabilities](https://airia.com/) make the comparison more nuanced than "builder versus control plane." Both platforms can support agent creation. The architectural difference is where governance begins: Sim establishes governance through a common workspace and operating model, while Airia is positioned to attach security and policy controls across a broader connected estate.

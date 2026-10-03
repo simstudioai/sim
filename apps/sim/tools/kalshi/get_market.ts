@@ -40,7 +40,7 @@ export const kalshiGetMarketTool: ToolConfig<KalshiGetMarketParams, KalshiGetMar
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_market')
+      handleKalshiError(data, 'get_market')
     }
 
     return {
@@ -149,7 +149,7 @@ export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetM
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_market_v2')
+      handleKalshiError(data, 'get_market_v2')
     }
 
     const m = data.market || {}

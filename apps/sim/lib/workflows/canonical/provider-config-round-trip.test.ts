@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The regression net for the phantom-redeploy bug class.
  *
  * Deploy materializes every declared `defaultValue` into `webhook.providerConfig`

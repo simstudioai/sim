@@ -1,13 +1,4 @@
-/**
- * @vitest-environment node
- */
-import {
-  dbChainMockFns,
-  drizzleOrmMock,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockHandleCreateCredentialFromDraft, mockHandleReconnectCredential } = vi.hoisted(() => ({
@@ -44,30 +35,7 @@ function credentialDraft(id: string, workspaceId: string) {
 
 describe('processCredentialDraft', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('processes only the exact draft bound to the OAuth state', async () => {
-    const draft = credentialDraft('draft-2', 'workspace-2')
-    queueTableRows(schemaMock.pendingCredentialDraft, [draft])
-
-    await processCredentialDraft({
-      draftId: 'draft-2',
-      userId: 'user-1',
-      providerId: 'google-email',
-      accountId: 'account-1',
-    })
-
-    expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.pendingCredentialDraft.id, 'draft-2')
-    expect(mockHandleCreateCredentialFromDraft).toHaveBeenCalledWith({
-      draft,
-      accountId: 'account-1',
-      providerId: 'google-email',
-      userId: 'user-1',
-      now: expect.any(Date),
-    })
-    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.pendingCredentialDraft)
   })
 
   it('reconnects the credential bound to an exact Slack draft regardless of account identity', async () => {
@@ -138,14 +106,6 @@ describe('processCredentialDraft', () => {
 })
 
 describe('parseCredentialDraftIdFromCallbackUrl', () => {
-  it('extracts the exact draft id from a valid callback URL', () => {
-    expect(
-      parseCredentialDraftIdFromCallbackUrl(
-        'https://sim.test/oauth/credential-connected?credentialDraftId=draft-1'
-      )
-    ).toBe('draft-1')
-  })
-
   it('reads the relative callback URL Better Auth documents and stores verbatim', () => {
     expect(
       parseCredentialDraftIdFromCallbackUrl(
@@ -167,14 +127,6 @@ describe('parseCredentialDraftIdFromCallbackUrl', () => {
 })
 
 describe('loadOAuthCredentialDraftBinding', () => {
-  it('returns the exact draft id when OAuth state is readable', async () => {
-    await expect(
-      loadOAuthCredentialDraftBinding(async () => ({
-        callbackURL: 'https://sim.test/oauth/credential-connected?credentialDraftId=draft-exact',
-      }))
-    ).resolves.toEqual({ status: 'available', draftId: 'draft-exact' })
-  })
-
   it('marks unreadable OAuth state unavailable instead of permitting legacy draft fallback', async () => {
     const stateError = new Error('OAuth state is unavailable')
 

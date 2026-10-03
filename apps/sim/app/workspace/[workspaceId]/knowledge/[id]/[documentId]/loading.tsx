@@ -2,12 +2,12 @@
 
 import { Database, FileText, Plus } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
+import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
 import {
-  type BreadcrumbItem,
   type ChromeActionSpec,
   ResourceChromeFallback,
-} from '@/app/workspace/[workspaceId]/components'
-import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
+import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 
 const KNOWLEDGE_HEADER = FOLDERED_RESOURCE_HEADERS.knowledge_base
 

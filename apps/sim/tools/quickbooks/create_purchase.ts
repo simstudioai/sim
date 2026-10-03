@@ -87,6 +87,20 @@ export const quickbooksCreatePurchaseTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal purchase note',
     },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable',
+    },
     requestId: {
       type: 'string',
       required: false,

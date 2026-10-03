@@ -16,7 +16,7 @@ User arguments: $ARGUMENTS
 
 A comment must add information the code cannot express itself. Code says *what* and *how*; a comment earns its place only by explaining *why* — a non-obvious constraint, a workaround, a decision, a gotcha. If deleting the comment loses no information a competent reader wouldn't recover from the code in seconds, delete it.
 
-This codebase's convention: **TSDoc for documentation, no non-TSDoc comments, no `====` separators.** Genuine documentation belongs in a `/** ... */` block on the declaration; everything that survives as an inline `//` comment must be a real *why*, kept terse.
+This codebase's convention: **TSDoc for documentation; an inline `//` only for a terse non-obvious why or a script-enforced annotation; no `====` separators.** Genuine documentation belongs in a `/** ... */` block on the declaration; everything that survives as an inline `//` comment must be a real *why*, kept terse.
 
 ## Anti-patterns to detect
 
@@ -32,7 +32,7 @@ This codebase's convention: **TSDoc for documentation, no non-TSDoc comments, no
 
 - A `//` comment that explains a **non-obvious why**: a workaround for an upstream bug, an ordering constraint, a perf reason, a spec/edge-case the code can't self-document (`// first-match wins — matches the old find() semantics`).
 - Existing TSDoc `/** ... */` blocks on declarations — leave them (only tighten if verbose).
-- `// boundary-raw-fetch:`, `// double-cast-allowed:`, `// boundary-raw-json:`, `// untyped-response:`, `// migration-safe:`, `// rq-lint-allow:`, `// client-boundary-allow:` and any other `<kebab-tag>: <reason>` annotation a script under `scripts/` greps for, in line-comment or block-comment form (e.g. the `/** svg-path-precision-exception: ... */` directive on icon paths) — these are load-bearing, never touch them.
+- `// boundary-raw-fetch:`, `// double-cast-allowed:`, `// boundary-raw-json:`, `// untyped-response:`, `-- migration-safe:` (SQL migrations), `// rq-lint-allow:`, `// client-boundary-allow:` and any other `<kebab-tag>: <reason>` annotation a script under `scripts/` greps for, in line-comment or block-comment form (e.g. the `/** svg-path-precision-exception: ... */` directive on icon paths) — these are load-bearing, never touch them.
 - `// biome-ignore`, `// eslint-disable`, `// @ts-expect-error` and other tooling directives.
 - `// TODO` / `// FIXME` that point at real, still-open work.
 

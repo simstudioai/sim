@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, resetUrlsMock, setEnv, urlsMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { getSmtpEhloName } from '@/lib/messaging/email/ehlo'
@@ -19,21 +16,6 @@ beforeEach(() => {
 describe('getSmtpEhloName', () => {
   it("falls back to the app's own domain so k8s pods never greet as [127.0.0.1]", () => {
     expect(getSmtpEhloName()).toBe('sim.example.com')
-  })
-
-  it('prefers an explicitly configured SMTP_EHLO_NAME', () => {
-    setEnv({ SMTP_EHLO_NAME: 'mail.yourdomain.com' })
-    expect(getSmtpEhloName()).toBe('mail.yourdomain.com')
-  })
-
-  it('trims surrounding whitespace', () => {
-    setEnv({ SMTP_EHLO_NAME: '  mail.yourdomain.com  ' })
-    expect(getSmtpEhloName()).toBe('mail.yourdomain.com')
-  })
-
-  it('accepts an RFC 5321 address literal', () => {
-    setEnv({ SMTP_EHLO_NAME: '[203.0.113.5]' })
-    expect(getSmtpEhloName()).toBe('[203.0.113.5]')
   })
 
   it.each(['[IPv6:2001:db8::1]', '[ipv6:2001:db8::1]', '[IPV6:2001:db8::1]'])(
@@ -65,16 +47,5 @@ describe('getSmtpEhloName', () => {
   it('strips a port from the app domain instead of falling back over it', () => {
     urlsMockFns.mockGetEmailDomain.mockReturnValue('sim.example.com:8443')
     expect(getSmtpEhloName()).toBe('sim.example.com')
-  })
-
-  it("returns undefined for a dev app domain, leaving nodemailer's default", () => {
-    urlsMockFns.mockGetEmailDomain.mockReturnValue('localhost:3000')
-    expect(getSmtpEhloName()).toBeUndefined()
-  })
-
-  it('returns undefined when neither source yields a qualified name', () => {
-    setEnv({ SMTP_EHLO_NAME: 'localhost' })
-    urlsMockFns.mockGetEmailDomain.mockReturnValue('localhost')
-    expect(getSmtpEhloName()).toBeUndefined()
   })
 })

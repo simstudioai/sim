@@ -18,5 +18,11 @@ export function resourceFromItem(
   item: AvailableItem
 ): MothershipResource {
   const executionId = typeof item.executionId === 'string' ? item.executionId : undefined
-  return { type, id: item.id, title: item.name, ...(executionId ? { executionId } : {}) }
+  return {
+    type,
+    id: item.id,
+    title: item.name,
+    ...(executionId ? { executionId } : {}),
+    ...(typeof item.workspaceId === 'string' ? { workspaceId: item.workspaceId } : {}),
+  }
 }

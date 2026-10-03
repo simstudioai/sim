@@ -14,7 +14,6 @@ import {
   HITL_VALIDATE_WORKFLOW,
 } from '@/components/workflow-preview'
 import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
 
 The **Human in the Loop block** pauses a run and waits for a person before it continues. Use it for approval gates, to collect feedback, or to gather input at a decision point. The run stays paused — with no timeout — until someone responds through the approval portal, the API, or a webhook.
 
@@ -258,28 +257,6 @@ Read them downstream as `<blockName.output>` — for a block named `approval`, t
 
 ## The approval portal
 
-**Paused Output:**
-```json
-{
-  "title": "<agent1.content.title>",
-  "body": "<agent1.content.body>",
-  "qualityScore": "<evaluator1.score>"
-}
-```
-
-**Resume Input:**
-```json
-{
-  "approved": { "type": "boolean" },
-  "feedback": { "type": "string" }
-}
-```
-
-**Downstream Usage:**
-```javascript
-// Condition block
-<approval1.approved> === true
-```
 The example below shows an approval portal as seen by an approver after the workflow is paused. Approvers can review the data and provide inputs as a part of the workflow resumption. The approval portal can be accessed directly via the unique URL, `<blockId.url>`.
 
 <div className="mx-auto w-full overflow-hidden rounded-lg my-6">
@@ -291,12 +268,3 @@ The example below shows an approval portal as seen by an approver after the work
 - **[Condition](/workflows/blocks/condition)** - Branch based on approval decisions
 - **[Variables](/workflows/blocks/variables)** - Store approval history and metadata
 - **[Response](/workflows/blocks/response)** - Return workflow results to API callers
-
-<FAQ items={[
-  { question: "How long does the workflow stay paused?", answer: "The workflow pauses indefinitely until a human provides input through the approval portal, the REST API, or a webhook. There is no automatic timeout — it will wait until someone responds." },
-  { question: "What notification channels can I use to alert approvers?", answer: "You can configure notifications through Slack, Gmail, Microsoft Teams, SMS (via Twilio), or custom webhooks. Include the approval URL in your notification message so approvers can access the portal directly." },
-  { question: "How do I access the approver's input in downstream blocks?", answer: "Use the syntax <blockId.fieldName> to reference specific fields from the resume form. For example, if your block name is 'approval1' and the form has an 'approved' field, use <approval1.approved>." },
-  { question: "Can I chain multiple Human in the Loop blocks for multi-stage approvals?", answer: "Yes. You can place multiple Human in the Loop blocks in sequence to create multi-stage approval workflows. Each block pauses independently and can have its own notification configuration and resume form fields." },
-  { question: "Can I resume the workflow programmatically without the portal?", answer: "Yes. Each block exposes a resume API endpoint that you can call with a POST request containing the form data as JSON. This lets you build custom approval UIs or integrate with existing systems like Jira or ServiceNow." },
-  { question: "What outputs are available after the workflow resumes?", answer: "The block outputs include the approval portal URL, the resume API endpoint URL, the display data shown to the approver, the form submission data, the raw resume input, and an ISO timestamp of when the workflow was resumed." },
-]} />

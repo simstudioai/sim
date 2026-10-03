@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
-import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
+import { document, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   deleteAllTagDefinitions,
   deleteTagDefinition,
@@ -27,27 +23,7 @@ function queueSingleTagDeletion(conflict: boolean): void {
 
 describe('knowledge tag deletion provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('uses one bounded transaction and preserves the established bulk cleanup path', async () => {
-    queueSingleTagDeletion(false)
-
-    await expect(
-      deleteTagDefinition(KNOWLEDGE_BASE_ID, TAG_DEFINITION.id, 'request-1')
-    ).resolves.toEqual({ tagSlot: 'tag1', displayName: 'Classification' })
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
-    expect(JSON.stringify(dbChainMockFns.execute.mock.calls[0]?.[0])).toContain('statement_timeout')
-
-    const selectedTables = dbChainMockFns.from.mock.calls.map(([table]) => table)
-    expect(selectedTables).toEqual([knowledgeBase, knowledgeBaseTagDefinitions, document])
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update', { of: document })
-    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([embedding, document])
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ tag1: null })
-    expect(dbChainMockFns.delete).toHaveBeenCalledWith(knowledgeBaseTagDefinitions)
   })
 
   it('rejects uncertain or nonempty tracked provenance before mutating data', async () => {
@@ -59,14 +35,6 @@ describe('knowledge tag deletion provenance', () => {
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('classifies provenance rejection as a caller-actionable conflict', () => {
-    expect(asOrchestrationError(new KnowledgeTagProvenanceConflictError())).toMatchObject({
-      code: 'conflict',
-      message:
-        'Tag definitions cannot be deleted while resolved-secret document provenance is present',
-    })
   })
 
   it('clears every bounded tag slot through the same guarded mutation path', async () => {

@@ -2,9 +2,8 @@ import { SmtpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { SmtpSendMailResult } from '@/tools/smtp/types'
 
-export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
+export const SmtpBlock: BlockConfig = {
   type: 'smtp',
   name: 'SMTP',
   description: 'Send emails via any SMTP mail server',

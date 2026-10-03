@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { assertZohoUrl, isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import {

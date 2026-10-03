@@ -208,7 +208,7 @@ export function rowDataNameToId(data: RowData, idByName: Map<string, string>): R
  * callers most likely to believe they had written something.
  */
 export function unknownColumnNames(
-  data: RowData,
+  data: Readonly<Record<string, unknown>>,
   knownKeys: ReadonlyMap<string, unknown>
 ): string[] {
   return Object.keys(data).filter((key) => !knownKeys.has(key))

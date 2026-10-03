@@ -1,0 +1,158 @@
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
+import { describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  extractResourcesFromToolResult: vi.fn(),
+  persistChatResources: vi.fn(() => Promise.resolve()),
+  changeStoredChatResources: vi.fn().mockResolvedValue([]),
+}))
+
+vi.mock('@/lib/mothership/resources/store', () => ({
+  changeStoredChatResources: mocks.changeStoredChatResources,
+}))
+
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
+
+vi.mock('@/lib/mothership/resources/persistence', () => ({
+  extractDeletedResourcesFromToolResult: vi.fn(() => []),
+  extractResourcesFromToolResult: mocks.extractResourcesFromToolResult,
+  hasDeleteCapability: vi.fn(() => false),
+  isResourceToolName: vi.fn(() => true),
+  persistChatResources: mocks.persistChatResources,
+  removeChatResources: vi.fn(() => Promise.resolve()),
+}))
+
+import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
+import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import type { StreamEvent } from '@/lib/mothership/request/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
+
+describe('handleResourceSideEffects', () => {
+  it('persists and emits the explicit saved-view pin clear directive', async () => {
+    mocks.extractResourcesFromToolResult.mockReturnValue([
+      {
+        type: 'table',
+        id: 'tbl-1',
+        title: 'Invoices',
+        clearViewId: true,
+      },
+    ])
+    const onEvent = vi.fn()
+
+    await handleResourceSideEffects(
+      'table_views',
+      { operation: 'delete_view', args: { tableId: 'tbl-1', viewId: 'view-1' } },
+      { success: true, output: {} },
+      { success: true, output: {} },
+      'chat-1',
+      onEvent,
+      () => false
+    )
+
+    expect(mocks.changeStoredChatResources).toHaveBeenCalledWith('chat-1', {
+      kind: 'clear-view',
+      tableId: 'tbl-1',
+      viewId: 'view-1',
+    })
+    expect(onEvent).toHaveBeenCalledWith({
+      type: MothershipStreamV1EventType.resource,
+      payload: {
+        op: 'clear_view',
+        resource: {
+          type: 'table',
+          id: 'tbl-1',
+          viewId: 'view-1',
+        },
+      },
+    })
+  })
+  it.each([
+    {
+      type: 'search',
+      id: 'search:organization:org',
+      title: 'Search results',
+      search: {
+        query: 'policy',
+        scope: { kind: 'organization', organizationId: 'org' },
+        filters: { source: 'slack' },
+        topK: 7,
+      },
+    },
+  ] satisfies MothershipResource[])(
+    'retains $type metadata while keeping the canonical resource identity',
+    async (resource) => {
+      const onEvent = vi.fn()
+      await handleResourceSideEffects(
+        'open_resource',
+        undefined,
+        { success: true, output: {}, resources: [resource] },
+        { success: true, output: {}, resources: [{ ...resource, id: 'projected-id' }] },
+        'chat',
+        onEvent,
+        () => false
+      )
+      expect(mocks.persistChatResources).toHaveBeenCalledWith('chat', [resource])
+      expect(onEvent).toHaveBeenCalledWith({
+        type: 'resource',
+        payload: { op: 'upsert', resource },
+      })
+    }
+  )
+  it.each([
+    { chat: 'organization', organizationId: 'org', expected: { workspaceId: 'workspace-a' } },
+    { chat: 'workspace', organizationId: undefined, expected: {} },
+  ])(
+    'addresses extracted exports in a $chat chat like its open tabs',
+    async ({ organizationId, expected }) => {
+      const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
+      mocks.extractResourcesFromToolResult.mockReturnValue([resource])
+      const events: StreamEvent[] = []
+      await handleResourceSideEffects(
+        'run_function',
+        undefined,
+        { success: true, output: {} },
+        { success: true, output: {} },
+        'chat',
+        (event) => {
+          events.push(event)
+        },
+        () => false,
+        { organizationId, workspaceId: 'workspace-a' }
+      )
+      expect(events).toEqual([
+        {
+          type: 'resource',
+          payload: { op: 'upsert', resource: { ...resource, ...expected } },
+        },
+      ])
+    }
+  )
+})
+
+it('emits authorized Search results beside the persisted address, never inside it', async () => {
+  const resource: MothershipResource = {
+    type: 'search',
+    id: 'search:organization:org',
+    title: 'Search results',
+    search: { query: 'policy', scope: { kind: 'organization', organizationId: 'org' } },
+  }
+  const data = { query: 'policy', results: [], retrieval: { status: 'complete', timedOutLegs: [] } }
+  const result = { success: true, output: { success: true, data }, resources: [resource] }
+  const onEvent = vi.fn()
+  await handleResourceSideEffects(
+    'search_workspace',
+    {},
+    result,
+    result,
+    'chat',
+    onEvent,
+    () => false,
+    undefined,
+    'reader'
+  )
+  expect(mocks.persistChatResources).toHaveBeenLastCalledWith('chat', [resource])
+  expect(onEvent).toHaveBeenCalledWith({
+    type: 'resource',
+    payload: { op: 'upsert', resource, searchResult: { actorUserId: 'reader', data } },
+  })
+})
