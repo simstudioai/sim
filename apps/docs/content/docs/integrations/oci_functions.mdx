@@ -1,0 +1,554 @@
+---
+title: OCI Functions
+description: Invoke and manage Oracle Cloud Functions
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_functions"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Use a reusable OCI API-key service account to invoke functions synchronously or in detached mode, discover applications and functions, and manage their configuration and existing container image references. Detached acknowledgements do not contain completed results. Image builds, registry uploads, and source deployment are outside this integration.
+
+
+
+## Actions
+
+### OCI Functions Invoke
+
+Invoke an OCI function synchronously, start a detached invocation, or dry-run without executing. Payloads and results are limited to 6 MB. Detached HTTP 202 acknowledges processing and is not a completed result. One provider invocation attempt per tool execution; keep block retries disabled to avoid replay. A lost response can follow successful execution; cancellation ends the wait, not the Oracle execution.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `functionId` | string | Yes | Function OCID; endpoint is discovered through an authenticated management read |
+| `invocationType` | string | No | sync \(default\) or detached |
+| `dryRun` | boolean | No | Validate invocation without executing the function \(default false\) |
+| `intent` | string | No | Optional fn-intent: httprequest or cloudevent |
+| `payloadType` | string | No | json \(default\), text, or file |
+| `payload` | json | No | JSON value, or a string for text mode; omit for an empty body. JSON false, 0, null, and empty strings are preserved. |
+| `file` | file | No | One uploaded UserFile for file mode; access is checked before download |
+| `contentType` | string | No | Content type override; otherwise inferred from payload mode or uploaded file |
+| `outputFormat` | string | No | auto \(default\) returns JSON/text or a file for binary data; file returns an execution file, except an empty body returns an empty string |
+| `timeoutMs` | number | No | Client wait timeout in milliseconds, 1–300000 \(default 300000\); execution cancellation can end it earlier |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `functionId` | string | Invoked function OCID |
+| `invocationType` | string | Requested invocation mode: sync or detached |
+| `dryRun` | boolean | Whether this was a dry-run request |
+| `accepted` | boolean | True for HTTP 202 acknowledgement; no completed result is available |
+| `contentType` | string | Result content type, when a result is returned |
+| `result` | json | Synchronous JSON value or text; empty response body becomes an empty string. Absent for acknowledgements, dry runs, or non-empty file output. |
+| `file` | file | Binary or explicitly requested file result, stored as an execution file |
+
+### OCI Functions List Applications
+
+List one page of OCI Functions applications in a compartment, with exact filters and continuation-token pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `compartmentId` | string | Yes | Compartment OCID |
+| `limit` | number | No | Page size, 1–50 \(default 10\) |
+| `page` | string | No | Continuation token from nextPage; returns one page only |
+| `displayName` | string | No | Exact display-name filter |
+| `id` | string | No | Exact resource OCID filter |
+| `lifecycleState` | string | No | Resource lifecycle state, such as ACTIVE; functions also support INACTIVE |
+| `sortBy` | string | No | Sort by timeCreated, id, or displayName |
+| `sortOrder` | string | No | ASC or DESC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `nextPage` | string | Continuation token; absent on the last page |
+| `applications` | array | One page of applications |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `subnetIds` | array | Application subnet OCIDs |
+|   ↳ `networkSecurityGroupIds` | array | Network security group OCIDs |
+|   ↳ `shape` | string | Application processor architecture |
+|   ↳ `traceConfig` | object | Application tracing configuration |
+|     ↳ `domainId` | string | APM domain OCID |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `logging` | object | Application logging configuration |
+|     ↳ `lineFormat` | string | JSON or PLAIN_TEXT |
+|   ↳ `imagePolicyConfig` | object | Image signature policy |
+|     ↳ `isPolicyEnabled` | boolean | Whether signature verification is enabled |
+|     ↳ `keyDetails` | array | Trusted signing keys |
+|       ↳ `kmsKeyId` | string | KMS key OCID |
+|   ↳ `securityAttributes` | json | Security attributes grouped by namespace, with value and mode |
+
+### OCI Functions Get Application
+
+Read an OCI Functions application, including configuration, networking, tags, tracing, logging, and image policy.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `applicationId` | string | Yes | Application OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `etag` | string | Oracle resource ETag for conditional updates or deletion |
+| `application` | object | Documented OCI application metadata |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `subnetIds` | array | Application subnet OCIDs |
+|   ↳ `networkSecurityGroupIds` | array | Network security group OCIDs |
+|   ↳ `shape` | string | Application processor architecture |
+|   ↳ `traceConfig` | object | Application tracing configuration |
+|     ↳ `domainId` | string | APM domain OCID |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `logging` | object | Application logging configuration |
+|     ↳ `lineFormat` | string | JSON or PLAIN_TEXT |
+|   ↳ `imagePolicyConfig` | object | Image signature policy |
+|     ↳ `isPolicyEnabled` | boolean | Whether signature verification is enabled |
+|     ↳ `keyDetails` | array | Trusted signing keys |
+|       ↳ `kmsKeyId` | string | KMS key OCID |
+|   ↳ `securityAttributes` | json | Security attributes grouped by namespace, with value and mode |
+|   ↳ `config` | json | Application environment variables; functions can override values |
+|   ↳ `syslogUrl` | string | Application syslog URL |
+
+### OCI Functions Create Application
+
+Create an OCI Functions application using existing subnets. Does not create networking or deploy functions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `compartmentId` | string | Yes | Compartment OCID |
+| `displayName` | string | Yes | New application display name |
+| `subnetIds` | array | Yes | At least one subnet OCID for the application |
+| `shape` | string | No | GENERIC_X86, GENERIC_ARM, or GENERIC_X86_ARM; defaults according to Oracle |
+| `configuration` | json | No | JSON settings: config \(string map; at most 100 entries/4096 UTF-8 bytes\), networkSecurityGroupIds \(at most 5\), syslogUrl, traceConfig \{domainId,isEnabled\}, logging \{lineFormat: JSON\|PLAIN_TEXT\}, freeformTags, definedTags, imagePolicyConfig \{isPolicyEnabled,keyDetails:\[\{kmsKeyId\}\]\}, securityAttributes \{namespace:\{key:\{value,mode: enforce\}\}\}. Supplied maps/objects replace existing values; omit to preserve. Use config:\{\} to clear configuration. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `etag` | string | Oracle resource ETag for conditional updates or deletion |
+| `application` | object | Documented OCI application metadata |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `subnetIds` | array | Application subnet OCIDs |
+|   ↳ `networkSecurityGroupIds` | array | Network security group OCIDs |
+|   ↳ `shape` | string | Application processor architecture |
+|   ↳ `traceConfig` | object | Application tracing configuration |
+|     ↳ `domainId` | string | APM domain OCID |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `logging` | object | Application logging configuration |
+|     ↳ `lineFormat` | string | JSON or PLAIN_TEXT |
+|   ↳ `imagePolicyConfig` | object | Image signature policy |
+|     ↳ `isPolicyEnabled` | boolean | Whether signature verification is enabled |
+|     ↳ `keyDetails` | array | Trusted signing keys |
+|       ↳ `kmsKeyId` | string | KMS key OCID |
+|   ↳ `securityAttributes` | json | Security attributes grouped by namespace, with value and mode |
+|   ↳ `config` | json | Application environment variables; functions can override values |
+|   ↳ `syslogUrl` | string | Application syslog URL |
+
+### OCI Functions Update Application
+
+Update documented OCI Functions application settings. Supplied configuration maps replace existing values; omitted fields are unchanged. Does not rename the application or change its subnets.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `applicationId` | string | Yes | Application OCID |
+| `configuration` | json | Yes | JSON settings: config \(string map; at most 100 entries/4096 UTF-8 bytes\), networkSecurityGroupIds \(at most 5\), syslogUrl, traceConfig \{domainId,isEnabled\}, logging \{lineFormat: JSON\|PLAIN_TEXT\}, freeformTags, definedTags, imagePolicyConfig \{isPolicyEnabled,keyDetails:\[\{kmsKeyId\}\]\}, securityAttributes \{namespace:\{key:\{value,mode: enforce\}\}\}. Supplied maps/objects replace existing values; omit to preserve. Use config:\{\} to clear configuration. |
+| `ifMatch` | string | No | ETag from a resource read; reject the mutation if the resource changed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `etag` | string | Oracle resource ETag for conditional updates or deletion |
+| `application` | object | Documented OCI application metadata |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `subnetIds` | array | Application subnet OCIDs |
+|   ↳ `networkSecurityGroupIds` | array | Network security group OCIDs |
+|   ↳ `shape` | string | Application processor architecture |
+|   ↳ `traceConfig` | object | Application tracing configuration |
+|     ↳ `domainId` | string | APM domain OCID |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `logging` | object | Application logging configuration |
+|     ↳ `lineFormat` | string | JSON or PLAIN_TEXT |
+|   ↳ `imagePolicyConfig` | object | Image signature policy |
+|     ↳ `isPolicyEnabled` | boolean | Whether signature verification is enabled |
+|     ↳ `keyDetails` | array | Trusted signing keys |
+|       ↳ `kmsKeyId` | string | KMS key OCID |
+|   ↳ `securityAttributes` | json | Security attributes grouped by namespace, with value and mode |
+|   ↳ `config` | json | Application environment variables; functions can override values |
+|   ↳ `syslogUrl` | string | Application syslog URL |
+
+### OCI Functions Delete Application
+
+Delete an OCI Functions application with one API request. Delete contained functions explicitly first; this tool does not perform cascading function deletion.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `applicationId` | string | Yes | Application OCID |
+| `ifMatch` | string | No | ETag from a resource read; reject the mutation if the resource changed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `applicationId` | string | Application OCID supplied to the successful operation |
+
+### OCI Functions Change Application Compartment
+
+Move an OCI Functions application to a destination compartment. Oracle checks access for the move; verify destination policies before moving production applications.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `applicationId` | string | Yes | Application OCID |
+| `compartmentId` | string | Yes | Destination compartment OCID |
+| `ifMatch` | string | No | ETag from a resource read; reject the mutation if the resource changed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `applicationId` | string | Application OCID supplied to the successful operation |
+| `compartmentId` | string | Destination compartment OCID supplied to the successful move |
+
+### OCI Functions List Functions
+
+List one page of OCI functions in an application, with exact filters and continuation-token pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `applicationId` | string | Yes | Application OCID |
+| `limit` | number | No | Page size, 1–50 \(default 10\) |
+| `page` | string | No | Continuation token from nextPage; returns one page only |
+| `displayName` | string | No | Exact display-name filter |
+| `id` | string | No | Exact resource OCID filter |
+| `lifecycleState` | string | No | Resource lifecycle state, such as ACTIVE; functions also support INACTIVE |
+| `sortBy` | string | No | Sort by timeCreated, id, or displayName |
+| `sortOrder` | string | No | ASC or DESC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `nextPage` | string | Continuation token; absent on the last page |
+| `functions` | array | One page of functions |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `applicationId` | string | Application OCID |
+|   ↳ `image` | string | Container image reference |
+|   ↳ `imageDigest` | string | Container image digest |
+|   ↳ `invokeEndpoint` | string | Oracle invocation endpoint; the invoke tool discovers and validates it automatically |
+|   ↳ `memoryInMBs` | number | Allocated memory in MB |
+|   ↳ `timeoutInSeconds` | number | Synchronous execution timeout in seconds |
+|   ↳ `detachedModeTimeoutInSeconds` | number | Detached execution timeout in seconds |
+|   ↳ `shape` | string | Function processor architecture |
+|   ↳ `provisionedConcurrencyConfig` | object | Provisioned concurrency settings |
+|     ↳ `strategy` | string | NONE or CONSTANT |
+|     ↳ `count` | number | Provisioned concurrency count for CONSTANT |
+|   ↳ `failureDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `successDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `traceConfig` | object | Function tracing configuration |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `sourceDetails` | object | Pre-built function source metadata, when present |
+|     ↳ `sourceType` | string | PRE_BUILT_FUNCTIONS |
+|     ↳ `pbfListingId` | string | Pre-built function listing OCID |
+
+### OCI Functions Get Function
+
+Read an OCI function, including its image, configuration, execution timeouts, concurrency, destinations, and invocation endpoint.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `functionId` | string | Yes | Function OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `etag` | string | Oracle resource ETag for conditional updates or deletion |
+| `function` | object | Documented OCI function metadata |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `applicationId` | string | Application OCID |
+|   ↳ `image` | string | Container image reference |
+|   ↳ `imageDigest` | string | Container image digest |
+|   ↳ `invokeEndpoint` | string | Oracle invocation endpoint; the invoke tool discovers and validates it automatically |
+|   ↳ `memoryInMBs` | number | Allocated memory in MB |
+|   ↳ `timeoutInSeconds` | number | Synchronous execution timeout in seconds |
+|   ↳ `detachedModeTimeoutInSeconds` | number | Detached execution timeout in seconds |
+|   ↳ `shape` | string | Function processor architecture |
+|   ↳ `provisionedConcurrencyConfig` | object | Provisioned concurrency settings |
+|     ↳ `strategy` | string | NONE or CONSTANT |
+|     ↳ `count` | number | Provisioned concurrency count for CONSTANT |
+|   ↳ `failureDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `successDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `traceConfig` | object | Function tracing configuration |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `sourceDetails` | object | Pre-built function source metadata, when present |
+|     ↳ `sourceType` | string | PRE_BUILT_FUNCTIONS |
+|     ↳ `pbfListingId` | string | Pre-built function listing OCID |
+|   ↳ `config` | json | Function environment variables, overriding application values |
+
+### OCI Functions Create Function
+
+Create an OCI function from an existing container image. Does not build containers, upload images, or deploy source code.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `applicationId` | string | Yes | Application OCID |
+| `displayName` | string | Yes | New function display name |
+| `image` | string | Yes | Existing image reference in OCI Registry in the function region |
+| `memoryInMBs` | number | Yes | Function memory: 128, 256, 512, 1024, 2048, or 3072 MB |
+| `configuration` | json | No | JSON settings: config \(string map; effective application plus function configuration must fit 4096 UTF-8 bytes\), imageDigest, timeoutInSeconds \(1–300\), detachedModeTimeoutInSeconds \(5–3600\), provisionedConcurrencyConfig \{strategy: NONE\} or \{strategy: CONSTANT,count\}, successDestination/failureDestination \{destinationType: NONE\|STREAM\|QUEUE\|NOTIFICATION, streamId\|queueId\|topicId, optional channelId for QUEUE\}, traceConfig \{isEnabled\}, freeformTags, definedTags. Supplied maps/objects replace existing values; omit to preserve. Use config:\{\} to clear function overrides. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `etag` | string | Oracle resource ETag for conditional updates or deletion |
+| `function` | object | Documented OCI function metadata |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `applicationId` | string | Application OCID |
+|   ↳ `image` | string | Container image reference |
+|   ↳ `imageDigest` | string | Container image digest |
+|   ↳ `invokeEndpoint` | string | Oracle invocation endpoint; the invoke tool discovers and validates it automatically |
+|   ↳ `memoryInMBs` | number | Allocated memory in MB |
+|   ↳ `timeoutInSeconds` | number | Synchronous execution timeout in seconds |
+|   ↳ `detachedModeTimeoutInSeconds` | number | Detached execution timeout in seconds |
+|   ↳ `shape` | string | Function processor architecture |
+|   ↳ `provisionedConcurrencyConfig` | object | Provisioned concurrency settings |
+|     ↳ `strategy` | string | NONE or CONSTANT |
+|     ↳ `count` | number | Provisioned concurrency count for CONSTANT |
+|   ↳ `failureDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `successDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `traceConfig` | object | Function tracing configuration |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `sourceDetails` | object | Pre-built function source metadata, when present |
+|     ↳ `sourceType` | string | PRE_BUILT_FUNCTIONS |
+|     ↳ `pbfListingId` | string | Pre-built function listing OCID |
+|   ↳ `config` | json | Function environment variables, overriding application values |
+
+### OCI Functions Update Function
+
+Update an OCI function image, memory, or documented configuration. Supplied maps and nested settings replace existing values; omitted fields are unchanged. Does not build or publish images.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `functionId` | string | Yes | Function OCID |
+| `image` | string | No | Existing image reference in OCI Registry in the function region |
+| `memoryInMBs` | number | No | Function memory: 128, 256, 512, 1024, 2048, or 3072 MB |
+| `configuration` | json | No | JSON settings: config \(string map; effective application plus function configuration must fit 4096 UTF-8 bytes\), imageDigest, timeoutInSeconds \(1–300\), detachedModeTimeoutInSeconds \(5–3600\), provisionedConcurrencyConfig \{strategy: NONE\} or \{strategy: CONSTANT,count\}, successDestination/failureDestination \{destinationType: NONE\|STREAM\|QUEUE\|NOTIFICATION, streamId\|queueId\|topicId, optional channelId for QUEUE\}, traceConfig \{isEnabled\}, freeformTags, definedTags. Supplied maps/objects replace existing values; omit to preserve. Use config:\{\} to clear function overrides. |
+| `ifMatch` | string | No | ETag from a resource read; reject the mutation if the resource changed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `etag` | string | Oracle resource ETag for conditional updates or deletion |
+| `function` | object | Documented OCI function metadata |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `displayName` | string | Resource display name |
+|   ↳ `lifecycleState` | string | Current lifecycle state |
+|   ↳ `timeCreated` | string | Creation time in RFC 3339 format |
+|   ↳ `timeUpdated` | string | Last update time in RFC 3339 format |
+|   ↳ `freeformTags` | json | Free-form tag key/value map |
+|   ↳ `definedTags` | json | Defined tags grouped by namespace |
+|   ↳ `applicationId` | string | Application OCID |
+|   ↳ `image` | string | Container image reference |
+|   ↳ `imageDigest` | string | Container image digest |
+|   ↳ `invokeEndpoint` | string | Oracle invocation endpoint; the invoke tool discovers and validates it automatically |
+|   ↳ `memoryInMBs` | number | Allocated memory in MB |
+|   ↳ `timeoutInSeconds` | number | Synchronous execution timeout in seconds |
+|   ↳ `detachedModeTimeoutInSeconds` | number | Detached execution timeout in seconds |
+|   ↳ `shape` | string | Function processor architecture |
+|   ↳ `provisionedConcurrencyConfig` | object | Provisioned concurrency settings |
+|     ↳ `strategy` | string | NONE or CONSTANT |
+|     ↳ `count` | number | Provisioned concurrency count for CONSTANT |
+|   ↳ `failureDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `successDestination` | object | Invocation result destination; fields depend on destinationType |
+|     ↳ `destinationType` | string | NONE, STREAM, QUEUE, or NOTIFICATION |
+|     ↳ `streamId` | string | Stream OCID for STREAM |
+|     ↳ `queueId` | string | Queue OCID for QUEUE |
+|     ↳ `channelId` | string | Optional queue channel |
+|     ↳ `topicId` | string | Topic OCID for NOTIFICATION |
+|   ↳ `traceConfig` | object | Function tracing configuration |
+|     ↳ `isEnabled` | boolean | Whether tracing is enabled |
+|   ↳ `sourceDetails` | object | Pre-built function source metadata, when present |
+|     ↳ `sourceType` | string | PRE_BUILT_FUNCTIONS |
+|     ↳ `pbfListingId` | string | Pre-built function listing OCID |
+|   ↳ `config` | json | Function environment variables, overriding application values |
+
+### OCI Functions Delete Function
+
+Delete an OCI function, optionally requiring an ETag match. Returns successful HTTP 204 acknowledgement without parsing an empty response body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable OCI API-key service-account credential ID |
+| `region` | string | No | OCI region identifier; omit to use the credential region |
+| `functionId` | string | Yes | Function OCID |
+| `ifMatch` | string | No | ETag from a resource read; reject the mutation if the resource changed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status returned by Oracle |
+| `opcRequestId` | string | Oracle request identifier, when returned |
+| `functionId` | string | Function OCID supplied to the successful operation |
+
+
